@@ -1,4 +1,5 @@
 use super::content::{create_directory, escape, markdown, write_page};
+use super::llms::{self, Index, Section};
 use super::marketing::Layout;
 use std::fmt::Write;
 use std::fs;
@@ -14,6 +15,7 @@ struct Post<'a> {
     tags: Vec<&'a str>,
     draft: bool,
     body: String,
+    markdown_body: &'a str,
 }
 
 impl<'a> Post<'a> {
@@ -54,7 +56,8 @@ impl<'a> Post<'a> {
         if tags.is_empty() || lines.next() != Some("") {
             return Err(invalid());
         }
-        let body = markdown(&lines.collect::<Vec<_>>().join("\n"));
+        let markdown_body = source.splitn(5, '\n').nth(4).unwrap_or_default();
+        let body = markdown(markdown_body);
         Ok(Self {
             date,
             slug,
@@ -62,6 +65,7 @@ impl<'a> Post<'a> {
             tags,
             draft,
             body,
+            markdown_body,
         })
     }
 
@@ -148,8 +152,9 @@ pub(super) fn build(
     output: &Path,
     host: &str,
     include_drafts: bool,
-    layout: Option<&Layout<'_>>,
+    mut content: Option<(&Layout<'_>, &mut Index)>,
 ) -> Result<usize, String> {
+    let layout = content.as_ref().map(|(layout, _)| *layout);
     let sources = root.join("docs/site/blog");
     let mut files = Vec::new();
     for entry in fs::read_dir(&sources).map_err(|e| format!("{}: {e}", sources.display()))? {
@@ -176,11 +181,13 @@ pub(super) fn build(
     }
     posts.sort_unstable_by_key(|post| std::cmp::Reverse((post.date, post.slug)));
     let directory = output.join("blog");
-    let page = |filename: &str, title: &str, contents: &str| {
+    let page = |filename: &str, title: &str, contents: &str, alternate: &str| {
         if let Some(layout) = layout {
             super::write_nested(
                 &directory.join(filename),
-                layout.page("/blog/", title, FEED, contents).as_bytes(),
+                layout
+                    .page("/blog/", title, &format!("{FEED}{alternate}"), contents)
+                    .as_bytes(),
             )
         } else {
             write_page(&directory, filename, title, FEED, contents)
@@ -213,10 +220,25 @@ pub(super) fn build(
         let contents = format!(
             "<nav><a href=\"index.html\">Blog</a></nav><article><h1>{title}</h1><p>{description}</p>{body}</article>"
         );
-        page(&filename, post.title, &contents)?;
+        let mut alternate = String::new();
+        if !post.draft
+            && let Some((_, discovery)) = &mut content
+        {
+            let name = format!("{}-{}.md", post.date, post.slug);
+            let path = format!("/blog/{name}");
+            let tags = post.tags.join(", ");
+            let edition = format!(
+                "# {}\n\n{} · {tags}\n\n{}",
+                post.title, post.date, post.markdown_body
+            );
+            alternate = llms::write_edition(output, &path, &edition)?;
+            let description = format!("Published {}. Topics: {tags}.", post.date);
+            discovery.add(Section::Evidence, post.title, &path, &description);
+        }
+        page(&filename, post.title, &contents, &alternate)?;
     }
     index.push_str("</ul></article>");
-    page("index.html", "Blog", &index)?;
+    page("index.html", "Blog", &index, "")?;
     super::write(&directory.join("feed.atom"), feed(&posts, host).as_bytes())?;
     Ok(posts.len())
 }

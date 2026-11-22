@@ -46,6 +46,7 @@
 mod blog;
 mod content;
 pub(crate) mod downloads;
+mod llms;
 mod marketing;
 
 use crate::accept::utc_now;
@@ -71,6 +72,7 @@ pub const PUBLISHED_FILE: &str = "deploy/site/published.json";
 
 pub const BUILD_FORMAT: &str = "dnacalc-site-build/1";
 pub const PACK_FORMAT: &str = "dnacalc-site-pack/1";
+const CONTENT_HOST: &str = "dnacalc.com";
 
 /// The receiver on the host, relative to the home of the user who publishes (installed there from
 /// `RECEIVER_SOURCE` by the owner's setup, deploy/OWNER_STEPS.md section 1).
@@ -123,7 +125,7 @@ fn site(key: &str) -> Option<Site> {
         "content" => Some(Site {
             key: "content",
             app: &APPS[1],
-            host: "dnacalc.com",
+            host: CONTENT_HOST,
         }),
         _ => None,
     }
@@ -1130,6 +1132,11 @@ fn verify(
     if !files.contains_key("index.html") {
         failures.push("build.json omits index.html".to_owned());
     }
+    let content_site = site.key == "content";
+    if content_site && !files.contains_key(llms::FILE) {
+        failures.push(format!("build.json omits {}", llms::FILE));
+    }
+    let mut discovery = llms::Served::default();
     let mut paths = Vec::new();
     for name in files.keys() {
         paths.push((format!("/{name}"), name.clone()));
@@ -1178,7 +1185,13 @@ fn verify(
                 None => failures.push(format!("{path}: no {header} header")),
             }
         }
+        if content_site {
+            discovery.remember(&path, &name, got.body, &mut failures);
+        }
         checked += 1;
+    }
+    if content_site {
+        discovery.check(&mut failures);
     }
     if failures.is_empty() {
         println!(

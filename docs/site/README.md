@@ -14,6 +14,11 @@ pack. The packer hashes the styles, scripts and both application bundles under `
 The build manifest records the source revision and every output file. The archive containing
 unapproved blog drafts is for local review.
 
+The content pack includes `/llms.txt` and Markdown editions of public Markdown-backed guides,
+articles and posts. The HTML pages advertise available editions. Verification checks the index,
+Markdown links and HTML metadata against the served manifest. The index uses the content host
+from the site tool, while preview verification resolves its local links on the preview server.
+
 The same-origin Windows-oriented site is at `/`. The full web app is available at `/app/`
 and Formula Explorer is mounted on Home, Playground and its product page. To change the public
 app link, edit `browser_app_url` in `layout.json`. Use `https://app.dnacalc.com/` for a

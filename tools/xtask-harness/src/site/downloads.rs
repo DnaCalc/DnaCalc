@@ -1,4 +1,5 @@
 use super::content::{create_directory, escape, markdown, write_page};
+use super::llms;
 use super::marketing::Layout;
 use crate::package::{CALC_FOLDER, FOLDER, windows_package_name};
 use serde::Deserialize;
@@ -9,6 +10,10 @@ use std::path::Path;
 use std::process::ExitCode;
 
 pub(crate) const USAGE: &str = "usage: cargo xtask release notes --manifest <installer-manifest.json> --draft <notes.md> --out <dir>";
+pub(super) const PREVIEW_NOTES: (&str, &str) = (
+    "/download/release-notes/index.html",
+    "/download/release-notes.md",
+);
 
 const WEBVIEW2: &str = "Both Windows apps need the Microsoft Edge WebView2 Runtime. If the installer reports that the runtime is missing, install Microsoft's Evergreen Runtime and rerun the installer.";
 const PENDING: &str = "Windows installer downloads will appear after signing and clean-machine installation verification.";
@@ -170,17 +175,18 @@ pub(super) fn preview(
     }
     table.push_str("</tbody></table></div>");
     install_notes(&mut notes);
+    let (html_path, md_path) = PREVIEW_NOTES;
+    let alternate = llms::write_edition(output, md_path, &notes)?;
     let page = format!(
-        "<article><p><a href=\"/download/\">← Download</a></p>{}<p><a href=\"/download/release-notes.md\">Release notes in Markdown</a></p></article>",
+        "<article><p><a href=\"/download/\">← Download</a></p>{}<p><a href=\"{md_path}\">Release notes in Markdown</a></p></article>",
         markdown(&notes)
     );
     super::write_nested(
-        &output.join("download/release-notes/index.html"),
+        &output.join(html_path.trim_start_matches('/')),
         layout
-            .page("/download/", "Draft release notes", "", &page)
+            .page("/download/", "Draft release notes", &alternate, &page)
             .as_bytes(),
     )?;
-    super::write_nested(&output.join("download/release-notes.md"), notes.as_bytes())?;
     Ok(table)
 }
 

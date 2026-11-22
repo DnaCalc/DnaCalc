@@ -1,7 +1,8 @@
 //! The public site pages, built from the checked-in copy, evidence and app bundles.
 
-use super::content::{TABLE_ALIGNMENT, escape, markdown, render_markdown};
-use super::{app_page, blog, downloads, files_under, read, write_nested};
+use super::content::{TABLE_ALIGNMENT, escape, markdown, render_markdown, resolve_markdown};
+use super::llms::{self, Index, Section};
+use super::{CONTENT_HOST, app_page, blog, downloads, files_under, read, write_nested};
 use crate::app::{bind_web_entry, web_bindgen};
 use crate::cargo::{self, Workspace};
 use serde::Deserialize;
@@ -13,10 +14,22 @@ use std::path::Path;
 
 const FUN: &str = "docs/fun";
 const NUMBER_TEXT_ROUTE: &str = "/articles/last-bit-number-text/";
-const ARTICLES: &[(&str, &str)] = &[
-    ("last-bit-normsinv.md", "/articles/last-bit-normsinv/"),
-    ("last-bit-gamma.md", "/articles/last-bit-gamma/"),
-    ("last-bit-number-text.md", NUMBER_TEXT_ROUTE),
+const ARTICLES: &[(&str, &str, &str)] = &[
+    (
+        "last-bit-normsinv.md",
+        "/articles/last-bit-normsinv/",
+        "How measured tail values reproduce Excel's inverse normal distribution.",
+    ),
+    (
+        "last-bit-gamma.md",
+        "/articles/last-bit-gamma/",
+        "Excel measurements and arithmetic behind the gamma family.",
+    ),
+    (
+        "last-bit-number-text.md",
+        NUMBER_TEXT_ROUTE,
+        "Excel's 15-digit text conversion and the evidence behind it.",
+    ),
 ];
 const VIDEO: &[(&str, &str)] = &[
     ("README.md", "/blog/video/"),
@@ -53,21 +66,108 @@ const NAV: &[(&str, &str)] = &[
     ("/download/", "Download"),
 ];
 
-const PAGES_BY_ROUTE: &[(&str, &str, &str)] = &[
-    ("", "home", "Excel workbooks on Windows"),
-    ("desktop/", "desktop", "DNA Calc for Windows"),
-    ("onecalc/", "onecalc", "DNA Calc - Formula Explorer"),
-    ("web/", "web", "In the browser"),
-    ("developers/", "developers", "Developers"),
-    ("developers/addins/", "addins", "Add-ins"),
-    ("developers/vba/", "vba", "VBA"),
-    ("developers/engine/", "engine", "Engine and runner"),
-    ("handbook/", "handbook", "Handbook of Excel Functions"),
-    ("play/", "play", "Playground"),
-    ("download/", "download", "Download"),
-    ("about/", "about", "About"),
-    ("licence/", "licence", "Licence"),
-    ("status/", "status", "Status"),
+type Page = (
+    &'static str,
+    &'static str,
+    &'static str,
+    Option<(Section, &'static str)>,
+);
+
+const PAGES_BY_ROUTE: &[Page] = &[
+    ("", "home", "Excel workbooks on Windows", None),
+    (
+        "desktop/",
+        "desktop",
+        "DNA Calc for Windows",
+        Some((
+            Section::Products,
+            "Open Excel workbooks and use the Windows hosts for native add-ins and VBA.",
+        )),
+    ),
+    (
+        "onecalc/",
+        "onecalc",
+        "DNA Calc - Formula Explorer",
+        Some((
+            Section::Products,
+            "Explore single formulas in the browser and test native add-ins in the Windows preview.",
+        )),
+    ),
+    (
+        "web/",
+        "web",
+        "In the browser",
+        Some((
+            Section::Products,
+            "Open and calculate workbooks in the browser. Native XLL and COM add-ins use the Windows desktop hosts.",
+        )),
+    ),
+    (
+        "developers/",
+        "developers",
+        "Developers",
+        Some((
+            Section::Developers,
+            "Choose a workbook, formula, VBA or add-in integration.",
+        )),
+    ),
+    (
+        "developers/addins/",
+        "addins",
+        "Add-ins",
+        Some((
+            Section::Developers,
+            "Run the pinned Windows x64 XLL bench example in Formula Explorer.",
+        )),
+    ),
+    (
+        "developers/vba/",
+        "vba",
+        "VBA",
+        Some((
+            Section::Developers,
+            "Use the experimental VBA host and read its measured coverage by project and route.",
+        )),
+    ),
+    (
+        "developers/engine/",
+        "engine",
+        "Engine and runner",
+        Some((
+            Section::Developers,
+            "Round-trip a workbook with the Linux runner or the Rust workbook doctest.",
+        )),
+    ),
+    (
+        "handbook/",
+        "handbook",
+        "Handbook of Excel Functions",
+        Some((
+            Section::Handbook,
+            "Search the Handbook from the product site.",
+        )),
+    ),
+    ("play/", "play", "Playground", None),
+    (
+        "download/",
+        "download",
+        "Download",
+        Some((
+            Section::Products,
+            "See preview package names for Windows and the Linux runner.",
+        )),
+    ),
+    ("about/", "about", "About", None),
+    ("licence/", "licence", "Licence", None),
+    (
+        "status/",
+        "status",
+        "Status",
+        Some((
+            Section::Evidence,
+            "Read dated workbook and Function Bank results with their denominators and build references.",
+        )),
+    ),
 ];
 
 #[derive(Deserialize)]
@@ -95,6 +195,7 @@ impl Layout<'_> {
         }
         let title = escape(title);
         let prefix = self.prefix;
+        let discovery = llms::DESCRIBED_BY;
         let explorer = if contents.contains(r#"id="onecalc""#) {
             format!(
                 r#"<link rel="stylesheet" href="{prefix}/explorer/app.css"><script type="module" src="{prefix}/explorer/boot.js"></script>"#
@@ -109,7 +210,7 @@ impl Layout<'_> {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} | DNA Calc</title>
 <link rel="icon" href="{prefix}/favicon.ico">
-{explorer}<link rel="stylesheet" href="{prefix}/site.css">{extra}
+{explorer}<link rel="stylesheet" href="{prefix}/site.css">{discovery}{extra}
 </head>
 <body class="site">
 <a class="site-skip" href="#main">Skip to content</a>
@@ -194,14 +295,14 @@ pub(super) fn build(
     let bank = bank_metric(root)?;
     let metrics = format!(r#"<div class="site-metrics">{workbook}{bank}</div>"#);
     let cards = build_fun(root, output, prefix)?;
-    build_guides(root, output, &layout, include_drafts)?;
+    let mut index = Index::default();
     let vba = vba_table(root)?;
     let builds = builds_table(root, version, commit, built)?;
     let runner = runner_commands(root)?;
     let live = live_box(layout.explorer)?;
     let packages = downloads::preview(root, output, &layout, &settings.planned_release, commit)?;
 
-    for &(route, filename, title) in PAGES_BY_ROUTE {
+    for &(route, filename, title, discovery) in PAGES_BY_ROUTE {
         let mut contents = source(root, &format!("{PAGES}/{filename}.html"))?;
         for (key, value) in [
             ("live", live.as_str()),
@@ -225,19 +326,83 @@ pub(super) fn build(
         } else {
             String::new()
         };
-        let page = layout.page(&format!("/{route}"), title, &extra, &contents);
+        let route_url = format!("/{route}");
+        if let Some((section, description)) = discovery {
+            index.add(section, title, &route_url, description);
+        }
+        let page = layout.page(&route_url, title, &extra, &contents);
         write_nested(&output.join(format!("{route}index.html")), page.as_bytes())?;
     }
     write_nested(
         &output.join("app/index.html"),
-        with_icon(
+        with_site_metadata(
             app_page(calc.to_owned(), &format!("{prefix}/calc"))?,
             prefix,
         )
         .as_bytes(),
     )?;
     write_nested(&output.join("sample.xlsx"), &read(&root.join(SAMPLE))?)?;
-    let posts = blog::build(root, output, "dnacalc.com", include_drafts, Some(&layout))?;
+    for (section, label, url, description) in [
+        (
+            Section::Developers,
+            "Embed Formula Explorer",
+            "/onecalc/#embedding",
+            "Mount the experimental Rust/Wasm component from a pinned build.",
+        ),
+        (
+            Section::Handbook,
+            "Handbook llms.txt",
+            "https://handbook.dnacalc.com/llms.txt",
+            "Discover the Handbook's reference and structured records.",
+        ),
+        (
+            Section::Handbook,
+            "Handbook catalogue",
+            "https://handbook.dnacalc.com/catalogue/index.html",
+            "Browse Excel functions, operators and aliases.",
+        ),
+        (
+            Section::Handbook,
+            "ROUND example",
+            "https://handbook.dnacalc.com/functions/ROUND.html",
+            "Read behaviour, quirks, examples and available evidence for ROUND.",
+        ),
+        (
+            Section::Handbook,
+            "ROUND JSON",
+            "https://handbook.dnacalc.com/api/functions/FUNC.ROUND.json",
+            "Get the matching structured record and its sources.",
+        ),
+        (
+            Section::Handbook,
+            "Handbook ID index",
+            "https://handbook.dnacalc.com/api/index.json",
+            "Resolve function, operator and alias IDs to canonical records.",
+        ),
+        (
+            Section::Evidence,
+            "Build record",
+            "/build.json",
+            "Inspect this site's source revision, build time and file hashes.",
+        ),
+        (
+            Section::Evidence,
+            "Function Bank preview",
+            "/fun/function-bank.html",
+            "Explore measured Excel answers and bit-level comparisons.",
+        ),
+    ] {
+        index.add(section, label, url, description);
+    }
+    build_guides(root, output, &layout, include_drafts, &mut index)?;
+    let posts = blog::build(
+        root,
+        output,
+        CONTENT_HOST,
+        include_drafts,
+        Some((&layout, &mut index)),
+    )?;
+    index.write(output)?;
     println!(
         "SITE CONTENT {} pages, {posts} blog posts",
         PAGES_BY_ROUTE.len()
@@ -254,10 +419,16 @@ fn build_guides(
     output: &Path,
     layout: &Layout<'_>,
     include_drafts: bool,
+    index: &mut Index,
 ) -> Result<(), String> {
-    let write_doc = |route: &str, title: &str, content: &str| {
+    let write_doc = |route: &str, title: &str, content: &str, edition: Option<(&str, &str)>| {
         let body = format!(r#"<article class="site-doc">{content}</article>"#);
-        let page = layout.page(route, title, "", &body);
+        let extra = if let Some((path, text)) = edition {
+            llms::write_edition(output, path, text)?
+        } else {
+            String::new()
+        };
+        let page = layout.page(route, title, &extra, &body);
         write_nested(
             &output
                 .join(route.trim_start_matches('/'))
@@ -265,38 +436,54 @@ fn build_guides(
             page.as_bytes(),
         )
     };
+    index.add(
+        Section::Evidence,
+        "Last-bit articles",
+        "/articles/",
+        "Find the published investigations into Excel's numerical behaviour.",
+    );
     let mut articles = String::from("<h1>Last-bit articles</h1><ul>");
-    for &(filename, route) in ARTICLES {
+    for &(filename, route, description) in ARTICLES {
         let path = format!("docs/articles/{filename}");
         let (title, content) = markdown_doc(root, &path)?;
-        let html = render_markdown(&content, |link| {
+        let mut content = resolve_markdown(&content, |link| {
             ARTICLES
                 .iter()
-                .find(|&&(name, _)| name == link)
-                .map(|&(_, route)| route.to_owned())
-        });
+                .find(|&&(name, _, _)| name == link)
+                .map(|&(_, route, _)| route.to_owned())
+        })
+        .map_err(|e| format!("{path}: {e}"))?;
+        if route == NUMBER_TEXT_ROUTE {
+            content.push_str("\n\n[Try the number-to-text explorer](/fun/number-text.html)\n");
+        }
+        let html = markdown(&content);
         let _ = write!(
             articles,
             r#"<li><a href="{route}">{}</a></li>"#,
             escape(&title)
         );
-        let mut body = format!(r#"<p><a href="/articles/">All last-bit articles</a></p>{html}"#);
-        if route == NUMBER_TEXT_ROUTE {
-            body.push_str(
-                r#"<p><a href="/fun/number-text.html">Try the number-to-text explorer</a></p>"#,
-            );
-        }
-        write_doc(route, &title, &body)?;
+        let body = format!(r#"<p><a href="/articles/">All last-bit articles</a></p>{html}"#);
+        let edition = format!("{route}index.md");
+        write_doc(route, &title, &body, Some((&edition, &content)))?;
+        index.add(Section::Evidence, &title, &edition, description);
     }
     articles.push_str("</ul>");
-    write_doc("/articles/", "Last-bit articles", &articles)?;
+    write_doc("/articles/", "Last-bit articles", &articles, None)?;
 
     let (title, guide) = markdown_doc(root, "docs/user/classic-grid.md")?;
+    let edition = "/help/classic-grid/index.md";
     write_doc(
         "/help/classic-grid/",
         &title,
-        &render_markdown(&guide, |_| None),
+        &markdown(&guide),
+        Some((edition, &guide)),
     )?;
+    index.add(
+        Section::Products,
+        &title,
+        edition,
+        "Look up grid controls, keyboard shortcuts, Paste Special and Flash Fill.",
+    );
 
     if include_drafts {
         for &(filename, route) in VIDEO {
@@ -318,7 +505,7 @@ fn build_guides(
             } else {
                 format!(r#"<p><a href="/blog/video/">Video drafts</a></p>{html}"#)
             };
-            write_doc(route, &title, &body)?;
+            write_doc(route, &title, &body, None)?;
         }
     }
     Ok(())
@@ -334,10 +521,11 @@ fn markdown_doc(root: &Path, path: &str) -> Result<(String, String), String> {
     Ok((title.replace('`', ""), content))
 }
 
-fn with_icon(page: String, prefix: &str) -> String {
+fn with_site_metadata(page: String, prefix: &str) -> String {
+    let discovery = llms::DESCRIBED_BY;
     page.replacen(
         "<title>",
-        &format!(r#"<link rel="icon" href="{prefix}/favicon.ico"><title>"#),
+        &format!(r#"<link rel="icon" href="{prefix}/favicon.ico">{discovery}<title>"#),
         1,
     )
 }
@@ -409,7 +597,7 @@ fn build_fun(root: &Path, output: &Path, prefix: &str) -> Result<String, String>
         }
         write_nested(
             &output.join("fun").join(name),
-            with_icon(page, prefix).as_bytes(),
+            with_site_metadata(page, prefix).as_bytes(),
         )?;
     }
     let index = source(root, &format!("{FUN}/index.html"))?;
@@ -641,6 +829,29 @@ mod tests {
                 assert!(!gamma.contains(r#" style="text-align:"#));
                 let guide = source(&dir, "help/classic-grid/index.html")?;
                 assert!(guide.contains("<table>"));
+                let index = source(&dir, "llms.txt")?;
+                assert!(index.starts_with("# DNA Calc\n\n> "));
+                assert!(index.contains("https://dnacalc.com/onecalc/#embedding"));
+                for handbook in [
+                    "llms.txt",
+                    "catalogue/index.html",
+                    "functions/ROUND.html",
+                    "api/functions/FUNC.ROUND.json",
+                    "api/index.json",
+                ] {
+                    assert!(index.contains(&format!("https://handbook.dnacalc.com/{handbook})")));
+                }
+                assert!(!index.contains("https://app.dnacalc.com/"));
+                assert!(!index.contains("/blog/video/"));
+                assert!(!index.contains("/download/release-notes"));
+                assert!(guide.contains(r#"rel="describedby" href="/llms.txt""#));
+                assert!(guide.contains(
+                    r#"rel="alternate" type="text/markdown" href="/help/classic-grid/index.md""#
+                ));
+                let gamma_md = source(&dir, "articles/last-bit-gamma/index.md")?;
+                assert!(gamma_md.contains("](/articles/last-bit-normsinv/)"));
+                assert!(!dir.join("developers/engine/index.md").exists());
+                assert!(!dir.join("blog/video/index.md").exists());
                 let blog = source(&dir, "blog/index.html")?;
                 assert_eq!(blog.contains(r#"href="/blog/video/""#), include_drafts);
                 assert_eq!(dir.join("blog/video/index.html").is_file(), include_drafts);
@@ -649,6 +860,52 @@ mod tests {
                     assert!(
                         episode.contains(r#"href="/blog/2026-11-21-checking-excel-answers.html""#)
                     );
+                }
+            }
+            assert_eq!(
+                source(&output.join("public"), "llms.txt")?,
+                source(&output.join("preview"), "llms.txt")?
+            );
+
+            let blog_root = output.join("blog-source");
+            for (name, status) in [("ready", "published"), ("review", "draft")] {
+                write_nested(
+                    &blog_root.join(format!("docs/site/blog/2026-11-22-{name}.md")),
+                    format!("# A {name} post\nTags: grid\nStatus: {status}\n\nUse **cells**.\n")
+                        .as_bytes(),
+                )?;
+            }
+            let layout = Layout {
+                prefix: "/assets/test",
+                explorer: "",
+            };
+            for include_drafts in [false, true] {
+                let dir = output.join(if include_drafts {
+                    "blog-preview"
+                } else {
+                    "blog-public"
+                });
+                let mut index = Index::default();
+                let count = blog::build(
+                    &blog_root,
+                    &dir,
+                    CONTENT_HOST,
+                    include_drafts,
+                    Some((&layout, &mut index)),
+                )?;
+                assert_eq!(count, 1 + usize::from(include_drafts));
+                index.write(&dir)?;
+                let discovery = source(&dir, "llms.txt")?;
+                assert!(discovery.contains("/blog/2026-11-22-ready.md"));
+                assert!(!discovery.contains("/blog/2026-11-22-review"));
+                let edition = source(&dir, "blog/2026-11-22-ready.md")?;
+                assert!(edition.ends_with("Use **cells**.\n"));
+                let html = source(&dir, "blog/2026-11-22-ready.html")?;
+                assert!(html.contains(r#"type="text/markdown" href="/blog/2026-11-22-ready.md""#));
+                assert!(!dir.join("blog/2026-11-22-review.md").exists());
+                if include_drafts {
+                    let html = source(&dir, "blog/2026-11-22-review.html")?;
+                    assert!(!html.contains(r#"type="text/markdown""#));
                 }
             }
             Ok::<_, String>(())
