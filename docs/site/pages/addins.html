@@ -3,13 +3,15 @@
   <h1>Test an add-in</h1>
   <p class="site-lede">The Windows Formula Explorer preview exercises native XLL and VBA add-in functions against recorded Excel answers.</p>
   <p>In the Windows preview, open the Add-ins panel and load an add-in from a source you trust. Enter a formula for one exported function and compare its value and type with Excel. Calls to unmodelled services can return a typed refusal.</p>
+  <h2>Windows x64 preview example</h2>
+  <p>The XLL and XLAM routes are experimental. Use the <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/docs/site/video/02-formula-explorer-addin-bench.md">add-in bench walkthrough</a> at <code>539c4234</code>. Build its <code>X2Hello</code> fixture on Windows, load <code>X2Hello-AddIn64.xll</code> in Formula Explorer and enter <code>=SayHello("Excel-DNA")</code>. Compare the text result <code>Hello, Excel-DNA</code> with the same function and argument in Excel.</p>
   <h2>XLL callbacks in the preview</h2>
-  <p>The host uses <code>xlfRegister</code> to collect function names, signatures and help. The desktop can also receive native asynchronous results through <code>xlAsyncReturn</code>. The tested coverage varies by registration and call path.</p>
+  <p>The host uses <code>xlfRegister</code> to collect function names, signatures and help. The desktop can also receive native asynchronous results through <code>xlAsyncReturn</code>. Formula Explorer invokes the registered function in its formula field. DNA Calc desktop invokes it from a workbook cell through its own Add-ins panel. XLAM exports come from a VBA project and use the workbook or values-only host described in the <a href="/developers/vba/">VBA guide</a>. See the <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/docs/architecture/ONECALC_ADDINS.md#acceptance">Formula Explorer callback and acceptance reference</a>.</p>
   <h2>Recorded Windows x64 tests</h2>
   <div class="site-table"><table>
     <thead><tr><th scope="col">Set</th><th scope="col">Matched Excel</th></tr></thead>
     <tbody><tr><td>Formula Explorer XLL cases</td><td>350 of 350</td></tr><tr><td>xlOil utilities and SQL sample</td><td>12 of 12</td></tr><tr><td>Simple VBA XLAM / XLSM</td><td>109 of 109 each</td></tr><tr><td>DNA examples XLAM / XLSM</td><td>22 of 22 / 23 of 23</td></tr></tbody>
   </table></div>
-  <p class="site-note">Windows cross-build second run, 2026-11-11/12. Coverage belongs to these sets.</p>
+  <p class="site-note">Windows x64 cross-build second run, 2026-11-11/12, after <code>f6578060</code> and <code>3c2c3df7</code>. Coverage belongs to these sets. See the <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-xll-reference/traces/2026-11-11-simple-udfs/README.md">fixture, host and route evidence</a>.</p>
   <p><a href="/onecalc/">Try Formula Explorer in the browser</a> · <a href="/download/">Windows download preview</a></p>
 </article>

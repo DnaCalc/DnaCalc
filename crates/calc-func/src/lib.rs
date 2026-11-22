@@ -42,6 +42,8 @@
 //! assert_eq!(result.as_number(), Some(42.0));
 //! ```
 //!
+//! Worked examples and preview status are also in the [engine guide](https://dnacalc.com/developers/engine/).
+//!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-func/CONTRACT.md).
 
 pub use calc_value as value;

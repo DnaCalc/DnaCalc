@@ -41,6 +41,8 @@
 //! assert_eq!(tree.source_text(), formula);
 //! ```
 //!
+//! Worked examples and preview status are also in the [engine guide](https://dnacalc.com/developers/engine/).
+//!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-fml/CONTRACT.md).
 
 pub mod assist;
