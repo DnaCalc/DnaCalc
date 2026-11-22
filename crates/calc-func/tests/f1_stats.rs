@@ -1066,6 +1066,52 @@ fn ets_decimal_timeline_rounded_steps_match_excel() {
     );
 }
 
+/// Excel 20527 FORECAST.ETS.CONFINT on period-two histories of 6 and 7 points
+/// and decimal timelines with binary64-rounded uniform steps (dc-iuwct.55).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_confint_period_two_and_decimal_timeline() {
+    let p2_n6_2: Vec<f64> = [
+        0x3ff95d9edd96359a_u64, 0x400fee611f958cd7, 0x400eae528535b5a2,
+        0x4019e7e77fbfc9db, 0x4018bf53e9db2684, 0x402197e3786162ba,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t6 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    exact(
+        call("FORECAST.ETS.CONFINT", vec![n(7.0), col(&p2_n6_2), t6, n(0.95), n(2.0)]),
+        f64::from_bits(0x3fc2e21a8763449e),
+    );
+    let p2_n7_0: Vec<f64> = [
+        0x401939622c37a94d_u64, 0x401ec6e1f0bde90f, 0x4021a4202c02434b, 0x40249cfa7918bdbb,
+        0x40268f6822a018ca, 0x402995c215452a1e, 0x402b778fd252fa25,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t7 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+    exact(
+        call("FORECAST.ETS.CONFINT", vec![n(8.0), col(&p2_n7_0), t7, n(0.95), n(2.0)]),
+        f64::from_bits(0x3fb9213121786074),
+    );
+    let y = col(&[
+        0.8191354270330827,
+        2.144215659272221,
+        3.27159573407552,
+        3.9506847997283474,
+        5.0850123361217205,
+    ]);
+    let t = col(&[0.1, 0.11, 0.12000000000000001, 0.13, 0.14]);
+    for past in [-1.0, 0.0, 1e-5, 0.08, 0.09000000000000001, 0.09001, 0.095, 0.09999000000000001, 0.1] {
+        error(call("FORECAST.ETS.CONFINT", vec![n(past), y.clone(), t.clone()]), Num);
+    }
+    exact(
+        call("FORECAST.ETS.CONFINT", vec![n(0.15), y, t, n(0.95)]),
+        f64::from_bits(0x3fd9a1a6270e564d),
+    );
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
