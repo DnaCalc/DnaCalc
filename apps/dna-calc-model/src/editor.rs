@@ -85,6 +85,13 @@ impl crate::Model {
             && !self.editor.readonly
     }
 
+    /// The picked reference still at the caret in the current draft.
+    pub fn point_at_caret(&self, start: usize, end: usize) -> Option<crate::PointPick> {
+        self.edit.pointed.filter(|pick| {
+            self.edit.pointed_text == self.edit.draft && start == end && end == pick.end
+        })
+    }
+
     /// Points the live edit at a cell or range without changing its authored target or selection.
     /// Syntax discovery and DOM caret reads are inputs; draft, range and journal updates are one
     /// model mutation. This is the route the application's controller uses.
@@ -99,11 +106,7 @@ impl crate::Model {
             return None;
         }
         let target = self.edit.target?;
-        let previous = self.edit.pointed.filter(|p| {
-            self.edit.pointed_text == self.edit.draft
-                && caret.start == caret.end
-                && caret.end == p.end
-        });
+        let previous = self.point_at_caret(caret.start, caret.end);
         let (start, end) = previous
             .map(|p| (p.start, p.end))
             .or_else(|| match syntax? {

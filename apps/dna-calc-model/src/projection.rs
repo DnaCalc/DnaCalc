@@ -680,6 +680,7 @@ pub enum Intent {
     Navigate {
         nav: crate::selection::Navigation,
         extend: bool,
+        /// The viewport size on the paging axis, in pixels at 100% zoom.
         page_height: u32,
     },
     /// Inserts (`insert`) or deletes `count` rows (`rows`) or columns from `start`.

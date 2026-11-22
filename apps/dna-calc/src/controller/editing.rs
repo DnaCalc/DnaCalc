@@ -286,12 +286,22 @@ impl Controller {
                 ev.prevent_default();
                 ev.stop_propagation();
                 let (start, end) = field_selection(assist);
+                let picked_range = self
+                    .model
+                    .with_untracked(|model| model.point_at_caret(start, end))
+                    .filter(|pick| pick.anchor != pick.corner);
+                let (start, end) = picked_range.map_or((start, end), |pick| (pick.start, pick.end));
                 if let Some((text, start, end)) =
                     cycle_anchors(&self.edit_text.get_untracked(), start, end)
                 {
-                    self.pointed.set(None);
+                    self.model.update(|model| {
+                        model.edit.pointed = picked_range.map(|pick| PointPick { end, ..pick });
+                        if picked_range.is_some() {
+                            model.edit.pointed_text = text.clone();
+                        }
+                    });
                     assist.place(text, end);
-                    if let Some(field) = assist.field.get_untracked() {
+                    if picked_range.is_none() && let Some(field) = assist.field.get_untracked() {
                         let _ = field.set_selection_range(start as u32, end as u32);
                     }
                 }
@@ -326,8 +336,19 @@ impl Controller {
     }
 
     pub fn edit_changed(&self) {
-        self.model.update(|model| model.edit.replacement = true);
-        self.pointed.set(None);
+        self.model.update(|model| {
+            let edit = &mut model.edit;
+            // Starting a formula in a blank cell enables pointing from either editor.
+            if edit.surface == Some(EditOrigin::Bar)
+                && !edit.replacement
+                && edit.original.is_empty()
+                && edit.draft.starts_with('=')
+            {
+                edit.point_mode = true;
+            }
+            edit.replacement = true;
+            edit.pointed = None;
+        });
         self.remember_editor_selection();
     }
 
