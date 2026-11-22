@@ -1112,6 +1112,41 @@ fn ets_confint_period_two_and_decimal_timeline() {
     );
 }
 
+/// Excel 20527 FORECAST.ETS.STAT on period-two histories of 6 and 7 points
+/// selects alpha/gamma from the full SEASONAL_PARAMETERS grid (dc-iuwct.57).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_stat_period_two_six_and_seven() {
+    let p2_n6_2: Vec<f64> = [
+        0x3ff95d9edd96359a_u64, 0x400fee611f958cd7, 0x400eae528535b5a2,
+        0x4019e7e77fbfc9db, 0x4018bf53e9db2684, 0x402197e3786162ba,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t6 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    exact(
+        call("FORECAST.ETS.STAT", vec![col(&p2_n6_2), t6.clone(), n(1.0), n(2.0)]),
+        f64::from_bits(0x3f60624dd2f1a9fc),
+    );
+    exact(
+        call("FORECAST.ETS.STAT", vec![col(&p2_n6_2), t6, n(3.0), n(2.0)]),
+        f64::from_bits(0x3fd0000000000000),
+    );
+    let p2_n7_0: Vec<f64> = [
+        0x401939622c37a94d_u64, 0x401ec6e1f0bde90f, 0x4021a4202c02434b, 0x40249cfa7918bdbb,
+        0x40268f6822a018ca, 0x402995c215452a1e, 0x402b778fd252fa25,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t7 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+    exact(
+        call("FORECAST.ETS.STAT", vec![col(&p2_n7_0), t7, n(3.0), n(2.0)]),
+        f64::from_bits(0x3fe8000000000000),
+    );
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
