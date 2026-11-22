@@ -19,7 +19,7 @@
     "N2": "=DROP(REDUCE(0,{\"1:3\";\"5:7\";\"9:10\"},LAMBDA(x,y,VSTACK(x,LET(z,--TEXTBEFORE(y,\":\"),SEQUENCE(TEXTAFTER(y,\":\")-z+1,,z))))),1)"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.DROP(_xlfn.REDUCE(0,{\"1:3\";\"5:7\";\"9:10\"},_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlfn.VSTACK(_xlpm.x,_xlfn.LET(z,--_xlfn.TEXTBEFORE(_xlpm.y,\":\"),_xlfn.SEQUENCE(_xlfn.TEXTAFTER(_xlpm.y,\":\")-z+1,,z))))),1)"
+    "N2": "=_xlfn.DROP(_xlfn.REDUCE(0,{\"1:3\";\"5:7\";\"9:10\"},_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlfn.VSTACK(_xlpm.x,_xlfn.LET(_xlpm.z,--_xlfn.TEXTBEFORE(_xlpm.y,\":\"),_xlfn.SEQUENCE(_xlfn.TEXTAFTER(_xlpm.y,\":\")-_xlpm.z+1,,_xlpm.z))))),1)"
   },
   "capture": [
     "Sheet1!N2",

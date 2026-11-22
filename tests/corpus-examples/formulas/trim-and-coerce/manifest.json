@@ -25,7 +25,7 @@
     "N2": "=LET(a, TRIMRANGE(B4:E100,2), IF(a=0,\"\",a))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(a, _xlfn.TRIMRANGE(B4:E100,2), IF(a=0,\"\",a))"
+    "N2": "=_xlfn.LET(_xlpm.a, _xlfn.TRIMRANGE(B4:E100,2), IF(_xlpm.a=0,\"\",_xlpm.a))"
   },
   "capture": [
     "Sheet1!N2",

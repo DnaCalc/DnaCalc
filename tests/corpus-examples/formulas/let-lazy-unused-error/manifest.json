@@ -18,7 +18,7 @@
     "N2": "=LET(bad,1/0,used,A1,used+1)"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(bad,1/0,used,A1,used+1)"
+    "N2": "=_xlfn.LET(_xlpm.bad,1/0,_xlpm.used,A1,_xlpm.used+1)"
   },
   "capture": [
     "Sheet1!N2"

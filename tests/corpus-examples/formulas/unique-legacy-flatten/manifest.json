@@ -25,7 +25,7 @@
     "N2": "=LET(grid,A2:C7,numRows,ROWS(grid),pos,SEQUENCE(numRows*COLUMNS(grid)),flat,INDEX(IF(grid=\"\",\"\",grid),1+MOD(pos,numRows),ROUNDUP(pos/numRows,0)),SORT(UNIQUE(FILTER(flat,flat<>\"\"))))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(grid,A2:C7,numRows,ROWS(grid),pos,_xlfn.SEQUENCE(numRows*COLUMNS(grid)),flat,INDEX(IF(grid=\"\",\"\",grid),1+MOD(pos,numRows),ROUNDUP(pos/numRows,0)),_xlfn._xlws.SORT(_xlfn.UNIQUE(_xlfn._xlws.FILTER(flat,flat<>\"\"))))"
+    "N2": "=_xlfn.LET(_xlpm.grid,A2:C7,_xlpm.numRows,ROWS(_xlpm.grid),_xlpm.pos,_xlfn.SEQUENCE(_xlpm.numRows*COLUMNS(_xlpm.grid)),_xlpm.flat,INDEX(IF(_xlpm.grid=\"\",\"\",_xlpm.grid),1+MOD(_xlpm.pos,_xlpm.numRows),ROUNDUP(_xlpm.pos/_xlpm.numRows,0)),_xlfn._xlws.SORT(_xlfn.UNIQUE(_xlfn._xlws.FILTER(_xlpm.flat,_xlpm.flat<>\"\"))))"
   },
   "capture": [
     "Sheet1!N2",

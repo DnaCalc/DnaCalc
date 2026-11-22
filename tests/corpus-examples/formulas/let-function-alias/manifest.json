@@ -19,7 +19,7 @@
     "N2": "=LET(twice,LAMBDA(value,value*2),twice(A1)+twice(A2))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(twice,_xlfn.LAMBDA(_xlpm.value,_xlpm.value*2),twice(A1)+twice(A2))"
+    "N2": "=_xlfn.LET(_xlpm.twice,_xlfn.LAMBDA(_xlpm.value,_xlpm.value*2),_xlpm.twice(A1)+_xlpm.twice(A2))"
   },
   "capture": [
     "Sheet1!N2"

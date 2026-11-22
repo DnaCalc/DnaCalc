@@ -21,7 +21,7 @@
     "N2": "=LET(d,TEXTSPLIT(A1,\"-\"),IFERROR(d+0,d))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(d,_xlfn.TEXTSPLIT(A1,\"-\"),IFERROR(d+0,d))"
+    "N2": "=_xlfn.LET(_xlpm.d,_xlfn.TEXTSPLIT(A1,\"-\"),IFERROR(_xlpm.d+0,_xlpm.d))"
   },
   "capture": [
     "Sheet1!N2",

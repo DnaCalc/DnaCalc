@@ -36,7 +36,7 @@
     "N2": "=LET(b,B1:B8,f,F1:F8,x,FILTER(b:f,COUNTIF(b,b)-COUNTIFS(b,b,f,f)+(SEQUENCE(ROWS(b))=XMATCH(b,b))),IF(x=\"\",\"\",x))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(b,B1:B8,f,F1:F8,x,_xlfn._xlws.FILTER(b:f,COUNTIF(b,b)-COUNTIFS(b,b,f,f)+(_xlfn.SEQUENCE(ROWS(b))=_xlfn.XMATCH(b,b))),IF(x=\"\",\"\",x))"
+    "N2": "=_xlfn.LET(_xlpm.b,B1:B8,_xlpm.f,F1:F8,_xlpm.x,_xlfn._xlws.FILTER(_xlpm.b:_xlpm.f,COUNTIF(_xlpm.b,_xlpm.b)-COUNTIFS(_xlpm.b,_xlpm.b,_xlpm.f,_xlpm.f)+(_xlfn.SEQUENCE(ROWS(_xlpm.b))=_xlfn.XMATCH(_xlpm.b,_xlpm.b))),IF(_xlpm.x=\"\",\"\",_xlpm.x))"
   },
   "capture": [
     "Sheet1!N2",

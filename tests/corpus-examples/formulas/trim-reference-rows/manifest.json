@@ -19,7 +19,7 @@
     "N2": "=CHOOSE({1,2,3},ROWS(A1.:A8),ROWS(A1:.A8),ROWS(A1.:.A8))"
   },
   "stored_formulas": {
-    "N2": "=CHOOSE({1,2,3},ROWS(A1.:A8),ROWS(A1:.A8),ROWS(A1.:.A8))"
+    "N2": "=CHOOSE({1,2,3},ROWS(_xlfn._TRO_LEADING(A1:A8)),ROWS(_xlfn._TRO_TRAILING(A1:A8)),ROWS(_xlfn._TRO_ALL(A1:A8)))"
   },
   "capture": [
     "Sheet1!N2",

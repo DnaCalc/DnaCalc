@@ -23,7 +23,7 @@
     "N2": "=MAP(A1.:.A10,LAMBDA(item,MAX(item,0)))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.MAP(A1.:.A10,_xlfn.LAMBDA(_xlpm.item,MAX(_xlpm.item,0)))"
+    "N2": "=_xlfn.MAP(_xlfn._TRO_ALL(A1:A10),_xlfn.LAMBDA(_xlpm.item,MAX(_xlpm.item,0)))"
   },
   "capture": [
     "Sheet1!N2",

@@ -19,7 +19,7 @@
     "N2": "=LET(value,A1,outer,value+1,fn,LAMBDA(value,value+outer),CHOOSE({1,2},fn(A2),value))"
   },
   "stored_formulas": {
-    "N2": "=_xlfn.LET(value,A1,outer,value+1,fn,_xlfn.LAMBDA(_xlpm.value,_xlpm.value+outer),CHOOSE({1,2},fn(A2),value))"
+    "N2": "=_xlfn.LET(_xlpm.value,A1,_xlpm.outer,_xlpm.value+1,_xlpm.fn,_xlfn.LAMBDA(_xlpm.value,_xlpm.value+_xlpm.outer),CHOOSE({1,2},_xlpm.fn(A2),_xlpm.value))"
   },
   "capture": [
     "Sheet1!N2",
