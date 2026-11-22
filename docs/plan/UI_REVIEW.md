@@ -69,7 +69,7 @@ downloaded with `apt-get download` and unpacked with `dpkg-deb -x` into the brow
 `libnss3_3.132-1_amd64.deb` was unpacked there. These files only affect processes using the
 environment below. Archives and the GeckoDriver release metadata remain in the home directory.
 
-`tools/xtask/src/app.rs:662` finds drivers through `CHROMEDRIVER` and `GECKODRIVER`, then PATH.
+`tools/xtask-harness/src/accept.rs` (browser table) finds drivers through `CHROMEDRIVER` and `GECKODRIVER`, then PATH.
 ChromeDriver finds `google-chrome` on PATH. `~/.local/bin/google-chrome` and `firefox` are links
 to the downloaded browsers. `~/.local/bin/chromedriver` links to the matching driver.
 `~/.local/bin/geckodriver` is a small shell wrapper that sets the local library path and invokes

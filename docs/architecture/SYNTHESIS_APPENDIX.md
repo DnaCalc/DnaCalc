@@ -34,7 +34,7 @@ splices the converted XML (`calc-doc/src/lib.rs:141-147`), so a token-to-templat
 converted parts or generate `<f>` at save (Gemini(r2)).
 
 **A1 vs R1C1, observable**: (1) INDIRECT's `a1` flag (`calc-fml/src/eval/run.rs:1222-1240`; R1C1 offsets
-wrap, measured, `tests/acceptance/dc_51ka.rs:253`); (2) names may not look like references in either style,
+wrap, measured, `crates/calc-fml/tests/acceptance/dc_51ka.rs:253`); (2) names may not look like references in either style,
 `R1C1` is a name token in A1 and `B3` in R1C1 (`reference/mod.rs:77-79`, `bind.rs:934-935`); (3) off-grid
 relative references: names and INDIRECT-R1C1 wrap (measured), xlsb wraps (spec), the xlsx member mover
 refuses, cell placement gives `#REF!` with copy/fill routes unmeasured (`reference/mod.rs:183-195`). GPT(r2)

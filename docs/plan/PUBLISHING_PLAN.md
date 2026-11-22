@@ -142,7 +142,7 @@ There are no receipts, no record of which commit is live on any host, and no rol
     23/23 in headless Chrome and Firefox.
   - D4 (dc-rif, closed): DNA Calc with the grid, notebook, tree, canvas, ledger and atlas skins.
     The smoke passes 37/37.
-- **`cargo xtask app bundle onecalc|calc [--out]`** (`tools/xtask/src/app.rs`):
+- **`cargo xtask app bundle onecalc|calc [--out]`** (`tools/xtask-harness/src/app.rs`):
   - builds `apps/<pkg>/src/bin/<pkg>-web.rs` for wasm32 in `[profile.web]` (opt-level 3, LTO, one
     codegen unit);
   - runs wasm-bindgen 0.2.117 (`--target web`, version checked exactly);
