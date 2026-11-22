@@ -1,12 +1,12 @@
 //! Presentation of the host search and arithmetic over application projections.
 use crate::{cells, wire, workbook::Workbook};
-use calc_host::value::{CellKey, CoreRef, GridArea};
+use calc_host::value::{CellKey, CoreRef, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 use calc_host::{ProjectedValue, ProjectionRequest, Selection};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_SPECIAL_AREAS: usize = 1024;
 const MAX_SPECIAL_CELL_VISITS: usize = 100_000;
-const MAX_BLANK_INTERSECTIONS: usize = 5_000_000;
+const MAX_SPECIAL_INTERSECTIONS: usize = 5_000_000;
 const SPECIAL_SCOPE_LIMIT: &str = "Select a smaller range for Go To Special";
 
 pub fn host_options(
@@ -98,56 +98,31 @@ pub fn special_cells(
             vec![GridArea::full_sheet(sheet)]
         };
     }
-    let mut matches = if kind == SpecialCellKind::Blanks {
-        blank_areas(scope, host.occupied_areas(sheet))?
-    } else {
-        let formulas = kind == SpecialCellKind::Formulas;
-        let definitions = host.model().definitions();
-        let mut derived = Vec::new();
-        let mut cells = BTreeSet::new();
-        let mut visited = 0;
-        for area in scope {
-            // Legacy array and data-table cells carry a formula across the whole range.
-            // A dynamic spill has one authored formula at its anchor.
-            let first_derived = derived.len();
-            if formulas {
-                let legacy = definitions
-                    .arrays_meeting(area)
-                    .filter(|array| array.kind() == calc_host::ArrayKind::Legacy)
-                    .map(|array| array.area());
-                let tables = definitions.data_tables().iter().map(|table| table.area());
-                derived.extend(
-                    legacy
-                        .chain(tables)
-                        .filter_map(|range| range.intersection(area)),
-                );
-                if derived.len() > MAX_SPECIAL_AREAS {
-                    return Err(SPECIAL_SCOPE_LIMIT.into());
-                }
-            }
-            for (at, input) in host.model().cells(area).into_iter().flatten() {
-                visited += 1;
-                if visited > MAX_SPECIAL_CELL_VISITS {
-                    return Err(SPECIAL_SCOPE_LIMIT.into());
-                }
-                let matches = if formulas {
-                    matches!(input, calc_host::CellInput::Formula(_))
-                        && !derived[first_derived..]
-                            .iter()
-                            .any(|range| range.contains(at))
-                } else {
-                    !host.holds_formula(at)
-                };
-                if matches {
-                    cells.insert(at);
-                }
-            }
+    let mut matches = match kind {
+        SpecialCellKind::Blanks => subtract_areas(scope, host.occupied_areas(sheet))?,
+        SpecialCellKind::Notes => {
+            let notes = host.model().definitions().review_notes(sheet);
+            cell_areas(
+                notes
+                    .iter()
+                    .filter(|note| {
+                        !note.compatibility
+                            && note.source.as_ref().is_none_or(|source| !source.threaded())
+                            && scope.iter().any(|area| area.contains(note.at))
+                    })
+                    .map(|note| note.at)
+                    .collect(),
+            )?
         }
-        derived.extend(cell_areas(cells)?);
-        if derived.len() > MAX_SPECIAL_AREAS {
-            return Err(SPECIAL_SCOPE_LIMIT.into());
+        SpecialCellKind::Visible => {
+            let geometry = host
+                .sheet_geometry(sheet)
+                .ok_or("The worksheet is unavailable")?;
+            visible_areas(scope, sheet, &geometry)?
         }
-        derived
+        SpecialCellKind::Formulas | SpecialCellKind::Constants => {
+            input_areas(host, scope, kind == SpecialCellKind::Formulas)?
+        }
     };
     if matches.is_empty() {
         return Err("No matching cells".into());
@@ -155,6 +130,89 @@ pub fn special_cells(
     matches.sort_by_key(|area| (area.first(), area.last()));
     matches.dedup();
     Ok(matches.into_iter().map(wire::Area::of).collect())
+}
+
+fn input_areas(
+    host: &calc_host::HostState,
+    scope: Vec<GridArea>,
+    formulas: bool,
+) -> Result<Vec<GridArea>, String> {
+    let definitions = host.model().definitions();
+    let mut derived = Vec::new();
+    let mut cells = BTreeSet::new();
+    let mut visited = 0;
+    for area in scope {
+        // Legacy array and data-table cells carry a formula across the whole range.
+        // A dynamic spill has one authored formula at its anchor.
+        let first_derived = derived.len();
+        if formulas {
+            let legacy = definitions
+                .arrays_meeting(area)
+                .filter(|array| array.kind() == calc_host::ArrayKind::Legacy)
+                .map(|array| array.area());
+            let tables = definitions.data_tables().iter().map(|table| table.area());
+            derived.extend(
+                legacy
+                    .chain(tables)
+                    .filter_map(|range| range.intersection(area)),
+            );
+            if derived.len() > MAX_SPECIAL_AREAS {
+                return Err(SPECIAL_SCOPE_LIMIT.into());
+            }
+        }
+        for (at, input) in host.model().cells(area).into_iter().flatten() {
+            visited += 1;
+            if visited > MAX_SPECIAL_CELL_VISITS {
+                return Err(SPECIAL_SCOPE_LIMIT.into());
+            }
+            let matches = if formulas {
+                matches!(input, calc_host::CellInput::Formula(_))
+                    && !derived[first_derived..]
+                        .iter()
+                        .any(|range| range.contains(at))
+            } else {
+                !host.holds_formula(at)
+            };
+            if matches {
+                cells.insert(at);
+            }
+        }
+    }
+    derived.extend(cell_areas(cells)?);
+    if derived.len() > MAX_SPECIAL_AREAS {
+        return Err(SPECIAL_SCOPE_LIMIT.into());
+    }
+    Ok(derived)
+}
+
+fn visible_areas(
+    scope: Vec<GridArea>,
+    sheet: SheetId,
+    geometry: &calc_host::SheetGeometry,
+) -> Result<Vec<GridArea>, String> {
+    let hidden_rows = geometry
+        .rows
+        .iter()
+        .filter(|(_, format)| format.hidden || format.height == Some(0.0))
+        .map(|(&row, _)| {
+            GridArea::new(
+                CellKey::new(sheet, row, 1).unwrap(),
+                CellKey::new(sheet, row, MAX_COLUMNS).unwrap(),
+            )
+            .unwrap()
+        });
+    let hidden_columns = geometry
+        .columns
+        .iter()
+        .filter(|span| span.hidden || span.width == Some(0.0))
+        .map(|span| {
+            GridArea::new(
+                CellKey::new(sheet, 1, span.first).unwrap(),
+                CellKey::new(sheet, MAX_ROWS, span.last).unwrap(),
+            )
+            .unwrap()
+        });
+    subtract_areas(scope, hidden_rows.chain(hidden_columns))
 }
 
 /// Join adjacent matches so a dense row, column or block needs only one selection area.
@@ -187,24 +245,24 @@ fn cell_areas(cells: BTreeSet<CellKey>) -> Result<Vec<GridArea>, String> {
     Ok(areas)
 }
 
-/// Subtract occupied rectangles without expanding entire blank rows, columns or large spills.
-fn blank_areas(
-    mut blanks: Vec<GridArea>,
-    occupied: Vec<GridArea>,
+/// Subtract rectangles for blank or visible cells without visiting each cell.
+fn subtract_areas(
+    mut areas: Vec<GridArea>,
+    removed: impl IntoIterator<Item = GridArea>,
 ) -> Result<Vec<GridArea>, String> {
     let mut next = Vec::new();
     let mut intersections = 0;
-    for occupied in occupied {
-        if blanks.is_empty() {
+    for removed in removed {
+        if areas.is_empty() {
             break;
         }
-        intersections += blanks.len();
-        if intersections > MAX_BLANK_INTERSECTIONS {
+        intersections += areas.len();
+        if intersections > MAX_SPECIAL_INTERSECTIONS {
             return Err(SPECIAL_SCOPE_LIMIT.into());
         }
-        for area in blanks.drain(..) {
-            if area.intersection(occupied).is_some() {
-                next.extend(area.subtract(occupied));
+        for area in areas.drain(..) {
+            if area.intersection(removed).is_some() {
+                next.extend(area.subtract(removed));
             } else {
                 next.push(area);
             }
@@ -212,9 +270,9 @@ fn blank_areas(
         if next.len() > MAX_SPECIAL_AREAS {
             return Err(SPECIAL_SCOPE_LIMIT.into());
         }
-        std::mem::swap(&mut blanks, &mut next);
+        std::mem::swap(&mut areas, &mut next);
     }
-    Ok(blanks)
+    Ok(areas)
 }
 
 pub fn selection_stats(

@@ -203,6 +203,8 @@ pub fn controls(controller: Controller) -> AnyView {
         let kind = match special.value().as_str() {
             "constants" => SpecialCellKind::Constants,
             "blanks" => SpecialCellKind::Blanks,
+            "notes" => SpecialCellKind::Notes,
+            "visible" => SpecialCellKind::Visible,
             _ => SpecialCellKind::Formulas,
         };
         let request = match go_to_special(sheet, areas, kind) {
@@ -553,6 +555,8 @@ pub fn controls(controller: Controller) -> AnyView {
                                         <option value="formulas">"Formulas"</option>
                                         <option value="constants">"Constants"</option>
                                         <option value="blanks">"Blanks"</option>
+                                        <option value="notes">"Notes"</option>
+                                        <option value="visible">"Visible cells only"</option>
                                     </select>
                                 </label>
                                 <button data-dnacalc="goto-special-apply" on:click=move |_| goto_special()>

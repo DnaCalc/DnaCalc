@@ -2084,6 +2084,8 @@ pub enum SpecialCellKind {
     Formulas,
     Constants,
     Blanks,
+    Notes,
+    Visible,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
