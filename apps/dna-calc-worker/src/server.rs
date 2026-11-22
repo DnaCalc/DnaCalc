@@ -765,6 +765,9 @@ impl Server {
                 Request::Find(options) => {
                     Ok(Reply::Found(crate::search::find(&self.book, &options)))
                 }
+                Request::GoToSpecial { sheet, areas, kind } => Ok(Reply::SpecialCells(
+                    crate::search::special_cells(&self.book, sheet, areas, kind),
+                )),
                 Request::SelectionStats => Ok(Reply::SelectionStats(
                     crate::search::selection_stats(&self.book, self.book.session().selection()),
                 )),

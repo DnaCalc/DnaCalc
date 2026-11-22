@@ -1039,6 +1039,11 @@ pub enum Request {
     Summary,
     Command(CommandEnvelope),
     Find(FindOptions),
+    GoToSpecial {
+        sheet: Sheet,
+        areas: Vec<Area>,
+        kind: SpecialCellKind,
+    },
     SelectionStats,
     CanEdit(Key),
     FitContents {
@@ -1726,6 +1731,7 @@ pub enum Reply {
     FormatPreview(Result<Cell, String>),
     Summary(Summary),
     Found(Result<Found, String>),
+    SpecialCells(Result<Vec<Area>, String>),
     SelectionStats(Result<SelectionStats, String>),
     CanEdit(Result<(), String>),
     Review(Review),
@@ -2027,6 +2033,14 @@ pub enum FindScope {
     Selection,
     Workbook,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpecialCellKind {
+    Formulas,
+    Constants,
+    Blanks,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FindOptions {
     pub sheet: Sheet,

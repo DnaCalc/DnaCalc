@@ -1,11 +1,10 @@
 //! Local workbook commands; searches and arithmetic are answered by the calculation worker.
-use crate::workbook_command::{FindCommandOptions, WorkbookCommand, projected_cell};
-use dna_calc_model::Target;
+use crate::workbook_command::{FindCommandOptions, WorkbookCommand, go_to_special, projected_cell};
 use crate::{
     controller::{Controller, grid::GridController},
-    wire::{self, Reply, Request},
+    wire::{self, Reply, Request, SpecialCellKind},
 };
-use dna_calc_model::{Command, FindMode};
+use dna_calc_model::{Command, FindMode, Target};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -93,6 +92,7 @@ pub fn controls(controller: Controller) -> AnyView {
     let dialog = NodeRef::<leptos::html::Dialog>::new();
     let query_field = NodeRef::<leptos::html::Input>::new();
     let goto_field = NodeRef::<leptos::html::Input>::new();
+    let special_kind = NodeRef::<leptos::html::Select>::new();
     let query = controller.tool_field(|s| &s.query, |s| &mut s.query);
     let replacement = controller.tool_field(|s| &s.replacement, |s| &mut s.replacement);
     let target = controller.tool_field(|s| &s.target, |s| &mut s.target);
@@ -176,16 +176,83 @@ pub fn controls(controller: Controller) -> AnyView {
         controller.find_open.set(None);
         controller.focus_active_skin();
     };
-    let options = move || {
-        let at = anchor.get_value()?;
+    let search_target = move || {
+        let at = anchor.get_value()?.cell()?;
         let areas = areas
             .get_value()
             .into_iter()
-            .map(|area| area.area())
-            .collect::<Option<_>>()?;
+            .map(wire::Area::area)
+            .collect::<Option<Vec<_>>>()?;
+        Some((Target::Sheet(at.sheet()), Target::Cells(areas)))
+    };
+    let goto_address = move || {
+        invalidate();
+        controller.go_to_text(target.get_untracked(), move |ok| {
+            if ok {
+                close();
+            }
+        });
+    };
+    let goto_special = move || {
+        let Some((sheet, areas)) = search_target() else {
+            return;
+        };
+        let Some(special) = special_kind.get_untracked() else {
+            return;
+        };
+        let kind = match special.value().as_str() {
+            "constants" => SpecialCellKind::Constants,
+            "blanks" => SpecialCellKind::Blanks,
+            _ => SpecialCellKind::Formulas,
+        };
+        let request = match go_to_special(sheet, areas, kind) {
+            Ok(request) => request,
+            Err(reason) => {
+                message.set(reason.into());
+                return;
+            }
+        };
+        invalidate();
+        let request_epoch = epoch.get_value();
+        let generation = controller.generation.get_untracked();
+        let revision = controller.revision.get_untracked();
+        message.set("Selecting cells…".into());
+        controller.ask_result(request, move |reply| {
+            if epoch.get_value() != request_epoch
+                || controller.find_open.get_untracked() != Some(FindMode::GoTo)
+                || controller.generation.get_untracked() != generation
+            {
+                return;
+            }
+            if revision != controller.revision.get_untracked() {
+                message.set("Workbook changed. Run Go To Special again.".into());
+                return;
+            }
+            match reply {
+                Ok(Reply::SpecialCells(Ok(areas))) => {
+                    let selected = areas
+                        .into_iter()
+                        .map(wire::Area::area)
+                        .collect::<Option<Vec<_>>>();
+                    if let Some(selected) = selected
+                        && let Some(first) = selected.first()
+                    {
+                        controller.select_areas(first.first(), selected);
+                        close();
+                    } else {
+                        message.set("The workbook returned no selection".into());
+                    }
+                }
+                Ok(Reply::SpecialCells(Err(reason))) | Err(reason) => message.set(reason),
+                _ => message.set("The workbook did not answer Go To Special".into()),
+            }
+        });
+    };
+    let options = move || {
+        let (sheet, areas) = search_target()?;
         Some(FindCommandOptions {
-            sheet: Target::Sheet(wire::Sheet(at.0, at.1).id()),
-            areas: Target::Cells(areas),
+            sheet,
+            areas,
             text: query.get_untracked(),
             case_sensitive: case.get_untracked(),
             whole: whole.get_untracked(),
@@ -486,36 +553,39 @@ pub fn controls(controller: Controller) -> AnyView {
                                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                                         if ev.key() == "Enter" {
                                             ev.prevent_default();
-                                            controller
-                                                .go_to_text(
-                                                    target.get_untracked(),
-                                                    move |ok| {
-                                                        if ok {
-                                                            close();
-                                                        }
-                                                    },
-                                                );
+                                            goto_address();
                                         }
                                     }
                                 />
                             </label>
                             <button
                                 data-dnacalc="goto-apply"
-                                on:click=move |_| {
-                                    controller
-                                        .go_to_text(
-                                            target.get_untracked(),
-                                            move |ok| {
-                                                if ok {
-                                                    close();
-                                                }
-                                            },
-                                        )
-                                }
+                                on:click=move |_| goto_address()
                             >
                                 "Go"
                             </button>
-                            <p role="status">{move || controller.status.get().text}</p>
+                            <div class="dc-command-row">
+                                <label>
+                                    "Special"
+                                    <select
+                                        node_ref=special_kind
+                                        data-dnacalc="goto-special"
+                                    >
+                                        <option value="formulas">"Formulas"</option>
+                                        <option value="constants">"Constants"</option>
+                                        <option value="blanks">"Blanks"</option>
+                                    </select>
+                                </label>
+                                <button data-dnacalc="goto-special-apply" on:click=move |_| goto_special()>
+                                    "Select cells"
+                                </button>
+                            </div>
+                            <p role="status" data-dnacalc="goto-status">
+                                {move || {
+                                    let special = message.get();
+                                    if special.is_empty() { controller.status.get().text } else { special }
+                                }}
+                            </p>
                         }
                     })
             }}

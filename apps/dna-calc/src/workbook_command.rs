@@ -3,7 +3,7 @@
 
 use crate::wire::{
     Area, ChartTextStyle, ConditionalChange, FilterChange, FindOptions, FindScope, Intent, Key,
-    OutlineChange, Request, ReviewFormat, Sheet, SheetChange, TableChange,
+    OutlineChange, Request, ReviewFormat, Sheet, SheetChange, SpecialCellKind, TableChange,
 };
 use calc_value::{CellKey, GridArea};
 use dna_calc_model::Target;
@@ -493,6 +493,18 @@ impl FindCommandOptions {
     pub(crate) fn find(self) -> Result<Request, &'static str> {
         self.wire().map(Request::Find)
     }
+}
+
+pub(crate) fn go_to_special(
+    sheet: Target,
+    areas: Target,
+    kind: SpecialCellKind,
+) -> Result<Request, &'static str> {
+    Ok(Request::GoToSpecial {
+        sheet: wire_sheet(sheet)?,
+        areas: wire_areas(areas)?,
+        kind,
+    })
 }
 
 impl WorkbookCommand {
