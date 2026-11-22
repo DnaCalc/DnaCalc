@@ -70,8 +70,9 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 - `ObjectRef { interface, key }`: the default interface and what it denotes. Workbook objects name session
   identities and are resolved on every call. A Range is a `StoredReference` handle of the session tracker
   (harvest finding 1), released when the last wrapper is released (`ObjectModel::released`).
-- The COM projection makes a fresh wrapper per acquisition; COM identity (`Is`) is wrapper identity until
-  E1 measures Excel.
+- The COM projection currently makes a fresh wrapper per acquisition. Excel's measured identity
+  is shared across the Application acquisition paths below. Window and Range acquisitions have
+  separate identities. The Application identity correction is owned by dc-6332.16.
 
 ## 5. Dispatch and profiles
 
@@ -131,8 +132,10 @@ CalcVBA session can drop its own copies later.
 - **Activation**: WM_GETOBJECT with OBJID_NATIVEOM returns the Window object (`LresultFromObject`), as
   Excel-DNA's and xlOil's `AccessibleObjectFromWindow` expect. Nothing is registered; Excel's own
   registrations are never touched.
-- **Threading**: the projection lives on the workbook window's STA; a call from another thread is
-  `RPC_E_WRONG_THREAD`.
+- **Threading**: the projection lives on the workbook window's STA. Direct calls through a raw
+  interface pointer on another thread return `RPC_E_WRONG_THREAD`. A COM-marshaled call goes
+  through the apartment proxy. Its admission while the owning STA calculates is measured
+  independently of the raw-pointer check.
 - **Foreign interfaces we call** (IDTExtensibility2, IRibbonExtensibility, IRtdServer) are declared with
   the `windows` crate's `#[interface]` and checked against the descriptor by a test (IID, slot order,
   and generated exact native function-pointer types for every parameter). Version/Hwnd layout
@@ -182,6 +185,19 @@ identical):
   RelativeTo is relative to A1.
 - **Optional arguments**: Empty for RowAbsolute is False; Null and Error mean "use the default";
   `Range("A1", Empty/Null/Error)` is 1004; `Value(Null)` is a type mismatch (`0x80020005`).
+
+The two X19 `COM_IDENTITY` and `COM_STA2` trials recorded in dc-6332.16 used Excel 16.0.20527.
+`Application.Application`, `Application.Parent`, `Window.Application` and
+`Window.Parent.Application` all returned the same controlling IUnknown as the initial Application.
+Two `AccessibleObjectFromWindow` acquisitions and two Range acquisitions each returned distinct
+IUnknowns. Across the second STA, marshal, unmarshal and QueryInterface for Application all
+succeeded. The proxy's Version call returned `RPC_E_CALL_REJECTED` (`0x80010001`) while Excel
+calculated.
+
+The DNA Calc acceptance for dc-6332.16 needs both Application acquisition and marshaled calls
+on the full workbook host, including an idle call and a call during calculation. The existing
+`GetTypeInfo` test covers a projection-supplied Range type. Running on a Windows machine without
+Office establishes whether the corresponding Application interface can also be marshaled there.
 
 ## 10. Coverage
 
