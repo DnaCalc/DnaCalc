@@ -546,6 +546,40 @@ mod tests {
             )
             .to_bits()
         );
+        assert_eq!(
+            beta_bgrat::<Soft>(
+                22_500.0,
+                0.5,
+                -0.5,
+                22_499.75,
+                -0.028397635994418193,
+                638.9397104654108,
+                2.5e-277,
+                2.0e-279,
+                0.0,
+                1e-15,
+                3.703621401191947e-6,
+                3.7037037037037037e-6,
+            )
+            .0
+            .to_bits(),
+            excel_beta_bgrat(
+                22_500.0,
+                0.5,
+                -0.5,
+                22_499.75,
+                -0.028397635994418193,
+                638.9397104654108,
+                2.5e-277,
+                2.0e-279,
+                0.0,
+                1e-15,
+                3.703621401191947e-6,
+                3.7037037037037037e-6,
+            )
+            .0
+            .to_bits()
+        );
     }
 }
 
@@ -750,4 +784,138 @@ fn beta_up_sum_small_b<F: Fpu>(a: f64, b: f64, x: f64, n: i32) -> f64 {
         sum = F::add(&sum, &term, CW);
     }
     st(&sum)
+}
+
+/// Excel's asymptotic expansion for the incomplete beta ratio `I_x(a, b)` when `a > b` and
+/// `b <= 1` (TOMS 708 `bgrat`, dc-i2wk3). Evaluates `g = -a * rlog1(b/a) + (b - 1/2) * log1p(b/a)
+/// - b * log1p((b - 1)/(2a)) + (s(a + b) - s(a))` without `v1 - b` cancellation and keeps
+/// `exp(g)`, `u = r * exp(g)`, `j = q / r`, and the `n = 1..=30` recurrence in x87 80-bit
+/// extended precision, storing `u * summ` before adding `w` and preserving the
+/// `|u * s_no| < DBL_MIN && total < 2^-970` underflow cutoff.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn excel_beta_bgrat(
+    a: f64,
+    b: f64,
+    bm1: f64,
+    nu: f64,
+    lnx: f64,
+    z: f64,
+    r: f64,
+    q: f64,
+    w: f64,
+    eps: f64,
+    s_n: f64,
+    s_a: f64,
+) -> (f64, i32) {
+    beta_bgrat::<Native>(a, b, bm1, nu, lnx, z, r, q, w, eps, s_n, s_a)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn beta_bgrat<F: Fpu>(
+    a: f64,
+    b: f64,
+    bm1: f64,
+    nu: f64,
+    lnx: f64,
+    z: f64,
+    r: f64,
+    q: f64,
+    w: f64,
+    eps: f64,
+    s_n: f64,
+    s_a: f64,
+) -> (f64, i32) {
+    // `DBL_MIN / f64::EPSILON = 2^-970`: below this, `eps * total` flushes to zero.
+    const TWO_TO_MINUS_970: f64 = f64::from_bits(0x0350_0000_0000_0000);
+    let one = ext_one();
+    let two = load(2.0);
+    let quarter = load(0.25);
+    let zero = load(0.0);
+    let la = load(a);
+    let lb = load(b);
+    let lbm1 = load(bm1);
+    let lnu = load(nu);
+    let llnx = load(lnx);
+    let lz = load(z);
+    let lr = load(r);
+    let lq = load(q);
+    let lw = load(w);
+
+    let h = F::store(&F::div(&lb, &la, CW), CW);
+    let rl = rlog1::<F>(h);
+    let lp1 = log1p_times::<F>(&one, h);
+    let h2 = F::store(&F::div(&lbm1, &F::mul(&two, &la, CW), CW), CW);
+    let lp2 = log1p_times::<F>(&one, h2);
+
+    let t1 = ext_chs(&F::mul(&la, &load(rl), CW), CW);
+    let t2_g = F::mul(&F::sub(&lb, &load(0.5), CW), &load(lp1), CW);
+    let t3 = F::mul(&lb, &load(lp2), CW);
+    let t4 = F::sub(&load(s_n), &load(s_a), CW);
+    let g = F::add(&F::sub(&F::add(&t1, &t2_g, CW), &t3, CW), &t4, CW);
+
+    let eg = exp_ext::<F>(&g);
+    let u = F::mul(&lr, &eg, CW);
+    if F::store(&u, CW) == 0.0 {
+        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
+    }
+
+    let v = F::div(&quarter, &F::mul(&lnu, &lnu, CW), CW);
+    let t2 = F::mul(&F::mul(&quarter, &llnx, CW), &llnx, CW);
+    let l = F::div(&lw, &u, CW);
+    let mut j = F::div(&lq, &lr, CW);
+    let mut summ = j;
+    // Track the n >= 1 correction starting from j = 0 alongside the main recurrence
+    // (dc-iuwct.63 / dc-iuwct.66): when both |u * s_no| < DBL_MIN and w + u * summ < 2^-970,
+    // Excel returns 0.0 (discarding the bup seed w as well).
+    let mut j_no = zero;
+    let mut s_no = zero;
+    let mut t = one;
+    let mut cn = one;
+    let mut n2 = zero;
+    let mut c = [zero; 31];
+    let mut d = [zero; 31];
+    let leps = load(eps);
+
+    for k in 1..=30usize {
+        let bp2n = F::add(&lb, &n2, CW);
+        let bp2n_p1 = F::add(&bp2n, &one, CW);
+        let fac = F::mul(&bp2n, &bp2n_p1, CW);
+        let rhs = F::mul(&F::add(&lz, &bp2n_p1, CW), &t, CW);
+        j = F::mul(&F::add(&F::mul(&fac, &j, CW), &rhs, CW), &v, CW);
+        j_no = F::mul(&F::add(&F::mul(&fac, &j_no, CW), &rhs, CW), &v, CW);
+        n2 = F::add(&n2, &two, CW);
+        t = F::mul(&t, &t2, CW);
+        cn = F::div(&cn, &F::mul(&n2, &F::add(&n2, &one, CW), CW), CW);
+        c[k] = cn;
+        let mut s = zero;
+        let lk = load(k as f64);
+        if k != 1 {
+            let mut coef = F::sub(&lb, &lk, CW);
+            for i in 1..k {
+                s = F::add(&s, &F::mul(&F::mul(&coef, &c[i], CW), &d[k - i], CW), CW);
+                coef = F::add(&coef, &lb, CW);
+            }
+        }
+        d[k] = F::add(&F::mul(&lbm1, &cn, CW), &F::div(&s, &lk, CW), CW);
+        let dj = F::mul(&d[k], &j, CW);
+        summ = F::add(&summ, &dj, CW);
+        s_no = F::add(&s_no, &F::mul(&d[k], &j_no, CW), CW);
+        if (summ.0[9] & 0x80 != 0) || summ.0[..8].iter().all(|&byte| byte == 0) {
+            return (w, 1);
+        }
+        let abs_dj = ext_abs(&dj, CW);
+        let bound = F::mul(&leps, &F::add(&summ, &l, CW), CW);
+        let gap = F::sub(&bound, &abs_dj, CW);
+        if (gap.0[9] & 0x80 == 0) || gap.0[..8].iter().all(|&byte| byte == 0) {
+            break;
+        }
+    }
+
+    let prod = F::store(&F::mul(&u, &summ, CW), CW);
+    let total = F::store(&F::add(&lw, &load(prod), CW), CW);
+    let u_sno = F::store(&F::mul(&u, &s_no, CW), CW);
+    if u_sno.abs() < f64::MIN_POSITIVE && total < TWO_TO_MINUS_970 {
+        return (0.0, 1);
+    }
+    (total, 0)
 }

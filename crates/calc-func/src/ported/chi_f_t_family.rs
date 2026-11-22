@@ -1387,4 +1387,90 @@ mod tests {
             "bup_160 subnormal bpser kept within 200 ULP, got {sub_bup160:#018x}"
         );
     }
+
+    /// Excel 16.0.20527 (dc-i2wk3 / ww2 `dc-iuwct.66-current-{TDIST,T.DIST.RT,T.DIST.2T,BETA.DIST}.json`):
+    /// `bratio_bgrat` evaluates `g` without `v1 - b` cancellation via `excel_rlog1(b/a)` and keeps
+    /// `exp(g)`, `u = r * exp(g)`, `j = q / r`, and the asymptotic series in x87 80-bit extended
+    /// precision (storing `u * summ` before adding `w`), matching Excel bit-for-bit across all
+    /// 139 formerly 1–2 ULP rows.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_i2wk3_bgrat_ext80_and_rlog1_match_excel() {
+        use crate::ported::beta_gamma_stats_family::beta_dist_kernel;
+
+        let tdist_rows: &[(&str, u64, u64, f64, u64)] = &[
+            ("45000:36:1", 0x4042000000000000, 0x40e5f90000000000, 1.0, 0x05ed2b43c9233587),
+            ("45000:36:2", 0x4042000000000000, 0x40e5f90000000000, 2.0, 0x05fd2b43c9233587),
+            ("181323-671.56-1", 0x40425bb8aebfbd1c, 0x4106225800000000, 1.0, 0x02f8a802a41e974d),
+            ("181323-671.56-2", 0x40425bb8aebfbd1c, 0x4106225800000000, 2.0, 0x0308a802a41e974d),
+            ("1048576:36:1", 0x4042000000000000, 0x4130000000000000, 1.0, 0x05229228674ae3fb),
+            ("1048576:36:2", 0x4042000000000000, 0x4130000000000000, 2.0, 0x05329228674ae3fb),
+            ("104660660-667-1", 0x4042431517114a4b, 0x4198f3fad0000000, 1.0, 0x036270cadad7f9fe),
+            ("104660660-667-2", 0x4042431517114a4b, 0x4198f3fad0000000, 2.0, 0x037270cadad7f9fe),
+            ("209321321-671.56-1", 0x404253074dd1d515, 0x41a8f3fad2000000, 1.0, 0x02f89c574c15191c),
+            ("209321321-671.56-2", 0x404253074dd1d515, 0x41a8f3fad2000000, 2.0, 0x03089c574c15191c),
+            ("1e10:36.5:1", 0x4042400000000000, 0x4202a05f20000000, 1.0, 0x0376223df28de89c),
+            ("1e10:36.5:2", 0x4042400000000000, 0x4202a05f20000000, 2.0, 0x0386223df28de89c),
+            // Narrowed nonzero boundaries (exact, formerly <= 2 ULP).
+            ("df=45000 nz", 0x4042c4d2d5569580, 0x40e5f90000000000, 2.0, 0x0108955210adaf05),
+            ("df=1048576 nz", 0x40428ba15d780000, 0x4130000000000000, 2.0, 0x019a8d0ed3608066),
+            ("df=209321321 nz", 0x4042654a2f0588cf, 0x41a8f3fad2000000, 2.0, 0x0290a7835704f3c6),
+            ("df=1e10 nz", 0x40424a3db8ac9dd4, 0x4202a05f20000000, 2.0, 0x0342fdd448f27ca9),
+        ];
+        for &(label, x_bits, df_bits, tails, excel) in tdist_rows {
+            let got = tdist_kernel(f64::from_bits(x_bits), f64::from_bits(df_bits), tails)
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got, excel,
+                "TDIST({x_bits:#018x}, {df_bits:#018x}, {tails}) [{label}] got {got:#018x}, expected {excel:#018x}"
+            );
+        }
+
+        let t_modern_rows: &[(&str, u64, u64, u64, u64)] = &[
+            ("45000-667", 0x404265ee0ba875e2, 0x40e5f90000000000, 0x036293d5232b2e41, 0x037293d5232b2e41),
+            ("181323-671.56", 0x40425bb8aebfbd1c, 0x4106225800000000, 0x02f8a802a41e974d, 0x0308a802a41e974d),
+            ("104660660-667", 0x4042431517114a4b, 0x4198f3fad0000000, 0x036270cadad7f9fe, 0x037270cadad7f9fe),
+            ("209321321-671.56", 0x404253074dd1d515, 0x41a8f3fad2000000, 0x02f89c574c15191c, 0x03089c574c15191c),
+        ];
+        for &(label, x_bits, df_bits, exp_rt, exp_2t) in t_modern_rows {
+            let got_rt = t_dist_rt_kernel(f64::from_bits(x_bits), f64::from_bits(df_bits))
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got_rt, exp_rt,
+                "T.DIST.RT({x_bits:#018x}, {df_bits:#018x}) [{label}] got {got_rt:#018x}, expected {exp_rt:#018x}"
+            );
+            let got_2t = t_dist_2t_kernel(f64::from_bits(x_bits), f64::from_bits(df_bits))
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got_2t, exp_2t,
+                "T.DIST.2T({x_bits:#018x}, {df_bits:#018x}) [{label}] got {got_2t:#018x}, expected {exp_2t:#018x}"
+            );
+        }
+
+        let beta_rows: &[(&str, u64, u64, u64, u64)] = &[
+            ("45000-684.47", 0x3fef0a8b63ff648b, 0x40d5f90000000000, 0x3fe0000000000000, 0x01dfd9cb257f7b42),
+            ("181323-684.47", 0x3fefc262aea1e5e2, 0x40f6225800000000, 0x3fe0000000000000, 0x01dfab6b0ed357d2),
+            ("104660660-676", 0x3fefffe4e8c77a83, 0x4188f3fad0000000, 0x3fe0000000000000, 0x02a284c3cf693692),
+            ("209321321-671.56", 0x3feffff28b2762fc, 0x4198f3fad2000000, 0x3fe0000000000000, 0x03089c574ed828e2),
+        ];
+        for &(label, x_bits, a_bits, b_bits, excel) in beta_rows {
+            let got = beta_dist_kernel(
+                f64::from_bits(x_bits),
+                f64::from_bits(a_bits),
+                f64::from_bits(b_bits),
+                true,
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(
+                got, excel,
+                "BETA.DIST({x_bits:#018x}, {a_bits:#018x}, {b_bits:#018x}, TRUE) [{label}] got {got:#018x}, expected {excel:#018x}"
+            );
+        }
+    }
 }
