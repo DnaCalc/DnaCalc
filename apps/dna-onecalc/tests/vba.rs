@@ -821,13 +821,12 @@ fn an_edited_project_reports_the_source_offsets_it_writes() {
     assert_eq!(reported, on_disk);
 }
 
-/// Native-only (the project compiles on Windows): `Workbook_BeforeSave` runs before anything is
-/// written, and `Cancel` stops the save.
-#[cfg(windows)]
-#[test]
+/// Replays the ww1 and ww2 normal and Cancel controls through the Formula Explorer port.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_before_save_runs_first_and_cancel_stops_the_save() {
     use dna_onecalc::port::{Reply, Request, SessionPort};
-    let (mut port, _) = opened_examples();
+    let (mut port, _) = opened_example_bytes(examples_for_portable_contract());
     port.send(Request::EnableMacros);
     let load = |port: &mut dna_onecalc::port::LocalPort, cancel: &str| {
         port.send(Request::LoadVba {
@@ -844,7 +843,12 @@ fn workbook_before_save_runs_first_and_cancel_stops_the_save() {
     );
     let reply = load(&mut port, "False");
     assert!(matches!(reply, Reply::Functions { .. }), "{reply:?}");
-    assert!(matches!(port.send(Request::Save), Reply::File { .. }));
+    let Reply::File { name, bytes } = port.send(Request::Save) else {
+        panic!("the normal BeforeSave control must return a workbook");
+    };
+    assert!(name.ends_with(".xlsm"));
+    let file = calc_doc::read_session(bytes, dna_onecalc::file::NAMESPACE).unwrap();
+    assert!(file.vba.is_some());
 }
 
 /// dc-0f1k.12: a worksheet function sees the user's active sheet and selection
