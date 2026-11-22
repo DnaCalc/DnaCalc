@@ -517,12 +517,41 @@ mod tests {
             rlog1::<Soft>(0.0269).to_bits(),
             excel_rlog1(0.0269).to_bits()
         );
+        assert_eq!(
+            beta_power_series::<Soft>(
+                401.5,
+                0.5,
+                f64::from_bits(0x3fc6_1dc2_3827_ac17),
+                crate::ported::special_math_common::excel_ln_beta(401.5, 0.5),
+                true,
+            )
+            .to_bits(),
+            0
+        );
+        assert_eq!(
+            beta_power_series::<Soft>(
+                401.5,
+                0.5,
+                f64::from_bits(0x3fc6_1dc2_3827_ac18),
+                crate::ported::special_math_common::excel_ln_beta(401.5, 0.5),
+                true,
+            )
+            .to_bits(),
+            excel_beta_power_series(
+                401.5,
+                0.5,
+                f64::from_bits(0x3fc6_1dc2_3827_ac18),
+                crate::ported::special_math_common::excel_ln_beta(401.5, 0.5),
+                true,
+            )
+            .to_bits()
+        );
     }
 }
 
 /// Excel's power series for the incomplete beta ratio `I_x(a, b)`, the arm TOMS 708 calls `bpser`,
 /// given `ln_beta = ln B(a, b)` as Excel forms it. Read from BETA.DIST on Excel 16.0.20527
-/// (dc-6332.8, `docs/research/beta-family-2026-11-12.md`):
+/// (dc-6332.8, `docs/research/beta-family-2026-11-12.md`; dc-j9k.44.1):
 ///
 /// - The prefactor is EXP of the stored `a LN(x) - ln_beta`, with `a LN(x)` stored first and what
 ///   the stored difference dropped put back as the last factor `1 + dropped`.
@@ -530,11 +559,26 @@ mod tests {
 ///   `t_n = t_(n-1) (n - b) x / n`; every operation is stored. It stops at a term of at most
 ///   `2^-53 / a`.
 /// - The answer is `(EXP * sum) * (1 + dropped)`, each product stored.
-pub(crate) fn excel_beta_power_series(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
-    beta_power_series::<Native>(a, b, x, ln_beta)
+/// - When `flush_subnormal_scaled` is true (direct `bpser`/`bpser_sym` exits), Excel flushes a
+///   subnormal `scaled = EXP(hi) * sum` to `0.0` before applying `1 + dropped` (verified to 1 ULP
+///   across `b <= 1` and `b > 1` on Excel 16.0.20527, dc-j9k.44.1).
+pub(crate) fn excel_beta_power_series(
+    a: f64,
+    b: f64,
+    x: f64,
+    ln_beta: f64,
+    flush_subnormal_scaled: bool,
+) -> f64 {
+    beta_power_series::<Native>(a, b, x, ln_beta, flush_subnormal_scaled)
 }
 
-fn beta_power_series<F: Fpu>(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
+fn beta_power_series<F: Fpu>(
+    a: f64,
+    b: f64,
+    x: f64,
+    ln_beta: f64,
+    flush_subnormal_scaled: bool,
+) -> f64 {
     let st = |e: &Ext80| F::store(e, CW);
     let p = st(&F::mul(&load(a), &load(log_with::<F>(x, &ext_ln2())), CW));
     let hi = st(&F::sub(&load(p), &load(ln_beta), CW));
@@ -558,6 +602,9 @@ fn beta_power_series<F: Fpu>(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
         }
     }
     let scaled = st(&F::mul(&load(exp_with::<F>(hi, CW)), &load(sum), CW));
+    if flush_subnormal_scaled && scaled.is_subnormal() {
+        return 0.0;
+    }
     st(&F::mul(&load(scaled), &load(factor), CW))
 }
 

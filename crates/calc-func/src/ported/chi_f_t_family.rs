@@ -1275,4 +1275,116 @@ mod tests {
             assert_eq!(t_dist_2t_kernel(f64::from_bits(x_zr), df).unwrap().to_bits(), 0);
         }
     }
+
+    /// Excel 16.0.20527 (dc-j9k.44.1 / nx13 Touchstone probes `probe_44_45`, `bpser_ftz`,
+    /// `probe_44_45_edge`, `probe_44_45_edge2`, `probe_44_45_edge3`):
+    /// - All 24 `F.DIST.RT` early-zero probe controls from `dc-j9k.44.1` return `0.0` in Excel.
+    /// - Direct `bpser` flushes a subnormal `scaled = exp(hi) * sum` to `0.0` before multiplying
+    ///   by `1 + dropped`, verified to 1 ULP across `b <= 1` (`a = 401.5, 973.5, 777.0, b = 0.5`)
+    ///   and `b > 1` (`a = 112.5, b = 1.5`; `a = 104.5, b = 2.5`).
+    /// - In `bup_160` (`w = bup + bpser`), a subnormal `bpser` term still contributes to a normal
+    ///   recurrence sum (`a = 900.5, b = 2.5`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_44_1_f_dist_rt_early_zero_and_bpser_ftz_match_excel() {
+        use crate::ported::beta_gamma_stats_family::{beta_dist_kernel, flush_subnormal};
+
+        // All 24 F.DIST.RT controls from dc-j9k.44.1 (all verified 0.0 on Excel 16.0.20527).
+        let f_controls: &[(&str, u64, u64, u64)] = &[
+            ("zero[12]", 0x40547f27fe8f8c70, 0x408f400000000000, 0x407b400000000000),
+            ("zero[20]", 0x4063d50f6540b3bd, 0x4034000000000000, 0x408f400000000000),
+            ("zero[21]", 0x4063d510b1fba2fe, 0x4034000000000000, 0x408f400000000000),
+            ("zero[22]", 0x4063da231f774b78, 0x4034000000000000, 0x408f400000000000),
+            ("zero[23]", 0x406407d4ab62a10e, 0x4034000000000000, 0x408f400000000000),
+            ("zero[56]", 0x4664795b7f5df80b, 0x408f400000000000, 0x4034000000000000),
+            ("zero[68]", 0x408086e229b5eb1d, 0x4018000000000000, 0x408f400000000000),
+            ("zero[69]", 0x408086e33efc5d29, 0x4018000000000000, 0x408f400000000000),
+            ("zero[70]", 0x40808b1d44e3698e, 0x4018000000000000, 0x408f400000000000),
+            ("zero[71]", 0x4080b131397cdb8b, 0x4018000000000000, 0x408f400000000000),
+            ("wide[0]",  0x40a2b53c279b7f3d, 0x40a7900000000000, 0x406a200000000000),
+            ("wide[8]",  0x40593818cf3d9be7, 0x402c000000000000, 0x411e053000000000),
+            ("wide[9]",  0x4059381a7658f0ff, 0x402c000000000000, 0x411e053000000000),
+            ("wide[10]", 0x40593e8d920205c8, 0x402c000000000000, 0x411e053000000000),
+            ("wide[11]", 0x405978a86ae9bebe, 0x402c000000000000, 0x411e053000000000),
+            ("wide[32]", 0x3ff935b351a10343, 0x40cfc70000000000, 0x40eb3c2000000000),
+            ("wide[36]", 0x4664a5ae852f11d3, 0x4080000000000000, 0x4034000000000000),
+            ("wide[40]", 0x409bfde9f2186c47, 0x40b2a70000000000, 0x406b400000000000),
+            ("wide[52]", 0x40ba280a821e8aa4, 0x40969c0000000000, 0x4066c00000000000),
+            ("wide[60]", 0x598589f5803b6cfb, 0x4165a41a40000000, 0x4014000000000000),
+            ("one[0]",   0x40ae08e31d64f677, 0x3ff0000000000000, 0x4089180000000000),
+            ("one[4]",   0x40a029350b53724a, 0x3ff0000000000000, 0x409e6c0000000000),
+            ("one[20]",  0x40a1ee4beb803f02, 0x3ff0000000000000, 0x4098480000000000),
+            ("one[24]",  0x40ac6955ca95e1c4, 0x3ff0000000000000, 0x408a680000000000),
+        ];
+        for &(label, x_bits, d1_bits, d2_bits) in f_controls {
+            let got = f_dist_rt_kernel(
+                f64::from_bits(x_bits),
+                f64::from_bits(d1_bits),
+                f64::from_bits(d2_bits),
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, 0, "F.DIST.RT dc-j9k.44.1 control {label} got {got:#018x}, expected 0");
+        }
+
+        // 1-ULP adjacent-double direct bpser FTZ boundaries (b <= 1 and b > 1).
+        let bpser_rows: &[(&str, u64, f64, f64, u64)] = &[
+            ("a401.5_d+0",      0x3fc61dc23827ac17, 401.5, 0.5, 0x0000000000000000),
+            ("a401.5_d+1",      0x3fc61dc23827ac18, 401.5, 0.5, 0x001000000000022c),
+            ("a973.5_d+0",      0x3fdf07ec6d6b49eb, 973.5, 0.5, 0x0000000000000000),
+            ("a973.5_d+1",      0x3fdf07ec6d6b49ec, 973.5, 0.5, 0x001000000000024c),
+            ("a777.0_d+0",      0x3fd9d6a43a0711a4, 777.0, 0.5, 0x0000000000000000),
+            ("a777.0_d+1",      0x3fd9d6a43a0711a5, 777.0, 0.5, 0x001000000000024a),
+            ("a112.5_b1.5_k-1", 0x3f5d857e34284f35, 112.5, 1.5, 0x0000000000000000),
+            ("a112.5_b1.5_k0",  0x3f5d857e34284f36, 112.5, 1.5, 0x00100000000002cf),
+            ("a104.5_b2.5_k-1", 0x3f517a8a5b4a674d, 104.5, 2.5, 0x0000000000000000),
+            ("a104.5_b2.5_k0",  0x3f517a8a5b4a674e, 104.5, 2.5, 0x00100000000001ae),
+        ];
+        for &(label, x_bits, a, b, expected) in bpser_rows {
+            let got = flush_subnormal(
+                beta_dist_kernel(f64::from_bits(x_bits), a, b, true, 0.0, 1.0).unwrap(),
+            )
+            .to_bits();
+            assert_eq!(
+                got, expected,
+                "BETADIST({x_bits:#018x}, {a}, {b}) [{label}] got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+
+        // In bup_160 (w = bup + bpser), normal-side bpser matches Excel bit-for-bit, and
+        // subnormal bpser still contributes to the normal recurrence sum (not dropped to 0).
+        let bup160_exact: &[(&str, u64, f64, f64, u64)] = &[
+            ("C3_k-1_b2.5",     0x3fdd430dc14eae85, 900.5, 2.5, 0x0133857fecefaa09),
+            ("C3_k+0_b2.5",     0x3fdd430dc14eae86, 900.5, 2.5, 0x0133857fecefb159),
+            ("C3_k-1_b3.5",     0x3fdd430dc14eae85, 900.5, 3.5, 0x01adeda7149d8f9e),
+            ("a401p5_d+1_b4.5", 0x3fc61dc23827ac18, 401.5, 4.5, 0x01fc3dfc5041c419),
+            ("a973p5_d+1_b2.5", 0x3fdf07ec6d6b49ec, 973.5, 2.5, 0x01348c56c9fcc92c),
+            ("a777p0_d+1_b2.5", 0x3fd9d6a43a0711a5, 777.0, 2.5, 0x01318b3ba29490c6),
+        ];
+        for &(label, x_bits, a, b, expected) in bup160_exact {
+            let got = beta_dist_kernel(f64::from_bits(x_bits), a, b, true, 0.0, 1.0)
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got, expected,
+                "bup_160 BETADIST({x_bits:#018x}, {a}, {b}) [{label}] got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+        // When bpser's scaled term is subnormal inside bup_160, retaining the subnormal series
+        // stays within ~151 ULP of Excel (flushing would lose ~1.7e10 ULP).
+        let sub_bup160 = beta_dist_kernel(
+            f64::from_bits(0x3fdd3fd2ea0810a8),
+            900.5,
+            2.5,
+            true,
+            0.0,
+            1.0,
+        )
+        .unwrap()
+        .to_bits();
+        assert!(
+            sub_bup160.abs_diff(0x012a7e15d83900e8) <= 200,
+            "bup_160 subnormal bpser kept within 200 ULP, got {sub_bup160:#018x}"
+        );
+    }
 }

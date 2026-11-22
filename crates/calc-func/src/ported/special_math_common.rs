@@ -1508,11 +1508,21 @@ fn excel_brcomp(a: f64, b: f64, x: f64, y: f64) -> Option<f64> {
 }
 
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
-fn bratio_bpser(a: f64, b: f64, x: f64) -> f64 {
+/// Direct `bpser`/`bpser_sym` exits pass `flush_subnormal_scaled = true` (dc-j9k.44.1);
+/// `bup_160` passes `false` so a subnormal series term still contributes to a normal
+/// recurrence sum (the ~100-ULP `bup_160` fallback when `scaled` underflows is tracked
+/// under `dc-j9k.55`).
+fn bratio_bpser(a: f64, b: f64, x: f64, flush_subnormal_scaled: bool) -> f64 {
     if x == 0.0 {
         return 0.0;
     }
-    crate::ported::excel_numeric::excel_beta_power_series(a, b, x, excel_ln_beta(a, b))
+    crate::ported::excel_numeric::excel_beta_power_series(
+        a,
+        b,
+        x,
+        excel_ln_beta(a, b),
+        flush_subnormal_scaled,
+    )
 }
 
 /// bup: Ix(a, b) - Ix(a+n, b) evaluated for n a positive integer.
@@ -2262,11 +2272,11 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
 
         match branch {
             "bpser" => {
-                w = bratio_bpser(a0, b0, x0);
+                w = bratio_bpser(a0, b0, x0, true);
                 w1 = 0.5 + (0.5 - w);
             }
             "bpser_sym" => {
-                w1 = bratio_bpser(b0, a0, y0);
+                w1 = bratio_bpser(b0, a0, y0, true);
                 w = 0.5 + (0.5 - w1);
             }
             "bup_140" => {
@@ -2321,7 +2331,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
 
     match branch {
         "bpser" => {
-            w = bratio_bpser(a0, b0, x0);
+            w = bratio_bpser(a0, b0, x0, true);
             w1 = 0.5 + (0.5 - w);
         }
         "basym" => {
@@ -2341,7 +2351,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             }
             w = bratio_bup(b0, a0, y0, x0, n, eps);
             if x0 <= 0.7 {
-                w += bratio_bpser(a0, b0, x0);
+                w += bratio_bpser(a0, b0, x0, false);
                 // The series term can be subnormal and still contribute to a
                 // normal recurrence. Excel flushes only the final stored sum.
                 if w.is_subnormal() {
