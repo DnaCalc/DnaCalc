@@ -136,6 +136,7 @@ pub struct LoadedSheet {
     preserved: Option<&'static str>,
     protected: bool,
     merged_areas: Vec<GridArea>,
+    ignored_number_text: Vec<GridArea>,
     validations: Arc<[Validation]>,
     sparklines: Arc<[calc_doc_model::SparklineGroup]>,
     charts: Arc<SheetCharts>,
@@ -164,6 +165,7 @@ impl LoadedSheet {
             preserved: None,
             protected: false,
             merged_areas: Vec::new(),
+            ignored_number_text: Vec::new(),
             validations: Arc::from([]),
             sparklines: Arc::from([]),
             charts: Arc::new(SheetCharts::default()),
@@ -181,6 +183,11 @@ impl LoadedSheet {
     /// Imported merged ranges, retained as metadata; ordinary cells remain canonical inputs.
     pub fn merged_areas(&self) -> &[GridArea] {
         &self.merged_areas
+    }
+
+    /// Imported ranges whose number-stored-as-text warning the workbook suppresses.
+    pub fn ignored_number_text(&self) -> &[GridArea] {
+        &self.ignored_number_text
     }
 
     /// Whether the sheet is an Excel 4.0 macro sheet (dc-xuw): its formula cells are unloaded
@@ -2232,6 +2239,7 @@ pub fn load_preserving_sheet_ids(
                     preserved: declared.preserved,
                     protected: loaded.protected,
                     merged_areas: loaded.merged_areas,
+                    ignored_number_text: loaded.ignored_number_text,
                     validations: loaded.validations.into(),
                     sparklines: loaded.sparklines.into(),
                     // A chart sheet's chart is read from its drawing as a worksheet's are (dc-zjsg.6); the sheet

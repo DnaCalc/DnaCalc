@@ -6407,6 +6407,79 @@ fn conditional_change(change: wire::ConditionalChange) -> calc_host::Conditional
 mod tile_tests {
     use super::*;
     use dna_calc_model::{TileApply, ViewMirror};
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn number_as_text_markers_match_excel_through_the_tile_stream() {
+        use crate::workbook::zip_fixture_kit::{RawEntry, build_zip, parse_zip};
+        let blank = calc_host::blank_package();
+        let zip = parse_zip(&blank);
+        // ww2 grid-header probe, Excel 16.0.20527. Apostrophe, Text format, numeric General,
+        // formula text, and the workbook's ignoredErrors control.
+        let cells = r#"<sheetData><row r="1">
+            <c r="A1" s="1" t="inlineStr"><is><t>123</t></is></c>
+            <c r="B1" s="2" t="inlineStr"><is><t>123</t></is></c>
+            <c r="C1"><v>123</v></c>
+            <c r="D1" t="str"><f>"123"</f><v>123</v></c>
+            <c r="E1" s="2" t="inlineStr"><is><t>123</t></is></c>
+            </row></sheetData><ignoredErrors>
+            <ignoredError sqref="E1" numberStoredAsText="1"/>
+            </ignoredErrors>"#;
+        let entries: Vec<_> = zip
+            .entries
+            .iter()
+            .map(|entry| {
+                let payload = entry.payload(&blank);
+                if !matches!(entry.name.as_str(), "xl/worksheets/sheet1.xml" | "xl/styles.xml") {
+                    return RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32);
+                }
+                let bytes = miniz_oxide::inflate::decompress_to_vec(payload).unwrap();
+                let xml = String::from_utf8(bytes).unwrap();
+                let xml = if entry.name == "xl/worksheets/sheet1.xml" {
+                    xml.replace("<sheetData/>", cells)
+                } else {
+                    xml.replace(r#"<cellXfs count="1">"#, r#"<cellXfs count="3">"#)
+                        .replace(
+                            "</cellXfs>",
+                            concat!(
+                                r#"<xf xfId="0" quotePrefix="1"/>"#,
+                                r#"<xf xfId="0" numFmtId="49" applyNumberFormat="1"/>"#,
+                                "</cellXfs>"
+                            ),
+                        )
+                };
+                RawEntry::stored(&entry.name, xml.as_bytes())
+            })
+            .collect();
+        let mut server = Server::new();
+        let opened = server.execute_current(
+            Request::Open {
+                name: "number-as-text.xlsx".into(),
+            },
+            Some(build_zip(&entries)),
+        );
+        assert!(
+            matches!(opened.reply, Ok(Reply::Done { ref outcome, .. }) if outcome.accepted),
+            "{:?}",
+            opened.reply
+        );
+        while server.has_pending_calculation() {
+            server.advance_calculation();
+        }
+        server.take_events();
+        let sheet = server.book().sheets()[0].id;
+        subscribe(&mut server, 1);
+        let mut mirror = ViewMirror::default();
+        receive(&mut mirror, projection_events(&mut server));
+        let observed: Vec<_> = (1..=5)
+            .map(|column| {
+                let at = CellKey::new(sheet, 1, column).unwrap();
+                mirror.cell(at).unwrap().number_as_text
+            })
+            .collect();
+        assert_eq!(observed, [true, true, false, false, false]);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_blank_formatted_cell_survives_the_wire_and_renders_until_undo() {

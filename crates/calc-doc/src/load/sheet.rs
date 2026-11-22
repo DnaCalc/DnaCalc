@@ -37,6 +37,7 @@ pub(super) struct SheetLoad {
     pub(super) review: super::SheetReview,
     pub(super) protected: bool,
     pub(super) merged_areas: Vec<GridArea>,
+    pub(super) ignored_number_text: Vec<GridArea>,
     pub(super) part: Arc<SourcePart>,
     pub(super) inputs: Vec<(CellKey, CellInput)>,
     pub(super) styles: BTreeMap<(u32, u32), u32>,
@@ -1064,6 +1065,7 @@ fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
         review: Default::default(),
         protected: false,
         merged_areas: Vec::new(),
+        ignored_number_text: Vec::new(),
         part: source,
         inputs: Vec::new(),
         styles: BTreeMap::new(),
@@ -1131,6 +1133,7 @@ pub(super) fn load_sheet(
             review: super::review::read(package, part, id),
             protected: false,
             merged_areas: Vec::new(),
+            ignored_number_text: Vec::new(),
             part: source,
             inputs: Vec::new(),
             styles: BTreeMap::new(),
@@ -1162,6 +1165,33 @@ pub(super) fn load_sheet(
     let mut bars = BTreeMap::new();
     loop {
         match events.next()? {
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "ignoredErrors") => {
+                loop {
+                    let rule = match events.next()? {
+                        Some(XmlEvent::Start(rule)) => rule,
+                        Some(XmlEvent::Text(_)) => continue,
+                        Some(XmlEvent::End(_)) => break,
+                        None => return Err(events.invalid("the part ends inside ignoredErrors")),
+                    };
+                    if rule.name.is(MAIN_NAMESPACE, "ignoredError")
+                        && matches!(rule.attribute("numberStoredAsText"), Some("1" | "true"))
+                    {
+                        let reference = rule.attribute("sqref").unwrap_or_default();
+                        sheet.load.ignored_number_text.extend(
+                            super::conditional::areas(reference).into_iter().filter_map(
+                                |(top, left, bottom, right)| {
+                                    GridArea::new(
+                                        CellKey::new(id, top, left).ok()?,
+                                        CellKey::new(id, bottom, right).ok()?,
+                                    )
+                                    .ok()
+                                },
+                            ),
+                        );
+                    }
+                    events.skip()?;
+                }
+            }
             Some(XmlEvent::Start(element))
                 if element.name.is(MAIN_NAMESPACE, "sheetProtection") =>
             {

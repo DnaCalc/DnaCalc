@@ -15773,6 +15773,60 @@ fn dc_971p_16__empty_view_elements_and_frozen_split_state_survive_window_save() 
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn excel_offset_freeze_and_inactive_selection_survive_save() {
+    // ww2 recorded a five-row, three-column freeze at K105 from H100 and an inactive
+    // sheet's L22 selection. Reconstruct the recorded state in an authored workbook.
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace(
+            "<sheetData",
+            concat!(
+                r#"<sheetViews><sheetView workbookViewId="0" topLeftCell="H100">"#,
+                r#"<pane state="frozen" xSplit="3" ySplit="5" topLeftCell="K105" activePane="bottomRight"/>"#,
+                r#"<selection pane="bottomRight" activeCell="K105" sqref="K105"/>"#,
+                "</sheetView></sheetViews><sheetData"
+            ),
+        )
+    });
+    let mut book = session(&bytes);
+    let frozen_sheet = book.host().sheets()[0].id();
+    let frozen_view = book.host().sheet_view(frozen_sheet).unwrap();
+    assert_eq!(frozen_view.top_left, Some((100, 8)));
+    assert_eq!(frozen_view.pane_top_left, Some((105, 11)));
+    let freeze = frozen_view.frozen.unwrap();
+    assert_eq!((freeze.rows(), freeze.columns()), (5, 3));
+    let added = book.dispatch(SkinIntent::Command(calc_host::WorkbookCommand::Sheet {
+        sheet: None,
+        change: calc_host::SheetChange::Add {
+            name: "Other".into(),
+        },
+    }));
+    assert!(added.accepted(), "{added:?}");
+    let other_sheet = book.host().sheets()[1].id();
+    let mut other_view = book.host().sheet_view(other_sheet).unwrap();
+    other_view.active_cell = Some((22, 12));
+    let policy = SavePolicy {
+        views: Some(std::sync::Arc::new(calc_host::SaveViews {
+            revision: book.host().revision().get(),
+            active_sheet: Some(frozen_sheet),
+            sheets: [(frozen_sheet, frozen_view), (other_sheet, other_view)].into(),
+        })),
+        ..Default::default()
+    };
+    let mut saved = Vec::new();
+    book.save(&policy, &mut saved).unwrap();
+    let reopened = open(&saved);
+    let first = reopened.sheets()[0].id();
+    let second = reopened.sheets()[1].id();
+    assert_eq!(reopened.loaded().active_sheet(), Some(first));
+    assert_eq!(reopened.sheet_view(first), Some(frozen_view));
+    assert_eq!(
+        reopened.sheet_view(second).unwrap().active_cell,
+        Some((22, 12))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_971p_39__nested_outline_history_subtotals_and_xlsx_keep_independent_hiding() {
     use calc_host::{Axis, OutlineChange as O, WorkbookCommand as W};
     let mut book = session(&calc_host::blank_package());

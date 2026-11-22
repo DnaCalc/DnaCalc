@@ -51,6 +51,7 @@ mod tests {
             error_meaning: None,
             spill: None,
             exact: None,
+            number_as_text: false,
         };
         let stamp = TileStamp {
             calculation_through: None,
