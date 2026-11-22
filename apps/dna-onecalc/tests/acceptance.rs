@@ -4810,55 +4810,30 @@ fn recorded_geomean_equal_inputs_keep_their_value() {
 
 /// Original zero, signed-unit and overflowing finite-real controls distinguish
 /// the real-axis identity from an indeterminate imaginary zero times infinity.
+/// These recorded inputs and answers are retained across function-bank re-pins.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn recorded_complex_hyperbolics_keep_the_real_axis() {
-    let sets: &[(&str, &[u8])] = &[
-        (
-            "IMSINH",
-            include_bytes!("../../../crates/calc-func/tests/witnesses/IMSINH.json"),
-        ),
-        (
-            "IMCOSH",
-            include_bytes!("../../../crates/calc-func/tests/witnesses/IMCOSH.json"),
-        ),
-        (
-            "IMCSCH",
-            include_bytes!("../../../crates/calc-func/tests/witnesses/IMCSCH.json"),
-        ),
-        (
-            "IMSECH",
-            include_bytes!("../../../crates/calc-func/tests/witnesses/IMSECH.json"),
-        ),
+    let sets: &[&[u8]] = &[
+        include_bytes!("fixtures/complex-hyperbolics/IMSINH.json"),
+        include_bytes!("fixtures/complex-hyperbolics/IMCOSH.json"),
+        include_bytes!("fixtures/complex-hyperbolics/IMCSCH.json"),
+        include_bytes!("fixtures/complex-hyperbolics/IMSECH.json"),
     ];
     let mut session = Session::new("Sheet1").unwrap();
     session.set_formula_cell("J20").unwrap();
     let mut rows = 0;
     let mut failures = Vec::new();
-    for &(function, bytes) in sets {
+    for &bytes in sets {
         let set = calc_verdict::WitnessSet::decode(bytes).unwrap();
+        let function = &set.function;
         session.set_formula(&format!("={function}(A1)"));
         for row in &set.witnesses {
-            if !["fn10-hyperbolic-original", "fn11-hyperbolic-overflow"]
-                .contains(&row.reading.as_str())
-            {
-                continue;
-            }
+            assert_eq!(row.args.len(), 1, "{}", row.id);
             let input = calc_verdict::decode_argument(&row.args[0], function)
                 .unwrap()
                 .as_number()
                 .unwrap();
-            if row.reading == "fn10-hyperbolic-original"
-                && ![
-                    0.0_f64.to_bits(),
-                    1.0_f64.to_bits(),
-                    (-1.0_f64).to_bits(),
-                    1e100_f64.to_bits(),
-                ]
-                .contains(&input.to_bits())
-            {
-                continue;
-            }
             session
                 .set_input("A1", InputValue::number(input).unwrap())
                 .unwrap();
@@ -4875,7 +4850,7 @@ fn recorded_complex_hyperbolics_keep_the_real_axis() {
     }
     assert_eq!(
         rows, 168,
-        "sixteen original and152 overflow controls must run"
+        "16 original and 152 overflow controls must run"
     );
     assert!(
         failures.is_empty(),
