@@ -1,2 +1,0 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-bank2-scalar-LINEST-0137	[[["0x3ff4995075c3618a"], ["0x4005a2738e231455"], ["0x400a4c136475aa0b"], ["0x4013fa66c90ba917"], ["0x4014b450fb81498a"]], [["0x3ff2b5c7bc1ee0d8"], ["0x4002cce33bba08d4"], ["0x400af9f517034c65"], ["0x4010d19923edae32"], ["0x401518107d7eed49"]]]	0x3fefdcbe4a1f6dd6	0x3fefdcbe4a1f6dd7	excel-vs-ours-ulp=1			no-reference
