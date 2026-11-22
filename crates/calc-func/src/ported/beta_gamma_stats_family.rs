@@ -484,9 +484,6 @@ pub fn gamma_dist_kernel(
     if x < 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    if crate::ported::discrete_dist::poisson_compensation_error(alpha, x / beta) {
-        return Err(WorksheetErrorCode::Num);
-    }
     if cumulative {
         // Inverse-problem identity, live Excel 16.0 b20228:
         // GAMMA.DIST(x,0.5,beta,TRUE) == ERF.PRECISE(SQRT(x/beta))
@@ -510,6 +507,9 @@ pub fn gamma_dist_kernel(
         // catastrophics vs 39.4% (worst −10) through the identified GRATIO
         // path. All other shapes route through regularized_gamma_p.
         let cdf = regularized_gamma_p(alpha, x / beta);
+        if !cdf.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
         // Two independent Excel 20527 boundary sets (1,257 controls) publish
         // zero for tiny CDFs and keep normal results in this measured shape range.
         if (50.0..=150.0).contains(&alpha) && cdf.is_subnormal() {

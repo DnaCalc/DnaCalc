@@ -439,7 +439,12 @@ fn beta_integer_recurrence_underflow_is_an_error() {
     error(call("NEGBINOM.DIST", vec![n(7.837101600056055e42), n(10.0), n(0.9766937764009418), b(true)]), Num);
 }
 
-/// Excel's gamma distribution can fail on a large-count compensation.
+/// Excel's gamma and Poisson distributions share the compensated-exponential
+/// prefactor `exp(hi) * exp(d1) * exp(d2)`: when the exact second dropped
+/// term overflows `EXP` (`> LN_DBL_MAX ~ 709.782712893384`), `0 * Inf` yields
+/// `#NUM!`; when `d2 <= LN_DBL_MAX` (including `1 < d2 <= 709.782712`), it
+/// yields `0` (or `1` for cumulative Poisson). Excel 16.0.20527.20196 Touchstone
+/// frozen holdouts (`dc-ymjf.2.140`, SHA-256 `b2186da7` and `fa941ad9`).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gamma_reports_compensation_error() {
@@ -447,6 +452,91 @@ fn gamma_reports_compensation_error() {
         for cumulative in [false, true] {
             error(call(name, vec![n(0.5), n(1e100), n(1.0), b(cumulative)]), Num);
             exact(call(name, vec![n(0.75), n(1e100), n(1.0), b(cumulative)]), 0.0);
+            // d2 = +256.0 <= LN_DBL_MAX -> 0.0 (not #NUM!).
+            exact(
+                call(
+                    name,
+                    vec![
+                        n(0.125),
+                        n(f64::from_bits(0x4370_0000_0000_0033)),
+                        n(1.0),
+                        b(cumulative),
+                    ],
+                ),
+                0.0,
+            );
+            // 2-ULP transition across LN_DBL_MAX (d2 = 709.782712 vs 709.782713).
+            let lam_fine = f64::from_bits(0x3ff0_0000_02af_31dc);
+            exact(
+                call(
+                    name,
+                    vec![
+                        n(lam_fine),
+                        n(f64::from_bits(0x4390_0000_5b61_7e62)),
+                        n(1.0),
+                        b(cumulative),
+                    ],
+                ),
+                0.0,
+            );
+            error(
+                call(
+                    name,
+                    vec![
+                        n(lam_fine),
+                        n(f64::from_bits(0x4390_0000_5b61_7e64)),
+                        n(1.0),
+                        b(cumulative),
+                    ],
+                ),
+                Num,
+            );
+            // Separate factors exp(d1) * exp(d2): d1 = -0.96, d2 = 710.0, d1 + d2 = 709.04 -> #NUM!.
+            error(
+                call(
+                    name,
+                    vec![
+                        n(f64::from_bits(0x3fee_b851_eb85_1eb8)),
+                        n(f64::from_bits(0x4390_0000_0000_02ff)),
+                        n(1.0),
+                        b(cumulative),
+                    ],
+                ),
+                Num,
+            );
+        }
+    }
+    let lam_11 = f64::from_bits(0x3ff1_9999_9999_999a);
+    let lam_11_up = f64::from_bits(0x3ff1_9999_9999_999b);
+    for name in ["POISSON.DIST", "POISSON"] {
+        for cumulative in [false, true] {
+            let zero_or_one = if cumulative { 1.0 } else { 0.0 };
+            // d2 > LN_DBL_MAX -> #NUM! for both PMF and CDF.
+            error(call(name, vec![n(1e100), n(0.5), b(cumulative)]), Num);
+            error(call(name, vec![n(1e100), n(lam_11), b(cumulative)]), Num);
+            error(call(name, vec![n(2.0_f64.powi(60)), n(0.5), b(cumulative)]), Num);
+            error(call(name, vec![n(2.0_f64.powi(60)), n(lam_11), b(cumulative)]), Num);
+            error(call(name, vec![n(1e200), n(0.75), b(cumulative)]), Num);
+            // d2 < 0 or 0 <= d2 <= LN_DBL_MAX -> 0.0 (PMF) / 1.0 (CDF).
+            exact(call(name, vec![n(1e100), n(0.75), b(cumulative)]), zero_or_one);
+            exact(call(name, vec![n(2.0_f64.powi(60)), n(0.75), b(cumulative)]), zero_or_one);
+            exact(
+                call(
+                    name,
+                    vec![
+                        n(f64::from_bits(0x4370_0000_0000_0033)),
+                        n(0.125),
+                        b(cumulative),
+                    ],
+                ),
+                zero_or_one,
+            );
+            // Above 1.1 switches to Loader saddle-point -> 0.0 / 1.0.
+            exact(call(name, vec![n(2.0_f64.powi(60)), n(lam_11_up), b(cumulative)]), zero_or_one);
+            exact(call(name, vec![n(1e100), n(lam_11_up), b(cumulative)]), zero_or_one);
+            // GAMMALN overflow (1e306) -> #NUM!.
+            error(call(name, vec![n(1e306), n(0.5), b(cumulative)]), Num);
+            error(call(name, vec![n(1e306), n(1.0), b(cumulative)]), Num);
         }
     }
 }

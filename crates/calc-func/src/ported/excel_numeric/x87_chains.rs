@@ -76,42 +76,47 @@ pub(crate) fn excel_exp_rz(x: f64) -> f64 {
 }
 
 /// `exp(start - terms[0] - terms[1] ...)` as Excel forms the exponential of a difference. Each
-/// subtraction is stored and what the store dropped is kept: the exponential is the public EXP of
-/// the last stored difference, then one stored multiply by the stored `1 + dropped` per subtraction,
-/// in order.
+/// subtraction is stored and what the store dropped is kept via magnitude-ordered Fast2Sum: the
+/// exponential is the public EXP of the last stored difference, then one stored multiply by
+/// `EXP(dropped)` per subtraction, in order.
 ///
-/// Measured on POISSON.DIST's prefactor route: at `x = 2` and negligible `lambda` the answers sit a
-/// sawtooth of one unit in the last place, with period 1/8 of the significand, away from one
-/// rounding of `exp(t - c)`. That is the double rounding of `exp(hi) * (1 + lo)` with `lo = 2^-49`,
-/// the part of GAMMALN(3) below the grid of `t`. At `x = 1` a run of 7,500 adjacent means then has
-/// no miss.
+/// Measured on POISSON.DIST's prefactor route:
+/// - For small `dropped` (e.g. `x = 2`, negligible `lambda`, `lo = 2^-49`), `exp(lo)` matches
+///   `1 + lo` to binary64 precision and reproduces the 1-ULP sawtooth; at `x = 1` a run of 7,500
+///   adjacent means has no miss.
+/// - For large counts (`dc-ymjf.2.140`, Excel 16.0.20527.20196 frozen holdouts), when the exact
+///   second dropped term `d2` exceeds `LN_DBL_MAX` (`709.782712` vs `709.782713`, 2-ULP edge),
+///   `exp(d2)` overflows to `+Inf` and `0 * +Inf = NaN` (`#NUM!`), even when `d1 + d2 <= LN_DBL_MAX`
+///   (proving separate `exp(d1) * exp(d2)` factors and magnitude-ordered Fast2Sum when `|term| > |stored|`).
 pub(crate) fn excel_exp_compensated(start: f64, terms: &[f64]) -> f64 {
     exp_compensated::<Native>(start, terms)
 }
 
 fn compensated_subtract<F: Fpu>(stored: f64, term: f64) -> (f64, f64) {
     let next = F::store(&F::sub(&load(stored), &load(term), CW), CW);
-    let dropped = F::store(
-        &F::sub(&F::sub(&load(stored), &load(next), CW), &load(term), CW),
-        CW,
-    );
+    // Magnitude-ordered Fast2Sum: `(a - s) - b` when `|a| >= |b|` (preserving the tie behavior
+    // on ordinary small-count rows), and `(-b - s) + a` when `|b| > |a|` so `stored`'s low bits
+    // are not lost against a much larger `term` (e.g. `gammaln(x + 1)` at `x >= 2^58`).
+    let dropped = if stored.abs() >= term.abs() {
+        F::store(
+            &F::sub(&F::sub(&load(stored), &load(next), CW), &load(term), CW),
+            CW,
+        )
+    } else {
+        F::store(
+            &F::add(&F::sub(&load(-term), &load(next), CW), &load(stored), CW),
+            CW,
+        )
+    };
     (next, dropped)
-}
-
-/// The part dropped by the second stored subtraction in the compensated chain.
-pub(crate) fn excel_exp_second_dropped(start: f64, first: f64, second: f64) -> f64 {
-    let (next, _) = compensated_subtract::<Native>(start, first);
-    compensated_subtract::<Native>(next, second).1
 }
 
 fn exp_compensated<F: Fpu>(start: f64, terms: &[f64]) -> f64 {
     let mut stored = start;
     let mut factors = [1.0_f64; 2];
     for (term, factor) in terms.iter().zip(factors.iter_mut()) {
-        // `(a - s) - b`, not `(a - b) - s`: a row whose register difference lost `b`'s low bits sits
-        // on a tie of `1 + dropped`, and Excel's answer there is not that tie's.
         let (next, dropped) = compensated_subtract::<F>(stored, *term);
-        *factor = F::store(&F::add(&ext_one(), &load(dropped), CW), CW);
+        *factor = exp_with::<F>(dropped, CW);
         stored = next;
     }
     let mut value = exp_with::<F>(stored, CW);

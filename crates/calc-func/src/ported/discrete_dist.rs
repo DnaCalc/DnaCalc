@@ -238,21 +238,6 @@ pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
     )
 }
 
-/// Excel's gamma route can fail in the shared low-mean Poisson prefactor
-/// when its stored GAMMALN subtraction drops more than one.
-pub(crate) fn poisson_compensation_error(x: f64, lambda: f64) -> bool {
-    // Below 2^40, even the logarithm of the smallest positive binary64
-    // keeps both subtractions below 2^50, where their lost part is under one.
-    if !(x >= 1_099_511_627_776.0 && x.is_finite() && lambda > 0.0 && lambda <= 1.1) {
-        return false;
-    }
-    let start = excel_x87_mul(x, excel_log(lambda));
-    let gamma = gammaln_excel(x + 1.0);
-    start.is_finite()
-        && gamma.is_finite()
-        && crate::ported::excel_numeric::excel_exp_second_dropped(start, lambda, gamma) > 1.0
-}
-
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)
 /// is 0); otherwise #NUM!.
 fn finite(v: f64) -> R {
@@ -785,14 +770,15 @@ mod tests {
                 "GAMMA.DIST({x_bits:#018x}, {a_bits:#018x}, 1, {cum})"
             );
         }
-        // Compensation error boundary at lambda == 1.1 vs next_up(1.1): #NUM! at 1.1, 0.0 above.
+        // Compensation overflow boundary at lambda == 1.1 vs next_up(1.1): #NUM! at 1.1, 0.0/1.0 above.
         let one_point_one = f64::from_bits(0x3ff1_9999_9999_999a);
         let above_one_point_one = f64::from_bits(0x3ff1_9999_9999_999b);
-        assert!(poisson_compensation_error(2.0_f64.powi(60), one_point_one));
-        assert!(!poisson_compensation_error(
-            2.0_f64.powi(60),
-            above_one_point_one
-        ));
+        assert!(poisson_mass(2.0_f64.powi(60), one_point_one).is_nan());
+        assert_eq!(poisson_mass(2.0_f64.powi(60), above_one_point_one), 0.0);
+        assert_eq!(poisson_dist_kernel(2.0_f64.powi(60), one_point_one, false), Err(NUM));
+        assert_eq!(poisson_dist_kernel(2.0_f64.powi(60), one_point_one, true), Err(NUM));
+        assert_eq!(poisson_dist_kernel(2.0_f64.powi(60), above_one_point_one, false), Ok(0.0));
+        assert_eq!(poisson_dist_kernel(2.0_f64.powi(60), above_one_point_one, true), Ok(1.0));
     }
 
     /// A large-population cumulative takes bounded work: HYPGEOM.DIST(N/2, N-1, N, 2N, TRUE) at
