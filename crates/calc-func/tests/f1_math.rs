@@ -515,3 +515,85 @@ fn rounding_family_matches_recorded_bank_rows() {
     exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);
     error(call("ROUNDUP", vec![n(1.5), n(-1e300)]), Num);
 }
+
+/// dc-j9k.87 / dc-j9k.53 (Carbon cb16): unified 8087 FPTAN circular substrate for SIN and COS,
+/// verified against live Excel 16.0.20527.20196 (all rows match on both x87 hardware and soft87).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_87_cb16_unified_fptan_circular_substrate() {
+    let unary_rows: &[(&str, u64, u64)] = &[
+        // dc-j9k.53 five folded angles from ax1 run2-final-shared-leaf-backends.json
+        // plus the two remaining full-bank SIN misses (ax1 + sx1).
+        ("SIN", 0x3faa_14e4_96a7_f689, 0x3faa_1201_6ee0_4ef8),
+        ("SIN", 0x3ff1_62fd_5784_1647, 0x3fec_5294_c765_1321),
+        ("SIN", 0x3ff1_6ef7_e5a2_7363, 0x3fec_5db3_6ad4_dd88),
+        ("SIN", 0x3ff3_92ac_71f2_c347, 0x3fee_1660_04fa_bb6e),
+        ("SIN", 0x3ff6_b7c0_d24e_314c, 0x3fef_a2dd_682d_2345),
+        ("SIN", 0x3fbd_41c1_3898_1b43, 0x3fbd_3176_2552_370a),
+        ("SIN", 0x419a_77f4_5268_bd66, 0xbfc5_1722_5ca6_86a8),
+        // Sole full-bank COS miss: COS(120031), q & 3 == 2.
+        ("COS", 0x40fd_4df0_0000_0000, 0xbfef_8a9f_c355_34cd),
+        // cb16 single-site discriminants (FPTAN vs FSIN/FCOS, sqrt-after-div, PC64 register chain).
+        ("SIN", 0xbf71_deca_0271_8435, 0xbf71_dec6_4b4f_3b28),
+        ("SIN", 0xc066_fed7_94bf_89cd, 0xbfef_7ab2_dddc_8361),
+        ("SIN", 0xc015_9305_0458_72de, 0x3fe8_dbc4_9cd3_51fc),
+        ("SIN", 0x3efe_9334_ba2e_6469, 0x3efe_9334_ba1b_c8a8),
+        ("SIN", 0x3eb4_6fba_0f8f_af48, 0x3eb4_6fba_0f8f_a9b9),
+        ("COS", 0xbfce_64ae_54ef_3c67, 0x3fef_1a25_2321_2fd2),
+        ("COS", 0x40c2_8e38_77a2_bb0c, 0x3fee_e21c_0c58_f8b1),
+        ("COS", 0x3ff2_9f9b_9d5a_9970, 0x3fd9_5324_a4d2_3916),
+        // Seam and small-argument SIN controls.
+        ("SIN", 0x3e5b_b67a_e858_4ca9, 0x3e5b_b67a_e858_4ca8),
+        ("SIN", 0x3e5b_b67a_e858_4cab, 0x3e5b_b67a_e858_4caa),
+        ("SIN", 0x3fe9_21fb_5444_2d15, 0x3fe6_a09e_667f_3bca),
+        ("SIN", 0x3fe9_21fb_5444_2d1b, 0x3fe6_a09e_667f_3bce),
+        ("SIN", 0x419f_ffff_fbff_fe00, 0xbfee_977a_a08c_ddea),
+        // Holdout flips on SIN and COS.
+        ("SIN", 0xc0dd_8b62_d67e_bcec, 0xbf7d_07e6_1c67_ad3b),
+        ("COS", 0xc07b_a69f_2a7a_9549, 0xbfeb_44db_f5a9_d26f),
+        // Downstream callers: CSC, SEC, reflected negative GAMMA (incl. 2-ULP jumps).
+        ("CSC", 0xc0e6_d6be_5c18_51bd, 0xbff1_02d9_7e3f_a979),
+        ("SEC", 0xbf0a_8428_7768_7595, 0x3ff0_0000_0057_e38f),
+        ("GAMMA", 0xc033_9b9f_9ce3_3678, 0x3c54_8f99_9bf9_fcf8),
+        ("GAMMA", 0xc048_2c64_db06_ec16, 0xb33e_85ee_67d6_9eb0),
+        ("GAMMA", 0xc04e_b9d9_b1a5_ce6f, 0x2e7e_3191_a469_4d2c),
+        ("GAMMA", 0xc058_4254_0408_002c, 0x20a9_6537_1264_8955),
+        ("GAMMA", 0xc05b_2714_3653_5896, 0x9ba2_3aac_4d2a_cf55),
+        ("GAMMA", 0xc05c_7ef6_55ba_2654, 0x199c_7e6e_784c_f8e6),
+        ("GAMMA", 0xc03b_be4b_ff51_4192, 0x3a05_5ad6_6dcd_b279),
+        ("GAMMA", 0xc05b_ee07_e248_f9fa, 0x1a54_9adb_119a_e212),
+    ];
+    for &(func, arg, expected) in unary_rows {
+        let got = number(call(func, vec![n(f64::from_bits(arg))]));
+        assert_eq!(
+            got.to_bits(),
+            expected,
+            "{func}({arg:#018x}): got {:#018x}, expected {expected:#018x}",
+            got.to_bits()
+        );
+    }
+
+    // Downstream complex circular callers.
+    for (func, arg, expected) in [
+        ("IMCOT", "120031-0.1i", "4.32013081085074+2.61581898713197i"),
+        ("IMCOT", "17445.25-0.1i", "-1.36893603420608+9.84093514703274i"),
+        ("IMSIN", "115110.25-0.1i", "0.75266066425061+0.0663773356796942i"),
+        ("IMCOS", "37723.25-0.1i", "0.547578037830135-0.0839930800440596i"),
+    ] {
+        text(call(func, vec![t(arg)]), expected);
+    }
+
+    // Downstream BESSELJ / BESSELY pure trig-substrate flips.
+    for (func, x_bits, order, expected) in [
+        ("BESSELJ", 0x40a6_b6c5_914b_2a58u64, 0.0, 0xbf88_8973_07bb_fbc4u64),
+        ("BESSELY", 0x40f4_e59f_3784_cab8u64, 0.0, 0xbf54_633f_05f3_7d2bu64),
+    ] {
+        let got = number(call(func, vec![n(f64::from_bits(x_bits)), n(order)]));
+        assert_eq!(
+            got.to_bits(),
+            expected,
+            "{func}({x_bits:#018x}, {order}): got {:#018x}, expected {expected:#018x}",
+            got.to_bits()
+        );
+    }
+}

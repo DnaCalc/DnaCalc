@@ -1182,6 +1182,7 @@ fn trig_operand(x: &Ext80) -> Result<Big, Ext80> {
 }
 
 /// `FSIN`.
+#[cfg(test)]
 pub(crate) fn ext_sin(x: &Ext80, cw: u16) -> Ext80 {
     match trig_operand(x) {
         Err(special) => special,
@@ -1190,6 +1191,7 @@ pub(crate) fn ext_sin(x: &Ext80, cw: u16) -> Ext80 {
 }
 
 /// `FCOS`.
+#[cfg(test)]
 pub(crate) fn ext_cos(x: &Ext80, cw: u16) -> Ext80 {
     if unpack(x).class == Class::Zero {
         return ext_one();

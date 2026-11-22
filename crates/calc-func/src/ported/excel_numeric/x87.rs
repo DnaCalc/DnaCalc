@@ -375,10 +375,12 @@ pub(super) mod raw {
     ext_unop!(
         /// `sin(x)` — x87 `FSIN` microcode, hardware 66-bit-π internal
         /// reduction. Caller must keep `|x| < 2^63` (C2 no-op otherwise).
+        #[cfg(test)]
         ext_sin, "fsin"
     );
     ext_unop!(
         /// `cos(x)` — x87 `FCOS`. Same `|x| < 2^63` caveat as [`ext_sin`].
+        #[cfg(test)]
         ext_cos, "fcos"
     );
     ext_unop!(

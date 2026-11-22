@@ -116,8 +116,6 @@ pub(crate) trait Fpu {
     fn f2xm1(x: &Ext80, cw: u16) -> Ext80;
     fn fyl2x(y: &Ext80, x: &Ext80, cw: u16) -> Ext80;
     fn fpatan(y: &Ext80, x: &Ext80, cw: u16) -> Ext80;
-    fn sin(x: &Ext80, cw: u16) -> Ext80;
-    fn cos(x: &Ext80, cw: u16) -> Ext80;
     fn tan(x: &Ext80, cw: u16) -> Ext80;
     /// `FSTP qword`.
     fn store(x: &Ext80, cw: u16) -> f64;
@@ -139,8 +137,6 @@ macro_rules! fpu_backend {
             fn f2xm1(x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_f2xm1(x, cw) }
             fn fyl2x(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_fyl2x(y, x, cw) }
             fn fpatan(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_fpatan(y, x, cw) }
-            fn sin(x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_sin(x, cw) }
-            fn cos(x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_cos(x, cw) }
             fn tan(x: &Ext80, cw: u16) -> Ext80 { $($m)::+::ext_tan(x, cw) }
             fn store(x: &Ext80, cw: u16) -> f64 { $($m)::+::ext_to_f64(x, cw) }
         }
@@ -193,40 +189,39 @@ pub(crate) fn decimal_scale_15(coefficient: f64) -> f64 {
     Native::store(&Native::mul(&load(coefficient), &reciprocal, CW), CW)
 }
 
-/// The SIN chain: `FPREM1(x, FLDPI)`, `FSIN`, the `(-1)^Q` sign.
-fn sin_with<F: Fpu>(x: f64) -> f64 {
-    let (r, q) = F::prem1_quo(&load(x), &ext_pi(), CW);
-    let mut s = F::sin(&r, CW);
-    if q & 1 == 1 {
-        s = ext_chs(&s, CW);
-    }
-    F::store(&s, CW)
-}
-
-/// The COS chain (see [`excel_cos`]).
-fn cos_with<F: Fpu>(x: f64) -> f64 {
+/// Shared 8087 `FPTAN` circular chain for [`excel_sin`] (`cos = false`) and [`excel_cos`] (`cos = true`):
+/// `FPREM1(|x|, FLDPI/2)` reduces into `|r| <= pi/4`; `t = FPTAN(r)`, `sq = t^2`, `den = 1 + sq`;
+/// sine leg takes `sign(t) * sqrt(sq / den)` and cosine leg takes `sqrt(1 / den)` at PC=64.
+fn sincos_with<F: Fpu>(x: f64, cos: bool) -> f64 {
     let minus_one = ext_chs(&ext_one(), CW);
-    let pi_half = F::scale(&ext_pi(), &minus_one, CW); // exact halving
+    let pi_half = F::scale(&ext_pi(), &minus_one, CW);
     let xa = ext_abs(&load(x), CW);
     let (r, q) = F::prem1_quo(&xa, &pi_half, CW);
-    let odd_quadrant_sine = || {
-        let tangent = F::tan(&r, CW);
-        let square = F::mul(&tangent, &tangent, CW);
-        let denominator = F::add(&ext_one(), &square, CW);
-        let ratio = F::div(&square, &denominator, CW);
-        let mut sine = F::sqrt(&ratio, CW);
-        if tangent.0[9] & 0x80 != 0 {
-            sine = ext_chs(&sine, CW);
+    let t = F::tan(&r, CW);
+    let sq = F::mul(&t, &t, CW);
+    let den = F::add(&ext_one(), &sq, CW);
+    let k = (q.wrapping_add(u8::from(cos))) & 3;
+    let mut v = if k & 1 == 0 {
+        let mut s = F::sqrt(&F::div(&sq, &den, CW), CW);
+        if t.0[9] & 0x80 != 0 {
+            s = ext_chs(&s, CW);
         }
-        sine
+        s
+    } else {
+        F::sqrt(&F::div(&ext_one(), &den, CW), CW)
     };
-    let v = match q & 3 {
-        0 => F::cos(&r, CW),
-        1 => ext_chs(&odd_quadrant_sine(), CW),
-        2 => ext_chs(&F::cos(&r, CW), CW),
-        _ => odd_quadrant_sine(),
-    };
+    if (k & 2 != 0) ^ (!cos && x.is_sign_negative()) {
+        v = ext_chs(&v, CW);
+    }
     F::store(&v, CW)
+}
+
+fn sin_with<F: Fpu>(x: f64) -> f64 {
+    sincos_with::<F>(x, false)
+}
+
+fn cos_with<F: Fpu>(x: f64) -> f64 {
+    sincos_with::<F>(x, true)
 }
 
 /// The TAN chain: `FPREM1(x, FLDPI/2)`, `FPTAN`, and `-1/tan(r)` on odd quadrants.
@@ -458,12 +453,11 @@ pub(crate) fn excel_pow_chain(base: f64, exp: f64) -> f64 {
     excel_exp(t)
 }
 
-/// Excel `SIN` — bit-exact to 64-bit Excel on `x86_64` (W109 G4-01, validated
-/// 1020/1020 live rows incl. held-out, build 20131): the SIN
-/// chain — `FPREM1(x, FLDPI)` (the 64-bit ROM π, NOT the hardware's internal
-/// 66-bit reduction), `FSIN` on the residue, `(-1)^Q` parity fixup from the
-/// quotient low bit. This is the source of Excel's large-argument trig
-/// "error": the reduction constant is the fldpi double-rounding of π.
+/// Excel `SIN` — bit-exact to 64-bit Excel on `x86_64` (dc-j9k.87 / cb16, Excel 16.0.20527.20196):
+/// runs the shared 8087 `FPTAN` quadrant routine ([`sincos_with`]) under `CW = 0x133F` (`PC=64`,
+/// RN-even): `FPREM1(|x|, FLDPI/2)`, `t = FPTAN(r)`, `sq = t^2`, `den = 1 + sq`, sine leg
+/// `sign(t) * sqrt(sq / den)` on even quadrants and cosine leg `sqrt(1 / den)` on odd quadrants,
+/// then quadrant and input-sign fixup before the single binary64 store.
 pub(crate) fn excel_sin(x: f64) -> f64 {
     if !x.is_finite() {
         return f64::NAN;
@@ -471,13 +465,11 @@ pub(crate) fn excel_sin(x: f64) -> f64 {
     sin_with::<Native>(x)
 }
 
-/// Excel `COS` — bit-exact on `x86_64` (W109 G4-01/G4-07, 2561/2561 across
-/// the original corpus, a focused/randomized discovery battery, and a fresh
-/// oracle-blind held-out): `|x| < 2^-26` publishes exactly `1.0` (live-probed;
-/// `2^-26` itself takes the chain). Otherwise Excel reduces `|x|` with
-/// `FPREM1(|x|, FLDPI/2)`. Even quadrants use `FCOS`; odd quadrants reconstruct
-/// the sine magnitude as `sqrt(tan(r)^2 / (1 + tan(r)^2))` in continuous x87
-/// PC64/RN arithmetic, then apply the residue and quadrant signs.
+/// Excel `COS` — bit-exact to 64-bit Excel on `x86_64` (dc-j9k.87 / cb16, Excel 16.0.20527.20196):
+/// `|x| < 2^-26` publishes `1.0` directly (`2^-26` itself takes the chain). Otherwise runs the
+/// shared 8087 `FPTAN` quadrant routine ([`sincos_with`]) shifted by one quadrant (`k = (q + 1) & 3`):
+/// cosine leg `sqrt(1 / (1 + t^2))` on even quadrants and sine leg `sign(t) * sqrt(t^2 / (1 + t^2))`
+/// on odd quadrants, in continuous x87 PC64/RN arithmetic before the single binary64 store.
 pub(crate) fn excel_cos(x: f64) -> f64 {
     if !x.is_finite() {
         return f64::NAN;
@@ -1367,7 +1359,7 @@ mod tests {
             check(&format!("COS {xb:016x}"), cos(f64::from_bits(xb)), want);
         }
         // COS small-argument shortcut: strictly below 2^-26 -> exactly 1.0;
-        // 2^-26 itself takes the FCOS chain (1 - ulp).
+        // 2^-26 itself takes the FPTAN chain (1 - ulp).
         let t = f64::from_bits(0x3E50000000000000);
         check(
             "COS below 2^-26",
