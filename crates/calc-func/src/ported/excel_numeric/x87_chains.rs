@@ -529,7 +529,7 @@ fn beta_power_series<F: Fpu>(a: f64, b: f64, x: f64, ln_beta: f64) -> f64 {
 
 /// Excel's continued fraction for the incomplete beta ratio `I_x(a, b)` when `a, b > 1` (TOMS 708
 /// `bfrac`, dc-j9k.54). Each statement evaluates in x87 PC64 and stores to binary64 per named
-/// local, using the direct `lam = |a - (a + b) x|` and convergence threshold `2^-52 r`.
+/// local, using the signed `lam = a - (a + b) x` (dc-j9k.83) and convergence threshold `2^-52 r`.
 pub(crate) fn excel_beta_fraction(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
     beta_fraction::<Native>(a, b, x, y, bf)
 }
@@ -542,7 +542,7 @@ fn beta_fraction<F: Fpu>(a: f64, b: f64, x: f64, y: f64, bf: f64) -> f64 {
     let lx = load(x);
     let ly = load(y);
     let ab = st(&F::add(&la, &lb, CW));
-    let lam = st(&F::sub(&la, &load(st(&F::mul(&load(ab), &lx, CW))), CW)).abs();
+    let lam = st(&F::sub(&la, &load(st(&F::mul(&load(ab), &lx, CW))), CW));
     let c = st(&F::add(&one, &load(lam), CW));
     let c0 = st(&F::div(&lb, &la, CW));
     let c1 = st(&F::add(&one, &F::div(&one, &la, CW), CW));

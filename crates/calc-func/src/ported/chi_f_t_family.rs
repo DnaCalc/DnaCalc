@@ -1,7 +1,6 @@
-use crate::ported::excel_numeric::crt_pow;
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{
-    bisect_inverse, bratio_from_wrapper, gamma, regularized_beta, regularized_gamma_q,
+    bisect_inverse, bratio_from_wrapper, regularized_gamma_q,
 };
 use crate::value::WorksheetErrorCode;
 
@@ -215,10 +214,17 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
 }
 
 pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorCode> {
+    use crate::ported::discrete_dist::stirling_error;
+    use crate::ported::excel_numeric::{
+        excel_exp_running, excel_log, excel_log1p_times, excel_x87_add, excel_x87_div,
+        excel_x87_mul, excel_x87_sub,
+    };
+    const LN_SQRT_2PI: f64 = 0.9189385332046728;
     let x = validate_nonnegative_x(x)?;
     let d1 = truncate_positive_integer(deg1)?;
     let d2 = truncate_positive_integer(deg2)?;
-    if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
+    let mx = excel_x87_mul(d1, x);
+    if !mx.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
     if x == 0.0 {
@@ -231,58 +237,41 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
             Ok(0.0)
         };
     }
-    let half_d1 = d1 / 2.0;
-    let half_d2 = d2 / 2.0;
-    let num = crt_pow(d1 / d2, half_d1) * crt_pow(x, half_d1 - 1.0);
-    let den = gamma(half_d1) * gamma(half_d2) / gamma(half_d1 + half_d2)
-        * crt_pow(1.0 + d1 * x / d2, (d1 + d2) / 2.0);
-    let density = num / den;
-    if !density.is_finite() && d1 <= 1_048_576.0 && d2 <= 1_048_576.0 {
-        // The direct gamma products can overflow even when the density is far below
-        // Excel's normal-number range. Bound that case in the log domain; the square
-        // of MIN_POSITIVE leaves a wide margin for rounding in the logarithms.
-        use crate::ported::excel_numeric::{crt_exp, crt_log};
-        use crate::ported::special_math_common::ln_gamma;
-        let log_ratio = crt_log(d1 / d2);
-        let log_x = crt_log(x);
-        let t = log_ratio + log_x;
-        let log_one_plus = if t > 0.0 {
-            t + crt_log(1.0 + crt_exp(-t))
-        } else {
-            crt_log(1.0 + crt_exp(t))
-        };
-        let log_beta = ln_gamma(half_d1) + ln_gamma(half_d2) - ln_gamma(half_d1 + half_d2);
-        let log_density = half_d1 * log_ratio + (half_d1 - 1.0) * log_x
-            - log_beta - (half_d1 + half_d2) * log_one_plus;
-        if log_density < 2.0 * crt_log(f64::MIN_POSITIVE) {
-            return Ok(0.0);
-        }
-        // For overflowing gamma products, form the generalized binomial mass at
-        // the two separately divided beta coordinates, then multiply by ab/((a+b)x).
-        use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
-        let ratio = excel_x87_div(excel_x87_mul(d1, x), d2);
-        let denominator = excel_x87_add(1.0, ratio);
-        let z = excel_x87_div(ratio, denominator);
-        let y = excel_x87_div(1.0, denominator);
-        let shape_sum = half_d1 + half_d2;
-        if z > 0.0
-            && y > 0.0
-            && let Some(scaled_mass) =
-                crate::ported::discrete_dist::beta_density_at(z, y, half_d1 + 1.0, half_d2 + 1.0)
-        {
-            let mass = excel_x87_div(scaled_mass, shape_sum + 1.0);
-            let scale = excel_x87_div(excel_x87_mul(half_d1, half_d2), excel_x87_mul(shape_sum, x));
-            let from_mass = excel_x87_mul(mass, scale);
-            if from_mass.is_finite() {
-                return Ok(from_mass);
-            }
-        }
-        let from_log = crt_exp(log_density);
-        if from_log.is_finite() {
-            return Ok(from_log);
-        }
+    let a = 0.5 * d1;
+    let b = 0.5 * d2;
+    let ab = excel_x87_add(a, b);
+    let (r0, rx, tx) = if mx >= d2 {
+        (
+            excel_x87_div(d2, d1),
+            excel_x87_div(d2, mx),
+            -excel_x87_mul(b, excel_log(x)),
+        )
+    } else {
+        (
+            excel_x87_div(d1, d2),
+            excel_x87_div(mx, d2),
+            excel_x87_mul(a, excel_log(x)),
+        )
+    };
+    let tlop = excel_x87_mul(
+        ab,
+        excel_x87_sub(excel_log1p_times(1.0, r0), excel_log1p_times(1.0, rx)),
+    );
+    let exponent = excel_x87_add(tx, tlop);
+    let s3 = excel_x87_sub(
+        excel_x87_add(stirling_error(a), stirling_error(b)),
+        stirling_error(ab),
+    );
+    let norm = excel_x87_mul(
+        0.5,
+        excel_log(excel_x87_add(excel_x87_div(1.0, a), excel_x87_div(1.0, b))),
+    );
+    let density = excel_x87_div(excel_exp_running(exponent, &[s3, norm, LN_SQRT_2PI]), x);
+    if density.is_finite() {
+        Ok(density)
+    } else {
+        Err(WorksheetErrorCode::Num)
     }
-    Ok(density)
 }
 
 /// Both tails of the F distribution, `(right, left)`, from one incomplete beta call.
@@ -1079,5 +1068,76 @@ mod tests {
             let got = chisq_inv_kernel(f64::from_bits(p), f64::from_bits(df)).unwrap();
             assert_eq!(got.to_bits(), expected, "CHISQ.INV({p:#x}, {df:#x})");
         }
+    }
+
+    /// Excel 16.0.20527.20196 frozen unseen holdouts (Carbon cb13, dc-j9k.83):
+    /// saddle-point `f_pdf_kernel` (large-df sawtooth, df > 1_048_576, general grid,
+    /// exact x=1 symmetry) and signed `lam` in `excel_beta_fraction` (`sm + lg = 1 + 2^-52`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb13_f_pdf_saddle_point_and_bfrac_signed_lam_match_excel() {
+        let pdf_rows: [(u64, u64, u64, u64); 14] = [
+            // holdout_fpdf_sawtooth_large (d1=31247, d2=9413; baseline off 133..9,190 ULP)
+            (0x3fe8b86bcf8e4edf, 0x40de83c000000000, 0x40c2628000000000, 0x34e27fdbf453f313),
+            (0x3fe8b86bcf8e4ee1, 0x40de83c000000000, 0x40c2628000000000, 0x34e27fdbf453d752),
+            (0x3fe8b86bcf8e4ee2, 0x40de83c000000000, 0x40c2628000000000, 0x34e27fdbf4540ed1),
+            (0x3fe8b86bcf8e4ee3, 0x40de83c000000000, 0x40c2628000000000, 0x34e27fdbf45400f0),
+            // holdout_fpdf_huge_df_num (df in 2.5e6..1e9; baseline returned #NUM!)
+            (0x3ff5eb851eb851ec, 0x414312d000000000, 0x4014000000000000, 0x3fd97d5769dc73a7),
+            (0x3ff1eb851eb851ec, 0x415312d000000000, 0x4028000000000000, 0x3fea88393db6be01),
+            (0x3fe3d70a3d70a3d7, 0x4008000000000000, 0x4187d78400000000, 0x3fe49bbee997445d),
+            (0x3ff9c28f5c28f5c3, 0x4187d78400000000, 0x4008000000000000, 0x3fcfc6f3b5e9b73b),
+            // holdout_fpdf_general_grid (small/medium df; baseline off 1..49 ULP)
+            (0x3fc0a3d70a3d70a4, 0x3ff0000000000000, 0x3ff0000000000000, 0x3fe90025a3f21faf),
+            (0x3fd7ae147ae147ae, 0x3ff0000000000000, 0x4014000000000000, 0x3fe01ec4b4f897e4),
+            (0x3ff30a3d70a3d70a, 0x3ff0000000000000, 0x4031000000000000, 0x3fc9172bdb51c900),
+            (0x400dae147ae147ae, 0x3ff0000000000000, 0x4050400000000000, 0x3fa0ea9249b8b347),
+            // holdout_fpdf_sym_and_recip (exact x=1 symmetry; baseline off 26..27 ULP)
+            (0x3ff0000000000000, 0x4008000000000000, 0x401c000000000000, 0x3fd89791e889395b),
+            (0x3ff0000000000000, 0x401c000000000000, 0x4008000000000000, 0x3fd89791e889395b),
+        ];
+        for (x, d1, d2, expected) in pdf_rows {
+            let got = f_dist_kernel(f64::from_bits(x), f64::from_bits(d1), f64::from_bits(d2), false)
+                .unwrap();
+            assert_eq!(
+                got.to_bits(),
+                expected,
+                "F.DIST({x:#018x}, {d1:#018x}, {d2:#018x}, FALSE)"
+            );
+        }
+
+        // holdout_bfrac_signed_lam (sm + lg = 1 + 2^-52; baseline off 20..40 ULP)
+        assert_eq!(
+            f_dist_kernel(
+                f64::from_bits(0x3ff0000000000001),
+                f64::from_bits(0x4064c00000000000),
+                f64::from_bits(0x4068a00000000000),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fe00ddf7fa2d126
+        );
+        assert_eq!(
+            f_dist_kernel(
+                f64::from_bits(0x3fefffffffffffff),
+                f64::from_bits(0x407cf00000000000),
+                f64::from_bits(0x407ee00000000000),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fe0033aa6341574
+        );
+        assert_eq!(
+            f_dist_rt_kernel(
+                f64::from_bits(0x3fefffffffffffff),
+                f64::from_bits(0x407cf00000000000),
+                f64::from_bits(0x407ee00000000000),
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fdff98ab397d517
+        );
     }
 }
