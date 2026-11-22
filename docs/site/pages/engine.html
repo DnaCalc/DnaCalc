@@ -4,8 +4,28 @@
   <p class="site-lede">The Linux x86-64 runner recalculates Excel workbooks, reads and edits cells, and reports the result from a script.</p>
   <p><code>dnacalc diff book.xlsx</code> compares every formula cell with the workbook's saved value. <code>--json</code> writes a machine-readable result.</p>
   {{runner}}
-  <p>For <code>diff</code>, exit status 0 means every formula cell matched. Status 1 means there were differing or refused cells. Status 2 means a usage error or a typed refusal.</p>
-  <h2>Engine crates</h2>
-  <p>The Rust workspace includes the function library, formula language, workbook engine and document layer. The crates are unpublished.</p>
+  <p>For <code>diff</code>, exit status 0 means every formula cell matched. Status 1 means at least one formula cell mismatched, was refused, had no saved value, or failed. Status 2 means a usage error or a typed refusal.</p>
+  <h2>Runner preview contract</h2>
+  <p>The Linux x86-64 runner and its JSON output are experimental. Use the 0.1.0 runner built at <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/apps/dnacalc/src/lib.rs">commit <code>539c4234</code></a> for these examples. Download the <a href="/sample.xlsx">site sample</a> as <code>book.xlsx</code>.</p>
+  <pre><code>dnacalc recalc book.xlsx --out checked.xlsx --json
+dnacalc diff checked.xlsx --json</code></pre>
+  <p>The second command compares fresh results with the caches saved in <code>checked.xlsx</code>. To compare with the original workbook's caches, run <code>diff book.xlsx</code>. A cache has the provenance of the file that supplied it.</p>
+  <p>On workbook commands, <code>--json</code> writes one JSON object to stdout. Use the command and exit status to interpret it. Fields may change with the pinned build.</p>
+  <ul>
+    <li><code>recalc</code> reports <code>book</code>, <code>macros</code>, and counts for <code>formula_cells</code>, <code>calculated</code>, <code>refused</code> and <code>not_current</code>. With <code>--out</code>, it also reports <code>saved</code> with <code>path</code> and <code>bytes</code>. Exit 1 indicates a refusal or a result that is still non-current.</li>
+    <li><code>diff</code> reports <code>book</code>, <code>macros</code>, <code>formula_cells</code>, outcome counts, <code>pass</code>, <code>fail</code>, <code>pass_rate</code> and <code>cells</code>. Each row has <code>cell</code> and <code>status</code> (matched, mismatched, refused, missing or failed), and includes <code>cached</code>, <code>calculated</code> or <code>detail</code> where available. Only matched cells pass. The rate is matched divided by all formula cells, or 1 for an empty comparison.</li>
+    <li><code>get</code> reports <code>book</code>, <code>macros</code> and <code>cells</code>. A cell row identifies <code>cell</code> and <code>provenance</code>, with <code>formula</code>, <code>value</code>, <code>note</code> and <code>cached</code> when available. Check provenance even on exit 0. <code>set</code> adds the edited cell rows to the <code>recalc</code> summary.</li>
+    <li><code>run</code> reports <code>book</code>, <code>macro</code>, <code>macros</code> and a typed <code>result</code>. It adds <code>saved</code> when invoked with <code>--out</code>. The <code>macros</code> object describes the requested <code>level</code> and whether the file contains a <code>project</code>; when a project is present, <code>ran</code> is accompanied by <code>policy</code> or <code>reason</code>.</li>
+    <li>Values carry a <code>type</code>. Number, text, logical and error values include <code>value</code>. Nonfinite numbers use strings. Array values report <code>rows</code> and <code>columns</code>. Empty and reference values carry the type alone.</li>
+    <li>A command failure returns <code>{"error":"message","exit":2}</code> with exit 2. A worker panic exits 70. <code>serve</code>, help and version have their own output.</li>
+  </ul>
+  <h2>Rust entry points</h2>
+  <p>These experimental crates are unpublished. Build the doctests and local rustdoc from the same checkout with <code>cargo test --doc -p calc-host -p calc-fml -p calc-func</code> and <code>cargo doc --no-deps -p calc-host -p calc-fml -p calc-func</code>. Open the crate indexes under <code>target/doc</code>.</p>
+  <ul>
+    <li>Use <code>calc_host::HostSession</code> for a native workbook session. The <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-host/src/lib.rs">workbook doctest</a> opens a file, enters a formula, recalculates and saves. Inspect projected values for file caches, calculated results, stale values and typed refusals. The lower-level <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-doc/CONTRACT.md">document</a> and <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-engine/CONTRACT.md">engine</a> contracts explain persistence and recalculation.</li>
+    <li>Use portable <code>calc_fml::parse_formula</code> for editor diagnostics and UTF-16 spans. The <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-fml/src/lib.rs">parser doctest</a> parses <code>=SUM(A1:A3)</code> and checks that it preserves the source.</li>
+    <li>Use portable <code>calc_func::invoke</code> for a catalogue call. The <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/crates/calc-func/src/lib.rs">function doctest</a> invokes <code>ABS</code> on a <code>CalcValue</code> with caller-supplied services. Inspect the returned value or typed refusal.</li>
+  </ul>
+  <p>For Excel behaviour and evidence, see the <a href="https://handbook.dnacalc.com/catalogue/index.html">Handbook catalogue</a>, the <a href="https://handbook.dnacalc.com/functions/ROUND.html">ROUND reference</a> and its <a href="https://handbook.dnacalc.com/api/functions/FUNC.ROUND.json">JSON record</a>.</p>
   <p><a href="/download/">See the Linux package names</a></p>
 </article>

@@ -109,6 +109,8 @@
 //! check_result(&mut reopened, CellKey::new(sheet, 2, 1).unwrap());
 //! ```
 //!
+//! Worked examples and preview status are also in the [engine guide](https://dnacalc.com/developers/engine/).
+//!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-host/CONTRACT.md).
 
 mod actions;

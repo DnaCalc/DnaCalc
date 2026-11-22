@@ -8,3 +8,9 @@
   <h2 id="explorer-heading">Formula Explorer in your browser</h2>
   {{live}}
 </section>
+<section class="site-section" aria-labelledby="embedding">
+  <h2 id="embedding">Embed Formula Explorer</h2>
+  <p>The Rust/Wasm browser mount is experimental. Pin the source and build together. At <code>539c4234</code>, <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/apps/dna-onecalc/src/surface.rs"><code>dna_onecalc::surface::mount</code></a> takes an <code>HtmlElement</code>, appends the workbench and returns a <code>Mounted</code> handle. Retain it while the workbench is visible and drop it to unmount. The site uses this path for the workbench above.</p>
+  <p>Use the workbench controls to enter the formula and inputs. Enter <code>=ROUND(A1,2)</code>, set <code>A1</code> to <code>1.234</code> and read <code>1.23</code> in Result. Syntax diagnostics and unavailable-input messages appear in the UI. The <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/apps/dna-onecalc/tests/acceptance.rs">mounted browser tests</a> exercise this interaction path.</p>
+  <p>The proposed JavaScript component would accept a host element, an optional initial formula and typed cell inputs. It would report each evaluation as a typed value, a formula diagnostic with a source span, or a refusal with a reason. Disposal would unmount and stop notifications. These initialisation and notification hooks are a design proposal. Desktop bridge messages, worker messages and generated asset URLs are internal.</p>
+</section>

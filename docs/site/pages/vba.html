@@ -2,6 +2,10 @@
   <p class="site-kicker"><a href="/developers/">Developers</a> / VBA</p>
   <h1>VBA outside Excel</h1>
   <p class="site-lede">CalcVBA runs the tested VBA worksheet functions outside Excel. The execution route and the workbook project both affect coverage.</p>
+  <h2>Choose a host</h2>
+  <p>To embed the standalone CalcVBA runtime, see its <a href="https://github.com/DnaCalc/CalcVBA/blob/0ffe88fcc159621cf75f21e116a1f408937568ab/docs/spec/HOSTING_AND_EARLY_BINDING.md">pinned hosting reference</a> for project lifetime, capabilities and backend choice. In DNA Calc, the Rust <code>calc-vba</code> adapter is internal. Its workbook profile can supply workbook objects. The values-only Formula Explorer profile can run value-based calls and refuses host services that require workbook object context.</p>
+  <p>The file routes are experimental. With macros enabled on a trusted <code>.xlsm</code>, the workbook host uses that file's embedded project. On Windows x64, load a trusted <code>.xlam</code> through the desktop Add-ins panel to register its exported UDFs. VBA availability and services vary by host and policy.</p>
+  <p>For a values-only example, follow the <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/apps/dna-onecalc/tests/acceptance.rs">mounted Formula Explorer VBA test</a> at <code>539c4234</code>. It loads a simple module, sets <code>A1</code> to <code>40</code> and evaluates <code>=Module1.Add2(A1,2)</code> to <code>42</code>. A UDF declared with an <code>As Range</code> parameter instead produces a typed refusal in this profile, with the diagnostic <code>needs a workbook: open in DNA Calc</code>.</p>
   <h2>VBA corpus baseline</h2>
   {{vba}}
   <p class="site-note">The committed CalcVBA corpus baseline supplies the counts for each route.</p>
