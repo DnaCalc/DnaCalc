@@ -14,8 +14,13 @@ use std::{
 use windows_sys::Win32::{
     Foundation::*,
     System::{Com::*, LibraryLoader::GetModuleHandleW},
-    UI::WindowsAndMessaging::*,
+    UI::{
+        HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow},
+        WindowsAndMessaging::*,
+    },
 };
+
+const ROOT_STYLE: WINDOW_STYLE = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
 
 /// Answers `WM_GETOBJECT` on the innermost window: `(wParam, objectId)` to the `LRESULT`.
 pub type ObjectHandler = Rc<dyn Fn(usize, isize) -> isize>;
@@ -88,16 +93,38 @@ unsafe extern "system" fn window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM)
             }
         }
     }
+    unsafe { DefWindowProcW(hwnd, message, w, l) }
+}
+
+unsafe extern "system" fn chain_window(hwnd: HWND, message: u32, w: WPARAM, l: LPARAM) -> LRESULT {
     if message == WM_SIZE {
-        // The Excel window chain (XLMAIN > XLDESK > EXCEL7) fills its parent, as Excel's does.
-        let child = unsafe { GetWindow(hwnd, GW_CHILD) };
-        if !child.is_null() {
-            let (width, height) = ((l & 0xffff) as i32, ((l >> 16) & 0xffff) as i32);
-            unsafe { MoveWindow(child, 0, 0, width, height, 1) };
+        size_chain_child(hwnd);
+    }
+    if message == WM_DPICHANGED {
+        let frame = unsafe { &*(l as *const RECT) };
+        unsafe {
+            SetWindowPos(
+                hwnd,
+                std::ptr::null_mut(),
+                frame.left,
+                frame.top,
+                frame.right - frame.left,
+                frame.bottom - frame.top,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            );
         }
         return 0;
     }
-    unsafe { DefWindowProcW(hwnd, message, w, l) }
+    unsafe { window(hwnd, message, w, l) }
+}
+
+fn size_chain_child(parent: HWND) {
+    let child = unsafe { GetWindow(parent, GW_CHILD) };
+    if !child.is_null()
+        && let Some((width, height)) = client_size(parent)
+    {
+        unsafe { MoveWindow(child, 0, 0, width, height, 1) };
+    }
 }
 
 fn wide(text: &str) -> Vec<u16> {
@@ -118,7 +145,12 @@ impl Shell {
         for name in ["XLMAIN", "XLDESK", "EXCEL7"] {
             let class = wide(name);
             let mut wc: WNDCLASSW = unsafe { std::mem::zeroed() };
-            wc.lpfnWndProc = Some(window);
+            // The EXCEL7 children belong to WebView2. The controller lays them out.
+            wc.lpfnWndProc = Some(if name == "EXCEL7" {
+                window
+            } else {
+                chain_window
+            });
             wc.hInstance = instance;
             wc.lpszClassName = class.as_ptr();
             if unsafe { RegisterClassW(&wc) } == 0
@@ -143,9 +175,9 @@ impl Shell {
                     class.as_ptr(),
                     wide(title).as_ptr(),
                     if parent.is_null() {
-                        WS_OVERLAPPEDWINDOW
+                        ROOT_STYLE
                     } else {
-                        WS_CHILD
+                        WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN
                     },
                     0,
                     0,
@@ -176,6 +208,7 @@ impl Shell {
             }
             parent = hwnd;
         }
+        size_chain_child(root);
         let slot = Box::<Slot>::default();
         unsafe {
             SetWindowLongPtrW(parent, GWLP_USERDATA, (&*slot as *const Slot) as isize);
@@ -255,7 +288,7 @@ impl Shell {
                 right: width,
                 bottom: height,
             };
-            AdjustWindowRect(&mut frame, WS_OVERLAPPEDWINDOW, 0);
+            AdjustWindowRectExForDpi(&mut frame, ROOT_STYLE, 0, 0, GetDpiForWindow(self.root));
             SetWindowPos(
                 self.root,
                 std::ptr::null_mut(),
@@ -349,5 +382,32 @@ impl Drop for Shell {
             DestroyWindow(self.root);
             CoUninitialize();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Native-only: a Win32 parent chain must be visible and sized before WebView2 starts.
+    #[test]
+    fn shown_shell_exposes_and_sizes_the_webview_parent() {
+        let shell = Shell::new("Desktop shell paint test").unwrap();
+        let root = shell.hwnd() as HWND;
+        let workbook = shell.workbook_hwnd();
+        assert_eq!(unsafe { IsWindowVisible(workbook) }, 0);
+
+        shell.show(800, 600);
+        assert_ne!(unsafe { IsWindowVisible(workbook) }, 0);
+        assert_eq!(shell.client_size(), client_size(root));
+
+        let place = shell.placement().unwrap();
+        shell.show_placement(&Placement {
+            right: place.right + 80,
+            bottom: place.bottom + 60,
+            ..place
+        });
+        assert_ne!(unsafe { IsWindowVisible(workbook) }, 0);
+        assert_eq!(shell.client_size(), client_size(root));
     }
 }

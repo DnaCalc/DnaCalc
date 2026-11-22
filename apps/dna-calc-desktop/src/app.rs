@@ -172,7 +172,6 @@ struct App {
     loading: Cell<bool>,
     fetch: Rc<ThreadedFetch>,
     frame: *mut std::ffi::c_void,
-    bounds: Cell<(i32, i32)>,
     book: Cell<u64>,
     probe: Option<PathBuf>,
     quit: Cell<bool>,
@@ -595,12 +594,7 @@ impl App {
 
     /// Native returns, RTD, calculation and the window's size, once per tick.
     fn tick(&self) {
-        if let Some((width, height)) = calc_platform_desktop::client_size(self.frame) {
-            if (width, height) != self.bounds.get() && width > 0 && height > 0 {
-                self.bounds.set((width, height));
-                self.web.set_bounds(width, height);
-            }
-        }
+        self.web.sync_parent();
         if let Ok(addins) = self.addins.try_borrow() {
             for returned in addins.take_async_returns() {
                 let mut server = self.server.borrow_mut();
@@ -688,7 +682,6 @@ Open the download page now?"
         &WebViewOptions {
             user_data: &user_data,
             browser_args,
-            size: o.size,
         },
     )?;
     if o.no_print_ui {
@@ -772,7 +765,6 @@ Open the download page now?"
         sheets_bound: RefCell::new(Vec::new()),
         fetch,
         frame,
-        bounds: Cell::new(o.size),
         probe: o.probe.clone(),
         quit: Cell::new(false),
         functions: RefCell::new(functions),

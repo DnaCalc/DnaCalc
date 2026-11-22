@@ -195,7 +195,7 @@ impl Options {
 /// The workbook name the add-ins see.
 const WORKBOOK: &str = "Book1";
 
-/// The timer that follows the window's size (milliseconds).
+/// The timer that follows the window's size and position (milliseconds).
 const TICK_MS: u32 = 50;
 const TICK_ID: usize = 0x4f4e43;
 
@@ -802,11 +802,9 @@ impl Drop for Controller {
 struct App {
     backend: RefCell<Backend>,
     web: WebView,
-    frame: *mut std::ffi::c_void,
     /// The outermost window (as `Shell::hwnd` gives it), for its place.
     root: usize,
     settings: Rc<RefCell<Settings>>,
-    bounds: Cell<(i32, i32)>,
     /// Requests that arrived while one was being answered (an evaluation that waits for an add-in
     /// runs the message loop, which delivers the page's next message): answered in order after it.
     waiting: RefCell<VecDeque<String>>,
@@ -923,15 +921,10 @@ impl App {
         }
     }
 
-    /// The window's size, once per tick.
+    /// RTD updates and the window's geometry, once per tick.
     fn tick(&self) {
         self.poll_rtd();
-        if let Some((width, height)) = calc_platform_desktop::client_size(self.frame.cast()) {
-            if (width, height) != self.bounds.get() && width > 0 && height > 0 {
-                self.bounds.set((width, height));
-                self.web.set_bounds(width, height);
-            }
-        }
+        self.web.sync_parent();
     }
 }
 
@@ -1010,7 +1003,6 @@ pub fn run(args: &[String]) -> Result<(), String> {
         &WebViewOptions {
             user_data: &user_data,
             browser_args,
-            size,
         },
     )?;
 
@@ -1081,10 +1073,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let app = Rc::new(App {
         backend: RefCell::new(backend),
         web,
-        frame: frame.cast(),
         root: shell.hwnd(),
         settings: settings.clone(),
-        bounds: Cell::new(size),
         waiting: RefCell::new(VecDeque::new()),
         busy: Cell::new(false),
         stop,
