@@ -179,6 +179,45 @@ fn complex_text_uses_the_nibble_chain_and_real_axis_hyperbolics_the_scalar_kerne
     text(call("IMSINH", vec![n(f64::from_bits(0xc00f_5b65_9282_4c40))]), "-25.1809084647036");
 }
 
+/// dc-ymjf.2.128, Excel 16.0.20527.20196 (Touchstone, 2026-11-22): COMPLEX coefficients use
+/// the directed 15-digit x87 reading (`ExactDecimal::fifteen_x87(x, true)`): `frexp`-based
+/// `e_est = floor(k / 3.3219)` (48/48 vs 0/48 for `floor(k * log10(2))` on binade-4),
+/// nibble-chain scaling + `*10` loop, exact half-up ties (10/10), and the `k = -485, -970`
+/// sliver 16-digit binary64 re-scale with half-down (51/51 vs 15/51 for `*10^-1` or `/10`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_text_uses_directed_fifteen_x87_including_binade4_and_slivers() {
+    for (bits, expected) in [
+        // Previously failing full-bank COMPLEX midpoint rows (dc-ymjf.2.128).
+        (0x2946_7cda_51e6_16a3_u64, "7.48060549288466E-110"),
+        (0x36c0_3e1a_b826_1b3a, "5.69018092922882E-45"),
+        (0x4d65_1c8c_5ab6_b74b, "6.94781936777026E+64"),
+        (0x5f44_951e_131e_24dd, "8.4218162443162E+150"),
+        (0x7c86_d60c_9167_382e, "7.12144801799257E+291"),
+        (0x0af3_9824_905d_51d2, "6.52489643647008E-256"),
+        (0x49e1_f7e6_52d4_052d, "8.20649529430271E+47"),
+        // Binade-4 discriminators confirming floor(frexp_k / 3.3219) over log10(2).
+        (0x0340_911b_ebff_d95b, "5.18792517643478E-293"),
+        (0x2191_6c8a_93e3_7090, "5.45066795064255E-147"),
+        (0x5e38_5176_e7fd_3ec7, "7.59153699503465E+145"),
+        (0x7c89_2187_8a20_ddde, "7.83709558821205E+291"),
+        // 0.1% slivers at k = -485 and k = -970 confirming 16-digit f64 re-scale (half-down).
+        (0x219f_f787_85c9_2417, "1.00000646001945E-146"),
+        (0x034f_ef0f_31cd_bac7, "1.00001192003583E-292"),
+        (0x034f_f04c_a142_9bce, "1.00016360049087E-292"),
+        // Exact binary64 half-way ties round half up (unlike Q0.64 number_text).
+        (0x3ff0_0020_0000_0000, "1.00003051757813"),
+        (0x3ff0_0060_0000_0000, "1.00009155273438"),
+        (100_000_000_000_000.5_f64.to_bits(), "100000000000001"),
+        (100_000_000_000_001.5_f64.to_bits(), "100000000000002"),
+    ] {
+        text(
+            call("COMPLEX", vec![n(f64::from_bits(bits)), n(0.0)]),
+            expected,
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_high_j0_stores_its_leading_product() {

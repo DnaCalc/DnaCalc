@@ -431,10 +431,11 @@ impl ParsedComplex {
 pub(crate) fn normalize_zero(n: f64) -> f64 {
     if n == 0.0 { 0.0 } else { n }
 }
-/// Excel's complex coefficient rendering, observed on build 20430 through Value2 inputs:
-/// 15 significant decimal digits using the scaling model of `decimal::complex_fifteen`, fixed
-/// notation while the unsigned result fits in 21 characters, otherwise scientific notation.
-/// No near-integer snapping is applied. See the retained W111 captures and failed hypotheses.
+/// Excel's complex coefficient rendering, observed on builds 20430 and 20527 through Value2 inputs:
+/// 15 significant decimal digits via `ExactDecimal::fifteen_x87(n, true)` (`frexp`-based
+/// `e_est = floor(k / 3.3219)`, low-nibble-first 64-bit chain, `* 10` loop, exact half-up ties,
+/// and the `k = -485, -970` sliver 16-digit binary64 re-scale), fixed notation while the unsigned
+/// result fits in 21 characters, otherwise scientific notation. No near-integer snapping is applied.
 pub(crate) fn number_to_excel_text(n: f64) -> Result<String, WorksheetErrorCode> {
     if n == 0.0 {
         return Ok("0".to_string());
@@ -446,13 +447,11 @@ pub(crate) fn number_to_excel_text(n: f64) -> Result<String, WorksheetErrorCode>
     }
 
     let sign = if n < 0.0 { "-" } else { "" };
-    let (mut significand, shift) = crate::decimal::complex_fifteen(n);
-    let mut scale = -shift;
-    if significand == 1_000_000_000_000_000 {
-        significand /= 10;
-        scale += 1;
-    }
-    let decimal = format!("{significand}e{scale}");
+    let exact = crate::decimal::ExactDecimal::fifteen_x87(n, true)
+        .expect("finite non-zero complex coefficient");
+    let digits = exact.coefficient.digits();
+    let scale = exact.exponent;
+    let decimal = format!("{digits}e{scale}");
     let rounded: f64 = decimal
         .parse()
         .expect("finite-input decimal representation");
@@ -463,7 +462,6 @@ pub(crate) fn number_to_excel_text(n: f64) -> Result<String, WorksheetErrorCode>
     }
     // Do not reject a decimal that rounds above binary64's range. For MAX-1 ULP, Excel
     // legitimately publishes 1.79769313486232E+308 even though reparsing it overflows.
-    let digits = significand.to_string();
     let exponent = scale + digits.len() as i32 - 1;
     let decimal_pos = exponent + 1;
     let mut out = if decimal_pos <= 0 {

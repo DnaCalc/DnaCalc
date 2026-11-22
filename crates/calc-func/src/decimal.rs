@@ -664,11 +664,12 @@ fn mul_ten_64(kept: u128, power: i32) -> (u128, i32) {
     round_to_64_bits(&Natural::from_u128(kept * 10), power, &one)
 }
 
-/// Directed-function 15-digit initial reading (dc-m53ln): estimate the decimal exponent from
-/// `frexp`'s exponent `k = floor(log2(|x|)) + 1` as `floor(k / 3.3219)`, scale `|x|` by
-/// `14 - e_est` via the low-nibble-first 64-bit chain, multiply by 10 while below `10^14`,
-/// and if the scaled value reaches `10^15` (the `0.1%` sliver at `k = -485, -970`) round to
-/// 16 digits, publish back to binary64 via the nibble chain and re-scale by `shift - 1`.
+/// Directed-function and complex-coefficient 15-digit initial reading (dc-m53ln, dc-ymjf.2.128):
+/// estimate the decimal exponent from `frexp`'s exponent `k = floor(log2(|x|)) + 1` as
+/// `floor(k / 3.3219)`, scale `|x|` by `14 - e_est` via the low-nibble-first 64-bit chain,
+/// multiply by 10 while below `10^14`, and if the scaled value reaches `10^15` (the `0.1%` sliver
+/// at `k = -485, -970`) round to 16 digits, publish back to binary64 via the nibble chain and
+/// re-scale by `shift - 1`.
 fn directed_fifteen_x87(negative: bool, mantissa: u64, exponent: i32) -> ExactDecimal {
     const TEN_14: u128 = 100_000_000_000_000;
     const TEN_15: u128 = 1_000_000_000_000_000;
@@ -740,32 +741,6 @@ fn nibble_chain(mantissa: u64, exponent: i32, shift: i32) -> (u128, i32) {
         place += 4;
     }
     (kept, power)
-}
-
-/// Complex coefficient publication (dc-iuwct.6): a finite non-zero |x| scaled to fifteen digits
-/// by the nibble chain for every shift n = 14 - e (e the decimal exponent of |x|), then rounded
-/// to an integer with a half up. Returns that integer and n. Excel 16.0.20527 (Touchstone
-/// 2026-11-20): 1,185 of 1,200 fresh decimal near-midpoints with predictions frozen first,
-/// where one rounded 10^|n| (multiplied, or divided for n < 0) held 1,156; on the bank's 9,074
-/// distinct COMPLEX coefficients 9,069 against 9,064.
-pub(crate) fn complex_fifteen(x: f64) -> (u128, i32) {
-    let shift = 14 - ExactDecimal::binary(x).magnitude();
-    let bits = x.abs().to_bits();
-    let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
-    let fraction_bits = bits & ((1u64 << 52) - 1);
-    let (mantissa, exponent) = if biased == 0 {
-        (fraction_bits, -1074)
-    } else {
-        (fraction_bits | (1u64 << 52), biased - 1075)
-    };
-    let (kept, power) = nibble_chain(mantissa, exponent, shift);
-    // The scaled value lies near [10^14, 10^15], so its 64-bit coefficient has a negative
-    // binary exponent; round it to an integer, a half up.
-    debug_assert!((-64..0).contains(&power));
-    let drop = power.unsigned_abs();
-    let whole = kept >> drop;
-    let rest = kept - (whole << drop);
-    (whole + u128::from(rest >= 1u128 << (drop - 1)), shift)
 }
 
 fn round_to_64_bits(numerator: &Natural, exponent: i32, denominator: &Natural) -> (u128, i32) {
