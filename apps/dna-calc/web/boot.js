@@ -33,17 +33,23 @@ function loading() {
 // The folder this module came from: the calculation worker (worker.js) is beside it (dc-p96).
 window.__dnacalcAssets = new URL(".", import.meta.url).href;
 
-// The interface font (css/fonts.css: Segoe UI where installed, bundled Selawik elsewhere) is loaded
-// with the wasm, so the app mounts and measures with it rather than a fallback.
-var fonts = Promise.all(["400", "600", "700"].map(function (weight) {
-  return document.fonts.load(weight + " 13px \"Segoe UI\"");
-})).catch(function () { return null; });
+// Load the interface and spreadsheet faces before the wasm start hook mounts the app. AutoFit and
+// both Grid painters can then measure the same face from the first workbook publication.
+var faces = ["400", "600", "700"].map(function (weight) {
+  return weight + ' 13px "Segoe UI"';
+});
+for (var family of ["Calibri", "Cambria", "Arial", "Times New Roman", "Courier New"]) {
+  for (var variant of ["400", "700", "italic 400", "italic 700"]) {
+    faces.push(variant + ' 11pt "' + family + '"');
+  }
+}
+var fonts = Promise.allSettled(faces.map(function (face) { return document.fonts.load(face); }));
 
 // The glue is imported only after the listeners are in place, relative to this file, so the page
 // may put both in an asset folder of their own.
-import("./dna-calc-web.js")
-  .then(function (glue) {
-    return glue.default({ module_or_path: new URL("./dna-calc-web_bg.wasm", import.meta.url) })
+Promise.all([import("./dna-calc-web.js"), fetch(new URL("./dna-calc-web_bg.wasm", import.meta.url)), fonts])
+  .then(function ([glue, wasm]) {
+    return glue.default({ module_or_path: wasm })
       .then(function (exports) {
         // The module's linear memory, for the smoke case `stack-margin` (dc-0f1k.9): how deep the
         // wasm shadow stack has gone shows as the lowest memory that is not zero.
@@ -52,7 +58,6 @@ import("./dna-calc-web.js")
         window.__dnacalcDecodeTile = glue.decode_tile_event;
       });
   })
-  .then(function () { return fonts; })
   .then(function () {
     var element = loading();
     if (element) { element.remove(); }

@@ -685,6 +685,126 @@
    "class": "permissive-third-party",
    "reason": "Unicode 15.0 Mn/Mc property ranges moved unchanged from calc-fml/src/syntax/combining_marks.rs; shared by lexer and text casing. Extended with Mn/Pc ranges generated from local Python Unicode 15.1 metadata for measured regex word membership (dc-b1l.31). Unicode notice: deploy/notices/ported.txt.",
    "parts": [{"class": "permissive-third-party", "source": "unicode", "what": "Unicode combining-mark ranges generated from Unicode 15.0 data, plus Unicode 15.1 Mn/Pc property ranges", "shipped": "yes"}]
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-sans-regular.woff2",
+   "class": "permissive-third-party",
+   "reason": "Carlito 1.104, fonts-crosextra-carlito 20230309-2 (regular), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/googlefonts/carlito. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-sans-bold.woff2",
+   "class": "permissive-third-party",
+   "reason": "Carlito 1.104, fonts-crosextra-carlito 20230309-2 (bold), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/googlefonts/carlito. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-sans-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Carlito 1.104, fonts-crosextra-carlito 20230309-2 (italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/googlefonts/carlito. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-sans-bold-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Carlito 1.104, fonts-crosextra-carlito 20230309-2 (bold-italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/googlefonts/carlito. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-serif-regular.woff2",
+   "class": "permissive-third-party",
+   "reason": "Caladea 1.001, fonts-crosextra-caladea 20200211-2 (regular), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/huertatipografica/Caladea. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-serif-bold.woff2",
+   "class": "permissive-third-party",
+   "reason": "Caladea 1.001, fonts-crosextra-caladea 20200211-2 (bold), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/huertatipografica/Caladea. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-serif-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Caladea 1.001, fonts-crosextra-caladea 20200211-2 (italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/huertatipografica/Caladea. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-serif-bold-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Caladea 1.001, fonts-crosextra-caladea 20200211-2 (bold-italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/huertatipografica/Caladea. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-neo-sans-regular.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Sans 2.1.5, fonts-liberation 1:2.1.5-3build1 (regular), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-neo-sans-bold.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Sans 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-neo-sans-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Sans 2.1.5, fonts-liberation 1:2.1.5-3build1 (italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-neo-sans-bold-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Sans 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold-italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-book-serif-regular.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Serif 2.1.5, fonts-liberation 1:2.1.5-3build1 (regular), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-book-serif-bold.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Serif 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-book-serif-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Serif 2.1.5, fonts-liberation 1:2.1.5-3build1 (italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-book-serif-bold-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Serif 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold-italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-mono-regular.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Mono 2.1.5, fonts-liberation 1:2.1.5-3build1 (regular), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-mono-bold.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Mono 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-mono-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Mono 2.1.5, fonts-liberation 1:2.1.5-3build1 (italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
+  },
+  {
+   "path": "apps/dna-calc/web/fonts/calc-mono-bold-italic.woff2",
+   "class": "permissive-third-party",
+   "reason": "Liberation Mono 2.1.5, fonts-liberation 1:2.1.5-3build1 (bold-italic), SIL OFL 1.1. Renamed and converted to full-coverage WOFF2. Source https://github.com/liberationfonts/liberation-fonts/tree/2.1.5. Licence and copyright in apps/dna-calc/web/fonts/LICENSE.txt.",
+   "bead": "dc-ysl.9"
   }
  ]
 }

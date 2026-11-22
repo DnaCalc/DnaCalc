@@ -147,8 +147,8 @@ pub struct App {
     /// Further scripts copied beside the page, relative to the workspace root (DNA Calc's
     /// calculation worker, `web/worker.js`, dc-p96).
     pub scripts: &'static [&'static str],
-    /// Further files copied beside the page, relative to the workspace root: the web fonts the
-    /// stylesheet names, so no platform draws the interface in whatever font the browser has.
+    /// Further files copied beside the page, relative to the workspace root, including the
+    /// stylesheet's web fonts and their licence.
     pub files: &'static [&'static str],
     /// The stylesheets, relative to the workspace root, in order: the bundle's `app.css` is
     /// Strand's token stylesheet (`dna_strand::stylesheet`) followed by these (dc-xib).
@@ -175,6 +175,8 @@ impl App {
         self.page.replace("index.html", "boot.js")
     }
 }
+
+pub(crate) const CALC_FONT_LICENCE: &str = "apps/dna-calc/web/fonts/LICENSE.txt";
 
 /// The applications.
 pub static APPS: [App; 2] = [
@@ -213,6 +215,27 @@ pub static APPS: [App; 2] = [
             "apps/dna-calc/web/fonts/selawik-regular.woff2",
             "apps/dna-calc/web/fonts/selawik-semibold.woff2",
             "apps/dna-calc/web/fonts/selawik-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-sans-regular.woff2",
+            "apps/dna-calc/web/fonts/calc-sans-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-sans-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-sans-bold-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-serif-regular.woff2",
+            "apps/dna-calc/web/fonts/calc-serif-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-serif-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-serif-bold-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-neo-sans-regular.woff2",
+            "apps/dna-calc/web/fonts/calc-neo-sans-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-neo-sans-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-neo-sans-bold-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-book-serif-regular.woff2",
+            "apps/dna-calc/web/fonts/calc-book-serif-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-book-serif-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-book-serif-bold-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-mono-regular.woff2",
+            "apps/dna-calc/web/fonts/calc-mono-bold.woff2",
+            "apps/dna-calc/web/fonts/calc-mono-italic.woff2",
+            "apps/dna-calc/web/fonts/calc-mono-bold-italic.woff2",
+            CALC_FONT_LICENCE,
         ],
         styles: &[
             "apps/dna-formula-ui/web/css/formula-field.css",

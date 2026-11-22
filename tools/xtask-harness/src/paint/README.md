@@ -20,8 +20,8 @@ centred overflow, and a stored range selection. `--zooms` takes 25 to 200 in any
 cannot be calibrated (a zoom that pushes the last column out of Excel's window) is listed under
 `uncalibrated_references` and `uncompared_captures` in `comparison.json` and never counted as a pass.
 
-`--reference DIR` reuses Excel images without launching Excel. Workbook hashes, sheets, zooms
-and device scales must match. `py tools/xtask-harness/src/paint/compare.py SOURCE --out REPORT`
+`--reference DIR` reuses Excel images without launching Excel and supports browser replay on Linux.
+Workbook hashes, sheets, zooms and device scales must match. `py tools/xtask-harness/src/paint/compare.py SOURCE --out REPORT`
 regenerates the report alone from retained original captures. It opens no apps. Earlier reports
 stay intact when a separate output directory is supplied. Reference and input hashes are checked.
 
