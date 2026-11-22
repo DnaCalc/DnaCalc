@@ -9492,33 +9492,60 @@ mod printing_tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn print_preview_refuses_circular_held_values_until_they_are_recalculated() {
+    fn print_preview_preserves_circular_held_values_after_reopen() {
+        // Excel 16.0.20527.20196, ww2 print-holds-active: iteration-off circular cells
+        // displayed 12 and 11 after reopen and PDF export.
         let mut s = Server::new();
         let sheet = Sheet::of(s.book.host().sheets()[0].id());
-        let at = Key(sheet.0, sheet.1, 1, 1);
-        let enter = |s: &mut Server, text: &str| {
-            s.execute_current(
-                Request::Intent(Intent::EnterCell {
-                    at,
-                    text: text.into(),
-                }),
-                None,
+        assert!(!s.book.host().recalc_context().iteration);
+        let enter = |s: &mut Server, col, text: &str| {
+            let reply = s
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key(sheet.0, sheet.1, 1, col),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            assert!(matches!(reply, Reply::Done { outcome, .. } if outcome.accepted));
+        };
+        enter(&mut s, 1, "=IF(C1=0,12,B1+1)");
+        enter(&mut s, 2, "=A1-1");
+        enter(&mut s, 3, "1");
+
+        let bytes = s.execute_current(Request::Save, None).bytes.unwrap();
+        let mut reopened = Server::new();
+        reopened
+            .execute_current(
+                Request::Open { name: "Circular.xlsx".into() },
+                Some(bytes),
             )
             .reply
             .unwrap();
-        };
-        enter(&mut s, "=6*7");
-        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "42");
-        enter(&mut s, "=A1+1");
-        let projected = s.book.project(vec![at.cell().unwrap()]);
-        assert!(matches!(
-            projected[0].value(),
-            calc_host::ProjectedValue::Calculated { calculation, .. }
-                if calculation.held_by_circular_rule()
-        ));
-        assert!(preview(&mut s, sheet).unwrap_err().contains("circular reference"));
-        enter(&mut s, "=6*8");
-        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "48");
+        let sheet = Sheet::of(reopened.book.host().sheets()[0].id());
+        assert!(!reopened.book.host().recalc_context().iteration);
+        for (col, expected) in [(1, 12.0f64), (2, 11.0f64)] {
+            let at = CellKey::new(sheet.id(), 1, col).unwrap();
+            let projected = reopened.book.cell(at).unwrap();
+            let calc_host::ProjectedValue::Calculated { value, calculation } = projected.value()
+            else {
+                panic!("{at:?}: {:?}", projected.value());
+            };
+            assert!(calculation.held_by_circular_rule(), "{at:?}");
+            let calc_value::CoreRef::Number(value) = value.core_ref() else {
+                panic!("{at:?}: {:?}", projected.value());
+            };
+            assert_eq!(value.to_bits(), expected.to_bits(), "{at:?}");
+        }
+        let doc = preview(&mut reopened, sheet).unwrap();
+        assert_eq!(
+            doc.cells.iter().map(|cell| cell.text.as_str()).collect::<Vec<_>>(),
+            ["12", "11", "1"],
+        );
+        assert!(doc.cells[..2].iter().all(|cell| cell.why.contains("held by a circular reference")));
+        assert!(doc.notices.iter().any(|notice| notice.contains("held by circular references")));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

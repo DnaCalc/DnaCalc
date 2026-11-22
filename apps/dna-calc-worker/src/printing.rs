@@ -278,6 +278,7 @@ pub fn preview(
     let projected = book.project(keys.into_iter().collect());
     let mut cells = Vec::new();
     let mut retained = 0usize;
+    let mut circular_holds = false;
     for p in projected {
         match p.value() {
             ProjectedValue::FileCached(_)
@@ -287,10 +288,7 @@ pub fn preview(
                             Calculate or resolve them first (dc-971p.57)".into());
             }
             ProjectedValue::Calculated { calculation, .. } => {
-                if calculation.held_by_circular_rule() {
-                    return Err("Print preview contains values held by a circular reference. \
-                                Resolve it before printing (dc-971p.57)".into());
-                }
+                circular_holds |= calculation.held_by_circular_rule();
                 if calculation.reads_external_links()
                     || calculation.stamp().is_some_and(|stamp| {
                         stamp.reads.external_cache
@@ -317,6 +315,9 @@ pub fn preview(
             return Err("Print preview exceeds the retained display budget; reduce the print area (dc-971p.57)".into());
         }
         cells.push(cell);
+    }
+    if circular_holds {
+        notices.push("Print preview includes values held by circular references.".into());
     }
     Ok(PrintDocument {
         revision,
