@@ -7142,3 +7142,110 @@ fn dc_iuwct_51_beta_lower_endpoint_and_small_shape_bup_bgrat_exact() {
         );
     }
 }
+
+/// Excel 16.0.20527.20196 (dc-ymjf.2.154, frozen Touchstone proofs SHA-256 9614eed5, 8afdac85,
+/// fd2b2800, 848245d9): extreme-count non-compensation overflows in `POISSON`/`POISSON.DIST`
+/// and `GAMMA.DIST`/`GAMMADIST`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ymjf_2_154_poisson_and_gamma_extreme_count_overflows() {
+    let m_below_11 = f64::from_bits(0x3ff1_9999_9999_9999);
+    let m_exact_11 = f64::from_bits(0x3ff1_9999_9999_999a);
+    let a_edge_lo = f64::from_bits(0x79b4_484b_feeb_c29f); // DBL_MAX * 1e-30 (a / 1e-30 finite)
+    let a_edge_hi = f64::from_bits(0x79b4_484b_feeb_c2a0); // +1 ULP (a / 1e-30 == +Inf)
+
+    // 1. Strict x < 1.1 && a / 1e-30 == +Inf boundary in gratio (exact 1-ULP edge).
+    for name in ["POISSON.DIST", "POISSON"] {
+        exact(call(name, vec![n(a_edge_lo), n(1.0), f1_support::b(false)]), 0.0);
+        exact(call(name, vec![n(a_edge_lo), n(1.0), f1_support::b(true)]), 1.0);
+        exact(call(name, vec![n(a_edge_hi), n(1.0), f1_support::b(false)]), 0.0);
+        error(call(name, vec![n(a_edge_hi), n(1.0), f1_support::b(true)]), Num);
+        // Bead cases: x = 1e300, 1e305 with mean in {0.5, 0.75, 1.0} (FALSE=0, TRUE=#NUM!)
+        // and x = 1e305, mean = 1.1 (FALSE=0, TRUE=1).
+        for x in [1e300_f64, 1e305_f64] {
+            for m in [0.5_f64, 0.75, 1.0] {
+                exact(call(name, vec![n(x), n(m), f1_support::b(false)]), 0.0);
+                error(call(name, vec![n(x), n(m), f1_support::b(true)]), Num);
+            }
+        }
+        exact(call(name, vec![n(1e305), n(m_exact_11), f1_support::b(false)]), 0.0);
+        exact(call(name, vec![n(1e305), n(m_exact_11), f1_support::b(true)]), 1.0);
+        // Strict < 1.1 boundary at x = 1e295 (0x3ff1999999999999 vs 0x3ff199999999999a).
+        exact(call(name, vec![n(1e295), n(m_below_11), f1_support::b(false)]), 0.0);
+        error(call(name, vec![n(1e295), n(m_below_11), f1_support::b(true)]), Num);
+        exact(call(name, vec![n(1e295), n(m_exact_11), f1_support::b(false)]), 0.0);
+        exact(call(name, vec![n(1e295), n(m_exact_11), f1_support::b(true)]), 1.0);
+        // Tiny mean (l = mean / a == 0 in binary64) does not bypass gratio or compensation #NUM!.
+        error(call(name, vec![n(1e250), n(1e-100), f1_support::b(false)]), Num);
+        error(call(name, vec![n(1e250), n(1e-100), f1_support::b(true)]), Num);
+        let a250_neg = f64::from_bits(1e250_f64.to_bits() + 1);
+        exact(call(name, vec![n(a250_neg), n(1e-100), f1_support::b(false)]), 0.0);
+        exact(call(name, vec![n(a250_neg), n(1e-100), f1_support::b(true)]), 1.0);
+    }
+    for name in ["GAMMA.DIST", "GAMMADIST"] {
+        exact(call(name, vec![n(1.0), n(a_edge_lo), n(1.0), f1_support::b(true)]), 0.0);
+        error(call(name, vec![n(1.0), n(a_edge_hi), n(1.0), f1_support::b(true)]), Num);
+        exact(call(name, vec![n(m_below_11), n(1e295), n(1.0), f1_support::b(false)]), 0.0);
+        error(call(name, vec![n(m_below_11), n(1e295), n(1.0), f1_support::b(true)]), Num);
+        exact(call(name, vec![n(m_exact_11), n(1e295), n(1.0), f1_support::b(true)]), 0.0);
+        // Scaled y = x / beta < 1.1 vs >= 1.1.
+        error(call(name, vec![n(2.0), n(1e295), n(2.0), f1_support::b(true)]), Num);
+        exact(call(name, vec![n(2.2), n(1e295), n(2.0), f1_support::b(true)]), 0.0);
+    }
+
+    // 2. Loader deviance x * ln(x / lambda) overflow (exact 1-ULP edges across m = 2, 1e100, 1e200).
+    for (m, lo_bits, hi_bits) in [
+        (2.0_f64, 0x7f57_523e_3f25_3287_u64, 0x7f57_523e_3f25_3288_u64),
+        (1e100,   0x7f61_4e50_07a7_5011,     0x7f61_4e50_07a7_5012),
+        (1e200,   0x7f70_cd81_b34e_8ae7,     0x7f70_cd81_b34e_8ae8),
+    ] {
+        let x_lo = f64::from_bits(lo_bits);
+        let x_hi = f64::from_bits(hi_bits);
+        for name in ["POISSON.DIST", "POISSON"] {
+            exact(call(name, vec![n(x_lo), n(m), f1_support::b(false)]), 0.0);
+            exact(call(name, vec![n(x_lo), n(m), f1_support::b(true)]), 1.0);
+            error(call(name, vec![n(x_hi), n(m), f1_support::b(false)]), Num);
+            error(call(name, vec![n(x_hi), n(m), f1_support::b(true)]), Num);
+        }
+        for name in ["GAMMA.DIST", "GAMMADIST"] {
+            exact(call(name, vec![n(m), n(x_lo), n(1.0), f1_support::b(false)]), 0.0);
+            exact(call(name, vec![n(m), n(x_lo), n(1.0), f1_support::b(true)]), 0.0);
+            error(call(name, vec![n(m), n(x_hi), n(1.0), f1_support::b(false)]), Num);
+            error(call(name, vec![n(m), n(x_hi), n(1.0), f1_support::b(true)]), Num);
+        }
+    }
+    for name in ["POISSON.DIST", "POISSON"] {
+        error(call(name, vec![n(1e306), n(2.0), f1_support::b(false)]), Num);
+        error(call(name, vec![n(1e306), n(2.0), f1_support::b(true)]), Num);
+        exact(call(name, vec![n(1e306), n(1e300), f1_support::b(false)]), 0.0);
+        exact(call(name, vec![n(1e306), n(1e300), f1_support::b(true)]), 1.0);
+    }
+
+    // 3. Loader 2 * pi * x overflow boundary (0x7fc45f306dc9c882 vs 0x7fc45f306dc9c883):
+    //    #NUM! in POISSON(.DIST) and #DIV/0! in GAMMA(.DIST) PDF.
+    let x_2pi_lo = f64::from_bits(0x7fc4_5f30_6dc9_c882);
+    let x_2pi_hi = f64::from_bits(0x7fc4_5f30_6dc9_c883);
+    for name in ["POISSON.DIST", "POISSON"] {
+        exact(
+            call(name, vec![n(x_2pi_lo), n(x_2pi_lo), f1_support::b(false)]),
+            f64::from_bits(0x1ff0_0000_0000_0000),
+        );
+        error(call(name, vec![n(x_2pi_hi), n(x_2pi_hi), f1_support::b(false)]), Num);
+        error(call(name, vec![n(2.9e307), n(1e307), f1_support::b(false)]), Num);
+        exact(call(name, vec![n(1e307), n(1e300), f1_support::b(false)]), 0.0);
+    }
+    for name in ["GAMMA.DIST", "GAMMADIST"] {
+        error(
+            call(name, vec![n(x_2pi_hi), n(x_2pi_hi), n(1.0), f1_support::b(false)]),
+            Div0,
+        );
+        error(
+            call(name, vec![n(1e307), n(2.9e307), n(1.0), f1_support::b(false)]),
+            Div0,
+        );
+        error(
+            call(name, vec![n(2.0), n(1e308), n(1.0), f1_support::b(false)]),
+            Div0,
+        );
+    }
+}

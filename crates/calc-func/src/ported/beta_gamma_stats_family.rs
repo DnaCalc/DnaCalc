@@ -528,6 +528,12 @@ pub fn gamma_dist_kernel(
         // scaling, and subnormal final `pdf` flushes to 0.0.
         use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
         let y = flush_subnormal(excel_x87_div(x, beta));
+        // Excel 16.0.20527.20196 (dc-ymjf.2.154, 1-ULP bisected at 0x7fc45f306dc9c883):
+        // Loader-branch GAMMA.DIST/GAMMADIST PDF returns `#DIV/0!` whenever `2 * pi * alpha`
+        // overflows binary64 (preceding deviance overflow).
+        if alpha > 1.1 && y > 1.1 && !excel_x87_mul(2.0 * std::f64::consts::PI, alpha).is_finite() {
+            return Err(WorksheetErrorCode::Div0);
+        }
         let r = crate::ported::discrete_dist::poisson_mass(alpha, y);
         let pdf = excel_x87_mul(r, excel_x87_div(alpha, x));
         return if pdf.is_finite() {

@@ -635,14 +635,20 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
 
     // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3).
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
-    let l = excel_x87_div(x, a);
-    if l == 0.0 {
-        return (0.0, 1.0);
+    // Excel 16.0.20527.20196 (dc-ymjf.2.154, 1-ULP bisected across POISSON(.DIST) and
+    // GAMMA(.DIST)): for strict `x < 1.1`, `a / 1e-30` overflowing binary64
+    // (`a >= 0x79b4484bfeebc2a0`) returns `#NUM!`, while `x >= 1.1` stays finite.
+    if x < 1.1 && !excel_x87_div(a, 1.0e-30).is_finite() {
+        return (f64::NAN, f64::NAN);
     }
+    let l = excel_x87_div(x, a);
     if l > 0.7 && l < 1.3 {
         return gratio_temme(a, x);
     }
     let pm = poisson_mass(a, x);
+    if !pm.is_finite() {
+        return (f64::NAN, f64::NAN);
+    }
     let r = excel_x87_mul(pm, a);
     if r == 0.0 {
         return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
