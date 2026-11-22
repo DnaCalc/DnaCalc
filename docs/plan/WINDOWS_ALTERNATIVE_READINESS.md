@@ -605,6 +605,27 @@ with one ignored in each. The Windows catalogue prefix test also passed on the m
 The font and pivot archive was copied and checksum-checked at
 `r2:dnacalc-evidence/excel/ww5-fonts-20261122T154943Z` (one archive, 2,421,657 bytes).
 
+### Late cb16 landing and original link workbooks
+
+At `d1d1b28e`, Win64 passed all 23 math tests and all 19 witness tests in each of the
+native and software x87 builds. The native trig unit test also passed. Headless Chrome and
+Firefox each passed all 476 CalcFunc integration tests. Win64 matched all 191 frozen cb16
+probe rows and 238 of 240 frozen holdout rows. The two open rows are the previously observed
+IMCSC and IMSEC text-digit differences (`dc-j9k.78`). The local full bank matched all 2,129 SIN
+and 3,684 COS rows. Its evidence checkout predates the expanded Linux bank.
+
+All eight original `local-ifc` external-link and dependent values agreed with their retained
+Excel captures. The corpus counted three passes and five linked-cache results. The 20527.20088
+capture replay covered 173 of 290 workbooks and counted 565 passes and 48 nonpasses among 613
+formula cells. The 20430.20182 replay covered 172 workbooks, with 563 passes and 48 nonpasses
+among 611 formula cells. The current 20527.20196 capture cache had no entries for this set.
+
+Win64 also preserved the chart formulas and caches, table metadata and conditional-format
+references across all twelve retained E6 chart-sheet and embedded-chart packages. The source
+packages include the rename, deletion, hide, insertion, reorder and untouched arms measured
+in Excel (`dc-1nbp.17`). The cb16 and link evidence was copied and checksum-checked at
+`r2:dnacalc-evidence/excel/ww5-cb16-20261122T160118Z` (one archive, 159,627 bytes).
+
 ## Reading PRO9 and PRO10 against current code
 
 [PRO9](../architecture/review-2026-11/PRO9_PROGRAMME.md) supplies experiments and work packages,
