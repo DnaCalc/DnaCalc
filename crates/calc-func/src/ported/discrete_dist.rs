@@ -147,14 +147,26 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
     }
     if a < 1.0 || b < 1.0 {
         let ln_beta = crate::ported::special_math_common::excel_ln_beta(a, b);
+        let t1 = excel_x87_mul(excel_x87_sub(a, 1.0), excel_log(x));
         let log_y_term = if x > 0.99 {
-            excel_x87_mul(b - 1.0, excel_log(y))
+            excel_x87_mul(excel_x87_sub(b, 1.0), excel_log(y))
         } else {
-            excel_log1p_times(b - 1.0, -x)
+            excel_log1p_times(excel_x87_sub(b, 1.0), -x)
         };
-        return Some(excel_exp_running(
-            excel_x87_mul(a - 1.0, excel_log(x)),
-            &[-log_y_term, ln_beta],
+        let two_sum = |u: f64, v: f64| -> (f64, f64) {
+            let s = excel_x87_add(u, v);
+            let b_part = excel_x87_sub(s, u);
+            let e = excel_x87_add(
+                excel_x87_sub(u, excel_x87_sub(s, b_part)),
+                excel_x87_sub(v, b_part),
+            );
+            (s, e)
+        };
+        let (s1, d1) = two_sum(t1, log_y_term);
+        let (s2, d2) = two_sum(s1, -ln_beta);
+        return Some(excel_x87_mul(
+            crate::ported::excel_numeric::excel_exp(s2),
+            excel_x87_add(1.0, excel_x87_add(d1, d2)),
         ));
     }
     let k = excel_x87_sub(a, 1.0);
