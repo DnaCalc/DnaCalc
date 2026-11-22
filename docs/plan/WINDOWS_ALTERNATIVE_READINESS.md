@@ -567,6 +567,44 @@ call. All 76 tiny-period answers differ from the current CalcFunc refusal. Two o
 RATE residual controls still differ (`dc-oqc1`). The fresh and retained differences are in the
 ww5 WitnessSets, with their Excel build, inputs and calculation results.
 
+### Installed and bundled spreadsheet fonts
+
+The `cefb5f22` font handoff used the same page and workbook assets in both Windows arms. The
+browser run used ft1's fresh page and retained WASM worker. WebView2 used a Win64 desktop
+build of the landing and its native worker. The bundled arm removed the 20 installed-face
+sources from a scratch stylesheet. At 96 DPI, Chrome loaded all 20 faces in each arm and
+fetched 20 WOFF2 files only in the bundled arm.
+
+Against the same Excel images, Chrome and WebView2 DOM and Canvas painters matched all
+2,040 explicit Calibri geometry checks in each arm. Wrapped height controls matched 360 of
+680 in both arms. Installed and bundled ink-box matches were 1,428 of 1,632 and 840 of 1,632
+respectively on the explicit Calibri fixture. Wrapped-height and ink differences remain under
+`dc-971p.43.1` and `dc-971p.43`.
+
+Excel 16.0.20527.20196 and the browser page fitted 40 cases across five font families, four
+styles and explicit or Normal formatting. The two product arms agreed on all 40 fitted widths
+and heights and preserved them after reopening. Each arm matched Excel on 27 of 40 heights
+and zero of 40 widths at 96 DPI. The font comparison satisfies `dc-ysl.9`'s requirement that
+width and geometry failure counts stay equal when the product uses the bundled faces.
+
+### Pivot and formula-language evidence
+
+Excel saved twelve Region/Product by Month layouts with three Values positions, three
+aggregations and a source-error arm. The independent eight-way pivot order experiment matched
+each arm's own readings after refresh and reopening. Reversing source order changed the G6
+January sum from `3fe6666666666666` to `3ff0000000000000` with ascending row and column order.
+Overflow produced `#NUM!`. Empty numeric groups returned zero for Sum and `#DIV/0!` for
+Average and Variance (`dc-8wp.6`, `dc-8wp.10`).
+
+The committed fn2 oracle covers 239 authored questions, including 7 Excel entry rejections.
+Win64 matched all 949 calculated cells and agreed with the 7 entry rejections (`dc-b1l.6`).
+Both browser integration runs passed 475 tests. The catalogue's x64 repeated-argument marker
+was adapted to 32-bit test snapshots in `a4cf30e2`. Both browsers then passed 546 unit tests,
+with one ignored in each. The Windows catalogue prefix test also passed on the mapped drive.
+
+The font and pivot archive was copied and checksum-checked at
+`r2:dnacalc-evidence/excel/ww5-fonts-20261122T154943Z` (one archive, 2,421,657 bytes).
+
 ## Reading PRO9 and PRO10 against current code
 
 [PRO9](../architecture/review-2026-11/PRO9_PROGRAMME.md) supplies experiments and work packages,
