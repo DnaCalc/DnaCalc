@@ -1277,14 +1277,14 @@ mod template_tests {
 #[cfg(test)]
 #[allow(dead_code)] // The shared fixture kit also serves other test targets.
 #[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
-mod existing_clock_fixture_kit;
+pub(crate) mod zip_fixture_kit;
 
 #[cfg(test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
     use calc_host::ProjectedValue;
-    use existing_clock_fixture_kit::{RawEntry, build_zip, parse_zip};
+    use zip_fixture_kit::{RawEntry, build_zip, parse_zip};
     let original = calc_host::blank_package();
     let archive = parse_zip(&original);
     let value = |book: &Workbook, row| {

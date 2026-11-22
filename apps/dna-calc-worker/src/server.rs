@@ -9550,6 +9550,93 @@ mod printing_tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn print_preview_uses_the_closed_workbook_link_cache() {
+        use crate::workbook::zip_fixture_kit::{RawEntry, build_zip, parse_zip};
+
+        // Excel 16.0.20527.20196, ww2 print-holds-active: the closed source changed
+        // from 7 to 11, and the linked result remained 8 when updates were declined.
+        // Reuse the retained external-link package with the probe's cache value and formula.
+        let original =
+            include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx");
+        let archive = parse_zip(original);
+        let entries = archive
+            .entries
+            .iter()
+            .map(|part| {
+                let payload = part.payload(original);
+                let replacements = match part.name.as_str() {
+                    "xl/externalLinks/externalLink1.xml" => Some((
+                        r#"<cell r="A1"><v>1</v></cell>"#,
+                        r#"<cell r="A1"><v>7</v></cell>"#,
+                    )),
+                    "xl/worksheets/sheet1.xml" => Some((
+                        "<f>[1]Sheet1!A1</f><v>1</v>",
+                        "<f>[1]Sheet1!A1+1</f><v>8</v>",
+                    )),
+                    _ => None,
+                };
+                if let Some((old, new)) = replacements {
+                    let bytes = if part.method == 0 {
+                        payload.to_vec()
+                    } else {
+                        miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                    };
+                    let xml = String::from_utf8(bytes).unwrap();
+                    assert_eq!(xml.matches(old).count(), 1, "{}", part.name);
+                    RawEntry::stored(&part.name, xml.replace(old, new).as_bytes())
+                } else if part.method == 0 {
+                    RawEntry::stored(&part.name, payload)
+                } else {
+                    RawEntry::deflated(&part.name, payload, part.size, part.crc32)
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut s = Server::new();
+        s.execute_current(
+            Request::Open {
+                name: "ClosedLink.xlsx".into(),
+            },
+            Some(build_zip(&entries)),
+        )
+        .reply
+        .unwrap();
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let revision = state(&mut s, sheet).revision;
+        let reply = s
+            .execute_current(
+                Request::Intent(Intent::PageSetup {
+                    sheet,
+                    revision,
+                    change: PageSetupChange {
+                        print_area: Some("A1".into()),
+                        ..Default::default()
+                    },
+                }),
+                None,
+            )
+            .reply
+            .unwrap();
+        assert!(matches!(reply, Reply::Done { outcome, .. } if outcome.accepted));
+        let at = CellKey::new(sheet.id(), 1, 1).unwrap();
+        let projected = s.book.cell(at).unwrap();
+        let calc_host::ProjectedValue::Calculated { value, calculation } = projected.value() else {
+            panic!("{at:?}: {:?}", projected.value());
+        };
+        assert_eq!(value.as_number().unwrap().to_bits(), 8.0f64.to_bits());
+        assert!(calculation.reads_external_links());
+        let doc = preview(&mut s, sheet).unwrap();
+        assert_eq!(doc.cells.len(), 1);
+        assert_eq!(doc.cells[0].text, "8");
+        assert!(doc.cells[0].why.contains("saved external link cache"));
+        assert!(
+            doc.notices
+                .iter()
+                .any(|notice| notice.contains("external link caches"))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn print_preview_accepts_an_unsaved_added_sheet_and_waits_for_calculation() {
         let mut s = Server::new();
         let reply = s

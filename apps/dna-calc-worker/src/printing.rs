@@ -279,6 +279,7 @@ pub fn preview(
     let mut cells = Vec::new();
     let mut retained = 0usize;
     let mut circular_holds = false;
+    let mut external_caches = false;
     for p in projected {
         match p.value() {
             ProjectedValue::FileCached(_)
@@ -289,13 +290,10 @@ pub fn preview(
             }
             ProjectedValue::Calculated { calculation, .. } => {
                 circular_holds |= calculation.held_by_circular_rule();
-                if calculation.reads_external_links()
-                    || calculation.stamp().is_some_and(|stamp| {
-                        stamp.reads.external_cache
-                            || stamp.reads.uses_boundary_cache
-                            || stamp.reads.uses_imported_cache
-                    })
-                {
+                external_caches |= calculation.reads_external_links();
+                if calculation.stamp().is_some_and(|stamp| {
+                    stamp.reads.uses_boundary_cache || stamp.reads.uses_imported_cache
+                }) {
                     return Err("Print preview contains formulas calculated from cached inputs. \
                                 Refresh the inputs and recalculate before printing (dc-971p.57)".into());
                 }
@@ -318,6 +316,9 @@ pub fn preview(
     }
     if circular_holds {
         notices.push("Print preview includes values held by circular references.".into());
+    }
+    if external_caches {
+        notices.push("Print preview includes values from saved external link caches.".into());
     }
     Ok(PrintDocument {
         revision,
