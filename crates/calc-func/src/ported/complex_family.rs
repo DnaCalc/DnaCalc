@@ -285,38 +285,80 @@ impl ParsedComplex {
         }
         Ok(())
     }
+    /// Excel 20527 complex hyperbolic parts `(sinh(x), cosh(x))` (dc-ymjf.2.139):
+    /// - `|x| >= 20.0`: `EXP(|x|) / 2.0` (falling back to `crt_sinh`/`crt_cosh` if `EXP(|x|)`
+    ///   overflows; real-axis `IMSINH`/`IMCOSH` enforce `EXP`'s domain via
+    ///   `check_real_hyperbolic_domain`).
+    /// - `|x| < 20.0`: `em = EXP(-x)`, `inv = 1.0 / em`, `sinh = (inv - em) / 2.0` (or
+    ///   `x + x^3/6 + x^5/120` for `|x| <= 0.01`), `cosh = (inv + em) / 2.0` (or
+    ///   `1.0 + x^2/2` for `|x| <= 0.0001`).
+    fn hyperbolic_parts(x: f64) -> (f64, f64) {
+        if x.abs() >= 20.0 {
+            let exp_abs = crate::ported::exp_fn::exp_kernel(x.abs());
+            if exp_abs.is_finite() {
+                let half = exp_abs / 2.0;
+                return (if x < 0.0 { -half } else { half }, half);
+            }
+            return (crt_sinh(x), crt_cosh(x));
+        }
+        let em = crate::ported::exp_fn::exp_kernel(-x);
+        let inv = 1.0 / em;
+        let sinh = if x.abs() <= 0.01 {
+            x + (x * x * x) / 6.0 + (x * x * x * x * x) / 120.0
+        } else {
+            (inv - em) / 2.0
+        };
+        let cosh = if x.abs() <= 0.0001 {
+            1.0 + (x * x) / 2.0
+        } else {
+            (inv + em) / 2.0
+        };
+        (sinh, cosh)
+    }
+    /// Off-axis overflow-avoidance branch for `x > 709.0 || x < -708.0` (matching the
+    /// `2y > 709.0 || 2y < -708.0` threshold of `IMTAN`/`IMCOT`): Excel computes
+    /// `EXP(|x| + LN(cos(y)/2))` and `EXP(|x| + LN(sin(y)/2))` without `abs()`, so
+    /// non-positive `cos(y)` or `sin(y)` produces `NaN` (`#NUM!`).
+    fn large_off_axis_hyperbolic(self) -> Option<(f64, f64)> {
+        if self.im != 0.0 && (self.re > 709.0 || self.re < -708.0) {
+            let (sin_im, cos_im) = complex_circular_parts(self.im);
+            let ax = self.re.abs();
+            let log_pos = |t: f64| {
+                if t > 0.0 {
+                    crate::ported::excel_numeric::excel_log(t)
+                } else {
+                    f64::NAN
+                }
+            };
+            let re_mag = crate::ported::exp_fn::exp_kernel(ax + log_pos(cos_im / 2.0));
+            let im_mag = crate::ported::exp_fn::exp_kernel(ax + log_pos(sin_im / 2.0));
+            return Some((re_mag, im_mag));
+        }
+        None
+    }
     pub(crate) fn sinh(self) -> Self {
+        if let Some((re_mag, im_mag)) = self.large_off_axis_hyperbolic() {
+            return Self::new(if self.re < 0.0 { -re_mag } else { re_mag }, im_mag, None);
+        }
+        let (sinh_re, cosh_re) = Self::hyperbolic_parts(self.re);
         // Preserve the finite real axis when the real primitive overflows:
         // its imaginary component is zero, without forming infinity * sin(0).
-        // On the real axis from |x| = 1 IMSINH is the worksheet SINH, the EXP difference
-        // (dc-iuwct.7, Excel 16.0.20527: 603 of 607 fresh controls there, against 594 for the
-        // runtime sinh). Below 1 Excel follows neither SINH's expm1 route (815 of 893) nor the EXP
-        // difference; the runtime sinh, kept there, holds 818.
         if self.im == 0.0 && self.re.is_finite() {
-            let value = if self.re.abs() >= 1.0 {
-                crate::ported::sinh::sinh_kernel(self.re)
-            } else {
-                crt_sinh(self.re)
-            };
-            return Self::new(value, 0.0, None);
+            return Self::new(sinh_re, 0.0, None);
         }
-        Self::new(
-            crt_sinh(self.re) * crt_cos(self.im),
-            crt_cosh(self.re) * crt_sin(self.im),
-            None,
-        )
+        let (sin_im, cos_im) = complex_circular_parts(self.im);
+        Self::new(sinh_re * cos_im, cosh_re * sin_im, None)
     }
     pub(crate) fn cosh(self) -> Self {
-        // On the real axis IMCOSH is the worksheet COSH, the stored EXP sum (dc-iuwct.9, Excel
-        // 16.0.20527: 1,493 of 1,500 fresh controls, against 1,483 for the runtime cosh).
-        if self.im == 0.0 && self.re.is_finite() {
-            return Self::new(crate::ported::cosh::cosh_kernel(self.re), 0.0, None);
+        if let Some((re_mag, im_mag)) = self.large_off_axis_hyperbolic() {
+            return Self::new(re_mag, if self.re < 0.0 { -im_mag } else { im_mag }, None);
         }
-        Self::new(
-            crt_cosh(self.re) * crt_cos(self.im),
-            crt_sinh(self.re) * crt_sin(self.im),
-            None,
-        )
+        let (sinh_re, cosh_re) = Self::hyperbolic_parts(self.re);
+        if self.im == 0.0 && self.re.is_finite() {
+            return Self::new(cosh_re, 0.0, None);
+        }
+        let (sin_im, cos_im) = complex_circular_parts(self.im);
+        Self::new(cosh_re * cos_im, sinh_re * sin_im, None)
     }
     pub(crate) fn cot(self) -> Result<Self, WorksheetErrorCode> {
         if let Some(im) = self.tangent_imaginary_limit() {

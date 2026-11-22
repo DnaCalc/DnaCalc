@@ -218,6 +218,59 @@ fn complex_text_uses_directed_fifteen_x87_including_binade4_and_slivers() {
     }
 }
 
+/// dc-ymjf.2.139, Excel 16.0.20527.20196 (Touchstone, 2026-11-22): complex hyperbolics
+/// (IMSINH, IMCOSH, IMCSCH, IMSECH) evaluate sinh/cosh via `em = EXP(-x)` and `1 / em`
+/// for `|x| < 20` (with Taylor series `x + x^3/6 + x^5/120` for `|x| <= 0.01` and
+/// `1 + x^2/2` for `|x| <= 0.0001`), `EXP(|x|) / 2` for `|x| >= 20`, and Excel's circular
+/// reduction off-axis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_hyperbolics_match_excel_neg_exp_and_cutoffs() {
+    // 0.01 exact bit boundary for IMSINH/IMCSCH (<= 0.01 Taylor, > 0.01 (1/EXP(-x) - EXP(-x))/2).
+    let b001 = 0.01_f64.to_bits();
+    text(call("IMSINH", vec![n(f64::from_bits(b001))]), "0.0100001666675");
+    text(call("IMCSCH", vec![n(f64::from_bits(b001))]), "99.9983333527776");
+    text(call("IMSINH", vec![n(f64::from_bits(b001 + 1))]), "0.0100001666674999");
+    text(call("IMCSCH", vec![n(f64::from_bits(b001 + 1))]), "99.9983333527784");
+    text(call("IMSINH", vec![n(f64::from_bits(b001 + 2))]), "0.0100001666675001");
+    text(call("IMCSCH", vec![n(f64::from_bits(b001 + 2))]), "99.9983333527767");
+
+    // Taylor term ordering x + x^3/6 + x^5/120 (12/12 vs 0/12 factored).
+    text(call("IMCSCH", vec![n(f64::from_bits(0x3f51_3e2e_bd7d_fff3))]), "950.187979483262");
+
+    // 0.0001 cutoff for IMCOSH/IMSECH (<= 0.0001 uses 1 + x^2/2).
+    text(call("IMCOSH", vec![n(f64::from_bits(0x3ed7_f1c1_1117_8ea4))]), "1.00000000001629");
+    text(call("IMCOSH", vec![n(f64::from_bits(0x3f1a_36db_2ffc_2a11))]), "1.00000000499995");
+    text(call("IMCOSH", vec![n(f64::from_bits(0x3f1a_3706_2303_69f7))]), "1.00000000500021");
+
+    // 0.01 < |x| < 20 uses (1/EXP(-x) +- EXP(-x))/2.
+    text(call("IMSINH", vec![n(f64::from_bits(0x3f85_0a53_0b77_0780))]), "0.0102737791934296");
+    text(call("IMCSCH", vec![n(f64::from_bits(0x3f85_0a53_0b77_0780))]), "97.3351656846515");
+    text(call("IMSINH", vec![n(f64::from_bits(0x3f87_9132_b2c7_3080))]), "0.0115076660051997");
+    text(call("IMCSCH", vec![n(f64::from_bits(0x3f87_9132_b2c7_3080))]), "86.8985943412116");
+    text(call("IMCOSH", vec![n(f64::from_bits(0x3ffa_daf5_dfdc_8320))]), "2.77197290065682");
+    text(call("IMCOSH", vec![n(f64::from_bits(0x4030_30b0_e68d_b984))]), "5373833.6247373");
+    text(call("IMSECH", vec![n(f64::from_bits(0x400e_2b70_4227_d160))]), "0.0460239667603411");
+
+    // 20.0 boundary (< 20 uses 1/EXP(-x), >= 20 uses EXP(x)/2).
+    text(call("IMSINH", vec![n(f64::from_bits(0x4033_ffff_ffff_fff1))]), "242582597.704882");
+    text(call("IMSINH", vec![n(f64::from_bits(0x4034_0000_0000_000c))]), "242582597.704905");
+    text(call("IMSINH", vec![n(f64::from_bits(0x4041_7e81_0b2e_7508))]), "783792881764184");
+    text(call("IMCSCH", vec![n(f64::from_bits(0x4038_628a_34ef_59d7))]), "5.13798939901378E-11");
+
+    // Off-axis uses the same hyperbolic helper and Excel's 2^27 circular reduction.
+    text(call("IMSINH", vec![t("0.01+0.5i")]), "0.00877597188339536+0.479449510080894i");
+    text(call("IMSINH", vec![t("0.010000000000001+0.5i")]), "0.00877597188339622+0.479449510080895i");
+    text(call("IMSINH", vec![t("710+0.5i")]), "9.80257425068922E+307+5.35517072003032E+307i");
+    text(call("IMSINH", vec![t("-709+1i")]), "-2.22021225102115E+307+3.45777571011361E+307i");
+    text(call("IMCOSH", vec![t("-709+1i")]), "2.22021225102115E+307-3.45777571011361E+307i");
+    text(call("IMSINH", vec![t("710+1i")]), "6.03516261727294E+307+9.39920887968891E+307i");
+    error(call("IMSINH", vec![t("710+2i")]), Num);
+    error(call("IMCOSH", vec![t("710-1i")]), Num);
+    error(call("IMSINH", vec![t("1+134217728i")]), Num);
+    error(call("IMCOSH", vec![t("1+134217728i")]), Num);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_high_j0_stores_its_leading_product() {
