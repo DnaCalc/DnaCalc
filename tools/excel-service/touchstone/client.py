@@ -157,12 +157,18 @@ class Connection:
     @classmethod
     def open(cls, socket_path=None, endpoint=None, name="client", reconnect=True):
         socket_path = Path(socket_path or os.environ.get("TOUCHSTONE_SOCKET") or DEFAULT_SOCKET)
-        endpoint = Path(endpoint or os.environ.get("TOUCHSTONE_ENDPOINT") or DEFAULT_ENDPOINT)
+        endpoint = endpoint or os.environ.get("TOUCHSTONE_ENDPOINT")
+        use_relay = os.name != "nt" and endpoint is None
+        endpoint = Path(endpoint or DEFAULT_ENDPOINT)
 
         def opener():
-            if hasattr(socket, "AF_UNIX") and socket_path.exists():
+            if use_relay or (hasattr(socket, "AF_UNIX") and socket_path.exists()):
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                sock.connect(str(socket_path))
+                try:
+                    sock.connect(str(socket_path))
+                except OSError as error:
+                    sock.close()
+                    raise ConnectionError(f"Touchstone broker down: relay unavailable at {socket_path}") from error
                 return sock, None
             info = json.loads(endpoint.read_text())
             sock = socket.create_connection((info["host"], info["port"]), timeout=10)

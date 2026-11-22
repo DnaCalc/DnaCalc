@@ -4203,60 +4203,51 @@ mod tests {
             .iter()
             .map(|app| SmokeSelection::default().count(app))
             .sum();
-        let total: usize = APPS
-            .iter()
-            .flat_map(|app| app.groups)
-            .filter(|group| {
-                !matches!(
-                    group.name,
-                    "chart-formatting"
-                        | "chart-text"
-                        | "chart-category-combos"
-                        | "chart-multi-plot"
-                        | "chart-element-text"
-                        | "saved-pivots"
-                        | "wheel-zoom"
-                        | "go-to-special"
-                        | "fill-handle-copy"
-                        | "classic-spill"
-                        | "classic-merge"
-                )
-            })
-            .map(|group| group.core)
-            .sum();
-        let inherited_total: usize = APPS
-            .iter()
-            .flat_map(|app| app.groups)
-            .filter(|group| {
-                !matches!(
-                    group.name,
-                    "page-layout"
-                        | "chart-formatting"
-                        | "chart-text"
-                        | "chart-category-combos"
-                        | "chart-multi-plot"
-                        | "chart-element-text"
-                        | "saved-pivots"
-                        | "wheel-zoom"
-                        | "go-to-special"
-                        | "fill-handle-copy"
-                        | "classic-spill"
-                        | "classic-merge"
-                )
-            })
-            .map(|group| group.core)
-            .sum();
+        let mut inherited_total = 0;
+        let mut page_layout = 0;
+        let mut chart_pivot_and_grid = 0;
+        let mut classic_controls = 0;
+        for group in APPS.iter().flat_map(|app| app.groups) {
+            match group.name {
+                "page-layout" => page_layout += group.core,
+                "chart-formatting"
+                | "chart-text"
+                | "chart-category-combos"
+                | "chart-multi-plot"
+                | "chart-element-text"
+                | "saved-pivots"
+                | "wheel-zoom"
+                | "go-to-special"
+                | "fill-handle-copy"
+                | "classic-spill"
+                | "classic-merge" => {
+                    chart_pivot_and_grid += group.core;
+                }
+                "classic-tab-commands"
+                | "classic-tab-reorder"
+                | "classic-selection-summary"
+                | "classic-formula-caret" => classic_controls += group.core,
+                _ => inherited_total += group.core,
+            }
+        }
         assert_eq!(
             inherited_total, 409,
             "the two applications retain 409 core cases, including Classic formula entry and horizontal paging"
         );
         assert_eq!(
-            total, 421,
+            inherited_total + page_layout,
+            421,
             "the twelve page-layout cases extend all 409 inherited core cases"
         );
         assert_eq!(
-            current_total, 472,
+            inherited_total + page_layout + chart_pivot_and_grid,
+            472,
             "chart, pivot and Classic grid cases extend all 421 inherited core cases"
+        );
+        assert_eq!(classic_controls, 6);
+        assert_eq!(
+            current_total, 478,
+            "the Classic tab, selection summary and formula caret cases extend all 472 inherited core cases"
         );
     }
 

@@ -13623,9 +13623,8 @@ fn dc_971p__numeric_sort_refusals_preserve_inputs_styles_and_revision() {
     let rev = book.host().revision().get();
     refuse(&mut book, 3, rev);
     refuse(&mut book, 1, rev - 1);
-    // The Hangul jamo are measured now (dc-8wp). U+30A0 still has no measured comparison route
-    // (CompareStringEx orders it otherwise than its key); keep every refusal assertion.
-    assert!(enter(&mut book, at(s, "A2"), "\u{30a0}").accepted());
+    // The double hyphen's weight after a non-ASCII base remains unresolved (dc-zsn.2).
+    assert!(enter(&mut book, at(s, "A2"), "é゠").accepted());
     assert!(enter(&mut book, at(s, "A1"), "text").accepted());
     let rev = book.host().revision().get();
     let r = refuse(&mut book, 1, rev);
@@ -27618,19 +27617,24 @@ fn dc_8wp_3__getpivotdata_handles_ambiguous_and_refuses_unmeasured_layouts() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_14__undecidable_lookup_text_refuses() {
+    // The leading double hyphen is measured. Its weight after é remains unresolved (dc-zsn.2).
+    let undecidable = "é゠";
     assert_eq!(
-        calc_fml::text_order(&[0x30a0], &"Amount".encode_utf16().collect::<Vec<_>>()),
+        calc_fml::text_order(
+            &undecidable.encode_utf16().collect::<Vec<_>>(),
+            &"Amount".encode_utf16().collect::<Vec<_>>(),
+        ),
         None
     );
     let bytes = include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_1/pivot-saved.xlsx");
     let mut book = session(bytes);
     let sheet = book.host().sheets()[0].id();
     for formula in [
-        r#"=GETPIVOTDATA("゠",D3)"#,
-        r#"=GETPIVOTDATA("Amount",D3,"゠","East")"#,
-        r#"=GETPIVOTDATA("Amount",D3,"Region","゠","Region","East")"#,
+        format!(r#"=GETPIVOTDATA("{undecidable}",D3)"#),
+        format!(r#"=GETPIVOTDATA("Amount",D3,"{undecidable}","East")"#),
+        format!(r#"=GETPIVOTDATA("Amount",D3,"Region","{undecidable}","Region","East")"#),
     ] {
-        assert!(enter(&mut book, at(sheet, "J1"), formula).accepted());
+        assert!(enter(&mut book, at(sheet, "J1"), &formula).accepted());
         assert!(
             matches!(
                 session_value(&book, at(sheet, "J1")),
