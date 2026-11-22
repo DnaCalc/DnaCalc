@@ -150,8 +150,7 @@ pub const MAX_NAME_NESTING: usize = 32;
 /// [`compile_with`] under that form.
 ///
 /// It reads the formula as a user enters it: a function is written by its plain name, and also
-/// through the prefixes a file stores before it ([`file_unprefixed`]). [`compile_loaded`] reads
-/// the formula as a file stores it.
+/// with recognized file prefixes. Use [`compile_loaded`] for formula text stored in a workbook file.
 pub fn compile(
     tree: &SyntaxTree,
     notation: ReferenceNotation,

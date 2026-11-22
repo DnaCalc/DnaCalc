@@ -77,9 +77,8 @@ pub enum StructuralEdit {
     },
     /// The cells of `area` moved (cut and pasted) so that its top-left cell is `to`, on the same
     /// sheet or another (dc-09v, dc-gf0); `source_name` and `target_name` are the names of
-    /// `area`'s sheet and `to`'s, as the workbook holds them. See [`move_site`] for the rules,
-    /// measured in Excel. A defined name's reference moves only when every coordinate it holds is
-    /// absolute.
+    /// `area`'s sheet and `to`'s, as the workbook holds them. A defined name's reference moves
+    /// only when every coordinate it holds is absolute.
     MoveCells {
         area: GridArea,
         to: CellKey,

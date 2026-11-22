@@ -14,7 +14,7 @@
 //!
 //! Every built-in operator and function runs through `calc_func::invoke`. User functions run
 //! through `crate::CallableTable`, which the host supplies independently of any VBA engine. Every value a formula reads
-//! comes from the caller's [`ReferenceReader`], which is also the `calc_func::CellReader` the
+//! comes from the caller's [`crate::ReferenceReader`], which is also the `calc_func::CellReader` the
 //! kernels read reference arguments through (see the `cells` module). A function whose catalogue
 //! entry is lazy (IF, IFERROR, IFNA) asks for its arguments itself, and only the arguments it asks
 //! for run.
@@ -29,7 +29,7 @@
 //! on what it is shown, but cannot make it.
 //!
 //! INDIRECT's text is bound to a reference as the call runs, in the formula's workbook context:
-//! the sheets of the [`ReferenceCatalog`] the caller gives the services
+//! the sheets of the [`crate::ReferenceCatalog`] the caller gives the services
 //! ([`FormulaEvaluationContext::with_catalog`]) and the instance's anchor. Without a catalogue, calc-func
 //! refuses the call as not modelled.
 

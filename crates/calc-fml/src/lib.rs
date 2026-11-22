@@ -5,7 +5,7 @@
 //! [`syntax`] is the lossless Excel lexer and parser: [`parse_formula`] turns formula text into a
 //! [`syntax::SyntaxTree`] that reprints the text exactly, with UTF-16 spans for editors.
 //!
-//! [`reference`] binds the grid references of a parsed formula: [`bind_references`] resolves
+//! [`mod@reference`] binds the grid references of a parsed formula: [`bind_references`] resolves
 //! their sheets through a [`ReferenceCatalog`] and gives typed operands relative to the formula's
 //! anchor, which place at any anchor as grid areas whose cells a [`ReferenceReader`] supplies
 //! through [`read_cells`].
@@ -41,7 +41,7 @@
 //! assert_eq!(tree.source_text(), formula);
 //! ```
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-fml/CONTRACT.md).
 
 pub mod assist;
 pub mod eval;

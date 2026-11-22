@@ -149,7 +149,7 @@ const ABANDONED: WorksheetErrorCode = WorksheetErrorCode::Calc;
 /// recurses on the native stack (see the module documentation), and a deeper evaluation is
 /// refused as not modelled, not computed: Excel's own limit is deeper (OxFml measured
 /// `=LET(F,LAMBDA(self,n,IF(n<=0,0,1+self(self,n-1))),F(F,4094))` as 4094 and `F(F,4095)` as
-/// #NUM!, which [`RECURSION_BUDGET`] models).
+/// #NUM! for Excel's own argument-dependent limit).
 pub const MAX_CALL_DEPTH: usize = 64;
 
 /// Excel's budget for nested LAMBDA calls, as OxFml measured it (OxFml `eval/mod.rs`,
