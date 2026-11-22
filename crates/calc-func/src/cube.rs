@@ -83,6 +83,8 @@ pub enum CubeLookup {
     NoConnection,
     /// A connection whose data this host cannot read: refused.
     NotReadable,
+    /// A server OLAP connection (dc-8wp.21).
+    ServerOlap,
     Model(std::sync::Arc<CubeModel>),
 }
 

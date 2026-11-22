@@ -389,6 +389,13 @@ impl WorkbookFacts for HostFacts {
             .as_ref()
             .is_none_or(|name| !calc_value::workbook_names_equal(name, connection))
         {
+            if model
+                .server_olap_connections
+                .iter()
+                .any(|name| calc_value::workbook_names_equal(name, connection))
+            {
+                return calc_func::CubeLookup::ServerOlap;
+            }
             return calc_func::CubeLookup::NotReadable;
         }
         self.cube.clone()

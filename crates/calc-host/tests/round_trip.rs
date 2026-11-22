@@ -6571,6 +6571,77 @@ fn package_with_parts_from(
     build_zip(&entries)
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_21__cube_routes_server_connections_to_an_owned_refusal() {
+    let bytes = package_with_part_from(
+        include_bytes!("fixtures/pivot_cube/oracle.xlsx"),
+        "xl/connections.xml",
+        |xml| {
+            xml.replace(
+                "</connections>",
+                concat!(
+                    r#"<connection id="99" name="Remote Cube" type="5">"#,
+                    r#"<dbPr connection="Provider=MSOLAP;Data Source=olap.invalid" command="Sales" commandType="1"/>"#,
+                    r#"<olapPr local="0"/></connection></connections>"#,
+                ),
+            )
+        },
+    );
+    let mut host = open(&bytes);
+    let sheet = host.sheets()[0].id();
+    let cases = [
+        ("AA1", r#"CUBEVALUE("remote cube")"#),
+        ("AA2", r#"CUBEMEMBER("Remote Cube","[Measures].[Sales]")"#),
+        ("AA3", r#"CUBESET("Remote Cube","{[Region].[East]}")"#),
+        (
+            "AA4",
+            r#"CUBERANKEDMEMBER("Remote Cube","{[Region].[East]}",1)"#,
+        ),
+        (
+            "AA5",
+            r#"CUBEMEMBERPROPERTY("Remote Cube","[Region].[East]","MEMBER_CAPTION")"#,
+        ),
+        ("AA6", r#"CUBEKPIMEMBER("Remote Cube","Sales",1)"#),
+        ("AA7", r#"CUBEVALUE("Unknown")"#),
+    ];
+    edit(
+        &mut host,
+        cases
+            .iter()
+            .map(|(address, text)| CellEdit::Set {
+                at: at(sheet, address),
+                input: formula(text),
+            })
+            .collect(),
+    );
+    calc_host::calculate_full(&mut host);
+    recalculate(&mut host);
+
+    for (address, _) in &cases[..6] {
+        let actual = value(&host, at(sheet, address));
+        assert!(
+            matches!(
+                actual,
+                ProjectedValue::NotModeled {
+                    refusal: calc_host::NotModeled::Evaluation(calc_fml::EvalFault::Function(
+                        calc_func::FunctionFault::NotHeld {
+                            owner: "dc-8wp.21",
+                            ..
+                        },
+                    )),
+                    ..
+                }
+            ),
+            "{address}: {actual:?}"
+        );
+    }
+    assert_eq!(
+        calculated(&host, at(sheet, "AA7")),
+        Some(CalcValue::error(calc_host::value::WorksheetErrorCode::NA))
+    );
+}
+
 fn package_with_names(names: &str) -> Vec<u8> {
     package_with_part("xl/workbook.xml", |xml| {
         xml.replace(

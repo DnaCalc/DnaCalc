@@ -133,6 +133,8 @@ pub struct DataModel {
     pub model_connection_id: Option<u32>,
     /// Connections outside the workbook model and its worksheet sources.
     pub other_connections: Vec<String>,
+    /// Named external OLE DB connections with server OLAP properties.
+    pub server_olap_connections: Vec<String>,
     /// The worksheet tables feeding the model, by name.
     pub tables: Vec<String>,
     /// Every table the model part names, whatever feeds it. A model with one that no worksheet

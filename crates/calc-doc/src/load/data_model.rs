@@ -26,6 +26,7 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
     let mut connection_ids = std::collections::BTreeMap::<u32, usize>::new();
     let mut current_connection_id = None;
     let mut current_is_model_type = false;
+    let mut current_ole_db_name = None;
     let mut model_connections = 0usize;
     let mut path = Vec::<XmlName>::new();
     let mut model_extension_uri = false;
@@ -43,9 +44,24 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
                         .and_then(|id| id.parse::<u32>().ok())
                         .filter(|id| *id != 0);
                     current_is_model_type = element.attribute("type") == Some("5");
+                    current_ole_db_name = element
+                        .attribute("name")
+                        .filter(|_| {
+                            current_is_model_type
+                                && !matches!(element.attribute("deleted"), Some("1" | "true"))
+                        })
+                        .map(str::to_owned);
                     if let Some(id) = current_connection_id {
                         *connection_ids.entry(id).or_default() += 1;
                     }
+                }
+                // ISO/IEC 29500-1 §18.13.5. Only the connection name is needed for dispatch.
+                if path.len() == 2
+                    && element.name.is(super::MAIN_NAMESPACE, "olapPr")
+                    && matches!(element.attribute("local"), None | Some("0" | "false"))
+                    && let Some(name) = &current_ole_db_name
+                {
+                    model.server_olap_connections.push(name.clone());
                 }
                 if path.len() == 3
                     && path[0].is(super::MAIN_NAMESPACE, "connections")
@@ -100,6 +116,7 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
                 if path.len() == 2 && name.is(super::MAIN_NAMESPACE, "connection") {
                     current_connection_id = None;
                     current_is_model_type = false;
+                    current_ole_db_name = None;
                 }
                 path.pop();
             }
@@ -123,6 +140,11 @@ pub(crate) fn read(package: &Package, workbook: &str) -> Result<Option<DataModel
         })
         .map(|(name, _)| name)
         .collect();
+    if let Some(model_name) = &model.model_connection {
+        model
+            .server_olap_connections
+            .retain(|name| !calc_doc_model::value::workbook_names_equal(name, model_name));
+    }
     if model.model_connection.is_some()
         && let Some(part) = super::metadata::related(package, workbook, "/powerPivotData")
         && let Ok(bytes) = package.read_part(&part)

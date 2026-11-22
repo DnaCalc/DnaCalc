@@ -42,7 +42,7 @@ fn single(
     Ok(held.into_iter().next().unwrap_or_else(CalcValue::empty))
 }
 
-/// The model a connection argument names; any other connection is #N/A.
+/// Resolve a workbook connection to the local cube or a typed refusal.
 fn model(
     site: &Site<'_>,
     arguments: &[CalcValue],
@@ -59,6 +59,10 @@ fn model(
     match facts.map(|facts| facts.cube_model(&name.to_string_lossy())) {
         Some(CubeLookup::Model(model)) => Ok(model),
         Some(CubeLookup::NotReadable) => Err(site.not_modelled(Some(0))),
+        Some(CubeLookup::ServerOlap) => Err(Exit::Fault(crate::FunctionFault::NotHeld {
+            id: site.id(),
+            owner: "dc-8wp.21",
+        })),
         Some(CubeLookup::NoConnection) | None => fail(WorksheetErrorCode::NA),
     }
 }
