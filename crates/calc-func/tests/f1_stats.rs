@@ -7249,3 +7249,78 @@ fn dc_ymjf_2_154_poisson_and_gamma_extreme_count_overflows() {
         );
     }
 }
+
+/// Excel 16.0.20527.20196 (dc-ymjf.2.148, frozen Touchstone proofs SHA-256 f0cc1863, c85660b2,
+/// 99593b34, 5309b8c6): five-point strictly monotone histories route through automatic seasonality
+/// (period 0 vs period 2) without refusal, and both nonseasonal and seasonal forecast publication
+/// store `horizon * model.trend` and `model.level + product` via x87 PC64 before adding the
+/// seasonal term (`excel_x87_add(excel_x87_add(level, excel_x87_mul(h, trend)), season)`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ymjf_2_148_ets_five_point_monotone_and_x87_forecast_staging() {
+    let t5 = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    // 1. Bead counterexample (five-point strictly monotone near-linear history): automatic
+    //    seasonality is 0, and targets 3048 / 6091 / 9308 separate x87-stored `h * trend`
+    //    (20/20 on frozen Touchstone discriminators) from binary64 `*` (0/20).
+    let koder_y: Vec<f64> = [
+        0x4058_63b6_36b1_c960_u64,
+        0x4058_a3b9_11f7_75d7,
+        0x4058_e3b9_e15b_6c9b,
+        0x4059_23a9_a589_a2fe,
+        0x4059_63a0_e1e7_6302,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    exact(
+        call("FORECAST.ETS.SEASONALITY", vec![col(&koder_y), t5.clone()]),
+        0.0,
+    );
+    for (target, want_bits) in [
+        (3048.0, 0x40a8_8ec8_71d5_27be_u64),
+        (6091.0, 0x40b8_2939_e52c_f558),
+        (9308.0, 0x40c2_5c7f_413b_cbf9),
+    ] {
+        exact(
+            call("FORECAST.ETS", vec![n(target), col(&koder_y), t5.clone()]),
+            f64::from_bits(want_bits),
+        );
+    }
+
+    // 2. Nonseasonal `level + product` x87_add discriminators (16/16 vs 0/16 binary64 `+`).
+    let add_y: Vec<f64> = [
+        0x3fef_ffff_fff0_5b30_u64,
+        0x4001_ffff_fffc_16cc,
+        0x400f_ffff_fffc_16cc,
+        0x4018_ffff_fffe_0b66,
+        0x4021_ffff_ffff_05b3,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    for (target, want_bits) in [
+        (1_007_904.0, 0x413f_4b2f_5ba7_59ce_u64),
+        (1_015_823.0, 0x413f_8a20_cbd5_74c8),
+    ] {
+        exact(
+            call("FORECAST.ETS", vec![n(target), col(&add_y), t5.clone(), n(0.0)]),
+            f64::from_bits(want_bits),
+        );
+    }
+
+    // 3. Seasonal (p = 2, n = 5) `h * trend` x87_mul discriminators (10/10 vs 0/10 binary64 `*`).
+    let seas_y = col(&[0.0, 1.25, 2.0, 3.5, 4.0]);
+    exact(
+        call("FORECAST.ETS.SEASONALITY", vec![seas_y.clone(), t5.clone()]),
+        2.0,
+    );
+    for (target, want_bits) in [
+        (11_138.0, 0x40c7_01e5_3e78_7783_u64),
+        (13_448.0, 0x40cb_c788_9137_2559),
+    ] {
+        exact(
+            call("FORECAST.ETS", vec![n(target), seas_y.clone(), t5.clone(), n(2.0)]),
+            f64::from_bits(want_bits),
+        );
+    }
+}

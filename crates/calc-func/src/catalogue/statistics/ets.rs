@@ -870,10 +870,13 @@ fn nonseasonal_fit(
             // A target inside the history extrapolates the final state
             // backwards (Touchstone, eng21): the same formula with h < 0.
             let phase = season_phase(y.len(), horizon, 2);
-            // Fresh midpoint questions distinguish the final seasonal addition
-            // at PC64 followed by a binary64 store from strict binary64 addition.
-            let value = crate::ported::excel_numeric::excel_x87_add(
-                model.level + horizon * model.trend,
+            // Frozen midpoint discriminators (dc-ymjf.2.148, Excel 16.0.20527.20196)
+            // separate stored x87 PC64 multiply (20/20 vs 0/20 binary64 `*` and 0/20
+            // unspilled 80-bit) and stored x87 PC64 level addition (16/16 vs 0/16 binary64 `+`)
+            // before adding the seasonal term.
+            use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
+            let value = excel_x87_add(
+                excel_x87_add(model.level, excel_x87_mul(horizon, model.trend)),
                 model.seasons[phase],
             );
             if general {
@@ -1492,10 +1495,13 @@ fn seasonal_general(
         }
         Output::Forecast => {
             let phase = season_phase(y.len(), horizon, period);
+            // Frozen p=2 midpoint discriminators (dc-ymjf.2.148, 10/10 vs 0/10 binary64 `*`)
+            // confirm the same stored x87 PC64 multiply + level addition as nonseasonal_fit.
+            use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul};
             finite(
                 site,
-                crate::ported::excel_numeric::excel_x87_add(
-                    model.level + horizon * model.trend,
+                excel_x87_add(
+                    excel_x87_add(model.level, excel_x87_mul(horizon, model.trend)),
                     model.seasons[phase],
                 ),
             )
