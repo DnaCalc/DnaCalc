@@ -2783,7 +2783,7 @@ fn dc_piw0_4__report_listing() {
 }
 
 /// dc-km7i: `Range("A1,C1:C2").Value2 = 5` writes every area (Excel's one Change over the union, as the
-/// AppEvents cases write it); a clear reaches each area; an array into several areas stays a typed refusal.
+/// AppEvents cases write it). A clear reaches each area. Mixed area sizes still refuse an array put.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn range_value2_put_and_clear_contents_reach_every_area_of_a_multi_area_range() {
@@ -2798,12 +2798,46 @@ fn range_value2_put_and_clear_contents_reach_every_area_of_a_multi_area_range() 
     assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
     let refused = invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![AutoValue::Array(Box::new(AutoArray {
         rows: 1, columns: 1, lower: (1, 1), values: vec![AutoValue::R8(1.0)] }))]);
-    assert!(refused.is_err(), "an array into a multi-area range is not modelled");
+    assert!(matches!(refused, Err(AutoError::NotModelled { owner: "dc-1nbp.6", .. })));
     invoke_kind(&model, &union, "ClearContents", InvokeKind::Method, vec![]).unwrap();
     for address in ["A1", "C1", "C2"] {
         assert!(matches!(invoke(&model, &range(&model, address), "Value2", vec![]).unwrap(), AutoValue::Empty), "{address}");
     }
     assert_eq!(text(&model, &range(&model, "B1"), "Text"), "keep");
+}
+
+/// E11 in 2026-11-14-om-probes: equal-sized areas each receive the same array.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_6_e11_value2_arrays_repeat_across_areas() {
+    let (host, model, _) = blank_report();
+    let union = range(&model, "B2:C3,F5:G6");
+    let locations = ["B2", "C2", "B3", "C3", "F5", "G5", "F6", "G6"];
+    for (side, values, expected) in [
+        (2, vec![1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]),
+        (1, vec![9.0], [9.0; 8]),
+    ] {
+        let array = AutoValue::Array(Box::new(AutoArray {
+            rows: side,
+            columns: side,
+            lower: (1, 1),
+            values: values.into_iter().map(AutoValue::R8).collect(),
+        }));
+        let previous_log = host.session.borrow().intent_log().len();
+        invoke_kind(&model, &union, "Value2", InvokeKind::Put, vec![array]).unwrap();
+        assert_eq!(host.session.borrow().intent_log().len(), previous_log + 1);
+        for (address, expected) in locations.into_iter().zip(expected) {
+            let actual = invoke(&model, &range(&model, address), "Value2", vec![]).unwrap();
+            assert!(
+                matches!(actual, AutoValue::R8(v) if v.to_bits() == f64::to_bits(expected)),
+                "{address}: {actual:?}"
+            );
+        }
+    }
+    for address in ["D4", "H7"] {
+        let actual = invoke(&model, &range(&model, address), "Value2", vec![]).unwrap();
+        assert!(matches!(actual, AutoValue::Empty), "{address}: {actual:?}");
+    }
 }
 
 // --- dc-piw0.10: the recorded Excel answers Q11-Q17 (one test each) ---------------------------------

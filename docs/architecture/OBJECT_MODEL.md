@@ -181,6 +181,8 @@ identical):
   Application class failed" (`0x800A03EC` with a null EXCEPINFO).
 - **Union**: areas keep argument order; Count counts overlaps (Union(B2:C3,F5,C3:D4).Count = 9);
   Rows.Count, Row and Column come from the first area; For Each visits overlapping cells twice.
+- **Multi-area Value2 put**: a conforming 2×2 array repeats in both areas of `B2:C3,F5:G6`.
+  A 1×1 array fills every selected cell. DNA Calc applies both through one Automation edit.
 - **Address**: each area formatted alike; External gives `[Book]Sheet!` once; R1C1 relative without
   RelativeTo is relative to A1.
 - **Optional arguments**: Empty for RowAbsolute is False; Null and Error mean "use the default";
@@ -277,8 +279,10 @@ rows); `a:rPr lang` is `en-US` where the recorded machine wrote `en-ZA`.
 ## 11. Open items
 
 - Value date/currency conversion is measured in section 9 but not implemented in this profile yet.
-- Multi-area writes, nonmatching array shapes, fractional Range indices, multi-area Offset/Resize and
-  Names.Item IndexLocal/RefersTo forms remain typed refusals pending dc-1nbp.6 measurements.
+- Unequal array/area shapes, overlapping conforming array puts, table intersections, fractional Range
+  indices, multi-area Offset/Resize and Names.Item IndexLocal/RefersTo forms remain typed refusals
+  owned by dc-1nbp.6. E11's 1×3 array produced different 2×2 layouts in the first and second areas.
+  Reversed-order, transposed-source and mixed-area probes are needed to identify the placement rule.
 - Value/Value2 text assignment accepts ordinary text. Formula-like strings, numeric/date/boolean/error
   spellings, apostrophe conversions, empty strings and undecodable UTF-16 refuse pending E11; the
   entry parser detects these ambiguous forms but does not supply invented Automation coercions.
