@@ -541,9 +541,9 @@ mod declaration_equivalence {
                 t.signature_help()
             ));
         }
-        assert_eq!(
-            actual,
-            include_str!("../../../calc-catalogue/tests/fixtures/offset-before.tsv")
-        );
+        let expected = crate::catalogue::original_declaration_snapshot(include_str!(
+            "../../../calc-catalogue/tests/fixtures/offset-before.tsv"
+        ));
+        assert_eq!(actual, expected.as_ref());
     }
 }

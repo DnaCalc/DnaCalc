@@ -763,6 +763,17 @@ impl<'c> FunctionCallTarget<'c> {
 }
 
 #[cfg(test)]
+fn original_declaration_snapshot(fixture: &str) -> std::borrow::Cow<'_, str> {
+    if usize::BITS == u64::BITS {
+        return std::borrow::Cow::Borrowed(fixture);
+    }
+    // The x64 snapshots print usize::MAX at the end of a repeated argument group.
+    std::borrow::Cow::Owned(
+        fixture.replace(&format!(", {}]", u64::MAX), &format!(", {}]", usize::MAX)),
+    )
+}
+
+#[cfg(test)]
 mod shared_declaration_equivalence {
     // Snapshot of every entry at 9edc9030, before moving the ported family declarations.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -787,10 +798,10 @@ mod shared_declaration_equivalence {
                 entry.signature_help()
             ));
         }
-        assert_eq!(
-            actual,
-            include_str!("../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv")
-        );
+        let expected = super::original_declaration_snapshot(include_str!(
+            "../../calc-catalogue/tests/fixtures/catalogue-before-ported.tsv"
+        ));
+        assert_eq!(actual, expected.as_ref());
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
