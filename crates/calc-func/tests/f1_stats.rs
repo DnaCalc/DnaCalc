@@ -964,6 +964,108 @@ fn ets_seasonality_autoperiod_hills_and_tie_break() {
     exact(call("FORECAST.ETS.SEASONALITY", vec![col(&d630), col(&timeline)]), 0.0);
 }
 
+/// Excel 20527 period-two histories of 6 and 7 observations search the full
+/// SEASONAL_PARAMETERS grid (dc-iuwct.54; only n=5 is restricted to the five
+/// SHORT_TWO_PARAMETERS candidates).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_period_two_six_and_seven_use_full_seasonal_candidates() {
+    let p2_n6_2: Vec<f64> = [
+        0x3ff95d9edd96359a_u64, 0x400fee611f958cd7, 0x400eae528535b5a2,
+        0x4019e7e77fbfc9db, 0x4018bf53e9db2684, 0x402197e3786162ba,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t6 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    exact(
+        call("FORECAST.ETS", vec![n(6.0), col(&p2_n6_2), t6.clone(), n(2.0)]),
+        f64::from_bits(0x4021990d1025d01e),
+    );
+    let p2_n7_0: Vec<f64> = [
+        0x401939622c37a94d_u64, 0x401ec6e1f0bde90f, 0x4021a4202c02434b, 0x40249cfa7918bdbb,
+        0x40268f6822a018ca, 0x402995c215452a1e, 0x402b778fd252fa25,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    let t7 = col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
+    exact(
+        call("FORECAST.ETS", vec![n(7.0), col(&p2_n7_0), t7.clone(), n(2.0)]),
+        f64::from_bits(0x402b7df303b61f9c),
+    );
+    // cb4 row 94 (p=2, n=7, target=12).
+    let cb4_94: Vec<f64> = [
+        0x40177fc3e6df9a51_u64, 0x40150a122a078761, 0x401b688172a79fc4, 0x4017598031da152f,
+        0x401f2751d725ce67, 0x401aa16bfc9d7c16, 0x40215c9e4bac6b5c,
+    ]
+    .into_iter()
+    .map(f64::from_bits)
+    .collect();
+    exact(
+        call("FORECAST.ETS", vec![n(12.0), col(&cb4_94), t7, n(2.0)]),
+        f64::from_bits(0x4022941a3b6d8e55),
+    );
+}
+
+/// Excel 20527 accepts decimal timelines whose uniform steps differ only by
+/// binary64 representation rounding (dc-iuwct.54, fix3f/ets-past-boundary-shape.json):
+/// step is the first interval within 3e-7 of the minimum interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_decimal_timeline_rounded_steps_match_excel() {
+    let y = col(&[
+        0.8191354270330827,
+        2.144215659272221,
+        3.27159573407552,
+        3.9506847997283474,
+        5.0850123361217205,
+    ]);
+    let t = col(&[0.1, 0.11, 0.12000000000000001, 0.13, 0.14]);
+    for past in [-1.0, 0.0, 1e-5, 0.08, 0.09000000000000001, 0.09001] {
+        error(call("FORECAST.ETS", vec![n(past), y.clone(), t.clone()]), Num);
+    }
+    exact(
+        call("FORECAST.ETS", vec![n(0.15), y.clone(), t.clone()]),
+        f64::from_bits(0x401857258ef685cb),
+    );
+    exact(
+        call("FORECAST.ETS", vec![n(0.1), y.clone(), t.clone()]),
+        f64::from_bits(0x3feeacbc29064f30),
+    );
+    exact(
+        call("FORECAST.ETS", vec![n(0.095), y.clone(), t.clone()]),
+        f64::from_bits(0x3fdc8a2ea8b6a4ae),
+    );
+    // fix3f row 43: (0.09999 - 0.14)/step + 4 = -0.00100000000000189 <= -0.001, so Excel
+    // interpolates rather than snapping to first (even though (0.09999 - 0.1)/step > -0.001).
+    exact(
+        call("FORECAST.ETS", vec![n(0.09999000000000001), y.clone(), t.clone()]),
+        f64::from_bits(0x3feea455f14da5a5),
+    );
+    // Integer timeline exact boundary at along == -0.001 (interpolates) and -0.999 (admitted).
+    let tint = col(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+    exact(
+        call("FORECAST.ETS", vec![n(0.999), y.clone(), tint.clone()]),
+        f64::from_bits(0x3feea455f14da5b6),
+    );
+    exact(
+        call("FORECAST.ETS", vec![n(0.001), y.clone(), tint]),
+        f64::from_bits(0xbfb0d13a44b80630),
+    );
+    // Step selection preserves first interval in the 3e-7 cluster (dec_0.3 and d0_is_big).
+    let t03 = col(&[0.1, 0.4, 0.7, 1.0, 1.3]);
+    exact(
+        call("FORECAST.ETS.STAT", vec![y.clone(), t03, n(8.0)]),
+        f64::from_bits(0x3fd3333333333334),
+    );
+    let t_gap = col(&[0.1, 0.12, 0.13, 0.14, 0.15]);
+    exact(
+        call("FORECAST.ETS.STAT", vec![y, t_gap, n(8.0)]),
+        f64::from_bits(0x3f847ae147ae1480),
+    );
+}
+
 /// Excel 20527 seasonal starting states below four cycles (oracle corpus dcj9k_r38_ets rows
 /// 1737-1738 and 2633-2634, period 4 on 8 and 12 points): the history is extended to
 /// ceil(3.5 p) points before the phase-mean chain, and the parameter search runs on the extension.
