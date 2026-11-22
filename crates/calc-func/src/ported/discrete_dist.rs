@@ -615,11 +615,14 @@ pub fn negbinom_dist_kernel(number_f: f64, number_s: f64, p: f64, cumulative: bo
     if f < 0.0 || s < 1.0 || !(p > 0.0 && p < 1.0) {
         return Err(NUM);
     }
+    if f == 0.0 {
+        // Excel preserves subnormal `exp(s * ln(p))` down to 5e-324 for f = 0
+        // (both PMF and CDF; ww2 dc-iuwct.63-current-NEGBINOM.DIST.json and ig5 Touchstone).
+        let v = negbinom_mass(0.0, s, p);
+        return if v.is_finite() { Ok(v) } else { Err(NUM) };
+    }
     if !cumulative {
         return finite(negbinom_mass(f, s, p));
-    }
-    if f == 0.0 {
-        return finite(negbinom_mass(0.0, s, p));
     }
     if crate::ported::beta_gamma_stats_family::beta_absorbed_shape_error(s, f + 1.0, p) {
         return Err(NUM);
@@ -898,6 +901,167 @@ mod tests {
             got_368_cdf.abs_diff(exp_368_cdf) <= 2,
             "$[368] CDF got {got_368_cdf:#018x}, expected {exp_368_cdf:#018x} ({} ULP)",
             got_368_cdf.abs_diff(exp_368_cdf)
+        );
+    }
+
+    /// Excel 16.0.20527 (ww2 `dc-iuwct.63-current-NEGBINOM.DIST.json` & ig5 Touchstone probes):
+    /// 1. `NEGBINOM.DIST(0, s, p, FALSE/TRUE)` preserves subnormal `exp(s * ln(p))` down to `5e-324`.
+    /// 2. `bratio_bgrat` returns `0.0` (discarding the `bup` seed `w` as well) when both
+    ///    `|u * s_no| < DBL_MIN` (the `n >= 1` recurrence starting from `j = 0`) and
+    ///    `w + u * summ < 2^-970` (`DBL_MIN / f64::EPSILON`).
+    /// 3. `bratio_bup` flushes `first = (x * y / a) * density` (not `x * y * density`) when subnormal.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_63_negbinom_and_bgrat_underflow_match_excel() {
+        use crate::ported::beta_gamma_stats_family::beta_dist_kernel;
+
+        // f = 0 subnormal preservation (both CDF and PMF).
+        let f0_subnormal_rows: &[(&str, f64, u64, u64)] = &[
+            ("933-708.4-0", 933.0, 0x3fddf3d550cdb752, 0x000ff15b469edf89),
+            ("933-714.38-0", 933.0, 0x3fddc2cf0abec727, 0x00000a46d11b1509),
+            ("933-724-0", 933.0, 0x3fdd74b0e5da5397, 0x000000002ce791f3),
+            ("45000-708.4-0", 45000.0, 0x3fef800caa1d5685, 0x000ff15b469f0764),
+            ("181323-714.38-0", 181323.0, 0x3fefdfc9cdb574be, 0x00000a46d11b1507),
+        ];
+        for &(label, s, p_bits, exp) in f0_subnormal_rows {
+            let p = f64::from_bits(p_bits);
+            for cum in [false, true] {
+                let got = negbinom_dist_kernel(0.0, s, p, cum).unwrap().to_bits();
+                assert_eq!(
+                    got, exp,
+                    "NEGBINOM.DIST(0, {s}, {p_bits:#018x}, {cum}) [{label}]"
+                );
+            }
+        }
+
+        // Large-s bgrat 2^-970 cutoff (f = 1..5 zero; f = 13 nonzero; s = 933 bpser nonzero).
+        let zero_rows: &[(&str, f64, f64, u64)] = &[
+            ("45000-714.38-3", 3.0, 45000.0, 0x3fef7efa2648ba69),
+            ("45000-706-1", 1.0, 45000.0, 0x3fef807ac4c3147e),
+            ("45000-706-5", 5.0, 45000.0, 0x3fef807ac4c3147e),
+            ("181323-714.38-3", 3.0, 181323.0, 0x3fefdfc9cdb574be),
+        ];
+        for &(label, f, s, p_bits) in zero_rows {
+            let got = negbinom_dist_kernel(f, s, f64::from_bits(p_bits), true)
+                .unwrap()
+                .to_bits();
+            assert_eq!(got, 0, "NEGBINOM.DIST({f}, {s}, {p_bits:#018x}, TRUE) [{label}]");
+        }
+        let got_f13 = negbinom_dist_kernel(13.0, 45000.0, f64::from_bits(0x3fef807ac4c3147e), true)
+            .unwrap()
+            .to_bits();
+        assert!(
+            got_f13.abs_diff(0x05ec703f7dba5b13) <= 4,
+            "45000-706-13 got {got_f13:#018x}, expected 0x05ec703f7dba5b13"
+        );
+        let got_933_f1 = negbinom_dist_kernel(1.0, 933.0, f64::from_bits(0x3fddc2cf0abec727), true)
+            .unwrap()
+            .to_bits();
+        assert!(
+            got_933_f1 != 0 && got_933_f1.abs_diff(0x001413c2eb41cb11) <= 300,
+            "933-714.38-1 got {got_933_f1:#018x}, expected 0x001413c2eb41cb11"
+        );
+
+        // bup flushes `first = (x*y/a)*density`, not `x*y*density` (a=45000, b=14.1, b0=0.1).
+        let x_nz = (-709.0_f64 / 45000.0).exp();
+        let x_zr = (-709.5_f64 / 45000.0).exp();
+        let got_bup_nz = beta_dist_kernel(x_nz, 45000.0, 14.1, true, 0.0, 1.0)
+            .unwrap()
+            .to_bits();
+        let got_bup_zr = beta_dist_kernel(x_zr, 45000.0, 14.1, true, 0.0, 1.0)
+            .unwrap()
+            .to_bits();
+        assert!(
+            got_bup_nz != 0 && got_bup_nz.abs_diff(0x05b1c25ea3ebd38b) <= 64,
+            "BETA.DIST(exp(-709/45000), 45000, 14.1, TRUE) got {got_bup_nz:#018x}"
+        );
+        assert_eq!(got_bup_zr, 0, "BETA.DIST(exp(-709.5/45000), 45000, 14.1, TRUE)");
+
+        // Catalogue-route check (Honesty Rule 5): NEGBINOM.DIST, NEGBINOMDIST, BETA.DIST,
+        // and BETADIST publish measured subnormals rather than flushing or refusing them.
+        use crate::{
+            EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke,
+            value::{CalcValue, NumericMode},
+        };
+        struct SliceArgs<'a>(&'a [CalcValue]);
+        impl PreparedArguments for SliceArgs<'_> {
+            fn count(&self) -> usize {
+                self.0.len()
+            }
+            fn argument(&mut self, index: usize) -> CalcValue {
+                self.0[index].clone()
+            }
+        }
+        let call = |name: &str, args: &[CalcValue]| -> u64 {
+            let target = catalogue().resolve_surface(Notation::Call, name).unwrap();
+            let mut prepared = SliceArgs(args);
+            let mut services = EvalServices::new(&NumericMode::Fast);
+            let mut scratch = FunctionCallScratch::default();
+            invoke(target, &mut prepared, &mut services, &mut scratch)
+                .unwrap()
+                .as_number()
+                .unwrap()
+                .to_bits()
+        };
+        let p933 = f64::from_bits(0x3fddf3d550cdb752);
+        assert_eq!(
+            call(
+                "NEGBINOM.DIST",
+                &[
+                    CalcValue::number(0.0),
+                    CalcValue::number(933.0),
+                    CalcValue::number(p933),
+                    CalcValue::logical(true),
+                ],
+            ),
+            0x000ff15b469edf89
+        );
+        assert_eq!(
+            call(
+                "NEGBINOMDIST",
+                &[
+                    CalcValue::number(0.0),
+                    CalcValue::number(933.0),
+                    CalcValue::number(p933),
+                ],
+            ),
+            0x000ff15b469edf89
+        );
+        assert_eq!(
+            call(
+                "BETA.DIST",
+                &[
+                    CalcValue::number(p933),
+                    CalcValue::number(933.0),
+                    CalcValue::number(1.0),
+                    CalcValue::logical(true),
+                ],
+            ),
+            0x000ff15b469edf89
+        );
+        assert_eq!(
+            call(
+                "BETADIST",
+                &[
+                    CalcValue::number(p933),
+                    CalcValue::number(933.0),
+                    CalcValue::number(1.0),
+                ],
+            ),
+            0x000ff15b469edf89
+        );
+        // Non-unit beta still flushes subnormal bpser results to 0.0.
+        assert_eq!(
+            call(
+                "BETA.DIST",
+                &[
+                    CalcValue::number(1e-155),
+                    CalcValue::number(2.0),
+                    CalcValue::number(3.0),
+                    CalcValue::logical(true),
+                ],
+            ),
+            0
         );
     }
 }
