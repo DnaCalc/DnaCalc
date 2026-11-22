@@ -1770,6 +1770,23 @@ fn formula_tokens_print_as_excel_writes_them_and_cached_results_are_kept() {
     assert!(cached(1, 9).contains("NA"), "{}", cached(1, 9));
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn biff8_fixed_getpivotdata_keeps_both_argument_orders() {
+    use ptg::*;
+    // Excel 16.0.20527 CX3 saved both two-argument orders unchanged.
+    let text_first = join(&[text("Amount"), cell(0, 0, 0), func(358)]);
+    let range_first = join(&[area((14, 15), (5, 9), REL_ROW | REL_COL), text("John"), func(358)]);
+    for (row, col, tokens, expected) in [
+        (1, 0, text_first, "A2 f:GETPIVOTDATA(\"Amount\",$A$1)"),
+        (43, 1, range_first, "B44 f:GETPIVOTDATA(F15:J16,\"John\")"),
+    ] {
+        let cells = formula(row, col, num_value(0.0), &tokens, &[]);
+        let bytes = xls(false, &[], &[Sheet::worksheet("Data", cells)]);
+        assert_eq!(sheet_cells(&bytes), [expected]);
+    }
+}
+
 fn formula_structures_fixture() -> Vec<u8> {
     use ptg::*;
     let mut r = Vec::new();
