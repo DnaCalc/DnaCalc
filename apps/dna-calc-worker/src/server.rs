@@ -1661,21 +1661,10 @@ impl Server {
     }
 
     /// Bind a native host's user functions (an XLL's) to this and every later workbook.
+    /// Binding changes invalidate their callers, which recalculate in automatic mode.
     pub fn set_user_functions(&mut self, functions: calc_host::CallableTable) {
         self.book.set_user_functions(functions.clone());
         self.user_functions = Some(functions);
-        self.collect();
-    }
-
-    /// The add-ins changed (the person loaded or unloaded one in the desktop app, dc-0f1k.23): the
-    /// new table is bound to this and every later workbook, and an automatic workbook
-    /// recalculates, so a cell that named a function before it was loaded (or after it was
-    /// unloaded) answers as it does now.
-    pub fn replace_user_functions(&mut self, functions: calc_host::CallableTable) {
-        self.set_user_functions(functions);
-        if self.book.session().calc_mode() != calc_host::CalcMode::Manual {
-            self.book.dispatch(calc_host::SkinIntent::Recalculate);
-        }
         self.collect();
     }
 

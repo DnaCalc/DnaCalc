@@ -535,12 +535,12 @@ impl App {
         Ok(self.addin_list(false))
     }
 
-    /// The add-in set's functions, as one new table, to this and every later worker; the open
-    /// workbook recalculates.
+    /// Publishes the new add-in table to this and every later worker. The open workbook
+    /// recalculates affected formulas under its current calculation mode.
     fn publish_addins(&self) -> Result<(), String> {
         let table = self.addins.borrow().callables()?;
         *self.functions.borrow_mut() = Some(table.clone());
-        self.server.borrow_mut().replace_user_functions(table);
+        self.server.borrow_mut().set_user_functions(table);
         self.bind_sheets();
         Ok(())
     }

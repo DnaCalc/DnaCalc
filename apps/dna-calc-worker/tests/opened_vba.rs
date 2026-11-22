@@ -880,7 +880,6 @@ fn add_ins_are_the_desktop_apps_and_a_changed_set_recalculates() {
             Err(ADDINS_DESKTOP_ONLY.to_owned())
         );
     }
-    let at = calc_value::CellKey::new(server.book().host().sheets()[0].id(), 1, 1).unwrap();
     let settle = |server: &mut Server| {
         for _ in 0..1000 {
             if !server.has_pending_calculation() {
@@ -890,6 +889,30 @@ fn add_ins_are_the_desktop_apps_and_a_changed_set_recalculates() {
         }
         panic!("the worker did not settle"); // ubs:ignore[rust.ownership.panic-macro] A bounded drain must finish.
     };
+    struct CalculationEvents(std::cell::Cell<u32>);
+    impl calc_host::WorkbookEventObserver for CalculationEvents {
+        fn after_calculate(&self, _: &mut calc_host::HostSession) -> Result<(), String> {
+            self.0.set(self.0.get() + 1);
+            Ok(())
+        }
+    }
+    let events = std::rc::Rc::new(CalculationEvents(std::cell::Cell::new(0)));
+    server.set_workbook_event_observer(Some(events.clone()));
+    let addin = calc_vba::load_module(
+        "Extra",
+        "Public Function AddinSeven() As Double\n AddinSeven = 7\nEnd Function\n",
+        1000,
+    )
+    .unwrap();
+    // With no formulas, publishing each new table must not generate another event after the
+    // native add-in has settled.
+    for functions in [addin.clone(), calc_host::CallableTable::new()] {
+        server.set_user_functions(functions);
+        settle(&mut server);
+    }
+    assert_eq!(events.0.get(), 0, "empty workbook add-in changes");
+
+    let at = calc_value::CellKey::new(server.book().host().sheets()[0].id(), 1, 1).unwrap();
     assert!(
         server
             .execute_current(
@@ -910,14 +933,18 @@ fn add_ins_are_the_desktop_apps_and_a_changed_set_recalculates() {
         )
     };
     assert!(!seven(&server), "no add-in is loaded yet");
-    server.replace_user_functions(
-        calc_vba::load_module(
-            "Extra",
-            "Public Function AddinSeven() As Double\n AddinSeven = 7\nEnd Function\n",
-            1000,
-        )
-        .unwrap(),
-    );
+    events.0.set(0);
+    server.set_user_functions(addin);
     settle(&mut server);
     assert!(seven(&server), "{:?}", server.book().project(vec![at])[0].value());
+    assert_eq!(events.0.get(), 1, "recalculation after resolving a call");
+    server.set_user_functions(calc_host::CallableTable::new());
+    settle(&mut server);
+    let projected = server.book().project(vec![at]);
+    assert!(
+        matches!(projected[0].value(), ProjectedValue::Calculated { value, .. }
+            if value.as_error() == Some(calc_value::WorksheetErrorCode::Name)),
+        "the unloaded function should return #NAME?: {:?}",
+        projected[0].value()
+    );
 }
