@@ -13,7 +13,7 @@ use calcvba_hal::{
     model::{CapabilityId, HalDescriptor, HalProfileId, HostPolicy},
     traits::*,
 };
-use calcvba_runtime::{ObjectRef, Variant};
+use calcvba_runtime::{ObjectRef, ObjectRefExt, Variant};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -1204,6 +1204,10 @@ impl ComHal for SpreadsheetHost {
             .map(calcvba_runtime::RuntimeCallResult::value)
     }
 
+    fn app_object_variant(&self, name: Variant) -> HalResult<Variant> {
+        self.create_object_variant(name)
+    }
+
     fn create_object_variant(&self, name: Variant) -> HalResult<Variant> {
         if name
             .as_bstr()
@@ -1361,6 +1365,18 @@ impl ComHal for SpreadsheetHost {
         let args = self.projected_arguments(object, &name, &request.args)?;
         self.invoke_projected_member(object, &name, &args)
     }
+    fn advise_events(
+        &self,
+        source: &ObjectRef,
+        interface: &str,
+        key: u64,
+    ) -> HalResult<Box<dyn calcvba_com::call::ComEventConnection>> {
+        if let Some(com) = self.foreign(source) {
+            return com.advise_events(source, interface, key);
+        }
+        self.unsupported("spreadsheet WithEvents subscriptions are not modelled")
+    }
+
     fn subscribe_event(
         &self,
         object: ObjectRef,
@@ -1538,6 +1554,8 @@ impl calcvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 events: vec![],
                 coclass_names: vec![global.into()],
                 coclass_prog_ids: vec![],
+                app_objects: vec![],
+                extensible: false,
             });
         }
         if request
@@ -1574,6 +1592,8 @@ impl calcvba_symbol::TypeLibResolver for SpreadsheetTypes {
                 events: vec![],
                 coclass_names: vec!["Range".into()],
                 coclass_prog_ids: vec![],
+                app_objects: vec![],
+                extensible: false,
             });
         }
         let application = request.reference_name.eq_ignore_ascii_case("DnaCalc");
@@ -1723,6 +1743,8 @@ impl calcvba_symbol::TypeLibResolver for SpreadsheetTypes {
             events: vec![],
             coclass_names: vec![class.into()],
             coclass_prog_ids: vec![],
+            app_objects: vec![],
+            extensible: false,
         })
     }
 }

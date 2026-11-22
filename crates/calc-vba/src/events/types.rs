@@ -128,6 +128,14 @@ impl WithReferences<'_> {
     }
 }
 impl TypeLibResolver for WithReferences<'_> {
+    fn dictionary_source(&self) -> calcvba_symbol::DictionarySource {
+        if crate::policy::thread_policy() == Some(crate::policy::PolicyMode::Safe) {
+            // Guarded code may use the in-memory class without activating COM.
+            calcvba_symbol::DictionarySource::Engine
+        } else {
+            self.own.dictionary_source()
+        }
+    }
     fn interface_iid(
         &self,
         request: &TypeLibResolveRequest,
@@ -565,6 +573,8 @@ impl TypeLibResolver for EventTypes {
                 .map(str::to_owned)
                 .collect(),
             coclass_prog_ids: vec![],
+            app_objects: vec![],
+            extensible: false,
         })
     }
 }

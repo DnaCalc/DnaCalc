@@ -62,7 +62,7 @@ pub fn predict_module(name: &str, source: &str) -> Result<policy::Prediction, St
     Ok(module.predicted_capabilities())
 }
 
-pub const DEFAULT_STEP_BUDGET: u64 = 100_000;
+pub const DEFAULT_STEP_BUDGET: u64 = 150_000;
 pub const EXAMPLE_MODULE: &str =
     "Public Function Add2(a As Double, b As Double) As Double\n    Add2 = a + b\nEnd Function\n";
 
