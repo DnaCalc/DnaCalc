@@ -1551,6 +1551,13 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
             use crate::ported::excel_numeric::{
                 excel_beta_up_sum_small_b, excel_exp, excel_log, excel_x87_add, excel_x87_div,
             };
+            // Excel flushes a subnormal beta density before multiplying by `scale = x * y / a`
+            // (dc-j9k.45.1: verified to 1 ULP across 9 independent `b0 < 0.25` transitions where
+            // `scale > 1` would otherwise magnify a subnormal density into a normal first term,
+            // including `a = 1015, b = 2.001` where `exp(stored)` is normal and `density` is subnormal).
+            if density.is_subnormal() {
+                return 0.0;
+            }
             let xy = excel_x87_mul(x, y);
             d = 1.0;
             // The division store flushes before the density multiplier.
@@ -2853,6 +2860,97 @@ mod tests {
                 actual, expected,
                 "cb11 {label} P({a_bits:#018x}, {x_bits:#018x}): got {actual:#018x}, expected {expected:#018x}"
             );
+        }
+    }
+
+    /// Excel 16.0.20527 (dc-j9k.45.1 / nx13 Touchstone probes `probe_44_45_edge`, `edge2`,
+    /// `edge3`, `probe_45_1_dens`, `probe_45_1_wide`):
+    /// In `bratio_bup`, when `scale = (x * y) / a >= 1` (`a = b0 < x * y <= 0.25`), `first = scale * density`
+    /// can be normal (up to ~250 * DBL_MIN) while `density` is still subnormal. Excel flushes the
+    /// subnormal `density` to `0.0` before multiplying by `scale`, verified to 1 ULP across 9
+    /// independent `(a, b, x)` transitions spanning `b0 in {0.001, 0.01, 0.2}`, `n in {2, 3, 4}`,
+    /// and `x in [0.35, 0.69]`, alongside the `scale < 1` (`b0 = 0.5`) `first.is_subnormal()` rule.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_45_1_bup_flushes_subnormal_density_and_first_term() {
+        use crate::ported::beta_gamma_stats_family::{beta_dist_kernel, flush_subnormal};
+        use crate::ported::chi_f_t_family::f_dist_rt_kernel;
+
+        // 9 exact 1-ULP adjacent-double transitions (x_zero -> 0, x_nz -> nonzero) on Excel 16.0.20527
+        // where scale = x*y/b0 > 1 and density crosses DBL_MIN while first = scale*density is normal.
+        // Note a1015_b2.001 specifically separates density.is_subnormal() from exp(stored).is_subnormal():
+        // at 0x3fe002acc4bc5036, exp(stored) = 0x001000000000007c (normal) while density = 0x000fffffffffff9e (subnormal).
+        let pairs: &[(&str, f64, f64, u64, u64, u64)] = &[
+            ("a1020_b2.001", 1020.0, 2.001, 0x3fe0109c9a3853c6, 0x3fe0109c9a3853c7, 0x011f08016e795101),
+            ("a1015_b2.001", 1015.0, 2.001, 0x3fe002acc4bc5036, 0x3fe002acc4bc5037, 0x011efc38cea84c8a),
+            ("a1005_b2.001", 1005.0, 2.001, 0x3fdfcd0f52de5e59, 0x3fdfcd0f52de5e5a, 0x011ee3d200165e6a),
+            ("a1020_b3.01",  1020.0, 3.01,  0x3fe00717925e83af, 0x3fe00717925e83b0, 0x0168792da3db6a99),
+            ("a1018_b3.01",  1018.0, 3.01,  0x3fe00185b7079e0d, 0x3fe00185b7079e0e, 0x016871b0ec1215b2),
+            ("a1020_b2.2",   1020.0, 2.2,   0x3fdfebfac8772e79, 0x3fdfebfac8772e7a, 0x00a0af334801317c),
+            ("a675_b2.01",    675.0, 2.01,  0x3fd6827366ccdcae, 0x3fd6827366ccdcaf, 0x00e356e3a9fc719f),
+            ("a1900_b2.01",  1900.0, 2.01,  0x3fe613582f24c1d3, 0x3fe613582f24c1d4, 0x00e86c0a67a73c1d),
+            ("a1020_b4.001", 1020.0, 4.001, 0x3fe0109c9a3853c4, 0x3fe0109c9a3853c5, 0x02147bc1ec3bf9bf),
+        ];
+
+        for &(label, a, b, x_zr, x_nz, ex_nz) in pairs {
+            let got_zr = flush_subnormal(
+                beta_dist_kernel(f64::from_bits(x_zr), a, b, true, 0.0, 1.0).unwrap(),
+            )
+            .to_bits();
+            assert_eq!(
+                got_zr, 0,
+                "{label} zero-side ({x_zr:#018x}): got {got_zr:#018x}, expected 0"
+            );
+            let got_nz = flush_subnormal(
+                beta_dist_kernel(f64::from_bits(x_nz), a, b, true, 0.0, 1.0).unwrap(),
+            )
+            .to_bits();
+            assert!(
+                got_nz != 0 && got_nz.abs_diff(ex_nz) < 0x1000,
+                "{label} nonzero-side ({x_nz:#018x}): got {got_nz:#018x}, expected ~{ex_nz:#018x}"
+            );
+        }
+
+        // Deeper subnormal density (0.1 * DBL_MIN) with normal first term (~25 * DBL_MIN) flushes to 0.
+        assert_eq!(
+            flush_subnormal(
+                beta_dist_kernel(f64::from_bits(0x3fe0075699ca4958), 1020.0, 2.001, true, 0.0, 1.0)
+                    .unwrap()
+            )
+            .to_bits(),
+            0
+        );
+
+        // When scale < 1 (b0 = 0.5), first = scale * density crosses DBL_MIN before density does
+        // (probe_44_45_edge3: dens=1.5*DBL_MIN -> first=0.75*DBL_MIN -> 0; dens=2.5*DBL_MIN -> 0x009ac488062b5001).
+        assert_eq!(
+            flush_subnormal(
+                beta_dist_kernel(f64::from_bits(0x3fdfd8a06c843d1f), 1020.0, 2.5, true, 0.0, 1.0)
+                    .unwrap()
+            )
+            .to_bits(),
+            0
+        );
+        let got_b25_nz = flush_subnormal(
+            beta_dist_kernel(f64::from_bits(0x3fdfdcb66dc2fb20), 1020.0, 2.5, true, 0.0, 1.0)
+                .unwrap(),
+        )
+        .to_bits();
+        assert!(
+            got_b25_nz != 0 && got_b25_nz.abs_diff(0x009ac488062b5001) < 0x1000,
+            "b=2.5 first>DBL_MIN: got {got_b25_nz:#018x}, expected ~0x009ac488062b5001"
+        );
+
+        // Original dc-j9k.45.1 F.DIST.RT controls (f-tail-zero-controls[21-23, 69-71]) stay 0.
+        for &(x_bits, d1, d2) in &[
+            (0x4063d510b1fba2fe_u64, 20.0_f64, 1000.0_f64),
+            (0x4063da231f774b78, 20.0, 1000.0),
+            (0x406407d4ab62a10e, 20.0, 1000.0),
+            (0x408086e33efc5d29, 6.0, 1000.0),
+            (0x40808b1d44e3698e, 6.0, 1000.0),
+            (0x4080b131397cdb8b, 6.0, 1000.0),
+        ] {
+            assert_eq!(f_dist_rt_kernel(f64::from_bits(x_bits), d1, d2).unwrap().to_bits(), 0);
         }
     }
 }
