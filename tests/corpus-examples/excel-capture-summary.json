@@ -1,0 +1,48 @@
+{
+  "excel_build": "16.0.20527.20196",
+  "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+  "formulas": {
+    "guard": {
+      "finished_utc": "2026-11-22T06:26:32.5495266Z",
+      "windows_on_user_desktop": 0,
+      "foreground_hits": 0
+    },
+    "workbooks": 93,
+    "captured": 81,
+    "unopened": [
+      "filter-conditional-unique-row",
+      "lambda-closure-shadow",
+      "lambda-self-passed",
+      "let-function-alias",
+      "let-lazy-unused-error",
+      "lookup-last-row-per-key",
+      "reduce-interval-expansion",
+      "split-selective-number",
+      "trim-and-coerce",
+      "trim-positive-map",
+      "trim-reference-rows",
+      "unique-legacy-flatten"
+    ],
+    "observations": 137,
+    "missing_targets": 21,
+    "report": {
+      "formula_cells": 94,
+      "matched": 71,
+      "mismatched": 1,
+      "refused": 8,
+      "unproven": 2,
+      "could_not_open": 12
+    }
+  },
+  "vba": {
+    "guard": {
+      "finished_utc": "2026-11-22T06:20:05.5072531Z",
+      "windows_on_user_desktop": 0,
+      "foreground_hits": 0
+    },
+    "drivers": 89,
+    "captured": 89,
+    "execution_errors": 0,
+    "automation_security": 1
+  }
+}

@@ -32,6 +32,11 @@ spill with their shape. If the anchor returns an error or has no spill, record t
 anchor result. For a VBA row, record the typed return value of `DcExample`. Preserve
 the order of array elements, and record an execution error separately if a driver fails.
 
-The `expected_answer` field is empty until the Excel capture. Fill it from the
-service result and keep the capture record and Excel build as provenance. Include
-captures in the oracle or VBA corpus through their existing evidence paths.
+The `expected_answer` field is filled from the Excel capture. Formula cases point
+to a sibling `oracle.capture.json` and map each declared target to the live value.
+VBA cases retain the `Application.Run` return with its VBA subtype and array
+bounds. Both identify the source bytes and Excel build.
+
+The Windows run captured 81 of 93 formula workbooks and all 89 VBA drivers.
+Excel rejected the other 12 authored workbook packages at open. The comparison
+keeps their formula cells in the denominator. See [the capture summary](excel-capture-summary.json).

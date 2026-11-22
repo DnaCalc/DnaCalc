@@ -23,5 +23,14 @@
   "capture": [
     "Sheet1!E2"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "0c0d74e2ce1d23467e0391db44ddfe24919399b8b9803baac713a3898db9bc86",
+    "excel_build": "16.0.20527.20196",
+    "capture": "oracle.capture.json",
+    "targets": {
+      "Sheet1!E2": {
+        "error": "spill"
+      }
+    }
+  }
 }

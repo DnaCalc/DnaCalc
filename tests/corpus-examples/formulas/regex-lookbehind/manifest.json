@@ -23,5 +23,14 @@
   "capture": [
     "Sheet1!N2"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "ad73068a2ce531f30b6b5d1c494ecc79f1f3a4ec6c91d05fab4962d01e991a7b",
+    "excel_build": "16.0.20527.20196",
+    "capture": "oracle.capture.json",
+    "targets": {
+      "Sheet1!N2": {
+        "text": "00310032"
+      }
+    }
+  }
 }

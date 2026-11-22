@@ -29,5 +29,17 @@
     "Sheet1!N2",
     "Sheet1!N2#"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "d62542ca38d9ca6e4523bf72bb9d3f795e25e356c5dd2114da2fdd1817fec977",
+    "excel_build": "16.0.20527.20196",
+    "capture": "oracle.capture.json",
+    "targets": {
+      "Sheet1!N2": {
+        "error": "name"
+      },
+      "Sheet1!N2#": {
+        "error": "name"
+      }
+    }
+  }
 }

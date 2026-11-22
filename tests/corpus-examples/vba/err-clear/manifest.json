@@ -18,5 +18,25 @@
   "capture": [
     "DcExample"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "c3e364ab54f6f53a5470a2cb8b836bfe24b7d5f5c035801bd3b7e2b585c72908",
+    "excel_build": "16.0.20527.20196",
+    "route": "Application.Run DcExample in an owned blank workbook",
+    "timestamp": "2026-11-22T06:20:05.5072531Z",
+    "value": {
+      "vartype": 8204,
+      "upper_bound": 1,
+      "lower_bound": 0,
+      "values": [
+        {
+          "vartype": 3,
+          "value": 13
+        },
+        {
+          "vartype": 3,
+          "value": 0
+        }
+      ]
+    }
+  }
 }
