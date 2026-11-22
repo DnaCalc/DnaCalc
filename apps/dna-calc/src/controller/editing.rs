@@ -37,8 +37,12 @@ impl Controller {
         let target = self.active_key_untracked().expect("checked active cell");
         let (refusal, original) = untrack(|| {
             self.with_active_cell_mirror(target, |mirror| {
-                let refusal = mirror.geometry(target.sheet()).and_then(|g| g.edit_refusal.clone());
-                let original = mirror.cell(target).map(|cell| cell.input.clone()).unwrap_or_default();
+                let cell = mirror.cell(target);
+                let refusal = cell
+                    .and_then(wire::Cell::spill_child)
+                    .map(wire::spill_child_message)
+                    .or_else(|| mirror.geometry(target.sheet()).and_then(|g| g.edit_refusal.clone()));
+                let original = cell.map(|cell| cell.input.clone()).unwrap_or_default();
                 (refusal, original)
             })
         });

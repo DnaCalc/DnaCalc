@@ -305,6 +305,12 @@ pub fn app_with_transport(
             assist.reset();
         }
     });
+    let spill_child = Memo::new(move |_| {
+        controller.active_cell().and_then(|cell| cell.spill_child())
+    });
+    let spill_read_only = Signal::derive(move || {
+        controller.editing.get().is_none() && spill_child.get().is_some()
+    });
 
     let name_box = RwSignal::new(String::new());
     let name_box_field = NodeRef::<leptos::html::Input>::new();
@@ -1050,10 +1056,12 @@ pub fn app_with_transport(
                     on:beforeinput=move |_| controller.activate_editor(EditOrigin::Bar, assist)
                     on:input=move |_| controller.edit_changed()
                     on:focusin=move |_| {
-                        controller.activate_editor(EditOrigin::Bar, assist);
+                        if !spill_read_only.get_untracked() {
+                            controller.activate_editor(EditOrigin::Bar, assist);
+                        }
                     }
                 >
-                    {assist.field(Signal::derive(Vec::new), Some(bar_key), 1, "")}
+                    {assist.field_with_read_only(Signal::derive(Vec::new), Some(bar_key), 1, "", spill_read_only)}
                     {move || {
                         (controller.editing.get() == Some(EditOrigin::Bar))
                             .then(|| {
@@ -1110,6 +1118,11 @@ pub fn app_with_transport(
                     >
                         {move || controller.active_cell().map(|cell| cell.text).unwrap_or_default()}
                     </span>
+                    {move || spill_child.get().map(|anchor| view! {
+                        <span class="dc-spill-child" data-dnacalc="spill-child">
+                            {wire::spill_child_message(anchor)}
+                        </span>
+                    })}
                     // A number its shown text rounds: its exact value beside it (dc-0f1k.23).
                     <span
                         class="dc-result-exact dc-mono"

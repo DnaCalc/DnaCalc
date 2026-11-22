@@ -4457,6 +4457,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "[data-dnacalc=review-marker][data-cell=A1]",
                 "button",
             )),
+            Action::Wait(Check::Attr(
+                "[data-dnacalc=review-marker][data-cell=A1]",
+                "title",
+                "Note on Data!A1: a comment",
+            )),
             Action::Click("[data-dnacalc=review-marker][data-cell=A1]"),
         ],
         checks: &[
@@ -16006,6 +16011,98 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "A2"),
         ],
     },
+    Case {
+        name: "Classic spill: the active anchor outlines the calculated range",
+        actions: &[
+            Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::PlanCell("B3", "text", "6")),
+        ],
+        checks: &[
+            Check::Attr("spill-outline", "data-area", "A1:B3"),
+            Check::Style("spill-outline", "width:128px"),
+            Check::Style("spill-outline", "height:60px"),
+        ],
+    },
+    Case {
+        name: "Classic spill: the child keeps the range outlined and explains why it is read-only",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", F2),
+        ],
+        checks: &[
+            Check::Attr("spill-outline", "data-area", "A1:B3"),
+            Check::Attr("spill-outline", "data-state", "filled"),
+            Check::Attr(BAR, "readonly", ""),
+            Check::TextContains("spill-child", "Edit the formula in A1"),
+            Check::TextContains("status", "Edit the formula in A1"),
+            Check::Editability("B2", false),
+            Check::PlanCell("B2", "text", "4"),
+            Check::Absent("cell-editor"),
+        ],
+    },
+    Case {
+        name: "Classic spill: selecting a cell outside the range removes the outline",
+        actions: &[Action::Into("name-box", "D2\u{E007}")],
+        checks: &[
+            Check::Absent("spill-outline"),
+            Check::Absent("spill-child"),
+            Check::Absent("[data-onecalc=formula][readonly]"),
+        ],
+    },
+    Case {
+        name: "Classic spill: blocking the resized range outlines the attempt and shows the blocker",
+        actions: &[
+            Action::Into(BAR, "99\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3,4)\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::PlanCell("A1", "text", "#SPILL!"),
+            Check::Attr("spill-outline", "data-area", "A1:D3"),
+            Check::Attr("spill-outline", "data-state", "blocked"),
+            Check::Name("array-blocker", "Open blocker Sheet1!D2"),
+        ],
+    },
+    Case {
+        name: "Classic spill: jumping to the blocker and clearing it restores the filled outline",
+        actions: &[
+            Action::Keys("array-blocker", ENTER),
+            Action::Wait(Check::Value("name-box", "D2")),
+            Action::Keys("grid", DELETE),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr("spill-outline", "data-area", "A1:D3"),
+            Check::Attr("spill-outline", "data-state", "filled"),
+            Check::Absent("array-blocker"),
+            Check::PlanCell("D3", "text", "12"),
+        ],
+    },
+    Case {
+        name: "Classic merge: editing a covered address changes the imported anchor and Undo restores it",
+        actions: &[
+            Action::Window(1440, 1000),
+            Action::ClearDownloads,
+            Action::AlignmentFixture,
+            Action::UploadDownload("alignment.xlsx"),
+            Action::DiscardReplacement,
+            Action::Into("zoom-percent", "100\u{E007}"),
+            Action::Into("name-box", "M2\u{E007}"),
+            Action::Wait(Check::Value("name-box", "L1")),
+            Action::Keys("grid", F2),
+            Action::Wait(Check::Value("cell-editor", "merged")),
+            Action::Keys("cell-editor", "!\u{E007}"),
+            Action::Wait(Check::PlanCell("L1", "text", "merged!")),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::MergedCell("L1", 2, 3),
+            Check::PlanCell("L1", "text", "merged"),
+            Check::PlanAbsent("M2"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -17546,8 +17643,22 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "wheel-zoom",
         start: 873,
-        end: CALC_CASES.len(),
+        end: 875,
         core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-spill",
+        start: 875,
+        end: 880,
+        core: 5,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-merge",
+        start: 880,
+        end: CALC_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];

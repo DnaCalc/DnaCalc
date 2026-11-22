@@ -54,6 +54,7 @@ pub struct CellShown {
     pub color: Option<String>,
     /// What the sheet's conditional formats give the cell (dc-6yw), its colours resolved.
     pub conditional: Option<ConditionalShown>,
+    pub spill_child: Option<CellKey>,
 }
 
 /// A cell's look under its conditional formats, as the grid draws it: colours as `#rrggbb`.
@@ -772,6 +773,12 @@ pub struct ReviewItem {
     pub reply: bool,
     pub resolved: bool,
     pub editable: bool,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReviewMarker {
+    pub at: Key,
+    pub kind: String,
+    pub preview: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rule {
@@ -1736,7 +1743,7 @@ pub enum Reply {
     SelectionStats(Result<SelectionStats, String>),
     CanEdit(Result<(), String>),
     Review(Review),
-    ReviewMarkers(Vec<(Key, String)>),
+    ReviewMarkers(Vec<ReviewMarker>),
     Clipboard(Clipboard),
     PastePreview(PastePreview),
     /// The answer to [`Request::Ping`]: the package version the server runs.
@@ -1926,6 +1933,33 @@ pub struct RefusalCells {
     pub cells: Vec<(Key, String)>,
 }
 
+/// A dynamic spill extent carried with the value publication that produced it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpillView {
+    Filled(Area),
+    Blocked(Area),
+}
+
+impl SpillView {
+    pub fn child_anchor(self, at: CellKey) -> Option<CellKey> {
+        match self {
+            Self::Filled(area) => area
+                .area()
+                .filter(|area| area.contains(at) && area.first() != at)
+                .map(|area| area.first()),
+            Self::Blocked(_) => None,
+        }
+    }
+}
+
+pub fn spill_child_message(anchor: CellKey) -> String {
+    format!(
+        "This cell is a spill result. Edit the formula in {}{}.",
+        crate::address::column_letters(anchor.column()),
+        anchor.row()
+    )
+}
+
 /// One cell of a subscription, as the page shows it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Cell {
@@ -1945,6 +1979,8 @@ pub struct Cell {
     pub why: String,
     pub owner: Option<String>,
     pub error_meaning: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spill: Option<SpillView>,
     /// A number whose shown text is not its exact value (General shows at most 11 characters,
     /// and a number format rounds): the shortest text that reads back as the same double, in
     /// Excel's E notation. `None` when the shown text is the value (dc-0f1k.23).
@@ -1953,6 +1989,10 @@ pub struct Cell {
 }
 
 impl Cell {
+    pub fn spill_child(&self) -> Option<CellKey> {
+        self.spill?.child_anchor(self.at.cell()?)
+    }
+
     /// The cell as the grid draws it.
     pub fn shown(&self) -> Option<CellShown> {
         Some(CellShown {
@@ -1973,6 +2013,7 @@ impl Cell {
             format: self.format,
             color: self.color.clone(),
             conditional: self.conditional.clone(),
+            spill_child: self.spill_child(),
         })
     }
 }

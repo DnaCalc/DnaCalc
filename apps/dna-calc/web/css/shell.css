@@ -64,6 +64,7 @@ html,body{height:100%}
 .dc-result[open]>summary::before{content:'▾'}
 .dc-result-state{font-size:11px;font-weight:700;border:1px solid var(--dna-ink-3);border-radius:4px;padding:3px 6px;white-space:nowrap;color:var(--dna-ink);background:var(--dna-paper-2)}
 .dc-result-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dna-ink-2)}
+.dc-spill-child{font-size:12px;color:var(--dna-ink-2);min-width:0;overflow-wrap:anywhere}
 .dc-result-body{padding:0 12px 10px 30px;max-height:140px;overflow:auto;line-height:1.4}
 .dc-result-body p{margin:5px 0;overflow-wrap:anywhere}
 .dc-result-body button,.dc-replace button{font:inherit;padding:7px 10px;border:1px solid var(--dna-ink-3);border-radius:4px;color:var(--dna-ink);background:var(--dna-paper-2);cursor:pointer}

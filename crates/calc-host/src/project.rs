@@ -6,7 +6,7 @@
 
 use crate::recalc::RecalcFailed;
 use crate::state::HostState;
-use calc_doc_model::value::{CalcValue, CellKey, SheetId};
+use calc_doc_model::value::{CalcValue, CellKey, GridArea, SheetId};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached};
 use calc_engine::{Calculation, FormulaResult, NotModeled};
 use std::fmt;
@@ -106,12 +106,20 @@ pub enum ProjectedValue {
     Stale(StaleValue),
 }
 
+/// The extent of a current dynamic-array result or blocked attempt.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectedSpill {
+    Filled(GridArea),
+    Blocked(GridArea),
+}
+
 /// One projected cell.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectedCell {
     at: CellKey,
     input: Option<CellInput>,
     value: ProjectedValue,
+    spill: Option<ProjectedSpill>,
     /// A format-only edit must travel through the same subscription delta as a value edit.
     format: u32,
 }
@@ -123,6 +131,7 @@ impl ProjectedCell {
             at,
             input: None,
             value: ProjectedValue::Empty,
+            spill: None,
             format: 0,
         }
     }
@@ -138,6 +147,10 @@ impl ProjectedCell {
 
     pub fn value(&self) -> &ProjectedValue {
         &self.value
+    }
+
+    pub fn spill(&self) -> Option<ProjectedSpill> {
+        self.spill
     }
 }
 
@@ -262,10 +275,26 @@ pub fn project(
                         }
                     }
                 };
+            let spill = if let ProjectedValue::Calculated { value, .. } = &value {
+                let attempt = matches!(
+                    value.core_ref(),
+                    calc_value::CoreRef::Error(calc_value::WorksheetErrorCode::Spill)
+                )
+                .then(|| host.engine.blocked_spill_area(at))
+                .flatten();
+                host.engine
+                    .spill_covering(at)
+                    .filter(|spill| !spill.is_fixed())
+                    .map(|spill| ProjectedSpill::Filled(spill.area()))
+                    .or_else(|| attempt.map(ProjectedSpill::Blocked))
+            } else {
+                None
+            };
             ProjectedCell {
                 at,
                 input,
                 value,
+                spill,
                 format: host.cell_style(at),
             }
         })

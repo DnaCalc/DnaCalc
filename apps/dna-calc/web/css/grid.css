@@ -23,6 +23,8 @@
 .dc-selection{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
 .dc-selection-shade{position:absolute;background:rgb(0 0 0 / .12);pointer-events:none}
 .dc-active{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
+.dc-spill-outline{position:absolute;box-sizing:border-box;border:2px solid var(--dna-accent-ink);pointer-events:none}
+.dc-spill-outline[data-state=blocked]{border-style:dashed;border-color:var(--dna-red-ink)}
 .dc-copy-outline,.dc-fill-preview{position:absolute;box-sizing:border-box;border:2px dashed var(--dna-accent);pointer-events:none}
 .dc-copy-outline[data-cut=true]{border-color:var(--dna-red-ink)}
 .dc-fill-preview{background:var(--dna-accent-soft)}

@@ -300,6 +300,7 @@ mod tests {
             why: "calculated".into(),
             owner: None,
             error_meaning: None,
+            spill: None,
             exact: None,
         }
     }

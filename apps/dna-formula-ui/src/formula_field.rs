@@ -533,6 +533,27 @@ impl FormulaAssist {
         self.field_named(diagnostics, on_key, rows, placeholder, None)
     }
 
+    /// The same editor with native read-only behavior for a displayed value.
+    pub fn field_with_read_only(
+        self,
+        diagnostics: Signal<Vec<TextSpan>>,
+        on_key: Option<Callback<leptos::ev::KeyboardEvent>>,
+        rows: u32,
+        placeholder: &'static str,
+        read_only: Signal<bool>,
+    ) -> impl IntoView {
+        self.field_inner(
+            diagnostics,
+            on_key,
+            rows,
+            placeholder,
+            None,
+            "Formula".into(),
+            false,
+            Some(read_only),
+        )
+    }
+
     /// The same field with an application role for an in-cell editor.
     pub fn field_named(
         self,
@@ -569,6 +590,7 @@ impl FormulaAssist {
             cell_role,
             label,
             false,
+            None,
         )
     }
 
@@ -591,6 +613,7 @@ impl FormulaAssist {
             None,
             "Formula".into(),
             true,
+            None,
         )
     }
 
@@ -633,6 +656,7 @@ impl FormulaAssist {
         cell_role: Option<&'static str>,
         label: String,
         anchored: bool,
+        read_only: Option<Signal<bool>>,
     ) -> impl IntoView {
         // The highlight and the bracket pair are this field's own: kept out of the struct, which
         // views copy into every closure (DNA Calc's command bar mounts near the wasm stack's size).
@@ -684,7 +708,7 @@ impl FormulaAssist {
                     aria-label=label
                     placeholder=placeholder
                     prop:value=move || text.get()
-                    prop:readOnly=move || self.readonly.get()
+                    prop:readOnly=move || self.readonly.get() || read_only.is_some_and(|r| r.get())
                     on:input=move |_| self.sync_from_field(true)
                     on:compositionstart=move |_| {
                         self.composing.set(true);
@@ -695,6 +719,9 @@ impl FormulaAssist {
                         self.sync_from_field(true);
                     }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                        if read_only.is_some_and(|r| r.get_untracked()) {
+                            return;
+                        }
                         if self.readonly.get_untracked() {
                             ev.prevent_default();
                             ev.stop_propagation();

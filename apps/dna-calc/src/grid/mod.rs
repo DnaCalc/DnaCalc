@@ -2460,6 +2460,42 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
+    let active_spill = Memo::new(move |_| controller.active_cell().and_then(|cell| cell.spill));
+    let spill_outline = move || {
+        active_spill
+            .get()
+            .and_then(|spill| {
+                let (area, state) = match spill {
+                    wire::SpillView::Filled(area) => (area, "filled"),
+                    wire::SpillView::Blocked(area) => (area, "blocked"),
+                };
+                Some((area.area()?, state))
+            })
+            .map(|(area, state)| {
+                let label = format!(
+                    "{}:{}",
+                    cells::address(area.first().row(), area.first().column()),
+                    cells::address(area.last().row(), area.last().column())
+                );
+                panes
+                    .get()
+                    .area_rects(area, &metrics.get(), &viewport.get())
+                    .into_iter()
+                    .map(|rect| {
+                        view! {
+                            <div
+                                class="dc-spill-outline"
+                                data-dnacalc="spill-outline"
+                                data-area=label.clone()
+                                data-state=state
+                                aria-hidden="true"
+                                use:css=rect_style(&rect)
+                            ></div>
+                        }
+                    })
+                    .collect_view()
+            })
+    };
     let copy_outline = move || {
         controller
             .clipboard
@@ -3015,7 +3051,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
-    let review_markers = RwSignal::new(Vec::<(wire::Key, String)>::new());
+    let review_markers = RwSignal::new(Vec::<wire::ReviewMarker>::new());
     Effect::new(move |_| {
         let revision = controller.revision.get();
         let generation = controller.generation.get();
@@ -3043,8 +3079,8 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
         review_markers
             .get()
             .into_iter()
-            .filter_map(|(key, kind)| {
-                let at = key.cell()?;
+            .filter_map(|marker| {
+                let at = marker.at.cell()?;
                 let rect = p.rect(&m, &v, at.row(), at.column());
                 let (fw, fh) = p.size(&m);
                 if rect.w <= 0.0
@@ -3058,7 +3094,12 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                 {
                     return None;
                 }
-                let label = format!("{kind} on {}", controller.cell_label(at));
+                let label = format!("{} on {}", marker.kind, controller.cell_label(at));
+                let title = if marker.preview.is_empty() {
+                    label.clone()
+                } else {
+                    format!("{label}: {}", marker.preview)
+                };
                 Some(view! {
                     <button
                         type="button"
@@ -3069,7 +3110,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                             dna_formula_ui::display::column_letters(at.column()),
                             at.row(),
                         )
-                        title=label.clone()
+                        title=title
                         aria-label=label
                         use:css=format!("left:{};top:{}", px(rect.x + rect.w - 14.0), px(rect.y))
                         on:mousedown=move |ev| ev.stop_propagation()
@@ -3657,6 +3698,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                         {markers_view}
                         {invalid_view}
                         {selection_view}
+                        {spill_outline}
                         {active_view}
                         {copy_outline}
                         {filter_headers}

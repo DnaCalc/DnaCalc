@@ -161,6 +161,12 @@ pub fn shown(
         format,
         color,
         conditional: None,
+        spill_child: match cell.spill() {
+            Some(calc_host::ProjectedSpill::Filled(area)) if area.first() != cell.at() => {
+                Some(area.first())
+            }
+            _ => None,
+        },
     }
 }
 

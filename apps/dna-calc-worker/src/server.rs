@@ -1363,31 +1363,48 @@ impl Server {
                 Request::Review(at) => Ok(Reply::Review(self.review(cell(at)?))),
                 Request::ReviewMarkers(sheet) => {
                     let review = self.book.host().sheet_review(sheet.id());
-                    let mut markers: BTreeMap<Key, String> = BTreeMap::new();
-                    for note in review.notes.into_iter().filter(|n| !n.compatibility) {
+                    let mut markers: BTreeMap<Key, (String, &str)> = BTreeMap::new();
+                    for note in review.notes.iter().filter(|n| !n.compatibility) {
+                        let kind = if note.source.as_ref().is_some_and(|s| s.threaded()) {
+                            "Comment"
+                        } else {
+                            "Note"
+                        };
                         markers
                             .entry(Key::of(note.at))
-                            .and_modify(|label| {
-                                if note.source.as_ref().is_some_and(|s| s.threaded()) {
+                            .and_modify(|(label, preview)| {
+                                if label != kind {
                                     *label = "Comment and note".into();
                                 }
-                            })
-                            .or_insert_with(|| {
-                                if note.source.as_ref().is_some_and(|s| s.threaded()) {
-                                    "Comment".into()
-                                } else {
-                                    "Note".into()
+                                if preview.is_empty() {
+                                    *preview = note.text.trim();
                                 }
-                            });
+                            })
+                            .or_insert_with(|| (kind.into(), note.text.trim()));
                     }
                     for link in review.links {
                         markers
                             .entry(Key::of(link.area.first()))
-                            .and_modify(|s| s.push_str(" and link"))
-                            .or_insert_with(|| "Link".into());
+                            .and_modify(|(label, _)| {
+                                if !label.ends_with(" and link") {
+                                    label.push_str(" and link");
+                                }
+                            })
+                            .or_insert_with(|| ("Link".into(), ""));
                     }
                     Ok(Reply::ReviewMarkers(
-                        markers.into_iter().take(5000).collect(),
+                        markers
+                            .into_iter()
+                            .take(5000)
+                            .map(|(at, (kind, text))| {
+                                let mut chars = text.chars();
+                                let mut preview: String = chars.by_ref().take(240).collect();
+                                if chars.next().is_some() {
+                                    preview.push('…');
+                                }
+                                wire::ReviewMarker { at, kind, preview }
+                            })
+                            .collect(),
                     ))
                 }
                 Request::PageSetup(sheet) => Ok(Reply::PageSetup(crate::printing::settings(

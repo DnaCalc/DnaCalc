@@ -35,8 +35,8 @@ pub struct PlanOptions<'a> {
     pub measure: Option<&'a dyn Fn(&CellShown, &str) -> Option<f64>>,
 }
 
-/// Permission to begin editing, as the host preflight checked this published sheet.
-/// Array, spill, validation and transaction rules still apply when an edit commits.
+/// Permission to begin editing from the published sheet and spill state.
+/// Validation and transaction rules still apply when an edit commits.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct Editability {
     pub checked: bool,
@@ -44,11 +44,17 @@ pub struct Editability {
     pub refusal: Option<String>,
 }
 impl Editability {
-    fn from_geometry(geometry: Option<&crate::projection::Geometry>) -> Self {
+    fn for_cell(
+        geometry: Option<&crate::projection::Geometry>,
+        spill_child: Option<calc_value::CellKey>,
+    ) -> Self {
+        let refusal = spill_child
+            .map(crate::projection::spill_child_message)
+            .or_else(|| geometry.and_then(|g| g.edit_refusal.clone()));
         Self {
-            checked: geometry.is_some(),
-            can_begin: geometry.is_some_and(|g| g.edit_refusal.is_none()),
-            refusal: geometry.and_then(|g| g.edit_refusal.clone()),
+            checked: geometry.is_some() || spill_child.is_some(),
+            can_begin: geometry.is_some() && refusal.is_none(),
+            refusal,
         }
     }
 }
@@ -179,6 +185,7 @@ pub fn build_render_plan_with<'a>(
             format: crate::projection::FormatShown::General,
             color: None,
             conditional: None,
+            spill_child: None,
         })
         .collect();
     cells.extend(empty.iter());
@@ -235,7 +242,7 @@ pub fn build_render_plan_with<'a>(
                 boundary,
                 row_span: merged.map_or(1, |a| a.row_count()),
                 col_span: merged.map_or(1, |a| a.column_count()),
-                editability: Editability::from_geometry(options.geometry),
+                editability: Editability::for_cell(options.geometry, shown.spill_child),
                 text_advance: measured.unwrap_or_else(|| {
                     let (left, right) = text_insets(m.scale);
                     text_width(&shown.text, m) - left - right
@@ -795,6 +802,7 @@ mod tests {
             format: crate::projection::FormatShown::General,
             color: None,
             conditional: None,
+            spill_child: None,
         }
     }
 
@@ -1288,7 +1296,8 @@ impl RenderPlan {
                     if merged.is_some() {
                         label.push_str(&format!(", spans {row_span} rows, {col_span} columns"));
                     }
-                    let editability = Editability::from_geometry(geometry);
+                    let editability =
+                        Editability::for_cell(geometry, cell.and_then(|cell| cell.spill_child()));
                     if let Some(reason) = &editability.refusal {
                         label.push_str(", read only: ");
                         label.push_str(reason);
@@ -1486,6 +1495,7 @@ mod layout_tests {
             format: crate::projection::FormatShown::General,
             color: None,
             conditional: None,
+            spill_child: None,
         }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]

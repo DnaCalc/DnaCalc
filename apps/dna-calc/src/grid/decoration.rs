@@ -411,6 +411,7 @@ mod brush_tests {
             format: FormatShown::General,
             color: None,
             conditional: None,
+            spill_child: None,
         };
         let mut cell = build_render_plan(
             &[shown],
@@ -493,6 +494,7 @@ mod brush_tests {
             format: FormatShown::General,
             color: None,
             conditional: None,
+            spill_child: None,
         };
         let mut cell = build_render_plan(
             &[shown],

@@ -234,6 +234,10 @@ mod tests {
             why: "calculated".into(),
             owner: None,
             error_meaning: None,
+            spill: Some(crate::SpillView::Filled(crate::Area(
+                Key(0, 0, 1, 1),
+                Key(0, 0, 3, 2),
+            ))),
             exact: None,
         };
         let mut second = c.clone();

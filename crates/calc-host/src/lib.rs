@@ -171,7 +171,8 @@ pub use copy::{COPY_LIMIT, CopyRefusal, CopySnapshot, PasteMode, check_destinati
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
-    ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
+    ProjectedCell, ProjectedSpill, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest,
+    StaleCause,
     StaleValue, project,
 };
 pub use recalc::{

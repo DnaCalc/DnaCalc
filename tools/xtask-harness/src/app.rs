@@ -4194,6 +4194,10 @@ mod tests {
                         | "chart-element-text"
                         | "saved-pivots"
                         | "wheel-zoom"
+                        | "go-to-special"
+                        | "fill-handle-copy"
+                        | "classic-spill"
+                        | "classic-merge"
                 )
             })
             .map(|group| group.core)
@@ -4212,6 +4216,10 @@ mod tests {
                         | "chart-element-text"
                         | "saved-pivots"
                         | "wheel-zoom"
+                        | "go-to-special"
+                        | "fill-handle-copy"
+                        | "classic-spill"
+                        | "classic-merge"
                 )
             })
             .map(|group| group.core)
@@ -4225,8 +4233,8 @@ mod tests {
             "the twelve page-layout cases extend all 409 inherited core cases"
         );
         assert_eq!(
-            current_total, 461,
-            "chart, pivot and wheel zoom cases extend all 421 inherited core cases"
+            current_total, 472,
+            "chart, pivot and Classic grid cases extend all 421 inherited core cases"
         );
     }
 
