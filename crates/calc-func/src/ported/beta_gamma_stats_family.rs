@@ -76,22 +76,6 @@ pub(crate) fn beta_dist_kernel(
     let width = excel_x87_sub(upper, lower);
     let z = excel_x87_div(excel_x87_sub(x, lower), width);
     if cumulative {
-        // In the measured tiny-second-shape continued-fraction region, the
-        // gamma tail's 1e-30 floor survives the twenty-step recurrence. Only
-        // use its stored exponential when z * (1 / z) is exactly one; the
-        // rounded-down cases need further work. The shape and beta limits
-        // bound this arm to the independent controls.
-        if lower == 0.0 && upper == 1.0 && z > 0.7 && z < 1.0
-            && (0.1..=15.0).contains(&alpha) && alpha != 1.0
-            && (f64::MIN_POSITIVE..=2.0_f64.powi(-180)).contains(&beta)
-        {
-            use crate::ported::excel_numeric::{excel_exp, excel_log, excel_x87_div, excel_x87_mul};
-            let nu = (alpha + 20.0) - 0.5;
-            let t = -excel_x87_mul(nu, excel_log(z));
-            if t >= 1.1 && excel_x87_mul(t, excel_x87_div(1.0, t)) == 1.0 {
-                return Ok(excel_x87_mul(1e-30, excel_exp(-t)));
-            }
-        }
         // Excel's continued-fraction arm returns NUM when the larger shape
         // absorbs a smaller shape of at least 40, within this coordinate
         // region. The adjacent shape and coordinate boundaries are measured.
@@ -174,14 +158,8 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
     );
     let log_beta = || crate::ported::special_math_common::excel_ln_beta(a, b);
     if base <= 0.0 {
-        // At an overflowing cube Excel starts at the midpoint. A zero
-        // midpoint density publishes 0.5. The finite-density controls return NUM.
         if !(base * base * base).is_finite() {
-            return Some(if beta_dist_kernel(0.5, a, b, false, 0.0, 1.0) == Ok(0.0) {
-                BetaStart::Interior(0.5)
-            } else {
-                BetaStart::Failed
-            });
+            return Some(BetaStart::Interior(0.5));
         }
         let t = excel_x87_div(
             excel_x87_add(
@@ -191,7 +169,9 @@ fn beta_inverse_start(p: f64, a: f64, b: f64) -> Option<BetaStart> {
             b,
         );
         let x = excel_x87_sub(1.0, excel_exp(t));
-        return if x == 1.0 {
+        return if !x.is_finite() {
+            Some(BetaStart::Interior(0.5))
+        } else if x == 1.0 {
             Some(BetaStart::UpperEndpoint)
         } else if x <= 0.0 {
             Some(BetaStart::LowerEndpoint)
@@ -257,9 +237,6 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     // from its floor and truncation. Both tails use an absolute correction.
     let exponent = (-13.0 - 5.0 / (a * a) - libm::pow(p, -0.2)).max(-150.0);
     let tolerance = libm::pow(10.0, exponent).min(f64::EPSILON);
-    // If the shape sum absorbs a, b*x retains the gamma limit of I_x(a,b).
-    // Its Newton correction is in units of b*x and must be divided by b.
-    let gamma_limit = matches!(start, BetaStart::LowerPower(_)) && b + a == b;
     let mut last_correction = 0.0;
     let mut last_adjustment: f64 = 1.0;
     let mut step_limit = f64::INFINITY;
@@ -267,23 +244,10 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
     let mut best_err = f64::INFINITY;
     let mut trials = 0;
     loop {
-        let (cdf, density) = if gamma_limit {
-            let u = excel_x87_mul(b, x);
-            let dens = gamma_dist_kernel(u, a, 1.0, false).and_then(|d| {
-                if excel_x87_mul(b, d).is_finite() {
-                    Ok(d)
-                } else {
-                    Err(WorksheetErrorCode::Num)
-                }
-            });
-            (gamma_dist_kernel(u, a, 1.0, true), dens)
-        } else {
-            (
-                beta_dist_kernel(x, a, b, true, 0.0, 1.0),
-                beta_dist_kernel(x, a, b, false, 0.0, 1.0),
-            )
-        };
-        let (Ok(cdf), Ok(density)) = (cdf, density) else {
+        let (Ok(cdf), Ok(density)) = (
+            beta_dist_kernel(x, a, b, true, 0.0, 1.0),
+            beta_dist_kernel(x, a, b, false, 0.0, 1.0),
+        ) else {
             return Err(WorksheetErrorCode::Num);
         };
         let df = excel_x87_sub(cdf, p);
@@ -292,13 +256,16 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             best_err = err_df;
             best_x = x;
         }
-        if density == 0.0 || err_df == 0.0 {
+        let dens_zero = density == 0.0
+            || ((a < 1.0 || b < 1.0)
+                && flush_subnormal(excel_x87_mul(
+                    excel_x87_mul(x, excel_x87_sub(1.0, x)),
+                    density,
+                )) == 0.0);
+        if dens_zero || err_df == 0.0 {
             return Ok(Some(best_x));
         }
-        let mut correction = excel_x87_div(df, density);
-        if gamma_limit {
-            correction = excel_x87_div(correction, b);
-        }
+        let correction = excel_x87_div(df, density);
         if !correction.is_finite() || correction.abs() <= tolerance {
             return Ok(Some(best_x));
         }
@@ -318,7 +285,11 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
             }
             trials += 1;
             if trials >= MAX_TRIALS {
-                return Err(WorksheetErrorCode::Num);
+                return if best_err <= 1e-12 * p {
+                    Ok(Some(best_x))
+                } else {
+                    Err(WorksheetErrorCode::Num)
+                };
             }
             let next = excel_x87_sub(x, last_adjustment);
             if next > 0.0 && next < 1.0 {

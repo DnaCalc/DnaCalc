@@ -35,54 +35,10 @@ fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {
     Ok(found)
 }
 
-/// Excel 20527 rejects this lost-addend region for both inverse-beta spellings.
 fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let [p, alpha, beta] = nums::<3>(site, a)?;
     let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
     let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
-    // Excel 20527 returns NUM for reflected inverses throughout this measured
-    // tiny-second-shape region, including non-unit bounds and both aliases.
-    if p > 0.5 && p < 1.0 && (0.001..=1000.0).contains(&alpha)
-        && (f64::MIN_POSITIVE..=2.0_f64.powi(-25)).contains(&beta)
-        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
-    {
-        return fail(WorksheetErrorCode::Num);
-    }
-    // When the large second shape absorbs the first, Excel's reflected
-    // inverse search reports NUM throughout this measured shape range.
-    if p > 0.5 && p < 1.0 && (10.0..=2.0_f64.powi(20)).contains(&alpha)
-        && beta > 0.0 && beta <= 2.0_f64.powi(1000) && beta + alpha == beta
-        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
-    {
-        return fail(WorksheetErrorCode::Num);
-    }
-    // In the upper-probability search, Excel rejects this measured region:
-    // beta retains one but absorbs even twice alpha's excess over one.
-    // Near the rounding midpoint, both numerical and NUM results occur.
-    if p > 0.5 && p < 1.0 && alpha > 1.0 && alpha.is_finite() && beta > 1.0 && beta.is_finite()
-        && lower.is_finite() && upper.is_finite() && upper > lower && (upper - lower).is_finite()
-        && (beta + 1.0) - beta == 1.0 && beta + alpha == beta + 1.0
-        && beta + 2.0 * (alpha - 1.0) == beta
-    {
-        return fail(WorksheetErrorCode::Num);
-    }
-    if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha.is_finite() && alpha > 0.0 && beta.is_finite()
-        && lower.is_finite() && upper.is_finite()
-        && beta > 1.0 && alpha + beta == alpha
-    {
-        return fail(WorksheetErrorCode::Num);
-    }
-    // For separated, tiny first shapes, Excel rejects the inverse when the
-    // unit-density at its measured 1e-6 starting point remains normal. The
-    // zero-density arm has different behavior and stays with the solver.
-    if p >= f64::MIN_POSITIVE && p <= 0.5 && alpha >= f64::MIN_POSITIVE
-        && 1.0 + alpha == 1.0 && beta.is_finite() && beta >= 2.0 * alpha
-        && lower.is_finite() && upper.is_finite()
-        && bg::beta_dist_kernel(1e-6, alpha, beta, false, 0.0, 1.0)
-            .is_ok_and(|density| density >= f64::MIN_POSITIVE)
-    {
-        return fail(WorksheetErrorCode::Num);
-    }
     out(site, bg::beta_inv_kernel(p, alpha, beta, lower, upper))
 }
 

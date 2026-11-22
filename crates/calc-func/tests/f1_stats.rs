@@ -6660,3 +6660,134 @@ fn dc_iuwct_62_linest_gross_intercept_se_rows_match_excel() {
         );
     }
 }
+
+/// Excel 16.0.20527 (dc-j9k.84 / cb14): unified AS 109 / bratio beta inverse and tiny-shape
+/// substrate covering:
+/// 1. Direct `beta_dist_kernel` Newton evaluation without `gamma_limit` diversion (dc-j9k.55).
+/// 2. Unified `base <= 0` midpoint `0.5`, `700`-trial `best_err <= 1e-12 * p` publication
+///    (dc-ymjf.2.47), `a < 1 || b < 1` subnormal `x*(1-x)*density` zeroing (dc-ymjf.2.38.2),
+///    and natural `#NUM!` without hardcoded bounding boxes in `distributions.rs`.
+/// 3. Subnormal `LowerPower` `xb = flush_subnormal(x0 * b0)` split in `bratio` (dc-ymjf.2.38).
+/// 4. Removal of `bratio_fpser`/`bratio_apser` and the tiny-`b` bounding box (dc-j9k.45).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_84_cb14_unified_beta_inverse_and_tiny_shape_substrate() {
+    // 1. No gamma_limit diversion in beta_newton_lower (cb14 unseen holdout h1-glim).
+    for (name, p, a, b, want) in [
+        ("BETA.INV", 0x3fb6666666666666_u64, 0x3fb5c28f5c28f5c3_u64, 0x440a000000000000_u64, 0x393294e2865874db_u64),
+        ("BETAINV",  0x3fb6666666666666,     0x3fb5c28f5c28f5c3,     0x440a000000000000,     0x393294e2865874db),
+        ("BETA.INV", 0x3fc8a3d70a3d70a4,     0x3fc28f5c28f5c28f,     0x4592000000000000,     0x393b2f4a8d29c7ea),
+        ("BETA.INV", 0x3fd4000000000000,     0x3fce147ae147ae14,     0x477c000000000000,     0x37e640cc78a28a83),
+        ("BETA.INV", 0x3cf52abb27830526,     0x3fe2666666666666,     0x4544000000000000,     0x35687546b10f1983),
+        ("BETAINV",  0x3b0c0c0d5ece020c,     0x3fe7333333333333,     0x46dc000000000000,     0x3241ee0054ed7fab),
+        ("BETA.INV", 0x3f9916872b020c4a,     0x3fc8f5c28f5c28f6,     0x44a4cccccccccccd,     0x3977937e32bd043d),
+        ("BETA.INV", 0x3fb147ae147ae148,     0x3fd23d70a3d70a3d,     0x45eb333333333333,     0x39109ef3f56fd660),
+    ] {
+        exact(
+            call(name, vec![n(f64::from_bits(p)), n(f64::from_bits(a)), n(f64::from_bits(b))]),
+            f64::from_bits(want),
+        );
+    }
+
+    // 2a. base <= 0 !x.is_finite() -> 0.5 and 700-trial exhaustion best_err <= 1e-12 * p_work
+    //     (cb14 unseen holdout h2-mid, h3-sym, h3-asym).
+    for (name, p, a, b, lo_hi, want) in [
+        ("BETA.INV", 0x3fe0000000000000_u64, 0x2f58a9ac84b164ae_u64, 0x2f58a9ac84b164ae_u64, None, Some(0x3fe0000000000000_u64)),
+        ("BETAINV",  0x3fdffffffffff1ed,     0x2f58a9ac84b164ae,     0x2f58a9ac84b164ae,     Some((0xc008000000000000, 0x4022000000000000)), Some(0x4008000000000000)),
+        ("BETA.INV", 0x3fe0000000000709,     0x3286bf5935fdfc4c,     0x3286bf5935fdfc4c,     Some((0x4010000000000000, 0x4028000000000000)), Some(0x4020000000000000)),
+        ("BETA.INV", 0x3fcffffffffff1ed,     0x3075b605314ad5c2,     0x305cf2b1970e7258,     None, Some(0x3fe0000000000000)),
+        ("BETAINV",  0x3fe8000000000385,     0x3075b605314ad5c2,     0x305cf2b1970e7258,     Some((0xc024000000000000, 0x4000000000000000)), None),
+        ("BETA.INV", 0x3fdfffffffffdddf,     0x2e6483bbbe8fbccf,     0x2e6483bbbe8fbccf,     None, Some(0x3fe0000000000000)),
+        ("BETA.INV", 0x3fdfffffffffdbc3,     0x2e6483bbbe8fbccf,     0x2e6483bbbe8fbccf,     None, None),
+        ("BETAINV",  0x3fe0000000001110,     0x2e6483bbbe8fbccf,     0x2e6483bbbe8fbccf,     None, Some(0x3fe0000000000000)),
+        ("BETAINV",  0x3fe000000000121f,     0x2e6483bbbe8fbccf,     0x2e6483bbbe8fbccf,     None, None),
+        ("BETA.INV", 0x3fe8000000000818,     0x327288f35b66a7a7,     0x328bcd6d0919fb7a,     None, Some(0x3fe0000000000000)),
+        ("BETAINV",  0x3fe7fffffffff7e8,     0x327288f35b66a7a7,     0x328bcd6d0919fb7a,     None, Some(0x3eb0c6f7a0b80000)),
+        ("BETA.INV", 0x3fe8000000000980,     0x327288f35b66a7a7,     0x328bcd6d0919fb7a,     None, None),
+        ("BETA.INV", 0x3fd000000000102f,     0x328bcd6d0919fb7a,     0x327288f35b66a7a7,     Some((0xc000000000000000, 0x4020000000000000)), Some(0x401ffffd60e94ee4)),
+        ("BETAINV",  0x3fcfffffffffdfa1,     0x328bcd6d0919fb7a,     0x327288f35b66a7a7,     Some((0xc000000000000000, 0x4020000000000000)), Some(0x4008000000000000)),
+        ("BETA.INV", 0x3fd0000000001300,     0x328bcd6d0919fb7a,     0x327288f35b66a7a7,     Some((0xc000000000000000, 0x4020000000000000)), None),
+    ] {
+        let mut args = vec![n(f64::from_bits(p)), n(f64::from_bits(a)), n(f64::from_bits(b))];
+        if let Some((lo, hi)) = lo_hi {
+            args.push(n(f64::from_bits(lo)));
+            args.push(n(f64::from_bits(hi)));
+        }
+        match want {
+            Some(bits) => exact(call(name, args), f64::from_bits(bits)),
+            None => error(call(name, args), Num),
+        }
+    }
+
+    // 2b. Tiny-second-shape midpoint publication when x*(1-x)*density flushes subnormal
+    //     for a < 1 || b < 1 (cb14 probe1 q4-eb100 & unseen holdout h2-brc).
+    for (name, p, a, b, lo_hi, want) in [
+        ("BETA.INV", 0x3fd142e8aa838d27_u64, 0x4076d00000000000_u64, 0x16ccc28cd3b63796_u64, None, Some(0x3fe0000000000000_u64)),
+        ("BETA.INV", 0x3fd142e8aa838d27,     0x4076d00000000000,     0x16de32ad77e5ba5e,     None, Some(0x3fe0000000000000)),
+        ("BETA.INV", 0x3fd142e8aa838d27,     0x4076d00000000000,     0x16e0897760225ff6,     None, None),
+        ("BETA.INV", 0x3fcb851eb851eb85,     0x4075400000000000,     0x1544cccccccccbac,     None, Some(0x3fe0000000000000)),
+        ("BETAINV",  0x3fcb851eb851eb85,     0x4075400000000000,     0x1544cccccccccbac,     None, Some(0x3fe0000000000000)),
+        ("BETA.INV", 0x3fd570a3d70a3d71,     0x4078600000000000,     0x1864cccccccccc82,     Some((0xc010000000000000, 0x4028000000000000)), Some(0x4010000000000000)),
+        ("BETAINV",  0x3fd570a3d70a3d71,     0x4078600000000000,     0x1864cccccccccc82,     Some((0xc010000000000000, 0x4028000000000000)), Some(0x4010000000000000)),
+    ] {
+        let mut args = vec![n(f64::from_bits(p)), n(f64::from_bits(a)), n(f64::from_bits(b))];
+        if let Some((lo, hi)) = lo_hi {
+            args.push(n(f64::from_bits(lo)));
+            args.push(n(f64::from_bits(hi)));
+        }
+        match want {
+            Some(bits) => exact(call(name, args), f64::from_bits(bits)),
+            None => error(call(name, args), Num),
+        }
+    }
+
+    // 3. Subnormal LowerPower seed xb = flush_subnormal(x0 * b0) split in bratio
+    //    (cb14 probe1 q2-bsweep & unseen holdout h5-xb / h5-b1).
+    for (name, p, a, b, lo_hi, want) in [
+        ("BETA.INV", 0x3fdf5c28f5c28f5c_u64, 0x3f50624dd2f1a9fc_u64, 0x3fefffffffffffff_u64, None, Some(0x0000000000000000_u64)),
+        ("BETA.INV", 0x3fdf5c28f5c28f5c,     0x3f50624dd2f1a9fc,     0x3ff0000000000000,     None, Some(0x0000000000000000)),
+        ("BETA.INV", 0x3fdf5c28f5c28f5c,     0x3f50624dd2f1a9fc,     0x3ff0000000000001,     None, None),
+        ("BETA.INV", 0x3fde6e3b6d703c71,     0x3f513404ea4a8c15,     0x4004000000000000,     None, None),
+        ("BETA.INV", 0x3fde6e3b6d703c92,     0x3f513404ea4a8c15,     0x4004000000000000,     None, Some(0x0000000000000000)),
+        ("BETA.INV", 0x3fe0c8e24947e1e0,     0x4004000000000000,     0x3f513404ea4a8c15,     None, None),
+        ("BETAINV",  0x3fe0c8e24947e19f,     0x4004000000000000,     0x3f513404ea4a8c15,     None, Some(0x3ff0000000000000)),
+        ("BETA.INV", 0x3fc245ef6af1a73f,     0x3f66872b020c49ba,     0x4030000000000000,     Some((0xc014000000000000, 0x4014000000000000)), None),
+        ("BETA.INV", 0x3fc245ef6af1a760,     0x3f66872b020c49ba,     0x4030000000000000,     Some((0xc014000000000000, 0x4014000000000000)), Some(0xc014000000000000)),
+        ("BETAINV",  0x3fdf333333333333,     0x3f508c3f3e0370ce,     0x3ff0000000000000,     None, Some(0x0000000000000000)),
+        ("BETAINV",  0x3fdf333333333333,     0x3f508c3f3e0370ce,     0x3ff0000000000001,     None, None),
+    ] {
+        let mut args = vec![n(f64::from_bits(p)), n(f64::from_bits(a)), n(f64::from_bits(b))];
+        if let Some((lo, hi)) = lo_hi {
+            args.push(n(f64::from_bits(lo)));
+            args.push(n(f64::from_bits(hi)));
+        }
+        match want {
+            Some(bits) => exact(call(name, args), f64::from_bits(bits)),
+            None => error(call(name, args), Num),
+        }
+    }
+
+    // 4. Removal of bratio_fpser / bratio_apser and tiny-b bounding box
+    //    (cb14 probe1 q4-apser & unseen holdout h6-noap / h6-nofp).
+    for (name, x, a, b, lo_hi, want) in [
+        ("BETA.DIST", 0x3fec000000000000_u64, 0x3fd0000000000000_u64, 0x36cb15789abcdef0_u64, None, 0x397738d157589634_u64),
+        ("BETA.DIST", 0x3fec000000000000,     0x4008000000000000,     0x36cb15789abcdef0,     None, 0x397015c1bbc3afb4),
+        ("BETA.DIST", 0x3fea000000000000,     0x3fd6666666666666,     0x3827d1dc29f529c8,     None, 0x39550d5bbeef7679),
+        ("BETADIST",  0x3fea000000000000,     0x3fd6666666666666,     0x3827d1dc29f529c8,     None, 0x39550d5bbeef7679),
+        ("BETA.DIST", 0x4004a3d70a3d70a4,     0x4013000000000000,     0x2d70e84b465ecbc6,     Some((0xbff0000000000000, 0x4008000000000000)), 0x397606d17e9762b8),
+        ("BETA.DIST", 0x3fb0000000000000,     0x3fc3333333333333,     0x36aed41bdd0ad013,     None, 0x36d117a65899fa26),
+        ("BETADIST",  0x3fb0000000000000,     0x3fc3333333333333,     0x36aed41bdd0ad013,     None, 0x36d117a65899fa26),
+        ("BETA.DIST", 0x0010000000000000,     0x3fd199999999999a,     0x350f6a895e8456c2,     None, 0x239b96580910cf60),
+        ("BETADIST",  0x3fec000000000000,     0x3fed70a3d70a3d71,     0x3308063ce2a70ec2,     Some((0x0000000000000000, 0x4010000000000000)), 0x32ecf954ce3336d0),
+    ] {
+        let mut args = vec![n(f64::from_bits(x)), n(f64::from_bits(a)), n(f64::from_bits(b))];
+        if name == "BETA.DIST" {
+            args.push(f1_support::b(true));
+        }
+        if let Some((lo, hi)) = lo_hi {
+            args.push(n(f64::from_bits(lo)));
+            args.push(n(f64::from_bits(hi)));
+        }
+        exact(call(name, args), f64::from_bits(want));
+    }
+}
