@@ -42,5 +42,127 @@
     "Sheet1!N2",
     "Sheet1!N2#"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "4e263d0a0cc54372067e4b884bf027fc5fa3ebc548caddc09f8174eaddac7162",
+    "excel_build": "16.0.20527.20196",
+    "capture": "oracle.capture.json",
+    "targets": {
+      "Sheet1!N2": {
+        "text": "0070"
+      },
+      "Sheet1!N2#": {
+        "array": {
+          "rows": 7,
+          "columns": 5,
+          "cells": [
+            {
+              "text": "0070"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "007200650064"
+            },
+            {
+              "text": "0070"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "007200650064"
+            },
+            {
+              "text": "0071"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "0062006c00750065"
+            },
+            {
+              "text": "0071"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "0067007200650065006e"
+            },
+            {
+              "text": "0070"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "00790065006c006c006f0077"
+            },
+            {
+              "text": "0072"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "00700069006e006b"
+            },
+            {
+              "text": "0073"
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": ""
+            },
+            {
+              "text": "006c0069006c00610063"
+            }
+          ]
+        }
+      }
+    }
+  }
 }

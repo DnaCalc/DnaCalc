@@ -25,5 +25,46 @@
     "Sheet1!N2",
     "Sheet1!N2#"
   ],
-  "expected_answer": null
+  "expected_answer": {
+    "source_sha256": "4e3260e905eab889bd4fd22b8d75cb084002dc2210d8fe5e58d85cf11e2071e3",
+    "excel_build": "16.0.20527.20196",
+    "capture": "oracle.capture.json",
+    "targets": {
+      "Sheet1!N2": {
+        "number": "3ff0000000000000"
+      },
+      "Sheet1!N2#": {
+        "array": {
+          "rows": 8,
+          "columns": 1,
+          "cells": [
+            {
+              "number": "3ff0000000000000"
+            },
+            {
+              "number": "4000000000000000"
+            },
+            {
+              "number": "4008000000000000"
+            },
+            {
+              "number": "4014000000000000"
+            },
+            {
+              "number": "4018000000000000"
+            },
+            {
+              "number": "401c000000000000"
+            },
+            {
+              "number": "4022000000000000"
+            },
+            {
+              "number": "4024000000000000"
+            }
+          ]
+        }
+      }
+    }
+  }
 }
