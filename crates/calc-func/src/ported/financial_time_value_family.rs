@@ -165,7 +165,7 @@ pub fn fv(
     let term = if periodic_rate == 0.0 {
         periods
     } else {
-        let end_term = excel_x87_div(factor - 1.0, periodic_rate);
+        let end_term = excel_underflow_to_zero(excel_x87_div(factor - 1.0, periodic_rate));
         excel_x87_mul(end_term, timing.factor(periodic_rate))
     };
     // R31 public unit calls isolate both products from their growth and annuity
@@ -501,10 +501,8 @@ fn rate_secant(
         // The initial guess and final root have separate domain rules. An
         // intermediate integer-period power can cross a negative base.
         let factor = growth_from_base(base, periods)?;
-        let term = excel_x87_mul(
-            excel_x87_div(excel_x87_sub(factor, 1.0), rate),
-            timing.factor(rate),
-        );
+        let end_term = excel_underflow_to_zero(excel_x87_div(excel_x87_sub(factor, 1.0), rate));
+        let term = excel_x87_mul(end_term, timing.factor(rate));
         Ok(excel_x87_add(
             payment_balance(present_value, payment_value, factor, term),
             future_value,
@@ -543,23 +541,28 @@ fn rate_secant(
             return Err(FinancialError::Div0);
         }
         let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
-        let next = excel_x87_sub(current, excel_x87_div(numerator, divisor));
-        // With negative periods the balance at a rate of +infinity is its limit: the
-        // growth (1 + rate)^periods is zero, the annuity term -1/rate is zero and the
-        // beginning-payment term is -payment. When the next secant iterate overflows
-        // positively and that limit is at most the 1e-7 tolerance, Excel publishes the
-        // last finite iterate; otherwise the search fails. Excel 16.0.20527 (dc-iuwct.11):
-        // a bisection puts the bound at |fv| <= 1e-7 exactly (end; the next double up is
-        // #NUM!), sweeps show |fv - pmt| at the beginning (pmt = fv = 2 converges); 2,966 of
-        // 3,000 fresh overflow controls, where the earlier fv = 0 rule held 2,335.
-        if next == f64::INFINITY && current > 0.0 && periods < 0.0 {
-            let limit = match timing {
-                PaymentTiming::EndOfPeriod => future_value,
-                PaymentTiming::BeginningOfPeriod => excel_x87_sub(future_value, payment_value),
-            };
+        let quotient = excel_x87_div(numerator, divisor);
+        // With negative periods the balance at +infinity has growth factor 0, and
+        // its annuity term `(-1 / rate) * timing` flushes `-1 / current` to zero
+        // above `1 / f64::MIN_POSITIVE` (`2^1022`), turning beginning-of-period's
+        // limit from `fv - pmt` into `fv`. Excel 16.0.20527 (dc-iuwct.11, dc-iuwct.64)
+        // publishes `current` when the step quotient itself overflows (`!quotient.is_finite()`,
+        // not when `quotient` is finite and `current - quotient` overflows) and that
+        // asymptotic balance is within `1e-7`.
+        if !quotient.is_finite() && current.is_finite() && current > 0.0 && periods < 0.0 {
+            let end_term_inf = excel_underflow_to_zero(excel_x87_div(-1.0, current));
+            let term_inf = excel_x87_mul(end_term_inf, timing.factor(current));
+            let limit = excel_x87_add(
+                payment_balance(present_value, payment_value, 0.0, term_inf),
+                future_value,
+            );
             if limit.abs() <= RATE_TOLERANCE {
                 return Ok(current);
             }
+        }
+        let next = excel_x87_sub(current, quotient);
+        if !next.is_finite() {
+            return Err(FinancialError::Num);
         }
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
@@ -2386,6 +2389,124 @@ mod tests {
         );
         assert_eq!(
             nper(-2.0, 10.0, -100.0, 0.0, PaymentTiming::EndOfPeriod),
+            Err(FinancialError::Num)
+        );
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.64 / ww2): FV flushes subnormal `(factor - 1) / rate`
+    /// before applying beginning-of-period timing, and RATE's extreme-negative-period
+    /// overflow check triggers on step-quotient overflow (not finite-quotient subtraction
+    /// overflow) with the asymptotic limit using flushed `-1 / current`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_64_fv_and_rate_extreme_negative_period_overflow() {
+        // FV beginning-of-period rows where (factor - 1) / rate is subnormal (ww2 dc-iuwct.64).
+        let fv_rows: [(u64, u64, u64, u64, u64); 3] = [
+            (0x7fcfffffffffffff, 0xbe4d5aea8c545370, 0x3f70eb68c9dc920f, 0xbfef657a8f0947ec, 0x3fef6566a25a6edc),
+            (0x7fdde69730bdaeca, 0xbe553ecb94e74f78, 0x3f88d1df3fea1669, 0xc01fa04ff26c3934, 0x401fa032dec33083),
+            (0x7fef6ee528c1d989, 0xbe4d5aea8c545370, 0x3f70eb68c9dc920f, 0xbfef657a8f0947ec, 0x3fef656698800e39),
+        ];
+        for (r, n, p, v, expected) in fv_rows {
+            let got = fv(
+                f64::from_bits(r),
+                f64::from_bits(n),
+                f64::from_bits(p),
+                f64::from_bits(v),
+                PaymentTiming::BeginningOfPeriod,
+            )
+            .expect("finite FV");
+            assert_eq!(got.to_bits(), expected, "FV({r:#018x}, {n:#018x}, ...)");
+        }
+
+        // RATE overflow rows with cur > 2^1022: end_term_inf = ftz(-1/cur) == 0 -> limit is fv (not fv - pmt).
+        // 494 (fv = 0, type = 1 -> finite) and 2983 (num/q overflows to +inf -> finite).
+        let r494 = rate(
+            f64::from_bits(0xbe4d5aea8c545370),
+            f64::from_bits(0x3f70eb68c9dc920f),
+            f64::from_bits(0xbfef657a8f0947ec),
+            0.0,
+            PaymentTiming::BeginningOfPeriod,
+            Some(f64::from_bits(0xbfcd56707dc94dc8)),
+        )
+        .expect("RATE 494 finite");
+        assert_eq!(r494.to_bits(), 0x7fef6ee528c1d989);
+
+        let r224 = rate(
+            f64::from_bits(0xbe553ecb94e74f78),
+            f64::from_bits(0x3f88d1df3fea1669),
+            f64::from_bits(0xc01fa04ff26c3934),
+            f64::from_bits(0xb8ce84cafdf6c093),
+            PaymentTiming::BeginningOfPeriod,
+            Some(f64::from_bits(0x3fb1ed3f08a6c010)),
+        )
+        .expect("RATE 224 finite");
+        assert_eq!(r224.to_bits(), 0x7fdde69730bdaeca);
+
+        // 2983: end_term flushes to 0 at cur > 2^1022, flipping slope so quotient = +inf -> still finite.
+        let r2983 = rate(
+            f64::from_bits(0xbf0be388b1f790bd),
+            f64::from_bits(0xbff93c05ab1c0383),
+            f64::from_bits(0xc050d0946ff6dea9),
+            f64::from_bits(0xacc1a90d5620bea1),
+            PaymentTiming::BeginningOfPeriod,
+            Some(f64::from_bits(0xbfd175d6af4a85bc)),
+        )
+        .expect("RATE 2983 finite");
+        assert_eq!(r2983.to_bits(), 0x7fd026924e3ed395);
+
+        // 1/MIN_POSITIVE (2^1022) cutoff on nper=-1e-8, pmt=2, fv=0, type=1, guess=0.1:
+        // pv=-141.43 lands above 2^1022 (finite), pv=-141.44 lands below 2^1022 (#NUM!).
+        assert!(rate(-1e-8, 2.0, -141.43, 0.0, PaymentTiming::BeginningOfPeriod, Some(0.1)).is_ok());
+        assert_eq!(
+            rate(-1e-8, 2.0, -141.44, 0.0, PaymentTiming::BeginningOfPeriod, Some(0.1)),
+            Err(FinancialError::Num)
+        );
+
+        // 494 with fv = pmt and cur > 2^1022 -> #NUM!.
+        assert_eq!(
+            rate(
+                f64::from_bits(0xbe4d5aea8c545370),
+                f64::from_bits(0x3f70eb68c9dc920f),
+                f64::from_bits(0xbfef657a8f0947ec),
+                f64::from_bits(0x3f70eb68c9dc920f),
+                PaymentTiming::BeginningOfPeriod,
+                Some(f64::from_bits(0xbfcd56707dc94dc8)),
+            ),
+            Err(FinancialError::Num)
+        );
+
+        // 646, 1519, 999: step quotient q is finite while current - q overflows -> #NUM!.
+        assert_eq!(
+            rate(
+                f64::from_bits(0xbeea744b77acef54),
+                0.0,
+                f64::from_bits(0xc048ffe970b95b26),
+                0.0,
+                PaymentTiming::EndOfPeriod,
+                Some(f64::from_bits(0xbfb4b35626e989f8)),
+            ),
+            Err(FinancialError::Num)
+        );
+        assert_eq!(
+            rate(
+                f64::from_bits(0xbf7264c20e94345c),
+                f64::from_bits(0xaf0bba7ddbeb7a77),
+                f64::from_bits(0xc004d6c3461df218),
+                f64::from_bits(0xabb1dd65b2687c5b),
+                PaymentTiming::BeginningOfPeriod,
+                Some(f64::from_bits(0xbfe29c909c3253bc)),
+            ),
+            Err(FinancialError::Num)
+        );
+        assert_eq!(
+            rate(
+                f64::from_bits(0xbf7a149b329ad4a3),
+                f64::from_bits(0xbac8e7e3927b3730),
+                f64::from_bits(0xc0272d9e72b54712),
+                f64::from_bits(0xbac8e7e3927b3730),
+                PaymentTiming::EndOfPeriod,
+                Some(f64::from_bits(0x3fd198819577be54)),
+            ),
             Err(FinancialError::Num)
         );
     }
