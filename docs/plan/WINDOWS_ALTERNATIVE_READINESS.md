@@ -25,10 +25,19 @@ The original read was at `cf08c5b3`, with tracker pulls through `8184fe1f`. Revi
 were checked against master `9ea13fcc`, including later bead comments and the source assertions.
 The final pull to `24f38a8b` added Windows VBA corpus overrides; rank 3 includes their recorded
 counts, summed from the updated baseline without executing the corpus.
-No corpus, bank, Excel, browser or Windows execution was rerun for this note. Test names below
-identify assertions read, not fresh passing runs. Recorded results
-retain their original revision and route. `br ready`, the complete `br list`, and the cited
+The original review used existing results. The Windows follow-ups identify their own fresh
+runs and retain their revisions and routes. `br ready`, the complete `br list`, and the cited
 bead records were read; “open” below includes `in_progress`.
+
+Owned Windows follow-ups are in `excel/ww4-windows-results-20261122T143646Z`
+(one verified archive, 1,931,928 bytes). P07 returned all three argument edits after the native
+provider release. The three CalculateBeforeSave=true disk copies contain caches 45 and 46.
+The XLSB name twins kept built-in SUM and ACOT separate from VBA functions of the same name.
+On the binary reopen, the flags-0 literal calls gave `#NAME?`. Both called the VBA procedures
+after XML resave. The flags-0x0e calls gave 202 and 302 throughout. Ordinary BIFF8 Compatibility
+Mode returned 178 observations and 15 errors across 193 attempts. Full-spill reads confirmed
+all 84 pending MINVERSE selections from the earlier build comparison. Nine COMBIN/COMBINA
+requests reached their deadlines before returning any Excel values.
 
 The **“Goals, in order” in [the week plan](WEEK_PLAN_2026-11-13.md) are the owner's answers**,
 agreed on 2026-11-12. They call for the Windows alternative with working VBA/XLL and portable
@@ -356,6 +365,11 @@ matched Excel on which four cells had green number-as-text markers. For each mar
 Excel painted 21 green pixels at 100% and 78 at 200%. Both painters painted 15 and 55.
 The matched input packages, calibrated crops and comparisons are in the verified R2 evidence
 prefix `excel/ww4-render-spill-20261122T134637Z` (one archive, 4,351,882 bytes).
+
+The same-input header capture at 96 DPI and 100% matched all 720 measured cell geometry checks
+across the two sheets and both painters. The column and row headers were 20 and 26 pixels wide
+along their measured axes. The scrolled digit thresholds and missing frozen-pane edge readings
+remain open.
 
 ### 6. Print/PDF output is implemented, but not general Excel page fidelity
 
