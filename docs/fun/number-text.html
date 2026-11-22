@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How Excel turns a number into text · DNA Calc Playground</title>
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="number-text.css">
+<script type="module" src="number-text.js"></script>
+<body>
+<main class="wrap">
+  <header>
+    <a href="index.html">← Playground</a>
+    <h1>How Excel turns a number into text</h1>
+    <p>Follow a binary64 number through the 15-significant-digit calculation behind <code>=A1&amp;""</code>. Try the exact tie and the next representable number to see the last digit change.</p>
+  </header>
+
+  <section class="sheet" aria-labelledby="input-label">
+    <div class="entry">
+      <label id="input-label" for="number">Binary64 input</label>
+      <input id="number" aria-describedby="input-help" type="text" spellcheck="false" autocomplete="off" value="1.000030517578125" disabled>
+      <p id="input-help">Use a decimal or scientific notation, such as <code>2.5e-7</code>. The input is read as a stored number, like an operand from a cell.</p>
+      <output id="status" role="status">Loading CalcFunc…</output>
+      <noscript><p>This explorer needs JavaScript to load CalcFunc’s WebAssembly module.</p></noscript>
+    </div>
+    <div class="result" id="result" hidden>
+      <span id="result-label">Text returned by <code>=A1&amp;""</code></span>
+      <output id="answer" aria-labelledby="result-label"></output>
+      <span class="bits">Binary64 bits <code id="bits"></code></span>
+    </div>
+  </section>
+
+  <section class="sheet examples" aria-labelledby="examples-title">
+    <h2 id="examples-title">Try a number</h2>
+    <div class="presets">
+      <button type="button" data-number="1.000030517578125" disabled>Exact tie</button>
+      <button type="button" data-number="1.0000305175781252" disabled>Next binary64</button>
+      <button type="button" data-number="65535.99999999999" disabled>Just below 65,536</button>
+      <button type="button" data-number="65536" disabled>At 65,536</button>
+    </div>
+  </section>
+
+  <div class="steps" id="steps" hidden>
+    <section class="sheet" aria-labelledby="branch">
+      <h2 id="branch"></h2>
+      <p id="branch-detail"></p>
+      <dl class="registers">
+        <dt>Fraction in Q0.64</dt><dd><code id="fraction"></code></dd>
+        <dt>Truncated half step</dt><dd id="half"></dd>
+        <dt>Fraction after addition</dt><dd><code id="sum"></code><span id="carry"></span></dd>
+      </dl>
+      <p class="note">Each Q0.64 unit is 2<sup>−64</sup>. The half step is rounded down to a whole number of those units before it is added.</p>
+    </section>
+
+    <section class="sheet" aria-labelledby="decision">
+      <h2 id="decision"></h2>
+      <p id="decision-detail"></p>
+      <dl class="registers">
+        <dt>First 15 digits, then the 16th</dt>
+        <dd><code><span id="truncated"></span><mark id="next"></mark><span id="input-exponent"></span></code></dd>
+        <dt>After the Q0.64 program</dt>
+        <dd><code id="rounded"></code></dd>
+      </dl>
+      <p class="note" id="shaping"></p>
+    </section>
+  </div>
+
+  <details class="sheet examples">
+    <summary>Five inputs behind 29 corrected corpus cells</summary>
+    <p>The same inputs recur across three workbooks. Choose a stored number to see its general text and the rounding shared by <code>CONCAT</code>, <code>FIXED</code> and <code>TEXT</code>. Each fn7_format_context sheet contributed cells D5–D7 and J20.</p>
+    <ul class="corpus">
+      <li><button type="button" data-number="5758361573115.375" disabled>5758361573115.375</button><small>dc_q9rb D78 · catalogue D213 · fn7_format_context q001</small></li>
+      <li><button type="button" data-number="521310271410497.5" disabled>521310271410497.5</button><small>dc_q9rb D77 · catalogue D214 · fn7_format_context q002</small></li>
+      <li><button type="button" data-number="-6278515587045.875" disabled>−6278515587045.875</button><small>dc_q9rb D79 · catalogue D215 · fn7_format_context q003</small></li>
+      <li><button type="button" data-number="543212677140.0625" disabled>543212677140.0625</button><small>dc_q9rb D80 · catalogue D216 · fn7_format_context q004</small></li>
+      <li><button type="button" data-number="5.248519552626765e-6" disabled>5.248519552626765e−6</button><small>dc_q9rb D82 · fn7_format_context q005</small></li>
+    </ul>
+  </details>
+  <footer>Calculated in this browser by CalcFunc compiled to WebAssembly. <a href="../articles/last-bit-number-text.md">Read the measurements and derivation</a>.</footer>
+</main>
+</body>
+</html>

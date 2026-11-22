@@ -39,6 +39,7 @@
 //! for bit, so the text does not depend on the numeric mode or the target platform.
 
 use crate::decimal::{ExactDecimal, Natural};
+use std::cmp::Ordering;
 
 /// Significant digits of the first rounding.
 const SIGNIFICANT_DIGITS: usize = 15;
@@ -141,13 +142,19 @@ const Q64_HALF_POW10: [u64; 18] = [
 /// The text of a finite number, as ASCII (see the module documentation). It is always `Some`;
 /// the option is kept for the callers that refuse a number without a text.
 pub(crate) fn text(x: f64) -> Option<String> {
+    convert(x, |_, _, _| {})
+}
+
+fn convert(x: f64, observe: impl FnOnce(FixedPointStep, &[u8], i32)) -> Option<String> {
     if !x.is_finite() {
         return None;
     }
     if x == 0.0 || x.is_subnormal() {
         return Some("0".to_owned());
     }
-    Some(shaped(x < 0.0, first_precision(x.abs())))
+    let (digits, exponent, step) = first_precision(x.abs());
+    observe(step, &digits, exponent);
+    Some(shaped(x < 0.0, (digits, exponent)))
 }
 
 /// The shared first 15 significant digits (also used by FIXED, DOLLAR, TEXT and general
@@ -156,12 +163,93 @@ pub(crate) fn decimal(x: f64) -> ExactDecimal {
     if x == 0.0 || x.is_subnormal() {
         return ExactDecimal::read(0.0);
     }
-    let (digits, exponent) = first_precision(x.abs());
+    let (digits, exponent, _) = first_precision(x.abs());
     ExactDecimal {
         negative: x < 0.0,
         coefficient: Natural::from_u64(ascii(&digits).parse().expect("at most 15 digits")),
         exponent: exponent - digits.len() as i32 + 1,
     }
+}
+
+/// How the magnitude entered the shared Q0.64 rounding step.
+#[derive(Clone, Copy)]
+pub enum RoundingPath {
+    /// The integer part was split off exactly before rounding.
+    IntegerSplit { whole: u32 },
+    /// The x87 PC=64 scale was followed by a truncating binary shift.
+    Scaled {
+        decimal_shift: i32,
+        significand: u64,
+        right_shift: i32,
+        corrected: bool,
+    },
+}
+
+struct FixedPointStep {
+    path: RoundingPath,
+    binary_exponent: i32,
+    fraction: u64,
+    places: usize,
+    sum: u64,
+    carry: bool,
+}
+
+/// The first-precision rounding observed during a number-to-text conversion.
+pub struct NumberTextRounding {
+    pub path: RoundingPath,
+    pub binary_exponent: i32,
+    pub fraction: u64,
+    pub places: usize,
+    pub half: u64,
+    pub sum: u64,
+    pub carry: bool,
+    pub truncated_digits: String,
+    pub input_exponent: i32,
+    pub next_digit: u8,
+    pub exact_tie: bool,
+    /// The rounded magnitude compared with the input truncated to 15 digits.
+    pub decision: Ordering,
+    pub rounded_digits: String,
+    pub rounded_exponent: i32,
+}
+
+/// General number-to-text output and its rounding trace. Zero and subnormals skip rounding.
+pub struct NumberTextInspection {
+    pub text: String,
+    pub rounding: Option<NumberTextRounding>,
+}
+
+/// Inspect the same conversion used by the concatenation operator. Non-finite inputs have no text.
+pub fn inspect(x: f64) -> Option<NumberTextInspection> {
+    let mut rounding = None;
+    let text = convert(x, |step, digits, exponent| {
+        let exact = ExactDecimal::binary(x);
+        let coefficient = exact.coefficient.digits();
+        let input_exponent = exact.exponent + coefficient.len() as i32 - 1;
+        let (truncated, rest) = coefficient.split_at(coefficient.len().min(SIGNIFICANT_DIGITS));
+        let next_digit = rest.as_bytes().first().map_or(0, |digit| digit - b'0');
+        let exact_tie = next_digit == 5 && rest.as_bytes()[1..].iter().all(|digit| *digit == b'0');
+        let truncated_digits = format!("{truncated:0<15}");
+        let rounded_digits = format!("{:0<15}", ascii(digits));
+        let decision = (exponent, &rounded_digits).cmp(&(input_exponent, &truncated_digits));
+        rounding = Some(NumberTextRounding {
+            path: step.path,
+            binary_exponent: step.binary_exponent,
+            fraction: step.fraction,
+            places: step.places,
+            half: Q64_HALF_POW10[step.places],
+            sum: step.sum,
+            carry: step.carry,
+            truncated_digits,
+            input_exponent,
+            next_digit,
+            exact_tie,
+            decision,
+            rounded_digits,
+            rounded_exponent: exponent,
+        });
+    })?;
+    Some(NumberTextInspection { text, rounding })
 }
 
 /// 64-bit significand RN-even multiply reproducing x87 PC=64 (`CW = 0x133F`).
@@ -205,12 +293,12 @@ fn scale_nibble_pc64(mut sig: u64, mut pow: i32, shift10: i32) -> (u64, i32) {
     (sig, pow)
 }
 
-fn first_precision(x: f64) -> (Vec<u8>, i32) {
+fn first_precision(x: f64) -> (Vec<u8>, i32, FixedPointStep) {
     debug_assert!(x.is_finite() && x > 0.0 && !x.is_subnormal());
     let bits = x.to_bits();
     let exp2 = (((bits >> 52) & 0x7ff) as i32) - 1023;
     let m53 = (bits & ((1u64 << 52) - 1)) | (1u64 << 52);
-    let (mut val, e_out) = if (0..16).contains(&exp2) {
+    let (mut val, e_out, step) = if (0..16).contains(&exp2) {
         let mut w = (m53 >> (52 - exp2)) as u32;
         let mut f = m53.wrapping_shl((12 + exp2) as u32);
         let digits_u32 = |n: u32| {
@@ -231,6 +319,14 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
         let mut d = digits_u32(w);
         let mut k = SIGNIFICANT_DIGITS - d;
         let (sum, carry) = f.overflowing_add(Q64_HALF_POW10[k]);
+        let step = FixedPointStep {
+            path: RoundingPath::IntegerSplit { whole: w },
+            binary_exponent: exp2,
+            fraction: f,
+            places: k,
+            sum,
+            carry,
+        };
         f = sum;
         if carry {
             w += 1;
@@ -243,14 +339,15 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
             acc = acc * 10 + (prod >> 64) as u64;
             f = prod as u64;
         }
-        (acc, d as i32 - 1)
+        (acc, d as i32 - 1, step)
     } else {
         let frexp_k = exp2 + 1;
         // Exact integer form of ceil(frexp_k / 3.3219), 0 at frexp_k == 0.
         // Confirmed 32/32 against Excel 16.0.20527 on exp2 in {-971, -486, +484, +969}.
         let mut p = -((-frexp_k * 10_000).div_euclid(33_219));
         let (mut sig, mut pow) = scale_nibble_pc64(m53 << 11, exp2 - 63, -p);
-        if pow + 63 >= 0 {
+        let corrected = pow + 63 >= 0;
+        if corrected {
             let (fs, fp) = NEG_POW10[0];
             (sig, pow) = mul_pc64(sig, pow, fs, i32::from(fp));
             p += 1;
@@ -273,8 +370,21 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
             15
         };
         let (sum, carry) = f.overflowing_add(Q64_HALF_POW10[k]);
+        let step = FixedPointStep {
+            path: RoundingPath::Scaled {
+                decimal_shift: -p,
+                significand: sig,
+                right_shift: shr,
+                corrected,
+            },
+            binary_exponent: exp2,
+            fraction: f,
+            places: k,
+            sum,
+            carry,
+        };
         if carry {
-            (100_000_000_000_000_u64, p)
+            (100_000_000_000_000_u64, p, step)
         } else {
             f = sum;
             let (mut acc, mut z) = (0_u64, 0_i32);
@@ -293,7 +403,7 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
                 acc = acc * 10 + (prod >> 64) as u64;
                 f = prod as u64;
             }
-            (acc, p - 1 - z)
+            (acc, p - 1 - z, step)
         }
     };
     let mut buf = [0u8; SIGNIFICANT_DIGITS];
@@ -305,7 +415,7 @@ fn first_precision(x: f64) -> (Vec<u8>, i32) {
     while len > 1 && buf[len - 1] == b'0' {
         len -= 1;
     }
-    (buf[..len].to_vec(), e_out)
+    (buf[..len].to_vec(), e_out, step)
 }
 
 /// The text of the rounded digits `(digits, exponent)` of a magnitude, `-` first when `negative`.
@@ -391,7 +501,26 @@ fn ascii(digits: &[u8]) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::text;
+    use super::{RoundingPath, inspect, text};
+    use std::cmp::Ordering;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn inspection_shows_the_exact_tie_and_its_next_binary64_neighbor() {
+        let midpoint = 1.000030517578125_f64;
+        let tie = inspect(midpoint).unwrap().rounding.unwrap();
+        assert!(matches!(tie.path, RoundingPath::IntegerSplit { whole: 1 }));
+        assert!(tie.exact_tie);
+        assert_eq!(tie.decision, Ordering::Equal);
+        assert_eq!(tie.half, 92_233);
+        assert_eq!(tie.rounded_digits, "100003051757812");
+
+        let next = f64::from_bits(midpoint.to_bits() + 1);
+        let above = inspect(next).unwrap().rounding.unwrap();
+        assert!(!above.exact_tie);
+        assert_eq!(above.decision, Ordering::Greater);
+        assert_eq!(above.rounded_digits, "100003051757813");
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
