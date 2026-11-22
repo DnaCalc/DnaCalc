@@ -1005,33 +1005,64 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
     };
     let move_to = move |row: u32, col: u32| controller.select(row, col);
     let nav_to = move |nav: selection::Navigation, extend: bool| {
-        let old_view = viewport.get_untracked();
-        let page_height = (old_view.height / zoom.get_untracked()) as u32;
-        controller.navigate_then(nav, extend, page_height, move |outcome| {
-            if !outcome.accepted
-                || outcome.selection.is_none()
-                || scroller.try_get_untracked().flatten().is_none()
-                || metrics.try_get_untracked().is_none()
-            {
+        let across = matches!(nav, selection::Navigation::PageAcross { .. });
+        let send = move || {
+            let Some(old_view) = viewport.try_get_untracked() else {
                 return;
-            }
-            if let selection::Navigation::Page { down } = nav {
-                let m = metrics.get_untracked();
-                let distance = (old_view.height - m.header_h).max(m.row_height);
-                if let Some(element) = scroller.get_untracked() {
+            };
+            let old_column = controller.active.get_untracked().1;
+            let span = if across {
+                old_view.width - panes.get_untracked().size(&metrics.get_untracked()).0
+            } else {
+                old_view.height
+            };
+            let page_span = (span / zoom.get_untracked()) as u32;
+            controller.navigate_then(nav, extend, page_span, move |outcome| {
+                if !outcome.accepted || outcome.selection.is_none() {
+                    return;
+                }
+                let (Some(element), Some(m)) = (
+                    scroller.try_get_untracked().flatten(),
+                    metrics.try_get_untracked(),
+                ) else {
+                    return;
+                };
+                let scroll = match nav {
+                    selection::Navigation::Page { down } => {
+                        let distance = (old_view.height - m.header_h).max(m.row_height);
+                        Some((
+                            old_view.scroll_x,
+                            old_view.scroll_y + if down { distance } else { -distance },
+                        ))
+                    }
+                    selection::Navigation::PageAcross { .. } => {
+                        let column = controller.active.get_untracked().1;
+                        // Keep the selected column at the same screen position.
+                        let distance = m.col_start(column) - m.col_start(old_column);
+                        Some((old_view.scroll_x + distance, old_view.scroll_y))
+                    }
+                    _ => None,
+                };
+                if let Some((x, y)) = scroll {
                     let (sx, sy) = scales();
-                    element.scroll_to_with_x_and_y(
-                        sx.physical(old_view.scroll_x),
-                        sy.physical(old_view.scroll_y + if down { distance } else { -distance }),
-                    );
+                    element.scroll_to_with_x_and_y(sx.physical(x), sy.physical(y));
                     measure();
                 }
-            }
-            if extend {
-                let (row, col) = controller.corner.get_untracked();
-                reveal(row, col);
-            }
-        });
+                if extend || across {
+                    let (row, col) = if extend {
+                        controller.corner.get_untracked()
+                    } else {
+                        controller.active.get_untracked()
+                    };
+                    reveal(row, col);
+                }
+            });
+        };
+        if across {
+            controller.after_input(send);
+        } else {
+            send();
+        }
     };
     let go = move |action: NavAction| nav_to(selection::Navigation::Step(action), false);
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {

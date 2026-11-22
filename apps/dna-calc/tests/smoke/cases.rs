@@ -2680,7 +2680,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("name-box", "A10\u{E007}"),
             Action::Keys("grid", "\u{E00F}"),
         ],
-        checks: &[Check::PageAligned, Check::Reachable("active-cell")],
+        checks: &[
+            Check::PageAligned { horizontal: false },
+            Check::Reachable("active-cell"),
+        ],
     },
     Case {
         name: "navigation: PageUp returns to the original cell",
@@ -15791,6 +15794,77 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic formula entry: arrows point from a new formula bar draft and Tab commits it",
+        actions: &[
+            Action::Into(BAR, "4\u{E007}"),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Into(BAR, "="),
+            Action::Keys(BAR, "\u{E012}"),
+            Action::Wait(Check::Value(BAR, "=A1")),
+            Action::Wait(Check::Value("name-box", "B1")),
+            Action::Keys(BAR, TAB),
+        ],
+        checks: &[
+            Check::Text(cell!("B1"), "4"),
+            Check::Value("name-box", "C1"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "Classic formula entry: F4 cycles both ends of a pointed range",
+        actions: &[
+            Action::Keys(BAR, ESCAPE),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Into(BAR, "6\u{E007}"),
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Into(BAR, "=SUM("),
+            Action::Drag(cell!("A1"), cell!("A2")),
+            Action::Wait(Check::Value(BAR, "=SUM(A1:A2")),
+            Action::Keys(BAR, "\u{E034}"),
+            Action::Wait(Check::Value(BAR, "=SUM($A$1:$A$2")),
+            Action::Keys(BAR, "\u{E034}"),
+            Action::Wait(Check::Value(BAR, "=SUM(A$1:A$2")),
+            Action::Keys(BAR, "\u{E034}"),
+            Action::Wait(Check::Value(BAR, "=SUM($A1:$A2")),
+            Action::Keys(BAR, "\u{E034}"),
+            Action::Wait(Check::Value(BAR, "=SUM(A1:A2")),
+            Action::Keys(BAR, ")\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("B2"), "10"),
+            Check::Value("name-box", "B3"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "Classic navigation: Alt+PageDown goes one screen to the right",
+        actions: &[
+            Action::Into("name-box", "C3\u{E007}"),
+            Action::Keys("grid", "\u{E00A}\u{E00F}\u{E000}"),
+        ],
+        checks: &[
+            Check::PageAligned { horizontal: true },
+            Check::Count(
+                concat!(
+                    "[data-dnacalc=grid][aria-activedescendant^='dc-grid-cell-0-3-']",
+                    ":not([aria-activedescendant='dc-grid-cell-0-3-3'])",
+                ),
+                1,
+            ),
+        ],
+    },
+    Case {
+        name: "Classic navigation: Alt+PageUp returns to the original column",
+        actions: &[
+            Action::Wait(Check::PageAligned { horizontal: true }),
+            Action::Keys("grid", "\u{E00A}\u{E00E}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "C3"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
         name: "wheel zoom: Control and the wheel scale worksheet text and geometry",
         actions: &[
             Action::Into(BAR, "Zoom sample\u{E007}"),
@@ -17338,9 +17412,23 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "wheel-zoom",
+        name: "classic-formula-entry",
         start: 864,
         end: 866,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-horizontal-navigation",
+        start: 866,
+        end: 868,
+        core: 2,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "wheel-zoom",
+        start: 868,
+        end: CALC_CASES.len(),
         core: 2,
         setup: &[],
     },
