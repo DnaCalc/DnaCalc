@@ -1228,4 +1228,51 @@ mod tests {
             );
         }
     }
+
+    /// Excel 16.0.20527 (dc-iuwct.66 / ww2 `dc-iuwct.66-current-TDIST.json` & `T.DIST.RT`/`2T`):
+    /// Exact nonzero-to-zero `bgrat` underflow boundaries (`|u * s_no| < DBL_MIN && total < 2^-970`)
+    /// across all four narrowed degrees (`45,000`, `1,048,576`, `209,321,321`, `10,000,000,000`),
+    /// including the formerly gross `$[240]` row and adjacent double pair at `df = 209,321,321`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_66_tdist_underflow_boundaries_match_excel() {
+        // Original gross row: ax2/beta-log-TDIST-answers.jsonl $[240]
+        assert_eq!(
+            tdist_kernel(
+                f64::from_bits(0x40426b4ddb278a93),
+                f64::from_bits(0x41a8f3fad2000000),
+                1.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0
+        );
+        // Narrowed nonzero (tails=2) vs zero (tails=1) boundaries from ww2 dc-iuwct.66-current-TDIST.json.
+        let pairs: &[(&str, f64, u64, u64, u64)] = &[
+            ("df=45000", 45_000.0, 0x4042c4d2d5569580, 0x0108955210adaf05, 0x4042c4d2d55695ef),
+            ("df=1048576", 1_048_576.0, 0x40428ba15d780000, 0x019a8d0ed3608066, 0x40428ba15d7c3030),
+            ("df=209321321", 209_321_321.0, 0x4042654a2f0588cf, 0x0290a7835704f3c6, 0x4042654a2f0588d0),
+            ("df=1e10", 10_000_000_000.0, 0x40424a3db8ac9dd4, 0x0342fdd448f27ca9, 0x40424a3db8ac9dee),
+        ];
+        for &(label, df, x_nz, exp_nz_2t, x_zr) in pairs {
+            let got_nz_2t = tdist_kernel(f64::from_bits(x_nz), df, 2.0)
+                .unwrap()
+                .to_bits();
+            assert!(
+                got_nz_2t != 0 && got_nz_2t.abs_diff(exp_nz_2t) <= 2,
+                "TDIST({x_nz:#018x}, {df}, 2) [{label}] got {got_nz_2t:#018x}, expected {exp_nz_2t:#018x}"
+            );
+            let got_zr_1t = tdist_kernel(f64::from_bits(x_zr), df, 1.0)
+                .unwrap()
+                .to_bits();
+            let got_zr_2t = tdist_kernel(f64::from_bits(x_zr), df, 2.0)
+                .unwrap()
+                .to_bits();
+            assert_eq!(got_zr_1t, 0, "TDIST({x_zr:#018x}, {df}, 1) [{label}]");
+            assert_eq!(got_zr_2t, 0, "TDIST({x_zr:#018x}, {df}, 2) [{label}]");
+            // Modern aliases T.DIST.RT and T.DIST.2T agree at the same zero boundary.
+            assert_eq!(t_dist_rt_kernel(f64::from_bits(x_zr), df).unwrap().to_bits(), 0);
+            assert_eq!(t_dist_2t_kernel(f64::from_bits(x_zr), df).unwrap().to_bits(), 0);
+        }
+    }
 }
