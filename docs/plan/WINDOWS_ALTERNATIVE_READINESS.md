@@ -538,6 +538,35 @@ and the WebView2 path. The owner signs and authorizes publication after those co
 **Open coverage.** dc-fk66.1–.4 and dc-ysl.11. Packaging can proceed alongside the higher-ranked
 work; a successfully installed preview must still disclose its workbook limitations.
 
+## 2026-11-22 Win64 follow-up
+
+On GOVERT-OMEN (AMD Ryzen 7 4800H), the Windows binaries cross-built from `f8f4e0aa` passed
+560 CalcFunc unit tests each with native and software x87, 6 XLL ABI tests and 15 XLL host
+tests, including the `MESSAGE` lifecycle regression (`dc-6332.10`). The first integration
+runs could not resolve the cross-build's embedded fixture paths. The mapped-drive retry reached
+the catalogue prefix test, which needed a separate run.
+
+The Win64 witness judge matched 40,710 of 40,836 pinned rows. In the local full bank
+(`CalcFunc-Evidence` `cdb7e401`), all 9,305 BESSEL rows and all 15,530 COMPLEX and complex
+hyperbolic rows matched. The 1,013 retained ww2 discrepancy rows had 226 differences or
+refusals, down from 369 in ww4. Against the retained Excel capture, the external-link oracle
+calculated and matched all 74 formulas both with and without the Excel-authored sibling file.
+
+Excel VBA 16.0.20527.20196 compiled and ran 16 exponentiation cases in an owned private
+session (`dc-17aqo.11`). CalcVBA `add91487` matched all 16 in each Win64 backend. For
+`2 ^ -3 ^ 2`, `2 ^ +3 ^ 2` and `2 ^ -2 ^ 3`, Excel returned `0.001953125`, `512` and
+`0.00390625`. The older standalone CalcVBA `2e85cfd9e` matched six cases per backend. The
+DNA Calc dependency update and Formula Explorer module replay still belong to `dc-17aqo.11`.
+CalcVBA `24bf69d5` could not build for Win64 because `BStr::from_utf16_concat` passed const
+pointers as the destinations of two writes. The benchmark follow-up is `dc-17aqo.5`.
+
+In the serial AMORDEGRC repeat (`dc-ymjf.2.42`), tiny-period calls returned `0000000000000001` unprimed or
+after period 0, `4088400000000000` after period 1, and `407e500000000000` after period 2. An
+interleaved sequence retained the preceding nonzero period's word across a later period-0
+call. All 76 tiny-period answers differ from the current CalcFunc refusal. Two of three fresh
+RATE residual controls still differ (`dc-oqc1`). The fresh and retained differences are in the
+ww5 WitnessSets, with their Excel build, inputs and calculation results.
+
 ## Reading PRO9 and PRO10 against current code
 
 [PRO9](../architecture/review-2026-11/PRO9_PROGRAMME.md) supplies experiments and work packages,
