@@ -2,6 +2,7 @@
 
 use super::content::{escape, markdown};
 use super::{app_page, blog, downloads, files_under, read, write_nested};
+use crate::app::{bind_web_entry, web_bindgen};
 use crate::cargo::{self, Workspace};
 use serde::Deserialize;
 use serde_json::Value;
@@ -11,6 +12,8 @@ use std::fs;
 use std::path::Path;
 
 const FUN: &str = "docs/fun";
+const NUMBER_TEXT_ARTICLE: &str = "docs/articles/last-bit-number-text.md";
+const NUMBER_TEXT_ROUTE: &str = "/articles/last-bit-number-text/";
 const PAGES: &str = "docs/site/pages";
 const LAYOUT: &str = "docs/site/layout.json";
 const WITNESS: &str = "crates/calc-func/witness-status.tsv";
@@ -105,7 +108,8 @@ impl Layout<'_> {
     }
 }
 
-pub(super) fn stage_assets(root: &Path, staging: &Path) -> Result<(), String> {
+pub(super) fn stage_assets(ws: &Workspace, staging: &Path) -> Result<(), String> {
+    let root = &ws.root;
     write_nested(
         &staging.join("favicon.ico"),
         &read(&root.join("apps/dna-calc-desktop/icon/calc.ico"))?,
@@ -125,7 +129,15 @@ pub(super) fn stage_assets(root: &Path, staging: &Path) -> Result<(), String> {
             )?;
         }
     }
-    Ok(())
+    println!("SITE CONTENT building CalcFunc's number-to-text explorer");
+    bind_web_entry(
+        ws,
+        &web_bindgen()?,
+        "calc-func",
+        ["--example", "number-text-wasm"],
+        None,
+        &staging.join("fun"),
+    )
 }
 
 pub(super) fn build(
@@ -161,6 +173,18 @@ pub(super) fn build(
     let bank = bank_metric(root)?;
     let metrics = format!(r#"<div class="site-metrics">{workbook}{bank}</div>"#);
     let cards = build_fun(root, output, prefix)?;
+    let article = layout.page(
+        NUMBER_TEXT_ROUTE,
+        "The last bit: Excel’s number-to-text conversion",
+        "",
+        &markdown(&source(root, NUMBER_TEXT_ARTICLE)?),
+    );
+    write_nested(
+        &output
+            .join(NUMBER_TEXT_ROUTE.trim_start_matches('/'))
+            .join("index.html"),
+        article.as_bytes(),
+    )?;
     let vba = vba_table(root)?;
     let builds = builds_table(root, version, commit, built)?;
     let runner = runner_commands(root)?;
@@ -284,6 +308,9 @@ fn build_fun(root: &Path, output: &Path, prefix: &str) -> Result<String, String>
             );
         } else {
             count += 1;
+        }
+        if name == "number-text.html" {
+            page = page.replace("../articles/last-bit-number-text.md", NUMBER_TEXT_ROUTE);
         }
         write_nested(
             &output.join("fun").join(name),

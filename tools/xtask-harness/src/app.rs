@@ -470,8 +470,7 @@ fn usage(raw: &[String]) -> ExitCode {
 // ---------------------------------------------------------------------------------------------
 // The bundle.
 
-/// Builds the bundle into `out` and returns its files with their sizes.
-pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
+pub(crate) fn web_bindgen() -> Result<PathBuf, String> {
     let bindgen = find_on_path("wasm-bindgen").ok_or("wasm-bindgen is not on PATH")?;
     let version = cargo::output(Command::new(&bindgen).arg("--version"))?;
     let version = cargo::text(&version.stdout).trim().to_owned();
@@ -481,58 +480,81 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
             bindgen.display()
         ));
     }
+    Ok(bindgen)
+}
+
+/// Build a browser entry and generate its web loader beside the resulting wasm.
+pub(crate) fn bind_web_entry(
+    ws: &Workspace,
+    bindgen: &Path,
+    package: &str,
+    target: [&str; 2],
+    stack: Option<u64>,
+    out: &Path,
+) -> Result<(), String> {
+    let [target_kind, entry] = target;
+    let wasm_path = if target_kind == "--example" {
+        format!("examples/{entry}.wasm")
+    } else {
+        format!("{entry}.wasm")
+    };
     fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
+    let target_dir = ws.target_dir();
+    let mut build = Command::new(cargo::cargo_program());
+    // `cargo rustc` hands the link argument to the final binary alone, so no dependency is
+    // rebuilt for it. The worker keeps the linker's default stack.
+    build
+        .current_dir(&ws.root)
+        .args([
+            if stack.is_some() { "rustc" } else { "build" },
+            "--locked",
+            "--profile",
+            PROFILE,
+            "-p",
+            package,
+            target_kind,
+            entry,
+        ])
+        .args(["--target", WASM_TARGET])
+        .arg("--target-dir")
+        .arg(&target_dir);
+    if let Some(bytes) = stack {
+        build.args(["--", "-C", &format!("link-arg=-zstack-size={bytes}")]);
+    }
+    let built = cargo::output(&mut build)?;
+    if !built.status.success() {
+        return Err(format!(
+            "cargo build failed:\n{}",
+            cargo::tail(&built.stderr, 40)
+        ));
+    }
+    let wasm = target_dir.join(WASM_TARGET).join(PROFILE).join(wasm_path);
+    let generated = cargo::output(
+        Command::new(bindgen)
+            .args(["--target", "web", "--no-typescript", "--out-dir"])
+            .arg(out)
+            .arg(&wasm),
+    )?;
+    if !generated.status.success() {
+        return Err(format!(
+            "wasm-bindgen failed:\n{}",
+            cargo::tail(&generated.stderr, 40)
+        ));
+    }
+    Ok(())
+}
+
+/// Builds the bundle into `out` and returns its files with their sizes.
+pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
+    let bindgen = web_bindgen()?;
     for (package, entry) in std::iter::once((app.package, app.entry)).chain(app.worker) {
         println!(
             "{} building {} for {WASM_TARGET} (profile {PROFILE})",
             app.label, entry
         );
-        let target_dir = ws.target_dir();
-        let mut build = Command::new(cargo::cargo_program());
-        // `cargo rustc` hands the link argument to the final binary alone, so no dependency is
-        // rebuilt for it. The worker keeps the linker's default stack.
+        // Only the app's page needs the larger shadow stack.
         let stack = (entry == app.entry).then_some(app.stack_bytes);
-        build
-            .current_dir(&ws.root)
-            .args([
-                if stack.is_some() { "rustc" } else { "build" },
-                "--locked",
-                "--profile",
-                PROFILE,
-                "-p",
-                package,
-                "--bin",
-                entry,
-            ])
-            .args(["--target", WASM_TARGET])
-            .arg("--target-dir")
-            .arg(&target_dir);
-        if let Some(bytes) = stack {
-            build.args(["--", "-C", &format!("link-arg=-zstack-size={bytes}")]);
-        }
-        let built = cargo::output(&mut build)?;
-        if !built.status.success() {
-            return Err(format!(
-                "cargo build failed:\n{}",
-                cargo::tail(&built.stderr, 40)
-            ));
-        }
-        let wasm = target_dir
-            .join(WASM_TARGET)
-            .join(PROFILE)
-            .join(format!("{}.wasm", entry));
-        let generated = cargo::output(
-            Command::new(&bindgen)
-                .args(["--target", "web", "--no-typescript", "--out-dir"])
-                .arg(out)
-                .arg(&wasm),
-        )?;
-        if !generated.status.success() {
-            return Err(format!(
-                "wasm-bindgen failed:\n{}",
-                cargo::tail(&generated.stderr, 40)
-            ));
-        }
+        bind_web_entry(ws, &bindgen, package, ["--bin", entry], stack, out)?;
     }
     fs::copy(ws.root.join(app.page), out.join("index.html"))
         .map_err(|e| format!("cannot copy {}: {e}", app.page))?;

@@ -1,0 +1,76 @@
+:root {
+  color-scheme: light dark;
+  --paper: #f7faf8;
+  --cell: #fff;
+  --ink: #1d2733;
+  --muted: #526471;
+  --grid: #dce6df;
+  --accent: #146642;
+  --tint: #e4f4ea;
+  --mark: #fce5a1;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12191b;
+    --cell: #1a2326;
+    --ink: #e9f1ef;
+    --muted: #b1bfbd;
+    --grid: #364740;
+    --accent: #92dfb2;
+    --tint: #1e3a2e;
+    --mark: #624c20;
+  }
+}
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 100% 28px, 96px 100%;
+  font: 400 16px/1.5 var(--body);
+}
+.wrap { max-width: 980px; margin: auto; padding: 28px 16px 40px; display: grid; gap: 16px }
+header p { margin: 10px 0 4px; max-width: 63ch; color: var(--muted) }
+h1 { max-width: 20ch; margin: 12px 0 0; font: 800 clamp(34px, 6vw, 64px)/1 var(--display); letter-spacing: -.025em }
+h2 { font: 750 1.15rem/1.3 var(--display); margin: 0 0 8px }
+a { color: var(--accent); text-underline-offset: .2em }
+code, input { font-family: var(--mono) }
+.sheet { min-width: 0; background: var(--cell); border: 1px solid var(--grid); border-radius: 7px; padding: 16px }
+.entry, .result { display: grid; align-content: start; gap: 6px }
+.entry p, .entry output { margin: 0; color: var(--muted); font-size: .9rem }
+.entry output:empty { display: none }
+label, #result-label { font-weight: 650 }
+input {
+  display: block; width: 100%; padding: 8px; border: 1px solid var(--accent);
+  border-radius: 4px; background: var(--cell); color: var(--ink); font-size: 1rem;
+}
+.result { background: var(--tint); border-left: 4px solid var(--accent); margin-top: 12px; padding: 12px }
+#answer { font: 650 clamp(1.15rem, 3.2vw, 1.9rem) var(--mono); overflow-wrap: anywhere }
+.bits { font-size: .85rem; color: var(--muted) }
+.steps { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.steps p { margin: 0 0 12px }
+.registers { display: grid; margin: 0 0 12px }
+.registers dt, .registers dd { margin: 0; padding: 5px 8px; border-top: 1px solid var(--grid); overflow-wrap: anywhere }
+.registers dt { color: var(--muted); background: var(--paper); font-size: .85rem }
+.registers dd:last-child { border-bottom: 1px solid var(--grid) }
+mark { background: var(--mark); color: var(--ink); margin-left: .35ch; padding: 0 .25ch }
+.steps .note, footer, small { margin: 0; color: var(--muted); font-size: .85rem }
+.presets { display: flex; flex-wrap: wrap; gap: 6px }
+button {
+  min-height: 36px; min-width: 0; padding: 4px 9px; border: 1px solid var(--grid);
+  border-radius: 4px; background: var(--paper); color: var(--ink); font: inherit; overflow-wrap: anywhere;
+}
+button:not(:disabled), summary { cursor: pointer }
+button:hover:not(:disabled), button[aria-pressed="true"] { border-color: var(--accent); background: var(--tint) }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+summary { font-weight: 650 }
+.corpus { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px }
+.corpus li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px }
+.corpus button { font: .9rem var(--mono) }
+@media (max-width: 650px) { .steps { grid-template-columns: 1fr } }

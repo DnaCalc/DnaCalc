@@ -67,6 +67,9 @@ pub use fetch::{
 pub use calc_catalogue::file_call_name;
 pub use file_prefix::FilePrefix;
 pub use import::{IMPORT_FUNCTIONS, IMPORT_PROVIDER, ImportFunction, ImportKind, ImportRoute};
+pub use number_text::{
+    NumberTextInspection, NumberTextRounding, RoundingPath, inspect as inspect_number_text,
+};
 
 /// The order of two texts (UTF-16 code units) as Excel's comparison operators give it under the
 /// Windows locale en-ZA: Excel's pass over ASCII ignoring case, then Windows' collation ignoring

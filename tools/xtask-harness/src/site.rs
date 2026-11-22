@@ -481,7 +481,7 @@ fn pack(
     let entries = if site.key == "content" {
         let explorer = stage_app(ws, &APPS[0], &staged_assets.join("explorer"))?;
         let calc = stage_app(ws, site.app, &staged_assets.join("calc"))?;
-        marketing::stage_assets(&ws.root, &staged_assets)?;
+        marketing::stage_assets(ws, &staged_assets)?;
         (calc, Some(explorer))
     } else {
         (stage_app(ws, site.app, &staged_assets)?, None)
