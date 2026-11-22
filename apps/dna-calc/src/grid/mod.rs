@@ -3065,6 +3065,39 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
             })
             .collect_view()
     };
+    let number_as_text_markers = move || {
+        plan.with(|plan| {
+            mirror.with(|mirror| {
+                plan.cells
+                    .iter()
+                    .filter_map(|cell| {
+                        if !mirror.cell(cell.shown.at)?.number_as_text {
+                            return None;
+                        }
+                        let clip = cell.clip?;
+                        let anchor = cell.anchor;
+                        if anchor.x < clip.x || anchor.y < clip.y {
+                            return None;
+                        }
+                        let side = (5. * plan.scale)
+                            .round()
+                            .max(1.)
+                            .min(clip.x + clip.w - anchor.x)
+                            .min(clip.y + clip.h - anchor.y);
+                        (side > 0.).then(|| view! {
+                            <span
+                                class="dc-number-as-text-marker"
+                                data-dnacalc="number-as-text-marker"
+                                role="img"
+                                aria-label=format!("{}: Number stored as text", cell.address)
+                                use:css=format!("left:{};top:{};width:{};height:{}", px(anchor.x), px(anchor.y), px(side), px(side))
+                            ></span>
+                        })
+                    })
+                    .collect_view()
+            })
+        })
+    };
     let review_markers = RwSignal::new(Vec::<wire::ReviewMarker>::new());
     Effect::new(move |_| {
         let revision = controller.revision.get();
@@ -3710,6 +3743,7 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
                         {shapes_view}
                         {controls_view}
                         {markers_view}
+                        {number_as_text_markers}
                         {invalid_view}
                         {selection_view}
                         {spill_outline}

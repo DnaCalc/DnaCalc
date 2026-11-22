@@ -188,7 +188,7 @@ fn error_literal(text: &str) -> Option<CellInput> {
 
 /// Whether `text` is a plain decimal number: an optional sign, digits with at most one point
 /// (at least one digit), and an optional exponent `e` or `E` with an optional sign and digits.
-fn is_plain_number(text: &str) -> bool {
+pub(crate) fn is_plain_number(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut at = 0;
     if matches!(bytes.first(), Some(b'+' | b'-')) {

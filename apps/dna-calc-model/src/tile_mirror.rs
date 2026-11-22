@@ -302,6 +302,7 @@ mod tests {
             error_meaning: None,
             spill: None,
             exact: None,
+            number_as_text: false,
         }
     }
     fn batch(next: u64, reset: bool, cells: Vec<Cell>, removed: Vec<Key>) -> TileBatch {

@@ -70,6 +70,7 @@ pub fn cell_of(
         why,
         owner: crate::cells::refusal_owner(projected),
         error_meaning: crate::cells::error_meaning(projected),
+        number_as_text: false,
         spill: projected.spill().map(|spill| match spill {
             calc_host::ProjectedSpill::Filled(area) => SpillView::Filled(Area::of(area)),
             calc_host::ProjectedSpill::Blocked(area) => SpillView::Blocked(Area::of(area)),

@@ -1979,6 +1979,9 @@ pub struct Cell {
     pub why: String,
     pub owner: Option<String>,
     pub error_meaning: Option<String>,
+    /// The workbook's number-stored-as-text warning applies to this literal.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub number_as_text: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spill: Option<SpillView>,
     /// A number whose shown text is not its exact value (General shows at most 11 characters,

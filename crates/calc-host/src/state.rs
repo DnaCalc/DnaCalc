@@ -974,6 +974,29 @@ impl HostState {
         crate::facts::imported_style(self.loaded.sheet(at.sheet()), &self.axis_edits, at)
     }
 
+    /// A literal plain number stored as text, with the worksheet's ignored-error ranges applied.
+    pub fn number_as_text_warning(&self, cell: &crate::ProjectedCell) -> bool {
+        let Some(calc_doc_model::CellInput::Text(text)) = cell.input() else {
+            return false;
+        };
+        let text = text.text().to_string_lossy();
+        let text = text.trim();
+        if !crate::entry::is_plain_number(text)
+            || !text.parse::<f64>().is_ok_and(f64::is_finite)
+        {
+            return false;
+        }
+        let at = cell.at();
+        !self.loaded.sheet(at.sheet()).is_some_and(|sheet| {
+            sheet.ignored_number_text().iter().any(|&area| {
+                self.axis_edits
+                    .iter()
+                    .try_fold(area, |area, edit| calc_doc_model::moved_area(*edit, area))
+                    .is_some_and(|area| area.contains(at))
+            })
+        })
+    }
+
     /// The effective workbook alignment, through the same resolver CELL("prefix") uses.
     /// Absent horizontal/vertical values mean General/Bottom; the stored record also carries
     /// wrapping, rotation and indentation for consumers of that same alignment.

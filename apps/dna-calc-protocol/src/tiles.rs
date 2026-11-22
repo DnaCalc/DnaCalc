@@ -239,6 +239,7 @@ mod tests {
                 Key(0, 0, 3, 2),
             ))),
             exact: None,
+            number_as_text: false,
         };
         let mut second = c.clone();
         second.at.2 = 2;
