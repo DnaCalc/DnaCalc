@@ -171,6 +171,26 @@ pub(crate) fn decimal(x: f64) -> ExactDecimal {
     }
 }
 
+/// The text of an Excel-qualified exponent-field-2047 overflow number (dc-j9k.57).
+/// Excel 16.0.20527 runs its Q0.64 15-digit formatter on the stored exponent-2047 bits without
+/// checking for NaN, and suppresses the minus sign because `NaN < 0` is false.
+pub(crate) fn overflow_text(x: f64) -> String {
+    debug_assert!(x.is_nan());
+    let (digits, exponent, _) = first_precision_bits(x.to_bits());
+    shaped(false, (digits, exponent))
+}
+
+/// The unsigned 15-significant-digit decimal of an Excel-qualified overflow number (dc-j9k.57).
+pub(crate) fn overflow_decimal(x: f64) -> ExactDecimal {
+    debug_assert!(x.is_nan());
+    let (digits, exponent, _) = first_precision_bits(x.to_bits());
+    ExactDecimal {
+        negative: false,
+        coefficient: Natural::from_u64(ascii(&digits).parse().expect("at most 15 digits")),
+        exponent: exponent - digits.len() as i32 + 1,
+    }
+}
+
 /// How the magnitude entered the shared Q0.64 rounding step.
 #[derive(Clone, Copy)]
 pub enum RoundingPath {
@@ -295,7 +315,10 @@ fn scale_nibble_pc64(mut sig: u64, mut pow: i32, shift10: i32) -> (u64, i32) {
 
 fn first_precision(x: f64) -> (Vec<u8>, i32, FixedPointStep) {
     debug_assert!(x.is_finite() && x > 0.0 && !x.is_subnormal());
-    let bits = x.to_bits();
+    first_precision_bits(x.to_bits())
+}
+
+fn first_precision_bits(bits: u64) -> (Vec<u8>, i32, FixedPointStep) {
     let exp2 = (((bits >> 52) & 0x7ff) as i32) - 1023;
     let m53 = (bits & ((1u64 << 52) - 1)) | (1u64 << 52);
     let (mut val, e_out, step) = if (0..16).contains(&exp2) {

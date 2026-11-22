@@ -187,7 +187,13 @@ fn filter(
     for cell in &cells[skip..] {
         keep.push(match cell.core_ref() {
             CoreRef::Logical(b) => b,
-            CoreRef::Number(n) => n != 0.0,
+            CoreRef::Number(_) if cell.is_excel_overflow() => false,
+            CoreRef::Number(n) => {
+                if !n.is_finite() {
+                    return Err(site.not_modelled(Some(index)));
+                }
+                n != 0.0
+            }
             CoreRef::Empty | CoreRef::Missing => false,
             CoreRef::Error(code) => return fail(code),
             _ => return fail(W::Value),
@@ -212,7 +218,18 @@ fn kind(value: &CalcValue) -> u8 {
 
 fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
     match (x.core_ref(), y.core_ref()) {
-        (CoreRef::Number(a), CoreRef::Number(b)) => comparison::numbers(site, a, b),
+        (CoreRef::Number(a), CoreRef::Number(b)) => {
+            if x.is_excel_overflow() || y.is_excel_overflow() {
+                if (!a.is_finite() && !x.is_excel_overflow())
+                    || (!b.is_finite() && !y.is_excel_overflow())
+                {
+                    return Err(site.not_modelled(None));
+                }
+                comparison::overflow_numbers(site, a, b)
+            } else {
+                comparison::numbers(site, a, b)
+            }
+        }
         (CoreRef::Text(a), CoreRef::Text(b)) => {
             comparison::texts(a.utf16_code_units(), b.utf16_code_units(), Want::Order)
                 .map_err(|_| site.not_modelled(None))

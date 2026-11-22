@@ -265,6 +265,9 @@ fn descending(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
 
 /// A logical flag argument (by_col, exactly_once): omitted or blank is FALSE.
 fn flag(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
+    if value.is_some_and(CalcValue::is_excel_overflow) {
+        return Ok(false);
+    }
     match value.map(CalcValue::core_ref) {
         None | Some(CoreRef::Missing | CoreRef::Empty) => Ok(false),
         Some(CoreRef::Logical(b)) => Ok(b),
@@ -292,7 +295,18 @@ fn kind(value: &CalcValue) -> u8 {
 /// The order of two values for SORT and SORTBY.
 fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
     match (x.core_ref(), y.core_ref()) {
-        (CoreRef::Number(a), CoreRef::Number(b)) => comparison::numbers(site, a, b),
+        (CoreRef::Number(a), CoreRef::Number(b)) => {
+            if x.is_excel_overflow() || y.is_excel_overflow() {
+                if (!a.is_finite() && !x.is_excel_overflow())
+                    || (!b.is_finite() && !y.is_excel_overflow())
+                {
+                    return Err(site.not_modelled(None));
+                }
+                comparison::overflow_numbers(site, a, b)
+            } else {
+                comparison::numbers(site, a, b)
+            }
+        }
         (CoreRef::Text(a), CoreRef::Text(b)) => {
             comparison::texts(a.utf16_code_units(), b.utf16_code_units(), Want::Order)
                 .map_err(|_| site.not_modelled(None))
@@ -526,8 +540,9 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     reordered(&array, &order, by_col)
 }
 
-/// Whether two cells are the same for UNIQUE: numbers when equal as binary64 (OxFunc's rule), text
-/// ignoring case under the collation, and otherwise equal kinds with equal values.
+/// Whether two cells are the same for UNIQUE: numbers when equal as binary64 (OxFunc's rule;
+/// qualified overflow encodings compare by exact bit identity), text ignoring case under the
+/// collation, and otherwise equal kinds with equal values.
 fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
     match (x.core_ref(), y.core_ref()) {
         (CoreRef::Text(a), CoreRef::Text(b)) => {
@@ -535,15 +550,28 @@ fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
                 .map(Ordering::is_eq)
                 .map_err(|_| site.not_modelled(None))
         }
-        (CoreRef::Number(a), CoreRef::Number(b)) => Ok(a == b),
+        (CoreRef::Number(a), CoreRef::Number(b)) => {
+            if x.is_excel_overflow() || y.is_excel_overflow() {
+                if (!a.is_finite() && !x.is_excel_overflow())
+                    || (!b.is_finite() && !y.is_excel_overflow())
+                {
+                    return Err(site.not_modelled(None));
+                }
+                Ok(x.is_excel_overflow() == y.is_excel_overflow() && a.to_bits() == b.to_bits())
+            } else if !a.is_finite() || !b.is_finite() {
+                Err(site.not_modelled(None))
+            } else {
+                Ok(a == b)
+            }
+        }
         _ => order(site, x, y).map(Ordering::is_eq),
     }
 }
 
 /// A coarse key under which equal cells always fall together (text by its collation sort key,
 /// numbers by their bits), so each line is compared only with the lines that share it; `None`
-/// when a text's sort key is not built (dc-zsn.1), whose equality to the other texts is then not
-/// decided.
+/// when a text's sort key is not built (dc-zsn.1) or a cell holds an unqualified nonfinite
+/// number, whose equality to the other cells is then not decided.
 fn bucket(cells: &[CalcValue], references: &[Option<u64>]) -> Option<String> {
     let mut key = String::new();
     for (cell, reference) in cells.iter().zip(references) {
@@ -552,7 +580,15 @@ fn bucket(cells: &[CalcValue], references: &[Option<u64>]) -> Option<String> {
             continue;
         }
         match cell.core_ref() {
-            CoreRef::Number(n) => key.push_str(&format!("n{:x}|", (n + 0.0).to_bits())),
+            CoreRef::Number(n) if cell.is_excel_overflow() => {
+                key.push_str(&format!("o{:x}|", n.to_bits()));
+            }
+            CoreRef::Number(n) => {
+                if !n.is_finite() {
+                    return None;
+                }
+                key.push_str(&format!("n{:x}|", (n + 0.0).to_bits()));
+            }
             CoreRef::Text(t) => {
                 key.push('t');
                 for byte in comparison::text_bucket(t.utf16_code_units())? {

@@ -427,19 +427,30 @@ pub fn general(profile: &FormatProfile, value: f64) -> String {
         if !value.is_nan() {
             return "#NUM!".to_owned();
         }
-        // Excel's retained exponent-field-2047 readings show two significant digits,
-        // without a minus sign, even when the stored encoding has its sign bit set.
-        let exact = ExactDecimal::binary(value);
-        let exponent = exact.magnitude();
-        let (mantissa, carry) = significant(&exact, 2);
+        // Excel 16.0.20527 (dc-j9k.57): qualified exponent-field-2047 overflow numbers use the
+        // same Q0.64 15-digit conversion and 11-character General scientific layout as finite
+        // numbers, without a minus sign (since NaN < 0 is false).
+        let first = crate::number_text::overflow_decimal(value);
+        let length = first.coefficient.digits().len() as i64;
+        let point = length + first.exponent as i64;
+        let mut exponent = point - 1;
+        let exponent_width = if exponent.abs() >= 100 { 3 } else { 2 };
+        let places = WIDTH - 2 - 2 - exponent_width;
+        let (mantissa, carry) = significant(&first, places as usize + 1);
+        exponent += carry;
         let (head, tail) = mantissa.split_at(1);
         let tail = tail.trim_end_matches('0');
-        let point = if tail.is_empty() {
-            ""
-        } else {
-            profile.decimal_separator
-        };
-        return format!("{head}{point}{tail}E+{}", i64::from(exponent) + carry);
+        let mut out = head.to_owned();
+        if !tail.is_empty() {
+            out.push_str(profile.decimal_separator);
+            out.push_str(tail);
+        }
+        out.push_str(&format!(
+            "E{}{:02}",
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        ));
+        return out;
     }
     if value == 0.0 || value.is_subnormal() {
         return "0".to_owned();
@@ -746,6 +757,8 @@ enum Item {
     Percent,
     /// An active text placeholder, distinguished from a quoted or escaped `@`.
     TextPlaceholder,
+    /// Unquoted `General` keyword within a section.
+    General,
     Literal(String),
 }
 
@@ -801,6 +814,13 @@ fn items(section: &str, profile: &FormatProfile) -> Result<Vec<Item>, Failure> {
             '@' => {
                 out.push(Item::TextPlaceholder);
                 at += 1;
+            }
+            _ if rest
+                .get(..7)
+                .is_some_and(|head| head.eq_ignore_ascii_case("general")) =>
+            {
+                out.push(Item::General);
+                at += 7;
             }
             // Excel 20527 en-ZA: a lowercase e exponent (`0.000e+00`, `0e-0`, `0.0e0`) is #VALUE!.
             'e' if measured_host(profile)
@@ -975,7 +995,7 @@ fn literal_text(item: &Item, profile: &FormatProfile) -> Result<String, Failure>
         Item::Percent => "%".to_owned(),
         Item::Group => profile.thousands_separator.to_owned(),
         Item::Point => profile.decimal_separator.to_owned(),
-        Item::Digit(_) | Item::Exponent(_) | Item::TextPlaceholder => {
+        Item::Digit(_) | Item::Exponent(_) | Item::TextPlaceholder | Item::General => {
             return Err(Failure::NotModelled);
         }
     })
@@ -1785,13 +1805,7 @@ fn render_cell_text(
     };
     match value.core_ref() {
         CoreRef::Number(number) if value.is_excel_overflow() => {
-            if code.trim().eq_ignore_ascii_case("general") {
-                Ok(general(profile, number))
-            } else {
-                // The retained readings cover General only. A custom cell format
-                // has no measured rendering yet; the application labels its fallback.
-                Err(CellFormatError::NotModelled)
-            }
+            render_text_overflow(profile, number, code).map_err(failure)
         }
         CoreRef::Number(number) => render_text(profile, system, number, code).map_err(failure),
         CoreRef::Text(text) => {
@@ -1858,6 +1872,7 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
     use crate::value::CoreRef;
     let sections = sections(code);
     let section = match value.core_ref() {
+        CoreRef::Number(_) if value.is_excel_overflow() => choose(&sections, 0.0).ok()?.0,
         CoreRef::Number(number) => choose(&sections, number).ok()?.0,
         CoreRef::Text(_) => match sections.get(3) {
             Some(section) => section.clone(),
@@ -1916,6 +1931,124 @@ pub(crate) fn text_declared_date_locale(system: DateSystem, value: f64, code: &s
         return Err(Failure::NotModelled);
     }
     text(&crate::locale::format_profile(locale), system, value, code)
+}
+
+/// TEXT of a qualified exponent-field-2047 overflow number under `code` (dc-j9k.57,
+/// Excel 16.0.20527). Section selection and bracket conditions evaluate the overflow NaN as `0.0`.
+/// Within the chosen section: `General` (including with literals) and `@` render the unsigned
+/// General representation; empty/literal sections render their literals; scientific sections render
+/// `0.0`; fixed numeric, date and fraction sections return `#VALUE!`.
+pub(crate) fn text_overflow(profile: &FormatProfile, value: f64, code: &str) -> Rendered {
+    render_text_overflow(&localized_code_profile(profile), value, code)
+}
+
+fn has_general_keyword(section: &str) -> bool {
+    let bytes = section.as_bytes();
+    let (mut at, mut quoted, mut escaped) = (0, false, false);
+    while at < bytes.len() {
+        if escaped {
+            escaped = false;
+            at += 1;
+            continue;
+        }
+        match bytes[at] {
+            b'\\' => {
+                escaped = true;
+                at += 1;
+            }
+            b'"' => {
+                quoted = !quoted;
+                at += 1;
+            }
+            _ if !quoted
+                && bytes
+                    .get(at..at + 7)
+                    .is_some_and(|head| head.eq_ignore_ascii_case(b"general")) =>
+            {
+                return true;
+            }
+            _ => at += 1,
+        }
+    }
+    false
+}
+
+fn render_text_overflow(profile: &FormatProfile, value: f64, code: &str) -> Rendered {
+    use datetime::DateTimeFormat::{DateTime, MixedNameAndNumber, NamedDateTime};
+    if !value.is_nan() {
+        return Err(Failure::Value);
+    }
+    if code.is_empty() {
+        return Ok(String::new());
+    }
+    let sections = sections(code);
+    let (section, _) = choose(&sections, 0.0)?;
+    let (stripped, _, _, _) = strip_tokens(&section)?;
+    if stripped.trim().eq_ignore_ascii_case("general") {
+        return Ok(general(profile, value));
+    }
+    if has_general_keyword(&stripped) {
+        let parsed = items(&stripped, profile)?;
+        if parsed.iter().any(|i| matches!(i, Item::Digit(_))) {
+            return Err(Failure::Value);
+        }
+        let mut out = String::new();
+        for item in &parsed {
+            match item {
+                Item::General => out.push_str(&general(profile, value)),
+                other => out.push_str(&literal_text(other, profile)?),
+            }
+        }
+        return Ok(out);
+    }
+    let code_decimal = profile
+        .format_code_decimal_token
+        .chars()
+        .next()
+        .unwrap_or('.');
+    let date_format = datetime::classify_datetime_format(&stripped, code_decimal);
+    if matches!(date_format, DateTime | NamedDateTime | MixedNameAndNumber) {
+        return Err(Failure::Value);
+    }
+    if mixed_fraction_under_space_grouping(&stripped, profile) {
+        return Err(Failure::Value);
+    }
+    if matches!(
+        fraction_layout(&stripped, profile),
+        Ok(Some(_)) | Err(Failure::Value)
+    ) {
+        return Err(Failure::Value);
+    }
+    let mut parsed = items(&stripped, profile)?;
+    if !parsed.iter().any(|i| matches!(i, Item::Digit(_))) {
+        if measured_host(profile) && profile.format_code_group_token == " " {
+            parsed.dedup_by(|a, b| *a == Item::Group && *b == Item::Group);
+            for item in &mut parsed {
+                if *item == Item::Group {
+                    *item = Item::Literal(" ".to_owned());
+                }
+            }
+        }
+        if parsed.iter().any(|i| matches!(i, Item::TextPlaceholder)) {
+            return Ok(general(profile, value));
+        }
+        if parsed
+            .iter()
+            .any(|i| matches!(i, Item::Point | Item::Group | Item::Exponent(_)))
+        {
+            return Err(Failure::Value);
+        }
+        return parsed
+            .iter()
+            .map(|i| literal_text(i, profile))
+            .collect::<Result<String, Failure>>();
+    }
+    if parsed.iter().any(|i| matches!(i, Item::Exponent(_)))
+        && !parsed.iter().any(|i| matches!(i, Item::TextPlaceholder))
+    {
+        return numeric(profile, 0.0, &parsed, false);
+    }
+    Err(Failure::Value)
 }
 
 /// TEXT of a number under `code`.
@@ -2395,6 +2528,36 @@ mod tests {
         }
         assert_eq!(text_of_text("x", "@!", &host()), Ok("x!".to_owned()));
         assert_eq!(text_of_text("abc", "0.00", &host()), Ok("abc".to_owned()));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn qualified_overflow_cell_formats_and_colors_follow_excel_zero_section() {
+        let profile = format_profile(LocaleId::EnUs);
+        let pos = crate::value::CalcValue::excel_overflow_number(f64::from_bits(
+            0x7ff1_ccf3_85eb_c8a0,
+        ))
+        .unwrap();
+        let neg = crate::value::CalcValue::excel_overflow_number(f64::from_bits(
+            0xfff0_0000_0000_000a,
+        ))
+        .unwrap();
+        let cell = |value: &crate::value::CalcValue, code: &str| {
+            cell_text(&profile, DateSystem::System1900, value, code)
+        };
+        assert_eq!(cell(&pos, "General"), Ok("2E+308".to_owned()));
+        assert_eq!(cell(&neg, "General"), Ok("1.7977E+308".to_owned()));
+        assert_eq!(cell(&pos, "0.00E+00"), Ok("0.00E+00".to_owned()));
+        assert_eq!(
+            cell(&neg, "[Red]General;[Blue]-General;[Green]0.00E+00;@"),
+            Ok("0.00E+00".to_owned())
+        );
+        assert_eq!(
+            cell_color("[Red]General;[Blue]-General;[Green]0.00E+00;@", &neg),
+            Some(FormatColor::Green)
+        );
+        assert_eq!(cell(&pos, "#,##0.00"), Err(CellFormatError::Unshowable));
+        assert_eq!(cell(&pos, "yyyy-mm-dd"), Err(CellFormatError::Unshowable));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

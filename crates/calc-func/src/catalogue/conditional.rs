@@ -283,7 +283,7 @@ fn maxifs(
     let site = Site::new(MAXIFS, services);
     Site::finish(
         pairs(&site, arguments, services, true)
-            .and_then(|plan| extreme(&site, &plan, services, |n, best| n > best)),
+            .and_then(|plan| extreme(&site, &plan, services, false)),
     )
 }
 
@@ -295,14 +295,18 @@ fn minifs(
     let site = Site::new(MINIFS, services);
     Site::finish(
         pairs(&site, arguments, services, true)
-            .and_then(|plan| extreme(&site, &plan, services, |n, best| n < best)),
+            .and_then(|plan| extreme(&site, &plan, services, true)),
     )
 }
 
 fn total(site: &Site<'_>, plan: &Plan, services: &mut EvalServices<'_>) -> Step<CalcValue> {
     let mut total = 0.0;
-    plan.each_matched(site, services, &mut |n| {
-        total = site.add(total, n)?;
+    plan.each_matched(site, services, &mut |n, overflow| {
+        if overflow.is_some() {
+            total = f64::INFINITY;
+        } else {
+            total = site.add(total, n)?;
+        }
         Ok(())
     })?;
     site.number(total)
@@ -310,8 +314,12 @@ fn total(site: &Site<'_>, plan: &Plan, services: &mut EvalServices<'_>) -> Step<
 
 fn mean(site: &Site<'_>, plan: &Plan, services: &mut EvalServices<'_>) -> Step<CalcValue> {
     let (mut total, mut counted) = (0.0, 0u64);
-    plan.each_matched(site, services, &mut |n| {
-        total = site.add(total, n)?;
+    plan.each_matched(site, services, &mut |n, overflow| {
+        if overflow.is_some() {
+            total = f64::INFINITY;
+        } else {
+            total = site.add(total, n)?;
+        }
         counted += 1;
         Ok(())
     })?;
@@ -323,16 +331,42 @@ fn extreme(
     site: &Site<'_>,
     plan: &Plan,
     services: &mut EvalServices<'_>,
-    replaces: fn(f64, f64) -> bool,
+    is_min: bool,
 ) -> Step<CalcValue> {
-    let mut best: Option<f64> = None;
-    plan.each_matched(site, services, &mut |n| {
-        if best.is_none_or(|best| replaces(n, best)) {
-            best = Some(n);
+    let mut best: Option<CalcValue> = None;
+    plan.each_matched(site, services, &mut |n, overflow| {
+        let replace = match &best {
+            None => true,
+            Some(prior) => {
+                let order = if prior.is_excel_overflow() || overflow.is_some() {
+                    comparison::overflow_numbers(
+                        site,
+                        n,
+                        prior.as_number().expect("selected number"),
+                    )?
+                } else {
+                    n.total_cmp(&prior.as_number().expect("selected number"))
+                };
+                if is_min {
+                    order.is_lt()
+                } else {
+                    order.is_gt()
+                }
+            }
+        };
+        if replace {
+            best = Some(match overflow {
+                Some(value) => value.clone(),
+                None => CalcValue::number(n),
+            });
         }
         Ok(())
     })?;
-    site.number(best.unwrap_or(0.0))
+    match best {
+        Some(value) if value.is_excel_overflow() => Ok(value),
+        Some(value) => site.number(value.as_number().expect("selected number")),
+        None => site.number(0.0),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -472,10 +506,12 @@ struct Verdicts {
     blank: Match,
 }
 
-/// A target cell that a matched row uses: a number, or an error, which is the result.
-#[derive(Clone, Copy)]
+/// A target cell that a matched row uses: a number, a qualified overflow number, or an error,
+/// which is the result.
+#[derive(Clone)]
 enum Used {
     Number(f64),
+    Overflow(CalcValue),
     Error(WorksheetErrorCode),
 }
 
@@ -493,13 +529,14 @@ impl Plan {
         Ok(all)
     }
 
-    /// Calls `take` with every number of the target in a row that every criterion matches, in
-    /// row-major order; the first error in such a row is the result.
+    /// Calls `take` with every number (and optional qualified overflow CalcValue) of the target in
+    /// a row that every criterion matches, in row-major order; the first error in such a row is
+    /// the result.
     fn each_matched(
         &self,
         site: &Site<'_>,
         services: &mut EvalServices<'_>,
-        take: &mut dyn FnMut(f64) -> Step<()>,
+        take: &mut dyn FnMut(f64, Option<&CalcValue>) -> Step<()>,
     ) -> Step<()> {
         let target = self.target.expect("a function with a target range");
         let mut used: Option<Vec<(u64, Used)>> = None;
@@ -526,7 +563,10 @@ impl Plan {
         for (offset, cell) in used {
             match row(&conditions, &mut cursors, offset) {
                 Row::Yes => match cell {
-                    Used::Number(n) => take(n)?,
+                    Used::Number(n) => take(n, None)?,
+                    Used::Overflow(value) => {
+                        take(value.as_number().expect("qualified overflow"), Some(&value))?
+                    }
                     Used::Error(code) => return Err(Exit::Error(code)),
                 },
                 Row::No => {}
@@ -701,6 +741,7 @@ fn target_cells(
 /// blank cells are skipped).
 fn used(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Used>> {
     match value.core_ref() {
+        CoreRef::Number(_) if value.is_excel_overflow() => Ok(Some(Used::Overflow(value.clone()))),
         CoreRef::Number(n) => Ok(Some(Used::Number(
             site.argument(index, coerce::operand(n))?,
         ))),
@@ -785,7 +826,8 @@ pub(super) enum Criterion {
     NotBlank,
     /// `<`, `<=`, `>` or `>=` with no operand: no cell.
     Never,
-    Number(Op, f64),
+    /// Numeric criterion; the flag records whether the operand is a qualified overflow encoding.
+    Number(Op, f64, bool),
     Logical(Op, bool),
     Error(Op, WorksheetErrorCode),
     /// Text, its escapes resolved: equality, or an order.
@@ -859,14 +901,18 @@ fn criterion(
         _ => argument,
     };
     match value.core_ref() {
+        CoreRef::Number(n) if value.is_excel_overflow() => {
+            Ok(Criterion::Number(Op::Equal, n, true))
+        }
         CoreRef::Number(n) => Ok(Criterion::Number(
             Op::Equal,
             site.argument(index, coerce::operand(n))?,
+            false,
         )),
         CoreRef::Logical(b) => Ok(Criterion::Logical(Op::Equal, b)),
         CoreRef::Error(code) => Ok(Criterion::Error(Op::Equal, code)),
         // An empty cell given as the criterion, and an omitted criterion, are the value 0.
-        CoreRef::Empty | CoreRef::Missing => Ok(Criterion::Number(Op::Equal, 0.0)),
+        CoreRef::Empty | CoreRef::Missing => Ok(Criterion::Number(Op::Equal, 0.0, false)),
         CoreRef::Text(text) => criterion_text(site, index, text.utf16_code_units()),
         CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
@@ -903,9 +949,13 @@ pub(super) fn database_criterion(
                 other => other,
             }))
         }
+        CoreRef::Number(n) if value.is_excel_overflow() => {
+            Ok(Some(Criterion::Number(Op::Equal, n, true)))
+        }
         CoreRef::Number(n) => Ok(Some(Criterion::Number(
             Op::Equal,
             site.argument(index, coerce::operand(n))?,
+            false,
         ))),
         CoreRef::Logical(b) => Ok(Some(Criterion::Logical(Op::Equal, b))),
         CoreRef::Error(code) => Err(Exit::Error(code)),
@@ -1009,7 +1059,7 @@ fn criterion_text(site: &Site<'_>, index: usize, units: &[u16]) -> Step<Criterio
     }
     let operand = CalcValue::text(ExcelText::from_utf16_code_units(rest.to_vec()));
     match site.number_argument(index, &operand) {
-        Ok(n) => Ok(Criterion::Number(op, n)),
+        Ok(n) => Ok(Criterion::Number(op, n, false)),
         // Text that reads as no number: no digit, out of the range Excel reads, or a word outside
         // the words coercion's measured list lets number text hold (such as the label 2016-17
         // Winter).
@@ -1044,7 +1094,9 @@ impl Criterion {
     /// The verdict of a cell of the range at argument `index` holding `value` (Empty for a blank
     /// cell).
     pub(super) fn verdict(&self, site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Match> {
-        if let CoreRef::Number(n) = value.core_ref() {
+        if let CoreRef::Number(n) = value.core_ref()
+            && !value.is_excel_overflow()
+        {
             site.argument(index, coerce::operand(n))?;
         }
         let blank = matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing);
@@ -1058,13 +1110,13 @@ impl Criterion {
             Criterion::Blank => Ok(Match::of(blank)),
             Criterion::NotBlank => Ok(Match::of(!blank)),
             Criterion::Never => Ok(Match::No),
-            Criterion::Number(op, operand) => {
+            Criterion::Number(op, operand, operand_overflow) => {
                 let cell = match value.core_ref() {
-                    CoreRef::Number(n) => Some(n),
+                    CoreRef::Number(n) => Some((n, value.is_excel_overflow())),
                     // Text is never a number to an ordering or to <>; only = reads it as one.
                     CoreRef::Text(_) if *op != Op::Equal => None,
                     CoreRef::Text(text) => match site.number_argument(index, value) {
-                        Ok(n) => Some(n),
+                        Ok(n) => Some((n, false)),
                         // Text that reads as no number (see the criterion's operand above).
                         Err(Exit::Error(_)) => None,
                         // Wildcards and a leading comparison operator in a range cell are
@@ -1090,8 +1142,15 @@ impl Criterion {
                     _ => None,
                 };
                 let verdict = match cell {
-                    Some(n) => decided(
-                        comparison::numbers(site, n, *operand).map(|ordering| op.holds(ordering)),
+                    Some((n, cell_overflow)) => decided(
+                        comparison::criteria_numbers(
+                            site,
+                            n,
+                            cell_overflow,
+                            *operand,
+                            *operand_overflow,
+                        )
+                        .map(|ordering| op.holds(ordering)),
                     )?,
                     None => Match::of(*op == Op::NotEqual),
                 };

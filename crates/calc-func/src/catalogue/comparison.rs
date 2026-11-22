@@ -242,30 +242,86 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
 /// The order of qualified overflow encodings and already-validated numeric operands.
 /// Callers must retain the CalcValue qualification; arbitrary NaNs are not admitted.
 pub(super) fn overflow_numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
+    if (!a.is_finite() && !a.is_nan()) || (!b.is_finite() && !b.is_nan()) {
+        return Err(site.not_modelled(None));
+    }
     if !(a.is_nan() || b.is_nan()) {
         return numbers(site, a, b);
     }
     if a.to_bits() == b.to_bits() {
         return Ok(Ordering::Equal);
     }
+    // Excel 16.0.20527 (dc-j9k.57): qualified exponent-field-2047 overflow encodings lie above
+    // 2^1024 and compare in exact exponent-carry bit order against finite numbers and other
+    // overflow encodings (e.g., ROUND(DBL_MAX,0) > DBL_MAX and ROUND(-DBL_MAX,0) < -DBL_MAX),
+    // which matches IEEE-754 total_cmp.
+    site.binary64()?;
+    Ok(a.total_cmp(&b))
+}
+
+/// Numeric comparison for worksheet criteria (`COUNTIF`, `SUMIF`, `MAXIFS`, `MINIFS`, database
+/// criteria). Excel 16.0.20527 (dc-j9k.57) uses symmetric 15-significant-digit rounding in
+/// criteria even in binary64's top binade (`>= 2^1023`) and for qualified overflow numbers
+/// (e.g., `COUNTIF([DBL_MAX-1, DBL_MAX, ROUND(DBL_MAX,0)], DBL_MAX) = 3`), while preserving
+/// sign ordering (`-2E+308 < 0 < +2E+308`).
+pub(super) fn criteria_numbers(
+    site: &Site<'_>,
+    a: f64,
+    a_overflow: bool,
+    b: f64,
+    b_overflow: bool,
+) -> Step<Ordering> {
+    if (!a.is_finite() && !a_overflow) || (!b.is_finite() && !b_overflow) {
+        return Err(site.not_modelled(None));
+    }
+    if !a_overflow && !b_overflow && a.abs() < TOP_BINADE && b.abs() < TOP_BINADE {
+        return numbers(site, a, b);
+    }
+    if a_overflow == b_overflow && a.to_bits() == b.to_bits() {
+        return Ok(Ordering::Equal);
+    }
+    site.binary64()?;
+    if a == 0.0 {
+        return Ok(if b.is_sign_negative() {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        });
+    }
+    if b == 0.0 {
+        return Ok(if a.is_sign_negative() {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        });
+    }
     if a.is_sign_negative() != b.is_sign_negative() {
         return Ok(a.total_cmp(&b));
     }
-    let half = |number: f64| {
-        if number.is_nan() {
-            f64::from_bits(number.to_bits() - (1_u64 << 52))
+    let mag_key = |x: f64, overflow: bool| -> (i32, String) {
+        let dec = if overflow {
+            crate::number_text::overflow_decimal(x)
         } else {
-            number * 0.5
-        }
+            crate::number_text::decimal(x.abs())
+        };
+        let digits = dec.coefficient.digits();
+        let exp = dec.exponent + digits.len() as i32 - 1;
+        (exp, digits.trim_end_matches('0').to_owned())
     };
-    numbers(site, half(a), half(b))
+    if mag_key(a, a_overflow) == mag_key(b, b_overflow) {
+        Ok(Ordering::Equal)
+    } else {
+        Ok(a.total_cmp(&b))
+    }
 }
 
 /// The order of two ordinary finite numbers. Equal numbers need no rounding. For different numbers the
 /// nearness test computes their difference and [`APART`] of the larger magnitude at the call's
 /// arithmetic sites, which round under its numeric mode. Numbers farther apart order by value;
-/// nearer ones by their 15-digit roundings, refused ([`in_band`]) where Excel's rounding may
-/// depart from the exact one and the departure could decide the comparison.
+/// nearer ones skip 15-digit rounding when the right operand lies in binary64's top binade
+/// (`|b| >= 2^1023`, dc-j9k.57, Excel 16.0.20527), and otherwise compare by their 15-digit
+/// roundings, refused ([`in_band`]) where Excel's rounding may depart from the exact one and the
+/// departure could decide the comparison.
 pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
     if !a.is_finite() || !b.is_finite() {
         return Err(site.not_modelled(None));
@@ -276,6 +332,9 @@ pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
     let difference = site.subtract(a, b)?.abs();
     let apart = site.multiply(a.abs().max(b.abs()), APART)?;
     if difference > apart || a.is_sign_negative() != b.is_sign_negative() {
+        return Ok(a.total_cmp(&b));
+    }
+    if b.abs() >= TOP_BINADE {
         return Ok(a.total_cmp(&b));
     }
     let (Some(x), Some(y)) = (Roundings::of(a.abs()), Roundings::of(b.abs())) else {
@@ -329,12 +388,11 @@ struct Roundings {
 
 impl Roundings {
     /// The roundings of a finite magnitude, or `None` where Excel rounds it one digit finer
-    /// ([`FINER`]) or by a rule not modelled ([`TOP_BINADE`]).
+    /// ([`FINER`]).
     fn of(magnitude: f64) -> Option<Roundings> {
-        if magnitude >= TOP_BINADE
-            || FINER
-                .iter()
-                .any(|&(low, high)| (low..=high).contains(&magnitude))
+        if FINER
+            .iter()
+            .any(|&(low, high)| (low..=high).contains(&magnitude))
         {
             return None;
         }
@@ -462,7 +520,8 @@ mod tests {
             (tie.nearest, tie.other),
             (rounded(100_000_000_000_000, 15), None)
         );
-        assert!(Roundings::of(f64::MAX).is_none());
+        assert!(Roundings::of(f64::MAX).is_some());
+        assert!(Roundings::of(TOP_BINADE).is_some());
         assert!(Roundings::of(1.0001e-146).is_none());
         assert!(Roundings::of(1.01e-146).is_some());
     }

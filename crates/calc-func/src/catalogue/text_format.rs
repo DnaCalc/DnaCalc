@@ -156,18 +156,28 @@ fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     }
     if a[0].is_excel_overflow() {
         let code = text_arg(site, a, 1)?.to_string_lossy();
-        if code.eq_ignore_ascii_case("general") || code == "@" {
-            let default = crate::locale::format_profile(LocaleId::EnZa);
-            let profile = site
-                .environment()
-                .and_then(|e| e.profile.as_ref())
-                .unwrap_or(&default);
-            return Ok(crate::catalogue::kit::text_value(&format::general(
+        let mut fallback = crate::locale::format_profile(LocaleId::EnUs);
+        if site
+            .environment()
+            .and_then(|e| e.profile.as_ref())
+            .is_none()
+            && let Some((decimal, group)) = site.number_separators()
+            && let Some(custom) = fallback.with_separators(decimal, group)
+        {
+            fallback = custom;
+        }
+        let profile = site
+            .environment()
+            .and_then(|e| e.profile.as_ref())
+            .unwrap_or(&fallback);
+        return rendered(
+            site,
+            format::text_overflow(
                 profile,
                 a[0].as_number().expect("qualified overflow number"),
-            )));
-        }
-        return fail(WorksheetErrorCode::Value);
+                &code,
+            ),
+        );
     }
     // Excel 20527 under en-ZA ("." decimal; Application.ThousandsSeparator U+00A0,
     // International U+0020) refuses a code that reads as plain exponent number text,

@@ -93,6 +93,7 @@ attach_family! {
 #[derive(Clone, Copy, Debug)]
 enum Item<'a> {
     Number(f64),
+    Overflow(f64),
     Text(&'a [u16]),
     Logical(bool),
     Error(WorksheetErrorCode),
@@ -103,7 +104,7 @@ impl Item<'_> {
     /// The kind's place in XMATCH's order: numbers, text, logicals, errors, blank cells.
     fn rank(self) -> u8 {
         match self {
-            Item::Number(_) => 0,
+            Item::Number(_) | Item::Overflow(_) => 0,
             Item::Text(_) => 1,
             Item::Logical(_) => 2,
             Item::Error(_) => 3,
@@ -116,6 +117,7 @@ impl Item<'_> {
 /// array, and a number that is not a worksheet number, are refused naming argument `index`.
 fn item<'v>(site: &Site<'_>, index: usize, value: &'v CalcValue) -> Step<Item<'v>> {
     Ok(match value.core_ref() {
+        CoreRef::Number(n) if value.is_excel_overflow() => Item::Overflow(n),
         CoreRef::Number(n) => Item::Number(site.argument(index, coerce::operand(n))?),
         CoreRef::Text(text) => Item::Text(text.utf16_code_units()),
         CoreRef::Logical(b) => Item::Logical(b),
@@ -159,6 +161,8 @@ fn text_limit(key: Item<'_>) -> Step<()> {
 fn equal(site: &Site<'_>, a: Item<'_>, b: Item<'_>) -> Step<bool> {
     match (a, b) {
         (Item::Number(x), Item::Number(y)) => Ok(x == y),
+        (Item::Overflow(x), Item::Overflow(y)) => Ok(x.to_bits() == y.to_bits()),
+        (Item::Overflow(_), Item::Number(_)) | (Item::Number(_), Item::Overflow(_)) => Ok(false),
         (Item::Text(x), Item::Text(y)) => comparison::texts(x, y, Want::Equality)
             .map(Ordering::is_eq)
             .map_err(|_| site.not_modelled(None)),
@@ -196,7 +200,10 @@ fn order(site: &Site<'_>, a: Item<'_>, b: Item<'_>) -> Step<Ordering> {
     // total_cmp places -0 below +0, which `equal` holds equal: -0 is ordered as +0.
     let unsigned_zero = |n: f64| if n == 0.0 { 0.0 } else { n };
     match (a, b) {
-        (Item::Number(x), Item::Number(y)) => Ok(unsigned_zero(x).total_cmp(&unsigned_zero(y))),
+        (Item::Number(x), Item::Number(y))
+        | (Item::Overflow(x), Item::Overflow(y))
+        | (Item::Overflow(x), Item::Number(y))
+        | (Item::Number(x), Item::Overflow(y)) => Ok(unsigned_zero(x).total_cmp(&unsigned_zero(y))),
         (Item::Text(x), Item::Text(y)) => {
             comparison::texts(x, y, Want::Order).map_err(|_| site.not_modelled(None))
         }

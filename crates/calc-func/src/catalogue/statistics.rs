@@ -64,6 +64,42 @@ fn sorted(mut values: Vec<f64>) -> Vec<f64> {
     values
 }
 
+/// Argument `index`'s numeric values preserving qualified overflow encodings (for LARGE, SMALL,
+/// RANK, RANK.EQ and RANK.AVG). Unqualified nonfinite numbers stay refused.
+fn order_values(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<CalcValue>> {
+    let mut found = Vec::new();
+    values(site, a, index, index + 1, sv, &mut |held, value| {
+        if !held {
+            if value.is_excel_overflow() {
+                found.push(value.clone());
+            } else {
+                found.push(CalcValue::number(site.number_argument(index, value)?));
+            }
+            return Ok(());
+        }
+        match value.core_ref() {
+            CoreRef::Number(_) if value.is_excel_overflow() => found.push(value.clone()),
+            CoreRef::Number(n) => {
+                found.push(CalcValue::number(
+                    site.argument(index, crate::coerce::operand(n))?,
+                ));
+            }
+            CoreRef::Error(code) => return fail(code),
+            CoreRef::Array(_) | CoreRef::Reference(_) => {
+                return Err(site.not_modelled(Some(index)));
+            }
+            CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => {}
+        }
+        Ok(())
+    })?;
+    Ok(found)
+}
+
 /// The k-th largest (`largest`) or smallest number of argument 0.
 fn nth(
     site: &Site<'_>,
@@ -71,7 +107,7 @@ fn nth(
     sv: &mut EvalServices<'_>,
     largest: bool,
 ) -> Step<CalcValue> {
-    let values = list(site, a, 0, sv)?;
+    let mut values = order_values(site, a, 0, sv)?;
     let k = num(site, a, 1)?;
     if k < 1.0 || k > values.len() as f64 {
         return fail(WorksheetErrorCode::Num);
@@ -79,7 +115,17 @@ fn nth(
     // Excel validates the unrounded rank. LARGE selects from ascending order after the stored
     // subtraction, whose rounding matters for ranks adjacent to an integer.
     let rank = if largest { (values.len() as f64 + 1.0 - k).trunc() } else { k.trunc() };
-    site.number(sorted(values)[rank as usize - 1])
+    values.sort_by(|x, y| {
+        x.as_number()
+            .expect("numeric order value")
+            .total_cmp(&y.as_number().expect("numeric order value"))
+    });
+    let chosen = &values[rank as usize - 1];
+    if chosen.is_excel_overflow() {
+        Ok(chosen.clone())
+    } else {
+        site.number(chosen.as_number().expect("numeric order value"))
+    }
 }
 
 fn rank(
@@ -88,7 +134,11 @@ fn rank(
     sv: &mut EvalServices<'_>,
     average: bool,
 ) -> Step<CalcValue> {
-    let number = num(site, a, 0)?;
+    let (number, number_overflow) = if a[0].is_excel_overflow() {
+        (a[0].as_number().expect("qualified overflow"), true)
+    } else {
+        (num(site, a, 0)?, false)
+    };
     let ascending = if !given(a, 2) {
         false
     } else if let CoreRef::Text(text) = a[2].core_ref() {
@@ -101,13 +151,37 @@ fn rank(
     } else {
         RankOrder::Descending
     };
-    let values = list(site, a, 1, sv)?;
-    let r = if average {
-        rank_avg(number, &values, order)
+    let vals = order_values(site, a, 1, sv)?;
+    if !number_overflow && vals.iter().all(|v| !v.is_excel_overflow()) {
+        let plain: Vec<f64> = vals.iter().map(|v| v.as_number().unwrap()).collect();
+        let r = if average {
+            rank_avg(number, &plain, order)
+        } else {
+            rank_eq(number, &plain, order)
+        };
+        return out(site, r);
+    }
+    let unsigned_zero = |x: f64| if x == 0.0 { 0.0 } else { x };
+    let target = unsigned_zero(number);
+    let (mut before, mut equal) = (0usize, 0usize);
+    for value in &vals {
+        let item = unsigned_zero(value.as_number().expect("numeric order value"));
+        match item.total_cmp(&target) {
+            std::cmp::Ordering::Equal => equal += 1,
+            std::cmp::Ordering::Greater if matches!(order, RankOrder::Descending) => before += 1,
+            std::cmp::Ordering::Less if matches!(order, RankOrder::Ascending) => before += 1,
+            _ => {}
+        }
+    }
+    if equal == 0 {
+        return fail(WorksheetErrorCode::NA);
+    }
+    let result = if average {
+        (before + 1) as f64 + (equal - 1) as f64 / 2.0
     } else {
-        rank_eq(number, &values, order)
+        (before + 1) as f64
     };
-    out(site, r)
+    site.number(result)
 }
 
 fn percentile(

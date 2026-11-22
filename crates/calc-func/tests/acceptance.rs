@@ -19615,13 +19615,31 @@ fn cdoc_jpha__text_and_number_comparison() {
         );
     }
 
-    // Through the call interface alone, numbers where Excel's own rounding departs from the exact
-    // one: these comparisons are refused, and numbers far apart there still order by value.
+    // Through the call interface alone, top-binade near ties follow Excel 16.0.20527's asymmetric
+    // comparison rule (dc-j9k.57): when the right operand lies in [2^1023, DBL_MAX], Excel skips
+    // 15-digit rounding and compares raw binary64 values; when only the left operand is 2^1023 and
+    // the right is in the binade below, both still round to 15 digits. Other bands where Excel's
+    // own rounding departs from the exact one remain refused, and numbers far apart still order by
+    // value.
     let top = f64::from_bits(0x7FE0_0000_0000_0000);
     let after = |x: f64, ulps: u64| f64::from_bits(x.to_bits() + ulps);
+    for (target, a, b, expected) in [
+        (EQ, top, after(top, 3), false),
+        (LT, top, after(top, 3), true),
+        (EQ, f64::MAX, f64::MAX.next_down(), false),
+        (LT, f64::MAX, f64::MAX.next_down(), false),
+        (EQ, top, top.next_down(), true),
+        (EQ, top.next_down(), top, false),
+        (LT, top.next_down(), top, true),
+    ] {
+        let mut given = Recorded::new(vec![CalcValue::number(a), CalcValue::number(b)]);
+        assert_eq!(
+            run(surface(target.0, target.1), &mut given, &NumericMode::Fast),
+            Ok(CalcValue::logical(expected)),
+            "{target:?} on {a:?} and {b:?}"
+        );
+    }
     let mut refused = 0;
-    refused += collation_refuses(top, after(top, 3));
-    refused += collation_refuses(f64::MAX, f64::MAX.next_down());
     refused += collation_refuses(1e-146, after(1e-146, 10));
     refused += collation_refuses(1.001e-146, after(1.001e-146, 1));
     refused += collation_refuses(1e-292, after(1e-292, 10));
@@ -19640,7 +19658,7 @@ fn cdoc_jpha__text_and_number_comparison() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: through the call interface alone (no oracle row, not compared with Excel here): {refused} calls comparing nearly equal numbers where Excel's rounding departs from the exact one are refused as not modelled, naming no argument, owned by {}: in binary64's top binade (2^1023 and 3 ulps above it; the largest number and the one below it), from 1E-146 (and 10 ulps above it; 1.001E-146) and from 1E-292, and 9.531725029864735E+200 against either 15-digit neighbour, which lies a relative 2^-64.5 below a 16th-digit tie (the band within a relative 2^-59 of a tie); numbers far apart there order by value. The departures were read in Excel COM sessions while this bead was built, not in the committed capture",
+        "ACCEPT-NOTE: {CASE}: through the call interface alone (no oracle row, not compared with Excel here): binary64 top-binade near ties follow Excel 16.0.20527's asymmetric rule (dc-j9k.57); {refused} calls comparing nearly equal numbers in other bands where Excel's rounding departs from the exact one are refused as not modelled, naming no argument, owned by {}: from 1E-146 (and 10 ulps above it; 1.001E-146) and from 1E-292, and 9.531725029864735E+200 against either 15-digit neighbour, which lies a relative 2^-64.5 below a 16th-digit tie (the band within a relative 2^-59 of a tie); numbers far apart there order by value. The departures were read in Excel COM sessions while this bead was built, not in the committed capture",
         NUMBER_BANDS.feature()
     );
 

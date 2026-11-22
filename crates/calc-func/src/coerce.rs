@@ -183,6 +183,11 @@ pub(crate) fn operand(n: f64) -> Result<f64, Stop> {
 /// cfunc_m1_2, and IF over the date label 2020/01/02 in dc_e00t's; OxFunc's
 /// `parse_excel_logical_text` records the same rule).
 pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
+    if value.is_excel_overflow() {
+        // Excel 16.0.20527 (dc-j9k.57): qualified overflow numbers evaluate as FALSE in logical
+        // positions (IF, NOT, AND/OR/XOR).
+        return Ok(false);
+    }
     match value.core_ref() {
         CoreRef::Number(n) => operand(n).map(|n| n != 0.0),
         CoreRef::Logical(b) => Ok(b),
@@ -219,12 +224,9 @@ pub(crate) fn spelled_logical(text: &ExcelText) -> Option<bool> {
 pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
     match value.core_ref() {
         CoreRef::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
-        CoreRef::Number(n) if value.is_excel_overflow() => {
-            let profile = crate::locale::format_profile(crate::locale::LocaleId::EnZa);
-            Ok(Cow::Owned(
-                crate::format::general(&profile, n).encode_utf16().collect(),
-            ))
-        }
+        CoreRef::Number(n) if value.is_excel_overflow() => Ok(Cow::Owned(
+            number_text::overflow_text(n).encode_utf16().collect(),
+        )),
         CoreRef::Number(n) if n.is_finite() => number_text::text(n)
             .map(|text| Cow::Owned(text.encode_utf16().collect()))
             .ok_or(Stop::NotModelled),

@@ -1080,7 +1080,8 @@ fn dc_j9k_19__overflow_bits_survive_cells_and_save_as_num_errors() {
     let roots = [
         ("ROUND(Z1,-308)", 0x7ff1_ccf3_85eb_c8a0, "2E+308"),
         ("ROUND(Z1,-307)", 0x7ff0_0541_9221_015d, "1.8E+308"),
-        ("ROUND(Z1,0)", 0x7ff0_0000_0000_000a, "1.8E+308"),
+        // Excel 16.0.20527 (dc-j9k.57): General width-11 scientific shows 5 significant digits.
+        ("ROUND(Z1,0)", 0x7ff0_0000_0000_000a, "1.7977E+308"),
         ("ROUND(Z2,-308)", 0xfff1_ccf3_85eb_c8a0, "2E+308"),
     ];
     for (index, (root, _, _)) in roots.iter().enumerate() {
@@ -1312,6 +1313,355 @@ fn dc_j9k_19__other_kernel_nan_is_refused_in_scalar_and_spill_positions() {
                 ProjectedValue::NotModeled { .. }
             ),
             "a nested ordinary NaN must not disappear inside SORT/INDEX: {bits:016x}"
+        );
+    }
+}
+
+/// Excel 16.0.20527 (Touchstone probes 57/57b/57c/57d/57e, dc-j9k.57): qualified overflow
+/// numbers in array sorting, grouping, criteria, lookup, order stats, logical coercion,
+/// top-binade near-tie comparisons, unsigned Q0.64/General text rendering, and custom formats.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_57__overflow_sort_group_criteria_top_binade_text_and_custom_formats() {
+    use calc_value::WorksheetErrorCode as W;
+    let mut book = session(&calc_host::blank_package());
+    assert!(
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    let s = book.host().sheets()[0].id();
+    let p1023 = f64::from_bits(0x7fe0_0000_0000_0000);
+    let step = |x: f64, k: i64| f64::from_bits((x.to_bits() as i64 + k) as u64);
+    assert!(
+        book.dispatch(SkinIntent::Edit {
+            edits: vec![
+                CellEdit::Set { at: at(s, "A1"), input: number(f64::MAX) },
+                CellEdit::Set { at: at(s, "A2"), input: number(-f64::MAX) },
+                CellEdit::Set { at: at(s, "A3"), input: number(step(f64::MAX, -1)) },
+                CellEdit::Set { at: at(s, "A4"), input: number(1.5e308) },
+                CellEdit::Set { at: at(s, "A5"), input: number(step(1.5e308, 1)) },
+                CellEdit::Set { at: at(s, "A6"), input: number(step(p1023, -1)) },
+                CellEdit::Set { at: at(s, "A7"), input: number(p1023) },
+                CellEdit::Set { at: at(s, "A8"), input: number(step(p1023, 1)) },
+                CellEdit::Set { at: at(s, "A9"), input: number(step(p1023, 2)) },
+                CellEdit::Set { at: at(s, "A10"), input: number(step(p1023, 3)) },
+                CellEdit::Set { at: at(s, "A11"), input: number(-step(p1023, -1)) },
+                CellEdit::Set { at: at(s, "A12"), input: number(-p1023) },
+                CellEdit::Set { at: at(s, "C3"), input: number(1.0) },
+                CellEdit::Set { at: at(s, "D1"), input: number(10.0) },
+                CellEdit::Set { at: at(s, "D2"), input: number(20.0) },
+                CellEdit::Set { at: at(s, "D3"), input: number(30.0) },
+                CellEdit::Set { at: at(s, "D4"), input: number(40.0) },
+                CellEdit::Set { at: at(s, "D5"), input: number(50.0) },
+                CellEdit::Set { at: at(s, "D6"), input: number(60.0) },
+            ]
+        })
+        .accepted()
+    );
+    for (cell, formula) in [
+        // Positive and negative qualified overflows
+        ("B1", "=ROUND(A1,-308)"), // 0x7ff1ccf385ebc8a0
+        ("B2", "=ROUND(A1,-307)"), // 0x7ff005419221015d
+        ("B3", "=ROUND(A1,0)"),    // 0x7ff000000000000a
+        ("B4", "=ROUND(A2,-308)"), // 0xfff1ccf385ebc8a0
+        ("B5", "=ROUND(A2,-307)"), // 0xfff005419221015d
+        ("B6", "=ROUND(A2,0)"),    // 0xfff000000000000a
+        // Mixed range C1:C6 = [B1, B4, 1, B2, B5, B3]
+        ("C1", "=B1"),
+        ("C2", "=B4"),
+        ("C4", "=B2"),
+        ("C5", "=B5"),
+        ("C6", "=B3"),
+        // Duplicates E1:E4 = [B1, B1, B4, B4]
+        ("E1", "=B1"),
+        ("E2", "=B1"),
+        ("E3", "=B4"),
+        ("E4", "=B4"),
+        // Near-tie range F1:F3 = [DBL_MAX-1, DBL_MAX, ROUND(DBL_MAX,0)]
+        ("F1", "=A3"),
+        ("F2", "=A1"),
+        ("F3", "=B3"),
+        // 1. Negative & positive text rendering (&, TEXT General, TEXT @)
+        ("H1", "=B4&\"\""),
+        ("H2", "=B5&\"\""),
+        ("H3", "=B6&\"\""),
+        ("H4", "=B3&\"\""),
+        ("H5", "=TEXT(B4,\"General\")"),
+        ("H6", "=TEXT(B4,\"@\")"),
+        ("H7", "=TEXT(B6,\"General\")"),
+        ("H8", "=TEXT(B6,\"@\")"),
+        ("H9", "=TEXT(B3,\"General\")"),
+        ("H10", "=TEXT(B3,\"@\")"),
+        // 2. Custom formats (zero-section selection, scientific renders 0.0, fixed/date/frac -> #VALUE!)
+        ("H11", "=TEXT(B1,\"0.00E+00\")"),
+        ("H12", "=TEXT(B4,\"0.00E+00\")"),
+        ("H13", "=TEXT(B1,\"0.00E-00\")"),
+        ("H14", "=TEXT(B1,\"##0.0E+0\")"),
+        ("H15", "=TEXT(B1,\"#.##E+00\")"),
+        ("H16", "=TEXT(B1,\"?.??E+00\")"),
+        ("H17", "=TEXT(B1,\"\"\"a\"\"0.0E+0\"\"b\"\"\")"),
+        ("H18", "=TEXT(B1,\"0.0E+00%\")"),
+        ("H19", "=TEXT(B1,\"\")"),
+        ("H20", "=TEXT(B1,\";;;\")"),
+        ("H21", "=TEXT(B1,\"\"\"pos\"\"0.00E+00;\"\"neg\"\"0.00E+00;\"\"zero\"\"0.00E+00;\"\"txt\"\"@\")"),
+        ("H22", "=TEXT(B4,\"\"\"pos\"\"0.00E+00;\"\"neg\"\"0.00E+00;\"\"zero\"\"0.00E+00;\"\"txt\"\"@\")"),
+        ("H23", "=TEXT(B1,\"\"\"pos\"\";\"\"neg\"\";\"\"zero\"\";\"\"txt\"\"\")"),
+        ("H24", "=TEXT(B4,\"\"\"p\"\"0.0E+00;\"\"n\"\"0.0E+00\")"),
+        ("H25", "=TEXT(B1,\"General;General;General;@\")"),
+        ("H26", "=TEXT(B4,\"\"\"p\"\"General;\"\"n\"\"General\")"),
+        ("H27", "=TEXT(B4,\"\"\"p\"\"General;\"\"n\"\"General;\"\"z\"\"General\")"),
+        ("H28", "=TEXT(B1,\"\"\"x\"\"General\"\"y\"\"\")"),
+        ("H29", "=TEXT(B1,\"\"\"x\"\"@\")"),
+        ("H30", "=TEXT(B1,\";;General;\")"),
+        ("H31", "=TEXT(B1,\"[>0]\"\"p\"\";[<0]\"\"n\"\";\"\"z\"\"\")"),
+        ("H32", "=TEXT(B4,\"[=0]\"\"z\"\";\"\"nz\"\"\")"),
+        ("H33", "=TEXT(B1,\"[>=0]\"\"ge\"\";\"\"lt\"\"\")"),
+        ("H34", "=TEXT(B1,\"[<>0]\"\"ne\"\";\"\"eq\"\"\")"),
+        ("H35", "=TEXT(B1,\"General;-General;0;@\")"),
+        ("H36", "=TEXT(B1,\"#,##0\")"),
+        ("H37", "=TEXT(B1,\"0.00\")"),
+        ("H38", "=TEXT(B1,\"0%\")"),
+        ("H39", "=TEXT(B1,\"yyyy-mm-dd\")"),
+        ("H40", "=TEXT(B1,\"# ?/?\")"),
+        // 3. Criteria, lookup, logical coercion, order stats
+        ("I1", "=COUNTIF(C1:C6,\">0\")"),
+        ("I2", "=COUNTIF(C1:C6,\"<0\")"),
+        ("I3", "=COUNTIF(C1:C6,B1)"),
+        ("I4", "=COUNTIF(C1:C6,B4)"),
+        ("I5", "=COUNTIF(C1:C6,\"<>1\")"),
+        ("I6", "=SUMIF(C1:C6,\">0\",D1:D6)"),
+        ("I7", "=SUMIF(C1:C6,\"<0\",D1:D6)"),
+        ("I8", "=SUMIF(C1:C6,B1,D1:D6)"),
+        ("I9", "=MAXIFS(C1:C6,D1:D6,\">0\")"),
+        ("I10", "=MINIFS(C1:C6,D1:D6,\">0\")"),
+        ("I11", "=MATCH(B1,C1:C6,0)"),
+        ("I12", "=XMATCH(B4,C1:C6,0)"),
+        ("I13", "=XLOOKUP(B2,C1:C6,D1:D6)"),
+        ("I14", "=MATCH(B3,F1:F3,0)"),
+        ("I15", "=COUNTIF(F1:F3,A1)"),
+        ("I16", "=COUNTIF(F1:F3,B3)"),
+        ("I17", "=COUNTIF(A4:A5,A4)"),
+        ("I18", "=COUNTIF(A6:A8,A7)"),
+        ("I19", "=IF(B1,1,0)"),
+        ("I20", "=IF(B4,1,0)"),
+        ("I21", "=NOT(B1)"),
+        ("I22", "=AND(B1)"),
+        ("I23", "=RANK.EQ(B1,C1:C6)"),
+        ("I24", "=RANK.EQ(B4,C1:C6)"),
+        ("I25", "=LARGE(C1:C6,1)"),
+        ("I26", "=SMALL(C1:C6,1)"),
+        ("I27", "=MEDIAN(C1:C6)"),
+        // 4. Top-binade near-tie comparisons & overflow vs DBL_MAX
+        ("J1", "=A7=A6"),  // 2^1023 = 2^1023-1 -> TRUE
+        ("J2", "=A6=A7"),  // 2^1023-1 = 2^1023 -> FALSE
+        ("J3", "=A8=A6"),  // 2^1023+1 = 2^1023-1 -> TRUE
+        ("J4", "=A9=A6"),  // 2^1023+2 = 2^1023-1 -> TRUE
+        ("J5", "=A10=A6"), // 2^1023+3 = 2^1023-1 -> FALSE
+        ("J6", "=A7=A8"),  // 2^1023 = 2^1023+1 -> FALSE
+        ("J7", "=A8=A7"),  // 2^1023+1 = 2^1023 -> FALSE
+        ("J8", "=A12=A11"), // -2^1023 = -(2^1023-1) -> TRUE
+        ("J9", "=A11=A12"), // -(2^1023-1) = -2^1023 -> FALSE
+        ("J10", "=A4=A5"), // 1.5e308 = 1.5e308+1 -> FALSE
+        ("J11", "=A1=A3"), // DBL_MAX = DBL_MAX-1 -> FALSE
+        ("J12", "=B3=A1"), // ROUND(DBL_MAX,0) = DBL_MAX -> FALSE
+        ("J13", "=B3>A1"), // ROUND(DBL_MAX,0) > DBL_MAX -> TRUE
+        ("J14", "=B6=A2"), // ROUND(-DBL_MAX,0) = -DBL_MAX -> FALSE
+        ("J15", "=B6<A2"), // ROUND(-DBL_MAX,0) < -DBL_MAX -> TRUE
+        // 5. Array sorting, UNIQUE, GROUPBY spills
+        ("K1", "=SORT(C1:C6)"),
+        ("L1", "=UNIQUE(E1:E4)"),
+        ("M1", "=GROUPBY(E1:E4,D1:D4,SUM,0,0)"),
+        ("O1", "=UNIQUE(F1:F3)"),
+        ("P1", "=SORT(F1:F3)"),
+    ] {
+        enter(&mut book, at(s, cell), formula);
+    }
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+
+    let text_eq = |cell: &str, expected: &str| {
+        assert_eq!(
+            session_calculated(&book, at(s, cell)),
+            Some(CalcValue::text(calc_value::ExcelText::from_interop_assignment(expected))),
+            "{cell}: {:?}",
+            session_value(&book, at(s, cell))
+        );
+    };
+    for (cell, expected) in [
+        ("H1", "2E+308"),
+        ("H2", "1.8E+308"),
+        ("H3", "1.7976931348623E+308"),
+        ("H4", "1.7976931348623E+308"),
+        ("H5", "2E+308"),
+        ("H6", "2E+308"),
+        ("H7", "1.7977E+308"),
+        ("H8", "1.7977E+308"),
+        ("H9", "1.7977E+308"),
+        ("H10", "1.7977E+308"),
+        ("H11", "0.00E+00"),
+        ("H12", "0.00E+00"),
+        ("H13", "0.00E00"),
+        ("H14", "000.0E+0"),
+        ("H15", "0.E+00"),
+        ("H16", "0.  E+00"),
+        ("H17", "a0.0E+0b"),
+        ("H18", "0.0E+00%"),
+        ("H19", ""),
+        ("H20", ""),
+        ("H21", "zero0.00E+00"),
+        ("H22", "zero0.00E+00"),
+        ("H23", "zero"),
+        ("H24", "p0.0E+00"),
+        ("H25", "2E+308"),
+        ("H26", "p2E+308"),
+        ("H27", "z2E+308"),
+        ("H28", "x2E+308y"),
+        ("H29", "2E+308"),
+        ("H30", "2E+308"),
+        ("H31", "z"),
+        ("H32", "z"),
+        ("H33", "ge"),
+        ("H34", "eq"),
+    ] {
+        text_eq(cell, expected);
+    }
+    for cell in ["H35", "H36", "H37", "H38", "H39", "H40"] {
+        assert_eq!(
+            session_calculated(&book, at(s, cell)),
+            Some(CalcValue::error(W::Value)),
+            "{cell}: {:?}",
+            session_value(&book, at(s, cell))
+        );
+    }
+    for (cell, expected) in [
+        ("I1", 4.0),
+        ("I2", 2.0),
+        ("I3", 1.0),
+        ("I4", 1.0),
+        ("I5", 5.0),
+        ("I6", 140.0),
+        ("I7", 70.0),
+        ("I8", 10.0),
+        ("I11", 1.0),
+        ("I12", 2.0),
+        ("I13", 40.0),
+        ("I14", 3.0),
+        ("I15", 3.0),
+        ("I16", 3.0),
+        ("I17", 2.0),
+        ("I18", 3.0),
+        ("I19", 0.0),
+        ("I20", 0.0),
+        ("I23", 1.0),
+        ("I24", 6.0),
+    ] {
+        assert_eq!(
+            session_calculated(&book, at(s, cell)),
+            Some(CalcValue::number(expected)),
+            "{cell}: {:?}",
+            session_value(&book, at(s, cell))
+        );
+    }
+    for (cell, expected) in [
+        ("I21", true),
+        ("I22", false),
+        ("J1", true),
+        ("J2", false),
+        ("J3", true),
+        ("J4", true),
+        ("J5", false),
+        ("J6", false),
+        ("J7", false),
+        ("J8", true),
+        ("J9", false),
+        ("J10", false),
+        ("J11", false),
+        ("J12", false),
+        ("J13", true),
+        ("J14", false),
+        ("J15", true),
+    ] {
+        assert_eq!(
+            session_calculated(&book, at(s, cell)),
+            Some(CalcValue::logical(expected)),
+            "{cell}: {:?}",
+            session_value(&book, at(s, cell))
+        );
+    }
+    assert_eq!(
+        session_calculated(&book, at(s, "I27")),
+        Some(CalcValue::error(W::Num))
+    );
+    let bits_eq = |cell: &str, expected: u64, overflow: bool| {
+        let val = session_calculated(&book, at(s, cell))
+            .unwrap_or_else(|| panic!("{cell}: {:?}", session_value(&book, at(s, cell))));
+        assert_eq!(val.is_excel_overflow(), overflow, "{cell}: {val:?}");
+        assert_eq!(val.as_number().unwrap().to_bits(), expected, "{cell}");
+    };
+    bits_eq("I9", 0x7ff1_ccf3_85eb_c8a0, true);
+    bits_eq("I10", 0xfff1_ccf3_85eb_c8a0, true);
+    bits_eq("I25", 0x7ff1_ccf3_85eb_c8a0, true);
+    bits_eq("I26", 0xfff1_ccf3_85eb_c8a0, true);
+    // SORT(C1:C6) ascending: [B4, B5, 1, B3, B2, B1]
+    bits_eq("K1", 0xfff1_ccf3_85eb_c8a0, true);
+    bits_eq("K2", 0xfff0_0541_9221_015d, true);
+    bits_eq("K3", 1.0_f64.to_bits(), false);
+    bits_eq("K4", 0x7ff0_0000_0000_000a, true);
+    bits_eq("K5", 0x7ff0_0541_9221_015d, true);
+    bits_eq("K6", 0x7ff1_ccf3_85eb_c8a0, true);
+    // UNIQUE(E1:E4): [B1, B4]
+    bits_eq("L1", 0x7ff1_ccf3_85eb_c8a0, true);
+    bits_eq("L2", 0xfff1_ccf3_85eb_c8a0, true);
+    // GROUPBY(E1:E4, D1:D4, SUM, 0, 0): [[B4, 70], [B1, 30]]
+    bits_eq("M1", 0xfff1_ccf3_85eb_c8a0, true);
+    bits_eq("N1", 70.0_f64.to_bits(), false);
+    bits_eq("M2", 0x7ff1_ccf3_85eb_c8a0, true);
+    bits_eq("N2", 30.0_f64.to_bits(), false);
+    // UNIQUE(F1:F3) and SORT(F1:F3): all 3 distinct in bit order
+    bits_eq("O1", 0x7fef_ffff_ffff_fffe, false);
+    bits_eq("O2", 0x7fef_ffff_ffff_ffff, false);
+    bits_eq("O3", 0x7ff0_0000_0000_000a, true);
+    bits_eq("P1", 0x7fef_ffff_ffff_fffe, false);
+    bits_eq("P2", 0x7fef_ffff_ffff_ffff, false);
+    bits_eq("P3", 0x7ff0_0000_0000_000a, true);
+
+    // Unqualified NaN from a non-rounding kernel must remain refused across all newly admitted
+    // paths (UNIQUE, GROUPBY, MATCH, LARGE, IF, NOT).
+    #[derive(Debug)]
+    struct RawNanKernel(CalcValue);
+    impl calc_fml::UserFunction for RawNanKernel {
+        fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(self.0.clone())
+        }
+    }
+    let raw_nan = CalcValue::number(f64::from_bits(0x7ff1_ccf3_85eb_c8a0));
+    let raw_arr = CalcValue::array(
+        calc_value::CalcArray::from_rows(vec![vec![raw_nan.clone()], vec![CalcValue::number(1.0)]])
+            .unwrap(),
+    );
+    let mut nan_book = session(&calc_host::blank_package());
+    let ns = nan_book.host().sheets()[0].id();
+    let mut fns = calc_fml::CallableTable::new();
+    fns.register("RawNanScalar", Rc::new(RawNanKernel(raw_nan)))
+        .unwrap();
+    fns.register("RawNanArray", Rc::new(RawNanKernel(raw_arr)))
+        .unwrap();
+    nan_book.set_user_functions(fns);
+    for (cell, formula) in [
+        ("A1", "=INDEX(UNIQUE(RawNanArray()),2)"),
+        ("A2", "=INDEX(GROUPBY(RawNanArray(),{10;20},SUM,0,0),1,1)"),
+        ("A3", "=MATCH(1,RawNanArray(),0)"),
+        ("A4", "=LARGE(RawNanArray(),1)"),
+        ("A5", "=IF(RawNanScalar(),1,0)"),
+        ("A6", "=NOT(RawNanScalar())"),
+    ] {
+        enter(&mut nan_book, at(ns, cell), formula);
+    }
+    assert!(nan_book.dispatch(SkinIntent::Recalculate).accepted());
+    for cell in ["A1", "A2", "A3", "A4", "A5", "A6"] {
+        assert!(
+            matches!(session_value(&nan_book, at(ns, cell)), ProjectedValue::NotModeled { .. }),
+            "unqualified NaN must stay refused in {cell}: {:?}",
+            session_value(&nan_book, at(ns, cell))
         );
     }
 }

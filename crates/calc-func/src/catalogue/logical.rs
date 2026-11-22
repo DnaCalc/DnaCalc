@@ -160,6 +160,9 @@ fn tally(site: &Site<'_>, arguments: &[CalcValue], services: &mut EvalServices<'
 /// A direct argument, at `index`, as a logical, or `None` when it is skipped.
 fn direct(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>> {
     not_callable(site, index, value)?;
+    if value.is_excel_overflow() {
+        return Ok(Some(false));
+    }
     match value.core_ref() {
         CoreRef::Number(n) => site
             .argument(index, coerce::operand(n))
@@ -176,6 +179,9 @@ fn direct(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>
 /// skipped.
 fn held(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>> {
     not_callable(site, index, value)?;
+    if value.is_excel_overflow() {
+        return Ok(Some(false));
+    }
     match value.core_ref() {
         CoreRef::Number(n) => site
             .argument(index, coerce::operand(n))

@@ -529,31 +529,31 @@ successful `CompletionReceipt(K)`, which carries a barrier the mirror applies be
 one unit including removals. The original path publishes at `finish`; the dc-hsa5.4 update below adds
 nonterminal certified scalar units through that same host/worker projection route.
 
-Rounding past DBL_MAX (dc-j9k.19, 2026-11-04): ROUND, ROUNDDOWN and TRUNC explicitly
-qualify their measured exponent-field-2047 encodings in CalcValue. A copied value retains
-that qualification; an ordinary NaN, even with identical bits, never receives it.
+Rounding past DBL_MAX (dc-j9k.19, 2026-11-04; dc-j9k.57, 2026-11-22): ROUND, ROUNDDOWN and
+TRUNC explicitly qualify their measured exponent-field-2047 encodings in CalcValue. A copied value
+retains that qualification; an ordinary NaN, even with identical bits, never receives it.
 Publication validates every displayed spill or fixed-array member before installing the image.
-N, unary minus and single-number extrema preserve the bits. ABS removes the
-sign while retaining the qualification. Arithmetic returns #NUM!, and type/error
-predicates see a number. Eng15's unchanged readings establish separated overflow
-encodings in both signs and mixed finite/overflow extrema. Comparison scales the
-exponent-carry representation and the finite operand together by one half, then
-uses the existing number comparison. Near ties in the top binade still refuse;
-these observations do not establish their rounding rule. Extrema retain the
-selected value's qualification and use the same comparison for an overflow pair.
-Generic array sorting, grouping and criteria comparisons still refuse nonfinite
-inputs; they cannot infer the qualification from a bare f64. Nested SORT/INDEX
-controls cover both ordinary NaN signs so a finite selection cannot hide one.
-Concatenation and TEXT with General or @ reuse the existing General renderer;
-TEXT with the recorded numeric code 0 remains #VALUE!. The 94 immediate captured
-readings now match, with no typed refusal; the 30 capture save/reopen differences
-remain separate failures. No custom-format or unmeasured near-tie parity is claimed.
-General rendering covers the four recorded .Text readings; custom cell formats remain explicitly
-unmodelled. Eng15 retains unchanged Value2 readings at widths 8.43, 20 and 40;
-this does not establish rendering parity. Save writes #NUM! caches,
-Manual reopen retains their file-cache provenance, and full recalculation restores the encodings.
-The saved-cache reader continues to require finite numeric XML because these caches have error
-type. New oracle capture and additional formatting/order measurements remain open.
+N, unary minus and single-number extrema preserve the bits. ABS removes the sign while retaining
+the qualification. Arithmetic returns #NUM!, logical coercion evaluates as FALSE (IF, NOT, AND,
+OR, XOR, filter arrays), and type/error predicates see a number. Eng15's unchanged readings and
+Excel 16.0.20527 Touchstone probes establish separated overflow encodings in both signs, mixed
+finite/overflow extrema, and full comparison/sorting/grouping/criteria/lookup/order-statistics
+semantics: comparison operators skip 15-digit rounding when the right operand lies in binary64's
+top binade (`|b| >= 2^1023`) and order qualified overflow encodings by IEEE-754 `total_cmp`;
+array sorting (`SORT`/`SORTBY`), deduplication (`UNIQUE`), grouping (`GROUPBY`/`PIVOTBY`), lookup
+(`MATCH`/`XMATCH`/`XLOOKUP`) and order statistics (`LARGE`/`SMALL`/`RANK*`) admit qualified
+overflow values while still refusing arbitrary unqualified NaNs (nested `SORT`/`INDEX` controls
+cover both ordinary NaN signs so a finite selection cannot hide one); worksheet criteria
+(`COUNTIF`/`SUMIF`/`MAXIFS`/`MINIFS` and database criteria) compare top-binade and qualified
+overflow numbers by symmetric 15-digit magnitude with sign ordering, preserving qualified extrema
+in `MAXIFS`/`MINIFS` and returning `#NUM!` in sums/averages. Text concatenation (`&`) runs
+Excel's unsigned `Q0.64` 15-digit formatter on the exponent-2047 bits (`"1.7976931348623E+308"` for
+`ROUND(±DBL_MAX,0)`), `General`/`@` render the unsigned 11-character General form
+(`"1.7977E+308"`), and custom formats select sections and conditions as `0.0` (rendering literals
+and `General`/`@`, formatting scientific sections with `0.0`, and returning `#VALUE!` for fixed
+numeric, date and fraction sections). Save writes #NUM! caches, Manual reopen retains their
+file-cache provenance, and full recalculation restores the encodings. The saved-cache reader
+continues to require finite numeric XML because these caches have error type.
 
 Capture phase evidence (dc-hsa5.15, engine20): failure-bearing verdict report version 6 retains
 every original failure, cell and message with its available immediate, saved and
