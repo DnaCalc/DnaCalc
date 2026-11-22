@@ -431,15 +431,29 @@ fn grid_pane(controller: GridController, ctx: PaneContext) -> impl IntoView {
             .map(Panes::from_geometry)
             .unwrap_or_else(|| fallback_panes.get())
     });
-    let sheet_metrics = Memo::new(move |_| {
-        if let Some(g) = published_geometry.get() {
-            sheet_metrics(Some(&g))
-        } else {
-            geometry.with(|g| sheet_metrics(g.as_ref()))
-        }
+    let sheet_geometry = Memo::new(move |_| published_geometry.get().or_else(|| geometry.get()));
+    let sheet_metrics = Memo::new(move |_| sheet_geometry.with(|g| sheet_metrics(g.as_ref())));
+    let scaled_metrics = Memo::new(move |_| {
+        sheet_metrics.with(|m| m.scaled_for_display(zoom.get(), window().device_pixel_ratio()))
+    });
+    let headings = Memo::new(move |_| {
+        let digit = sheet_geometry
+            .with(|g| g.as_ref().and_then(|g| g.default_digit_px))
+            .filter(|d| d.is_finite() && *d >= 1.)
+            .unwrap_or(7.);
+        scaled_metrics.with(|m| {
+            panes
+                .get()
+                .heading_extents(m, &viewport.get(), window().device_pixel_ratio(), digit)
+        })
     });
     let metrics = Memo::new(move |_| {
-        sheet_metrics.with(|m| m.scaled_for_display(zoom.get(), window().device_pixel_ratio()))
+        let (header_w, header_h) = headings.get();
+        GridMetrics {
+            header_w,
+            header_h,
+            ..scaled_metrics.get()
+        }
     });
     let presentation = Memo::new(
         move |previous: Option<&dna_calc_model::presentation::Presentation>| {

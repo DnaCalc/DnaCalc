@@ -278,6 +278,8 @@ pub fn preview(
     let projected = book.project(keys.into_iter().collect());
     let mut cells = Vec::new();
     let mut retained = 0usize;
+    let mut circular_holds = false;
+    let mut external_caches = false;
     for p in projected {
         match p.value() {
             ProjectedValue::FileCached(_)
@@ -287,17 +289,11 @@ pub fn preview(
                             Calculate or resolve them first (dc-971p.57)".into());
             }
             ProjectedValue::Calculated { calculation, .. } => {
-                if calculation.held_by_circular_rule() {
-                    return Err("Print preview contains values held by a circular reference. \
-                                Resolve it before printing (dc-971p.57)".into());
-                }
-                if calculation.reads_external_links()
-                    || calculation.stamp().is_some_and(|stamp| {
-                        stamp.reads.external_cache
-                            || stamp.reads.uses_boundary_cache
-                            || stamp.reads.uses_imported_cache
-                    })
-                {
+                circular_holds |= calculation.held_by_circular_rule();
+                external_caches |= calculation.reads_external_links();
+                if calculation.stamp().is_some_and(|stamp| {
+                    stamp.reads.uses_boundary_cache || stamp.reads.uses_imported_cache
+                }) {
                     return Err("Print preview contains formulas calculated from cached inputs. \
                                 Refresh the inputs and recalculate before printing (dc-971p.57)".into());
                 }
@@ -317,6 +313,12 @@ pub fn preview(
             return Err("Print preview exceeds the retained display budget; reduce the print area (dc-971p.57)".into());
         }
         cells.push(cell);
+    }
+    if circular_holds {
+        notices.push("Print preview includes values held by circular references.".into());
+    }
+    if external_caches {
+        notices.push("Print preview includes values from saved external link caches.".into());
     }
     Ok(PrintDocument {
         revision,

@@ -243,6 +243,12 @@ pub fn provenance_text(host: &HostState, cell: &ProjectedCell) -> String {
             "the value the file stored ({}); not calculated by DNA Calc",
             cache.source().name()
         ),
+        ProjectedValue::Calculated { calculation, .. } if calculation.held_by_circular_rule() => {
+            "held by a circular reference with iteration off".to_owned()
+        }
+        ProjectedValue::Calculated { calculation, .. } if calculation.reads_external_links() => {
+            "calculated using a saved external link cache".to_owned()
+        }
         ProjectedValue::Calculated { calculation, .. } => format!(
             "calculated by DNA Calc's engine at revision {}",
             calculation.revision().get()

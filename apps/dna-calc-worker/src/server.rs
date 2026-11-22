@@ -9492,33 +9492,147 @@ mod printing_tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn print_preview_refuses_circular_held_values_until_they_are_recalculated() {
+    fn print_preview_preserves_circular_held_values_after_reopen() {
+        // Excel 16.0.20527.20196, ww2 print-holds-active: iteration-off circular cells
+        // displayed 12 and 11 after reopen and PDF export.
         let mut s = Server::new();
         let sheet = Sheet::of(s.book.host().sheets()[0].id());
-        let at = Key(sheet.0, sheet.1, 1, 1);
-        let enter = |s: &mut Server, text: &str| {
-            s.execute_current(
-                Request::Intent(Intent::EnterCell {
-                    at,
-                    text: text.into(),
+        assert!(!s.book.host().recalc_context().iteration);
+        let enter = |s: &mut Server, col, text: &str| {
+            let reply = s
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key(sheet.0, sheet.1, 1, col),
+                        text: text.into(),
+                    }),
+                    None,
+                )
+                .reply
+                .unwrap();
+            assert!(matches!(reply, Reply::Done { outcome, .. } if outcome.accepted));
+        };
+        enter(&mut s, 1, "=IF(C1=0,12,B1+1)");
+        enter(&mut s, 2, "=A1-1");
+        enter(&mut s, 3, "1");
+
+        let bytes = s.execute_current(Request::Save, None).bytes.unwrap();
+        let mut reopened = Server::new();
+        reopened
+            .execute_current(
+                Request::Open { name: "Circular.xlsx".into() },
+                Some(bytes),
+            )
+            .reply
+            .unwrap();
+        let sheet = Sheet::of(reopened.book.host().sheets()[0].id());
+        assert!(!reopened.book.host().recalc_context().iteration);
+        for (col, expected) in [(1, 12.0f64), (2, 11.0f64)] {
+            let at = CellKey::new(sheet.id(), 1, col).unwrap();
+            let projected = reopened.book.cell(at).unwrap();
+            let calc_host::ProjectedValue::Calculated { value, calculation } = projected.value()
+            else {
+                panic!("{at:?}: {:?}", projected.value());
+            };
+            assert!(calculation.held_by_circular_rule(), "{at:?}");
+            let calc_value::CoreRef::Number(value) = value.core_ref() else {
+                panic!("{at:?}: {:?}", projected.value());
+            };
+            assert_eq!(value.to_bits(), expected.to_bits(), "{at:?}");
+        }
+        let doc = preview(&mut reopened, sheet).unwrap();
+        assert_eq!(
+            doc.cells.iter().map(|cell| cell.text.as_str()).collect::<Vec<_>>(),
+            ["12", "11", "1"],
+        );
+        assert!(doc.cells[..2].iter().all(|cell| cell.why.contains("held by a circular reference")));
+        assert!(doc.notices.iter().any(|notice| notice.contains("held by circular references")));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn print_preview_uses_the_closed_workbook_link_cache() {
+        use crate::workbook::zip_fixture_kit::{RawEntry, build_zip, parse_zip};
+
+        // Excel 16.0.20527.20196, ww2 print-holds-active: the closed source changed
+        // from 7 to 11, and the linked result remained 8 when updates were declined.
+        // Reuse the retained external-link package with the probe's cache value and formula.
+        let original =
+            include_bytes!("../../../crates/calc-host/tests/fixtures/dc_ylr/oracle.xlsx");
+        let archive = parse_zip(original);
+        let entries = archive
+            .entries
+            .iter()
+            .map(|part| {
+                let payload = part.payload(original);
+                let replacements = match part.name.as_str() {
+                    "xl/externalLinks/externalLink1.xml" => Some((
+                        r#"<cell r="A1"><v>1</v></cell>"#,
+                        r#"<cell r="A1"><v>7</v></cell>"#,
+                    )),
+                    "xl/worksheets/sheet1.xml" => Some((
+                        "<f>[1]Sheet1!A1</f><v>1</v>",
+                        "<f>[1]Sheet1!A1+1</f><v>8</v>",
+                    )),
+                    _ => None,
+                };
+                if let Some((old, new)) = replacements {
+                    let bytes = if part.method == 0 {
+                        payload.to_vec()
+                    } else {
+                        miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                    };
+                    let xml = String::from_utf8(bytes).unwrap();
+                    assert_eq!(xml.matches(old).count(), 1, "{}", part.name);
+                    RawEntry::stored(&part.name, xml.replace(old, new).as_bytes())
+                } else if part.method == 0 {
+                    RawEntry::stored(&part.name, payload)
+                } else {
+                    RawEntry::deflated(&part.name, payload, part.size, part.crc32)
+                }
+            })
+            .collect::<Vec<_>>();
+        let mut s = Server::new();
+        s.execute_current(
+            Request::Open {
+                name: "ClosedLink.xlsx".into(),
+            },
+            Some(build_zip(&entries)),
+        )
+        .reply
+        .unwrap();
+        let sheet = Sheet::of(s.book.host().sheets()[0].id());
+        let revision = state(&mut s, sheet).revision;
+        let reply = s
+            .execute_current(
+                Request::Intent(Intent::PageSetup {
+                    sheet,
+                    revision,
+                    change: PageSetupChange {
+                        print_area: Some("A1".into()),
+                        ..Default::default()
+                    },
                 }),
                 None,
             )
             .reply
             .unwrap();
+        assert!(matches!(reply, Reply::Done { outcome, .. } if outcome.accepted));
+        let at = CellKey::new(sheet.id(), 1, 1).unwrap();
+        let projected = s.book.cell(at).unwrap();
+        let calc_host::ProjectedValue::Calculated { value, calculation } = projected.value() else {
+            panic!("{at:?}: {:?}", projected.value());
         };
-        enter(&mut s, "=6*7");
-        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "42");
-        enter(&mut s, "=A1+1");
-        let projected = s.book.project(vec![at.cell().unwrap()]);
-        assert!(matches!(
-            projected[0].value(),
-            calc_host::ProjectedValue::Calculated { calculation, .. }
-                if calculation.held_by_circular_rule()
-        ));
-        assert!(preview(&mut s, sheet).unwrap_err().contains("circular reference"));
-        enter(&mut s, "=6*8");
-        assert_eq!(preview(&mut s, sheet).unwrap().cells[0].text, "48");
+        assert_eq!(value.as_number().unwrap().to_bits(), 8.0f64.to_bits());
+        assert!(calculation.reads_external_links());
+        let doc = preview(&mut s, sheet).unwrap();
+        assert_eq!(doc.cells.len(), 1);
+        assert_eq!(doc.cells[0].text, "8");
+        assert!(doc.cells[0].why.contains("saved external link cache"));
+        assert!(
+            doc.notices
+                .iter()
+                .any(|notice| notice.contains("external link caches"))
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
