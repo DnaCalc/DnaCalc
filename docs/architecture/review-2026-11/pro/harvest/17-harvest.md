@@ -338,6 +338,21 @@ Excel desktop. No dependencies. Read AGENTS.md first.
   naming the calc-doc change (for example: reconcile a moved anchor, or report lost layout) rather than a silent
   attach.
 
+**Windows E8 measurement, 2026-11-22.** Excel 16.0.20527 on an AMD Ryzen 7 4800H refused all 11
+plain opens across the three cdoc-m2.1 fixtures. The result repeated with normalized Windows paths.
+Explicit repair opened and saved all 11 branches, including the XLSM and XLSB copies of manifest v1.
+Each output kept the source's number of custom XML parts. Excel rewrote or renumbered parts in every
+package. After inserting a row above Notebook!A1, each manifest's first hidden locator moved to
+Notebook!A2. The other existing locators on that sheet moved down one row as well.
+
+Win64 CalcDoc at `95eb0cb2` reopened all 11 repaired outputs. The v1 layout retained its resolved
+anchors and its existing unresolved-locator warning. The v2 package retained the unsupported-version
+warning, including when Excel moved the manifest to a different part. The notebook control reopened
+with no layout warnings. The evidence includes the input and output hashes, name readbacks, custom
+XML part hashes, and CalcDoc anchor and warning output. The archive was checksum-checked at
+`r2:dnacalc-evidence/excel/ww4-e8-20261122T125641Z` (one file, 86,546 bytes).
+The normal-open refusal and repair-free round trip remain open under dc-1nbp.22.
+
 **17.d — Excel facts about names that a presenter and the boxes view need (E3, E7, E2, optional E1).** Priority 3.
 Sonnet. Depends on nothing; feeds dc-lvlj. Read AGENTS.md first.
 - What: record the name-binding, legality, rename, named-cycle, array-name and relative-name facts of section 5,
