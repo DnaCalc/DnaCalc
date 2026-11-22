@@ -110,7 +110,13 @@ fn numeric_and_empty_date_text_needs_no_locale_profile() {
             &mut FunctionCallScratch::new(),
         ));
     }
-    error(call("VALUE", vec![t("")]), Value);
+    assert_excel_capture(
+        call("VALUE", vec![t("")]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        50,
+        4,
+    );
     error(call("VALUE", vec![t("hello")]), Value);
     exact(call("VALUE", vec![CalcValue::empty()]), 0.0);
     refused(call("DATEVALUE", vec![t("1.5")]));
@@ -348,39 +354,150 @@ fn weeknum_stable_invalid_types_and_input_boundaries() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn date_parts_and_serials() {
     let e = host();
-    exact(c(&e, "DATE", vec![n(2024.0), n(1.0), n(15.0)]), 45306.0);
-    exact(c(&e, "DATE", vec![n(1900.0), n(2.0), n(29.0)]), 60.0);
+    assert_excel_capture(
+        c(&e, "DATE", vec![n(2024.0), n(1.0), n(15.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        257,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "DATE", vec![n(1900.0), n(2.0), n(29.0)]),
+        include_bytes!("captures/jnt/sections/jnt_dates_random.capture.json"),
+        "jnt_dates_random",
+        2,
+        4,
+    );
     exact(c(&e, "DATE", vec![n(108.0), n(1.0), n(2.0)]), 39449.0);
     exact(c(&e, "DATE", vec![n(2008.0), n(14.0), n(2.0)]), 39846.0);
     error(c(&e, "DATE", vec![n(10000.0), n(1.0), n(1.0)]), Num);
-    exact(c(&e, "YEAR", vec![n(45000.0)]), 2023.0);
-    exact(c(&e, "MONTH", vec![n(45000.0)]), 3.0);
-    exact(c(&e, "DAY", vec![n(45000.0)]), 15.0);
-    exact(c(&e, "HOUR", vec![n(45000.75)]), 18.0);
-    exact(c(&e, "MINUTE", vec![n(0.51)]), 14.0);
-    exact(c(&e, "SECOND", vec![n(0.5)]), 0.0);
-    error(c(&e, "YEAR", vec![n(-1.0)]), Num);
-    exact(
-        c(&e, "TIME", vec![n(12.0), n(30.0), n(0.0)]),
-        0.5208333333333334,
+    assert_excel_capture(
+        c(&e, "YEAR", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        342,
+        1,
     );
-    exact(c(&e, "DAYS", vec![n(45010.0), n(45000.0)]), 10.0);
-    exact(c(&e, "DAYS360", vec![n(45000.0), n(45100.0)]), 98.0);
-    exact(c(&e, "EDATE", vec![n(45000.0), n(1.0)]), 45031.0);
-    exact(c(&e, "EOMONTH", vec![n(45000.0), n(1.0)]), 45046.0);
-    error(c(&e, "EDATE", vec![b(true), n(1.0)]), Value);
-    exact(c(&e, "WEEKDAY", vec![n(45000.0)]), 4.0);
+    assert_excel_capture(
+        c(&e, "MONTH", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        300,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "DAY", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        261,
+        1,
+    );
+    exact(c(&e, "HOUR", vec![n(45000.75)]), 18.0);
+    assert_excel_capture(
+        c(&e, "MINUTE", vec![n(0.51)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        299,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "SECOND", vec![n(0.5)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        317,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "YEAR", vec![n(-1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_w111_text_dates.capture.json"),
+        "jnt_w111_text_dates",
+        3721,
+        4,
+    );
+    assert_excel_capture(
+        c(&e, "TIME", vec![n(12.0), n(30.0), n(0.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        328,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "DAYS", vec![n(45010.0), n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        262,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "DAYS360", vec![n(45000.0), n(45100.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        263,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "EDATE", vec![n(45000.0), n(1.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        277,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "EOMONTH", vec![n(45000.0), n(1.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        279,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "EDATE", vec![b(true), n(1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_w111_text_dates.capture.json"),
+        "jnt_w111_text_dates",
+        4070,
+        4,
+    );
+    assert_excel_capture(
+        c(&e, "WEEKDAY", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        338,
+        1,
+    );
     exact(c(&e, "WEEKDAY", vec![n(45000.0), n(2.0)]), 3.0);
-    exact(c(&e, "WEEKNUM", vec![n(45000.0)]), 11.0);
-    exact(c(&e, "ISOWEEKNUM", vec![n(45000.0)]), 11.0);
+    assert_excel_capture(
+        c(&e, "WEEKNUM", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        339,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "ISOWEEKNUM", vec![n(45000.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        291,
+        1,
+    );
     exact(
         c(&e, "DATEDIF", vec![n(45000.0), n(45365.0), t("d")]),
         365.0,
     );
     exact(c(&e, "DATEDIF", vec![n(45000.0), n(45365.0), t("m")]), 11.0);
     error(c(&e, "DATEDIF", vec![n(45365.0), n(45000.0), t("d")]), Num);
-    exact(c(&e, "NETWORKDAYS", vec![n(45000.0), n(45030.0)]), 23.0);
-    exact(c(&e, "WORKDAY", vec![n(45000.0), n(10.0)]), 45014.0);
+    assert_excel_capture(
+        c(&e, "NETWORKDAYS", vec![n(45000.0), n(45030.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        301,
+        1,
+    );
+    assert_excel_capture(
+        c(&e, "WORKDAY", vec![n(45000.0), n(10.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        340,
+        1,
+    );
     exact(
         c(
             &e,
@@ -465,12 +582,30 @@ fn value_datevalue_timevalue() {
     let e = host();
     // Excel: VALUE("1 234.5") 1234.5, VALUE("R 12") 12, VALUE("12:30") 0.520833..., VALUE("1/2")
     // 46024, DATEVALUE("2024/01/05 12:30") 45296, TIMEVALUE("25:00") 0.041666666666666741.
-    exact(c(&e, "VALUE", vec![t("1 234.5")]), 1234.5);
+    assert_excel_capture(
+        c(&e, "VALUE", vec![t("1 234.5")]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        38,
+        4,
+    );
     exact(c(&e, "VALUE", vec![t("R 12")]), 12.0);
     exact(c(&e, "VALUE", vec![t("12:30")]), 0.52083333333333337);
     exact(c(&e, "VALUE", vec![t("1/2")]), 46024.0);
-    error(c(&e, "VALUE", vec![t("1,234")]), Value);
-    error(c(&e, "VALUE", vec![b(true)]), Value);
+    assert_excel_capture(
+        c(&e, "VALUE", vec![t("1,234")]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        48,
+        4,
+    );
+    assert_excel_capture(
+        c(&e, "VALUE", vec![b(true)]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        51,
+        4,
+    );
     exact(c(&e, "VALUE", vec![n(5.0)]), 5.0);
     exact(c(&e, "DATEVALUE", vec![t("2024/01/05 12:30")]), 45296.0);
     exact(c(&e, "DATEVALUE", vec![t("12:30")]), 0.0);
@@ -882,9 +1017,12 @@ fn delimited_split_regex_and_conversions() {
     );
     text(c(&e, "ASC", vec![t("ＡＢＣ")]), "ＡＢＣ");
     exact(c(&e, "HYPERLINK", vec![t("x"), n(5.0)]), 5.0);
-    text(
+    assert_excel_capture(
         c(&e, "HYPERLINK", vec![t("https://example.com")]),
-        "https://example.com",
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        179,
+        4,
     );
     // Excel 16.0.20430: ENCODEURL("a b") is a%20b (dc-uar; sheet dcuar_text of the catalogue oracle).
     text(c(&e, "ENCODEURL", vec![t("a b")]), "a%20b");

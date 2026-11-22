@@ -207,7 +207,13 @@ fn references_are_read_as_arrays() {
         array(call("SEQUENCE", vec![n(2.0), n(2.0), n(0.0), n(0.5)])),
         (2, 2, vec![0.0, 0.5, 1.0, 1.5])
     );
-    error(call("SEQUENCE", vec![n(-1.0)]), Value);
+    assert_excel_capture(
+        call("SEQUENCE", vec![n(-1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_aggregate_arrays.capture.json"),
+        "jnt_aggregate_arrays",
+        75,
+        4,
+    );
     // Direct invocation leaves optional-array lifting to calc-fml even when the range
     // argument is a scalar error. It must keep that typed refusal.
     refused(call(

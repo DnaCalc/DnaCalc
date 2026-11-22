@@ -219,32 +219,80 @@ fn exponentials_logarithms_and_roots() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn power_shares_the_operator_rule() {
     exact(call("POWER", vec![n(3.0), n(2.0)]), 9.0);
-    error(call("POWER", vec![n(0.0), n(0.0)]), Num);
-    error(call("POWER", vec![n(0.0), n(-1.0)]), Div0);
+    assert_excel_capture(
+        call("POWER", vec![n(0.0), n(0.0)]),
+        include_bytes!("captures/catalogue/sections/f1_power.capture.json"),
+        "f1_power",
+        2,
+        4,
+    );
+    assert_excel_capture(
+        call("POWER", vec![n(0.0), n(-1.0)]),
+        include_bytes!("captures/catalogue/sections/f1_power.capture.json"),
+        "f1_power",
+        4,
+        4,
+    );
     error(call("POWER", vec![n(-8.0), n(0.5)]), Num);
     // The powers that need a power algorithm, `^` and POWER compute by OxFunc's power kernel.
-    exact(call("POWER", vec![n(2.0), n(3.0)]), 8.0);
+    assert_excel_capture(
+        call("POWER", vec![n(2.0), n(3.0)]),
+        include_bytes!("captures/catalogue/sections/f1_power.capture.json"),
+        "f1_power",
+        7,
+        4,
+    );
     exact(
         call("POWER", vec![n(2.0), n(0.5)]),
         std::f64::consts::SQRT_2,
     );
     exact(call("POWER", vec![n(-8.0), n(3.0)]), -512.0);
-    exact(call("POWER", vec![n(10.0), n(-2.0)]), 0.01);
+    assert_excel_capture(
+        call("POWER", vec![n(10.0), n(-2.0)]),
+        include_bytes!("captures/catalogue/sections/f1_power.capture.json"),
+        "f1_power",
+        11,
+        4,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn factorials_and_combinatorics() {
-    exact(call("FACT", vec![n(5.0)]), 120.0);
+    assert_excel_capture(
+        call("FACT", vec![n(5.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        81,
+        1,
+    );
     exact(call("FACT", vec![n(5.9)]), 120.0);
     error(call("FACT", vec![n(171.0)]), Num);
     error(call("FACT", vec![n(-1.0)]), Num);
-    exact(call("FACTDOUBLE", vec![n(7.0)]), 105.0);
+    assert_excel_capture(
+        call("FACTDOUBLE", vec![n(7.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        82,
+        1,
+    );
     exact(call("COMBIN", vec![n(10.0), n(3.0)]), 120.0);
     error(call("COMBIN", vec![n(3.0), n(10.0)]), Num);
-    exact(call("COMBINA", vec![n(4.0), n(3.0)]), 20.0);
+    assert_excel_capture(
+        call("COMBINA", vec![n(4.0), n(3.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        45,
+        1,
+    );
     exact(call("PERMUT", vec![n(10.0), n(3.0)]), 720.0);
-    exact(call("PERMUTATIONA", vec![n(3.0), n(2.0)]), 9.0);
+    assert_excel_capture(
+        call("PERMUTATIONA", vec![n(3.0), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        180,
+        1,
+    );
     // Excel's own result, as OxFunc's machine witness rows pin it.
     exact(
         call("MULTINOMIAL", vec![n(2.0), n(3.0), n(4.0)]),
@@ -280,10 +328,22 @@ fn multinomial_distinguishes_blank_cells_from_blank_ranges() {
 fn gcd_and_lcm() {
     exact(call("GCD", vec![n(24.0), n(36.0)]), 12.0);
     exact(call("GCD", vec![n(5.0), n(2.0)]), 1.0);
-    exact(call("LCM", vec![n(4.0), n(6.0)]), 12.0);
+    assert_excel_capture(
+        call("LCM", vec![n(4.0), n(6.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        140,
+        1,
+    );
     exact(call("GCD", vec![arr(vec![vec![12.0, 18.0]]), n(30.0)]), 6.0);
     error(call("GCD", vec![n(-1.0)]), Num);
-    error(call("GCD", vec![b(true)]), Value);
+    assert_excel_capture(
+        call("GCD", vec![b(true)]),
+        include_bytes!("captures/jnt/sections/jnt_w111_rounding.capture.json"),
+        "jnt_w111_rounding",
+        5754,
+        4,
+    );
     error(call("GCD", vec![missing(), n(4.0)]), NA);
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![n(8.0), n(12.0)]);
@@ -294,17 +354,35 @@ fn gcd_and_lcm() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn numeral_systems() {
-    text(call("ROMAN", vec![n(499.0)]), "CDXCIX");
+    assert_excel_capture(
+        call("ROMAN", vec![n(499.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        197,
+        1,
+    );
     text(call("ROMAN", vec![n(499.0), n(1.0)]), "LDVLIV");
     text(call("ROMAN", vec![n(499.0), b(false)]), "ID");
     error(call("ROMAN", vec![n(4000.0)]), Value);
     exact(call("ARABIC", vec![t("MCMXII")]), 1912.0);
     exact(call("ARABIC", vec![t("")]), 0.0);
     error(call("ARABIC", vec![t("ABC")]), Value);
-    text(call("BASE", vec![n(7.0), n(2.0)]), "111");
+    assert_excel_capture(
+        call("BASE", vec![n(7.0), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        13,
+        1,
+    );
     text(call("BASE", vec![n(15.0), n(16.0), n(4.0)]), "000F");
     error(call("BASE", vec![n(7.0), n(1.0)]), Num);
-    exact(call("DECIMAL", vec![t("FF"), n(16.0)]), 255.0);
+    assert_excel_capture(
+        call("DECIMAL", vec![t("FF"), n(16.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        65,
+        1,
+    );
     exact(call("DECIMAL", vec![t("111"), n(2.0)]), 7.0);
     error(call("DECIMAL", vec![t("FF"), n(10.0)]), Num);
 }
@@ -488,10 +566,28 @@ fn rounding_family_matches_recorded_bank_rows() {
         }
     }
     // MROUND(6.05,0.1) stays 6, the quotient 60.49999999999999 lying 7E-15 below the half.
-    exact(call("MROUND", vec![n(6.05), n(0.1)]), 6.0);
-    exact(call("ROUND", vec![n(1.5), n(2_147_483_647.0)]), 0.0);
+    assert_excel_capture(
+        call("MROUND", vec![n(6.05), n(0.1)]),
+        include_bytes!("captures/catalogue/sections/dcj9k_math.capture.json"),
+        "dcj9k_math",
+        48,
+        4,
+    );
+    assert_excel_capture(
+        call("ROUND", vec![n(1.5), n(2_147_483_647.0)]),
+        include_bytes!("captures/catalogue/sections/dch9u_functions.capture.json"),
+        "dch9u_functions",
+        79,
+        4,
+    );
     exact(call("ROUND", vec![n(1.5), n(2_147_483_646.0)]), 1.5);
-    exact(call("TRUNC", vec![n(1.5), n(1e300)]), 1.5);
+    assert_excel_capture(
+        call("TRUNC", vec![n(1.5), n(1e300)]),
+        include_bytes!("captures/catalogue/sections/dch9u_functions.capture.json"),
+        "dch9u_functions",
+        82,
+        4,
+    );
     // Past DBL_MAX Excel keeps the significand and carries the exponent into the field's top
     // value: NaN bit patterns that the worksheet holds as numbers (Excel 16.0.20527, Value2).
     for (function, number, digits, bits) in [
@@ -512,6 +608,12 @@ fn rounding_family_matches_recorded_bank_rows() {
         );
     }
     error(call("ROUNDUP", vec![n(f64::MAX), n(-308.0)]), Num);
-    exact(call("ROUNDUP", vec![n(1.5), n(1e300)]), 1.5);
+    assert_excel_capture(
+        call("ROUNDUP", vec![n(1.5), n(1e300)]),
+        include_bytes!("captures/catalogue/sections/dch9u_functions.capture.json"),
+        "dch9u_functions",
+        81,
+        4,
+    );
     error(call("ROUNDUP", vec![n(1.5), n(-1e300)]), Num);
 }
