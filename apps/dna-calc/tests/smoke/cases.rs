@@ -7,6 +7,40 @@ const BAR: &str = "[data-onecalc=\"formula\"]";
 const ENABLE_WORKBOOK_MACROS: &str =
     "[data-dnacalc=enable-macros]:not([hidden]), [data-dnacalc=unblock-macros]:not([hidden])";
 
+macro_rules! spreadsheet_font_case {
+    ($family:literal) => {
+        Case {
+            name: concat!("spreadsheet fonts: AutoFit uses ", $family),
+            actions: &[
+                Action::Into("name-box", "A1\u{E007}"),
+                Action::Into(BAR, "'WWW 1234 WWW 5678\u{E007}"),
+                Action::Into("name-box", "A1\u{E007}"),
+                Action::Click("format-cells"),
+                Action::Wait(Check::Focused("format-number")),
+                Action::Click("format-tab-font"),
+                Action::Into("format-font", $family),
+                Action::Click("format-apply"),
+                Action::Wait(Check::PlanCell("A1", "style.family", $family)),
+                Action::OpenDetails("axis-tools"),
+                Action::Click("autofit-columns"),
+            ],
+            checks: &[
+                Check::TextContains("status", "Fitted contents"),
+                Check::FitsText(cell!("A1")),
+                Check::Js(
+                    concat!($family, " advertises regular, bold, italic and bold italic"),
+                    concat!(
+                        "[...document.fonts].filter(f=>f.family.replaceAll('\"','')==='",
+                        $family,
+                        "').map(f=>f.style+' '+f.weight).sort().join(',')===",
+                        "'italic 400,italic 700,normal 400,normal 700'"
+                    ),
+                ),
+            ],
+        }
+    };
+}
+
 /// DNA Calc's original case order; CALC_GROUPS marks fresh-page boundaries and setup.
 /// Cases open the existing calc-doc and calc-host fixtures through the application page.
 pub(crate) const CALC_CASES: &[Case] = &[
@@ -16348,6 +16382,38 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Count("[data-dnacalc=selection][data-area='C3:D4']", 1),
         ],
     },
+    Case {
+        name: "spreadsheet fonts: 96 DPI headers retain Excel's measured geometry",
+        actions: &[Action::Wait(Check::PlanReady)],
+        checks: &[Check::Js(
+            "Excel's 26 px row heading, 20 px column heading and 64 px column at 96 DPI scale to the display",
+            r#"(() => {
+                const row = document.querySelector('[data-dnacalc=row-header][data-row="1"]')?.getBoundingClientRect();
+                const col = document.querySelector('[data-dnacalc=column-header][data-column=A]')?.getBoundingClientRect();
+                const pixels = extent => Math.round(extent * devicePixelRatio);
+                return row && col && pixels(row.width) === pixels(26) &&
+                    pixels(col.height) === pixels(20) && pixels(col.width) === pixels(64);
+            })()"#,
+        )],
+    },
+    spreadsheet_font_case!("Calibri"),
+    Case {
+        name: "spreadsheet fonts: row AutoFit uses the Calibri fallback",
+        actions: &[
+            Action::Into("row-size", "30\u{E007}"),
+            Action::Wait(Check::Style(cell!("A1"), "height:40px")),
+            Action::Click("autofit-rows"),
+        ],
+        checks: &[
+            Check::PlanCell("A1", "style.family", "Calibri"),
+            Check::TextContains("status", "Fitted contents"),
+            Check::Style(cell!("A1"), "height:20px"),
+        ],
+    },
+    spreadsheet_font_case!("Cambria"),
+    spreadsheet_font_case!("Arial"),
+    spreadsheet_font_case!("Times New Roman"),
+    spreadsheet_font_case!("Courier New"),
 ];
 
 /// The script that reads what one check looks at.
@@ -17957,8 +18023,15 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "go-to-special-visible",
         start: 888,
-        end: CALC_CASES.len(),
+        end: 889,
         core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "spreadsheet-fonts",
+        start: 889,
+        end: CALC_CASES.len(),
+        core: 7,
         setup: &[],
     },
 ];

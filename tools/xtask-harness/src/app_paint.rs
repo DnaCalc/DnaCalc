@@ -110,9 +110,6 @@ pub(super) fn run(ws: &Workspace, app: &App, raw: &[String]) -> ExitCode {
 }
 
 fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
-    if !cfg!(windows) {
-        return Err("Excel paint capture requires Windows".into());
-    }
     let mut out = None;
     let mut bundle_dir = None;
     let mut workbook = None;
@@ -182,6 +179,12 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             }
             _ => return Err(format!("unknown option {flag}")),
         }
+    }
+    if !cfg!(windows) && (reference.is_none() || desktop_exe.is_some() || excel_path.is_some()) {
+        return Err(
+            "Live Excel and WebView2 capture require Windows. Use --reference for browser replay."
+                .into(),
+        );
     }
     if decimal_separator.is_some() || thousands_separator.is_some() {
         let profile =

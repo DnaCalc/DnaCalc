@@ -1,5 +1,23 @@
 Copyright 2015, Microsoft Corporation (www.microsoft.com), with Reserved Font Name Selawik.  All Rights Reserved.  Selawik is a trademark of Microsoft Corporation in the United States and/or other countries.
 
+Carlito (Calibri fallback): https://github.com/googlefonts/carlito
+Source: fonts-crosextra-carlito 20230309-2, font version 1.104.
+Copyright (c) 2010-2013 by tyPoland Lukasz Dziedzic with Reserved Font Name "Carlito".
+Copyright 2013 The Carlito Project Authors.
+
+Caladea (Cambria fallback): https://github.com/huertatipografica/Caladea
+Source: fonts-crosextra-caladea 20200211-2, font version 1.001.
+Copyright 2012 The Caladea Project Authors (https://github.com/huertatipografica/Caladea).
+
+Liberation Sans, Serif and Mono (Arial, Times New Roman and Courier New fallbacks):
+https://github.com/liberationfonts/liberation-fonts/tree/2.1.5
+Source: fonts-liberation 1:2.1.5-3build1, font version 2.1.5.
+Digitized data copyright (c) 2010 Google Corporation with Reserved Font Names Arimo, Tinos and Cousine.
+Copyright (c) 2012 Red Hat, Inc. with Reserved Font Name Liberation.
+
+DNA Calc ships these spreadsheet faces as renamed, full-coverage WOFF2 derivatives.
+Glyph outlines, hints, character maps and metrics are preserved.
+
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL

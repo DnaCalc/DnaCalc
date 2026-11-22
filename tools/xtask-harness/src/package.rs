@@ -19,7 +19,7 @@
 //! `cargo xtask package onecalc-clean-run ...` is the proof that the folder works on a clean
 //! machine (`package_clean.rs`).
 
-use crate::app::{APPS, bundle};
+use crate::app::{APPS, CALC_FONT_LICENCE, bundle};
 use crate::cargo::{self, Workspace};
 use calc_platform_desktop::assets;
 use serde_json::{Value, json};
@@ -217,7 +217,12 @@ fn package(ws: &Workspace, out: &Path, zip: bool, calc: bool) -> Result<Value, S
     let folder = out.join(FOLDER);
     let _ = fs::remove_dir_all(&folder);
     fs::create_dir_all(&folder).map_err(|e| io("cannot create", &folder, e))?;
-    let licence = fs::read(ws.root.join("LICENSE")).map_err(|e| format!("LICENSE: {e}"))?;
+    let mut licence = fs::read(ws.root.join("LICENSE")).map_err(|e| format!("LICENSE: {e}"))?;
+    if calc {
+        let notice = ws.root.join(CALC_FONT_LICENCE);
+        licence.extend(b"\n\nDNA Calc bundled font notices\n\n");
+        licence.extend(fs::read(&notice).map_err(|e| io("cannot read", &notice, e))?);
+    }
     let mut files: Vec<(String, Vec<u8>)> = vec![(EXE.to_owned(), exe)];
     if let Some(bytes) = calc_exe {
         files.push((CALC_EXE.to_owned(), bytes));
