@@ -409,6 +409,18 @@ authored_formula_example!(
     dc_ebb6__regex_resolves_named_backreference,
     "regex-named-group-backref"
 );
+authored_formula_example!(
+    dc_ebb7__regex_replacement_counts_whole_words,
+    "regex-count-boundary"
+);
+authored_formula_example!(
+    dc_ebb7__regex_replacement_pads_components,
+    "regex-pad-components"
+);
+authored_formula_example!(
+    dc_ebb7__regex_replacement_reorders_groups,
+    "regex-replace-group-order"
+);
 
 fn check_captured_book(
     bytes: &[u8],
