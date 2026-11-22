@@ -482,12 +482,14 @@ impl<F: Files, L: Libraries> Host<F, L> {
     /// now, otherwise (and for Save as) through the dialog.
     fn save_native(&mut self, ask: bool) -> Reply {
         self.list_loaded();
-        match self.port.send(Request::Save) {
+        let in_place = self
+            .path
+            .as_ref()
+            .filter(|path| !ask && same_extension(path, &self.port.save_name()))
+            .cloned();
+        match self.port.save(in_place.is_none()) {
             Reply::File { name, bytes } => {
-                if !ask
-                    && let Some(path) = self.path.clone()
-                    && same_extension(&path, &name)
-                {
+                if let Some(path) = in_place {
                     match self.files.write_in_place(&path, &bytes) {
                         Ok(true) => {
                             self.dirty = false;
@@ -1737,8 +1739,61 @@ mod tests {
             panic!("saved")
         };
         assert_eq!(name, "DnaExamples.xlsm");
-        let file = calc_doc_read(&bytes);
+        let file = saved_module_source(&bytes, "Module1");
         assert!(file.contains("DnaTwice = 2 * x"));
+    }
+
+    /// Native-only: the desktop save route passes Excel's SaveAsUI argument before any file write.
+    #[test]
+    fn workbook_before_save_distinguishes_in_place_save_from_save_as() {
+        let bytes =
+            include_bytes!("../../../crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm");
+        let mut host = host();
+        let path = "C:\\work\\DnaExamples.xlsm";
+        host.files.open = Some(("DnaExamples.xlsm".into(), bytes.to_vec()));
+        host.files.path = Some(path.into());
+        host.files.origin = dna_onecalc::FileOrigin::Local;
+        host.files.in_place = true;
+        assert!(matches!(host.handle(Request::OpenNative), Reply::Opened(_)));
+        assert!(matches!(host.handle(Request::EnableMacros), Reply::Opened(_)));
+        let install = |host: &mut Host<Scripted, Fake>, statement: &str| {
+            let installed = host.handle(Request::LoadVba {
+                name: "ThisWorkbook".into(),
+                source: format!(
+                    "Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)\r\n    {statement}\r\nEnd Sub\r\n"
+                ),
+            });
+            assert!(matches!(installed, Reply::Functions { .. }), "{installed:?}");
+        };
+        install(&mut host, "Cancel = SaveAsUI");
+
+        assert_eq!(
+            host.handle(Request::SaveNative),
+            Reply::Saved { path: path.into() }
+        );
+        let saved = &host.files.in_place_written[0].1;
+        assert!(saved_module_source(saved, "ThisWorkbook").contains("Cancel = SaveAsUI"));
+        let saved_hash = calc_verdict::sha256_hex(saved);
+
+        let cancelled = host.handle(Request::SaveAsNative);
+        assert!(
+            matches!(&cancelled, Reply::Refused { message } if message.contains("set Cancel")),
+            "{cancelled:?}"
+        );
+
+        install(&mut host, "Err.Raise 5, , \"Authored BeforeSave error\"");
+        let failed = host.handle(Request::SaveNative);
+        assert!(
+            matches!(&failed, Reply::Refused { message }
+                if message.contains("(5:") && message.contains("Authored BeforeSave error")),
+            "{failed:?}"
+        );
+        assert!(host.files.written.is_empty());
+        assert_eq!(host.files.in_place_written.len(), 1);
+        assert_eq!(
+            calc_verdict::sha256_hex(&host.files.in_place_written[0].1),
+            saved_hash
+        );
     }
 
     /// Native-only: native opens and page byte opens use their actual origin evidence.
@@ -1964,15 +2019,15 @@ mod tests {
         assert_eq!(pinned.macros, MacrosView::Enabled);
     }
 
-    /// The code of the saved file's Module1, read the way the session reads it.
-    fn calc_doc_read(bytes: &[u8]) -> String {
+    /// The code of the named module, read the way the session reads it.
+    fn saved_module_source(bytes: &[u8], name: &str) -> String {
         let (session, vba) = dna_onecalc::file::open(bytes).unwrap();
         drop(session);
         let project = calc_vba::read_office_project(&vba.unwrap().project).unwrap();
         project
             .modules()
             .iter()
-            .find(|m| m.name == "Module1")
+            .find(|m| m.name == name)
             .unwrap()
             .source
             .clone()
