@@ -150,7 +150,7 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 | dc-6332.5 | tk2 | Use answer 12 p2,n4 seeded histories and stage-by-stage observations to identify route, initialization and coefficient differences. Reuse the recorded short-history and seasonal controls and coordinate independent holdouts with dc-j9k.61. |
 | dc-8ovd | F/gm1 and tk2 | After the owner confirms policy, run the authored trusted/untrusted origin and macro/add-in load controls on the native application paths. Record decisions per runtime and preserve the owner review under dc-8ovd. |
 | dc-90ro | tk2 | After shared COM type binding, replay the 45 WithEvents file-route cases with a controlled authored WinHttpRequest event fixture and local test server. Record type resolution and event order. Keep the measured Guarded refusal as its own control. |
-| dc-ebb | tk2, using cp1 evidence | Recover already retained observations for the selected 300-workbook manifest, if any, and compare offline by exact package hash. Any additional capture depends on a separate owner-approved isolated Windows Excel plan under dc-ebb. |
+| dc-ebb, dc-ebb.4 | cap1 on kode-fi, using cp1 and Harv7 evidence | Run the [Corpus V2 capture batch](#corpus-v2-capture-batch) in the approved Windows Excel VM. It schedules 93 authored formula workbooks, 89 triage-reviewed VBA drivers and cp1’s 300 selected XLSX files. |
 | dc-iuwct.41 | tk2 | Use retained ax3 inputs for cubic finite reduction, df=7 tail, over-eight log beta, central asymptotic and inverse publication controls. Re-ask only discriminating exact-word inputs and compare substitutions to the recorded caller results. |
 | dc-j9k.6 | tk2 | Reproduce the 18 misses in the 60,000 independent ERF.PRECISE holdout, using the 36a7f3d7 recipe. Add immediate neighbors around 0.5 on both sides and compare words independently of the exact full and pinned snapshot. |
 | dc-tey4.7 | tk2 | After dc-yqq0, use the 174a12fa benchmark setup to run the remaining native Excel VBA/VM3/JIT range and worksheet-UDF workloads. Record measured times and call counts, paired with the Linux comparison. |
@@ -168,3 +168,22 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 | dc-ymjf.2.67 | tk2 | Share the fit-versus-EXP replay with dc-ymjf.2.66. Include the original GROWTH residual and the retained adjacent one-ULP plateau. Arithmetic owner dc-j9k. |
 | dc-ymjf.4 | tk2 | Use the dedicated answer service for the existing cross-repository race and frozen held-out round. Collect request ownership, frozen predictions, Excel replies and judge counts for the same run. |
 | dc-zuwqx.4 | F/fc1 | Run all ten listed April/November underflow formulas, including each divide/rescale and POWER control, in current Excel. Read stored formula and Value2 words and update the linked research notes with the observed build and CPU. |
+
+## Corpus V2 capture batch
+
+After owner approval for both beads, run from DnaCalc master in the isolated Excel VM with
+PowerShell 7, Python 3.10+, and the existing R2 client configuration. The authored VBA arm
+requires the VM’s already authorized VBA project access. Use a new directory outside the clone.
+
+```powershell
+py -3 tools/excel-service/run-corpus-batch.py tools/excel-service/corpus-v2.json --out C:/Work/DnaCalc/corpus/cap1-20261122
+```
+
+The batch verifies the staged bytes, starts the private desktop and uses the owned Excel session
+client. The workbook arms use the corpus worker with macros force-disabled. The VBA arm imports
+each pinned, triage-reviewed driver into its own unsaved blank workbook. Keep the desktop guard,
+session receipts, raw captures and both comparison summaries. Inspect the summaries for incomplete
+acquisition or comparison. Account for all 150,519 inventoried
+cp1 formula cells under dc-ebb. Under dc-ebb.4, map the authored captures to the declared anchors
+and spills, fill the expected answers and wire the formula and VBA cases into their existing
+corpora. Report missing captures and execution errors alongside pass/fail counts.

@@ -1,0 +1,24 @@
+{
+  "format": "dnacalc-excel-corpus-batch/1",
+  "authored": {
+    "manifest": "tests/corpus-examples/capture-manifest.tsv",
+    "sha256": "dd6f23783742bdd03c32a936287f24c318f9f23b0ccd7551cdf58a86ed5d3ad2",
+    "formula": {
+      "count": 93,
+      "files_sha256": "b72532ee32c74707ec6a8317e4737c9eed95dc271f38229400fddf67c7ac998d"
+    },
+    "vba": {
+      "count": 89,
+      "files_sha256": "c57d8ffba924eed4060dc40f257bc1144370b2560818a52a9159bcee1205ca2a"
+    }
+  },
+  "cp1": {
+    "manifest": "r2:dnacalc-corpus/runs/kode-fi/20261121-cp1-v2/capture-manifest.tsv",
+    "sha256": "c0017dd1a8fb1e0109aae206ec726a2ee8078b81c823c8d3c701e30dba02f714",
+    "count": 300,
+    "bytes": 11937418,
+    "formula_cells": 150519
+  },
+  "timeout_per_workbook": 120,
+  "timeout_vba_batch": 900
+}
