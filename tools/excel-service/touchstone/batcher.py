@@ -36,11 +36,12 @@ class Piece:
     """One submit frame's worth of calls: answered as a unit by (origin, id, seq)."""
     __slots__ = ("conn", "origin", "rid", "seq", "last", "priority", "groups", "calls", "echo", "serial",
                  "t_received", "t_dispatched", "remaining", "frames", "done", "fail", "env_ids", "workers", "primer", "fair",
-                 "addins")
+                 "addins", "source")
 
     def __init__(self, conn, rid, seq, groups, last, priority, echo=False, serial=False):
         self.conn, self.origin, self.rid, self.seq, self.last = conn, conn.origin, rid, seq, last
         self.fair = conn.origin          # the fair-share key: the broker refines it to origin/client behind a relay
+        self.source = {}
         self.priority = priority
         self.groups = groups
         self.calls = sum(g["n"] for g in groups)
@@ -158,6 +159,29 @@ class _Class:
                 if best is None or t < best:
                     best = t
         return best
+
+    def items(self):
+        for origin in self.order:
+            for queue in self.origins[origin].shapes.values():
+                yield from queue
+
+    def discard_request(self, rid):
+        for origin in list(self.order):
+            shapes = self.origins[origin].shapes
+            for key, queue in list(shapes.items()):
+                kept = deque()
+                for item in queue:
+                    if item.piece.rid == rid:
+                        self.calls -= item.n
+                    else:
+                        kept.append(item)
+                if kept:
+                    shapes[key] = kept
+                else:
+                    del shapes[key]
+            if not shapes:
+                self.order.remove(origin)
+                self.deficit[origin] = 0
 
     def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None, allow_isolated=True):
         """Items by cost-weighted deficit round robin over clients until a budget is spent.
@@ -329,7 +353,25 @@ class Batcher:
         return batch
 
     def queued_calls(self):
-        return self.interactive.calls + self.bulk.calls
+        return (self.interactive.calls + self.bulk.calls + sum(p.calls for p in self.serial)
+                + sum(p.calls for queue in self.pinned.values() for p in queue))
+
+    def waiting(self):
+        """Queued groups with their source piece and whether they need isolation."""
+        for cls in (self.interactive, self.bulk):
+            for item in cls.items():
+                yield item.piece, item.group, item.suspect or item.group["f"] in self.isolate
+        for queue in (self.serial, *self.pinned.values()):
+            for piece in queue:
+                for group in piece.groups:
+                    yield piece, group, False
+
+    def discard_request(self, rid):
+        for cls in (self.interactive, self.bulk):
+            cls.discard_request(rid)
+        self.serial = deque(p for p in self.serial if p.rid != rid)
+        for addins, queue in self.pinned.items():
+            self.pinned[addins] = deque(p for p in queue if p.rid != rid)
 
     def serial_pending(self):
         return bool(self.serial)
@@ -458,11 +500,11 @@ class Batcher:
             cls.push_front(item)
 
     def requeue(self, batch):
-        """Put a batch's items back at the front (a worker was lost before running it)."""
-        if batch.addins:
+        """Put work the worker did not run back in its original queue."""
+        if batch.serial or batch.addins:
+            queue = self.serial if batch.serial else self.pinned.setdefault(batch.addins, deque())
             for piece in batch.pieces:
-                self.pinned.setdefault(batch.addins, deque()).appendleft(piece)
+                if not piece.done:
+                    queue.appendleft(piece)
             return
-        for sl in reversed(batch.slices):
-            cls = self.interactive if sl.item.piece.priority == "interactive" else self.bulk
-            cls.push_front(sl.item)
+        self.requeue_items([sl.item for sl in batch.slices if not sl.item.piece.done])

@@ -49,6 +49,13 @@ MAX_FRAME = 64 * 1024
 HELLO, SUBMIT, ANSWER, DONE, ENV, ERROR, PING, PONG, CANCEL, WAIT = (bytes([c]) for c in b"HSADEXPQCW")
 
 
+def client_origin(data):
+    """Keep only the diagnostic labels that can be forwarded with a request."""
+    if not isinstance(data, dict):
+        return {}
+    return {k: data[k][:80] for k in ("client", "lane") if isinstance(data.get(k), str) and data[k]}
+
+
 def dumps(obj):
     return json.dumps(obj, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode("ascii")
 

@@ -105,6 +105,10 @@ class Relay:
                     os.unlink(self.socket_path)
                 except OSError:
                     pass
+                try:
+                    os.unlink(self.socket_path + ".health.json")
+                except OSError:
+                    pass
             self.broker.closed = True
             writer_task.cancel()
 
@@ -140,6 +144,8 @@ class Relay:
             self.hello_seen.set()
             return
         if kind == protocol.PING:
+            if "broker_flags" in body and self.owns_socket_path():
+                self.write_health(body)
             self.broker.send(protocol.PONG, {**body, "sock": self.owns_socket_path(), "clients": len(self.clients)}, True)
             return
         if kind == protocol.ENV:
@@ -159,6 +165,23 @@ class Relay:
         if kind in (protocol.DONE, protocol.ERROR) and "seq" not in body:
             self.priority.pop(body.get("id"), None)
 
+    def write_health(self, ping):
+        path = self.socket_path + ".health.json"
+        temporary = path + f".{os.getpid()}.tmp"
+        try:
+            with open(temporary, "w", encoding="ascii") as stream:
+                json.dump({"server": self.server, "received_at": time.time(),
+                           "broker_flags": ping["broker_flags"]}, stream)
+            if self.owns_socket_path():
+                os.replace(temporary, path)
+        except OSError:
+            pass
+        finally:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+
     # -- lanes --------------------------------------------------------------------------
     async def on_client(self, reader, writer):
         number = self.next_client
@@ -166,6 +189,7 @@ class Relay:
         out = Outgoing(writer, False)
         out.writer = writer
         out.number = number
+        out.origin = {}
         self.clients[number] = out
         task = asyncio.create_task(out.run())
         frames = protocol.FrameReader()
@@ -189,6 +213,7 @@ class Relay:
 
     async def from_client(self, out, number, kind, body):
         if kind == protocol.HELLO:
+            out.origin = protocol.client_origin({"client": body.get("name"), "lane": body.get("lane")})
             try:
                 await asyncio.wait_for(self.hello_seen.wait(), 10)
             except asyncio.TimeoutError:
@@ -198,6 +223,7 @@ class Relay:
             out.send(protocol.PONG, body, True)
         elif kind == protocol.SUBMIT:
             body["c"] = number
+            body["origin"] = out.origin
             opts = body.get("opts")
             if opts is not None:
                 interactive = opts.get("priority") == "interactive" or (opts.get("priority") is None and 0 < opts.get("calls", 0) <= 100)

@@ -115,7 +115,7 @@ class PeerManager:
         gone_since = None
         while not conn.closed:
             await asyncio.sleep(self.ping_seconds)
-            conn.send(protocol.PING, {"t": time.time()}, True)
+            conn.send(protocol.PING, {"t": time.time(), "broker_flags": self.broker.broker_flags()}, True)
             now = time.monotonic()
             if now - conn.last_rx > self.silent_seconds:
                 info["drop"] = f"relay silent for {now - conn.last_rx:.0f}s"
@@ -141,6 +141,7 @@ class PeerManager:
             try:
                 process = await self.spawn(host)
                 conn = Conn(host, process.stdout, process.stdin, compress=True)
+                conn.source = {"transport": "relay", "host": host}
                 conn.last_rx = time.monotonic()
                 self.sessions[host] += 1
                 self.mark(host, "up", "session %d" % self.sessions[host])

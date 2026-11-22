@@ -185,6 +185,9 @@ class BatcherTests(unittest.TestCase):
         self.assertEqual([g["n"] for g in batch.groups], [40])
         self.assertEqual(batch.primer, p.primer)
         self.assertFalse(b.serial_pending())
+        b.requeue(batch)
+        self.assertFalse(b.has_work())
+        self.assertEqual(b.next_serial_batch().primer, p.primer)
 
     def test_add_in_pieces_wait_for_a_worker_with_exactly_those_add_ins(self):
         b = batcher.Batcher()
@@ -955,9 +958,19 @@ class RelayTests(unittest.TestCase):
             if body["last"]:
                 self.send(protocol.DONE, {"id": body["id"], "c": body["c"], "calls": 0})
 
+    def test_relay_publishes_broker_flags_locally_and_clears_them(self):
+        flag = "isolated queue stalled"
+        for flags in ([flag], []):
+            self.send(protocol.PING, {"t": time.time(), "broker_flags": flags})
+            self.assertEqual(self.read_frame()[0], protocol.PONG)
+            result = self.subprocess.run([*self.linux, "cat", self.dir + "/excel.sock.health.json"],
+                                         capture_output=True, check=True, timeout=5)
+            self.assertEqual(json.loads(result.stdout)["broker_flags"], flags)
+
     def test_a_lane_client_on_the_socket_is_answered_through_the_broker_stream(self):
         import peers
         runner = ("import json" + chr(10) +
+                  "import os; os.environ['DNACALC_LANE'] = 'relay-test'" + chr(10) +
                   "conn = sys.modules['client'].Connection.open(socket_path=%r, name='lane')" + chr(10) +
                   "p = conn.submit_groups([{'f': 'ABS', 'k': 'n', 'n': 3, 'v': ['%s', '%s', '%s']}])" + chr(10) +
                   "letters, values = p.raw(30)" + chr(10) +
@@ -968,11 +981,16 @@ class RelayTests(unittest.TestCase):
                                      stdout=self.subprocess.PIPE, stderr=self.subprocess.PIPE)
         lane.stdin.write(first)
         lane.stdin.close()
-        self.answer_submits(1)
+        kind, body = self.read_frame()
+        self.send(protocol.ANSWER, {"id": body["id"], "seq": 0, "c": body["c"], "env": "e1",
+                                    "g": [{"ty": "nnn", "o": 0, "v": [ONE] * 3}]})
+        self.send(protocol.DONE, {"id": body["id"], "c": body["c"], "calls": 3})
         out, err = lane.communicate(timeout=60)
         self.assertEqual(lane.returncode, 0, err.decode()[-800:])
         result = json.loads(out.decode().strip().splitlines()[-1])
         self.assertEqual(result, {"values": [ONE, ONE, ONE], "server": "broker-host"})
+        self.assertEqual(kind, protocol.SUBMIT)
+        self.assertEqual(body.get("origin"), {"client": "lane", "lane": "relay-test"})
 
     def test_a_v1_request_file_is_answered_in_the_v1_reply_shape(self):
         rid = "ab" * 16
@@ -1079,6 +1097,84 @@ class SelfHealingTests(unittest.TestCase):
         return False
 
     CRASH_MARK = "402a000000000000"        # 13.0: the fake worker's CRASHON crashes on a batch holding it
+
+    def test_twice_failing_request_is_logged_and_quarantined_across_connections(self):
+        import logs
+        from touchstone.client import ServiceError
+
+        with patch.dict(os.environ, {"DNACALC_LANE": "kt2-test"}):
+            broker, state, stop = start_broker(3, {"health_seconds": 0.1})
+            self.addCleanup(stop)
+            conn = self.connect(state, name="incident-client")
+            self.addCleanup(conn.close)
+        broker.loop.call_soon_threadsafe(broker.batcher.isolate.update, {"EXCELERROR", "ID"})
+        rid = "17" * 16
+        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
+            conn.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(5)
+        other = self.connect(state, name="another-client")
+        self.addCleanup(other.close)
+        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
+            other.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(5)
+        self.assertEqual(other.submit_rows("ID", [[number(ONE)]]).raw(5), (["n"], [ONE]))
+        broker.batch_log.flush()
+        records = list(logs.BatchLog.read(state / "log"))
+        batches = [r for r in records if "EXCELERROR" in r.get("fns", {})]
+        self.assertEqual([r.get("error") for r in batches], ["excel-error", "excel-error"])
+        self.assertEqual([r["worker"] for r in batches], ["w2", "w2"])
+        self.assertEqual(sum(r.get("event") == "drift-before" for r in records), 2)
+        self.assertEqual(broker.slots[1].restarts, 2)
+        expected_origin = {"transport": "tcp", "host": broker.machine, "client": "incident-client", "lane": "kt2-test"}
+        self.assertEqual([r["requests"] for r in batches], [[{"id": rid, "origin": expected_origin}]] * 2)
+        crash_list = state / "crash-list.jsonl"
+        self.assertTrue(self.wait_for(crash_list.exists, 3))
+        crashes = [json.loads(line) for line in crash_list.read_text().splitlines()]
+        self.assertEqual(len(crashes), 1)
+        self.assertEqual((crashes[0]["id"], crashes[0]["origin"], crashes[0]["failures"]), (rid, expected_origin, 2))
+        self.assertEqual(crashes[0]["pieces"][0]["groups"][0]["v"], [TWO])
+        from broker import Broker
+        restarted = Broker(broker.options)
+        restarted.load_persisted()
+        self.assertGreater(restarted.poisoned[rid], time.time())
+
+    def test_capped_isolation_worker_does_not_hold_its_queue(self):
+        with patch.dict(os.environ, {"TOUCHSTONE_TEST_FAIL_START": "w2"}):
+            broker, state, stop = start_broker(3, {"cooldown": 0.1, "restart_cap": 1})
+        self.addCleanup(stop)
+        self.assertTrue(self.wait_for(lambda: "restart cap" in (broker.slots[1].down_reason or ""), 3))
+        broker.loop.call_soon_threadsafe(broker.batcher.isolate.add, "ID")
+        conn = self.connect(state)
+        self.addCleanup(conn.close)
+        pending = conn.submit_rows("ID", [[number(ONE)], [number(TWO)]])
+        self.assertEqual(pending.raw(3), (["n", "n"], [ONE, TWO]))
+        self.assertEqual(broker.slots[0].calls, 2)
+        self.assertEqual(broker.slots[1].state, "down")
+        self.assertEqual(broker.slots[2].calls, 0)
+
+    def test_status_identifies_oldest_isolated_work_and_why_it_waits(self):
+        broker, state, stop = start_broker(3, {"isolation_stall_seconds": 0})
+        self.addCleanup(stop)
+        conn = self.connect(state, name="status-client")
+        self.addCleanup(conn.close)
+        rid = "19" * 16
+
+        async def status_while_queued():
+            broker.batcher.isolate.add("SLEEP")
+            for question, calls in (("18" * 16, 1), (rid, 2)):
+                broker.on_submit(broker.conns[0], {"id": question, "seq": 0, "last": True,
+                                 "groups": [{"f": "SLEEP", "k": "n", "n": calls, "v": [ONE] * calls, "o": 0}],
+                                 "opts": {"priority": "interactive"}})
+            broker.write_status()
+            return json.loads((state / "status.json").read_text())
+
+        status = asyncio.run_coroutine_threadsafe(status_while_queued(), broker.loop).result(3)
+        worker_queue = status["workers"][1]["queue"]
+        self.assertEqual(worker_queue, status["queue_by_function"]["SLEEP"])
+        self.assertEqual(worker_queue["calls"], 2)
+        oldest = worker_queue["oldest"]
+        self.assertEqual((oldest["id"], oldest["function"], oldest["origin"]["client"], oldest["reason"]),
+                         (rid, "SLEEP", "status-client", "isolation worker busy"))
+        self.assertIn("isolated queue stalled", status["broker_flags"])
+        self.assertIn("isolated queue stalled", status["health"])
 
     def test_a_marked_call_comes_back_as_excel_crashed_the_others_are_answered_and_no_worker_hits_the_cap(self):
         broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3})
@@ -1460,6 +1556,9 @@ class FakeRelayBroker:
 
     def log_event(self, event, **data):
         self.events.append((event, data))
+
+    def broker_flags(self):
+        return []
 
     async def serve(self, conn):
         import broker

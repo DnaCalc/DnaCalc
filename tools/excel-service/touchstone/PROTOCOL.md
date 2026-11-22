@@ -6,13 +6,13 @@ compressed; the ssh stream between the broker and a relay is.
 
 | Type | Byte | Direction | Body |
 |---|---|---|---|
-| hello | `H` | both | client: `{"v", "name", "token"?, "compress"?}`; service: `{"v", "server", "envs": {env_id: entry}}` |
-| submit | `S` | client to service | `{"id", "seq", "last", "groups", "opts"?, "c"?}` |
+| hello | `H` | both | client: `{"v", "name", "lane"?, "token"?, "compress"?}`; service: `{"v", "server", "envs": {env_id: entry}}` |
+| submit | `S` | client to service | `{"id", "seq", "last", "groups", "opts"?, "c"?, "origin"?}` |
 | answer | `A` | service to client | `{"id", "seq", "env", "w", "b", "g": [...], "order"?, "c"?}` |
 | done | `D` | service to client | `{"id", "calls", "envs", "seconds", "c"?}` |
 | env | `E` | service to client | `{"env_id", "env"}` (before the first answer that names it) |
-| error | `X` | service to client | `{"id", "seq", "code", "detail", "c"?}` (`refused`, `excel-crashed` for serial batches, `excel-crash-budget`, `excel-timeout`, `worker-down`, `auth`) |
-| ping/pong | `P`/`Q` | both | echo |
+| error | `X` | service to client | `{"id", "seq"?, "code", "detail", "c"?}` (`refused`, `excel-crashed` for terminal request failures, `excel-crash-budget`, `excel-timeout`, `worker-down`, `auth`) |
+| ping/pong | `P`/`Q` | both | echo. Broker-to-relay pings include `broker_flags`. |
 | wait | `W` | client to service | `{"kind", "reason", "seconds", "lane"}` for the waits log |
 
 ## Requests
@@ -21,8 +21,12 @@ A request has an `id` (32 hex digits) and is sent as one or more `submit` frames
 (`interactive` or `bulk`), `calls` (the total, for the default priority), `primer` (serial mode: calls evaluated first).
 `addins` (a list of add-in file names, e.g. `["EUROTOOL.XLAM"]`) asks for an environment variant whose Excel has
 exactly those add-in files open; only a worker the broker started with `--addin-worker` serves it (other requests never
-reach it), and a request naming a set no worker has is refused. `c` is a tag the relay adds and the service returns. A resent `(id, seq)` is answered from the service's cache for 15
-minutes and never evaluated twice.
+reach it), and a request naming a set no worker has is refused. `c` is a tag the relay adds and the service returns.
+The relay copies the socket client's `name` and optional `lane` into the submit's `origin` for diagnostics. The broker
+provides the origin host from its relay connection or local machine. A resent `(id, seq)` is answered from the service's
+cache for 15 minutes and does not trigger a new evaluation. When a batch for one request returns `excel-error`, the broker
+can retry it once. A second `excel-error` for the same request returns terminal error code `excel-crashed` and refuses that
+ID for one hour.
 
 A **group** holds calls of one function and one argument shape, columnar:
 

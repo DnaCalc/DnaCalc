@@ -98,17 +98,35 @@ values], "detail", "worker"}`) in `raw()`, and in the v1-shaped reply a row `{"t
 "excel-crashed", "function", "arguments": [typed arguments], "worker", "detail"}`; `client.is_crashed(row)` tests for it
 and the other calls of the request are answered as usual. (Through the v1 file queue and strict replies a crashed row
 fails the reply, as `unread` does.) Every such call is appended to `<state>/crash-list.jsonl` (utc, function, token
-shape `k`, raw `args`, worker, batch) for the handbook: Excel crashing on an input is a recorded behaviour. Suspect calls
-and isolated functions' calls run only on the isolation worker (the last non-serial worker, `w2` by default; the one
-worker of a one-worker pool takes everything), so their crashes never count against the restart cap of the shared workers,
-and the shared workers never see them. A function with `CRASH_BUDGET` (6, `--crash-budget`) crashed calls in an hour has
+shape `k`, raw `args`, worker, batch, request ID and origin) for the handbook. Suspect calls and isolated functions run
+alone on the isolation worker (the last non-serial worker, `w2` by default). During its cooldown, restart or outage, the
+broker delegates this work to one available worker without add-ins. Isolated crashes handled by bisection or a typed
+crash answer leave that worker's restart budget available. A function with `CRASH_BUDGET` (6, `--crash-budget`) crashed calls in an hour has
 its remaining suspect calls refused, not run: `ServiceError` `excel-crash-budget: ... not run` (the call was not
 evaluated; resubmit when the crash is understood). The restart cap never takes the last worker that is up: that worker
 restarts again after each cool-down.
 
-Health: `broker.py status` prints one line, `OK|DEGRADED|DOWN workers_up=n/m down=k starting=s queue_calls=q
-oldest_queued_s=t last_answer=...`, exit 0 for OK, 1 for DEGRADED, 2 for DOWN (including a status file older than
-15 s); `status --json` gives the whole record. The broker rewrites `<state>/health.txt` with the same line every 30 s.
+If Excel returns `excel-error` on a batch belonging to one request, the broker retries once. A second such failure
+ends the request with `excel-crashed`. Its ID is refused for one hour across clients and broker restarts, and the
+received payload is recorded in `crash-list.jsonl`. Keep that file in the broker state directory when investigating.
+
+### Broker incident runbook
+
+1. Run `broker.py status` on Windows. It reports `OK`, `DEGRADED` or `DOWN` with exit codes 0, 1 and 2. Status older
+   than 15 seconds reads as down. Use `status --json` for `oldest_queued`, `queue_by_function`, and each worker's
+   `queue`, `down_reason`, and `retry_at_utc`. Queue entries show call counts and the oldest request's ID, function,
+   origin, age and waiting reason. Shared work is attributed to a likely worker for display and can dispatch elsewhere.
+2. A queued isolated call older than 10 seconds raises `isolated queue stalled` after 10 seconds without an isolated
+   dispatch. The Windows status
+   exposes `broker_flags`, and `health.txt` repeats the health line every 30 seconds. Relays publish the flags every
+   five seconds in `<socket>.health.json` next to the lane socket. Check `received_at` before using a relay report.
+   Find the request by ID in the batch log and look in `crash-list.jsonl` for the payload of a quarantined request.
+3. After correcting a failed worker's underlying problem, run `broker.py heal` to clear the caps for down workers
+   and retry their starts at the next tick. Queued work and quarantined request IDs stay in place.
+4. For deployment or a wedged broker, coordinate with callers. Wait for active and queued work to drain when the
+   broker can still answer. Run `broker.py stop` and wait for it to confirm, then start through the existing scheduled
+   task with its usual configuration. A stop drops work still in memory, and clients may need to resubmit it.
+   Confirm worker and relay recovery with `status` after startup.
 
 Capacity and fairness: interactive requests (up to 100 calls, or `priority="interactive"`) are taken first and bulk never
 fills the last worker, so a one-call question always finds a free Excel; bulk is shared per client (per relay client
@@ -116,7 +134,9 @@ behind a relay) by estimated Excel time, not call count; a batch is cut to about
 pays ~150 ms of fixed fingerprint and COM time under load). A function never measured runs alone as a 50-call probe
 that sets its cost.
 
-Logs: `log/YYYY-MM-DD.jsonl.gz` (one compact record per batch: worker, `env_id`, calls, cells, millisecond stages),
+Logs: `log/YYYY-MM-DD.jsonl.gz` (one record per batch with worker, `env_id`, calls, cells, millisecond stages, and
+request IDs with origin labels). New Python socket clients send the client name and lane from `DNACALC_LANE` or the
+launcher log directory. Relays supply the host. Older socket clients and v1 file callers have partial origin labels.
 `envs.jsonl` (one entry per Excel environment: version, build, file version, bitness, OS, CPU, multithreaded
 calculation, scratch settings; `env_id` is its hash), `log/waits.jsonl` (requests over 1 s + 10 us per call, queueing
 over 250 ms, refusals, worker down, lane reports; classes transport, queue, excel-calc, excel-start, refused-kind,

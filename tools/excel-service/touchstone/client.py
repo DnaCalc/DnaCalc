@@ -34,6 +34,16 @@ def is_crashed(value):
     return value == "x" or (isinstance(value, dict) and value.get("type") == "crashed")
 
 
+def client_lane():
+    lane = os.environ.get("DNACALC_LANE")
+    if lane:
+        return lane
+    # The lane launcher supplies host:path. Send only the lane directory name.
+    _, _, path = os.environ.get("DNACALC_AGENT_LOG", "").partition(":")
+    parts = path.replace("\\", "/").split("/")
+    return parts[-2] if len(parts) >= 3 and parts[-3] == "codex-runs" else None
+
+
 class ServiceError(RuntimeError):
     def __init__(self, response):
         self.response = response
@@ -129,6 +139,7 @@ class Connection:
     def __init__(self, opener, name="client", reconnect=True):
         self.opener = opener
         self.name = name
+        self.lane = client_lane()
         self.reconnect = reconnect
         self.envs = {}
         self.machine = None
@@ -186,7 +197,7 @@ class Connection:
         self.reader = protocol.FrameReader()
         self.hello.clear()
         self.alive = True
-        self._send(protocol.HELLO, {"v": protocol.VERSION, "name": self.name, "token": token})
+        self._send(protocol.HELLO, {"v": protocol.VERSION, "name": self.name, "lane": self.lane, "token": token})
 
     # -- plumbing -----------------------------------------------------------------------
     def _send(self, kind, obj):

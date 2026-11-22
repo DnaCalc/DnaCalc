@@ -6,6 +6,7 @@ else returns the number 1.0.  CRASHALWAYS answers excel-crashed every time it is
 worker process without an answer; CRASHON answers excel-crashed (and restarts) whenever a batch holds a call whose
 first argument is 13.0 (402a000000000000), the marked call; HEAVY costs 20 ms per call; a start also fails while the file named by
 TOUCHSTONE_TEST_FAIL_FLAG exists and holds this worker's name (or nothing).
+EXCELERROR reports an Excel error and makes the next batch hit a fingerprint check before evaluation.
 """
 import json
 import os
@@ -45,6 +46,7 @@ if flag and os.path.exists(flag) and open(flag).read().strip() in ("", NAME):
     sys.exit(3)
 hello()
 crashed = False
+drifted = False
 while True:
     try:
         (size,) = struct.unpack(">I", read_exact(4))
@@ -55,11 +57,22 @@ while True:
     if kind == "Q":
         break
     if kind == "R":
+        drifted = False
         hello(True)
         continue
     if kind != "B":
         continue
     groups = [g for g in payload["groups"] if not g.get("p")]          # primer calls are evaluated, not answered
+    if drifted:
+        send("R", {"id": payload["id"], "error": "fingerprint-drift-before", "detail": "fake settings changed"})
+        drifted = False
+        hello(True)
+        continue
+    if any(g["f"] == "EXCELERROR" for g in groups):
+        send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": payload["id"],
+                   "error": "excel-error", "detail": "fake Excel error"})
+        drifted = True
+        continue
     if any(g["f"] == "DIE" for g in groups):
         os._exit(1)
     marked = any(g["f"] == "CRASHON" and any(g["v"][i * max(1, len(g["v"]) // g["n"])] == "402a000000000000" for i in range(g["n"]))
