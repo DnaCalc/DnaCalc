@@ -33,6 +33,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 - **Edit in place (`F2` or double-click a cell):** Opens the in-cell editor seeded with the cell's authored input, caret at the end.
 - **Type-to-replace (any printable key without `Ctrl`/`Alt`):** Opens the in-cell editor seeded with the typed character.
 - **Formula Bar (`[data-onecalc=formula]`):** Clicking or typing in the Formula Bar starts or transfers the edit session there.
+- **Workbook VBA completion:** After you enable the workbook's macros, its functions appear in formula completion. The open draft refreshes in place.
 - **Switch editor (`Ctrl+F2` while editing):** Moves an active in-cell edit to the Formula Bar, or moves a Formula Bar edit back to the in-cell editor without losing the draft.
 - **Commit and walk (`Enter` / `Shift+Enter`, `Tab` / `Shift+Tab`):** Commits the edit and advances in the active selection (`Enter` down, `Shift+Enter` up, `Tab` right, `Shift+Tab` left). When the function completion popup is open, `Tab` accepts the selected proposal instead of committing the cell.
 - **Fill selection (`Ctrl+Enter`):** Enters the edited value or formula into every cell in the current selection as a single undoable workbook edit, relocating relative references per cell and keeping the selection intact.
@@ -55,7 +56,6 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ### Differences from Excel today
 
-- **Workbook VBA completion:** Registered workbook VBA functions (such as `MYFUNC` in `.xlsm` files) can be missing from the formula bar completion list in browser smoke (`dc-971p.71`, open).
 - **Point-mode edge keys:** `Ctrl+Arrow`, `Home`, and `End` during Point mode exit Point mode for text-caret movement rather than jumping to sheet data edges while pointing (`dc-971p`).
 - **Inline syntax diagnostics:** Neither the cell editor nor the Formula Bar renders inline diagnostic error spans (`dc-971p`).
 
@@ -129,7 +129,6 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 - **Fill handle preview & double-click:** Dragging the fill handle always opens the preview confirmation dialog (even over blank cells), and double-clicking the fill handle to auto-fill down an adjacent column is not wired (`dc-971p`).
 - **Series limits:** Series fill requires a single date, numbered text, or evenly spaced numeric seeds in each row/column; custom lists and post-fill smart-tag options are absent (`dc-971p`).
 - **Flash Fill limits:** Requires at least 2 examples (not 1), single adjacent left-column text sources only, up to `10,000` rows / `1 MB` source text / `5,000,000` pattern steps; no multi-column synthesis, learned number/date transforms, or locale case conversion (`dc-971p`).
-- **Intermittent Firefox status loss:** Firefox core smoke can intermittently lose the Flash Fill ambiguous-example refusal status (`dc-971p.72`, open).
 
 ---
 
@@ -305,12 +304,11 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 | Area | Difference from Excel today | Owning bead |
 |---|---|---|
-| Formula bar completion | Workbook VBA UDF completion intermittently missing in browser smoke | `dc-971p.71` |
 | Formula entry & pointing | Point-mode `Ctrl+Arrow`/`Home`/`End` revert to text caret; no inline diagnostic squiggles | `dc-971p` |
 | Selection & navigation | Interior-anchor `Shift+Arrow` refuses; Table multi-stage `Ctrl+A`/`Space` refuses; disjoint axis expansion refuses; `Alt+Shift+PageUp`/`Down` unmapped | `dc-971p` |
 | Imported range selection | Stored `.xlsx` range selection pixel parity unmeasured on Windows | `dc-971p.43.2` |
 | Clipboard & Paste Special | No external format paste or merged HTML paste; no Paste Special on Cut; transpose refuses Cut/Table/Fill/Array; protected paste refuses | `dc-971p` |
-| Fill & Flash Fill | No fill-handle double-click; preview dialog on every drag; no custom lists; Flash Fill needs ≥2 examples, 1 left text column, ≤10k rows; Firefox refusal status race | `dc-971p`, `dc-971p.72` |
+| Fill & Flash Fill | Fill handle drags always preview. Double-click fill and custom lists remain open. Flash Fill needs at least two examples, one source column to the left and at most 10,000 rows. | `dc-971p` |
 | Status aggregates | 10,000-cell limit; excludes cached/stale/refused values; collapsible panel instead of inline status toggles | `dc-971p` |
 | Context menu | Fixed 9-item menu; missing Paste Special, Format Cells, Hide/Unhide, Freeze, Filter/Sort, Notes, Merge | `dc-971p`, `dc-971p.73` |
 | Sheet tabs | No drag-reorder, multi-sheet grouping, tab context menu, or inline tab rename input | `dc-971p` |

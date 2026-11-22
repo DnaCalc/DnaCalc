@@ -2,6 +2,8 @@
 
 Reviewed 2026-10-30 for **dc-971p — DNA Calc UI: Excel-parity grid and skin polish**.
 Review/tools task: dc-971p.1. Implementation tasks: dc-971p.2–dc-971p.15.
+The grid inventory below reflects the 22 November update. The other sections retain the
+original review and its validation record.
 
 DNA Calc is already useful for opening a workbook, inspecting calculated cells, making basic
 edits, and looking at dependencies. It is not yet a dependable replacement for Excel's grid.
@@ -120,7 +122,7 @@ test harness. Future regression checks belong in the existing `cargo xtask app s
 
 All screenshots are in **`~/codex-runs/ui-shots/`**, intentionally outside git. Names use
 `{local|published}-{scene}-{width}x{height}.png`. Each scene below has all three sizes.
-They show observed current behaviour, not proposed designs.
+They show the initial review builds.
 
 | Scene | What to inspect |
 |---|---|
@@ -142,7 +144,7 @@ They show observed current behaviour, not proposed designs.
 | `onecalc-empty`, `onecalc-sum` | Formula workbench; A1=1.5, A2=2, blank A3 gives SUM=3.5. Result is printed twice. At 390 px the catalogue comes before scratch inputs. |
 | `onecalc-array`, `onecalc-error`, `onecalc-refused` | 3×2 array, `#DIV/0!` with meaning, and unknown-function diagnostic with no value, respectively. |
 
-## What a person can do today
+## What a person could do on 2026-10-30
 
 All Calc skins share New/Open/Save, workbook Undo/Redo, Automatic/Manual, Calculate, iteration
 controls, sheet tabs, name box, formula bar and themes. File bytes stay in the browser.
@@ -166,47 +168,54 @@ that library must remain free of calc-engine, calc-doc/model and calc-host. Work
 spills, subscriptions, worker messages and skins stay in `apps/dna-calc`. Do not make OneCalc
 a small workbook engine or copy its controller into Calc.
 
-## Grid parity inventory
+## Grid parity inventory, 2026-11-22
 
-**Done** means the stated narrow behaviour was exercised; **partial** means a useful subset
-exists; **missing** means there is no working application route for the requested surface.
-These are UI assessments, not claims about every underlying library. **Critical** interrupts
-ordinary work or risks losing/misreading work; **high** matters for common workbooks; **medium**
-is useful but can follow dependable entry. Task suffixes refer to epic dc-971p.
+Done covers the behaviour named in the evidence column. Partial includes the limits in the
+follow-up column. The group names refer to the existing browser smoke, which drives the
+Classic grid, formula field and worker. [Smoke case definitions](../../apps/dna-calc/tests/smoke/cases.rs)
 
-| Excel grid surface | State | Current evidence and missing behaviour | Importance / slice |
+Lanes ux1–ux4 added or reran the Classic cases in dc-971p.67–.70. The combined ux5
+targeted smoke passed 32/32 cases in each of Chromium and Firefox, covering formula entry
+and formula-bar parts, horizontal paging, Go To Special, fill, wheel zoom, spills and imported
+merge edits. The workbook VBA completion regression went from 0/1 to 1/1 in each browser.
+With the last example reply delayed, the Flash Fill regression went from 0/1 to 1/1 in each.
+Firefox core passed 457/457 before and after the Flash Fill smoke fix. The browser logs are
+under `~/codex-runs/ux5/` on dna-koderbot. Windows Excel measurements stay with the
+beads in the follow-up column.
+
+| Excel grid surface | State | Current evidence | Follow-up |
 |---|---|---|---|
-| Single-cell selection | Done | Click/name box sets active source; formula bar and footer follow; other skins share that selection. | Critical; preserve in .2/.4. |
-| Ranges and whole axes | Partial | Shift+arrows/click, mouse drag, headers and sheet corner exist; no disjoint ranges, keyboard axis selection or range/name-box input. Drag does not extend by scrolling beyond the viewport. | High; .4. |
-| Basic navigation | Partial | Arrows, Tab/Shift+Tab, Enter, Home/Ctrl+Home work. Ctrl+Down from populated A1:A3 stays A1. Shift+Enter in select mode stays A2; Ctrl+End and page keys have no app mapping. | Critical; .4. |
-| Navigation edges | Partial | Coordinates clamp; name box validates XFD1048576. Hidden-axis skipping, data-region jumps, full-address-space scrolling and far-viewport geometry are not established by the small smoke fixtures. | High; .4/.7. |
-| Enter/Tab within selected ranges | Missing | Enter from B1:B3 moves to B2 and removes the range. No bounded range walk, reverse walk or Ctrl+Enter selected-range entry. | High; .2/.4. |
-| Type-to-replace cell entry | Done | Smoke types values/formula through grid focus and checks dependents. Overlay receives subsequent input and accepted entry moves. | Critical; preserve in .2. |
-| F2, double-click and Esc | Partial | F2 seeds existing authored text; append then Esc restores it. Cell editor has no completion/highlighting, reference-point mode, F4 handling or IME composition guard. | Critical; .2. |
-| Formula bar editing | Partial | Shared highlighted textarea, completion and signatures; Enter commits but stays in the same cell. Tab leaves focus on grid with draft still open; navigation can then do nothing until cancellation. Bar passes no diagnostic spans and does not mount shared function help. | Critical; .2. |
-| Pointing to references | Missing | Clicking B4 while bar holds `=A1+` tries to commit invalid syntax and refuses; it does not insert B4. Selecting cells during formula authoring needs a dedicated edit mode. | Critical; .2. |
-| Fill | Partial | Ctrl+D/R relocate formulas over a rectangle through host copy. No fill handle, series/options or cancel preview. | High; .5. |
-| Internal copy/cut/paste | Partial | Smoke checks relocation, moves and undo. Clipboard stores source coordinates, not a snapshot of copied content. No copy outline or Paste Special UI. | High; .5. |
-| System copy/paste | Missing | Ctrl+C/V/X are intercepted for the controller's private clipboard. External text/HTML/Excel paste is not read by that route; native paste into the formula text is not range paste. | Critical; .5. |
-| Workbook and text undo | Partial | Toolbar/Ctrl+Z/Ctrl+Y restore edits and cross-sheet selection; fill/move are host operations. Browser-local text undo and workbook undo are not presented consistently across editors; buttons remain enabled at empty history. | Critical; .2/.3/.5. |
-| Row/column insert/delete | Partial | Whole-header selection plus Insert/Delete or Ctrl++/− works and transforms references/formats. A normal cell selection is refused with a helpful instruction; no shift-cells dialog or context command. | High; .7/.9. |
-| Resize / auto-fit | Partial | Imported width/height affects geometry. No drag edge, size entry or auto-fit control. | High; .7. |
-| Hide / unhide | Partial | Stored hidden axes have zero size. No UI to hide/unhide or navigate around hidden cells reliably. | High; .4/.7. |
-| Freeze / split panes | Missing | `features.xlsx` has frozenSplit at B2; renderer has one viewport and no pane projection. Ordinary scrolling does not implement those stored panes. | High; .7. |
-| Sheet tabs | Partial | Existing sheets switch; undo can return to the edited sheet. Switching resets selection to A1. No create/rename/reorder/delete/hide or Ctrl+Page sheet navigation. | High; .7. |
-| Number formats as displayed | Partial | Existing fixture checks separators, percentages, dates, negative sections, exponent and literal suffix; CF can choose format. Unsupported codes silently fall back to General in visible pixels (`data-format` records it); unshowable values use fixed `#####`. No width-sensitive overflow or format control. | High; .6. |
-| Alignment as displayed | Missing | Basic number-right/text-left/logical-centred defaults exist. Stored alignment/wrap/rotation/indent are not projected to cells; `features.xlsx` B5's multiline text clips. | High; .6. |
-| Fonts / fill / borders as displayed | Partial | CF supplies font/fill changes and format text can choose color. Ordinary style font/bold/fill/border is absent from `CellShown`; B2's stored bold is not rendered. Font substitutions have no notice. | High; .6. |
-| Merged cells | Missing | H1:I1 metadata exists in `features.xlsx`; gridlines still divide the area and hit testing remains cell-by-cell. No merge-aware selection/edit/render or merge command. | High; .6. |
-| Conditional formats as shown | Partial | Colors, scales, data bars, original icon SVGs and chosen formats are exercised; updates follow edits. No applies-to/precedence inspector or rule manager; bar rendering is not full Excel signed-axis/border fidelity. | High; .8. |
-| Data validation as shown | Partial | List button/Alt+Down, input prompt, chosen value and Stop rejection work. List items have click handlers, no keyboard option model. Warning/Information keeps the entry immediately, without a user choice. No rule authoring UI. | High; .8. |
-| Comments / notes / hyperlinks | Missing | Source fixture has A1 comment and K1 hyperlink. No comment marker/read UI or actionable hyperlink is rendered. Saving opaque parts does not make them usable. | Medium; .8. |
-| Spill ranges | Partial | Smoke verifies spill expansion/shrink and removal of old children. No visible extent/anchor relationship, read-only child explanation or spill-aware range selection. | High; .3/.4. |
-| `#SPILL!` | Partial | D2=99 blocks C1's 3×2 SEQUENCE and C1 displays a calculated `#SPILL!`. No blocker address, jump or recovery action; a calculation status alone explains nothing. | High; .3/.13. |
-| Find / Replace / Go To | Partial | Single A1 name-box jump exists. No app Find/Replace, named/range Go To or special-cell search; browser Find is not workbook Find. | High; .4/.9. |
-| Zoom | Partial | +/− geometry controls and percent readout exist (50–400% clamp); no direct percentage, reset or pointer-centred zoom. It resets on skin remount and displayed text does not scale with geometry. | Medium; .7. |
-| Status aggregates | Missing | Footer gives last action plus active-cell provenance, not selection Sum/Count/Average/Min/Max. Long messages clip or wrap awkwardly. | High; .3/.9. |
-| Context menus | Missing | No app contextmenu handler or Shift+F10 command menu. Only toolbar and remembered shortcuts expose edits. | High; .9. |
+| Single-cell selection | Done | `basics` checks click and name-box selection, authored text in the formula bar and the active cell announcement. | — |
+| Ranges and whole axes | Partial | `selection` checks Shift extension, row and column keyboard selection, Ctrl+A region then sheet, Ctrl-click areas, named rectangles and drag with autoscroll. | Interior-anchor extension and disjoint axis expansion have explicit limits (dc-971p). |
+| Basic navigation | Done | `selection`, `edges` and `classic-horizontal-navigation` exercise arrows, Tab/Enter and their reverse directions, Home/Ctrl+Home, Ctrl+arrows, Ctrl+End, PageUp/PageDown and Alt+PageUp/PageDown. | — |
+| Navigation edges | Partial | `edges` checks hidden-row and hidden-column skipping, clamping and editing at XFD1048576, including at maximum zoom. `selection` checks blank gaps and a formula displaying empty text. | Table selection stages and Excel's retained used-range edges remain open (dc-971p). |
+| Enter/Tab within selected ranges | Done | `selection` checks vertical and horizontal walks, wrap and reverse. Ctrl+Enter relocates formulas and groups the rectangle into one Undo/Redo step. | — |
+| Type-to-replace cell entry | Done | `basics` and `edit-state` type values and formulas through grid focus, verify recalculation and check the next selection after commit. | — |
+| F2, double-click and Esc | Partial | `edit-state` opens authored source with both gestures, preserves exact source on Escape, and exercises completion and synthetic composition. | Native IME and double-click caret placement within proportional text still need comparison (dc-971p). |
+| Formula bar editing | Partial | `edit-state` and `classic-formula-entry` cover Enter/Tab and reverse movement, completion, shared history, rejected drafts and focus. `formula-bar-parts` covers F9, trace and completion after workbook VBA is enabled. | Inline syntax diagnostics remain with dc-971p. |
+| Pointing to references | Partial | `edit-state` and `classic-formula-entry` cover clicking, dragging and arrow pointing, F4 on both range ends, cross-sheet references and preserving the original edit target. | Ctrl+arrows and Home/End return to caret movement in Point mode (dc-971p). |
+| Fill | Partial | `clipboard` and `fill-handle-copy` cover Ctrl+D/R, drag-copy, numeric/date series, relative references, preview cancellation and one-step Undo. `fill-text` covers numbered text and the supported Flash Fill patterns. | Double-click autofill, custom lists and broader Flash Fill patterns remain with dc-971p. |
+| Internal copy/cut/paste | Done | `ranges`, `clipboard` and `clipboard-history` exercise immutable snapshots, reference relocation, source moves, copy outline, cancellation and Paste Special values/formulas/formats. | — |
+| System copy/paste | Partial | `clipboard` ingests real external TSV and HTML, exports a table to a separate text field, supports text fallback and verifies atomic malformed-input refusal. | External HTML styles and merged table cells have limits (dc-971p). Windows Excel clipboard verification stays with dc-971p.62. |
+| Workbook and text undo | Done | `edit-state` checks local text history and toolbar Redo during editing. `selection` and `clipboard` check workbook Undo/Redo with grouped edits and restored sources. | — |
+| Row/column insert/delete | Done | `ranges` and `shift-sheets` exercise whole-axis edits and explicit shift-cell choices, cancellation, reference rewrites, Undo and XLSX reopening. | — |
+| Resize / auto-fit | Partial | `axes` and `styled-fit` exercise typed dimensions, grouped header drags, Escape, double-click AutoFit and fitting from displayed font and text metrics. | Merged content and additional fitting combinations remain with dc-971p.16. |
+| Hide / unhide | Partial | `axes` checks Hide, Show, retained dimensions and history for both axes, plus XLSX reopening. `edges` checks navigation past hidden axes. | The Show commands restore hidden bands (dragging to unhide stays with dc-971p). |
+| Freeze / split panes | Partial | `panes`, `split-panes` and `session-view` exercise imported and authored panes, independent scrolling, freeze/unfreeze, history and XLSX reopening. | Freezing from scrolled origins and editing through offset frozen bands need Excel measurements (dc-971p.62). |
+| Sheet tabs | Partial | `shift-sheets`, `sheet-tab-rename` and `panes` exercise creation, rename, reorder, deletion, hide/unhide, Ctrl+Page navigation and retained selections. | Drag reorder, multi-sheet grouping and a tab context menu remain with dc-971p. |
+| Number formats as displayed | Partial | `formats` checks percentages, dates, custom sections and imported formats. `format-cells` checks preview, authoring, history and XLSX round trips. General narrows to fit the available width. | Pixel-level number display and indicators remain with dc-971p.43. |
+| Alignment as displayed | Partial | `alignment` checks stored horizontal and vertical alignment, indentation, wrap, justify and overflow. `format-cells` checks applied alignment and persistence. | Wrapped row metrics and baseline comparison remain with dc-971p.43. |
+| Fonts / fill / borders as displayed | Partial | `format-cells`, `layout` and `physical-styles` exercise ordinary font, fill and border rendering, including merged perimeters, patterns and gradients. | Excel pixel comparisons at extreme zoom remain with dc-971p.43. |
+| Merged cells | Partial | `layout` checks a single render and semantic anchor and keyboard navigation past covered cells. `classic-merge` edits through a covered address and restores the anchor value with Undo. | Merge Cells, Merge & Center and Unmerge authoring and XLSX persistence remain with dc-971p.73. |
+| Conditional formats as shown | Partial | `conditional` and `conditional-authoring` exercise colors, scales, data bars and icons plus a manager with applies-to, precedence and stop-if-true. Tests check rule edits, history and saved rules. | New rules have limited styling and imported extension rules are read-only (dc-971p). |
+| Data validation as shown | Partial | `validation` covers keyboard list selection, prompts, Stop and explicit Warning/Information decisions. `validation-audit` and `candidate-validation` exercise invalid-cell circles, formula candidates and saved rule reopening. | Creating and editing validation rules in the UI remains with dc-971p. |
+| Comments / notes / hyperlinks | Partial | `review-find`, `review-editing`, `review-create` and `classic-merge` cover marker and hover text, editing notes and threaded comments, hyperlink targets and XLSX reopening. | Link authoring and editing threads with mentions remain with dc-971p. |
+| Spill ranges | Partial | `classic-spill` checks anchor and child outlines, the read-only child explanation and dismissal outside the range. `array-recovery` checks navigation to the owner. | Frozen-pane border clipping and Excel's muted anchor formula on child selection need Windows verification (dc-971p.62). |
+| `#SPILL!` | Done | `classic-spill` and `array-recovery` outline the attempted range, name and select its blocker, then show recovery after it is cleared. | — |
+| Find / Replace / Go To | Partial | `review-find` and `find-name` cover formulas and displayed values, scope, match options, literal Replace and names/ranges. `go-to-special` covers formulas, constants and blanks. | Search bounds, replacement limits and additional Go To Special predicates remain with dc-971p. |
+| Zoom | Partial | `panes`, `ten-percent-zoom` and `wheel-zoom` cover direct entry, reset and Ctrl+wheel, scaled text and geometry, per-sheet retention and XLSX reopening. | Windows wheel notch increments and scroll anchoring remain with dc-971p.62. |
+| Status aggregates | Partial | `review-find` checks Count, numeric Count, Sum, Average, Min and Max from current values, with separate stale, cached and refused counts and an explicit 10,000-cell limit. | Results appear in the selection-summary disclosure. Excel-style status toggles remain with dc-971p. |
+| Context menus | Partial | `review-find` uses right-click and Shift+F10 on the grid, checks keyboard selection and Escape focus return, and preserves Shift+right-click for the browser. | The menu offers nine commands. More actions remain with dc-971p and Merge commands with dc-971p.73. |
 
 ## Critical findings and cuts
 
@@ -302,7 +311,7 @@ dc-gf0, dc-xib and dc-p96 are sources of implemented behaviour and fixtures, not
 all Excel UI families are complete. Extend their routes instead of creating another evaluator,
 graph, oracle, fixture generator or verdict system.
 
-## Validation record
+## Validation record for the initial review
 
 - `cargo xtask app smoke calc`: **71/71 cases in Chrome and 71/71 in Firefox**, exit 0.
   Log: `~/codex-runs/smoke-calc-initial.log`. The existing runner built the local wasm bundle,
