@@ -254,14 +254,40 @@ pub(crate) fn excel_stirling_step(n: f64) -> f64 {
     stirling_step::<Native>(n)
 }
 
+/// `e - ln(1 + e)` for `|e| < 3/8` as Excel's `bratio_basym` forms it: with `q = st(2 + e)` and
+/// `r = st(e / q)`, `e * r - 2 * atanh_tail(r)` avoids cancellation in `e - 2 * atanh(r)`.
+pub(crate) fn excel_rlog1(e: f64) -> f64 {
+    rlog1::<Native>(e)
+}
+
+fn rlog1<F: Fpu>(e: f64) -> f64 {
+    if e.abs() < 0.375 {
+        let q = F::store(&F::add(&load(2.0), &load(e), CW), CW);
+        let r = F::div(&load(e), &load(q), CW);
+        let tail = atanh_tail::<F>(&r);
+        let r_stored = load(F::store(&r, CW));
+        let er = F::mul(&load(e), &r_stored, CW);
+        let two_tail = F::mul(&load(2.0), &tail, CW);
+        return F::store(&F::sub(&er, &two_tail, CW), CW);
+    }
+    let u1 = F::store(&F::add(&ext_one(), &load(e), CW), CW);
+    let lg = log_with::<F>(u1, &ext_ln2());
+    F::store(&F::sub(&load(e), &load(lg), CW), CW)
+}
+
 fn atanh_tail<F: Fpu>(v: &Ext80) -> Ext80 {
     let stored = load(F::store(v, CW));
     let w = load(F::store(&F::mul(&stored, &stored, CW), CW));
     let (mut tail, mut power, mut j) = (load(0.0), stored, 1.0);
     loop {
-        power = load(F::store(&F::mul(&power, &w, CW), CW));
+        // x87 FST idiom: `power *= w` spills to binary64 while keeping the
+        // 80-bit product in ST(0) for the immediately following division
+        // `power / (2*j + 1)` (dc-iuwct.52: fixes $[368], +11 BINOM.DIST,
+        // +0 POISSON.DIST/GAMMA.DIST/HYPGEOM.DIST).
+        let p_ext = F::mul(&power, &w, CW);
+        power = load(F::store(&p_ext, CW));
         let next = load(F::store(
-            &F::add(&tail, &F::div(&power, &load(2.0 * j + 1.0), CW), CW),
+            &F::add(&tail, &F::div(&p_ext, &load(2.0 * j + 1.0), CW), CW),
             CW,
         ));
         if next.0 == tail.0 {
@@ -482,6 +508,14 @@ mod tests {
         assert_eq!(
             beta_up_sum_small_b::<Soft>(7.25, 0.24, 0.79, 20).to_bits(),
             excel_beta_up_sum_small_b(7.25, 0.24, 0.79, 20).to_bits()
+        );
+        assert_eq!(
+            rlog1::<Soft>(-0.0215).to_bits(),
+            excel_rlog1(-0.0215).to_bits()
+        );
+        assert_eq!(
+            rlog1::<Soft>(0.0269).to_bits(),
+            excel_rlog1(0.0269).to_bits()
         );
     }
 }

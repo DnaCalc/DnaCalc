@@ -809,4 +809,95 @@ mod tests {
             assert!((slow.min(1.0) - fast).abs() < 1e-12, "{s} {nn} {k} {bn}: {slow} {fast}");
         }
     }
+
+    /// Excel 16.0.20527.20196 (dc-iuwct.52): large-shape near-mean BINOMDIST/BETA.DIST
+    /// (`min(a, b) > 10_000 && lambda <= 0.03 * min(a, b)`) runs `bratio_basym` with Excel's
+    /// `rlog1` and scaled `erfc`, and the `[368]` reflected saddle-point mass/CDF stays accurate
+    /// across `atanh_tail`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_52_binomdist_basym_and_reflected_prefactor_match_excel() {
+        use crate::ported::beta_gamma_stats_family::beta_dist_kernel;
+
+        // $[239] (ww2 dc-iuwct.52-current-BINOMDIST.json): a=25029, b=19972, lam/b=0.0269 -> basym.
+        let got_239 = binom_dist_kernel(
+            f64::from_bits(0x40d380c000000000),
+            f64::from_bits(0x40e5f90000000000),
+            f64::from_bits(0x3fdd2b5b5996353c),
+            true,
+        )
+        .unwrap()
+        .to_bits();
+        let exp_239 = 0x3e870a244375fef5_u64;
+        assert!(
+            got_239.abs_diff(exp_239) <= 2,
+            "$[239] got {got_239:#018x}, expected {exp_239:#018x} ({} ULP)",
+            got_239.abs_diff(exp_239)
+        );
+
+        // Additional n=45,000 basym rows from ax2/beta-stages-BINOMDIST-answers.jsonl (exact).
+        let exact_basym_rows: &[(u64, u64, u64, u64)] = &[
+            (0x40cd128000000000, 0x40e5f90000000000, 0x3fd58896360aa93c, 0x3f76129842676111), // $[219]
+            (0x40d30ec000000000, 0x40e5f90000000000, 0x3fdc0328c09f30b4, 0x3fa600316ed71f88), // $[425]
+            (0x40d3b60000000000, 0x40e5f90000000000, 0x3fdd1f35f6381ce7, 0x3f6767d665a55dfb), // $[208]
+            (0x40d6454000000000, 0x40e5f90000000000, 0x3fe087f8fc739266, 0x3ef071e2b3d968ea), // $[461]
+            (0x40e06f8000000000, 0x40e5f90000000000, 0x3fe8024e1f8038e0, 0x3fc10584ac3542c8), // $[295]
+        ];
+        for &(kb, nb, pb, exp) in exact_basym_rows {
+            let got = binom_dist_kernel(
+                f64::from_bits(kb),
+                f64::from_bits(nb),
+                f64::from_bits(pb),
+                true,
+            )
+            .unwrap()
+            .to_bits();
+            assert!(
+                got.abs_diff(exp) <= 2,
+                "BINOMDIST({kb:#018x}, {nb:#018x}, {pb:#018x}, TRUE) got {got:#018x}, expected {exp:#018x} ({} ULP)",
+                got.abs_diff(exp)
+            );
+        }
+
+        // Exact b == 10_000 (bfrac) vs next_up(10_000) (basym) boundary on BETA.DIST.
+        let x_edge = (15000.0 - 0.02 * 10000.0) / 25000.0;
+        let at_10k = beta_dist_kernel(x_edge, 15000.0, 10000.0, true, 0.0, 1.0)
+            .unwrap()
+            .to_bits();
+        let above_10k = beta_dist_kernel(x_edge, 15000.0, 10000.0_f64.next_up(), true, 0.0, 1.0)
+            .unwrap()
+            .to_bits();
+        assert!(at_10k.abs_diff(0x3f7464f2c23df2c5) <= 4);
+        assert!(above_10k.abs_diff(0x3f7464f2c23df585) <= 2);
+
+        // $[368] (ww2 dc-iuwct.52-current-BINOMDIST.json & BINOM.DIST.json): reflected mass & CDF.
+        let got_368_pmf = binom_dist_kernel(
+            f64::from_bits(0x40a3620000000000),
+            f64::from_bits(0x40aff40000000000),
+            f64::from_bits(0x3fda8a9379aada7c),
+            false,
+        )
+        .unwrap()
+        .to_bits();
+        let exp_368_pmf = 0x241a688b62963e03_u64;
+        assert!(
+            got_368_pmf.abs_diff(exp_368_pmf) <= 2,
+            "$[368] PMF got {got_368_pmf:#018x}, expected {exp_368_pmf:#018x} ({} ULP)",
+            got_368_pmf.abs_diff(exp_368_pmf)
+        );
+        let got_368_cdf = binom_dist_kernel(
+            f64::from_bits(0x4099240000000000),
+            f64::from_bits(0x40aff60000000000),
+            f64::from_bits(0x3fe2bab6432a92c2),
+            true,
+        )
+        .unwrap()
+        .to_bits();
+        let exp_368_cdf = 0x2420acf3c222a627_u64;
+        assert!(
+            got_368_cdf.abs_diff(exp_368_cdf) <= 2,
+            "$[368] CDF got {got_368_cdf:#018x}, expected {exp_368_cdf:#018x} ({} ULP)",
+            got_368_cdf.abs_diff(exp_368_cdf)
+        );
+    }
 }
