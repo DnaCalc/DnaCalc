@@ -129,8 +129,8 @@ fn phonetic_format(bytes: &[u8]) -> Option<Phonetic> {
     Some(Phonetic { font, kind: (flags & 3) as u8, alignment: ((flags >> 2) & 3) as u8, runs: Vec::new() })
 }
 
-/// Parse fully accounted-for ExtRst data. A zero-run extension maps all phonetic
-/// text to the complete base string, as observed in Excel's conversion.
+/// Parse ExtRst data. Excel's conversion accepts one trailing word and maps
+/// phonetic text without explicit runs to the complete base string.
 fn phonetic_extension(bytes: &[u8], base_len: usize) -> Option<Phonetic> {
     let mut c = crate::xlsb::Cursor::new(bytes);
     let what = "phonetic string";
@@ -139,12 +139,19 @@ fn phonetic_extension(bytes: &[u8], base_len: usize) -> Option<Phonetic> {
     let flags = c.u16(what).ok()?;
     let count = usize::from(c.u16(what).ok()?);
     let units = usize::from(c.u16(what).ok()?);
-    if units == 0 || usize::from(c.u16(what).ok()?) != units { return None; }
+    if usize::from(c.u16(what).ok()?) != units { return None; }
+    let content_size = units * 2 + count * 6;
+    if !matches!(c.remaining().checked_sub(content_size)?, 0 | 2) { return None; }
     let text = c.units(units, what).ok()?;
     if count == 0 {
-        if c.remaining() != 0 || base_len == 0 || base_len > usize::from(u16::MAX) { return None; }
+        let runs = if text.is_empty() {
+            Vec::new()
+        } else {
+            let end = u16::try_from(base_len).ok().filter(|&len| len != 0)?;
+            vec![PhoneticRun { first: 0, end, text }]
+        };
         return Some(Phonetic { font, kind: (flags & 3) as u8, alignment: ((flags >> 2) & 3) as u8,
-            runs: vec![PhoneticRun { first: 0, end: base_len as u16, text }] });
+            runs });
     }
     let mut positions = Vec::with_capacity(count);
     let mut base_units = 0usize;
@@ -159,7 +166,7 @@ fn phonetic_extension(bytes: &[u8], base_len: usize) -> Option<Phonetic> {
         if positions.last().is_some_and(|&(p, b, _)| p >= phonetic || b >= first) { return None; }
         positions.push((phonetic, first, end as u16));
     }
-    if c.remaining() != 0 || positions.first()?.0 != 0 { return None; }
+    if positions.first()?.0 != 0 { return None; }
     let mut runs = Vec::with_capacity(count);
     for (i, &(start, first, end)) in positions.iter().enumerate() {
         let stop = positions.get(i + 1).map_or(units, |next| usize::from(next.0));

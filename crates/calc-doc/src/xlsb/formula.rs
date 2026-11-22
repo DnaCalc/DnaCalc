@@ -492,10 +492,14 @@ pub(crate) fn print(
                 let (mut command, mut prompt) = (false, false);
                 let (count, number) = if base == 0x21 {
                     let number = if layout == Layout::Biff3 { u16::from(cursor.u8("PtgFunc")?) } else { cursor.u16("PtgFunc")? };
-                    let fixed = binary_function(number)
-                        .map(|(_, arity)| arity)
-                        .filter(|arity| *arity >= 0)
-                        .ok_or_else(|| bad(format!("the fixed-arity function number {number}")))?;
+                    let fixed = match (layout, number) {
+                        // Excel opens fixed BIFF8 GETPIVOTDATA with two arguments.
+                        (Layout::Biff8, 358) => 2,
+                        _ => binary_function(number)
+                            .map(|(_, arity)| arity)
+                            .filter(|arity| *arity >= 0)
+                            .ok_or_else(|| bad(format!("the fixed-arity function number {number}")))?,
+                    };
                     (fixed as usize, number)
                 } else {
                     let count = cursor.u8("PtgFuncVar")?;
