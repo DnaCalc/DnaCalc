@@ -221,7 +221,8 @@ impl Controller {
             return;
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
-        if ctrl && !ev.shift_key() && !ev.alt_key() && ev.key() == "Enter" {
+        let key = ev.key();
+        if ctrl && !ev.shift_key() && !ev.alt_key() && key == "Enter" {
             ev.prevent_default();
             ev.stop_propagation();
             let controller = *self;
@@ -234,7 +235,7 @@ impl Controller {
             });
             return;
         }
-        let movement = match ev.key().as_str() {
+        let movement = match key.as_str() {
             "Enter" if !ctrl && !ev.alt_key() => Some(if ev.shift_key() {
                 NavAction::Up
             } else {
@@ -253,7 +254,7 @@ impl Controller {
             self.finish_edit(movement);
             return;
         }
-        match ev.key().as_str() {
+        match key.as_str() {
             "Escape" => {
                 ev.prevent_default();
                 ev.stop_propagation();
@@ -286,48 +287,78 @@ impl Controller {
                 ev.prevent_default();
                 ev.stop_propagation();
                 let (start, end) = field_selection(assist);
+                let picked_range = self
+                    .model
+                    .with_untracked(|model| model.point_at_caret(start, end))
+                    .filter(|pick| pick.anchor != pick.corner);
+                let (start, end) = picked_range.map_or((start, end), |pick| (pick.start, pick.end));
                 if let Some((text, start, end)) =
                     cycle_anchors(&self.edit_text.get_untracked(), start, end)
                 {
-                    self.pointed.set(None);
+                    self.model.update(|model| {
+                        model.edit.pointed = picked_range.map(|pick| PointPick { end, ..pick });
+                        if picked_range.is_some() {
+                            model.edit.pointed_text = text.clone();
+                        }
+                    });
                     assist.place(text, end);
-                    if let Some(field) = assist.field.get_untracked() {
+                    if picked_range.is_none() && let Some(field) = assist.field.get_untracked() {
                         let _ = field.set_selection_range(start as u32, end as u32);
                     }
                 }
             }
-            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
-                if self.point_mode.get_untracked() && !ctrl && !ev.alt_key() =>
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Home" | "End"
+                if self.point_mode.get_untracked() && !ev.alt_key() =>
             {
-                let action = match ev.key().as_str() {
-                    "ArrowUp" => NavAction::Up,
-                    "ArrowDown" => NavAction::Down,
-                    "ArrowLeft" => NavAction::Left,
-                    _ => NavAction::Right,
+                let direction = match key.as_str() {
+                    "ArrowUp" => Some(NavAction::Up),
+                    "ArrowDown" => Some(NavAction::Down),
+                    "ArrowLeft" => Some(NavAction::Left),
+                    "ArrowRight" => Some(NavAction::Right),
+                    _ => None,
                 };
-                let from = self
-                    .pointed
-                    .get_untracked()
-                    .map(|p| p.corner)
-                    .or_else(|| {
-                        self.edit_target
-                            .get_untracked()
-                            .map(|at| (at.row(), at.column()))
-                    })
-                    .unwrap_or((1, 1));
-                let next = next_active(from, action, GridExtent::new(1_048_576, 16_384));
-                if self.point_at(next.0, next.1, ev.shift_key()) {
-                    ev.prevent_default();
-                    ev.stop_propagation();
+                if !ctrl && let Some(action) = direction {
+                    let from = self
+                        .pointed
+                        .get_untracked()
+                        .map(|p| p.corner)
+                        .or_else(|| {
+                            self.edit_target
+                                .get_untracked()
+                                .map(|at| (at.row(), at.column()))
+                        })
+                        .unwrap_or((1, 1));
+                    let next = next_active(from, action, GridExtent::new(1_048_576, 16_384));
+                    if self.point_at(next.0, next.1, ev.shift_key()) {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        return;
+                    }
                 }
+                // Native caret navigation leaves the editor in text editing mode.
+                self.model.update(|model| {
+                    model.edit.point_mode = false;
+                    model.edit.pointed = None;
+                });
             }
             _ => {}
         }
     }
 
     pub fn edit_changed(&self) {
-        self.model.update(|model| model.edit.replacement = true);
-        self.pointed.set(None);
+        self.model.update(|model| {
+            let edit = &mut model.edit;
+            // Starting a formula in a blank cell enables pointing from either editor.
+            if edit.surface == Some(EditOrigin::Bar)
+                && !edit.replacement
+                && edit.original.is_empty()
+                && edit.draft.starts_with('=')
+            {
+                edit.point_mode = true;
+            }
+            edit.replacement = true;
+            edit.pointed = None;
+        });
         self.remember_editor_selection();
     }
 

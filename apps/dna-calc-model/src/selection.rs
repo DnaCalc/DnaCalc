@@ -122,6 +122,7 @@ pub enum Navigation {
     Column,
     Row,
     All,
+    PageAcross { right: bool },
 }
 
 use super::geometry::GridMetrics;
@@ -229,7 +230,7 @@ pub fn navigate(
     nav: Navigation,
     extend: bool,
     metrics: &GridMetrics,
-    page_height: f64,
+    page_span: f64,
     occupied: &[GridArea],
     used: Option<GridArea>,
 ) -> Selection {
@@ -408,7 +409,7 @@ pub fn navigate(
         }
         Navigation::UsedEnd => used.map_or((1, 1), |a| (a.last().row(), a.last().column())),
         Navigation::Page { down } => {
-            let distance = (page_height - metrics.header_h).max(metrics.height(row));
+            let distance = (page_span - metrics.header_h).max(metrics.height(row));
             let offset =
                 (metrics.row_start(row) + if down { distance } else { -distance }).max(0.0);
             let mut target = metrics.row_at(offset, MAX_ROWS);
@@ -416,6 +417,15 @@ pub fn navigate(
                 target = target.saturating_add(1).min(MAX_ROWS);
             }
             (target, col)
+        }
+        Navigation::PageAcross { right } => {
+            let distance = (page_span - metrics.header_w).max(metrics.width(col));
+            let offset = metrics.col_start(col) + if right { distance } else { -distance };
+            let mut target = metrics.col_at(offset, MAX_COLUMNS);
+            if !right && metrics.col_start(target) < offset {
+                target = target.saturating_add(1).min(MAX_COLUMNS);
+            }
+            (row, target)
         }
         _ => (row, col),
     };
@@ -442,7 +452,7 @@ pub fn extend_merged(
     footprint: GridArea,
     nav: Navigation,
     metrics: &GridMetrics,
-    page_height: f64,
+    page_span: f64,
     occupied: &[GridArea],
     used: Option<GridArea>,
 ) -> Selection {
@@ -462,6 +472,7 @@ pub fn extend_merged(
         nav,
         Navigation::Step(NavAction::Left | NavAction::RowStart | NavAction::GridStart)
             | Navigation::Edge(NavAction::Left)
+            | Navigation::PageAcross { right: false }
     );
     let endpoint = |first, last, low, high, negative| {
         if first < low {
@@ -494,7 +505,7 @@ pub fn extend_merged(
         nav,
         false,
         metrics,
-        page_height,
+        page_span,
         occupied,
         used,
     );
@@ -786,6 +797,17 @@ pub fn sheet_keymap() -> Vec<KeyBinding> {
             chord: KeyChord::new(key, shift, ctrl, false),
             action: SheetAction::Navigate(nav, false),
             label: "Navigate selection",
+        });
+    }
+    for (id, key, right) in [
+        ("sheet.page-left", "PageUp", false),
+        ("sheet.page-right", "PageDown", true),
+    ] {
+        map.push(KeyBinding {
+            id,
+            chord: KeyChord::new(key, false, false, true),
+            action: SheetAction::Navigate(Navigation::PageAcross { right }, false),
+            label: if right { "Page right" } else { "Page left" },
         });
     }
     for (id, key, ctrl, nav) in [

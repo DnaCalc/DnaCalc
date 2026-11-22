@@ -1263,6 +1263,8 @@ pub enum Action {
     WorkerCalculation,
     /// A native wheel gesture, with observation of its completed scroll.
     ScrollGrid(i32, i32),
+    /// A native wheel gesture over the grid while Control is held.
+    ZoomGrid(i32),
     /// Remember actual view/geometry for a later scroll or skin/sheet round trip.
     RememberView(&'static str),
     /// Put a table on the real system clipboard by copying from a temporary external editor.
@@ -1420,7 +1422,7 @@ pub enum Check {
     Count(&'static str, usize),
     ActiveDescendant(&'static str),
     DragExtended,
-    PageAligned,
+    PageAligned { horizontal: bool },
     ScrollAtEnd,
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
@@ -1610,7 +1612,20 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         Check::FitsText(name) => format!("var e={};if(!e)return null;var s=getComputedStyle(e),c=document.createElement('canvas').getContext('2d');c.font=s.font;var t=e.querySelector('.dc-cell-text');return [t?t.getBoundingClientRect().width:c.measureText(e.value||e.textContent).width,e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)];",q(name)),
         Check::Role(..) | Check::Name(..) => unreachable!(),
         Check::DragExtended => "var g=document.querySelector('[data-dnacalc=grid]'),s=document.querySelector('[data-dnacalc=selection]');if(!g||!s)return false;var a=s.dataset.area, n=Number(a.split(':')[1]?.match(/[0-9]+$/)?.[0]);return a.startsWith('A1:')&&n>g.querySelectorAll('[role=row]').length&&g.scrollTop>0;".to_owned(),
-        Check::PageAligned => "var g=document.querySelector('[data-dnacalc=grid]'),a=document.querySelector('[data-dnacalc=active-cell]');if(!g||!a)return false;var r=a.getBoundingClientRect(),b=g.getBoundingClientRect();return r.top>b.top+22&&r.bottom<b.bottom-20&&g.scrollTop>0;".to_owned(),
+        Check::PageAligned { horizontal } => {
+            let aligned = if *horizontal {
+                "r.left>b.left+80&&r.right<b.right-20&&\
+                 g.scrollLeft>g.clientWidth-2*r.width-16&&g.scrollLeft<g.clientWidth"
+            } else {
+                "r.top>b.top+22&&r.bottom<b.bottom-20&&g.scrollTop>0"
+            };
+            format!(
+                "var g=document.querySelector('[data-dnacalc=grid]');\
+                 var a=document.querySelector('[data-dnacalc=active-cell]');\
+                 if(!g||!a)return false;\
+                 var r=a.getBoundingClientRect(),b=g.getBoundingClientRect();return {aligned};"
+            )
+        }
         Check::ScrollAtEnd => "var g=document.querySelector('[data-dnacalc=grid]');return !!g&&g.scrollTop>0&&Math.abs(g.scrollHeight-g.clientHeight-g.scrollTop)<3&&g.scrollHeight<=8000001;".to_owned(),
         Check::ActiveDescendant(name) => format!(
             "var e={}; var id=e && e.getAttribute('aria-activedescendant'); var child=id && document.getElementById(id); return !!child && e.contains(child);",
@@ -1769,7 +1784,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
         | Check::HitTarget(_)
         | Check::ActiveDescendant(_)
         | Check::DragExtended
-        | Check::PageAligned
+        | Check::PageAligned { .. }
         | Check::ScrollAtEnd => seen.as_bool() == Some(true),
         Check::Contrast(_) => seen.as_f64().is_some_and(|ratio| ratio >= 4.5),
         Check::Count(_, expected) => seen.as_u64() == Some(*expected as u64),
@@ -1889,9 +1904,10 @@ fn describe(check: &Check) -> String {
         Check::DragExtended => {
             "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
         }
-        Check::PageAligned => {
-            "PageDown moves the viewport and retains an interior active-cell position".to_owned()
-        }
+        Check::PageAligned { horizontal } => format!(
+            "{} moves the viewport and retains an interior active-cell position",
+            if *horizontal { "Alt+PageDown" } else { "PageDown" },
+        ),
         Check::ScrollAtEnd => {
             "physical scroll reaches the last worksheet row within browser bounds".to_owned()
         }
@@ -1986,6 +2002,18 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
                 thread::sleep(Duration::from_millis(20));
             }
             Err("The wheel gesture did not settle after scrolling the worksheet".to_owned())
+        }
+        Action::ZoomGrid(dy) => {
+            let center = session.script(
+                "const grid = document.querySelector('[data-dnacalc=grid][data-grid-active=true]');
+                 const r = grid.getBoundingClientRect();
+                 return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];",
+            )?;
+            session.post("/actions", json!({"actions":[
+                {"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"},{"type":"pause"},{"type":"keyUp","value":"\u{E009}"}]},
+                {"type":"wheel","id":"wheel","actions":[{"type":"pause"},{"type":"scroll","x":center[0],"y":center[1],"deltaX":0,"deltaY":dy}]}
+            ]}))?;
+            Ok(())
         }
         Action::Grid(cell, text) => {
             let css = format!("{}[data-cell=\"{cell}\"]", select(app, "grid-cell"));
@@ -4165,6 +4193,7 @@ mod tests {
                         | "chart-multi-plot"
                         | "chart-element-text"
                         | "saved-pivots"
+                        | "wheel-zoom"
                 )
             })
             .map(|group| group.core)
@@ -4182,21 +4211,22 @@ mod tests {
                         | "chart-multi-plot"
                         | "chart-element-text"
                         | "saved-pivots"
+                        | "wheel-zoom"
                 )
             })
             .map(|group| group.core)
             .sum();
         assert_eq!(
-            inherited_total, 405,
-            "the two applications retain 405 core cases, including image, Circular Reference, sorting and imported filter cases"
+            inherited_total, 409,
+            "the two applications retain 409 core cases, including Classic formula entry and horizontal paging"
         );
         assert_eq!(
-            total, 417,
-            "the twelve page-layout cases extend all 405 inherited core cases"
+            total, 421,
+            "the twelve page-layout cases extend all 409 inherited core cases"
         );
         assert_eq!(
-            current_total, 455,
-            "the other chart and pivot cases extend all 417 inherited core cases"
+            current_total, 461,
+            "chart, pivot and wheel zoom cases extend all 421 inherited core cases"
         );
     }
 

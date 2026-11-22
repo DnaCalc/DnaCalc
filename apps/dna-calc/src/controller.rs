@@ -1427,23 +1427,23 @@ impl Controller {
         &self,
         nav: Navigation,
         extend: bool,
-        page_height: u32,
+        page_span: u32,
     ) {
-        self.navigate_then(nav, extend, page_height, |_| {});
+        self.navigate_then(nav, extend, page_span, |_| {});
     }
 
     pub fn navigate_then(
         &self,
         nav: Navigation,
         extend: bool,
-        page_height: u32,
+        page_span: u32,
         then: impl FnOnce(&Outcome) + 'static,
     ) {
         self.dispatch(
             WorkbookCommand::Navigate {
                 nav,
                 extend,
-                page_height,
+                page_height: page_span,
             },
             then,
         );
