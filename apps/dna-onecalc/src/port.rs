@@ -386,6 +386,38 @@ impl LocalPort {
     pub fn into_session(self) -> Session {
         self.session
     }
+
+    /// The name and format the current session will use for a new file.
+    pub fn save_name(&self) -> String {
+        let Some(project) = self.session.project() else {
+            return "onecalc-session.xlsx".to_owned();
+        };
+        let stem = project
+            .file_name
+            .rsplit_once('.')
+            .map_or(project.file_name.as_str(), |(stem, _)| stem);
+        let stem = if stem.is_empty() {
+            "onecalc-session"
+        } else {
+            stem
+        };
+        format!("{stem}.xlsm")
+    }
+
+    /// Runs BeforeSave with the caller's `SaveAsUI` and prepares a file when it proceeds.
+    pub fn save(&mut self, save_as_ui: bool) -> Reply {
+        match self.session.raise_before_save(save_as_ui) {
+            Ok(true) => refused("Workbook_BeforeSave set Cancel: the session was not saved"),
+            Err(message) => refused(message),
+            Ok(false) => match crate::file::save(&mut self.session) {
+                Ok(bytes) => Reply::File {
+                    name: self.save_name(),
+                    bytes,
+                },
+                Err(message) => refused(message),
+            },
+        }
+    }
 }
 
 /// The typed value an entry gives under its kind, or why it gives none.
@@ -647,35 +679,7 @@ impl SessionPort for LocalPort {
                     offer: crate::file::OFFER.to_owned(),
                 },
             },
-            // A session with a VBA project is saved as an .xlsm under the name of the file it came
-            // from, which its ThisWorkbook.Name gives; any other as onecalc-session.xlsx.
-            Request::Save => match session.raise_before_save() {
-                Ok(true) => refused("Workbook_BeforeSave set Cancel: the session was not saved"),
-                Err(message) => refused(message),
-                Ok(false) => match crate::file::save(session) {
-                    Ok(bytes) => Reply::File {
-                        name: session
-                            .project()
-                            .map(|project| {
-                                let stem = project
-                                    .file_name
-                                    .rsplit_once('.')
-                                    .map_or(project.file_name.as_str(), |(stem, _)| stem);
-                                format!(
-                                    "{}.xlsm",
-                                    if stem.is_empty() {
-                                        "onecalc-session"
-                                    } else {
-                                        stem
-                                    }
-                                )
-                            })
-                            .unwrap_or_else(|| "onecalc-session.xlsx".to_owned()),
-                        bytes,
-                    },
-                    Err(message) => refused(message),
-                },
-            },
+            Request::Save => self.save(true),
             Request::MacroPolicy => Reply::MacroPolicy(session.macro_policy()),
             Request::SetMacroSecurity { level } => match session.choose_macro_security(level) {
                 Ok(()) => Reply::MacroPolicy(session.macro_policy()),
