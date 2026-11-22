@@ -35,12 +35,27 @@ subnormal band flushed to `0` (`0.0`):
 - `=POWER(2,-1022)` -> `2.2250738585072014E-308` (minimum normal binary64)
 - `=5E-308/2` -> `2.5E-308` (nonzero; above flush region)
 
-**Open reconciliation with November build `16.0.20527`:** `crates/calc-fml/src/eval/run.rs:3798-3805`
-records a computed subnormal surviving in Excel `16.0.20527`:
-`=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)` returns `0x0000000000000001`. Both
-observations may hold across different operations (division/`POWER` vs subtraction) or builds;
-re-running the April `/2` and `POWER` formulas on current Windows Excel (`16.0.20527+`, owned by
-`dc-zuwqx.4`) is required before finalizing any general subnormal flush rule.
+On 2026-11-22, dc-zuwqx.4 entered the ten formulas together through `Formula2` in an
+owned Windows Excel 16.0.20527.20196 session on an AMD Ryzen 7 4800H. The following
+are Excel's formula readback and the binary64 words from `Value2`.
+
+| Entered | Formula2 readback | Value2 bits |
+| --- | --- | --- |
+| `=2.2250738585072099E-308` | `=0` | `0x0000000000000000` |
+| `=2.2250738585072100E-308` | `=2.22507385850721E-308` | `0x0010000000000011` |
+| `=2.2250738585072100E-308/2` | `=2.22507385850721E-308/2` | `0x0000000000000000` |
+| `=(2.2250738585072100E-308/2)*1E307` | `=(2.22507385850721E-308/2)*1E+307` | `0x0000000000000000` |
+| `=2.24E-308/2` | same | `0x0000000000000000` |
+| `=2.3E-308/2` | same | `0x0000000000000000` |
+| `=5E-308/2` | same | `0x0011fa182c40c60d` |
+| `=POWER(2,-1023)` | same | `0x0000000000000000` |
+| `=POWER(2,-1022)` | same | `0x0010000000000000` |
+| `=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)` | same | `0x0000000000000001` |
+
+The same build reproduces April's divide and `POWER` flushes and preserves the least
+subnormal from the subtraction. The divide-and-rescale result shows the flush before
+multiplication in that expression. The lane retained the raw readback and private
+desktop receipt under `codex-runs/ww2/worksheet/`.
 
 ## 3. Root-only ungrouped add/sub cancellation compensation (`FTC-0533`)
 

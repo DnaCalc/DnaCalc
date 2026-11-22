@@ -47,10 +47,11 @@ build 20527. Its evaluator test checks
 `=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)` against binary64 bits
 `0x0000000000000001`. The dc-1943 tracker records the underlying capture at
 `r2:dnacalc-evidence/research/round02/dc-1943-20261108T104726Z`. The November
-change retained earlier fractional-power observations. Literal admission, COM input
-transport, and computed publication are distinct measurement points. The
-remaining reconciliation of the April cases with current Excel belongs to
-dc-zuwqx.4.
+change retained earlier fractional-power observations. On 2026-11-22, dc-zuwqx.4
+repeated the April divide and `POWER` cases and the subtraction in one owned
+Excel 16.0.20527.20196 session on an AMD Ryzen 7 4800H. Excel flushed the
+subnormal quotients and `POWER(2,-1023)` and preserved the least subnormal
+from subtraction. [Ten input formulas, formula readbacks and Value2 words](../../research/numeric-cutoff-and-exactness-2026-04-27.md#2-post-evaluation-zero-flush-behavior-b-and-november-reconciliation)
 
 The April note's cancellation examples likewise depend on where the expression
 sits. The report records zero for ungrouped `=0.1+0.2-0.3` and a nonzero
