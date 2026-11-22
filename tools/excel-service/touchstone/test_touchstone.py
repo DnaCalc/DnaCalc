@@ -3,6 +3,7 @@
 Hermetic: no Excel.  The broker tests drive a stand-in worker (fake_worker.py) over the real frame protocol.
 """
 import asyncio
+import errno
 import json
 import os
 import struct
@@ -13,6 +14,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
@@ -475,11 +477,70 @@ def start_broker(workers=2, extra=None):
         (state / "stop").touch()
         thread.join(30)
         temporary.cleanup()
+        if thread.is_alive() or failure:
+            raise RuntimeError(f"fake broker shutdown failed: {failure}")
 
     return instance, state, stop
 
 
-@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
+class DiskFullTests(unittest.TestCase):
+    def test_status_and_batch_writes_recover_while_the_broker_serves_answers(self):
+        from contextlib import closing
+        import broker as broker_module
+        from touchstone import client
+
+        full = threading.Event()
+        failed = {name: threading.Event() for name in ("status", "batch")}
+        open_path = Path.open
+
+        def open_with_full_disk(path, mode="r", *args, **kwargs):
+            if full.is_set() and path.parent.name == "log" and path.suffix == ".gz" and "a" in mode:
+                failed["batch"].set()
+                raise OSError(errno.ENOSPC, "simulated full disk")
+            if full.is_set() and path.name == "status.json.tmp" and "w" in mode:
+                failed["status"].set()
+                raise OSError(errno.ENOSPC, "simulated full disk")
+            return open_path(path, mode, *args, **kwargs)
+
+        instance, state, stop = start_broker(workers=1, extra={"health_seconds": 0.2})
+        self.addCleanup(stop)
+        with closing(client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock")) as conn:
+            with patch.object(Path, "open", open_with_full_disk):
+                full.set()
+                try:
+                    groups = [{"f": "ID", "k": "n", "n": 100, "v": [TWO] * 100}]
+                    self.assertEqual(conn.submit_groups(groups).raw(5), (["n"] * 100, [TWO] * 100))
+                    for failure in failed.values():
+                        self.assertTrue(failure.wait(5))
+                    self.assertTrue(instance.health_line().startswith("DEGRADED"), instance.health_line())
+                    self.assertEqual(conn.submit_groups(groups).raw(5), (["n"] * 100, [TWO] * 100))
+                finally:
+                    full.clear()
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    status = json.loads((state / "status.json").read_text())
+                    if status["counters"]["calls"] == 200 and status["health"].startswith("OK"):
+                        break
+                except FileNotFoundError:
+                    pass
+                time.sleep(0.05)
+            else:
+                self.fail("status did not recover with both batches counted")
+            self.assertEqual(sum(row["calls"] for row in broker_module.logs.BatchLog.read(state / "log")
+                                 if row["kind"] == "batch"), 200)
+
+
+class RelayOutageTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "uses a Linux lane socket")
+    def test_missing_relay_socket_reports_broker_down(self):
+        from touchstone import client
+        with tempfile.TemporaryDirectory() as folder, patch.object(client.time, "sleep"):
+            with patch.dict(os.environ, {"TOUCHSTONE_SOCKET": str(Path(folder) / "excel.sock")}), \
+                 self.assertRaisesRegex(ConnectionError, "broker down"):
+                client.Connection.open()
+
+
 class BrokerTests(unittest.TestCase):
     def connect(self, state, name="t"):
         from touchstone import client
@@ -636,7 +697,6 @@ class BrokerTests(unittest.TestCase):
 
 
 
-@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
 class ClientApiTests(unittest.TestCase):
     """The v1-compatible Client over the socket transport, against the stand-in worker."""
 
@@ -797,17 +857,18 @@ def _wsl_python():
         return False
 
 
-@unittest.skipUnless(sys.platform == "win32" and _wsl_python(), "Native-only: runs the Linux relay in WSL")
+@unittest.skipUnless(sys.platform == "linux" or _wsl_python(), "requires Linux or WSL")
 class RelayTests(unittest.TestCase):
-    """The Linux relay (relay.py) in WSL, with this test playing the broker on its stdin and stdout."""
+    """The Linux relay, with this test playing the broker on its stdin and stdout."""
 
     def setUp(self):
         import subprocess
         import peers
         self.subprocess = subprocess
-        self.dir = "/tmp/touchstone-relay-test-%d" % int(time.time() * 1000)
+        self.linux = [] if sys.platform == "linux" else ["wsl", "-e"]
+        self.dir = "/tmp/touchstone-relay-test-%d-%d" % (os.getpid(), time.time_ns())
         command, first = peers.bundle({"socket": self.dir + "/excel.sock", "v1_queue": self.dir + "/queue"})
-        self.relay = subprocess.Popen(["wsl", "-e", "bash", "-c", command], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        self.relay = subprocess.Popen([*self.linux, "bash", "-c", command], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
         self.relay.stdin.write(first)
         self.relay.stdin.flush()
@@ -823,7 +884,10 @@ class RelayTests(unittest.TestCase):
             self.relay.wait(20)
         except Exception:
             self.relay.kill()
-        self.subprocess.run(["wsl", "-e", "rm", "-rf", self.dir], capture_output=True)
+            self.relay.wait(10)
+        self.relay.stdout.close()
+        self.relay.stderr.close()
+        self.subprocess.run([*self.linux, "rm", "-rf", self.dir], capture_output=True)
 
     def send(self, kind, body):
         self.relay.stdin.write(protocol.pack(kind, body, True))
@@ -858,7 +922,7 @@ class RelayTests(unittest.TestCase):
                   "print(json.dumps({'values': values, 'server': conn.machine}))" + chr(10)) % (
                       self.dir + "/excel.sock", TWO, TWO, TWO)
         command, first = peers.bundle_program(("protocol", "v1", "client"), runner)
-        lane = self.subprocess.Popen(["wsl", "-e", "bash", "-c", command], stdin=self.subprocess.PIPE,
+        lane = self.subprocess.Popen([*self.linux, "bash", "-c", command], stdin=self.subprocess.PIPE,
                                      stdout=self.subprocess.PIPE, stderr=self.subprocess.PIPE)
         lane.stdin.write(first)
         lane.stdin.close()
@@ -872,13 +936,13 @@ class RelayTests(unittest.TestCase):
         rid = "ab" * 16
         request = {"version": 1, "id": rid, "function": "ABS", "rows": [[number(TWO)], [number(ONE)]],
                    "created": time.time(), "expires": time.time() + 120}
-        self.subprocess.run(["wsl", "-e", "bash", "-c", "mkdir -p %s/queue/in && cat > %s/queue/in/%s.json" % (self.dir, self.dir, rid)],
+        self.subprocess.run([*self.linux, "bash", "-c", "mkdir -p %s/queue/in && cat > %s/queue/in/%s.json" % (self.dir, self.dir, rid)],
                             input=json.dumps(request).encode(), check=True, timeout=60)
         self.answer_submits(1)
         deadline = time.monotonic() + 30
         reply = None
         while time.monotonic() < deadline:
-            done = self.subprocess.run(["wsl", "-e", "cat", "%s/queue/out/%s.json" % (self.dir, rid)], capture_output=True)
+            done = self.subprocess.run([*self.linux, "cat", "%s/queue/out/%s.json" % (self.dir, rid)], capture_output=True)
             if done.returncode == 0 and done.stdout:
                 reply = json.loads(done.stdout)
                 break
@@ -893,7 +957,7 @@ class RelayTests(unittest.TestCase):
     def test_the_relay_leaves_with_its_ssh_session(self):
         self.relay.stdin.close()
         self.assertIsNotNone(self.relay.wait(30))
-        gone = self.subprocess.run(["wsl", "-e", "ls", self.dir + "/excel.sock"], capture_output=True)
+        gone = self.subprocess.run([*self.linux, "ls", self.dir + "/excel.sock"], capture_output=True)
         self.assertNotEqual(gone.returncode, 0)
 
 
@@ -959,7 +1023,6 @@ class CostSizedBatchTests(unittest.TestCase):
         self.assertEqual(b.oldest_queued(), first.t_received)
 
 
-@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
 class SelfHealingTests(unittest.TestCase):
     def connect(self, state, name="t"):
         from touchstone import client
@@ -1182,7 +1245,6 @@ class SelfHealingTests(unittest.TestCase):
             self.assertTrue(out.getvalue().startswith("DOWN broker status is"))
 
 
-@unittest.skipUnless(sys.platform == "win32", "Native-only: the broker holds a Windows process lock")
 class CapacityTests(unittest.TestCase):
     def connect(self, state, name="t"):
         from touchstone import client
@@ -1253,6 +1315,7 @@ class OrphanAndBuildTests(unittest.TestCase):
         self.assertEqual(killed, [(10, 111)])
         self.assertEqual(found, [(10, "gone")])
 
+    @unittest.skipUnless(os.name == "nt", "uses Windows process identities")
     def test_a_real_process_named_excel_with_this_state_in_its_command_line_is_stopped(self):
         import engine
         import shutil

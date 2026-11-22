@@ -225,6 +225,9 @@ class Broker:
         self.last_health = 0.0
         self.last_costs_save = time.monotonic()
         self.costs_saved = None
+        self.isolated_dirty = False
+        self.build_saved = False
+        self.storage = logs.StorageHealth()
 
     def opt(self, name, default):
         value = getattr(self.options, name, None)
@@ -234,9 +237,11 @@ class Broker:
     def prepare(self):
         for name in ("log", "excel"):
             (self.state_dir / name).mkdir(parents=True, exist_ok=True)
-        self.batch_log = logs.BatchLog(self.state_dir / "log")
-        self.waits = logs.WaitsLog(self.state_dir / "log" / "waits.jsonl")
-        self.envs = logs.EnvLog(self.state_dir / "envs.jsonl")
+        self.batch_log = logs.BatchLog(self.state_dir / "log", self.storage)
+        self.waits = logs.WaitsLog(self.state_dir / "log" / "waits.jsonl", self.storage)
+        self.crash_log = logs.LineLog(self.state_dir / "crash-list.jsonl", self.storage)
+        self.leakage_log = logs.LineLog(self.state_dir / "log" / "leakage.jsonl", self.storage)
+        self.envs = logs.EnvLog(self.state_dir / "envs.jsonl", self.storage)
         self.load_persisted()
 
     def load_persisted(self):
@@ -256,21 +261,16 @@ class Broker:
 
     def save_isolated(self):
         data = {"isolated": sorted(self.batcher.isolate), "crash_counts": self.crash_counts}
-        self.write_atomic(self.state_dir / "isolated.json", json.dumps(data))
+        self.isolated_dirty = not self.write_diagnostic("isolated.json", json.dumps(data))
 
     def save_costs(self, force=False):
         if self.batcher.costs != self.costs_saved or force:
-            self.write_atomic(self.state_dir / "costs.json", json.dumps({k: round(v, 3) for k, v in self.batcher.costs.items()}))
-            self.costs_saved = dict(self.batcher.costs)
+            text = json.dumps({k: round(v, 3) for k, v in self.batcher.costs.items()})
+            if self.write_diagnostic("costs.json", text):
+                self.costs_saved = dict(self.batcher.costs)
 
-    @staticmethod
-    def write_atomic(path, text):
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(text, encoding="ascii")
-        try:
-            os.replace(tmp, path)
-        except OSError:
-            path.write_text(text, encoding="ascii")      # a reader holds the file open (Windows)
+    def write_diagnostic(self, name, text):
+        return self.storage.attempt(name, logs.write_atomic, self.state_dir / name, text)
 
     def cpu_name(self):
         try:
@@ -788,11 +788,7 @@ class Broker:
         for key in ("x", "spill"):
             if key in group:
                 record[key] = group[key]
-        try:
-            with open(self.state_dir / "crash-list.jsonl", "a", encoding="ascii") as out:
-                out.write(json.dumps(record) + "\n")
-        except OSError:
-            pass
+        self.crash_log.write(record)
         self.log_event("excel-crashed-call", worker=slot.name, function=f, batch=number)
         result = {"env_id": (slot.hello or {}).get("env_id"), "batch": number, "groups": [{"ty": "x", "v": [value]}]}
         self.respond(batch, result, slot)
@@ -920,9 +916,7 @@ class Broker:
         return count
 
     def leak_log(self, record):
-        record = {"utc": logs.utc().isoformat(timespec="milliseconds"), **record}
-        with (self.state_dir / "log" / "leakage.jsonl").open("a", encoding="ascii") as stream:
-            stream.write(logs.compact(record) + "\n")
+        self.leakage_log.write(record)
 
     async def fresh_sample(self, calls=10000, reason="daily"):
         """Run a sample of recent calls in a brand-new Excel and compare with the answers that were given."""
@@ -1168,7 +1162,7 @@ class Broker:
         previous = path.read_text(encoding="ascii").strip() if path.exists() else None
         current = ",".join(sorted(b for b in builds if b))
         self.build_changed = bool(previous) and previous != current
-        path.write_text(current, encoding="ascii")
+        self.build_saved = self.write_diagnostic(path.name, current)
 
     def schedule_fresh(self):
         trigger = self.state_dir / "leak-now"
@@ -1187,7 +1181,7 @@ class Broker:
             async def run():
                 try:
                     summary = await self.fresh_sample(reason=reason)
-                    (self.state_dir / "fresh-sample.json").write_text(json.dumps(summary), encoding="ascii")
+                    self.write_diagnostic("fresh-sample.json", json.dumps(summary))
                 finally:
                     self.fresh_running = False
             asyncio.create_task(run())
@@ -1202,9 +1196,10 @@ class Broker:
         down = [x for x in self.slots if x.state == "down"]
         starting = [x for x in self.slots if x.state == "new"]
         oldest = self.oldest_queued_seconds()
+        storage_errors = self.storage.summary()
         if not up and not starting:
             word = "DOWN"
-        elif down or oldest > 10:
+        elif down or oldest > 10 or storage_errors:
             word = "DEGRADED"
         else:
             word = "OK"
@@ -1214,6 +1209,8 @@ class Broker:
                 f"utc={logs.utc().isoformat(timespec='seconds')}")
         if down:
             line += " | " + "; ".join(f"{x.name}: {(x.down_reason or 'down')[:100]}" for x in down)
+        if storage_errors:
+            line += " | writes failing: " + storage_errors
         peers = getattr(self, "peers", None)
         if peers is not None and peers.summary():
             line += " | " + peers.summary()
@@ -1222,7 +1219,10 @@ class Broker:
         return line
 
     def write_health(self):
-        self.write_atomic(self.state_dir / "health.txt", self.health_line() + "\n")
+        self.waits.flush()
+        self.crash_log.flush()
+        self.leakage_log.flush()
+        self.write_diagnostic("health.txt", self.health_line() + "\n")
         self.last_health = time.monotonic()
 
     def write_status(self):
@@ -1241,23 +1241,23 @@ class Broker:
                   "relays": self.peers.snapshot() if getattr(self, "peers", None) is not None else [],
                   "isolated_functions": sorted(self.batcher.isolate), "answer_cache_bytes": self.cache_bytes,
                   "leak_checks": self.leak_checks, "pending_leak_checks": len(self.pending_checks), "serial_registry": sorted(self.registry)}
-        tmp = self.state_dir / "status.json.tmp"
-        tmp.write_text(json.dumps(status), encoding="ascii")
-        try:
-            os.replace(tmp, self.state_dir / "status.json")
-        except OSError:
-            pass    # a reader holds the file open (Windows); the next tick publishes it
+        self.write_diagnostic("status.json", json.dumps(status))
 
     async def run(self):
-        import msvcrt
         self.loop = asyncio.get_running_loop()
         self.prepare()
         with (self.state_dir / "service.lock").open("a+b") as lock:
             lock.seek(0)
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             stop = self.state_dir / "stop"
             stop.unlink(missing_ok=True)
             tasks = []
+            server = None
             try:
                 if self.opt("sweep_orphans", True):
                     stopped = await self.loop.run_in_executor(self.executor, engine.stop_orphans, self.state_dir)
@@ -1284,9 +1284,16 @@ class Broker:
                     if time.monotonic() - self.last_costs_save >= COSTS_SAVE_SECONDS:
                         self.last_costs_save = time.monotonic()
                         self.save_costs()
+                        self.envs.flush()
+                        if self.isolated_dirty:
+                            self.save_isolated()
+                        if not self.build_saved:
+                            self.note_build()
                     await asyncio.sleep(0.5)
             finally:
                 self.stopping = True
+                if server is not None:
+                    server.close()
                 for t in tasks:
                     t.cancel()
                 for conn in list(self.conns):
@@ -1296,14 +1303,11 @@ class Broker:
                     await self.loop.run_in_executor(self.executor, slot.proc.stop)
                 self.log_event("stopped", pid=os.getpid())
                 self.batch_log.close()
-                try:
-                    self.save_costs()
-                except OSError:
-                    pass
+                self.save_costs()
                 stopped_at = logs.utc().isoformat(timespec="seconds")
                 status = {"pid": os.getpid(), "running": False, "utc": stopped_at, "health": f"DOWN broker stopped utc={stopped_at}"}
-                (self.state_dir / "status.json").write_text(json.dumps(status), encoding="ascii")
-                self.write_atomic(self.state_dir / "health.txt", status["health"] + "\n")
+                self.write_diagnostic("status.json", json.dumps(status))
+                self.write_diagnostic("health.txt", status["health"] + "\n")
 
 
 def command_start(options):

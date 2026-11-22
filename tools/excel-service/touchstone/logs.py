@@ -1,4 +1,5 @@
 """Compact logs for the broker: one gzip record per batch, the environment list, the waits log, stats."""
+from collections import deque
 from datetime import datetime, timezone, timedelta
 import gzip
 import hashlib
@@ -6,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import statistics
+import sys
 import threading
 
 
@@ -17,6 +19,58 @@ def compact(obj):
     return json.dumps(obj, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
 
 
+def write_atomic(path, text, durable=False):
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w", encoding="ascii") as stream:
+        stream.write(text)
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
+    os.replace(tmp, path)
+
+
+class StorageHealth:
+    """Keep diagnostics I/O failures out of the serving path and report each transition."""
+
+    def __init__(self):
+        self.errors = {}
+        self.lock = threading.Lock()
+
+    def attempt(self, name, write, *args):
+        try:
+            write(*args)
+        except OSError as error:
+            with self.lock:
+                if name not in self.errors:
+                    try:
+                        print(f"DEGRADED Touchstone cannot write {name}: {error}", file=sys.stderr, flush=True)
+                    except OSError:
+                        pass
+                self.errors[name] = str(error)
+            return False
+        with self.lock:
+            self.errors.pop(name, None)
+        return True
+
+    def summary(self):
+        with self.lock:
+            return ", ".join(sorted(self.errors))
+
+
+def append(path, data, durable):
+    """Roll back a partial append so the next successful write can still be read."""
+    with path.open("ab", buffering=0) as stream:
+        end = stream.seek(0, os.SEEK_END)
+        try:
+            if stream.write(data) != len(data):
+                raise OSError("short diagnostic write")
+            if durable:
+                os.fsync(stream.fileno())
+        except OSError:
+            stream.truncate(end)
+            raise
+
+
 class BatchLog:
     """log/YYYY-MM-DD.jsonl.gz: gzip members of up to 64 records, each flushed and fsynced.
 
@@ -24,7 +78,8 @@ class BatchLog:
     (at most one second, or 64 records) so that a stream of one-call questions does not cost a gzip header per
     call.  A record is therefore at most one second from disk after a crash, and never a small one before a big one."""
 
-    def __init__(self, directory):
+    def __init__(self, directory, storage=None):
+        self.storage = storage if storage is not None else StorageHealth()
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.lock = threading.Lock()
@@ -42,7 +97,9 @@ class BatchLog:
         record = {"utc": now.isoformat(timespec="milliseconds"), **record}
         line = compact(record) + chr(10)
         with self.lock:
-            self.pending.append((now, line))
+            # Retain one bounded batch of records during an outage.
+            if len(self.pending) < 64:
+                self.pending.append((now, line))
             big = record.get("calls", 0) >= 100 or record.get("kind") != "batch"
             if big or len(self.pending) >= 64:
                 self._flush_locked()
@@ -54,16 +111,13 @@ class BatchLog:
     def _flush_locked(self):
         if not self.pending:
             return
-        by_day = {}
-        for when, line in self.pending:
-            by_day.setdefault(when.strftime("%Y-%m-%d"), []).append(line)
-        self.pending = []
-        for day, lines in by_day.items():
+        while self.pending:
+            day = self.pending[0][0].strftime("%Y-%m-%d")
+            lines = [line for when, line in self.pending if when.strftime("%Y-%m-%d") == day]
             data = gzip.compress("".join(lines).encode("ascii"), compresslevel=6)
-            with (self.directory / (day + ".jsonl.gz")).open("ab") as stream:
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
+            if not self.storage.attempt("batch log", append, self.directory / (day + ".jsonl.gz"), data, True):
+                return
+            self.pending = [(when, line) for when, line in self.pending if when.strftime("%Y-%m-%d") != day]
 
     def close(self):
         self.stopped.set()
@@ -85,9 +139,11 @@ class BatchLog:
 class EnvLog:
     """envs.jsonl: one entry per distinct environment; env_id is the hash of the entry."""
 
-    def __init__(self, path):
+    def __init__(self, path, storage=None):
         self.path = Path(path)
+        self.storage = storage if storage is not None else StorageHealth()
         self.known = {}
+        self.dirty = False
         if self.path.exists():
             for line in self.path.read_text(encoding="ascii").splitlines():
                 entry = json.loads(line)
@@ -98,32 +154,53 @@ class EnvLog:
             return False
         entry = {"env_id": env_id, "first_seen_utc": utc().isoformat(timespec="seconds"), "env": env, **(extra or {})}
         self.known[env_id] = entry
-        with self.path.open("a", encoding="ascii") as stream:
-            stream.write(compact(entry) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        self.dirty = True
+        self.flush()
         return True
+
+    def flush(self):
+        if self.dirty:
+            text = "".join(compact(entry) + "\n" for entry in self.known.values())
+            self.dirty = not self.storage.attempt(self.path.name, write_atomic, self.path, text, True)
 
 
 WAIT_KINDS = ("transport", "queue", "excel-calc", "excel-start", "refused-kind", "job-route", "client-timeout",
               "worker-down")
 
 
-class WaitsLog:
+class LineLog:
+    """A JSONL diagnostic with a bounded buffer when storage is unavailable."""
+
+    def __init__(self, path, storage=None):
+        self.path = Path(path)
+        self.storage = storage if storage is not None else StorageHealth()
+        self.lock = threading.Lock()
+        self.pending = deque(maxlen=64)
+
+    def write(self, record):
+        line = compact({"utc": utc().isoformat(timespec="milliseconds"), **record})
+        with self.lock:
+            self.pending.append(line + "\n")
+            self._flush_locked()
+
+    def flush(self):
+        with self.lock:
+            self._flush_locked()
+
+    def _flush_locked(self):
+        if self.pending and self.storage.attempt(self.path.name, append, self.path,
+                                                 "".join(self.pending).encode("ascii"), False):
+            self.pending.clear()
+
+
+class WaitsLog(LineLog):
     """log/waits.jsonl: every request over its budget (1 s + 10 us per call), queueing over 250 ms, refusals
     of unsupported kinds, job-route use, workers down, and waits the lanes report."""
-
-    def __init__(self, path):
-        self.path = Path(path)
-        self.lock = threading.Lock()
 
     def add(self, kind, **data):
         if kind not in WAIT_KINDS:
             raise ValueError(kind)
-        line = compact({"utc": utc().isoformat(timespec="milliseconds"), "kind": kind, **data})
-        with self.lock, self.path.open("a", encoding="ascii") as stream:
-            stream.write(line + "\n")
-            stream.flush()
+        self.write({"kind": kind, **data})
 
     @staticmethod
     def summary(path, since=None):

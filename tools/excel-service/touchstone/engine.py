@@ -15,6 +15,7 @@ FILETIME_TO_TICKS = 504911232000000000   # 1601-01-01 -> 0001-01-01 in 100 ns ti
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 PROTECTED_PIDS = set()
+CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def process_identity(pid):
@@ -40,7 +41,7 @@ def process_identity(pid):
 
 def kill_owned_excel(pid, start_ticks):
     """Terminate an Excel this service started: refused unless PID, image and start ticks all match."""
-    if not pid or pid in PROTECTED_PIDS:
+    if os.name != "nt" or not pid or pid in PROTECTED_PIDS:
         return "no owned Excel"
     identity = process_identity(pid)
     if identity is None:
@@ -116,7 +117,7 @@ class WorkerProcess:
              "--startup-seconds", str(self.startup_seconds),
              *(x for addin in self.addins for x in ("--open-addin", addin))],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err, bufsize=0,
-            creationflags=subprocess.CREATE_NO_WINDOW)
+            creationflags=CREATE_NO_WINDOW)
         err.close()
         self.hello = self._expect_hello(self.startup_seconds + 30)
         return self.hello
@@ -167,6 +168,9 @@ class WorkerProcess:
                 self.process.wait(10)
             except Exception:
                 pass
+        if self.process is not None and self.process.poll() is not None:
+            self.process.stdin.close()
+            self.process.stdout.close()
         if self.sweep_leftovers if sweep is None else sweep:
             try:
                 self.sweep()
@@ -251,7 +255,7 @@ def list_excel_processes():
               "[pscustomobject]@{pid=$_.ProcessId; ticks=$_.CreationDate.ToUniversalTime().Ticks; cmd=$_.CommandLine} } "
               "| ConvertTo-Json -Compress")
     out = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True,
-                         timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+                         timeout=60, creationflags=CREATE_NO_WINDOW)
     text = out.stdout.strip()
     if not text:
         return []
@@ -318,7 +322,7 @@ def ensure_worker_built(project=None, command=None):
         return False
     command = command or ["dotnet", "build", "-c", "Release", "--nologo", "-v", "q"]
     result = subprocess.run(command, cwd=str(project), capture_output=True, text=True, timeout=900,
-                            creationflags=subprocess.CREATE_NO_WINDOW)
+                            creationflags=CREATE_NO_WINDOW)
     tail = (result.stdout + result.stderr)[-3000:]
     if result.returncode != 0:
         raise RuntimeError(f"worker build failed (exit {result.returncode}) in {project}:\n{tail}")
