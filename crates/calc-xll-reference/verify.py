@@ -1617,7 +1617,8 @@ def verify_workbook_pool(excel, excel_control, host, host_control, cases_path, p
     outcomes = []
     for directory, env in zip(directories[:2], envs[:2]):
         data = controller(directory)
-        require(env["pid"] != 3144 and env["pid"] not in env["preexisting_excel_pids"] and data["AutomationSecurity unchanged"], "Pool Excel ownership/security failed")
+        verify_excel_ownership(directory, env)
+        require(data["AutomationSecurity unchanged"] is True, "Pool Excel security setting changed")
         for case in cases:
             outcomes.append({"capture":directory.name,"formula":case["formula"],"expected":case["value"],"actual":data[case["formula"]],"matched":data[case["formula"]] == case["value"]})
             if "dependent" in case:
