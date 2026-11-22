@@ -136,8 +136,8 @@ fn workspace_build_file(path: &str) -> bool {
         || path.starts_with(".cargo/")
 }
 
-/// The packages a change to `paths` touches: the member whose directory holds each path (the
-/// deepest one), or every member for workspace-wide Cargo and toolchain files.
+/// The packages a change to `paths` touches: the deepest owning member and any package that
+/// registers a direct include below, or every member for workspace-wide Cargo and toolchain files.
 pub fn touched_packages(ws: &Workspace, paths: &BTreeSet<String>) -> BTreeSet<String> {
     let dirs: Vec<(String, &str)> = ws
         .members
@@ -156,6 +156,14 @@ pub fn touched_packages(ws: &Workspace, paths: &BTreeSet<String>) -> BTreeSet<St
             .max_by_key(|(dir, _)| dir.len())
         {
             touched.insert((*name).to_owned());
+        }
+        // xtask-harness's app module includes these suites by path, outside Cargo's dependency graph.
+        if matches!(
+            path.as_str(),
+            "apps/dna-calc/tests/smoke/cases.rs" | "apps/dna-onecalc/tests/smoke/cases.rs"
+        ) && dirs.iter().any(|(_, name)| *name == "xtask-harness")
+        {
+            touched.insert("xtask-harness".to_owned());
         }
     }
     touched
@@ -650,6 +658,24 @@ mod tests {
                 "nested".to_owned()
             ])
         );
+    }
+    #[test]
+    fn browser_smoke_case_sources_touch_the_app_and_harness() {
+        let ws = Workspace {
+            root: PathBuf::from("/w"),
+            members: vec![
+                member("dna-calc", "apps/dna-calc"),
+                member("dna-onecalc", "apps/dna-onecalc"),
+                member("xtask-harness", "tools/xtask-harness"),
+            ],
+        };
+        for app in ["dna-calc", "dna-onecalc"] {
+            let path = format!("apps/{app}/tests/smoke/cases.rs");
+            assert_eq!(
+                touched_packages(&ws, &BTreeSet::from([path])),
+                BTreeSet::from([app.to_owned(), "xtask-harness".to_owned()])
+            );
+        }
     }
     #[test]
     fn light_checks_only_touched_native_packages() {

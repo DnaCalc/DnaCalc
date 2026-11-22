@@ -647,29 +647,40 @@ mod formatted_results {
     use super::*;
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn qualified_overflow_uses_measured_general_and_refuses_custom_formats() {
+    fn qualified_overflow_uses_measured_general_and_custom_formats() {
         let profile = FormatProfile::for_culture("en-US").unwrap();
+        // Excel 16.0.20527.20196, dc-j9k.57: General and @ use the unsigned display.
         for (bits, expected) in [
             (0x7ff1_ccf3_85eb_c8a0, "2E+308"),
-            (0x7ff0_0000_0000_000a, "1.8E+308"),
+            (0x7ff0_0000_0000_000a, "1.7977E+308"),
             (0xfff1_ccf3_85eb_c8a0, "2E+308"),
         ] {
             let value = CalcValue::excel_overflow_number(f64::from_bits(bits)).unwrap();
             assert_eq!(plain(&value), expected);
             assert_eq!(shown(&value, Some(&profile)), expected);
-            assert!(
-                matches!(formatted_view(Some(&value),Some(&profile),"General",calc_func::locale::DateSystem::System1900),Ok(ResultView::Value {text,..}) if text==expected)
-            );
-            for code in ["0", "0.00E+00", "yyyy-mm-dd", "@"] {
-                assert!(
-                    formatted_view(
-                        Some(&value),
-                        Some(&profile),
-                        code,
-                        calc_func::locale::DateSystem::System1900
-                    )
-                    .is_err(),
-                    "{code}"
+            let format = |code| match formatted_view(
+                Some(&value),
+                Some(&profile),
+                code,
+                calc_func::locale::DateSystem::System1900,
+            ) {
+                Ok(ResultView::Value { text, .. }) => Ok(text),
+                Ok(other) => panic!("expected a scalar for {code}, got {other:?}"),
+                Err(error) => Err(error),
+            };
+            for (code, text) in [
+                ("General", expected),
+                ("@", expected),
+                ("0.00E+00", "0.00E+00"),
+                ("[Red]General;[Blue]-General;[Green]0.00E+00;@", "0.00E+00"),
+            ] {
+                assert_eq!(format(code), Ok(text.to_owned()), "{bits:#018x} {code}");
+            }
+            for code in ["0", "yyyy-mm-dd"] {
+                assert_eq!(
+                    format(code),
+                    Err("This value cannot be shown in that format".to_owned()),
+                    "{bits:#018x} {code}"
                 );
             }
         }

@@ -25,9 +25,9 @@
 //! page may still answer, fails the case there. A browser whose driver is missing fails the run;
 //! it is never skipped.
 //!
-//! With no filters, `smoke` runs the routine core (229 cases across the two apps and all six
-//! Calc skins). `--suite full` runs every case; sweep uses full bundle suites, and site smoke
-//! retains every ordinary case (worker-fault/latency cases require a local bundle). `--group name`
+//! With no filters, `smoke` runs the core prefix of each scenario. `--suite full` runs every case;
+//! sweep uses full bundle suites, and site smoke retains every ordinary case (worker-fault/latency
+//! cases require a local bundle). `--group name`
 //! selects an independent scenario; `--case substring` matches case names without regard to
 //! case. Both flags can repeat, and combine as group AND case. Explicit filters search the
 //! full suite unless `--suite core` is supplied. Earlier cases inside a selected group run
@@ -4179,76 +4179,52 @@ mod tests {
 
     #[test]
     fn group_ranges_cover_every_case_once_and_core_has_no_missing_prerequisite() {
+        let default = SmokeSelection::default();
+        let core = SmokeSelection {
+            suite: Some("core".into()),
+            ..Default::default()
+        };
+        let full = SmokeSelection {
+            suite: Some("full".into()),
+            ..Default::default()
+        };
         for app in &APPS {
             let mut next = 0;
             let mut names = std::collections::BTreeSet::new();
             for group in app.groups {
-                assert_eq!(group.start, next, "{} {}", app.key, group.name);
-                assert!(group.end > group.start);
-                assert!(group.core <= group.end - group.start);
-                assert!(names.insert(group.name));
+                let label = format!("{} {}", app.key, group.name);
+                assert_eq!(group.start, next, "{label}");
+                assert!(
+                    group.end > group.start && group.end <= app.cases.len(),
+                    "{label}"
+                );
+                assert!(group.core <= group.end - group.start, "{label}");
+                assert!(names.insert(group.name), "duplicate group {label}");
+                let core_end = group.start + group.core;
+                for (selection, end) in
+                    [(&default, core_end), (&core, core_end), (&full, group.end)]
+                {
+                    let selected = (group.start..group.end)
+                        .filter(|&i| selection.selected(group, i, &app.cases[i]))
+                        .collect::<Vec<_>>();
+                    assert_eq!(
+                        selected,
+                        (group.start..end).collect::<Vec<_>>(),
+                        "{label}, suite {:?}",
+                        selection.suite
+                    );
+                }
                 next = group.end;
             }
             assert_eq!(next, app.cases.len(), "{}", app.key);
+            assert_eq!(full.count(app), app.cases.len(), "{}", app.key);
             assert_eq!(
-                SmokeSelection {
-                    suite: Some("full".into()),
-                    ..Default::default()
-                }
-                .count(app),
-                app.cases.len()
+                default.count(app),
+                app.groups.iter().map(|group| group.core).sum::<usize>(),
+                "{}",
+                app.key
             );
         }
-        let current_total: usize = APPS
-            .iter()
-            .map(|app| SmokeSelection::default().count(app))
-            .sum();
-        let mut inherited_total = 0;
-        let mut page_layout = 0;
-        let mut chart_pivot_and_grid = 0;
-        let mut classic_controls = 0;
-        for group in APPS.iter().flat_map(|app| app.groups) {
-            match group.name {
-                "page-layout" => page_layout += group.core,
-                "chart-formatting"
-                | "chart-text"
-                | "chart-category-combos"
-                | "chart-multi-plot"
-                | "chart-element-text"
-                | "saved-pivots"
-                | "wheel-zoom"
-                | "go-to-special"
-                | "fill-handle-copy"
-                | "classic-spill"
-                | "classic-merge" => {
-                    chart_pivot_and_grid += group.core;
-                }
-                "classic-tab-commands"
-                | "classic-tab-reorder"
-                | "classic-selection-summary"
-                | "classic-formula-caret" => classic_controls += group.core,
-                _ => inherited_total += group.core,
-            }
-        }
-        assert_eq!(
-            inherited_total, 409,
-            "the two applications retain 409 core cases, including Classic formula entry and horizontal paging"
-        );
-        assert_eq!(
-            inherited_total + page_layout,
-            421,
-            "the twelve page-layout cases extend all 409 inherited core cases"
-        );
-        assert_eq!(
-            inherited_total + page_layout + chart_pivot_and_grid,
-            472,
-            "chart, pivot and Classic grid cases extend all 421 inherited core cases"
-        );
-        assert_eq!(classic_controls, 6);
-        assert_eq!(
-            current_total, 478,
-            "the Classic tab, selection summary and formula caret cases extend all 472 inherited core cases"
-        );
     }
 
     /// dc-0f1k.9: the stack check passes a stack of the size the bundle asks for with half of it
