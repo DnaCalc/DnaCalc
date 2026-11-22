@@ -349,6 +349,14 @@ comparisons pass, package preservation and browser smoke success remain narrower
 dc-1nbp.21; dc-pfrp and dc-zvs3 for their remaining evidence. dc-zjsg.8 explicitly covers
 inert controls; **no bead identified** for full interactive ActiveX control hosting.
 
+**Windows measurement.** At 96 DPI and 50% zoom, Excel 16.0.20527 with Calibri 11
+displayed `######` for `123456.79` in a 35-pixel column with format `0.00`. At 36 pixels,
+Excel displayed the number and both DNA Calc painters still displayed hashes. Both painters
+matched Excel on which four cells had green number-as-text markers. For each marked cell,
+Excel painted 21 green pixels at 100% and 78 at 200%. Both painters painted 15 and 55.
+The matched input packages, calibrated crops and comparisons are in the verified R2 evidence
+prefix `excel/ww4-render-spill-20261122T134637Z` (one archive, 4,351,882 bytes).
+
 ### 6. Print/PDF output is implemented, but not general Excel page fidelity
 
 **What the user sees.** Page Setup, preview and Print / Save PDF exist. Some workbooks refuse
