@@ -11,6 +11,14 @@ Owner, 2026-11-20 evening: "gather everything (the designs work, brief, skin dis
 
 5. **FerroUI as the native (and browser) front end.** A performance and fit evaluation against today's Leptos/WebView2 app: beads dc-etcxb.1-.3, report `ferroui-eval.md` in this folder once the lane fu1 and the Windows run finish.
 
+## Since Friday (coordinator, 2026-11-22 07:15)
+
+- **Skins internals cleaned up** (owner request, epic dc-xfrhg, closed): raw protocol intents in skin code 82 -> 0, a typed command layer over `Target`, the controller split into a core (3,054 lines, was 5,578) and a grid adapter, the desktop shell on the command path, one worker cell assembly. Map: [docs/plan/SKIN_INTERNALS_MAP.md](../../plan/SKIN_INTERNALS_MAP.md). Brief items 1 (part), 2, 4 and 10 are done; the facts section of the implementation brief was refreshed (dc-etcxb.4).
+- **Classic grid parity** (dc-971p.67-.73): point mode and F4, Enter/Tab walks, Ctrl+arrow navigation, system clipboard and Paste Special, fill handle, status aggregates, context menu, sheet tabs, Find/Replace/Go To, panes, resize/AutoFit, hide/unhide, zoom, notes and hyperlinks, spill explanations, merge, CF manager, DV keyboard. The parity table in [docs/plan/UI_REVIEW.md](../../plan/UI_REVIEW.md) was rewritten to the current state. User help: docs/user/classic-grid.md.
+- **FerroUI evaluation**: the Linux prototype and harness are done (dc-etcxb.2, report `ferroui-eval.md`); the Windows measurements (dc-etcxb.3) wait for Windows work to resume.
+- **Site preview** (local only): 42 pages, including the Formula Explorer pages and the new docs/fun number-to-text explorer.
+- Nothing from the designs has been merged.
+
 ## The sources
 
 **Our own framing**
