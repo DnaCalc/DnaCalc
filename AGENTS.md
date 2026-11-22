@@ -116,7 +116,7 @@ command or document, look for the one that already exists and extend it. There i
   the lists in `make-catalogue-fixtures.ps1`). Adding a row: edit your section file, regenerate
   (`make-catalogue-fixtures.ps1 -OutDir crates/calc-func/tests/fixtures`), commit. Nothing else
   is required to build, test or commit. The catalogue is captured per sheet
-  (`tests/captures/catalogue/sections/`), each capture keyed by its sheet's content, so your
+  (`crates/calc-func/tests/captures/catalogue/sections/`), each capture keyed by its sheet's content, so your
   change leaves every other sheet's capture valid; your sheet is "awaiting capture" (counted apart
   in `cargo xtask corpus`, never a pass, failing no test) until someone runs `cargo xtask capture
   --pending`, which captures every pending sheet of every oracle, one Excel session per sheet,

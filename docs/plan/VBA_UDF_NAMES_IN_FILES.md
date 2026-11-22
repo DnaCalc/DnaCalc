@@ -230,7 +230,7 @@ UDF call while retaining language LAMBDA parameter prefixes. The XLSB conversion
 as `x15ac:absPath`. The latter is essential on this Excel build: preserving alternate URLs
 alone still gave `#NAME?` after relocation. Excel controls restoring the original folder,
 with and without alternate URLs, both restored the original provider calls.
-Evidence: `cdoc-path-diagnostic.json`, `cdoc-p1-reopen.json` and `tests/vba_udf_names.rs` in
+Evidence: `cdoc-path-diagnostic.json`, `cdoc-p1-reopen.json` and `crates/calc-doc/tests/vba_udf_names.rs` in
 the existing fixture/test directories. These are Excel file-save/reopen checks, not claims
 that DNA Calc executes the VBA. Format writing remains XML.
 
