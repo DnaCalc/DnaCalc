@@ -7,6 +7,7 @@ pub(crate) struct Cache {
     pub fields: Vec<PivotCacheField>,
     pub rows: Vec<Vec<PivotItem>>,
     pub refresh_on_load: bool,
+    pub enable_refresh: bool,
     pub refreshed_by: Option<String>,
     pub refreshed_date: Option<String>,
 }
@@ -129,7 +130,8 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
     let sources = usize::from(u16::from_le_bytes([h[10], h[11]]));
     let fields = usize::from(u16::from_le_bytes([h[12], h[13]]));
     let source_type = u16::from_le_bytes([h[16], h[17]]);
-    if id != stream_id || flags & 0x23 != 0x21 || source_type != 1 || fields == 0 || sources != fields
+    // SXDB fSaveData and fInvalid describe the records. fEnableRefresh is independent.
+    if id != stream_id || flags & 0x03 != 0x01 || source_type != 1 || fields == 0 || sources != fields
         || rows > 100_000 || rows.checked_mul(fields)? > 1_000_000 { return None; }
     let mut at = 1usize;
     if records.get(at)?.id != 0x0122 { return None; }
@@ -192,7 +194,14 @@ pub(crate) fn read(bytes: &[u8], stream_id: u16) -> Option<Cache> {
         }
         field.unused_items = used.iter().enumerate().filter_map(|(i, used)| (!used).then_some(i as u32)).collect();
     }
-    Some(Cache { fields: out, rows: data, refresh_on_load: flags & 4 != 0, refreshed_by: refreshed_by(header), refreshed_date })
+    Some(Cache {
+        fields: out,
+        rows: data,
+        refresh_on_load: flags & 4 != 0,
+        enable_refresh: flags & 0x20 != 0,
+        refreshed_by: refreshed_by(header),
+        refreshed_date,
+    })
 }
 
 #[cfg(test)]
@@ -421,28 +430,60 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn refresh_on_load_cache_keeps_its_saved_source_records_and_flag() {
-        let mut source = kit::u16s(&[0, 2]); source.extend([0, 1]);
-        source.extend(kit::u16s(&[2])); source.extend([0, 2, b'S', 0]);
-        let globals = [kit::record(0x00D5, &kit::u16s(&[7])), kit::record(0x00E3, &kit::u16s(&[1])),
-            kit::record(0x0051, &source)].concat();
-        let workbook = kit::workbook_stream(false, &globals, &[kit::Sheet::worksheet("S", Vec::new())]);
-        let mut data = cache(true); data[10] |= 4;
-        let bytes = cfb_write::write(vec![("Workbook".into(), Node::Stream(workbook)),
-            ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(data))]))]).unwrap();
-        let source = |bytes: &[u8]| Arc::new(crate::MemorySource::new(bytes.to_vec())) as Arc<dyn crate::PackageRead>;
-        let document = crate::open(source(&bytes), &crate::OpenPolicy::default()).unwrap();
-        let check = |doc: &crate::OpenedDocument| {
-            let mut ids = IdAllocator::<SheetId>::new();
-            let loaded = crate::load(doc, &mut ids).unwrap();
-            let cache = loaded.pivot_caches().caches.get(&0).unwrap();
-            assert_eq!(cache.attributes.get("refreshOnLoad").map(String::as_str), Some("1"));
-            assert_eq!(loaded.pivot_records(0, 10).unwrap().records.len(), 2);
+    fn cache_keeps_saved_source_records_and_refresh_flags() {
+        let mut source = kit::u16s(&[0, 2]);
+        source.extend([0, 1]);
+        source.extend(kit::u16s(&[2]));
+        source.extend([0, 2, b'S', 0]);
+        let globals = [
+            kit::record(0x00D5, &kit::u16s(&[7])),
+            kit::record(0x00E3, &kit::u16s(&[1])),
+            kit::record(0x0051, &source),
+        ]
+        .concat();
+        let workbook =
+            kit::workbook_stream(false, &globals, &[kit::Sheet::worksheet("S", Vec::new())]);
+        let open = |bytes: Vec<u8>| {
+            crate::open(
+                Arc::new(crate::MemorySource::new(bytes)),
+                &crate::OpenPolicy::default(),
+            )
+            .unwrap()
         };
-        check(&document);
-        let plan = crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
-        let mut saved = Vec::new(); crate::write(plan, &mut saved).unwrap();
-        check(&crate::open(source(&saved), &crate::OpenPolicy::default()).unwrap());
+        for (flags, refresh_on_load, enable_refresh) in [(0x25, "1", None), (0x01, "0", Some("0"))] {
+            let mut data = cache(true);
+            data[10] = flags;
+            let bytes = cfb_write::write(vec![
+                ("Workbook".into(), Node::Stream(workbook.clone())),
+                ("_SX_DB_CUR".into(), Node::Storage(vec![("0007".into(), Node::Stream(data))])),
+            ])
+            .unwrap();
+            let document = open(bytes);
+            let check = |doc: &crate::OpenedDocument| {
+                let mut ids = IdAllocator::<SheetId>::new();
+                let loaded = crate::load(doc, &mut ids).unwrap();
+                let cache = loaded.pivot_caches().caches.get(&0)
+                    .unwrap_or_else(|| panic!("saved cache is missing for SXDB flags {flags:#04x}"));
+                assert_eq!(
+                    cache.attributes.get("refreshOnLoad").map(String::as_str),
+                    Some(refresh_on_load),
+                );
+                assert_eq!(cache.attributes.get("enableRefresh").map(String::as_str), enable_refresh);
+                assert_eq!(
+                    loaded.pivot_records(0, 10).unwrap().records,
+                    vec![
+                        vec![PivotItem::Index(0), PivotItem::Number("3.5".into())],
+                        vec![PivotItem::Index(1), PivotItem::Number("-2".into())],
+                    ],
+                );
+            };
+            check(&document);
+            let plan =
+                crate::prepare_save(&document.snapshot(), &crate::SavePolicy::default()).unwrap();
+            let mut saved = Vec::new();
+            crate::write(plan, &mut saved).unwrap();
+            check(&open(saved));
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -720,6 +720,9 @@ fn convert_compound(
             let part = format!("xl/pivotCache/pivotCacheDefinition{number}.xml");
             let records_part = format!("xl/pivotCache/pivotCacheRecords{number}.xml");
             let mut attributes = BTreeMap::from([("refreshOnLoad".into(), u8::from(parsed.refresh_on_load).to_string())]);
+            if !parsed.enable_refresh {
+                attributes.insert("enableRefresh".into(), "0".into());
+            }
             if let Some(user) = parsed.refreshed_by { attributes.insert("refreshedBy".into(), user); }
             if !globals.date_1904 {
                 if let Some(date) = parsed.refreshed_date { attributes.insert("refreshedDate".into(), date); }
