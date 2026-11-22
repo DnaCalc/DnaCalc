@@ -29,6 +29,7 @@ pub(crate) const UNASSIGNED: &str = "no package (a name in no function category)
 const F1: &str = "exactness dc-j9k";
 const F2: &str = "exactness dc-uar";
 const F3: &str = "exactness dc-j9k";
+const REGEX: &str = "exactness dc-zmk.12";
 const L1: &str = "language dc-10y";
 const L2: &str = "language dc-10y";
 
@@ -98,6 +99,9 @@ pub(crate) fn function_owner(spelling: &str) -> &'static str {
     if calc_catalogue::binding_form(&name).is_some() {
         return L1;
     }
+    if matches!(name.as_str(), "REGEXTEST" | "REGEXEXTRACT" | "REGEXREPLACE") {
+        return REGEX;
+    }
     let catalogue = calc_func::catalogue();
     [
         calc_func::Notation::Call,
@@ -124,6 +128,7 @@ mod tests {
             ("NOT", F2),
             ("VLOOKUP", F2),
             ("_xlfn.XLOOKUP", F2),
+            ("_xlfn.REGEXEXTRACT", REGEX),
             ("&", F2),
             ("PMT", F3),
             ("_xlfn._xlws.SORT", F3),

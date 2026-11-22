@@ -741,7 +741,7 @@ fn regex(
     pattern: &ExcelText,
     case_sensitive: bool,
     first_only: bool,
-) -> Step<(Vec<char>, Vec<(usize, usize)>)> {
+) -> Step<k::RegexMatches> {
     if !tk::is_well_formed(text) || !tk::is_well_formed(pattern) {
         return Err(site.not_modelled(None));
     }
@@ -761,66 +761,71 @@ fn regextest(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let pattern = text_arg(site, a, 1)?;
     let sensitive = case_sensitive(site, a, 2)?;
-    let (_, found) = regex(site, &text, &pattern, sensitive, true)?;
+    let k::RegexMatches { found, .. } = regex(site, &text, &pattern, sensitive, true)?;
     Ok(CalcValue::logical(!found.is_empty()))
+}
+
+fn regex_text(chars: &[char], (start, end): (usize, usize)) -> CalcValue {
+    crate::catalogue::kit::text_value(&chars[start..end].iter().collect::<String>())
+}
+
+fn regex_row(mut cells: Vec<CalcValue>) -> CalcValue {
+    if cells.len() == 1 {
+        return cells.pop().expect("one match");
+    }
+    CalcValue::array(
+        CalcArray::new(
+            ArrayShape {
+                rows: 1,
+                cols: cells.len(),
+            },
+            cells,
+        )
+        .expect("a nonempty row of matches"),
+    )
 }
 
 fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
-    let mut pattern = text_arg(site, a, 1)?;
+    let pattern = text_arg(site, a, 1)?;
     let mode = if given(a, 2) {
         num(site, a, 2)?.trunc()
     } else {
         0.0
     };
     let sensitive = case_sensitive(site, a, 3)?;
-    // Fn5 regex002: one capture around the entire supported pattern is its
-    // first whole match. The existing parser still refuses inner groups and
-    // other unsupported syntax; no second matching implementation is needed.
-    let mut captured = false;
-    if mode == 2.0 && tk::is_well_formed(&pattern) {
-        let raw = pattern.to_string_lossy();
-        if let Some(inner) = raw.strip_prefix('(').and_then(|s| s.strip_suffix(')')) {
-            pattern = ExcelText::from_utf16_code_units(inner.encode_utf16().collect());
-            captured = true;
-        }
-    }
-    let (chars, found) = regex(site, &text, &pattern, sensitive, mode == 0.0 || captured)?;
+    let k::RegexMatches {
+        chars,
+        found,
+        group_count,
+    } = regex(site, &text, &pattern, sensitive, mode == 0.0 || mode == 2.0)?;
     match (mode as i64, found.as_slice()) {
-        (_, []) if mode == 0.0 || mode == 1.0 => fail(WorksheetErrorCode::NA),
-        (0, [(start, end), ..]) | (1, [(start, end)]) => Ok(crate::catalogue::kit::text_value(
-            &chars[*start..*end].iter().collect::<String>(),
-        )),
+        (0 | 1, []) => fail(WorksheetErrorCode::NA),
+        (0, [first, ..]) => Ok(regex_text(&chars, first.whole)),
         // Fn5 regex003..005 settle the horizontal shape. Lifted fn2 roots078/079
         // retain each call's first cell through the existing evaluator.
-        (1, matches) => {
-            let cells = matches
+        (1, matches) => Ok(regex_row(
+            matches
                 .iter()
-                .map(|(start, end)| {
-                    crate::catalogue::kit::text_value(
-                        &chars[*start..*end].iter().collect::<String>(),
+                .map(|m| regex_text(&chars, m.whole))
+                .collect(),
+        )),
+        // A group-free pattern is Value even without a match (fn5 regex001/006).
+        (2, _) if group_count == 0 => fail(WorksheetErrorCode::Value),
+        (2, [first, ..]) => Ok(regex_row(
+            first
+                .groups
+                .iter()
+                .map(|group| {
+                    group.map_or_else(
+                        || CalcValue::error(WorksheetErrorCode::NA),
+                        |range| regex_text(&chars, range),
                     )
                 })
-                .collect();
-            Ok(CalcValue::array(
-                CalcArray::new(
-                    ArrayShape {
-                        rows: 1,
-                        cols: matches.len(),
-                    },
-                    cells,
-                )
-                .expect("a nonempty list of matches"),
-            ))
-        }
-        (2, [(start, end), ..]) if captured => Ok(crate::catalogue::kit::text_value(
-            &chars[*start..*end].iter().collect::<String>(),
+                .collect(),
         )),
-        // A supported group-free pattern is Value even without a match
-        // (fn5 regex001); an escaped parenthesis is still group-free (006).
-        (2, _) if !captured => fail(WorksheetErrorCode::Value),
         // No-match capture-group behavior remains unmeasured.
-        (0..=2, _) => Err(site.not_modelled(Some(2))),
+        (2, []) => Err(site.not_modelled(Some(2))),
         _ => fail(WorksheetErrorCode::Value),
     }
 }
@@ -848,7 +853,8 @@ fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         let found = empty_regex_replace_matches(&chars, text.utf16_code_units().len(), limit)?;
         (chars, found)
     } else {
-        regex(site, &text, &pattern, sensitive, false)?
+        let k::RegexMatches { chars, found, .. } = regex(site, &text, &pattern, sensitive, false)?;
+        (chars, found.into_iter().map(|m| m.whole).collect())
     };
     let selected: Vec<(usize, usize)> = if occurrence == 0.0 {
         found

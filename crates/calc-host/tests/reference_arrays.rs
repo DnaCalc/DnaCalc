@@ -367,17 +367,48 @@ fn dc_b1l43_dc_b1l44__fn7_argument_origins() {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_ebb5__groupby_shows_aggregate_and_field_headers() {
-    check_captured_book(
-        include_bytes!("../../../tests/corpus-examples/formulas/groupby-multiple-aggregates/example.xlsx"),
-        include_bytes!("../../../tests/corpus-examples/formulas/groupby-multiple-aggregates/oracle.capture.json"),
-        &[],
-        1,
-        None,
-    );
+macro_rules! authored_formula_example {
+    ($test:ident, $case:literal) => {
+        #[cfg_attr(not(target_arch = "wasm32"), test)]
+        #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+        fn $test() {
+            check_captured_book(
+                include_bytes!(concat!(
+                    "../../../tests/corpus-examples/formulas/",
+                    $case,
+                    "/example.xlsx"
+                )),
+                include_bytes!(concat!(
+                    "../../../tests/corpus-examples/formulas/",
+                    $case,
+                    "/oracle.capture.json"
+                )),
+                &[],
+                1,
+                None,
+            );
+        }
+    };
 }
+
+authored_formula_example!(
+    dc_ebb5__groupby_shows_aggregate_and_field_headers,
+    "groupby-multiple-aggregates"
+);
+authored_formula_example!(
+    dc_ebb6__regex_extracts_whole_match_with_inner_capture,
+    "extract-json-pair"
+);
+authored_formula_example!(dc_ebb6__regex_captures_feed_reduce, "reduce-expand-pairs");
+authored_formula_example!(
+    dc_ebb6__regex_publishes_an_unmatched_group_as_na,
+    "regex-groups-optional"
+);
+authored_formula_example!(dc_ebb6__regex_extracts_with_lookbehind, "regex-lookbehind");
+authored_formula_example!(
+    dc_ebb6__regex_resolves_named_backreference,
+    "regex-named-group-backref"
+);
 
 fn check_captured_book(
     bytes: &[u8],

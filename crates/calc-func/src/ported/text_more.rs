@@ -4,11 +4,11 @@
 //! array_text_split_family.rs (TEXTSPLIT, ARRAYTOTEXT), with the OxFunc surface layer removed.
 //!
 //! The pattern engine reads literals, `.`, the classes `\d \D \w \W \s \S \h`, bracketed classes
-//! and ranges, the anchors `^ $ \A \Z \z \b \B` and the quantifiers `* + ?`. Any other pattern
-//! syntax (groups, alternation, counted repeats, POSIX classes, other escapes) is a valid PCRE2
-//! pattern that the engine does not read, and the call is refused as not modelled
-//! ([`PatternError::Unsupported`]). A bracketed class the pattern never closes does not compile
-//! in PCRE2, and the call is `#VALUE!` ([`PatternError::Invalid`]): Excel 16.0.20527 gives
+//! and ranges, the anchors `^ $ \A \Z \z \b \B` and the quantifiers `* + ?`, including lazy `*?`
+//! and `+?` character repeats. Captures, optional groups, literal positive lookbehind and named
+//! backreferences use the same matcher (dc-ebb.6). Other syntax such as alternation, counted
+//! repeats and POSIX classes returns [`PatternError::Unsupported`]. An unclosed bracketed class
+//! does not compile in PCRE2, and the call is `#VALUE!` ([`PatternError::Invalid`]): Excel 16.0.20527 gives
 //! `REGEXTEST("hello","[")`, `REGEXEXTRACT("abc","[")` and `REGEXREPLACE("abc","[","x")` as
 //! `#VALUE!`, and `REGEXTEST("","^$")` as TRUE (the jnt oracle, sheet jnt_text_formats, answered
 //! by the question service with the same formula text).
@@ -27,6 +27,13 @@ use PatternError::{Invalid, Unsupported};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RegexAtom {
+    GroupStart {
+        capture: Option<usize>,
+        skip_to: Option<usize>,
+    },
+    GroupEnd(usize),
+    LookBehind(Vec<char>),
+    Backreference(usize),
     Literal(char),
     Any,
     Digit,
@@ -74,6 +81,17 @@ enum RegexQuantifier {
 struct RegexToken {
     atom: RegexAtom,
     quantifier: RegexQuantifier,
+    greedy: bool,
+}
+
+impl RegexToken {
+    fn once(atom: RegexAtom) -> Self {
+        Self {
+            atom,
+            quantifier: RegexQuantifier::One,
+            greedy: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,7 +219,11 @@ fn consuming_atom_matches(atom: &RegexAtom, ch: char, case_sensitive: bool) -> b
         | RegexAtom::EndOfText
         | RegexAtom::EndOfLine
         | RegexAtom::WordBoundary
-        | RegexAtom::NotWordBoundary => false,
+        | RegexAtom::NotWordBoundary
+        | RegexAtom::GroupStart { .. }
+        | RegexAtom::GroupEnd(_)
+        | RegexAtom::LookBehind(_)
+        | RegexAtom::Backreference(_) => false,
     }
 }
 
@@ -222,97 +244,166 @@ fn match_atom_once(
     }
 }
 
-fn match_tokens_from(
-    tokens: &[RegexToken],
-    token_index: usize,
-    chars: &[char],
-    position: usize,
+type MatchRange = (usize, usize);
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct RegexMatch {
+    pub whole: MatchRange,
+    pub groups: Vec<Option<MatchRange>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct RegexMatches {
+    pub chars: Vec<char>,
+    pub found: Vec<RegexMatch>,
+    pub group_count: usize,
+}
+
+struct RegexMatcher<'a> {
+    chars: &'a [char],
+    tokens: &'a [RegexToken],
     case_sensitive: bool,
-) -> Option<usize> {
-    if token_index >= tokens.len() {
-        return Some(position);
+    groups: Vec<Option<MatchRange>>,
+    extended: bool,
+    remaining_steps: usize,
+}
+
+impl RegexMatcher<'_> {
+    fn spend(&mut self, steps: usize) -> Result<(), PatternError> {
+        self.remaining_steps = self.remaining_steps.checked_sub(steps).ok_or(Unsupported)?;
+        Ok(())
     }
 
-    let token = &tokens[token_index];
-    match token.quantifier {
-        RegexQuantifier::One => {
-            match_atom_once(token, chars, position, case_sensitive).and_then(|next| {
-                match_tokens_from(tokens, token_index + 1, chars, next, case_sensitive)
+    fn matches_at(&self, start: usize, expected: &[char]) -> bool {
+        self.chars
+            .get(start..start + expected.len())
+            .is_some_and(|actual| {
+                actual
+                    .iter()
+                    .zip(expected)
+                    .all(|(&a, &b)| chars_equal(a, b, self.case_sensitive))
             })
-        }
-        RegexQuantifier::ZeroOrOne => {
-            if let Some(next) =
-                match_atom_once(token, chars, position, case_sensitive).and_then(|next| {
-                    match_tokens_from(tokens, token_index + 1, chars, next, case_sensitive)
-                })
-            {
-                return Some(next);
-            }
-            match_tokens_from(tokens, token_index + 1, chars, position, case_sensitive)
-        }
-        RegexQuantifier::ZeroOrMore | RegexQuantifier::OneOrMore => {
-            let minimum = if matches!(token.quantifier, RegexQuantifier::OneOrMore) {
-                1usize
-            } else {
-                0usize
-            };
-            let mut positions = vec![position];
-            let mut cursor = position;
-            while let Some(next) = match_atom_once(token, chars, cursor, case_sensitive) {
-                positions.push(next);
-                cursor = next;
-            }
-            if positions.len().saturating_sub(1) < minimum {
-                return None;
-            }
-            for count in (minimum..positions.len()).rev() {
-                if let Some(end) = match_tokens_from(
-                    tokens,
-                    token_index + 1,
-                    chars,
-                    positions[count],
-                    case_sensitive,
-                ) {
-                    return Some(end);
+    }
+
+    fn match_from(&mut self, index: usize, position: usize) -> Result<Option<usize>, PatternError> {
+        self.spend(1)?;
+        let tokens = self.tokens;
+        let Some(token) = tokens.get(index) else {
+            return Ok(Some(position));
+        };
+        let next = index + 1;
+        match &token.atom {
+            RegexAtom::GroupStart { capture, skip_to } => {
+                let previous = capture.map(|i| self.groups[i].replace((position, position)));
+                let found = self.match_from(next, position)?;
+                if found.is_some() {
+                    return Ok(found);
+                }
+                if let Some((i, previous)) = capture.zip(previous) {
+                    self.groups[i] = previous;
+                }
+                match skip_to {
+                    Some(skip_to) => self.match_from(*skip_to, position),
+                    None => Ok(None),
                 }
             }
-            None
+            RegexAtom::GroupEnd(i) => {
+                let previous = self.groups[*i].expect("the opening capture is active");
+                self.groups[*i] = Some((previous.0, position));
+                let found = self.match_from(next, position)?;
+                if found.is_none() {
+                    self.groups[*i] = Some(previous);
+                }
+                Ok(found)
+            }
+            RegexAtom::LookBehind(literal) => {
+                self.spend(literal.len())?;
+                if position
+                    .checked_sub(literal.len())
+                    .is_some_and(|start| self.matches_at(start, literal))
+                {
+                    self.match_from(next, position)
+                } else {
+                    Ok(None)
+                }
+            }
+            RegexAtom::Backreference(i) => {
+                let Some((start, end)) = self.groups[*i] else {
+                    return Ok(None);
+                };
+                self.spend(end - start)?;
+                if self.matches_at(position, &self.chars[start..end]) {
+                    self.match_from(next, position + end - start)
+                } else {
+                    Ok(None)
+                }
+            }
+            _ if token.quantifier == RegexQuantifier::One => {
+                match match_atom_once(token, self.chars, position, self.case_sensitive) {
+                    Some(end) => self.match_from(next, end),
+                    None => Ok(None),
+                }
+            }
+            _ => self.match_repeat(token, next, position),
         }
     }
-}
 
-fn find_first_match_from(
-    chars: &[char],
-    tokens: &[RegexToken],
-    start_index: usize,
-    case_sensitive: bool,
-) -> Option<(usize, usize)> {
-    for start in start_index..=chars.len() {
-        if let Some(end) = match_tokens_from(tokens, 0, chars, start, case_sensitive) {
-            if end >= start {
-                return Some((start, end));
+    fn match_repeat(
+        &mut self,
+        token: &RegexToken,
+        next: usize,
+        position: usize,
+    ) -> Result<Option<usize>, PatternError> {
+        let minimum = usize::from(token.quantifier == RegexQuantifier::OneOrMore);
+        let limit = if token.quantifier == RegexQuantifier::ZeroOrOne {
+            1
+        } else {
+            usize::MAX
+        };
+        // Only character atoms can repeat here. Each match advances one character.
+        let count = self.chars[position..]
+            .iter()
+            .take(limit)
+            .take_while(|&&ch| consuming_atom_matches(&token.atom, ch, self.case_sensitive))
+            .count();
+        self.spend(count)?;
+        for choice in minimum..=count {
+            let length = if token.greedy {
+                count - (choice - minimum)
+            } else {
+                choice
+            };
+            if let Some(end) = self.match_from(next, position + length)? {
+                return Ok(Some(end));
             }
         }
+        Ok(None)
     }
-    None
-}
 
-fn find_all_matches(
-    chars: &[char],
-    tokens: &[RegexToken],
-    case_sensitive: bool,
-) -> Vec<(usize, usize)> {
-    let mut matches = Vec::new();
-    let mut cursor = 0usize;
-    while cursor <= chars.len() {
-        let Some((start, end)) = find_first_match_from(chars, tokens, cursor, case_sensitive)
-        else {
-            break;
-        };
-        matches.push((start, end));
-        cursor = end.max(start + 1);
+    fn find(&mut self, first_only: bool) -> Result<Vec<RegexMatch>, PatternError> {
+        let mut found = Vec::new();
+        let mut start = 0;
+        while start <= self.chars.len() {
+            if let Some(end) = self.match_from(0, start)? {
+                // Global iteration after a zero-length extended match needs separate observations.
+                if self.extended && !first_only && start == end {
+                    return Err(Unsupported);
+                }
+                found.push(RegexMatch {
+                    whole: (start, end),
+                    groups: self.groups.clone(),
+                });
+                if first_only {
+                    break;
+                }
+                self.groups.fill(None);
+                start = end.max(start + 1);
+            } else {
+                start += 1;
+            }
+        }
+        Ok(found)
     }
-    matches
 }
 
 fn escaped_literal_char(ch: char) -> Option<char> {
@@ -449,99 +540,212 @@ fn parse_char_class(chars: &[char], index: &mut usize) -> Result<RegexAtom, Patt
     Ok(RegexAtom::Class(RegexClass { negated, items }))
 }
 
-fn parse_regex_pattern(pattern: &str) -> Result<Vec<RegexToken>, PatternError> {
-    let chars: Vec<char> = pattern.chars().collect();
-    if chars.is_empty() {
-        return Ok(Vec::new());
+fn regex_group_name(chars: &[char], index: &mut usize) -> Result<String, PatternError> {
+    let start = *index;
+    let first = chars.get(start).ok_or(Unsupported)?;
+    if !first.is_ascii_alphabetic() && *first != '_' {
+        return Err(Unsupported);
     }
+    while chars
+        .get(*index)
+        .is_some_and(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+    {
+        *index += 1;
+    }
+    if chars.get(*index) != Some(&'>') {
+        return Err(Unsupported);
+    }
+    let name = chars[start..*index].iter().collect();
+    *index += 1;
+    Ok(name)
+}
 
+fn literal_lookbehind(chars: &[char], index: &mut usize) -> Result<RegexAtom, PatternError> {
+    let mut literal = Vec::new();
+    while let Some(ch) = chars.get(*index).copied() {
+        *index += 1;
+        match ch {
+            ')' => return Ok(RegexAtom::LookBehind(literal)),
+            '.' | '[' | '(' | '|' | '^' | '$' | '*' | '+' | '?' | '{' => return Err(Unsupported),
+            '\\' => {
+                let escaped = chars.get(*index).and_then(|&ch| escaped_literal_char(ch));
+                literal.push(escaped.ok_or(Unsupported)?);
+                *index += 1;
+            }
+            _ => literal.push(ch),
+        }
+    }
+    Err(Unsupported)
+}
+
+struct RegexPattern {
+    tokens: Vec<RegexToken>,
+    group_count: usize,
+    extended: bool,
+}
+
+fn parse_regex_pattern(pattern: &str) -> Result<RegexPattern, PatternError> {
+    let chars: Vec<char> = pattern.chars().collect();
     let mut tokens = Vec::new();
+    let mut names: Vec<Option<String>> = Vec::new();
+    let mut open_groups = Vec::new();
+    let mut extended = false;
     let mut index = 0usize;
     while let Some(ch) = chars.get(index).copied() {
+        index += 1;
         let atom = match ch {
-            '.' => {
-                index += 1;
-                RegexAtom::Any
+            '.' => RegexAtom::Any,
+            '\\' if chars[index..].starts_with(&['k', '<']) => {
+                index += 2;
+                let name = regex_group_name(&chars, &mut index)?;
+                let capture = names
+                    .iter()
+                    .position(|group| group.as_ref() == Some(&name))
+                    .ok_or(Unsupported)?;
+                if open_groups
+                    .iter()
+                    .any(|&(_, current)| current == Some(capture))
+                {
+                    return Err(Unsupported);
+                }
+                RegexAtom::Backreference(capture)
             }
-            '\\' => {
-                index += 1;
-                parse_escape_atom(&chars, &mut index)?
+            '\\' => parse_escape_atom(&chars, &mut index)?,
+            '[' => parse_char_class(&chars, &mut index)?,
+            '^' => RegexAtom::StartOfText,
+            '$' => RegexAtom::EndOfLine,
+            '(' if chars[index..].starts_with(&['?', '<', '=']) => {
+                extended = true;
+                index += 3;
+                literal_lookbehind(&chars, &mut index)?
             }
-            '[' => {
-                index += 1;
-                parse_char_class(&chars, &mut index)?
+            '(' => {
+                extended = true;
+                let capture = match chars.get(index..index + 2) {
+                    Some(['?', ':']) => {
+                        index += 2;
+                        None
+                    }
+                    Some(['?', '<']) => {
+                        index += 2;
+                        let name = regex_group_name(&chars, &mut index)?;
+                        if names.iter().any(|group| group.as_ref() == Some(&name)) {
+                            return Err(Unsupported);
+                        }
+                        let capture = names.len();
+                        names.push(Some(name));
+                        Some(capture)
+                    }
+                    _ if chars.get(index) == Some(&'?') => return Err(Unsupported),
+                    _ => {
+                        let capture = names.len();
+                        names.push(None);
+                        Some(capture)
+                    }
+                };
+                open_groups.push((tokens.len(), capture));
+                tokens.push(RegexToken::once(RegexAtom::GroupStart {
+                    capture,
+                    skip_to: None,
+                }));
+                continue;
             }
-            // Without multiline, `^` is the start of the text.
-            '^' => {
-                index += 1;
-                RegexAtom::StartOfText
+            ')' => {
+                let (start, capture) = open_groups.pop().ok_or(Unsupported)?;
+                if let Some(capture) = capture {
+                    tokens.push(RegexToken::once(RegexAtom::GroupEnd(capture)));
+                }
+                if chars.get(index) == Some(&'?') {
+                    index += 1;
+                    tokens[start].atom = RegexAtom::GroupStart {
+                        capture,
+                        skip_to: Some(tokens.len()),
+                    };
+                }
+                continue;
             }
-            '$' => {
-                index += 1;
-                RegexAtom::EndOfLine
-            }
-            '*' | '+' | '?' if index == 0 => return Err(Invalid),
-            '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|' => {
-                return Err(Unsupported);
-            }
-            other => {
-                index += 1;
-                RegexAtom::Literal(other)
-            }
+            '*' | '+' | '?' if index == 1 => return Err(Invalid),
+            '*' | '+' | '?' | '{' | '}' | '|' => return Err(Unsupported),
+            other => RegexAtom::Literal(other),
         };
 
         let quantifier = match chars.get(index).copied() {
-            Some('*') => {
-                index += 1;
-                RegexQuantifier::ZeroOrMore
-            }
-            Some('+') => {
-                index += 1;
-                RegexQuantifier::OneOrMore
-            }
-            Some('?') => {
-                index += 1;
-                RegexQuantifier::ZeroOrOne
-            }
+            Some('*') => RegexQuantifier::ZeroOrMore,
+            Some('+') => RegexQuantifier::OneOrMore,
+            Some('?') => RegexQuantifier::ZeroOrOne,
             _ => RegexQuantifier::One,
         };
-
-        if !atom_consumes_input(&atom) && quantifier != RegexQuantifier::One {
-            return Err(Unsupported);
+        let mut greedy = true;
+        if quantifier != RegexQuantifier::One {
+            if !atom_consumes_input(&atom)
+                || matches!(atom, RegexAtom::LookBehind(_) | RegexAtom::Backreference(_))
+            {
+                return Err(Unsupported);
+            }
+            index += 1;
+            if chars.get(index) == Some(&'?') {
+                if quantifier == RegexQuantifier::ZeroOrOne {
+                    return Err(Unsupported);
+                }
+                index += 1;
+                greedy = false;
+                extended = true;
+            }
         }
-
-        tokens.push(RegexToken { atom, quantifier });
+        tokens.push(RegexToken {
+            atom,
+            quantifier,
+            greedy,
+        });
     }
-
-    Ok(tokens)
+    if !open_groups.is_empty() {
+        return Err(Unsupported);
+    }
+    Ok(RegexPattern {
+        tokens,
+        group_count: names.len(),
+        extended,
+    })
 }
 
-/// The matches' character positions, for REGEXEXTRACT, REGEXTEST and REGEXREPLACE.
+/// The character positions of whole matches and their numbered capture groups.
 pub(crate) fn regex_matches(
     text: &str,
     pattern: &str,
     case_sensitive: bool,
     first_only: bool,
-) -> Result<(Vec<char>, Vec<(usize, usize)>), PatternError> {
-    let haystack: Vec<char> = text.chars().collect();
-    let tokens = parse_regex_pattern(pattern)?;
+) -> Result<RegexMatches, PatternError> {
+    let chars: Vec<char> = text.chars().collect();
+    let RegexPattern {
+        tokens,
+        group_count,
+        extended,
+    } = parse_regex_pattern(pattern)?;
+    // Bound recursive depth and backtracking work for the extended syntax.
+    if extended && tokens.len() > 256 {
+        return Err(Unsupported);
+    }
     // Empty REGEXEXTRACT matches at CRLF, supplementary characters and the leading-LF
     // boundary need an array-shape model. A first match is still at the start.
     // REGEXREPLACE has a separate measured scan for an empty pattern.
     if tokens.is_empty()
         && !first_only
-        && (haystack.iter().any(|ch| u32::from(*ch) > 0xffff)
+        && (chars.iter().any(|ch| u32::from(*ch) > 0xffff)
             || text.contains("\r\n")
-            || (haystack.len() == 13 && haystack.first() == Some(&'\n')))
+            || (chars.len() == 13 && chars.first() == Some(&'\n')))
     {
         return Err(Unsupported);
     }
-    // Before a final newline `$` also matches, and which characters end a line depends on the
-    // newline convention Excel's PCRE2 was built with, which is not measured.
-    if tokens.iter().any(|token| token.atom == RegexAtom::EndOfLine)
-        && haystack
-            .iter()
-            .any(|&ch| matches!(ch, '\n' | '\r' | '\u{000b}' | '\u{000c}' | '\u{0085}' | '\u{2028}' | '\u{2029}'))
+    // Before a final newline dollar also matches. Excel's newline convention remains unmeasured.
+    if tokens
+        .iter()
+        .any(|token| token.atom == RegexAtom::EndOfLine)
+        && chars.iter().any(|&ch| {
+            matches!(
+                ch,
+                '\n' | '\r' | '\u{000b}' | '\u{000c}' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+            )
+        })
     {
         return Err(Unsupported);
     }
@@ -558,14 +762,20 @@ pub(crate) fn regex_matches(
     {
         return Err(Unsupported);
     }
-    let found = if first_only {
-        find_first_match_from(&haystack, &tokens, 0, case_sensitive)
-            .into_iter()
-            .collect()
-    } else {
-        find_all_matches(&haystack, &tokens, case_sensitive)
-    };
-    Ok((haystack, found))
+    let found = RegexMatcher {
+        chars: &chars,
+        tokens: &tokens,
+        case_sensitive,
+        groups: vec![None; group_count],
+        extended,
+        remaining_steps: if extended { 1_000_000 } else { usize::MAX },
+    }
+    .find(first_only)?;
+    Ok(RegexMatches {
+        chars,
+        found,
+        group_count,
+    })
 }
 
 // --- NUMBERVALUE (number_regex_translate_family.rs) ---------------------------------------------
@@ -906,23 +1116,42 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regex_slice_matches_and_refuses_the_rest() {
-        let (h, m) = regex_matches("ab12cd345", "[0-9]+", true, false).unwrap();
-        let found: Vec<String> = m.iter().map(|&(s, e)| h[s..e].iter().collect()).collect();
+        let RegexMatches { chars, found, .. } =
+            regex_matches("ab12cd345", "[0-9]+", true, false).unwrap();
+        let found: Vec<String> = found
+            .iter()
+            .map(|m| {
+                let (start, end) = m.whole;
+                chars[start..end].iter().collect()
+            })
+            .collect();
         assert_eq!(found, ["12", "345"]);
         assert_eq!(regex_matches("abc", "(a|b)", true, true), Err(Unsupported));
-        assert_eq!(regex_matches("abc", "^a", true, true).unwrap().1, [(0, 1)]);
-        assert_eq!(regex_matches("bab", "^a", true, true).unwrap().1, []);
+        assert_eq!(
+            regex_matches("abc", "^a", true, true).unwrap().found[0].whole,
+            (0, 1)
+        );
+        assert_eq!(regex_matches("bab", "^a", true, true).unwrap().found, []);
         // Excel 16.0.20527: REGEXTEST("","^$") is TRUE (the jnt oracle, jnt_text_formats).
-        assert_eq!(regex_matches("", "^$", true, true).unwrap().1, [(0, 0)]);
-        assert_eq!(regex_matches("ab", "b$", true, false).unwrap().1, [(1, 2)]);
+        assert_eq!(
+            regex_matches("", "^$", true, true).unwrap().found[0].whole,
+            (0, 0)
+        );
+        assert_eq!(
+            regex_matches("ab", "b$", true, false).unwrap().found[0].whole,
+            (1, 2)
+        );
         assert_eq!(regex_matches("ab\n", "b$", true, true), Err(Unsupported));
         // An unclosed class does not compile: #VALUE! (REGEXTEST("hello","[") in Excel).
         assert_eq!(regex_matches("hello", "[", true, true), Err(Invalid));
         assert_eq!(regex_matches("hello", "a[bc", true, true), Err(Invalid));
         assert_eq!(regex_matches("hello", "[^", true, true), Err(Invalid));
         assert_eq!(regex_matches("a]", "[]a]", true, true), Err(Unsupported));
-        assert_eq!(regex_matches("a", "[[:alpha:]]", true, true), Err(Unsupported));
-        assert!(regex_matches("ABC", "b", false, true).unwrap().1.len() == 1);
+        assert_eq!(
+            regex_matches("a", "[[:alpha:]]", true, true),
+            Err(Unsupported)
+        );
+        assert!(regex_matches("ABC", "b", false, true).unwrap().found.len() == 1);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

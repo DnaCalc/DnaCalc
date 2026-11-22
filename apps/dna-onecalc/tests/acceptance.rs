@@ -1268,14 +1268,19 @@ fn regexextract_retains_the_captured_lifted_results() {
     );
 }
 
-/// Fn5 establishes horizontal all-match results and one outer capture. Group-free
-/// capture mode is Value even without a match; unsupported captures remain refused.
+/// Fn5 establishes horizontal all-match results and one outer capture. The authored
+/// workbook capture also checks the row of groups and the unmatched optional group.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     let text = |s| CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(s));
+    let groups = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "../../../tests/corpus-examples/formulas/regex-groups-optional/oracle.capture.json"
+    ))
+    .unwrap();
+    let expected_groups = groups.observations[0].observation.expected().unwrap().clone();
     let mut failures = Vec::new();
     for (formula, expected) in [
         (
@@ -1312,6 +1317,10 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
             CalcValue::error(WorksheetErrorCode::Value),
         ),
         ("=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)", text("12")),
+        (
+            r#"=REGEXEXTRACT("id-132","([a-z]+)-(\d+)(?:\.([a-z]+))?",2)"#,
+            expected_groups,
+        ),
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();
@@ -1324,8 +1333,8 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
     }
     for formula in [
         "=REGEXEXTRACT(\"abc\",\"([0-9]+)\",2)",
-        "=REGEXEXTRACT(\"a12b\",\"(([0-9]+))\",2)",
-        "=REGEXEXTRACT(\"a12b\",\"([0-9]+)(b)\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"([0-9]+|b)\",2)",
+        "=REGEXEXTRACT(\"a12b\",\"([0-9]+){1}\",2)",
     ] {
         session.set_formula(formula);
         let calculated = session.calculate();

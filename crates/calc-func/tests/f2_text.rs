@@ -1380,7 +1380,7 @@ fn unicode_regex_singleton_ranges_use_the_measured_literal_equivalence() {
         assert_eq!(result.as_logical(), Some(true), "{input:?} / {pattern:?}");
     }
     // These are admission limits, not predictions of an Excel value.
-    for pattern in ["[\u{0001}-\u{FFFF}]", "[ω-α]", "[^ω-α]", "(a)"] {
+    for pattern in ["[\u{0001}-\u{FFFF}]", "[ω-α]", "[^ω-α]", "(a|b)"] {
         refused(call("REGEXTEST", vec![t("a"), t(pattern), n(1.0)]));
     }
 }
