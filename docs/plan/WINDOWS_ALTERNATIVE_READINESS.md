@@ -286,6 +286,16 @@ each named calculated workload, require **100% live matches over its full formul
 bit-exact numbers and exact text/errors, zero mismatches/refusals/missing answers, and matching
 refresh effects. Held/external caches are separate qualifications, never included as successes.
 This is a target for the workloads, not a claim the current catalogue or CUBE refresh passes.
+
+On 2026-11-22, Excel 16.0.20527 and Win64 CalcHost at `95eb0cb2` matched all 46 GAME records
+on the corrected solid-fill circular-reference workbook. Its SHA-256 is
+`f3753f954e72de7a72f9d68032ee92a8f74c0b279fa3b914d552c8ff7e81a790`.
+The Firefox DOM and Canvas captures at 96 DPI and 100% zoom matched 360 of 360 fill-colour
+checks. Fourteen measured cells had other paint differences. The corrected workbook, exact
+records and paint captures were checksum-checked at
+`r2:dnacalc-evidence/excel/ww4-game-20261122T131102Z` (one file, 634,707 bytes).
+The original workbook and capture are paired by their original hash.
+
 Replay the existing [format cases](../../apps/dna-onecalc/tests/fixtures/formats/cases.tsv)
 through displayed cells and TEXT under each recorded regional profile: all strings must match
 exactly, and the 61 unsettled rows need observations under real regional settings, not exclusion.
