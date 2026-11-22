@@ -73,7 +73,6 @@ IMCSCH	8	0	0	0	0	text15:excel-quirk=7;text15:ours-wrong=1	0.000	0.000
 PPMT	8	0	1	2	5		8578140908088936.000	8578140908088936.000
 IMCOSH	7	0	0	0	0	text15:excel-quirk=3;text15:ours-wrong=4	0.000	0.000
 IPMT	7	1	1	2	2	reference-failed:ZeroDivisionError=1	2285.893	83.107
-GROWTH	6	0	0	0	0	no-reference=6	0.000	0.000
 NORM.S.DIST	6	0	2	3	1		71.961	72.961
 RATE	6	0	0	0	0	structural:number/error:Num=6	0.000	0.000
 WRAPCOLS	5	0	0	0	0	structural:error:Spill/number=5	0.000	0.000
@@ -89,7 +88,6 @@ TEXTSPLIT	2	0	0	0	0	structural:error:Spill/text=2	0.000	0.000
 WEIBULL.DIST	2	0	1	1	0		4.214	2.214
 CSCH	1	1	0	0	0		0.368	0.632
 EXPON.DIST	1	0	0	0	1		29.327	30.327
-LINEST	1	0	0	0	0	no-reference=1	0.000	0.000
 PMT	1	0	1	0	0		0.982	0.018
 SECH	1	0	1	0	0		0.767	0.233
 WEIBULL	1	1	0	0	0		0.246	0.754

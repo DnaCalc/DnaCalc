@@ -541,9 +541,10 @@ fn prediction_input_from_optional(
 ///    `+sqrt(s)` otherwise (an exactly zero entry reflects as a negative one, R42),
 ///    `v = (x0 - alpha, the entries below)`, `vv = rest + v0*v0`, and each later column and `y`
 ///    become `a - (2*(v.a)/vv)*v`.
-/// 3. Back substitution: `b_j = (y_j - d)/alpha_j`, with `d` the forward sum of `r_jk*b_k` over
-///    the later columns.
-/// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
+/// 3. Back substitution: `b_j = (y_j - d)/alpha_j`, with `d` the reverse-`k` sum of `r_jk*b_k`
+///    over the later columns (`rank - 1` down to `j + 1`), all in stored PC64 x87 arithmetic
+///    (Carbon cb12 / `dc-j9k.69`).
+/// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order in PC64 x87.
 ///
 /// 5. Collinearity: at a predictor column's step, after the pivot is chosen, its remaining sum
 ///    of squares is taken as its sum of squares before the steps less the square of each entry
@@ -579,15 +580,20 @@ fn least_squares(
     y: &[f64],
     use_const: bool,
 ) -> Result<RegressionFit, WorksheetErrorCode> {
+    use excel_numeric::{
+        excel_sqrt_staged, excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul,
+        excel_x87_sub as sub,
+    };
+
     let n = y.len();
-    let mean = |values: &[f64]| values.iter().fold(0.0, |sum, v| sum + v) / n as f64;
+    let mean = |values: &[f64]| div(values.iter().fold(0.0, |sum, v| add(sum, *v)), n as f64);
     let means: Vec<f64> = columns.iter().map(|column| mean(column)).collect();
     let y_mean = if use_const { mean(y) } else { 0.0 };
     // The matrix's columns, each with the predictor it holds (None for the ones column).
     let mut matrix: Vec<(Option<usize>, Vec<f64>)> = Vec::with_capacity(columns.len() + 1);
     for (index, column) in columns.iter().enumerate() {
         let values = if use_const {
-            column.iter().map(|v| v - means[index]).collect()
+            column.iter().map(|v| sub(*v, means[index])).collect()
         } else {
             column.clone()
         };
@@ -602,7 +608,7 @@ fn least_squares(
         matrix.swap(0, last);
     }
     let mut target: Vec<f64> = if use_const {
-        y.iter().map(|v| v - y_mean).collect()
+        y.iter().map(|v| sub(*v, y_mean)).collect()
     } else {
         y.to_vec()
     };
@@ -625,13 +631,11 @@ fn least_squares(
             observations: n,
         });
     }
-    // R25 full-rank orthogonal probes require PC64 square-product arithmetic.
-    // Use the shared stored product; the exact accumulator/store layout stays
-    // unresolved, so keep the existing addition.
+    // Uniform stored PC64 x87 sum of squares (Carbon cb12 / dc-j9k.69, Excel 16.0.20527).
     let squares_from = |values: &[f64], from: usize| {
         values[from..]
             .iter()
-            .fold(0.0, |sum, v| sum + excel_numeric::excel_x87_mul(*v, *v))
+            .fold(0.0, |sum, v| add(sum, mul(*v, *v)))
     };
     // Each column's sum of squares before the steps, the scale its remainder is judged against.
     let initial: Vec<f64> = matrix
@@ -683,18 +687,20 @@ fn least_squares(
         let collinear = scale[j].1 > 0.0 && matrix[j].0.is_some() && {
             let before = scale[j].1;
             if j + 1 == matrix.len() {
-                let remainder = matrix[j].1[..j].iter().fold(before, |rest, r| rest - r * r);
-                remainder < before * COLLINEAR_REMAINDER
+                let remainder = matrix[j].1[..j]
+                    .iter()
+                    .fold(before, |rest, r| sub(rest, mul(*r, *r)));
+                remainder < mul(before, COLLINEAR_REMAINDER)
             } else {
                 // With columns still to come the test reads the reflector's normaliser
                 // `vv = rest + (x0 - alpha)^2` (R43: near-collinear pairs beside a zero or tiny
                 // third column switch at vv = 2^-41 times the initial sum of squares, n = 4 to
                 // 32, with and without a constant; the last column switches on its remainder).
-                let norm = squares.sqrt();
+                let norm = excel_sqrt_staged(squares);
                 let alpha = if x0 > 0.0 { -norm } else { norm };
-                let v0 = excel_numeric::excel_x87_sub(x0, alpha);
-                let vv = excel_numeric::excel_x87_add(rest, excel_numeric::excel_x87_mul(v0, v0));
-                vv < before * COLLINEAR_REMAINDER
+                let v0 = sub(x0, alpha);
+                let vv = add(rest, mul(v0, v0));
+                vv < mul(before, COLLINEAR_REMAINDER)
             }
         };
         if scale[j].1 > 0.0 && matrix[j].0.is_some() && (squares == 0.0 || collinear) {
@@ -710,7 +716,7 @@ fn least_squares(
             j += 1;
             continue;
         }
-        let norm = squares.sqrt();
+        let norm = excel_sqrt_staged(squares);
         // A zero diagonal entry reflects as a negative one (R42: mirrored designs whose entry
         // is exactly zero after the ones column's step).
         let alpha = if x0 > 0.0 { -norm } else { norm };
@@ -739,11 +745,13 @@ fn least_squares(
     let rank = matrix.len();
     let mut solution = vec![0.0; rank];
     for j in (0..rank).rev() {
-        let d = ((j + 1)..rank).fold(0.0, |sum, k| sum + matrix[k].1[j] * solution[k]);
+        let d = ((j + 1)..rank)
+            .rev()
+            .fold(0.0, |sum, k| add(sum, mul(matrix[k].1[j], solution[k])));
         solution[j] = if diagonal[j] == 0.0 {
             0.0
         } else {
-            (target[j] - d) / diagonal[j]
+            div(sub(target[j], d), diagonal[j])
         };
     }
     let mut coefficients = vec![0.0; columns.len()];
@@ -756,7 +764,7 @@ fn least_squares(
         coefficients
             .iter()
             .zip(means.iter())
-            .fold(y_mean, |a, (b, m)| a - b * m)
+            .fold(y_mean, |a, (b, m)| sub(a, mul(*b, *m)))
     } else {
         0.0
     };
@@ -816,24 +824,33 @@ fn linear_fit_from_data(
     least_squares(&columns, &known_y.values, use_const)
 }
 
-/// A TREND prediction: `b_1*x_1 + b_2*x_2 + ...`, added in predictor order, then the intercept.
+/// A TREND prediction: `b_1*x_1 + b_2*x_2 + ...`, added in predictor order, then the intercept,
+/// using stored PC64 x87 arithmetic (Carbon cb12 / dc-j9k.69).
 fn linear_prediction(model: &LinearRegressionModel, x: &[f64]) -> f64 {
-    let mut terms = model.coefficients.iter().zip(x.iter()).map(|(b, x)| b * x);
+    let mut terms = model
+        .coefficients
+        .iter()
+        .zip(x.iter())
+        .map(|(b, x)| excel_numeric::excel_x87_mul(*b, *x));
     let first = terms.next().unwrap_or(0.0);
-    terms.fold(first, |sum, term| sum + term) + model.intercept
+    excel_numeric::excel_x87_add(
+        terms.fold(first, |sum, term| excel_numeric::excel_x87_add(sum, term)),
+        model.intercept,
+    )
 }
 
 /// A GROWTH prediction: the product of `EXP(b_j*x_j)` in predictor order, from 1, then
-/// `EXP(intercept)` times it.
+/// `EXP(intercept)` times it, using stored PC64 x87 arithmetic (Carbon cb12 / dc-j9k.69).
 fn exponential_prediction(model: &LinearRegressionModel, x: &[f64]) -> f64 {
+    let mul = excel_numeric::excel_x87_mul;
     let product = model
         .coefficients
         .iter()
         .zip(x.iter())
         .fold(1.0, |product, (b, x)| {
-            product * excel_numeric::excel_exp(b * x)
+            mul(product, excel_numeric::excel_exp(mul(*b, *x)))
         });
-    excel_numeric::excel_exp(model.intercept) * product
+    mul(excel_numeric::excel_exp(model.intercept), product)
 }
 
 /// The fit of LOGEST and GROWTH: the least-squares fit of the worksheet LN of each y (#NUM! for
@@ -979,7 +996,10 @@ fn one_observation_statistics(first: Vec<f64>) -> CalcValue {
 /// of y, F and the degrees of freedom, and the regression and residual sums of squares. LOGEST's
 /// statistics are those of the fit to ln y.
 fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> CalcValue {
-    use excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul};
+    use excel_numeric::{
+        excel_sqrt_staged, excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul,
+        excel_x87_sub as sub,
+    };
 
     if fit.order.is_empty() {
         return one_observation_statistics(first);
@@ -989,31 +1009,31 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     let predictors = p - usize::from(use_const);
     // R41 coordinate predictors leave the response tail unchanged, exposing
     // the residual square and accumulation without an approximate QR factor.
-    // Both SSresid and SStotal use forward RN53(RN64) products and additions:
-    // 512 isolated squares, 225 distinguishing sums and 2,048 fresh selected
-    // results (lengths 3..32, one/two coordinate columns, response exponents
-    // -200..200) agree with independent rational predictions. Another 546
-    // fresh selections separate strict additions after the same PC64 products.
-    // Private QR and
-    // centring remain separate, unresolved producers.
-    let squares = |values: &[f64]| {
-        values.iter().fold(0.0, |sum, v| {
-            excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*v, *v))
-        })
-    };
+    // Both SSresid and SStotal use forward RN53(RN64) products and additions.
+    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| add(sum, mul(*v, *v)));
     let ss_resid = squares(&fit.qty[p..]);
     let ss_total = squares(&fit.y);
-    let ss_reg = ss_total - ss_resid;
+    let ss_reg = sub(ss_total, ss_resid);
     let df = (n - p) as f64;
     // With no degrees of freedom left Excel gives R squared 1, every standard error 0 and F
-    // #NUM! (an exact fit of as many columns as observations).
+    // #NUM! (an exact fit of as many columns as observations). When ss_total == 0.0 with n > p
+    // (constant y with const=TRUE, or y == 0 / ln(y) == 0 with const=FALSE), Excel also returns
+    // R squared 1.0 and F #NUM! (Carbon cb12 / dc-j9k.69).
     let exact = n == p;
-    let r2 = if exact { 1.0 } else { ss_reg / ss_total };
-    let se_y = if exact { 0.0 } else { (ss_resid / df).sqrt() };
+    let r2 = if exact || ss_total == 0.0 {
+        1.0
+    } else {
+        div(ss_reg, ss_total)
+    };
+    let se_y = if exact {
+        0.0
+    } else {
+        excel_sqrt_staged(div(ss_resid, df))
+    };
     let f = if exact {
         f64::NAN
     } else {
-        (ss_reg / predictors as f64) / (ss_resid / df)
+        div(div(ss_reg, predictors as f64), div(ss_resid, df))
     };
     // The inverse of the triangular factor over the columns with a nonzero diagonal (a column
     // kept as zero comes last and has standard error 0), column by column.
@@ -1036,7 +1056,7 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     for (position, predictor) in fit.order.iter().enumerate().take(nz) {
         if let Some(index) = predictor {
             if !exact {
-                se[*index] = scaled_covariance(position, position).sqrt();
+                se[*index] = excel_sqrt_staged(scaled_covariance(position, position));
             }
         }
     }
@@ -1054,12 +1074,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
         let se_b = if exact {
             0.0
         } else {
-            // The constant is my - sum(b_j m_j). Its variance sums the
-            // diagonal contributions before the cross terms of the scaled
-            // covariance. Start with the constant and walk back through the
-            // predictor diagonal. Walk the pairs backwards as well.
-            // Excel 20527 translation probes and dcztvv_r24!D1 distinguish
-            // early scaling and the cross-term order under cancellation.
+            // The constant is my - sum(b_j m_j). Its variance starts with the
+            // constant's diagonal entry, adds active predictor diagonals in
+            // unpermuted 0..k order, then row-major active predictor pairs
+            // (p_i, p_j) for i < j, and finally the (p_i, const) pairs
+            // (Carbon cb12 / dc-j9k.69, Excel 16.0.20527).
             let weights: Vec<f64> = fit
                 .order
                 .iter()
@@ -1069,17 +1088,24 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
                     Some(index) => -fit.means[*index],
                 })
                 .collect();
-            let mut variance = (1..nz).rev().fold(scaled_covariance(0, 0), |sum, i| {
-                let squared_weight = mul(weights[i], weights[i]);
-                add(sum, mul(squared_weight, scaled_covariance(i, i)))
+            let active_preds: Vec<usize> = (0..fit.model.coefficients.len())
+                .filter_map(|pred| fit.order.iter().take(nz).position(|p| *p == Some(pred)))
+                .collect();
+            let mut variance = active_preds.iter().fold(scaled_covariance(0, 0), |sum, &pos| {
+                let squared_weight = mul(weights[pos], weights[pos]);
+                add(sum, mul(squared_weight, scaled_covariance(pos, pos)))
             });
-            for a in (0..nz).rev() {
-                for b in (0..a).rev() {
+            for (idx_a, &a) in active_preds.iter().enumerate() {
+                for &b in &active_preds[(idx_a + 1)..] {
                     let weight = mul(2.0, mul(weights[a], weights[b]));
                     variance = add(variance, mul(weight, scaled_covariance(a, b)));
                 }
             }
-            variance.sqrt()
+            for &a in &active_preds {
+                let weight = mul(2.0, mul(weights[a], weights[0]));
+                variance = add(variance, mul(weight, scaled_covariance(a, 0)));
+            }
+            excel_sqrt_staged(variance)
         };
         second.push(number(se_b));
     } else {
@@ -2176,5 +2202,293 @@ mod tests {
             eval_linest_surface(&[CalcValue::error(WorksheetErrorCode::NA), wide()]),
             Err(WorksheetErrorCode::NA)
         );
+    }
+
+    fn bits_matrix(rows: &[&[u64]]) -> CalcValue {
+        CalcValue::array(
+            CalcArray::from_rows(
+                rows.iter()
+                    .map(|r| {
+                        r.iter()
+                            .map(|b| CalcValue::number(f64::from_bits(*b)))
+                            .collect()
+                    })
+                    .collect(),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// dc-j9k.69 / dc-iuwct.62 (Carbon cb12, Excel 16.0.20527.20196): unified x87 PC64 QR,
+    /// `excel_sqrt_staged`, unpermuted `se_b`, reverse-`k` back-substitution, zero-total `R^2 = 1`,
+    /// and `GROWTH`/`TREND` prediction staging across frozen unseen holdouts and the `sx1` gross
+    /// `intercept_se` cohort.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb12_unified_x87_regression_and_forecast_matches_excel() {
+        // 1. excel_sqrt_staged: sx1 intercept_se[344] (97.2B ULP -> 0), cb12_h2_0001 se_y,
+        //    and unseen cb12_h2_0006 (102.4B ULP -> 0).
+        let y344: Vec<u64> = [
+            0x3fe8000000000000,
+            0x4012000000000000,
+            0x3ff4000000000000,
+            0x4016000000000000,
+        ]
+        .repeat(4);
+        let x344_unit: [[u64; 2]; 4] = [
+            [0x4010000000000000, 0x401ffffe00000000],
+            [0x4018000000000000, 0x4027ffff00000000],
+            [0x4010000000000000, 0x4020000100000000],
+            [0x4018000000000000, 0x4028000100000000],
+        ];
+        let x344_rows: Vec<&[u64]> = (0..16).map(|i| x344_unit[i % 4].as_slice()).collect();
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&y344),
+                bits_matrix(&x344_rows),
+                bool_arg(true),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[1 * 3 + 2], Ok(0x3fc6a087c5d584f3), "sx1 intercept_se[344]");
+
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&[
+                    0x3ff0000000000000,
+                    0x3ffc617704dff392,
+                    0x3ff41a9df6e73729,
+                    0x0000000000000000,
+                    0x0000000000000000,
+                ]),
+                bits_col(&[
+                    0x3ff0000000000000,
+                    0x0000000000000000,
+                    0x0000000000000000,
+                    0x0000000000000000,
+                    0x0000000000000000,
+                ]),
+                bool_arg(false),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[2 * 2 + 1], Ok(0x3ff163d0c9476b90), "cb12_h2_0001 se_y");
+
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&[
+                    0x4020000000000000,
+                    0x402ec00000000000,
+                    0xc026800000000000,
+                    0xc023c00000000000,
+                    0x4033800000000000,
+                    0xc020400000000000,
+                    0x4036400000000000,
+                    0x4005000000000000,
+                    0x4036000000000000,
+                    0x4036600000000000,
+                    0xc00a000000000000,
+                    0x4026400000000000,
+                ]),
+                bits_matrix(&[
+                    &[0x401c000000000000, 0x402c0001ecd721fc],
+                    &[0x4011000000000000, 0x4020fffe89f9cd6f],
+                    &[0x4012000000000000, 0x402200011fb65c8e],
+                    &[0x4013000000000000, 0x4022fffecba65de4],
+                    &[0x4024000000000000, 0x40340000b34857fb],
+                    &[0x4011000000000000, 0x4020fffec06b179d],
+                    &[0x4016000000000000, 0x4026000114a5c566],
+                    &[0x4023800000000000, 0x40337fff084b108a],
+                    &[0x4024000000000000, 0x40340000d6d3e8f3],
+                    &[0x4020800000000000, 0x40307fff21d7324a],
+                    &[0x4012000000000000, 0x402200015a205b9e],
+                    &[0x4017000000000000, 0x4026fffe383776cf],
+                ]),
+                bool_arg(true),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[1 * 3 + 2], Ok(0x40257c2f4a15e991), "cb12_h2_0006 QR-amplified se_b");
+
+        // 2. Unpermuted predictor-order se_b (4 predictors, cb12_h_0004).
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&[
+                    0x4034000000000000,
+                    0x403e400000000000,
+                    0xc03b800000000000,
+                    0xc033400000000000,
+                    0x4044800000000000,
+                    0x4043a00000000000,
+                    0x402d000000000000,
+                ]),
+                bits_matrix(&[
+                    &[0x4042500000000000, 0x406a240000000000, 0xc029c00000000000, 0x40761a0000000000],
+                    &[0x404ca00000000000, 0x406da80000000000, 0xc03bc00000000000, 0xc08b860000000000],
+                    &[0x4007000000000000, 0x406aec0000000000, 0xc034a00000000000, 0xc08ef10000000000],
+                    &[0x4051200000000000, 0xc060700000000000, 0xc03b800000000000, 0x4039800000000000],
+                    &[0xc017800000000000, 0x4047500000000000, 0xc035600000000000, 0x4044900000000000],
+                    &[0x4050300000000000, 0xc049200000000000, 0xc036400000000000, 0x407afc0000000000],
+                    &[0x4046b00000000000, 0x4059b80000000000, 0xc032200000000000, 0x4074260000000000],
+                ]),
+                bool_arg(true),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[1 * 5 + 4], Ok(0x405671480784f433), "cb12_h_0004 unpermuted se_b");
+
+        // 3. Pre-QR PC64 mean/centring (cb12_h_0044) & reverse-k back-substitution (cb12_h_0071).
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&[
+                    0x3fb000000000003e,
+                    0x3c60010000000000,
+                    0x0000000000000000,
+                    0x0000000000000000,
+                ]),
+                bits_col(&[
+                    0xbff0000000000000,
+                    0xbff0000000000000,
+                    0x3ff0000000000000,
+                    0x3ff0000000000000,
+                ]),
+                bool_arg(true),
+                bool_arg(false),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[1], Ok(0x3f9000000000003e), "cb12_h_0044 pre-QR x87");
+
+        let cells = block(
+            eval_linest_surface(&[
+                bits_col(&[
+                    0x0000000000000000,
+                    0x4050000000000000,
+                    0x4020000000000000,
+                    0x3ff0000000000000,
+                    0x0000000000000000,
+                ]),
+                bits_matrix(&[
+                    &[0x4080000000000000, 0xbfc00000000000aa, 0x3c70000000000000, 0x3c70000000000000],
+                    &[0x0000000000000000, 0x4050000000000000, 0x0000000000000000, 0x0000000000000000],
+                    &[0x0000000000000000, 0x0000000000000000, 0x4020000000000000, 0x0000000000000000],
+                    &[0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x3ff0000000000000],
+                    &[0x0000000000000000, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000],
+                ]),
+                bool_arg(false),
+                bool_arg(false),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(cells[3], Ok(0x3f300000000000a9), "cb12_h_0071 reverse-k backsub");
+
+        // 4. Zero-total R^2 = 1.0 & F = #NUM! for both LINEST (cb12_h_0111) and LOGEST (cb12_h_0151).
+        let x_degen = bits_matrix(&[
+            &[0x3ff0000000000000, 0x4000000000000000],
+            &[0x4000000000000000, 0x4014000000000000],
+            &[0x4008000000000000, 0x3ff0000000000000],
+            &[0x4010000000000000, 0x4008000000000000],
+        ]);
+        let lin_degen = block(
+            eval_linest_surface(&[
+                bits_col(&[0xc00c000000000000; 4]),
+                x_degen.clone(),
+                bool_arg(true),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(lin_degen[2 * 3], Ok(1.0f64.to_bits()), "cb12_h_0111 LINEST R^2");
+        assert_eq!(lin_degen[3 * 3], Err(WorksheetErrorCode::Num), "cb12_h_0111 LINEST F");
+
+        let log_degen = block(
+            eval_logest_surface(&[
+                bits_col(&[0x3ff0000000000000; 4]),
+                x_degen,
+                bool_arg(false),
+                bool_arg(true),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(log_degen[2 * 3], Ok(1.0f64.to_bits()), "cb12_h_0151 LOGEST R^2");
+        assert_eq!(log_degen[3 * 3], Err(WorksheetErrorCode::Num), "cb12_h_0151 LOGEST F");
+
+        // 5. GROWTH (cb12_h_0191, cb12_h2_0010) and TREND (cb12_h_0199) PC64 prediction loops.
+        let growth1 = eval_growth_surface(&[
+            bits_col(&[
+                0x40199abb303faa3c,
+                0x401566396cb2a00d,
+                0x400fd7b35c2c096a,
+                0x400f6dc871e0a156,
+            ]),
+            bits_matrix(&[
+                &[0x0000000000000000, 0x0000000000000000, 0x0000000000000000],
+                &[0x3ff0000000000000, 0x0000000000000000, 0x0000000000000000],
+                &[0x0000000000000000, 0x3ff0000000000000, 0x0000000000000000],
+                &[0x0000000000000000, 0x0000000000000000, 0x3ff0000000000000],
+            ]),
+            bits_matrix(&[&[0x3fdeb00edcca20ba, 0xbfdba5d5373cd1d9, 0x3fd8ec7f59f97b8b]]),
+            bool_arg(true),
+        ])
+        .unwrap();
+        assert_eq!(expect_number(growth1).to_bits(), 0x4017da1dd1049ef6, "cb12_h_0191 GROWTH");
+
+        let growth2 = eval_growth_surface(&[
+            bits_col(&[
+                0x401793c8a6aa1cf8,
+                0x400f8146e6d0f47b,
+                0x4013b54cf2ae4977,
+                0x3ffb2e4a7e7c6a6c,
+                0x401d59d9ca09f057,
+                0x401abc95ec5c1207,
+                0x3ffea3a9c902371e,
+                0x3ffe33fb6355124a,
+            ]),
+            bits_matrix(&[
+                &[0xbfff7b9e5b618ada, 0x40044f2de40bd8ec],
+                &[0xbfff45274700270a, 0x400860d38341f0dc],
+                &[0x3ffc0fa53b25e6db, 0xc0043b239ec19fec],
+                &[0xc001f9ebf783be2d, 0xc0065aa1f5742634],
+                &[0x3ff499f9927cb916, 0x400868cfe83f2c64],
+                &[0x400f4cb449341e2d, 0x4001ea6c761c3be2],
+                &[0x3ffeb7fd8fb8f577, 0x40020d7b403c475e],
+                &[0xbffd9efbe405bd14, 0x3fffad30c796433a],
+            ]),
+            bits_matrix(&[&[0x3ff7de4dbefa68b4, 0xbfe46ddfd6135e2a]]),
+            bool_arg(false),
+        ])
+        .unwrap();
+        assert_eq!(expect_number(growth2).to_bits(), 0x3fef0c56a8859440, "cb12_h2_0010 GROWTH");
+
+        let trend = eval_trend_surface(&[
+            bits_col(&[
+                0x40082113484cd2f9,
+                0x400ee8dbe3c9cc80,
+                0xc00a49ffdb9c2117,
+                0xc00d0aa75779f8d2,
+                0xc00e8623d2adf8f5,
+                0xc00d72dfe677a3e8,
+                0xc00e1c65d24c9032,
+                0xc008537572158f7d,
+            ]),
+            bits_matrix(&[
+                &[0x3ffb0745cf804580, 0x3ffe5ac165c47773],
+                &[0xc00f3d868f1b3b0d, 0x3ff7822ce5550570],
+                &[0x40096cffd538524c, 0x400e9114e4915a77],
+                &[0x3ff8d476f9e8841f, 0x3ffa6067182e4e34],
+                &[0x40111ea578e8d004, 0x400d11d75495447d],
+                &[0x4010af32a69c0666, 0x40130e80be4e0e36],
+                &[0xc00947f0372d0086, 0x3ff654671f86f541],
+                &[0x400b56038d5293f9, 0xc00b5425c462c521],
+            ]),
+            bits_matrix(&[&[0x40062fc8467b6289, 0xbff6afaad016ea31]]),
+            bool_arg(false),
+        ])
+        .unwrap();
+        assert_eq!(expect_number(trend).to_bits(), 0xbff405455e383506, "cb12_h_0199 TREND");
     }
 }
