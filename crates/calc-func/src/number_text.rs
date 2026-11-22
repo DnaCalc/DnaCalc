@@ -1,6 +1,7 @@
 //! A number's text when the & operator reads the number as text, as Excel gives it with `.` as
 //! the decimal separator and no column width. Its first 15-digit rounding is also used by
-//! FIXED/DOLLAR/TEXT and general formatting; their formatting after that step remains separate.
+//! ROUND, AMORDEGRC, _EUROTOOL.EUROCONVERT, FIXED/DOLLAR/TEXT and general formatting; their
+//! formatting or rounding after that step remains separate.
 //!
 //! The rule, as measured in Excel 16.0 (builds 20430 and 20527) under the Windows locale en-ZA,
 //! whose decimal separator `.` is en-US's (en-US itself was not measured); the text holds no

@@ -711,3 +711,72 @@ fn dc_j9k_87_cb16_unified_fptan_circular_substrate() {
         unary_rows.len() + complex_rows.len() + bessel_rows.len()
     );
 }
+
+/// dc-j9k.88 (Carbon cb17): ROUND shares Excel's Q0.64 two-branch 15-digit reader
+/// (`number_text::decimal`) with post-carry `reading.magnitude()` wraparound, and
+/// COMPLEX/IM* share `directed_fifteen_x87` (`Excel 16.0.20527.20196`, portable integer arithmetic).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_88_cb17_round_q64_and_complex_text() {
+    #[rustfmt::skip]
+    let round_rows: &[(u64, u64, u64)] = &[
+        // P1: Branch 1 (1 <= |x| < 2^16) exact dyadic ties round down.
+        (0x3ff4_47a0_0000_0000, 0x402c_0000_0000_0000, 0x3ff4_479f_ffff_ffe9),
+        (0xc030_ed24_0000_0000, 0x402a_0000_0000_0000, 0xc030_ed23_ffff_fff2),
+        // P1 / H1: Branch 1 Q16.64 pre-addition flips above exact midpoints.
+        (0x3ffc_33d8_5249_3ddf, 0x402c_0000_0000_0000, 0x3ffc_33d8_5249_3df6),
+        (0x3ff9_be20_2d72_9743, 0x402c_0000_0000_0000, 0x3ff9_be20_2d72_975a),
+        (0xbffc_85c3_4a96_bf57, 0x402c_0000_0000_0000, 0xbffc_85c3_4a96_bf6e),
+        // P2 / H2 / full-bank ROUND.tsv: Branch 2 sawtooth & low-nibble PC64 scale.
+        (0x40f4_c22b_c1ba_cb95, 0x4024_0000_0000_0000, 0x40f4_c22b_c1ba_cb92),
+        (0x0491_263c_6b33_45a8, 0x4072_c000_0000_0000, 0x0491_263c_6b33_4593),
+        (0x083b_a339_4b26_4876, 0x4071_b000_0000_0000, 0x083b_a339_4b26_487d),
+        (0x201d_d231_4018_4ffa, 0x4065_0000_0000_0000, 0x201d_d231_4018_4ff2),
+        // P3: Branch 2 Farey ceil(frexp_k / 3.3219) discriminators.
+        (0x0345_33c7_8670_3714, 0x4073_3000_0000_0000, 0x0345_33c7_8670_3718),
+        (0x834c_f61d_efd9_43ed, 0x4073_3000_0000_0000, 0x834c_f61d_efd9_43f1),
+        // P3: Branch 2 ev >= 0 sliver (10^-1 correction before truncating shift).
+        (0x219f_fb9c_4acf_e7ee, 0x4064_0000_0000_0000, 0x219f_fb9c_4acf_e7c1),
+        (0xa19f_fa8f_8f4f_0396, 0x4064_0000_0000_0000, 0xa19f_fa8f_8f4f_0369),
+        // P4A / P4B: Post-carry reading.magnitude() 32-bit wraparound vs pre-carry.
+        (0x40c3_87ff_ffff_ffff, 0x41df_ffff_fec0_0000, 0x0000_0000_0000_0000),
+        (0xc12e_847f_ffff_fffe, 0x41df_ffff_fe40_0000, 0x0000_0000_0000_0000),
+        (0x40f0_0000_0000_0671, 0x41df_ffff_fe80_0000, 0x40f0_0000_0000_0671),
+        // Pinned ROUND-00970 preserved (truncating shift into Q0.64).
+        (0x02d6_c926_0001_5d5b, 0x4073_5000_0000_0000, 0x02d6_c926_0001_5d55),
+        // Subnormal guard returns +0 regardless of num_digits.
+        (0x0000_0000_0000_0001, 0x4074_4000_0000_0000, 0x0000_0000_0000_0000),
+    ];
+    for &(x_bits, digits_bits, expected) in round_rows {
+        let got = number(call(
+            "ROUND",
+            vec![n(f64::from_bits(x_bits)), n(f64::from_bits(digits_bits))],
+        ));
+        assert_eq!(
+            got.to_bits(),
+            expected,
+            "ROUND({x_bits:#018x}, {digits_bits:#018x}): got {:#018x}, expected {expected:#018x}",
+            got.to_bits()
+        );
+    }
+
+    // Holdout controls confirming COMPLEX and IM* retain directed_fifteen_x87 formatting.
+    for &(re_bits, im_bits, expected) in &[
+        (0x02b0_4039_5ff7_2d65u64, 0x0000_0000_0000_0000u64, "9.9394196903566E-296"),
+        (0x5e32_1958_0b96_1a1b, 0x0000_0000_0000_0000, "5.65005261194644E+145"),
+        (0x0000_0000_0000_0000, 0xa19f_ffdd_9f1d_a8e7, "-1.00102513759339E-146i"),
+    ] {
+        text(
+            call("COMPLEX", vec![n(f64::from_bits(re_bits)), n(f64::from_bits(im_bits))]),
+            expected,
+        );
+    }
+    for &(func, a, b, expected) in &[
+        ("IMDIV", "779496170723E-200+0i", "8381401", "9.3003087517588E-196"),
+        ("IMPRODUCT", "217839000024E-212", "270856680823E-1", "5.90031485003021E-191"),
+        ("IMSUM", "842235242468E-152", "519992646571E-160", "8.42235247667926E-141"),
+        ("IMSUB", "939668388801E-182", "298196148651E-190", "9.39668385819039E-171"),
+    ] {
+        text(call(func, vec![t(a), t(b)]), expected);
+    }
+}

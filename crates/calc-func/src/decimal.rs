@@ -456,15 +456,17 @@ impl ExactDecimal {
         length - 1 + self.exponent
     }
 
-    /// How ROUND (`ties_up` false) and ROUNDUP, ROUNDDOWN and TRUNC (`ties_up` true) read a
-    /// finite non-zero number to fifteen significant digits.
+    /// How ROUND (`ties_up` false) and ROUNDUP, ROUNDDOWN, TRUNC and COMPLEX (`ties_up` true)
+    /// read a finite non-zero number to fifteen significant digits.
     ///
-    /// ROUND scales `|x|` by `10^n` (`n = 14 - e`, `e` the exact decimal exponent) — exact in 64
-    /// bits for `|n| <= 27`, or one 64-bit `RN64(10^|n|)` product/quotient beyond — and rounds to
-    /// an integer with a half down.
+    /// ROUND (`ties_up` false; dc-j9k.88 / cb17) delegates to Excel's shared Q0.64 two-branch
+    /// 15-digit reader (`number_text::decimal`), matching `&`, `TEXT`, `FIXED`, `DOLLAR`,
+    /// `AMORDEGRC`, and `_EUROTOOL.EUROCONVERT`: exact Q16.64 split on `[1, 2^16)`, and
+    /// `ceil(frexp_k / 3.3219)` low-nibble PC=64 scaling with truncating shift into Q0.64
+    /// outside `[1, 2^16)`.
     ///
-    /// The directed functions (`ties_up` true; dc-m53ln, Excel 16.0.20527 Touchstone probes with
-    /// frozen predictions) estimate the decimal exponent from the IEEE `frexp` exponent
+    /// The directed functions and complex text (`ties_up` true; dc-m53ln, dc-ymjf.2.128,
+    /// dc-j9k.88) estimate the decimal exponent from the IEEE `frexp` exponent
     /// `k = floor(log2(|x|)) + 1` as `e_est = floor(k / 3.3219)` (every constant in the Farey
     /// interval `(146/485, 233/774)` produces the same integer for all binary64 exponents,
     /// confirmed at `k = ±485, -970, +970, +774` and 29/29 critical exponents), scale `|x|` by
@@ -475,6 +477,9 @@ impl ExactDecimal {
     /// 16-digit integer `M`, publishes `M * 10^-s1` via the nibble chain to binary64 `y`, and
     /// re-scales `y` by `s1 - 1` (150/150 at `k = -485`).
     pub(crate) fn fifteen_x87(x: f64, ties_up: bool) -> Option<ExactDecimal> {
+        if !ties_up {
+            return Some(crate::number_text::decimal(x));
+        }
         let bits = x.abs().to_bits();
         let biased = i32::try_from((bits >> 52) & 0x7FF).expect("an 11-bit exponent");
         let fraction_bits = bits & ((1u64 << 52) - 1);
@@ -483,44 +488,7 @@ impl ExactDecimal {
         } else {
             (fraction_bits | (1u64 << 52), biased - 1075)
         };
-        if ties_up {
-            return Some(directed_fifteen_x87(x < 0.0, mantissa, exponent));
-        }
-        let shift = 14 - ExactDecimal::binary(x).magnitude();
-        let mut numerator = Natural::from_u64(mantissa);
-        let mut denominator = Natural::from_u64(1);
-        if shift >= 0 {
-            numerator.times_pow10(shift.unsigned_abs());
-        } else {
-            denominator = Natural::pow10(shift.unsigned_abs());
-        }
-        // The scaled value rounded to 64 bits: kept * 2^power.
-        let (kept, power) = if shift.abs() <= 27 {
-            round_to_64_bits(&numerator, exponent, &denominator)
-        } else {
-            // ROUND keeps the one-constant construction: the chain moves ROUND-00970
-            // (0x02d6c92600015d5b, 309 digits) away from Excel, and the note proved only the
-            // directed functions.
-            let one = Natural::from_u64(1);
-            let (scale, scale_power) =
-                round_to_64_bits(&Natural::pow10(shift.unsigned_abs()), 0, &one);
-            let scale = Natural::from_u128(scale);
-            let start = Natural::from_u64(mantissa);
-            if shift > 0 {
-                round_to_64_bits(&start.times(&scale), exponent + scale_power, &one)
-            } else {
-                round_to_64_bits(&start, exponent - scale_power, &scale)
-            }
-        };
-        let whole = round_64_to_natural(kept, power, false);
-        Some(
-            ExactDecimal {
-                negative: x < 0.0,
-                coefficient: whole,
-                exponent: -shift,
-            }
-            .normalized(),
-        )
+        Some(directed_fifteen_x87(x < 0.0, mantissa, exponent))
     }
 
     /// The same value with no trailing zero in its coefficient.

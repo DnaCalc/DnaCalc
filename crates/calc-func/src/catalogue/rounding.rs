@@ -286,13 +286,13 @@ fn flush(result: f64) -> f64 {
 }
 
 /// ROUND's kernel. num_digits counts as a 32-bit integer, toward zero and limited to
-/// +/-2147483647, and ROUND keeps `digits + e + 1` significant digits of the number, e being its
-/// decimal exponent, the sum taken in 32-bit two's complement: fifteen or more keep the whole
-/// reading, fewer than none give 0, and otherwise the reading is rounded at 10^-digits. So
-/// ROUND(1.5,2147483647) is 0 (the sum wraps negative) where 2147483646 leaves 1.5, and
+/// +/-2147483647, and ROUND keeps `digits + e_out + 1` significant digits of the 15-digit
+/// reading (`e_out = reading.magnitude()`, post-carry), the sum taken in 32-bit two's
+/// complement: fifteen or more keep the whole reading, fewer than none give 0, and otherwise
+/// the reading is rounded at 10^-digits. So ROUND(1.5,2147483647) is 0 (the sum wraps
+/// negative) where 2147483646 leaves 1.5, and
 /// ROUND(-5.480222088275654E-221,-2147483480.2228494) is -5.48022208827565E-221 (the sum wraps
-/// positive), as Excel 16.0.20430 gives them (the OxFunc-Evidence bank's integer-threshold,
-/// hyperbolic and count-refinement runs).
+/// positive), as Excel 16.0.20430 and 16.0.20527 give them.
 pub(super) fn nearest_digits(site: &Site<'_>, number: f64, places: f64) -> Step<f64> {
     nearest_digits_with(site, number, places, stored)
 }
@@ -310,19 +310,17 @@ fn nearest_digits_with(
     places: f64,
     publish: fn(&Site<'_>, &ExactDecimal) -> Step<f64>,
 ) -> Step<f64> {
-    if number == 0.0 {
+    if number == 0.0 || number.is_subnormal() {
         return Ok(0.0);
     }
     let limit = f64::from(i32::MAX);
     // An integer within +/-2147483647, so the conversion is exact.
     let digits = decimal::truncate(places).clamp(-limit, limit) as i32;
-    let kept = digits
-        .wrapping_add(ExactDecimal::binary(number).magnitude())
-        .wrapping_add(1);
+    let reading = reading(number, false);
+    let kept = digits.wrapping_add(reading.magnitude()).wrapping_add(1);
     if kept < 0 {
         return Ok(0.0);
     }
-    let reading = reading(number, false);
     // Without a wrap, kept from 0 to 14 bounds digits to within 340 of 0.
     match reading.round_at(-digits.clamp(-PLACES, PLACES), Direction::Nearest) {
         Some(rounded) if kept < 15 => Ok(flush(publish(site, &rounded)?)),
