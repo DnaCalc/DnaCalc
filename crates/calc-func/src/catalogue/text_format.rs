@@ -830,54 +830,108 @@ fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     }
 }
 
+enum RegexReplacement<'a> {
+    Literal(&'a str),
+    Group(usize),
+}
+
+fn regex_replacement(replacement: &str) -> Option<Vec<RegexReplacement<'_>>> {
+    if replacement.contains('\\') {
+        return None;
+    }
+    let mut rest = replacement;
+    let mut parts = Vec::new();
+    while let Some((literal, after_dollar)) = rest.split_once('$') {
+        if !literal.is_empty() {
+            parts.push(RegexReplacement::Literal(literal));
+        }
+        let digits = after_dollar.bytes().take_while(u8::is_ascii_digit).count();
+        let group = after_dollar[..digits]
+            .parse::<usize>()
+            .ok()?
+            .checked_sub(1)?;
+        parts.push(RegexReplacement::Group(group));
+        rest = &after_dollar[digits..];
+    }
+    if !rest.is_empty() {
+        parts.push(RegexReplacement::Literal(rest));
+    }
+    Some(parts)
+}
+
 fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let pattern = text_arg(site, a, 1)?;
     let replacement = text_arg(site, a, 2)?.to_string_lossy();
-    if replacement.contains('$') || replacement.contains('\\') {
-        // Group references in the replacement are not modelled.
-        return Err(site.not_modelled(Some(2)));
-    }
+    // The captured replacement syntax is a dollar followed by a numbered group.
+    let parts = regex_replacement(&replacement).ok_or_else(|| site.not_modelled(Some(2)))?;
     let occurrence = if given(a, 3) {
         num(site, a, 3)?.trunc()
     } else {
         0.0
     };
     let sensitive = case_sensitive(site, a, 4)?;
-    let (chars, found) = if pattern.utf16_code_units().is_empty() {
+    let k::RegexMatches {
+        chars,
+        found,
+        group_count,
+    } = if pattern.utf16_code_units().is_empty() {
         if !tk::is_well_formed(&text) {
             return Err(site.not_modelled(None));
         }
         let chars: Vec<char> = text.to_string_lossy().chars().collect();
         let limit = (occurrence > 0.0).then_some(occurrence as usize);
-        let found = empty_regex_replace_matches(&chars, text.utf16_code_units().len(), limit)?;
-        (chars, found)
+        let found = empty_regex_replace_matches(&chars, text.utf16_code_units().len(), limit)?
+            .into_iter()
+            .map(|whole| k::RegexMatch {
+                whole,
+                groups: Vec::new(),
+            })
+            .collect();
+        k::RegexMatches {
+            chars,
+            found,
+            group_count: 0,
+        }
     } else {
-        let k::RegexMatches { chars, found, .. } = regex(site, &text, &pattern, sensitive, false)?;
-        (chars, found.into_iter().map(|m| m.whole).collect())
+        regex(site, &text, &pattern, sensitive, false)?
     };
-    let selected: Vec<(usize, usize)> = if occurrence == 0.0 {
-        found
-    } else if occurrence > 0.0 {
-        found
-            .get(occurrence as usize - 1)
-            .copied()
-            .into_iter()
-            .collect()
+    if parts
+        .iter()
+        .any(|part| matches!(part, RegexReplacement::Group(group) if *group >= group_count))
+    {
+        return Err(site.not_modelled(Some(2)));
+    }
+
+    let selected = if occurrence == 0.0 {
+        found.as_slice()
     } else {
-        let back = (-occurrence) as usize;
-        found
-            .len()
-            .checked_sub(back)
-            .and_then(|i| found.get(i).copied())
-            .into_iter()
-            .collect()
+        let index = if occurrence > 0.0 {
+            Some(occurrence as usize - 1)
+        } else {
+            found.len().checked_sub((-occurrence) as usize)
+        };
+        index
+            .and_then(|i| found.get(i))
+            .map(std::slice::from_ref)
+            .unwrap_or_default()
     };
     let mut out = String::new();
     let mut cursor = 0;
-    for (start, end) in selected {
+    for found in selected {
+        let (start, end) = found.whole;
         out.extend(chars[cursor..start].iter());
-        out.push_str(&replacement);
+        for part in &parts {
+            match part {
+                RegexReplacement::Literal(literal) => out.push_str(literal),
+                RegexReplacement::Group(group) => {
+                    let Some((start, end)) = found.groups[*group] else {
+                        return Err(site.not_modelled(Some(2)));
+                    };
+                    out.extend(chars[start..end].iter());
+                }
+            }
+        }
         cursor = end;
     }
     out.extend(chars[cursor..].iter());

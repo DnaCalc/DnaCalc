@@ -6,8 +6,9 @@
 //! The pattern engine reads literals, `.`, the classes `\d \D \w \W \s \S \h`, bracketed classes
 //! and ranges, the anchors `^ $ \A \Z \z \b \B` and the quantifiers `* + ?`, including lazy `*?`
 //! and `+?` character repeats. Captures, optional groups, literal positive lookbehind and named
-//! backreferences use the same matcher (dc-ebb.6). Other syntax such as alternation, counted
-//! repeats and POSIX classes returns [`PatternError::Unsupported`]. An unclosed bracketed class
+//! backreferences use the same matcher (dc-ebb.6), as do exact repeats of character atoms and
+//! single-character negative lookahead (dc-ebb.7). Alternation, repeated groups and POSIX
+//! classes return [`PatternError::Unsupported`]. An unclosed bracketed class
 //! does not compile in PCRE2, and the call is `#VALUE!` ([`PatternError::Invalid`]): Excel 16.0.20527 gives
 //! `REGEXTEST("hello","[")`, `REGEXEXTRACT("abc","[")` and `REGEXREPLACE("abc","[","x")` as
 //! `#VALUE!`, and `REGEXTEST("","^$")` as TRUE (the jnt oracle, sheet jnt_text_formats, answered
@@ -33,6 +34,7 @@ enum RegexAtom {
     },
     GroupEnd(usize),
     LookBehind(Vec<char>),
+    NotFollowedBy(Box<RegexAtom>),
     Backreference(usize),
     Literal(char),
     Any,
@@ -75,6 +77,7 @@ enum RegexQuantifier {
     ZeroOrMore,
     OneOrMore,
     ZeroOrOne,
+    Exact(u16),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,7 +189,7 @@ fn zero_width_atom_matches(atom: &RegexAtom, chars: &[char], position: usize) ->
     })
 }
 
-fn atom_consumes_input(atom: &RegexAtom) -> bool {
+fn atom_consumes_character(atom: &RegexAtom) -> bool {
     !matches!(
         atom,
         RegexAtom::StartOfText
@@ -194,6 +197,11 @@ fn atom_consumes_input(atom: &RegexAtom) -> bool {
             | RegexAtom::EndOfLine
             | RegexAtom::WordBoundary
             | RegexAtom::NotWordBoundary
+            | RegexAtom::GroupStart { .. }
+            | RegexAtom::GroupEnd(_)
+            | RegexAtom::LookBehind(_)
+            | RegexAtom::NotFollowedBy(_)
+            | RegexAtom::Backreference(_)
     )
 }
 
@@ -223,6 +231,7 @@ fn consuming_atom_matches(atom: &RegexAtom, ch: char, case_sensitive: bool) -> b
         | RegexAtom::GroupStart { .. }
         | RegexAtom::GroupEnd(_)
         | RegexAtom::LookBehind(_)
+        | RegexAtom::NotFollowedBy(_)
         | RegexAtom::Backreference(_) => false,
     }
 }
@@ -327,6 +336,16 @@ impl RegexMatcher<'_> {
                     Ok(None)
                 }
             }
+            RegexAtom::NotFollowedBy(atom) => {
+                if self
+                    .chars
+                    .get(position)
+                    .is_some_and(|&ch| consuming_atom_matches(atom, ch, self.case_sensitive))
+                {
+                    return Ok(None);
+                }
+                self.match_from(next, position)
+            }
             RegexAtom::Backreference(i) => {
                 let Some((start, end)) = self.groups[*i] else {
                     return Ok(None);
@@ -354,11 +373,12 @@ impl RegexMatcher<'_> {
         next: usize,
         position: usize,
     ) -> Result<Option<usize>, PatternError> {
-        let minimum = usize::from(token.quantifier == RegexQuantifier::OneOrMore);
-        let limit = if token.quantifier == RegexQuantifier::ZeroOrOne {
-            1
-        } else {
-            usize::MAX
+        let (minimum, limit) = match token.quantifier {
+            RegexQuantifier::One => unreachable!("single atoms are matched before repeats"),
+            RegexQuantifier::ZeroOrMore => (0, usize::MAX),
+            RegexQuantifier::OneOrMore => (1, usize::MAX),
+            RegexQuantifier::ZeroOrOne => (0, 1),
+            RegexQuantifier::Exact(count) => (usize::from(count), usize::from(count)),
         };
         // Only character atoms can repeat here. Each match advances one character.
         let count = self.chars[position..]
@@ -578,6 +598,41 @@ fn literal_lookbehind(chars: &[char], index: &mut usize) -> Result<RegexAtom, Pa
     Err(Unsupported)
 }
 
+fn negative_lookahead(chars: &[char], index: &mut usize) -> Result<RegexAtom, PatternError> {
+    let ch = *chars.get(*index).ok_or(Unsupported)?;
+    *index += 1;
+    let atom = match ch {
+        '\\' => parse_escape_atom(chars, index)?,
+        '[' => parse_char_class(chars, index)?,
+        '.' => RegexAtom::Any,
+        '(' | ')' | '^' | '$' | '|' | '*' | '+' | '?' | '{' | '}' => return Err(Unsupported),
+        literal => RegexAtom::Literal(literal),
+    };
+    if !atom_consumes_character(&atom) || chars.get(*index) != Some(&')') {
+        return Err(Unsupported);
+    }
+    *index += 1;
+    Ok(RegexAtom::NotFollowedBy(Box::new(atom)))
+}
+
+/// Leave the cursor on the closing brace, just as a simple quantifier is read at its last character.
+fn exact_repeat(chars: &[char], index: &mut usize) -> Result<u16, PatternError> {
+    *index += 1;
+    let start = *index;
+    let mut count = 0u16;
+    while let Some(digit) = chars.get(*index).and_then(|ch| ch.to_digit(10)) {
+        count = count
+            .checked_mul(10)
+            .and_then(|n| n.checked_add(digit as u16))
+            .ok_or(Unsupported)?;
+        *index += 1;
+    }
+    if *index == start || chars.get(*index) != Some(&'}') {
+        return Err(Unsupported);
+    }
+    Ok(count)
+}
+
 struct RegexPattern {
     tokens: Vec<RegexToken>,
     group_count: usize,
@@ -618,6 +673,11 @@ fn parse_regex_pattern(pattern: &str) -> Result<RegexPattern, PatternError> {
                 extended = true;
                 index += 3;
                 literal_lookbehind(&chars, &mut index)?
+            }
+            '(' if chars[index..].starts_with(&['?', '!']) => {
+                extended = true;
+                index += 2;
+                negative_lookahead(&chars, &mut index)?
             }
             '(' => {
                 extended = true;
@@ -673,18 +733,23 @@ fn parse_regex_pattern(pattern: &str) -> Result<RegexPattern, PatternError> {
             Some('*') => RegexQuantifier::ZeroOrMore,
             Some('+') => RegexQuantifier::OneOrMore,
             Some('?') => RegexQuantifier::ZeroOrOne,
+            Some('{') => {
+                extended = true;
+                RegexQuantifier::Exact(exact_repeat(&chars, &mut index)?)
+            }
             _ => RegexQuantifier::One,
         };
         let mut greedy = true;
         if quantifier != RegexQuantifier::One {
-            if !atom_consumes_input(&atom)
-                || matches!(atom, RegexAtom::LookBehind(_) | RegexAtom::Backreference(_))
-            {
+            if !atom_consumes_character(&atom) {
                 return Err(Unsupported);
             }
             index += 1;
             if chars.get(index) == Some(&'?') {
-                if quantifier == RegexQuantifier::ZeroOrOne {
+                if matches!(
+                    quantifier,
+                    RegexQuantifier::ZeroOrOne | RegexQuantifier::Exact(_)
+                ) {
                     return Err(Unsupported);
                 }
                 index += 1;
@@ -752,12 +817,14 @@ pub(crate) fn regex_matches(
     // The fn3 readings admit Unicode range closure through the same simple fold as
     // literals. A range beyond the bounded table remains a typed refusal.
     if !case_sensitive
-        && tokens.iter().any(|token| match &token.atom {
-            RegexAtom::Class(class) => class
-                .items
-                .iter()
-                .any(|item| matches!(item, RegexClassItem::Range(_, _, None))),
-            _ => false,
+        && tokens.iter().any(|token| {
+            let atom = match &token.atom {
+                RegexAtom::NotFollowedBy(atom) => atom,
+                atom => atom,
+            };
+            matches!(atom, RegexAtom::Class(class) if class.items.iter().any(|item| {
+                matches!(item, RegexClassItem::Range(_, _, None))
+            }))
         })
     {
         return Err(Unsupported);
