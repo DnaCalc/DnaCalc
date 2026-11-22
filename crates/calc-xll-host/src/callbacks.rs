@@ -618,7 +618,7 @@ unsafe fn async_return(args: &[*mut XlOper12], result: *mut XlOper12) -> i32 {
 /// |---|---|---|---|---|
 /// | 237 xlfVolatile, 186 GET.WORKSPACE | 2 | served | 2 | X5 matrix, x13 |
 /// | 257 EVALUATE | served | served | 128 | X5, x13 |
-/// | 32890 MESSAGE | 2 | served (FALSE) | 128 | X5, x13 |
+/// | 32890 MESSAGE | 2 | served (FALSE in a formula, TRUE in lifecycle) | 128 | X5, x13, X3 xlw |
 /// | other commands (`0x8000`, ECHO 32909) | 2 | refused: Excel runs them | 128 | x13 |
 /// | 255 xlUDF | served | served or refused (cached-read change) | 32 | x13 |
 /// | 88 SET.NAME | 2 | served | 2 | x13 |
@@ -763,8 +763,9 @@ fn run(
             } else {
                 None
             };
-            // Excel 16.0.20527 answers MESSAGE from a `#` function with status 0 and FALSE (x13).
-            CalcValue::logical(false)
+            // Excel 16.0.20527 answers FALSE in a `#` function (x13) and TRUE
+            // during xlw's xlAutoOpen (X3).
+            CalcValue::logical(frame.kind == FrameKind::Lifecycle)
         }
         XL_GET_NAME => {
             require(0)?;
@@ -1482,6 +1483,31 @@ mod tests {
         CalcValue::text(ExcelText::from_utf16_code_units(
             text.encode_utf16().collect::<Vec<_>>(),
         ))
+    }
+
+    /// Native-only: exercises the XLL callback's lifecycle and worksheet entry frames.
+    #[test]
+    fn message_returns_true_in_lifecycle_and_false_in_a_macro_formula() {
+        let host = crate::XllHost::new(0);
+        let module = Module::loaded(std::env::current_exe().unwrap().to_str().unwrap()).unwrap();
+        let mut frame = Frame::lifecycle(host.state.clone(), module);
+        let mut arena = Arena::new();
+        let mut show = XlOper12::boolean(true);
+        let mut message = arena.text("Registering library...").unwrap();
+        let mut args = [&mut show as *mut XlOper12, &mut message];
+        for (kind, expected) in [(FrameKind::Lifecycle, true), (FrameKind::Entry, false)] {
+            frame.kind = kind;
+            frame.signature = (kind == FrameKind::Entry).then(|| XllSignature::parse("QB#").unwrap());
+            let _guard = unsafe { enter(&mut frame) };
+            let mut result = XlOper12::default();
+            assert_eq!(
+                unsafe { dispatch(XLC_MESSAGE, 2, args.as_mut_ptr(), &mut result) },
+                SUCCESS
+            );
+            assert_eq!(result.xltype, XL_BOOL);
+            assert_eq!(unsafe { result.value.integer }, i32::from(expected));
+        }
+        assert!(host.diagnostics().is_empty());
     }
 
     /// Native-only (shares the module's native tests): the documentation arguments of xlfRegister
