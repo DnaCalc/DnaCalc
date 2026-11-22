@@ -263,6 +263,10 @@ fn array_element(value: &calcvba_bundle::ArrayElementType) -> api::ArrayElement 
             name: None,
             iid: None,
         },
+        E::Interface(iid) => T::Object {
+            name: None,
+            iid: Some(*iid),
+        },
         E::DynamicArray(element) => T::Array {
             element: Box::new(match array_element(element) {
                 A::Scalar(ty) => ty,
@@ -295,6 +299,8 @@ fn default_value(value: &calcvba_bundle::coreir::CoreConst) -> api::Variant {
         C::Currency(n) => V::from_currency_scaled_i64(*n),
         C::Date(n) => V::from_date_f64(f64::from_bits(*n)),
         C::Str(s) => V::from_string(s.clone()),
+        C::NullStr => V::null_string(),
+        C::Missing => V::from_error_code(-2147352572),
     }
 }
 fn interface_id(iid: ComInterfaceIid) -> api::InterfaceId {

@@ -918,5 +918,7 @@ fn default_variant(value: &CoreConst) -> Variant {
         CoreConst::Currency(v) => Variant::from_currency_scaled_i64(*v),
         CoreConst::Date(v) => Variant::from_date_f64(f64::from_bits(*v)),
         CoreConst::Str(v) => Variant::from_string(v.as_str()),
+        CoreConst::NullStr => Variant::null_string(),
+        CoreConst::Missing => Variant::from_error_code(-2147352572),
     }
 }

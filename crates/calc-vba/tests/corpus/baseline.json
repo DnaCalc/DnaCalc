@@ -18,16 +18,16 @@
     },
     "array-option-base/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "array-option-base/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -130,16 +130,16 @@
     },
     "choose-round/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "choose-round/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -178,16 +178,16 @@
     },
     "collection-before/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "collection-before/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -265,11 +265,11 @@
       "route": "module/interpreter"
     },
     "date-diff-week/module/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 1,
       "mismatched": 0,
       "missing": 0,
-      "refused": 1,
+      "refused": 0,
       "route": "module/jit"
     },
     "date-normalize/module/interpreter": {
@@ -290,32 +290,32 @@
     },
     "date-part-week/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "date-part-week/module/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 1,
       "mismatched": 0,
       "missing": 0,
-      "refused": 1,
+      "refused": 0,
       "route": "module/jit"
     },
     "decimal-variant/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "decimal-variant/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -505,11 +505,11 @@
       "route": "module/interpreter"
     },
     "filter-empty/module/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 1,
       "mismatched": 0,
       "missing": 0,
-      "refused": 1,
+      "refused": 0,
       "route": "module/jit"
     },
     "for-each-empty/module/interpreter": {
@@ -562,16 +562,16 @@
     },
     "format-sections/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "format-sections/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -1241,11 +1241,11 @@
       "route": "project/interpreter"
     },
     "riff/project/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 19,
       "mismatched": 0,
       "missing": 5,
-      "refused": 19,
+      "refused": 0,
       "route": "project/jit"
     },
     "right-null/module/interpreter": {
@@ -1346,18 +1346,18 @@
     },
     "split-empty/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "split-empty/module/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 1,
       "mismatched": 0,
       "missing": 0,
-      "refused": 1,
+      "refused": 0,
       "route": "module/jit"
     },
     "split-limit/module/interpreter": {
@@ -1490,16 +1490,16 @@
     },
     "val-type-suffix/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "val-type-suffix/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"
@@ -1537,19 +1537,19 @@
       "route": "module/jit"
     },
     "vba-arraytools/project/interpreter": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 51,
       "mismatched": 0,
       "missing": 0,
-      "refused": 51,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-arraytools/project/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 51,
       "mismatched": 0,
       "missing": 0,
-      "refused": 51,
+      "refused": 0,
       "route": "project/jit"
     },
     "vba-dictionary/module/interpreter": {
@@ -1665,19 +1665,19 @@
       "route": "module/jit"
     },
     "vba-regex/project/interpreter": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 69,
       "mismatched": 0,
       "missing": 0,
-      "refused": 69,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-regex/project/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 69,
       "mismatched": 0,
       "missing": 0,
-      "refused": 69,
+      "refused": 0,
       "route": "project/jit"
     },
     "vba-stringbuilder/module/interpreter": {
@@ -1729,19 +1729,19 @@
       "route": "module/jit"
     },
     "vba-test/project/interpreter": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 31,
       "mismatched": 0,
       "missing": 0,
-      "refused": 31,
+      "refused": 0,
       "route": "project/interpreter"
     },
     "vba-test/project/jit": {
-      "loaded": false,
-      "matched": 0,
+      "loaded": true,
+      "matched": 31,
       "mismatched": 0,
       "missing": 0,
-      "refused": 31,
+      "refused": 0,
       "route": "project/jit"
     },
     "vba-web-excerpt/module/interpreter": {
@@ -1817,11 +1817,11 @@
       "route": "project/interpreter"
     },
     "wasabi/project/jit": {
-      "loaded": false,
-      "matched": 0,
-      "mismatched": 0,
+      "loaded": true,
+      "matched": 40,
+      "mismatched": 2,
       "missing": 0,
-      "refused": 53,
+      "refused": 11,
       "route": "project/jit"
     },
     "weekday-origin/module/interpreter": {
@@ -1865,6 +1865,14 @@
       "missing": 0,
       "refused": 0,
       "route": "project/interpreter"
+    },
+    "wasabi/project/jit": {
+      "loaded": true,
+      "matched": 41,
+      "mismatched": 12,
+      "missing": 0,
+      "refused": 0,
+      "route": "project/jit"
     }
   }
 }
