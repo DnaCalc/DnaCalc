@@ -10953,6 +10953,29 @@ fn dc_mx3x_1__rejected_cached_scalar_formulas_become_literals() {
     }
 }
 
+/// Excel 16.0.20527.20196 records #NAME? for the stored call in hjd_oxfml!D12.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_vdzoh__loaded_unknown_future_function_calculates_name_error() {
+    use calc_host::value::WorksheetErrorCode;
+
+    let bytes = include_bytes!("../../calc-func/tests/fixtures/hjd/oracle.xlsx");
+    let mut book = session(bytes);
+    let sheet = book.host().sheets()[0].id();
+    assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+    let name_error = CalcValue::error(WorksheetErrorCode::Name);
+    assert_eq!(
+        calculated(book.host(), at(sheet, "D12")),
+        Some(name_error.clone()),
+        "the stored _xlfn.FOO(1) must calculate #NAME?"
+    );
+    assert_eq!(calculated(book.host(), at(sheet, "D13")), Some(name_error));
+    assert_eq!(
+        calculated(book.host(), at(sheet, "D14")),
+        Some(CalcValue::number(7.0))
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_hsa5_8__sparse_result_columns_compact_without_recalculation() {

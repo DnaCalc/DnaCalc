@@ -1326,7 +1326,16 @@ impl<'c> Lowering<'c> {
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let spelling = file_unprefixed(name.text());
-        if spelling.len() != name.text().len() {
+        // In a workbook, an unrecognised future-function name follows the same
+        // #NAME? policy as an ordinary unknown call (Excel 16.0.20527, HJD D12).
+        // Keep refusals for reserved prefixes and functions known only to the file table.
+        if spelling.len() != name.text().len()
+            && (!self.loaded
+                || calc_catalogue::FILE_NAME_PREFIXES
+                    .iter()
+                    .any(|prefix| without_prefix(spelling, prefix).is_some())
+                || calc_catalogue::file_prefix(&spelling.to_ascii_uppercase()).is_some())
+        {
             return Err(unknown);
         }
         if let Resolved::Reference = resolved {

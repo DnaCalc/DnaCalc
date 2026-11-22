@@ -1617,7 +1617,8 @@ fn dc_besk_expected(maxifs: &str, minifs: &str, arithmetic: &str, sum: &str) -> 
         calculated(minifs),
         calculated(arithmetic),
         calculated("7"),
-        Host::UnknownFunction("_xlfn.NOSUCHFUNCTION"),
+        // HJD D12 measures #NAME? for an unknown _xlfn. name in a loaded workbook.
+        calculated("Name"),
         calculated(maxifs),
         calculated(maxifs),
         calculated(maxifs),
