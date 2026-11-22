@@ -564,14 +564,14 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[
             // A is 117 px (16.71 characters), B 180 px (25.71), C hidden, D the default 64 px;
             // row 3 is 40 px (30 points), row 13 hidden, the others 20 px (15 points).
-            Check::Style(cell!("B1"), "left:181px;top:22px;width:180px;height:20px"),
-            Check::Style(cell!("D1"), "left:361px;top:22px;width:64px;height:20px"),
-            Check::Style(cell!("A3"), "left:64px;top:62px;width:117px;height:40px"),
-            Check::Style(cell!("A14"), "left:64px;top:282px;width:117px;height:20px"),
+            Check::Style(cell!("B1"), "left:143px;top:20px;width:180px;height:20px"),
+            Check::Style(cell!("D1"), "left:323px;top:20px;width:64px;height:20px"),
+            Check::Style(cell!("A3"), "left:26px;top:60px;width:117px;height:40px"),
+            Check::Style(cell!("A14"), "left:26px;top:280px;width:117px;height:20px"),
             // A15's negative section is [Color10]: Excel's palette entry 10.
             Check::Style(
                 cell!("A15"),
-                "left:64px;top:302px;width:117px;height:20px;color:#008000",
+                "left:26px;top:300px;width:117px;height:20px;color:#008000",
             ),
             // Column E is 4 characters (33 px). The largest hash mask fitting the actual
             // browser font signals numeric overflow; text uses the measured font too.
@@ -579,11 +579,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("E1", "kind", "number"),
             Check::PlanCell("E1", "format", "applied"),
             Check::Text(cell!("E2"), "12"),
-            Check::Style(cell!("E3"), "left:425px;top:62px;width:289px;height:40px"),
+            Check::Style(cell!("E3"), "left:387px;top:60px;width:289px;height:40px"),
             // A4's negative section is [Red].
             Check::Style(
                 cell!("A4"),
-                "left:64px;top:102px;width:117px;height:20px;color:#ff0000",
+                "left:26px;top:100px;width:117px;height:20px;color:#ff0000",
             ),
         ],
     },
@@ -600,7 +600,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Text(cell!("A3"), "25%"),
             Check::Text(cell!("A4"), "2024-01-31"),
             // The file's 30-point row 3 is now row 4.
-            Check::Style(cell!("A4"), "left:64px;top:82px;width:117px;height:40px"),
+            Check::Style(cell!("A4"), "left:26px;top:80px;width:117px;height:40px"),
         ],
     },
     Case {
@@ -615,9 +615,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::PlanCell("B1", "formula", "false"),
             // B is 117 px like A; the file's B (180 px) is C, its hidden C is D.
             Check::Text(cell!("C1"), "wide"),
-            Check::Style(cell!("C1"), "left:298px;top:22px;width:180px;height:20px"),
+            Check::Style(cell!("C1"), "left:260px;top:20px;width:180px;height:20px"),
             Check::Text(cell!("E1"), "after hidden"),
-            Check::Style(cell!("E1"), "left:478px;top:22px;width:64px;height:20px"),
+            Check::Style(cell!("E1"), "left:440px;top:20px;width:64px;height:20px"),
         ],
     },
     Case {
@@ -3592,9 +3592,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into("row-size", "30\u{E007}"),
         ],
         checks: &[
-            Check::Style(cell!("A1"), "left:64px;top:22px;width:145px;height:40px"),
-            Check::Style(cell!("B1"), "left:209px;top:22px;width:145px;height:40px"),
-            Check::Style(cell!("A3"), "top:102px;height:40px"),
+            Check::Style(cell!("A1"), "left:26px;top:20px;width:145px;height:40px"),
+            Check::Style(cell!("B1"), "left:171px;top:20px;width:145px;height:40px"),
+            Check::Style(cell!("A3"), "top:100px;height:40px"),
             Check::Absent("cell-editor"),
         ],
     },
@@ -3603,7 +3603,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         actions: &[Action::Click("undo")],
         checks: &[
             Check::Style(cell!("A1"), "width:145px;height:20px"),
-            Check::Style(cell!("A3"), "top:62px;height:40px"),
+            Check::Style(cell!("A3"), "top:60px;height:40px"),
         ],
     },
     Case {
@@ -3616,7 +3616,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Absent(cell!("B1")),
-            Check::Style(cell!("D1"), "left:209px"),
+            Check::Style(cell!("D1"), "left:171px"),
             Check::Value("name-box", "B1"),
         ],
     },
@@ -3624,8 +3624,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
         name: "axis: Show returns the retained custom column width",
         actions: &[Action::Click("show-columns")],
         checks: &[
-            Check::Style(cell!("B1"), "left:209px;width:145px"),
-            Check::Style(cell!("D1"), "left:354px"),
+            Check::Style(cell!("B1"), "left:171px;width:145px"),
+            Check::Style(cell!("D1"), "left:316px"),
         ],
     },
     Case {
@@ -3645,7 +3645,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Absent(cell!("A2")),
-            Check::Style(cell!("A3"), "top:62px;height:40px"),
+            Check::Style(cell!("A3"), "top:60px;height:40px"),
         ],
     },
     Case {
@@ -3659,7 +3659,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
         checks: &[
             Check::Style(cell!("A2"), "height:40px"),
-            Check::Style(cell!("A3"), "top:102px;height:40px"),
+            Check::Style(cell!("A3"), "top:100px;height:40px"),
         ],
     },
     Case {
@@ -3697,8 +3697,8 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Absent(cell!("B1")),
             Check::Absent(cell!("A2")),
             Check::Style(cell!("A1"), "width:145px;height:40px"),
-            Check::Style(cell!("A3"), "top:62px;height:40px"),
-            Check::Style(cell!("D1"), "left:209px"),
+            Check::Style(cell!("A3"), "top:60px;height:40px"),
+            Check::Style(cell!("D1"), "left:171px"),
         ],
     },
     Case {
@@ -3712,7 +3712,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Check::Style(cell!("B1"), "width:145px"),
             Check::Style("[data-dnacalc=column-header][data-column=C]", "width:64px"),
             Check::Style(cell!("A2"), "height:40px"),
-            Check::Style(cell!("D1"), "left:418px"),
+            Check::Style(cell!("D1"), "left:380px"),
         ],
     },
     Case {
@@ -3848,12 +3848,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 false,
             ),
             Action::Wait(Check::Absent("[data-dnacalc=column-header][data-column=B]")),
-            Action::Wait(Check::Style(cell!("C1"), "left:128px")),
+            Action::Wait(Check::Style(cell!("C1"), "left:90px")),
             Action::Click("show-columns"),
         ],
         checks: &[
             Check::Style("[data-dnacalc=column-header][data-column=B]", "width:64px"),
-            Check::Style(cell!("C1"), "left:192px"),
+            Check::Style(cell!("C1"), "left:154px"),
         ],
     },
     Case {

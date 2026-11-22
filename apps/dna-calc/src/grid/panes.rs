@@ -18,6 +18,41 @@ pub struct Panes {
 }
 
 impl Panes {
+    pub(super) fn heading_extents(
+        self,
+        m: &GridMetrics,
+        v: &Viewport,
+        dpr: f64,
+        digit_px: f64,
+    ) -> (f64, f64) {
+        let snap = |extent: f64| (extent * dpr).round() / dpr;
+        // Replace the generic sheet header bands and keep their outline gutters.
+        let height = (m.header_h - snap(22. * m.scale) + snap(20. * m.scale)).max(1. / dpr);
+        let view = Viewport {
+            height: v.height + m.header_h - height,
+            ..*v
+        };
+        let frozen_edge = m.header_h + self.size(m).1;
+        let frozen_view = Viewport {
+            height: view.height.min(frozen_edge),
+            ..self.view(m, &view, true, false)
+        };
+        let last_frozen = geometry::visible_row_range(m, &frozen_view, self.rows)
+            .map_or(0, |(_, last)| m.visible_row(last, false, self.rows));
+        let last_scrolling = if view.height > frozen_edge {
+            geometry::visible_row_range(m, &view, super::MAX_ROW)
+                .map_or(0, |(_, last)| m.visible_row(last, false, super::MAX_ROW))
+        } else {
+            0
+        };
+        let digits = last_frozen.max(last_scrolling).max(1).ilog10().max(2) + 1;
+        // Calibri 11 measures 26 pixels at 100% and 54 at 200% for the minimum strip.
+        let padding = 5. * m.scale + 2. * (m.scale - 1.).max(0.);
+        let width = m.header_w - snap(64. * m.scale)
+            + snap(f64::from(digits) * digit_px * m.scale + padding);
+        (width, height)
+    }
+
     pub fn size(self, m: &GridMetrics) -> (f64, f64) {
         (
             m.col_start(self.columns + 1) - m.col_start(self.origin_column + 1),
@@ -397,6 +432,76 @@ pub fn intersection(a: CellRect, b: CellRect) -> Option<CellRect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn excel_calibri_heading_edges_at_96_dpi() {
+        let base = geometry::sheet_metrics(None);
+        // ww2 grid-header probe, Excel 16.0.20527 at 100% and 96 DPI.
+        let cases = [(9, 26.), (10, 26.), (99, 26.), (100, 26.), (999, 33.), (1000, 33.)];
+        let mut mismatches = Vec::new();
+        for (row, width) in cases {
+            let view = Viewport {
+                scroll_y: base.row_start(row),
+                width: 1000.,
+                height: 560.,
+                ..Viewport::default()
+            };
+            let (header_w, header_h) = Panes::default().heading_extents(&base, &view, 1., 7.);
+            let m = GridMetrics {
+                header_w,
+                header_h,
+                ..base.clone()
+            };
+            if (m.header_w, m.header_h) != (width, 20.) {
+                mismatches.push((row, (m.header_w, m.header_h), (width, 20.)));
+            }
+            assert_eq!(
+                Panes::default().hit(&m, &view, super::super::MAX_ROW, 16_384, m.header_w, m.header_h),
+                HitTarget::Cell { row, col: 1 }
+            );
+        }
+        assert!(
+            mismatches.is_empty(),
+            "{} of {} mismatched: {mismatches:?}",
+            mismatches.len(),
+            cases.len()
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn headings_include_partial_rows_with_a_frozen_pane() {
+        let base = geometry::sheet_metrics(None);
+        let panes = Panes {
+            rows: 1,
+            ..Panes::default()
+        };
+        let mut view = Viewport {
+            scroll_y: base.row_start(999) - base.row_height,
+            width: 400.,
+            height: 60.,
+            ..Viewport::default()
+        };
+        assert_eq!(panes.heading_extents(&base, &view, 1., 7.), (26., 20.));
+        view.height += 1.;
+        let (header_w, header_h) = panes.heading_extents(&base, &view, 1., 7.);
+        assert_eq!((header_w, header_h), (33., 20.));
+        let m = GridMetrics {
+            header_w,
+            header_h,
+            ..base
+        };
+        assert_eq!(
+            panes.hit(&m, &view, 1_048_576, 16_384, 33., 20.),
+            HitTarget::Cell { row: 1, col: 1 }
+        );
+        assert_eq!(
+            panes.hit(&m, &view, 1_048_576, 16_384, 33., 60.),
+            HitTarget::Cell { row: 1000, col: 1 }
+        );
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_merge_crossing_both_frozen_boundaries_has_four_nonoverlapping_fragments() {
