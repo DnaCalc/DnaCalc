@@ -68,6 +68,11 @@ hashes, Excel's file version, bitness, culture and calculation-thread settings.
 `fixture.tsv` records managed callbacks, native thread IDs and explicit fixture
 COM accesses. `controller.jsonl` records actions and worksheet outcomes.
 
+For fresh external X1 pool or xlOil comparisons, pass
+`-ReleaseFixtureRegistrations` on the Excel arms. This releases X1's measured
+`lstrlenA` registration or the copied `xlOil.dll` after unloading the fixture XLL.
+The owned-session reset still checks the full baseline.
+
 The Excel-DNA fixture covers hello-world, a thread-safe numeric UDF, native async
 (`ExcelAsyncHandle`), a macro-type reference argument, caller lookup, mixed
 array ownership, queued macros, background-thread context probes and AppEvents.

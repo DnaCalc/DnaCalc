@@ -2,8 +2,13 @@ param([string]$RunDirectory = (Join-Path $PSScriptRoot ('runs/' + [DateTime]::Ut
     [string]$ExcelDnaDirectory, [string]$AddInName='X0', [string]$Cases, [switch]$Reload, [switch]$ReloadNewHost,
     [switch]$AotAliasLoad, [switch]$ExpectAotReloadRefusal,
     [string]$AddInDirectory, [string]$XllFileName, [switch]$ExpectXloilReloadRefusal, [switch]$Engine, [switch]$Rtd,
-    [switch]$PrivateComAddIn,[switch]$RibbonUI, [string]$WorkbookName, $OwnedExcel=$null)
+    [switch]$PrivateComAddIn,[switch]$RibbonUI, [string]$WorkbookName, $OwnedExcel=$null,
+    [switch]$ReleaseFixtureRegistrations)
 $ErrorActionPreference = 'Stop'
+if ($ReleaseFixtureRegistrations -and
+    ($HostExecutable -or -not $AddInDirectory -or $XllFileName -notin 'X1.xll','xlOil.xll' -or $Reload -or $ReloadNewHost)) {
+    throw '-ReleaseFixtureRegistrations requires an Excel run with an external X1 or xlOil fixture and no reload.'
+}
 if (-not $HostExecutable -and $null -eq $OwnedExcel) {
     $parameters=@{RunDirectory=$RunDirectory}
     foreach($key in $PSBoundParameters.Keys) {
@@ -13,7 +18,8 @@ if (-not $HostExecutable -and $null -eq $OwnedExcel) {
     }
     $client=Join-Path $PSScriptRoot '../../tools/excel-session/submit.ps1'
     $group='xll:'+$(if($AddInDirectory){$AddInDirectory}elseif($ExcelDnaDirectory){$ExcelDnaDirectory}elseif($X1Xll){$X1Xll}else{'X0'})
-    $output=& $client -Script $PSCommandPath -Parameters ($parameters|ConvertTo-Json -Depth 10 -Compress) -Environment $group -FreshRequired:($Reload -or $ReloadNewHost -or $AotAliasLoad -or $PrivateComAddIn) -TimeoutSeconds 1200
+    $fresh = $Reload -or $ReloadNewHost -or $AotAliasLoad -or $PrivateComAddIn -or $ReleaseFixtureRegistrations
+    $output=& $client -Script $PSCommandPath -Parameters ($parameters|ConvertTo-Json -Depth 10 -Compress) -Environment $group -FreshRequired:$fresh -TimeoutSeconds 1200
     $receipt=@($output | ForEach-Object { if($_ -like 'dnacalc-excel-session/1 receipt *'){ $_.Substring('dnacalc-excel-session/1 receipt '.Length) } })
     if($receipt.Count -eq 1) { Copy-Item -LiteralPath $receipt[0] -Destination (Join-Path $RunDirectory 'session-receipt.json') }
     Write-Output $RunDirectory
@@ -236,6 +242,11 @@ function Note([string]$Operation, $Value) {
     $observations.Add($item)
     $item | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath (Join-Path $run 'controller.jsonl') -Encoding utf8NoBOM
 }
+function Test-LstrlenRegistration($Excel) {
+    $registered = [System.__ComObject].InvokeMember(
+        'RegisteredFunctions', [Reflection.BindingFlags]::GetProperty, $null, $Excel, $null)
+    'lstrlenA' -in @($registered | ForEach-Object { [string]$_ })
+}
 try {
     $excel = if ($null -ne $OwnedExcel) { $OwnedExcel } else { New-Object -ComObject Excel.Application }
     [uint32]$observedExcelPid = 0
@@ -246,6 +257,10 @@ try {
     $ownedExcelPid = [int]$observedExcelPid
     $ownedStartTicks = (Get-Process -Id $ownedExcelPid).StartTime.ToUniversalTime().Ticks
     Set-Content -LiteralPath (Join-Path $run 'owned-excel.pid') -Value $ownedExcelPid
+    if ($ReleaseFixtureRegistrations -and $XllFileName -ieq 'X1.xll' -and
+        (Test-LstrlenRegistration $excel)) {
+        throw 'The lstrlenA registration was present before loading the owned fixture.'
+    }
     $excel.DisplayAlerts = $false
     # The session host's process holds application events off (its baseline). These captures were
     # first made in an Excel of their own, with events on as a person's Excel has them, and the
@@ -450,6 +465,8 @@ try {
             Note 'Close RTD workbook before detach' $true
             for($i=0;$i -lt 10;$i++){[void]$excel.Ready; Start-Sleep -Milliseconds 50}
         }
+        $releaseLstrlen = $ReleaseFixtureRegistrations -and $XllFileName -ieq 'X1.xll' -and
+            (Test-LstrlenRegistration $excel)
         Note 'AutomationSecurity unchanged before teardown' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
         Note 'ExecuteExcel4Macro UNREGISTER(managed)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
         if ($Reload) {
@@ -464,6 +481,23 @@ try {
             Note 'ExecuteExcel4Macro UNREGISTER(reload)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $xll.Replace('"','""') + '")')
         }
         if (-not $AddInDirectory -and $AddInName -eq 'X0') { Note 'ExecuteExcel4Macro UNREGISTER(native)' $excel.ExecuteExcel4Macro('UNREGISTER("' + $nativeXll.Replace('"','""') + '")') }
+        if ($releaseLstrlen) {
+            # The X1 lifecycle CALL leaves this registration in Excel after the XLL unloads.
+            $id = $excel.ExecuteExcel4Macro('REGISTER.ID("kernel32","lstrlenA","JC")')
+            if ($id -isnot [double] -and $id -isnot [int]) { throw 'Excel did not return a numeric lstrlenA registration ID.' }
+            $operand = [Convert]::ToString($id,[Globalization.CultureInfo]::InvariantCulture)
+            $released = $excel.ExecuteExcel4Macro("UNREGISTER($operand)")
+            Note 'UNREGISTER fixture lstrlenA' $released
+            if ($released -ne $true) { throw 'Excel did not release the owned lstrlenA registration.' }
+        }
+        if ($ReleaseFixtureRegistrations -and $XllFileName -ieq 'xlOil.xll') {
+            # The copied DLL owns registrations separate from the loader XLL.
+            $dll = Join-Path $run 'xlOil.dll'
+            if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { throw 'The copied xlOil.dll is missing.' }
+            $released = $excel.ExecuteExcel4Macro('UNREGISTER("' + $dll.Replace('"','""') + '")')
+            Note 'UNREGISTER owned xlOil DLL' $released
+            if ($released -ne $true) { throw 'Excel did not release the copied xlOil DLL.' }
+        }
         Note 'AutomationSecurity unchanged' ([int]$excel.AutomationSecurity -eq $metadata.automation_security_before)
     } elseif ($X1Xll) {
         if (-not $excel.RegisterXLL($nativeXll)) { throw 'Excel refused the X1 fixture.' }
