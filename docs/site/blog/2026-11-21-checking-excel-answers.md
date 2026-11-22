@@ -10,8 +10,8 @@ DNA Calc treats **provenance before value** as a hard rule. A cell counts as a m
 
 We track Excel parity on two complementary scales:
 
-1. **Oracle workbooks (`cargo xtask corpus --oracle`):** Excel-saved `.xlsx` and `.xlsm` workbooks testing cell references, dependency order, dynamic-array spills, and workbook settings. The release baseline in `docs/plan/RELEASES.md` (`6847cc02`) stands at `77,036` of `78,264` formula cells (`98.43%`, 62 workbooks), and the latest run reported in `docs/articles/last-bit-number-text.md` (`86427f7a`) reached **`78,161` of `78,296` formula cells (`99.83%`, 63 workbooks)**.
-2. **The Function Bank (`crates/calc-func/witness-status.tsv`):** Individual worksheet functions judged bit-for-bit against recorded Excel 16.0 outputs stored as 64-bit IEEE 754 hex words. At commit `acae3f80` (2026-11-22), the full bank covers **`506` functions and `4,794,193` Excel answers, matching `4,759,423` (`99.27%`)**, with **`424` functions exact** across every recorded input.
+1. **Oracle workbooks (`cargo xtask corpus --oracle`):** Excel-saved `.xlsx` and `.xlsm` workbooks testing cell references, dependency order, dynamic-array spills, and workbook settings. The Linux debug preview run (`bb2f3d1b`) matched **`78,162` of `78,296` formula cells** across 63 workbooks (`99.82%` in the corpus report).
+2. **The Function Bank (`crates/calc-func/witness-status.tsv`):** Individual worksheet functions judged bit-for-bit against recorded Excel 16.0 outputs stored as 64-bit IEEE 754 hex words. At snapshot `43853e35` (2026-11-22), the full bank covers **`506` functions and `4,794,193` Excel answers, matching `4,762,382` (`99.34%`)**, with **`426` functions exact** across every recorded input.
 
 You can browse every function's daily progress, ULP distribution, and individual input landscapes in the Playground's **Function Bank** exhibit (`docs/fun/function-bank.html`).
 
@@ -37,4 +37,4 @@ This week's technical write-ups in `docs/articles/` show how that method works i
 
 In Formula Explorer, try a spilling formula like `=SEQUENCE(A1,2)` (`A1=3`), then change `A1` to `=1/0` to watch value, type, and spill shape recalculate together—or test `=0.1+0.2` and expand **Exact value** to see why 15-digit display hides single-bit differences that the verdict catches.
 
-Roughly `34,770` rows in the full bank still miss or are refused (for example, the `a < 1, x < 1.1` leaf in `GAMMADIST` under `dc-j9k.59`, `BETA.INV` edge cases, `TEXT` format-string/locale gaps under `dc-j9k.65` and `dc-0f1k.8`, and about `7,500` Enron text-to-number coercion cells under `dc-3k5n`). Every open remainder stays tracked against its owning bead until solved cleanly.
+`31,811` rows in that Function Bank snapshot still miss or are refused. Follow-up work includes two large `BETAINV` differences (dc-iuwct.51), localized number-format comparisons (dc-0f1k.8), and text-to-number and date coercion in Enron workbook formulas (dc-3k5n).

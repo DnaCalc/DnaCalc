@@ -94,8 +94,9 @@ one beside the previous release's.
    run there. `cargo xtask sweep` on Windows in the night window (00:00-07:00) when it can run;
    otherwise the cross-built test set, and the notes say which.
 2. **Corpus:** `cargo xtask corpus --oracle`, debug and `--profile perf` counts equal. Pass count not
-   lower than the previous release unless each lost cell is listed with its bead. Today:
-   77,036 of 78,264 formula cells (commit 6847cc02).
+   lower than the previous release unless each lost cell is listed with its bead. Latest local
+   Linux debug preview measurement:
+   78,162 of 78,296 formula cells (commit bb2f3d1b).
 3. **Function bank:** `cargo xtask witness judge --bank full`, debug and perf equal; no row that
    matched in the previous release fails now unless listed. Today: 4,607,949 of 4,729,476 rows
    (commit 5ed48847).

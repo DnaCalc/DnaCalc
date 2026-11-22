@@ -1,6 +1,6 @@
 //! The public site pages, built from the checked-in copy, evidence and app bundles.
 
-use super::content::{escape, markdown};
+use super::content::{TABLE_ALIGNMENT, escape, markdown, render_markdown};
 use super::{app_page, blog, downloads, files_under, read, write_nested};
 use crate::app::{bind_web_entry, web_bindgen};
 use crate::cargo::{self, Workspace};
@@ -12,8 +12,28 @@ use std::fs;
 use std::path::Path;
 
 const FUN: &str = "docs/fun";
-const NUMBER_TEXT_ARTICLE: &str = "docs/articles/last-bit-number-text.md";
 const NUMBER_TEXT_ROUTE: &str = "/articles/last-bit-number-text/";
+const ARTICLES: &[(&str, &str)] = &[
+    ("last-bit-normsinv.md", "/articles/last-bit-normsinv/"),
+    ("last-bit-gamma.md", "/articles/last-bit-gamma/"),
+    ("last-bit-number-text.md", NUMBER_TEXT_ROUTE),
+];
+const VIDEO: &[(&str, &str)] = &[
+    ("README.md", "/blog/video/"),
+    ("SERIES_PLAN.md", "/blog/video/series-plan/"),
+    (
+        "01-dna-calc-on-windows.md",
+        "/blog/video/01-dna-calc-on-windows/",
+    ),
+    (
+        "02-formula-explorer-addin-bench.md",
+        "/blog/video/02-formula-explorer-addin-bench/",
+    ),
+    (
+        "03-how-we-match-excel.md",
+        "/blog/video/03-how-we-match-excel/",
+    ),
+];
 const PAGES: &str = "docs/site/pages";
 const LAYOUT: &str = "docs/site/layout.json";
 const WITNESS: &str = "crates/calc-func/witness-status.tsv";
@@ -116,6 +136,7 @@ pub(super) fn stage_assets(ws: &Workspace, staging: &Path) -> Result<(), String>
     )?;
     let mut css = dna_strand::stylesheet();
     css.push_str(&source(root, "docs/site/site.css")?);
+    css.push_str(TABLE_ALIGNMENT);
     write_nested(&staging.join("site.css"), css.as_bytes())?;
     write_nested(
         &staging.join("handbook.js"),
@@ -173,18 +194,7 @@ pub(super) fn build(
     let bank = bank_metric(root)?;
     let metrics = format!(r#"<div class="site-metrics">{workbook}{bank}</div>"#);
     let cards = build_fun(root, output, prefix)?;
-    let article = layout.page(
-        NUMBER_TEXT_ROUTE,
-        "The last bit: Excel’s number-to-text conversion",
-        "",
-        &markdown(&source(root, NUMBER_TEXT_ARTICLE)?),
-    );
-    write_nested(
-        &output
-            .join(NUMBER_TEXT_ROUTE.trim_start_matches('/'))
-            .join("index.html"),
-        article.as_bytes(),
-    )?;
+    build_guides(root, output, &layout, include_drafts)?;
     let vba = vba_table(root)?;
     let builds = builds_table(root, version, commit, built)?;
     let runner = runner_commands(root)?;
@@ -237,6 +247,91 @@ pub(super) fn build(
 
 fn source(root: &Path, path: &str) -> Result<String, String> {
     fs::read_to_string(root.join(path)).map_err(|e| format!("{path}: {e}"))
+}
+
+fn build_guides(
+    root: &Path,
+    output: &Path,
+    layout: &Layout<'_>,
+    include_drafts: bool,
+) -> Result<(), String> {
+    let write_doc = |route: &str, title: &str, content: &str| {
+        let body = format!(r#"<article class="site-doc">{content}</article>"#);
+        let page = layout.page(route, title, "", &body);
+        write_nested(
+            &output
+                .join(route.trim_start_matches('/'))
+                .join("index.html"),
+            page.as_bytes(),
+        )
+    };
+    let mut articles = String::from("<h1>Last-bit articles</h1><ul>");
+    for &(filename, route) in ARTICLES {
+        let path = format!("docs/articles/{filename}");
+        let (title, content) = markdown_doc(root, &path)?;
+        let html = render_markdown(&content, |link| {
+            ARTICLES
+                .iter()
+                .find(|&&(name, _)| name == link)
+                .map(|&(_, route)| route.to_owned())
+        });
+        let _ = write!(
+            articles,
+            r#"<li><a href="{route}">{}</a></li>"#,
+            escape(&title)
+        );
+        let mut body = format!(r#"<p><a href="/articles/">All last-bit articles</a></p>{html}"#);
+        if route == NUMBER_TEXT_ROUTE {
+            body.push_str(
+                r#"<p><a href="/fun/number-text.html">Try the number-to-text explorer</a></p>"#,
+            );
+        }
+        write_doc(route, &title, &body)?;
+    }
+    articles.push_str("</ul>");
+    write_doc("/articles/", "Last-bit articles", &articles)?;
+
+    let (title, guide) = markdown_doc(root, "docs/user/classic-grid.md")?;
+    write_doc(
+        "/help/classic-grid/",
+        &title,
+        &render_markdown(&guide, |_| None),
+    )?;
+
+    if include_drafts {
+        for &(filename, route) in VIDEO {
+            let (title, content) = markdown_doc(root, &format!("docs/site/video/{filename}"))?;
+            let html = render_markdown(&content, |link| {
+                if let Some(post) = link.strip_prefix("../blog/") {
+                    return Some(match post.strip_suffix(".md") {
+                        Some(stem) => format!("/blog/{stem}.html"),
+                        None => "/blog/".to_owned(),
+                    });
+                }
+                VIDEO
+                    .iter()
+                    .find(|&&(name, _)| name == link)
+                    .map(|&(_, route)| route.to_owned())
+            });
+            let body = if filename == "README.md" {
+                html
+            } else {
+                format!(r#"<p><a href="/blog/video/">Video drafts</a></p>{html}"#)
+            };
+            write_doc(route, &title, &body)?;
+        }
+    }
+    Ok(())
+}
+
+fn markdown_doc(root: &Path, path: &str) -> Result<(String, String), String> {
+    let content = source(root, path)?;
+    let title = content
+        .lines()
+        .next()
+        .and_then(|line| line.strip_prefix("# "))
+        .ok_or_else(|| format!("{path}: expected a document title"))?;
+    Ok((title.replace('`', ""), content))
 }
 
 fn with_icon(page: String, prefix: &str) -> String {
@@ -371,7 +466,7 @@ fn corpus_metric(root: &Path) -> Result<String, String> {
     let manifest = cargo::git(root, &["show", &format!("{commit}:Cargo.toml")])?;
     let version = super::version_from_manifest(&manifest)?;
     let evidence = format!(
-        "Oracle workbook formula cells · {} · {} · v{}",
+        "Oracle workbook formula cells · Linux debug · {} · {} · v{}",
         date.trim(),
         escape(commit),
         escape(&version)
@@ -502,4 +597,63 @@ fn runner_commands(root: &Path) -> Result<String, String> {
         return Err("Linux runner README has no commands".to_owned());
     }
     Ok(markdown(&format!("```text\n{}\n```", lines.join("\n"))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Native-only: builds site content from the checkout into a temporary directory.
+    #[test]
+    fn preview_renders_the_articles_grid_guide_and_video_drafts() {
+        let ws = Workspace {
+            root: Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+            members: Vec::new(),
+        };
+        let output = std::env::temp_dir().join(format!("site-content-{}", std::process::id()));
+        let result = (|| {
+            for include_drafts in [false, true] {
+                let dir = output.join(if include_drafts { "preview" } else { "public" });
+                let explorer = r#"<div id="onecalc"></div>"#;
+                build(
+                    &ws,
+                    &dir,
+                    "/assets/test",
+                    r#"<title>App</title><link href="app.css"><script src="boot.js"></script>"#,
+                    explorer,
+                    "0123456789012345678901234567890123456789",
+                    "0.2.0",
+                    "2026-11-22",
+                    include_drafts,
+                )?;
+                for route in [
+                    "articles/index.html",
+                    "articles/last-bit-normsinv/index.html",
+                    "articles/last-bit-gamma/index.html",
+                    "articles/last-bit-number-text/index.html",
+                    "help/classic-grid/index.html",
+                ] {
+                    source(&dir, route)?;
+                }
+                let gamma = source(&dir, "articles/last-bit-gamma/index.html")?;
+                assert!(gamma.contains(r#"href="/articles/last-bit-normsinv/""#));
+                assert!(gamma.contains(r#"<td class="markdown-align-right">"#));
+                assert!(!gamma.contains(r#" style="text-align:"#));
+                let guide = source(&dir, "help/classic-grid/index.html")?;
+                assert!(guide.contains("<table>"));
+                let blog = source(&dir, "blog/index.html")?;
+                assert_eq!(blog.contains(r#"href="/blog/video/""#), include_drafts);
+                assert_eq!(dir.join("blog/video/index.html").is_file(), include_drafts);
+                if include_drafts {
+                    let episode = source(&dir, "blog/video/03-how-we-match-excel/index.html")?;
+                    assert!(
+                        episode.contains(r#"href="/blog/2026-11-21-checking-excel-answers.html""#)
+                    );
+                }
+            }
+            Ok::<_, String>(())
+        })();
+        let _ = fs::remove_dir_all(output);
+        result.unwrap();
+    }
 }

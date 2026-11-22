@@ -72,6 +72,9 @@ body.site { margin:0; background:var(--dna-bg); color:var(--dna-ink); font:1rem/
 .site-main article pre { background:var(--dna-paper); border:1px solid var(--dna-line); padding:1rem; overflow:auto }
 .site-main article ul { padding-left:1.3rem }
 .site-main article li + li { margin-top:.35rem }
+.site-doc table { display:block; max-width:100%; overflow:auto; border-collapse:collapse; margin-block:1rem 1.75rem; text-align:left }
+.site-doc :is(th,td) { border-bottom:1px solid var(--dna-line); padding:.5rem .65rem; vertical-align:top }
+.site-doc th { background:var(--dna-paper-2); color:var(--dna-ink-2) }
 .site-footer { border-top:1px solid var(--dna-line); color:var(--dna-ink-2); background:var(--dna-paper); font-size:.85rem }
 .site-footer-inner { display:flex; flex-wrap:wrap; gap:.5rem 1.3rem; padding-block:1.2rem }
 .site-footer-inner > span { margin-right:auto }
