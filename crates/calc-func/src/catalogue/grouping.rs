@@ -627,6 +627,11 @@ fn groupby(
     sort_groups(site, &mut groups, k, &entries, tabular)?;
     let width = k + pairs.len();
     let mut out: Vec<Vec<CalcValue>> = Vec::new();
+    if functions.len() > 1 {
+        let mut header = vec![text(""); k];
+        header.extend(pairs.iter().map(|&(_, f)| function_name(&functions[f])));
+        out.push(header);
+    }
     if show {
         let mut header: Vec<CalcValue> = (0..k)
             .map(|c| {
@@ -637,19 +642,13 @@ fn groupby(
                 }
             })
             .collect();
-        for &(v, f) in &pairs {
-            header.push(if functions.len() > 1 {
-                function_name(&functions[f])
-            } else if has_header {
+        for &(v, _) in &pairs {
+            header.push(if has_header {
                 values.rows[0][v].clone()
             } else {
                 text(&format!("Value {}", v + 1))
             });
         }
-        out.push(header);
-    } else if functions.len() > 1 {
-        let mut header = vec![text(""); k];
-        header.extend(pairs.iter().map(|&(_, f)| function_name(&functions[f])));
         out.push(header);
     }
     let totals = |site: &Site<'_>,

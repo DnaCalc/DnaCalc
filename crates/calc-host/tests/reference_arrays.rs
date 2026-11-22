@@ -367,6 +367,18 @@ fn dc_b1l43_dc_b1l44__fn7_argument_origins() {
     }
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ebb5__groupby_shows_aggregate_and_field_headers() {
+    check_captured_book(
+        include_bytes!("../../../tests/corpus-examples/formulas/groupby-multiple-aggregates/example.xlsx"),
+        include_bytes!("../../../tests/corpus-examples/formulas/groupby-multiple-aggregates/oracle.capture.json"),
+        &[],
+        1,
+        None,
+    );
+}
+
 fn check_captured_book(
     bytes: &[u8],
     captured: &[u8],
