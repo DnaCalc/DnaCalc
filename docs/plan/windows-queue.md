@@ -51,6 +51,7 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 
 | Bead | Lane handoff | Pending step |
 | --- | --- | --- |
+| dc-1nbp.22 | K/px4 | Run answer 17 E8 on authored `cdoc_m2_1` fixtures. For each of the three packages, save unchanged, after a value edit and after inserting a row above a block. Add XLSM and XLSB SaveAs for one package. Retain custom XML, relationships and hidden locator `RefersTo`, then reload all 11 outputs in DNA Calc and record anchors and `LayoutWarning`. |
 | dc-4j0e.2 | K/eb9, referring to K/cx2 | Use the authored cx3 inputs and the 67 normal, 21 repair and 20 formula case instructions. Score raw RK/MULRK bits, continued SST encodings, empty/trailing phonetics, row guides, BLANK/MULBLANK and row-height flags. |
 | dc-4j0e.3 | K/eb10 | Use authored compound token fixtures to measure remaining fixed-arity and legacy-name conversions plus shared, table and array Formula/Formula2 readback. Preserve converted package records and plain-open versus repair outcomes. |
 | dc-4j0e.4 | K/eb10 | Measure the authored key-4 Macintosh FileMoniker and parent-relative link controls. Read Hyperlinks Address/SubAddress and inspect saved relationship targets and repair outcomes. |
