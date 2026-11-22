@@ -58,6 +58,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 - **Point-mode edge keys:** `Ctrl+Arrow`, `Home`, and `End` during Point mode exit Point mode for text-caret movement rather than jumping to sheet data edges while pointing (`dc-971p`).
 - **Inline syntax diagnostics:** Neither the cell editor nor the Formula Bar renders inline diagnostic error spans (`dc-971p`).
+- **Native IME and caret placement:** Native IME composition, and double-click caret placement within proportional text, have not yet been compared with Excel (`dc-971p.62`).
 
 ---
 
@@ -90,6 +91,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 - **Disjoint axis expansion:** `Ctrl+Space` and `Shift+Space` refuse when multiple disjoint areas are selected (`dc-971p`).
 - **Horizontal extend-by-page:** `Alt+Shift+PageUp` / `Alt+Shift+PageDown` is not bound (`dc-971p`).
 - **Imported range selection parity:** Stored range selections from `.xlsx` paint in the grid, while Excel pixel-comparison checks remain open (`dc-971p.43.2`).
+- **Used-range edges:** Excel's retained used-range edges for `Ctrl+Arrow` and `Ctrl+End` remain open against Excel (`dc-971p`).
 
 ---
 
@@ -111,6 +113,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 - **Transpose limits:** Transposing a `Cut`, table cells, a fill, or array formulas (unless `Values` or `Cell formats`) is refused (`dc-971p`).
 - **Protected sheets:** Pasting into a protected sheet is refused atomically (`dc-971p`).
 - **Moved sheet-scoped names:** A sheet-scoped defined name used without its sheet qualifier in a formula moved to another sheet is not automatically sheet-qualified (`dc-971p`).
+- **Windows clipboard parity:** Clipboard verification against Windows Excel remains open (`dc-971p.62`).
 
 ---
 
@@ -134,7 +137,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ## 6. Status-bar aggregates (Selection summary)
 
-- The **Selection** disclosure bar (`[data-dnacalc=selection-summary]`) below the grid shows `Current count`, `Numbers`, and `Sum` in its heading and expands to display:
+- The **Selection** disclosure bar (`[data-dnacalc=selection-summary]`) below the grid shows its enabled aggregates in the heading when more than one cell is selected. By default these are **Average**, **Count** and **Sum**. Its **Show in status bar** list turns on any of six aggregates: **Average**, **Count**, **Numerical count**, **Minimum**, **Maximum** and **Sum**. It expands to display:
   - `Selected cells`, `Count of current data cells`, `Numeric count`, `Sum`, `Average`, `Minimum`, `Maximum`
   - Provenance breakdown (`literals`, `calculated`, `blanks`, `empty text values`, `errors`) and explicit exclusions (`file caches`, `stale`, `refused`).
 
@@ -142,7 +145,8 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 - **10,000-cell bound:** Selections larger than `10,000` cells (such as whole-column selections) refuse summary computation (`"Selection summary is limited to 10000 cells"`) (`dc-971p`).
 - **Provenance exclusions:** `FileCached`, `Stale`, and refused cells never enter current totals (`dc-971p`).
-- **UI presentation:** Displayed in an expandable disclosure panel rather than inline status-bar toggles configured by right-click (`dc-971p`).
+- **UI presentation:** The aggregates sit in an expandable Selection panel, and the **Show in status bar** list chooses the heading items. Excel's right-click status-bar menu is not reproduced (`dc-971p`).
+- **Excel comparison:** Excel's display of each aggregate for mixed, empty and single-cell selections has not yet been compared (`dc-971p.62`).
 
 ---
 
@@ -163,12 +167,14 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 - **Switch sheets:** Click a sheet tab, press `Ctrl+PageUp` / `Ctrl+PageDown` in the grid, or use `ArrowLeft`/`ArrowRight`/`Home`/`End` when focus is on the tab strip (`F6` reaches it). Each sheet retains its own active selection, scroll position, and zoom across switches.
 - **Rename by double-click:** Double-clicking a sheet tab opens the **Sheets** disclosure (`data-dnacalc="sheet-tools"`) and focuses/selects the **Current sheet name** field (`dc-971p.45`).
-- **Sheets panel:** Go to sheet selector, Add worksheet (automatic `SheetN` naming checks hidden sheets case-insensitively), Rename worksheet, Move worksheet (1-based position), Hide worksheet, Delete worksheet (confirmation dialog, undoable), and Unhide hidden sheets (`VeryHidden` sheets are listed as disabled).
+- **Tab menu:** Right-clicking a sheet tab opens **Worksheet tab commands**: **Rename**, **Hide**, **Unhide…** and **Delete…**.
+- **Tab reorder:** Drag a sheet tab to move it. Undo, Redo and XLSX reopening keep the new order.
+- **Sheets panel:** Go to sheet selector, Add worksheet (automatic `SheetN` naming checks hidden sheets case-insensitively), Rename worksheet, Move worksheet (1-based position), Hide worksheet, Delete worksheet (confirmation dialog, undoable), and **Unhide…** for hidden sheets (`VeryHidden` sheets are listed as disabled).
 
 ### Differences from Excel today
 
-- **No tab drag-reorder or tab grouping:** Sheet tabs cannot be dragged to reorder or `Ctrl`/`Shift`-selected as a grouped sheet selection (`dc-971p`).
-- **No tab context menu or inline tab input:** Double-click opens the **Sheets** panel input rather than editing inline on the tab button (`dc-971p`).
+- **No multi-sheet grouping:** `Ctrl`- or `Shift`-clicking sheet tabs to select a group of sheets is not supported (`dc-971p.74`).
+- **No inline tab input:** Double-click opens the **Sheets** panel input rather than editing inline on the tab button (`dc-971p`).
 
 ---
 
@@ -183,7 +189,8 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 - **Search bounds:** Stops at `100,000` cells inspected, `5,000,000` characters, or `1,000` hits (`partial` results disable Replace until the scope is narrowed) (`dc-971p`).
 - **Replace modes:** No format replacement or wildcard replacement (`dc-971p`).
-- **Go To Special scope:** Only `Formulas`, `Constants`, and `Blanks` are offered (no Number/Text/Logical/Error sub-filters, Comments, Conditional formats, Data validation, Current region, or Visible cells only) (`dc-971p`).
+- **Go To Special scope:** Only `Formulas`, `Constants`, and `Blanks` are offered (no Number/Text/Logical/Error sub-filters, Comments, Conditional formats, Data validation, Current region, or Visible cells only) (`dc-971p.74`).
+- **Excel and WebView2 selection edge cases:** Remain open for comparison (`dc-971p.62`).
 
 ---
 
@@ -215,10 +222,23 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 - **AutoFit limits:** Column AutoFit refuses widths under `1 ch` (except `0`), refuses wrapped text (unless stacked `rotation = 255`), refuses unavailable fonts, refuses `shrinkToFit`/`fill`/`justify`/`distributed` alignment and combined wrap+rotation, and refuses merged content (`dc-971p.16`, `dc-ysl.9`).
 - **Wrapped rows on load & headers:** Wrapped rows without a stored height in `.xlsx` are not auto-fitted on load (`dc-971p.43.1`), and row/column header sizes are fixed (`64 px` × `22 px` at 100%) rather than sized to visible row digits and the Normal font (`dc-971p.43.3`).
 - **Unhide by dragging:** Hidden bands cannot be unhidden by dragging between header boundaries; use **Show columns** / **Show rows** (`dc-971p`).
+---
+
+## 12. Number formats, alignment, fonts and borders
+
+- **Number formats:** Percentages, dates, custom format sections and imported formats display as their format asks. **Format Cells…** (`Ctrl+1`) previews, authors and round-trips them through XLSX. `General` narrows to fit the available width.
+- **Alignment:** Stored horizontal and vertical alignment, indentation, wrap, justify and overflow display as stored. Alignment applied in **Format Cells…** persists to XLSX.
+- **Fonts, fills and borders:** Ordinary font, fill and border rendering works, including merged perimeters, patterns and gradients.
+
+### Differences from Excel today
+
+- **Pixel-level number display:** Pixel-level number display, and the green number-stored-as-text indicator, remain open (`dc-971p.43`, `dc-971p.43.4`).
+- **Wrapped row metrics:** Wrapped row metrics and baseline comparison remain open (`dc-971p.43`). Wrapped rows without a stored height are not auto-fitted on load (`dc-971p.43.1`).
+- **Excel pixel comparisons:** Pixel comparisons of fonts, fills and borders at extreme zoom remain open (`dc-971p.43`).
 
 ---
 
-## 12. Zoom
+## 13. Zoom
 
 - **Bounds:** `10%` to `400%`.
 - **Controls:** `Ctrl+Wheel` over the grid (`dc-971p.69`), `-` / `+` buttons (`1.25×` step), direct percentage input (`zoom-percent`), and `Reset` (`100%`).
@@ -231,7 +251,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 13. Notes, comments, and hyperlinks
+## 14. Notes, comments, and hyperlinks
 
 - **Markers and hover preview:** Cells with notes, threaded comments, or hyperlinks display a corner marker (`data-dnacalc="review-marker"`, up to `5,000` per sheet) with a native `title` tooltip including a bounded **240-character preview** (`dc-971p.70`). Clicking the marker selects the cell and opens **Manage Rules & review**.
 - **Notes and threaded comments:** In **Manage Rules & review**, create a new Note or Comment (with editable Author), reply to a thread, resolve/reopen a thread, edit text (up to `32,767` characters), and format Notes (`Bold`, `Italic`, `Underline`, `Text colour`, `Clear formatting`). All edits are undoable and persisted in XLSX.
@@ -245,11 +265,11 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 14. Dynamic array spills and `#SPILL!`
+## 15. Dynamic array spills and `#SPILL!`
 
 - **Spill outlines (`dc-971p.70`):** Selecting a filled spill anchor or any spilled child draws a solid outline (`data-dnacalc="spill-outline"`, `data-state="filled"`) around the spill range; selecting a `#SPILL!` anchor draws a dashed red outline (`data-state="blocked"`) over the attempted extent.
 - **Read-only child cells:** Selecting a spilled child cell makes the Formula Bar read-only, displays `Edit the formula in <anchor>` in the result summary, and refuses `F2`/type-to-replace edits.
-- **Anchor and blocker jumps:** Expanding **Result details** (auto-opened for errors/refusals) provides **Open array anchor** (from a child cell) and **Open blocker `<address>`** buttons (`data-dnacalc="array-blocker"`) that jump straight to the blocker.
+- **Anchor and blocker jumps:** The result disclosure (`data-dnacalc="result-details"`) opens automatically for refused cells and errors. It provides **Open array anchor** (from a child cell) and **Open blocker `<address>`** buttons (`data-dnacalc="array-blocker"`) that jump straight to the blocker.
 
 ### Differences from Excel today
 
@@ -258,7 +278,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 15. Merged cells
+## 16. Merged cells
 
 - Imported merged cells render as one spanned cell (clipped into pane fragments across frozen boundaries).
 - Clicking, jumping via Name Box, or navigating to any covered address selects the merge anchor (`merged.first()`), highlights the whole merge footprint, and routes edits/Undo to the anchor (`dc-971p.70`).
@@ -270,7 +290,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 16. Conditional formatting rule manager
+## 17. Conditional formatting rule manager
 
 - In **Manage Rules & review** (`Rules & review` button or context menu):
   - View supported rules on the worksheet in priority order (`priority · kind`, `Applies to`, state).
@@ -284,7 +304,7 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 17. Data validation
+## 18. Data validation
 
 - **Input prompt:** Displays beside/above the active cell (`data-dnacalc="validation-prompt"`), connected via `aria-describedby` and keyboard-scrollable (`ArrowUp`/`ArrowDown`/`PageUp`/`PageDown`/`Home`/`End`/`Space`/`Shift+Space` or mouse wheel).
 - **Drop-down list:** `Alt+Down` or clicking `▼` opens the listbox (up to `32,767` items); `ArrowUp`/`ArrowDown`/`Home`/`End` move selection; `Enter` or click enters the value; `Escape` or `Tab` closes without entering.
@@ -300,22 +320,24 @@ All behaviour described here is verified from the application code (`apps/dna-ca
 
 ---
 
-## 18. Summary of differences from Excel and owning beads
+## 19. Summary of differences from Excel and owning beads
 
 | Area | Difference from Excel today | Owning bead |
 |---|---|---|
 | Formula entry & pointing | Point-mode `Ctrl+Arrow`/`Home`/`End` revert to text caret; no inline diagnostic squiggles | `dc-971p` |
-| Selection & navigation | Interior-anchor `Shift+Arrow` refuses; Table multi-stage `Ctrl+A`/`Space` refuses; disjoint axis expansion refuses; `Alt+Shift+PageUp`/`Down` unmapped | `dc-971p` |
+| Edit gestures | Native IME and double-click caret placement not yet compared with Excel | `dc-971p.62` |
+| Selection & navigation | Interior-anchor `Shift+Arrow` refuses; Table multi-stage `Ctrl+A`/`Space` refuses; disjoint axis expansion refuses; `Alt+Shift+PageUp`/`Down` unmapped; used-range edges remain open | `dc-971p` |
 | Imported range selection | Stored `.xlsx` range selection pixel parity unmeasured on Windows | `dc-971p.43.2` |
-| Clipboard & Paste Special | No external format paste or merged HTML paste; no Paste Special on Cut; transpose refuses Cut/Table/Fill/Array; protected paste refuses | `dc-971p` |
+| Clipboard & Paste Special | No external format paste or merged HTML paste; no Paste Special on Cut; transpose refuses Cut/Table/Fill/Array; protected paste refuses; Windows Excel clipboard verification open | `dc-971p`, `dc-971p.62` |
 | Fill & Flash Fill | Fill handle drags always preview. Double-click fill and custom lists remain open. Flash Fill needs at least two examples, one source column to the left and at most 10,000 rows. | `dc-971p` |
-| Status aggregates | 10,000-cell limit; excludes cached/stale/refused values; collapsible panel instead of inline status toggles | `dc-971p` |
+| Status aggregates | 10,000-cell limit; excludes cached/stale/refused values; aggregates in a collapsible Selection panel, not Excel's right-click status-bar menu; per-aggregate Excel comparison open | `dc-971p`, `dc-971p.62` |
 | Context menu | Fixed 9-item menu; missing Paste Special, Format Cells, Hide/Unhide, Freeze, Filter/Sort, Notes, Merge | `dc-971p`, `dc-971p.73` |
-| Sheet tabs | No drag-reorder, multi-sheet grouping, tab context menu, or inline tab rename input | `dc-971p` |
-| Find / Replace / Go To | Find capped at 100k cells / 5M chars / 1k hits; Replace literal-only without wildcards; Go To Special limited to Formulas/Constants/Blanks | `dc-971p` |
+| Sheet tabs | Multi-sheet grouping (`Ctrl`/`Shift`-click) and inline tab rename input missing; tab drag-reorder and the tab menu are available | `dc-971p.74`, `dc-971p` |
+| Find / Replace / Go To | Find capped at 100k cells / 5M chars / 1k hits; Replace literal-only without wildcards; Go To Special limited to Formulas/Constants/Blanks; Excel and WebView2 selection edge cases open | `dc-971p`, `dc-971p.74`, `dc-971p.62` |
 | Freeze & split panes | Freeze-at-active requires `(0,0)` scroll; offset freeze must unfreeze first; numeric split input only; scrolled-origin & boundary deletion unmeasured | `dc-971p.16`, `dc-971p.62`, `dc-971p` |
 | Resize, AutoFit & headers | Wrapped-column/unavailable-font/merged AutoFit refusals; no bundled metric fonts; wrapped rows without stored height not auto-fitted on load; fixed `64×22` headers; no drag-unhide | `dc-971p.16`, `dc-ysl.9`, `dc-971p.43.1`, `dc-971p.43.3`, `dc-971p` |
 | Zoom & pixel parity | `Ctrl+Wheel` uses `1.25×` step without Excel notch/anchor rules; 50%/200% text weight/baseline and number-as-text green corner indicator open | `dc-971p.62`, `dc-971p.43.4` |
+| Number formats, alignment, fonts & borders | Ordinary display works; pixel-level number display, wrapped row metrics, baseline and extreme-zoom font/fill/border comparisons open | `dc-971p.43`, `dc-971p.43.1` |
 | Notes, comments & links | Hyperlinks open from Review dialog only; no hyperlink authoring; `@mention` comments read-only; no floating hover note box | `dc-971p` |
 | Spill & `#SPILL!` | No ghosted anchor formula in Formula Bar for spilled children; frozen-pane spill border & blocker comparison open | `dc-971p.62` |
 | Merged cells | Merge / Merge & Center / Unmerge authoring and XLSX persistence not yet implemented | `dc-971p.73` |
