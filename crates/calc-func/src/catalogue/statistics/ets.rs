@@ -149,20 +149,42 @@ fn prepare(
     if times.len() < 2 {
         return fail(WorksheetErrorCode::Num);
     }
-    let step = times
+    let min_step = times
         .windows(2)
         .map(|p| p[1] - p[0])
         .fold(f64::INFINITY, f64::min);
-    if !step.is_finite() || step <= 0.0 {
+    if !min_step.is_finite() || min_step <= 0.0 {
         return Err(unfinished(site));
     }
+    // Excel 20527 clusters consecutive intervals within 3e-7 and keeps the first
+    // representative interval (Touchstone STAT(..., 8) bisection, dc-iuwct.54).
+    // Admit binary64-rounded uniform/missing-step decimal grids while leaving
+    // genuinely irregular or calendar-month timelines as typed refusals.
+    let step = times
+        .windows(2)
+        .map(|p| p[1] - p[0])
+        .find(|&d| (d - min_step).abs() <= 3e-7 && (d - min_step).abs() <= min_step * 1e-9)
+        .unwrap_or(min_step);
     let mut gaps = Vec::new();
     let mut count = 1usize;
     for pair in times.windows(2) {
-        let gap = (pair[1] - pair[0]) / step;
-        // Calendar-month inference and almost-integral timestamps need separate
-        // measurements. Never turn an unidentified timeline into a worksheet error.
-        if gap.fract() != 0.0 || gap < 1.0 || gap > 1_000_000.0 {
+        let diff = pair[1] - pair[0];
+        let gap_raw = diff / step;
+        let gap = if gap_raw.fract() == 0.0 {
+            gap_raw
+        } else {
+            let rounded = gap_raw.round();
+            if rounded >= 1.0
+                && rounded <= 1_000_000.0
+                && (gap_raw - rounded).abs() <= 1e-9
+                && (diff - rounded * step).abs() <= 3e-7
+            {
+                rounded
+            } else {
+                return Err(unfinished(site));
+            }
+        };
+        if gap < 1.0 || gap > 1_000_000.0 {
             return Err(unfinished(site));
         }
         count = count
@@ -1326,8 +1348,10 @@ fn detect_period(y: &[f64]) -> usize {
     best_p
 }
 
-/// The five candidates Excel 20527 selects among for period two on five to
-/// seven observations: all 655 recorded five-point selections (bank5, eng21).
+/// The five candidates Excel 20527 selects among for period two on five
+/// observations: all 655 recorded five-point selections (bank5, eng21) and
+/// 120 live Touchstone five-point probes (ig1, dc-iuwct.54). Six- and
+/// seven-point period-two histories search the full `SEASONAL_PARAMETERS` grid.
 const SHORT_TWO_PARAMETERS: &[(f64, f64, f64)] = &[
     (0.751, 0.001, 0.001),
     (0.501, 0.001, 0.001),
@@ -1414,7 +1438,7 @@ fn seasonal_general(
     if output == Output::Seasonality {
         return site.number(period as f64);
     }
-    let short = period == 2 && (5..=7).contains(&y.len());
+    let short = period == 2 && y.len() == 5;
     // Below N0 the parameter search runs on the extension (eng23 probe_short:
     // Excel's triple in 447 of 520 short histories, 220 when searching the history).
     let (initial, search_history) = excel_seasonal_initial(y, period);
@@ -1647,14 +1671,14 @@ pub(super) fn evaluate(
         if output != Output::Forecast {
             return fail(WorksheetErrorCode::Num);
         }
-        // Excel extends the line through the first two fitted values, in
-        // binary64; it snaps within 0.001 step of the first timestamp and
-        // refuses more than 0.999 step before it (Touchstone, eng21).
-        let position = (target - series.first) / series.step;
-        if position < -0.999 {
+        // Excel measures prehistory from the last timestamp ((target - last)/step - first_horizon):
+        // it snaps within 0.001 step of the first timestamp (along > -0.001) and refuses
+        // more than 0.999 step before it (along < -0.999) (Touchstone, eng21 & ig1 dc-iuwct.54).
+        let first_horizon = -((series.values.len() - 1) as f64);
+        let along = (target - series.last) / series.step - first_horizon;
+        if along < -0.999 {
             return fail(WorksheetErrorCode::Num);
         }
-        let first_horizon = -((series.values.len() - 1) as f64);
         let fitted = |h: f64| -> Step<f64> {
             match evaluate_fitted(site, &series, output, statistic, confidence, season, h)?.core_ref() {
                 CoreRef::Number(v) => Ok(v),
@@ -1662,12 +1686,9 @@ pub(super) fn evaluate(
             }
         };
         let first = fitted(first_horizon)?;
-        if position > -0.001 {
+        if along > -0.001 {
             return site.number(first);
         }
-        // The slope's multiplier is the horizon from the last timestamp less
-        // the first one's, not the position measured from the first.
-        let along = (target - series.last) / series.step - first_horizon;
         let second = fitted(first_horizon + 1.0)?;
         return finite(site, first + (second - first) * along);
     }

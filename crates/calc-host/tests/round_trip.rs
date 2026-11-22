@@ -7536,6 +7536,80 @@ fn contract_vba_spill_placement_wait_retains_the_array_without_repeating_the_eff
     }
 }
 
+/// Replay the same-input and conditional-volatility transitions observed in
+/// calc-vba/tests/fixtures/excel-recalculation/observations.json, with a single forced baseline.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn contract_vba_recalculation_tracks_dirty_arguments_and_volatility_per_caller() {
+    let mut backends = vec![calc_vba::Backend::Interpreter];
+    #[cfg(not(target_arch = "wasm32"))]
+    backends.push(calc_vba::Backend::Jit);
+    let source = r#"
+Private calls(1 To 3) As Long
+Public Function Observe(ByVal id As Long, ByVal input As Double, ByVal makeVolatile As Boolean) As Long
+    If makeVolatile Then Application.Volatile True
+    calls(id) = calls(id) + 1
+    Observe = calls(id)
+End Function
+"#;
+    for backend in backends {
+        let mut book = session(&calc_host::blank_package());
+        let s = book.host().sheets()[0].id();
+        book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        book.set_user_functions(
+            calc_vba::load_module_with_backend("Scheduling", source, 100_000, backend).unwrap(),
+        );
+        for (cell, input) in [
+            ("A1", "5"),
+            ("A2", "=A1*0"),
+            ("A3", "TRUE"),
+            ("B1", "=Observe(1,A1,FALSE)"),
+            ("B2", "=Observe(2,A2,FALSE)"),
+            ("B3", "=Observe(3,0,A3)"),
+        ] {
+            assert!(enter(&mut book, at(s, cell), input).accepted());
+        }
+        let full = || SkinIntent::Calculate {
+            scope: calc_engine::CalcScope::Workbook,
+            selection: calc_engine::EvalSelection::ForceAll,
+        };
+        let check = |book: &mut HostSession, intent, expected: [f64; 3]| {
+            assert!(book.dispatch(intent).accepted());
+            while book.has_pending_calculation() {
+                assert!(!matches!(book.advance_calculation(), HostProgress::Failed(_)));
+            }
+            for (cell, count) in ["B1", "B2", "B3"].into_iter().zip(expected) {
+                assert_eq!(
+                    calculated(book.host(), at(s, cell)),
+                    Some(CalcValue::number(count)),
+                    "{backend:?}: {cell}"
+                );
+            }
+        };
+        check(&mut book, full(), [1.0, 1.0, 1.0]);
+        check(&mut book, SkinIntent::Recalculate, [1.0, 1.0, 2.0]);
+        assert!(enter(&mut book, at(s, "A1"), "5").accepted());
+        check(&mut book, SkinIntent::Recalculate, [2.0, 2.0, 3.0]);
+        assert!(enter(&mut book, at(s, "A3"), "FALSE").accepted());
+        check(&mut book, SkinIntent::Recalculate, [2.0, 2.0, 4.0]);
+        check(&mut book, SkinIntent::Recalculate, [2.0, 2.0, 4.0]);
+        check(&mut book, full(), [3.0, 3.0, 5.0]);
+
+        book.set_user_functions(calc_fml::CallableTable::new());
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        while book.has_pending_calculation() {
+            assert!(!matches!(book.advance_calculation(), HostProgress::Failed(_)));
+        }
+        for cell in ["B1", "B2", "B3"] {
+            assert_eq!(
+                calculated(book.host(), at(s, cell)).and_then(|value| value.as_error()),
+                Some(calc_host::value::WorksheetErrorCode::Name),
+                "{backend:?}: {cell} after unload"
+            );
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn contract_vba_new_registration_rebinds_an_unknown_call_and_preserves_unrelated_results() {
