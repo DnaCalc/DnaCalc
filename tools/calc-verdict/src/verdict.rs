@@ -13,8 +13,8 @@
 //!   under another context fingerprint                -> stale (context_not_run)
 //!   with no evaluation of the cell at its tick,
 //!   revision and context in the evaluation record    -> unproven
-//!   with one that, in a version 2 record, returned
-//!   no value or another value than the result's      -> unproven (returned)
+//!   with a version 2 record that fails to prove
+//!   the published value                              -> unproven (returned)
 //!   no observation for the cell                      -> not_run
 //!   compared with the observation                    -> matched | mismatched
 //! provenance circular_rule                           -> as calculated, with no evaluation
@@ -45,8 +45,8 @@
 //! the evaluator rather than the publisher of results (judge cannot check who wrote it); the result
 //! set's own claim proves nothing. A version 2 record, made from the evaluator's own reports
 //! (only the dc-qguw acceptance cases write one today), also says what each evaluation returned,
-//! and a result whose value is not that value is unproven: the evaluation happened, but the value
-//! published is not the one it gave. A version 1 record carries no returned value, so against it
+//! and the judge checks that the published value follows from the returned value and its
+//! publication rules. A version 1 record carries no returned value, so against it
 //! a listed evaluation is all the proof there is, whatever value the result publishes
 //! ([`crate::EvaluationRecord`]); the report says so, with the record's version and the count of
 //! calculated cells proven without a value check (`calculated_without_value_check`). Bead
@@ -1244,7 +1244,9 @@ type Returned = Result<CalcValue, String>;
 /// The #SPILL! is still compared with Excel's observation like any value; a spill the array
 /// should have made shows there as a mismatch, never as a pass. A one-cell array
 /// also proves its exact primitive scalar: array_outcome publishes that sole
-/// element without a spill. This does not change the typed comparison with Excel.
+/// element without a spill. A full spill proves its separately published image
+/// when it shows the same shape and publishes the empty elements as numeric zero.
+/// The evaluator record remains raw and the comparison with Excel stays typed.
 fn unproven(
     evaluation: Option<Option<&Returned>>,
     published: Option<&CalcValue>,
@@ -1260,6 +1262,7 @@ fn unproven(
                     compare(value, published).is_none()
                         || spill_of(value, published)
                         || single_array_scalar_of(value, published)
+                        || spill_with_blanks_as_zero(value, published)
                 }
                 _ => false,
             };
@@ -1333,6 +1336,41 @@ fn single_array_scalar_of(returned: &CalcValue, published: &CalcValue) -> bool {
             )
             && compare(value, published).is_none()
     })
+}
+
+/// Compare the successful spill's projected cells with the evaluator's raw array.
+/// CalcEngine's spill publication shows a blank array element as numeric +0.
+fn spill_with_blanks_as_zero(returned: &CalcValue, published: &CalcValue) -> bool {
+    if returned.callable_value().is_some() || published.callable_value().is_some() {
+        return false;
+    }
+    let (Some(returned), Some(published)) = (returned.as_array(), published.as_array()) else {
+        return false;
+    };
+    if returned.cell_count() < 2
+        || returned.shape() != published.shape()
+        || returned.is_boxed()
+        || published.is_boxed()
+    {
+        return false;
+    }
+    let zero = CalcValue::number(0.0);
+    returned
+        .iter_row_major()
+        .zip(published.iter_row_major())
+        .all(|(raw, shown)| {
+            if raw.callable_value().is_some() || shown.callable_value().is_some() {
+                return false;
+            }
+            match raw.core() {
+                CoreValue::Empty => compare(&zero, shown).is_none(),
+                CoreValue::Number(_)
+                | CoreValue::Text(_)
+                | CoreValue::Logical(_)
+                | CoreValue::Error(_) => compare(raw, shown).is_none(),
+                _ => false,
+            }
+        })
 }
 
 /// Whether `published` is the #SPILL! an anchor shows for the array `returned` it cannot spill.
