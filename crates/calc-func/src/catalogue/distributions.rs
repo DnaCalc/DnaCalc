@@ -248,14 +248,24 @@ ported_shared_family! {
         let lower = if given(a, 4) { num(s, a, 4)? } else { 0.0 };
         let upper = if given(a, 5) { num(s, a, 5)? } else { 1.0 };
         let result = bg::beta_dist_kernel(x, alpha, beta, cumulative, lower, upper);
-        out(s, result.map(bg::flush_subnormal))
+        // Excel preserves subnormal `exp(alpha * ln(z))` on the `beta = 1` cumulative arm
+        // (`ww2 dc-iuwct.63-current-BETA.DIST.json` and ig5 Touchstone probes).
+        if cumulative && beta == 1.0 {
+            out_with_subnormal(s, result)
+        } else {
+            out(s, result.map(bg::flush_subnormal))
+        }
     }
     51 betadist |s, a, sv| {
         let [x, alpha, beta] = nums::<3>(s, a)?;
         let lower = if given(a, 3) { num(s, a, 3)? } else { 0.0 };
         let upper = if given(a, 4) { num(s, a, 4)? } else { 1.0 };
         let result = bg::beta_dist_kernel(x, alpha, beta, true, lower, upper);
-        out(s, result.map(bg::flush_subnormal))
+        if beta == 1.0 {
+            out_with_subnormal(s, result)
+        } else {
+            out(s, result.map(bg::flush_subnormal))
+        }
     }
     52 beta_inv |s, a, sv| {
         beta_inverse(s, a)
@@ -340,11 +350,11 @@ ported_shared_family! {
     }
     79 negbinom_dist |s, a, sv| {
         let [f, n, p] = nums::<3>(s, a)?;
-        out(s, dd::negbinom_dist_kernel(f, n, p, flag(s, a, 3)?))
+        out_with_subnormal(s, dd::negbinom_dist_kernel(f, n, p, flag(s, a, 3)?))
     }
     80 negbinomdist |s, a, sv| {
         let [f, n, p] = nums::<3>(s, a)?;
-        out(s, dd::negbinom_dist_kernel(f, n, p, false))
+        out_with_subnormal(s, dd::negbinom_dist_kernel(f, n, p, false))
     }
     // The error function.
     90 erf |s, a, sv| {

@@ -440,21 +440,27 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     };
     // Subtract the defining Stirling expansions before exponentiating:
     // log(C_v * sqrt(2*pi)) = s(a+1/2) - s(a) - D(a,a+1/2), a=v/2.
-    // The spatial factor is exp(-a*log1p(r))/sqrt(1+r), r=x*x/v.
-    // Excel 20527 controls select the fixed-factor quotient before the final
-    // multiply; the compensated public-LN graph improves the measured holdout
-    // by 401/521 with no losses (dc-bc1o). Remaining last bits are counted.
+    // For x^2/v <= 1 (bisected on Excel 16.0.20527 to 1 ± 2^-52 at v=900, 961),
+    // Excel evaluates -a * ln(1 + x^2/v) via Loader's deviance(a, a + x^2/2) - x^2/2
+    // (dc-iuwct.65: shares the exact deviance rounding of POISSON.DIST).
+    // Above x^2/v = 1, base = 1 + x^2/v >= 2 has no cancellation and Excel uses a * LN(base).
     let a = v / 2.0;
     let b = (v + 1.0) / 2.0;
     let normalizer = excel_x87_sub(
         excel_x87_sub(stirling_error(b), stirling_error(a)),
         deviance(a, b),
     );
-    let ratio = excel_x87_div(excel_x87_mul(x, x), v);
+    let x2 = excel_x87_mul(x, x);
+    let ratio = excel_x87_div(x2, v);
     let base = excel_x87_add(1.0, ratio);
-    let dropped = excel_x87_sub(ratio, excel_x87_sub(base, 1.0));
-    let log_base = excel_x87_add(excel_log(base), excel_x87_div(dropped, base));
-    let exponent = excel_x87_sub(normalizer, excel_x87_mul(a, log_base));
+    let exponent = if ratio <= 1.0 {
+        let half_x2 = excel_x87_mul(0.5, x2);
+        let np = excel_x87_add(a, half_x2);
+        let u = excel_x87_sub(half_x2, deviance(a, np));
+        excel_x87_sub(normalizer, u)
+    } else {
+        excel_x87_sub(normalizer, excel_x87_mul(a, excel_log(base)))
+    };
     let factor = excel_x87_div(
         crate::ported::normal_dist_common::INV_SQRT_2PI,
         excel_sqrt_staged(base),
@@ -1183,5 +1189,43 @@ mod tests {
             f_dist_kernel(f64::from_bits(0x3fe749edb3026b93), 5.0, 1e10 + 1.0, false),
             Err(WorksheetErrorCode::Num)
         );
+    }
+
+    /// Excel 16.0.20527 (dc-iuwct.65 / ww2 `dc-iuwct.65-current-T.DIST.json` & ig5 Touchstone):
+    /// For `x^2/v <= 1` (bisected to `1 ± 2^-52` at `v = 900, 961`), Excel evaluates
+    /// `-v/2 * ln(1 + x^2/v)` via Loader's `deviance(v/2, v/2 + x^2/2) - x^2/2`, sharing the
+    /// exact `deviance` rounding of `POISSON.DIST`; above `x^2/v = 1`, it uses `(v/2) * LN(1 + x^2/v)`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_iuwct_65_t_pdf_uses_deviance_matching_excel() {
+        let rows: &[(&str, u64, u64, u64)] = &[
+            ("45000-offset-0 ($[886])", 0x4041fc4a06ca6808, 0x40e5f90000000000, 0x0656002062a89fa6),
+            ("45000-offset-1", 0x4041fc4a06ca6809, 0x40e5f90000000000, 0x0656002062a89a26),
+            ("45000-offset-2", 0x4041fc4a06ca680a, 0x40e5f90000000000, 0x0656002062a891e6),
+            ("40000-offset--1", 0x4041fc4a06ca6807, 0x40e3880000000000, 0x0670c668a82ce91c),
+            ("40000-offset-0", 0x4041fc4a06ca6808, 0x40e3880000000000, 0x0670c668a82ce703),
+            ("44999-offset-0", 0x4041fc4a06ca6808, 0x40e5f8e000000000, 0x0656013eeb91bd82),
+            ("45001-offset-0", 0x4041fc4a06ca6808, 0x40e5f92000000000, 0x0655ff01eb85481f),
+            ("50000-offset-0", 0x4041fc4a06ca6808, 0x40e86a0000000000, 0x0641f6bac21d24a9),
+            ("100000-offset--1", 0x4041fc4a06ca6807, 0x40f86a0000000000, 0x05e391cdaef8a620),
+            // Exact x^2/v = 1 ± 2^-52 crossover (ig5 Touchstone probes).
+            ("x2v-900-m1", 0x403dffffffffffff, 0x408c200000000000, 0x23b20c8eb1e9d004),
+            ("x2v-900-p1", 0x403e000000000001, 0x408c200000000000, 0x23b20c8eb1e9cdc1),
+            ("x2v-961-m1", 0x403effffffffffff, 0x408e080000000000, 0x21c98691f613467e),
+            ("x2v-933-0.999", 0x403e879f2937aa3a, 0x408d280000000000, 0x22b01ed4ec333a26),
+            ("x2v-933-1.05", 0x403f4ca2ec6cbcf1, 0x408d280000000000, 0x21a06bdc9d05ffa3),
+            // Large x^2/v >> 1 controls.
+            ("x=1e10 v=3", 1e10_f64.to_bits(), 3.0_f64.to_bits(), 0x37bcd106f2052352),
+            ("x=1e4 v=100", 1e4_f64.to_bits(), 100.0_f64.to_bits(), 0x00f176ee675588ee),
+        ];
+        for &(label, x_bits, v_bits, excel) in rows {
+            let got = t_dist_kernel(f64::from_bits(x_bits), f64::from_bits(v_bits), false)
+                .unwrap()
+                .to_bits();
+            assert_eq!(
+                got, excel,
+                "T.DIST({x_bits:#018x}, {v_bits:#018x}, FALSE) [{label}] got {got:#018x}, expected {excel:#018x}"
+            );
+        }
     }
 }

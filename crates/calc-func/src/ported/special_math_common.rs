@@ -1703,20 +1703,20 @@ fn bratio_bup(a: f64, b: f64, x: f64, y: f64, n: i32, eps: f64) -> f64 {
                 excel_beta_up_sum_small_b, excel_exp, excel_log, excel_x87_add, excel_x87_div,
             };
             let xy = excel_x87_mul(x, y);
-            let h = excel_x87_mul(xy, density);
             d = 1.0;
-            // Excel flushes this stored density product before the recurrence;
-            // the subsequent sum can otherwise magnify it to a normal value.
-            if h.is_subnormal() {
-                return 0.0;
-            }
-            // The division store also flushes before the density multiplier.
+            // The division store flushes before the density multiplier.
             // At the minimum normal coordinate it leaves the bgrat seed zero.
             let scale = excel_x87_div(xy, a);
             if scale.is_subnormal() {
                 return 0.0;
             }
             let first = excel_x87_mul(scale, density);
+            // Excel flushes the stored first term `(x * y / a) * density` before
+            // the recurrence (dc-iuwct.63: measured at b0 = 0.5, 0.1, 0.01 where
+            // `x * y * density` is already subnormal while `first` is normal).
+            if first.is_subnormal() {
+                return 0.0;
+            }
             // Universal finite-recurrence sum (dc-j9k.58):
             // - For b <= 1 (the 20-step shift before bgrat), coefficients are stored binary64
             //   while x^m and the sum accumulate in extended precision.
@@ -2004,6 +2004,8 @@ fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
 /// bgrat: asymptotic expansion for Ix(a, b) when a is larger than b. Adds the
 /// expansion to `w`; returns (w_new, ierr).
 fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) {
+    // `DBL_MIN / f64::EPSILON = 2^-970`: below this, `eps * total` flushes to zero.
+    const TWO_TO_MINUS_970: f64 = f64::from_bits(0x0350_0000_0000_0000);
     let mut c = [0.0f64; 31];
     let mut d = [0.0f64; 31];
     let bm1 = (b - 0.5) - 0.5;
@@ -2017,7 +2019,7 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     };
     let z = -nu * lnx;
     if b * z == 0.0 {
-        return (w, 1);
+        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
     }
     let mut r =
         b * (1.0 + bratio_gam1(b)) * crate::ported::excel_numeric::excel_exp(b * crt_log(z));
@@ -2038,7 +2040,7 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         - crate::ported::discrete_dist::stirling_error(a);
     let u = r * crate::ported::excel_numeric::excel_exp(g);
     if u == 0.0 {
-        return (w, 1);
+        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
     }
     // Q(b, z): half-shape uses Excel's erf/erfc both directly and when seeded
     // by a finite recurrence (w > 0); unit shape uses exp(-z).
@@ -2064,12 +2066,18 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     let l = w / u;
     let mut j = q / r;
     let mut summ = j;
+    // Track the n >= 1 correction starting from j = 0 alongside the main recurrence
+    // (dc-iuwct.63 / dc-iuwct.66): when both |u * s_no| < DBL_MIN and w + u * summ < 2^-970,
+    // Excel returns 0.0 (discarding the bup seed w as well).
+    let mut j_no = 0.0;
+    let mut s_no = 0.0;
     let mut t = 1.0;
     let mut cn = 1.0;
     let mut n2 = 0.0;
     for n in 1..=30usize {
         let bp2n = b + n2;
         j = (bp2n * (bp2n + 1.0) * j + (z + bp2n + 1.0) * t) * v;
+        j_no = (bp2n * (bp2n + 1.0) * j_no + (z + bp2n + 1.0) * t) * v;
         n2 += 2.0;
         t *= t2;
         cn /= n2 * (n2 + 1.0);
@@ -2086,6 +2094,7 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         d[n] = bm1 * cn + s / n as f64;
         let dj = d[n] * j;
         summ += dj;
+        s_no += d[n] * j_no;
         if summ <= 0.0 {
             return (w, 1);
         }
@@ -2093,7 +2102,11 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
             break;
         }
     }
-    (w + u * summ, 0)
+    let total = w + u * summ;
+    if (u * s_no).abs() < f64::MIN_POSITIVE && total < TWO_TO_MINUS_970 {
+        return (0.0, 1);
+    }
+    (total, 0)
 }
 
 /// grat1: evaluation of (P(a,x), Q(a,x)) for a <= 1.
