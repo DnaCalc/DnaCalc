@@ -1,2 +1,2 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-w111inthyp-heldout-CSCH-007698	["0xbfcde8ec16456440"]	0xc010f69b9364e761	0xc010f69b9364e760	-4.240827849420242607779459	0.368	0.632	ours-wrong
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+w111inthyp-heldout-CSCH-007698	["0xbfcde8ec16456440"]	0xc010f69b9364e761	0xc010f69b9364e760	-4.240827849420242607779459	0.367614029	0.632385971	ours-wrong		runs/w111-integer-hyperbolic-heldout-20260929/answers/answers-csch.json	null	{"bitness": "64-bit", "cpu": null, "excel_build": "20430", "invocation": {"compatibility_version": "2", "input_sheet_state": "visible-constant-inputs", "input_transport": "cell_value2_bulk"}, "platform": "Windows"}

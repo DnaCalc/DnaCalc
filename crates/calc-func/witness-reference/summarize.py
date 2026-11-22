@@ -1,24 +1,83 @@
-"""Per-function summary of the reference tables: python3 summarize.py <dir>  ->  <dir>/summary.tsv"""
-import csv, glob, os, sys, collections
+"""Summarize per-function reference tables and reconcile them with a witness judge report."""
 
-d = sys.argv[1]
-classes = ['ours-wrong', 'excel-quirk', 'both-inexact', 'large-deviation']
-out = open(os.path.join(d, 'summary.tsv'), 'w')
-out.write('function\tmismatching_rows\t' + '\t'.join(classes) +
-          '\tother_classes\tworst_excel_ulp\tworst_ours_ulp\n')
-rows = []
-for p in sorted(glob.glob(os.path.join(d, '*.tsv'))):
-    f = os.path.basename(p)[:-4]
-    if f == 'summary': continue
-    c = collections.Counter(); we = wo = 0.0; n = 0
-    for r in csv.DictReader(open(p), delimiter='\t', quoting=csv.QUOTE_NONE):
-        n += 1; c[r['class']] += 1
-        try: we = max(we, float(r['excel_ulp'])); wo = max(wo, float(r['ours_ulp']))
-        except ValueError: pass
-    other = ';'.join('%s=%d' % (k, v) for k, v in sorted(c.items()) if k not in classes)
-    rows.append((n, f, c, other, we, wo))
-for n, f, c, other, we, wo in sorted(rows, key=lambda r: -r[0]):
-    out.write('%s\t%d\t%s\t%s\t%s\t%s\n' % (f, n, '\t'.join(str(c[k]) for k in classes), other,
-                                          '%.3f' % we, '%.3f' % wo))
-out.close()
-print(sum(r[0] for r in rows), 'rows in', len(rows), 'functions')
+import argparse
+import csv
+import json
+from collections import Counter
+from decimal import Decimal
+from pathlib import Path
+
+
+CLASSES = ('ours-wrong', 'excel-quirk', 'large-deviation')
+
+
+def summarize(directory, judge):
+    summaries = []
+    counts = Counter()
+    for path in sorted(directory.glob('*.tsv')):
+        if path.stem == 'summary':
+            continue
+        classes = Counter()
+        details = Counter()
+        worst = [Decimal(0), Decimal(0)]
+        with path.open(encoding='utf-8', newline='') as table:
+            for row in csv.DictReader(table, delimiter='\t', quoting=csv.QUOTE_NONE):
+                classes[row['class']] += 1
+                if 'both-inexact' in row['detail'].split(','):
+                    details['both-inexact'] += 1
+                if 'text15' in row['detail'].split(','):
+                    details['text15'] += 1
+                for i, field in enumerate(('excel_ulp', 'ours_ulp')):
+                    if row[field]:
+                        worst[i] = max(worst[i], Decimal(row[field]))
+        counts.update(classes)
+        summaries.append((path.stem, sum(classes.values()), classes, details, worst))
+
+    if judge:
+        report = json.loads(judge.read_text(encoding='utf-8'))
+        totals = report['totals']
+        reported = {r['function']: r['failed'] for r in report['functions']}
+        untraced_exclusions = Counter(row['function'] for row in report['excluded_rows']
+                                      if 'detail' in row)
+        missing = Counter(reported)
+        missing.subtract({function: n for function, n, *_ in summaries})
+        missing.subtract(untraced_exclusions)
+        if any(n < 0 for n in missing.values()) or sum(missing.values()) != totals['unread']:
+            differences = {f: n for f, n in missing.items() if n}
+            raise ValueError(f'Tables disagree with judge after exclusions and '
+                             f'{totals["unread"]} unread: {differences}')
+        covered = {s[0] for s in summaries}
+        empty = (f for f, n in (missing + untraced_exclusions).items() if n and f not in covered)
+        summaries.extend((f, 0, Counter(), Counter(), [Decimal(0), Decimal(0)]) for f in empty)
+        print(f'Judge: {totals["matched"]} matched, {totals["failed"]} failed of {totals["rows"]}; '
+              f'{totals["unread"]} unread, {sum(untraced_exclusions.values())} excluded without trace')
+    else:
+        missing = Counter()
+        untraced_exclusions = Counter()
+
+    with (directory / 'summary.tsv').open('w', encoding='utf-8', newline='') as output:
+        writer = csv.writer(output, delimiter='\t', lineterminator='\n')
+        writer.writerow(('function', 'mismatching_rows', *CLASSES, 'other_classes',
+                         'worst_excel_ulp', 'worst_ours_ulp', 'both_inexact', 'text15', 'unread',
+                         'excluded_without_trace'))
+        for f, n, classes, details, worst in sorted(summaries, key=lambda s: (-s[1], s[0])):
+            other = ';'.join(f'{k}={v}' for k, v in sorted(classes.items()) if k not in CLASSES)
+            writer.writerow((f, n, *(classes[k] for k in CLASSES), other, *worst,
+                             details['both-inexact'], details['text15'], missing[f],
+                             untraced_exclusions[f]))
+    print(f'{sum(counts.values())} traced mismatches in '
+          f'{sum(n > 0 for _, n, *_ in summaries)} functions')
+    for cls, count in sorted(counts.items()):
+        print(f'{cls}: {count}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('directory', type=Path)
+    parser.add_argument('--judge', type=Path)
+    options = parser.parse_args()
+    summarize(options.directory, options.judge)
+
+
+if __name__ == '__main__':
+    main()

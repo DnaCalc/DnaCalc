@@ -1,2 +1,2 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-bank2-more-WEIBULL-0536	["0x40457fffffffffff", "0x3feb4646cd8e6755", "0x408c1acddc602ab6", "0xbfe0000000000000"]	0x3fb279dd9f2d8e64	0x3fb279dd9f2d8e63	0.0721720231645633335843568	0.246	0.754	ours-wrong
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+bank2-more-WEIBULL-0536	["0x40457fffffffffff", "0x3feb4646cd8e6755", "0x408c1acddc602ab6", "0xbfe0000000000000"]	0x3fb279dd9f2d8e64	0x3fb279dd9f2d8e63	0.0721720231645633335843568	0.245715777	0.754284223	ours-wrong		readings/excel-20527/bank2-answers-weibull-more.json	null	{"bitness": null, "cpu": null, "excel_build": "20527", "invocation": {"addins_open": "", "cell_layout": "touchstone/1-bulk", "compatibility_version": "2", "date_system": "1900", "decimal_separator": ".", "defined_names": "", "input_transport": "cell_value2_bulk", "locale": "en-ZA", "thousands_separator": " "}, "platform": "Windows"}

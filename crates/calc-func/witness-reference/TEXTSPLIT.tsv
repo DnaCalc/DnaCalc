@@ -1,3 +1,3 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-fn1-textsplit-005	["a,,b", ","]	error:Spill	excluded:spill-layout				structural:error:Spill/text
-fn1-textsplit-004	["\u00e9-\u00c9-\u00e9", "\u00e9"]	error:Spill	excluded:spill-layout				structural:error:Spill/text
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+fn1-textsplit-005	["a,,b", ","]	error:Spill	excluded:spill-layout				structural:error:Spill/excluded		readings/excel-20527/TEXTSPLIT.json	null	{"bitness": "64-bit", "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ", "excel_build": "20527", "invocation": {"compatibility_version": "2", "date_system": "1900", "decimal_separator": ".", "input_transport": "cell_value2_bulk", "thousands_separator": "\u00a0"}, "platform": "Windows"}
+fn1-textsplit-004	["\u00e9-\u00c9-\u00e9", "\u00e9"]	error:Spill	excluded:spill-layout				structural:error:Spill/excluded		readings/excel-20527/TEXTSPLIT.json	null	{"bitness": "64-bit", "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ", "excel_build": "20527", "invocation": {"compatibility_version": "2", "date_system": "1900", "decimal_separator": ".", "input_transport": "cell_value2_bulk", "thousands_separator": "\u00a0"}, "platform": "Windows"}

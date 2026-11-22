@@ -1,2 +1,2 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-staged-heldout2-SECH-07052	["0x40626a2eee0913f4"]	0x32b614b0bdee20e0	0x32b614b0bdee20df	2.096699399258165172729544e-64	0.767	0.233	excel-quirk
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+staged-heldout2-SECH-07052	["0x40626a2eee0913f4"]	0x32b614b0bdee20e0	0x32b614b0bdee20df	2.096699399258165172729544e-64	0.767072402	0.232927598	excel-quirk		runs/w111-radians-sech-heldout2-20260929/answers/answers-sech.json	null	{"bitness": "64-bit", "cpu": null, "excel_build": "20430", "invocation": {"compatibility_version": "2", "input_sheet_state": "visible-constant-inputs", "input_transport": "cell_value2_bulk"}, "platform": "Windows"}

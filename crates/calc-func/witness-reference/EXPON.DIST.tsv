@@ -1,2 +1,2 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-w111extended-2026092903-EXPON.DIST-00785	["0x4041e3638d4b5c68", "0x4010b57b6a26c909", "0x0000000000000000"]	0x3295f5b972dff5b4	0x3295f5b972dff5b3	5.213033688926780830313791e-65	29.327	30.327	large-deviation
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+w111extended-2026092903-EXPON.DIST-00785	["0x4041e3638d4b5c68", "0x4010b57b6a26c909", "0x0000000000000000"]	0x3295f5b972dff5b4	0x3295f5b972dff5b3	5.213033688926780830313791e-65	29.3266759	30.3266759	large-deviation		runs/w111-extended-numeric-20260929/answers/answers-expon.dist.json	null	{"bitness": "64-bit", "cpu": null, "excel_build": "20430", "invocation": {"compatibility_version": "2", "input_sheet_state": "visible-constant-inputs", "input_transport": "cell_value2_bulk"}, "platform": "Windows"}

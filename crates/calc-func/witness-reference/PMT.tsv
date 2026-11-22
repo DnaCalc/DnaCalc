@@ -1,2 +1,2 @@
-id	args	excel	ours	reference	excel_ulp	ours_ulp	class
-round3-pmt-balance-0529	["0x3fa999999999999a", "0x3ff0000000000000", "0x7fcfffffffffffff", "0xffcfffffffffffff", "0x3ff0000000000000"]	0xff88618618618617	0xff88618618618618	-2.140110874836090241887249e+306	0.982	0.018	excel-quirk
+id	args	excel	ours	reference	excel_ulp	ours_ulp	class	detail	source	result_index	reading
+round3-pmt-balance-0529	["0x3fa999999999999a", "0x3ff0000000000000", "0x7fcfffffffffffff", "0xffcfffffffffffff", "0x3ff0000000000000"]	0xff88618618618617	0xff88618618618618	-2.140110874836090241887249e+306	0.98185941	0.0181405896	excel-quirk		readings/excel-20527/PMT-calcvba4.json	null	{"bitness": "64-bit", "cpu": "AMD Ryzen 7 4800H with Radeon Graphics         ", "excel_build": "20527", "invocation": {"input_transport": "cell_value2_bulk"}, "platform": "Windows"}
