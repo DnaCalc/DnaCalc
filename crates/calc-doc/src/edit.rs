@@ -164,8 +164,8 @@ pub(crate) fn check_formula(formula: &FormulaText) -> Result<(), FormulaCheck> {
     }
 }
 
-/// Applies `batch` to `model` and checks every formula it sets ([`check_formula`]): the batch's
-/// next revision, or why it is refused.
+/// Prepares the next model revision. Refuses invalid edits and formulas with unreadable text,
+/// syntax diagnostics or more than [`FORMULA_MAX_UTF16_CODE_UNITS`] UTF-16 code units.
 pub fn prepare_edit(model: &ModelRoot, batch: &OpBatch) -> Result<PreparedEdit, EditError> {
     check_arrays(model, batch)?;
     let edited = model.apply(batch).map_err(EditError::Model)?;

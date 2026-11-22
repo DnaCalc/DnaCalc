@@ -38,14 +38,17 @@ impl NumericTargetId {
         })
     }
 
+    /// The Excel build as recorded in the capture.
     pub fn excel_build(&self) -> &str {
         &self.excel_build
     }
 
+    /// The release channel of the target build.
     pub fn channel(&self) -> &str {
         &self.channel
     }
 
+    /// The compatibility setting used when the answers were captured.
     pub fn compatibility(&self) -> &str {
         &self.compatibility
     }
@@ -60,8 +63,10 @@ impl NumericTargetId {
 /// deterministic policy; `Exact` reproduces one selected Excel target and is chosen deliberately.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NumericMode {
+    /// The default portable, deterministic numeric policy.
     #[default]
     Fast,
+    /// The numeric policy for the specified Excel target.
     Exact(NumericTargetId),
 }
 

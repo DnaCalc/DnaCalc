@@ -13,9 +13,7 @@
 //!   columns ([`AxisInterval`]), or a [`SheetSpan`] across sheets. Each is one edge, filed in
 //!   reverse indexes that find the nodes reading a changed cell; a span's sheets are read from
 //!   the snapshot's current sheet order. [`begin_recalc`] states them from each formula's placed
-//!   references: cells, rectangles and whole rows or columns. CalcFml's binder refuses sheet
-//!   spans today, so only tests state a span; its binding and its calculation
-//!   are dc-m3u's.
+//!   references. A 3-D reference needs the workbook's sheet order.
 //! - Edits: [`prepare_edit`] stages an authored [`calc_doc_model::OpBatch`]'s effects against the
 //!   base snapshot and reserves the IDs of the nodes it adds, changing no node or edge: formula
 //!   nodes added, replaced or removed ([`NodeChange`]) and the changed inputs, each with its prior
@@ -50,7 +48,49 @@
 //!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
 //!   without each being parsed.
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! ## Calculate a formula in an authored snapshot
+//!
+//! Give the engine a snapshot from the document model, advance calculation, and publish the
+//! value. The document model and its revision stay with the caller.
+//!
+//! ```
+//! use calc_doc_model::{
+//!     AuthoredRevision, CellInput, FormulaText, ModelRoot, SheetEntry, SheetKey, SheetName,
+//!     SheetVisibility,
+//! };
+//! use calc_engine::{
+//!     EngineState, FormulaResult, RecalcProgress, Unobserved, WorkBudget, begin_recalc, finish,
+//!     step,
+//! };
+//! use calc_value::{CellKey, ExcelText, IdAllocator, NumericMode, SheetId};
+//!
+//! let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+//! let entry = SheetEntry::new(
+//!     sheet,
+//!     SheetKey::new(1),
+//!     SheetName::new(ExcelText::from_interop_assignment("Sheet1")).unwrap(),
+//!     SheetVisibility::Visible,
+//! );
+//! let cell = CellKey::new(sheet, 1, 1).unwrap();
+//! let formula = FormulaText::new(ExcelText::from_interop_assignment("=6*7")).unwrap();
+//! let root = ModelRoot::with_cells(
+//!     AuthoredRevision::INITIAL,
+//!     vec![entry],
+//!     [(cell, CellInput::Formula(formula))],
+//! ).unwrap();
+//!
+//! let mut engine = EngineState::new(&root);
+//! let mut work = begin_recalc(&mut engine, &root, NumericMode::Fast).unwrap();
+//! let progress = step(&engine, &root, &mut work, WorkBudget::UNLIMITED, &mut Unobserved);
+//! assert_eq!(progress, RecalcProgress::Complete);
+//! finish(&mut engine, &root, work).unwrap();
+//! match engine.result(cell) {
+//!     Some(FormulaResult::Calculated { value, .. }) => assert_eq!(value.as_number(), Some(42.0)),
+//!     other => panic!("expected a calculated value, got {other:?}"),
+//! }
+//! ```
+//!
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-engine/CONTRACT.md).
 
 pub mod contract;
 mod data_table;

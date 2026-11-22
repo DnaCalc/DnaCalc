@@ -1,6 +1,6 @@
 //! The Windows runtime's `pow` in portable Rust (dc-sbo): Arm's optimized-routines `pow`
 //! (Szabolcs Nagy; `math/pow.c` and `math/pow_log_data.c` of
-//! https://github.com/ARM-software/optimized-routines at 0b5e3775, MIT OR Apache-2.0 WITH
+//! <https://github.com/ARM-software/optimized-routines> at 0b5e3775, MIT OR Apache-2.0 WITH
 //! LLVM-exception, used under MIT; Copyright (c) 2018-2026 Arm Limited; notice in
 //! `deploy/notices/ported.txt`) on its fused multiply-add path, with Arm's 256-entry exp
 //! configuration (`EXP_TABLE_BITS 8`, the order-5 wide polynomial, `EXP_USE_TOINT_NARROW`) and

@@ -56,7 +56,7 @@ pub struct FileForm {
 pub enum FileFormError {
     /// The text is not valid UTF-16 or the parser reads it with a diagnostic.
     Unreadable,
-    /// The formula nests deeper than the converter walks ([`MAX_DEPTH`]).
+    /// The formula exceeds the converter's syntax nesting limit.
     TooDeep,
 }
 

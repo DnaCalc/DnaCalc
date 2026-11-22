@@ -1735,13 +1735,13 @@ pub enum CellFormatError {
     /// The value cannot be shown under the code: a negative number or one past 9999-12-31 under
     /// a date or time code, which Excel's cell shows as a row of `#`.
     Unshowable,
-    /// The text under this code is not modelled (the cases [`text`] refuses).
+    /// The renderer cannot model this value under the supplied code.
     NotModelled,
 }
 
-/// A cell's value as the cell shows it under the number format `code` (dc-09v): a number or a
-/// text through the one renderer TEXT uses ([`text`], [`text_of_text`]); a logical as it is, which
-/// no format changes. An error or an array gets no text here (`NotModelled`): the caller shows it
+/// Renders a cell's value under the number format `code` (dc-09v). Numbers and text use the
+/// same renderer as TEXT. A logical keeps its original spelling.
+/// An error or an array gets no text here (`NotModelled`): the caller shows it
 /// as it shows it unformatted. The column's width is not applied: a skin that clips or shows `#`
 /// for a number wider than its column does so itself.
 pub fn cell_text(
@@ -1852,9 +1852,8 @@ impl FormatColor {
     }
 }
 
-/// The color the section of `code` that shows `value` names (dc-09v): the section [`text`] or
-/// [`text_of_text`] would render it with, read up to its first character that is not in a
-/// bracketed token; `None` when the section names none or the value takes no section.
+/// Returns the color named by a leading bracketed token in the format section selected for
+/// `value`, or `None` when no section or color applies.
 pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatColor> {
     use crate::value::CoreRef;
     let sections = sections(code);

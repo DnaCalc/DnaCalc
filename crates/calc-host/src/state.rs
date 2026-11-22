@@ -944,9 +944,8 @@ impl HostState {
     /// cell when the workbook was opened (`General` when it gave none), or `None` when the file
     /// names a format the styles part neither declares nor builds in (dc-09v). A cell an edit
     /// sets keeps the format of its place; a cell moved by an inserted or deleted row or column
-    /// keeps its own, and an inserted one takes the format of the cell before the inserted band
-    /// ([`HostState::opened_position`]); a cell format an edit gave the cell
-    /// ([`crate::CellEdit::SetFormat`], a copy's) comes first.
+    /// keeps its own, and an inserted one takes the format of the cell before the inserted band.
+    /// A format set by an edit ([`crate::CellEdit::SetFormat`]) takes precedence.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
         self.style_number_format(self.styles(), self.cell_style(at))
     }

@@ -2,8 +2,7 @@
 //! (crates/oxfunc_core/src/locale_format.rs at 6fca3518): the profile of each locale OxFunc names
 //! (decimal and thousands separators, currency, the short date order and pattern), and the
 //! conversion between a serial date number and a year, month and day in the 1900 and 1904 date
-//! systems. The number-format engine that renders TEXT, FIXED and DOLLAR and reads VALUE is
-//! [`crate::format`].
+//! systems. Worksheet functions such as TEXT and VALUE use these profiles.
 //!
 //! A call reaches a profile and a date system through its services
 //! ([`crate::EvalServices::with_environment`]); without one, a kernel that needs it is refused

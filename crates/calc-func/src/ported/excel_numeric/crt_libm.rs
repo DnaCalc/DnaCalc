@@ -5,7 +5,7 @@
 //! # Sources
 //! `exp`, `sin`, `cos`, `sinh`, `cosh`, `atan2` and `hypot` are translations of AMD's win-libm,
 //! the x64 Windows math library sources AMD published under the MIT licence
-//! (https://github.com/amd/win-libm at 6121d02; Copyright (c) 2002-2019 Advanced Micro Devices,
+//! (<https://github.com/amd/win-libm> at 6121d02; Copyright (c) 2002-2019 Advanced Micro Devices,
 //! Inc.; notice in `deploy/notices/ported.txt`):
 //! - `exp`: `exp.asm`, its FMA3 path (`n = trunc(x*64/ln2)`, the two-part reduction by ln2/64,
 //!   the Horner polynomial 1/720 to 1/2), with `two_to_jby64_table.asm` and
@@ -37,7 +37,7 @@
 //!
 //! A CPU without FMA3 makes the runtime take other code paths, which are not these.
 //!
-//! The `log` and `log10` tables are AOCL-LibM's (https://github.com/amd/aocl-libm-ose,
+//! The `log` and `log10` tables are AOCL-LibM's (<https://github.com/amd/aocl-libm-ose>,
 //! src/isa/avx2/gas/log_fma3.S and log10_fma3.S at master, 2026-10-25), under its licence: Copyright (C) 2008-2022 Advanced Micro Devices, Inc. All rights reserved.
 //! Redistribution and use in source and binary forms, with or without modification, are
 //! permitted provided that the following conditions are met: 1. Redistributions of source code

@@ -893,7 +893,7 @@ pub struct SaveReceipt {
 }
 
 /// Why a write failed. A source that failed a read or no longer holds an entry's stored bytes as
-/// opened is found before the first byte is written, by the check [`write`] makes of every entry
+/// opened is found before the first byte is written, by the check [`write()`] makes of every entry
 /// it copies, and the sink then holds nothing. A failure after that check (a sink that refuses
 /// bytes, or a source that changes or fails while the write runs) leaves an incomplete package in
 /// the sink, which must be discarded.

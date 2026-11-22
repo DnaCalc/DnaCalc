@@ -1,7 +1,7 @@
 //! A sheet's charts as a skin draws them (dc-6yw): each chart's place on the sheet, title, legend
 //! and plots, and each series' name, categories (a scatter's X values) and values as the workbook
 //! holds them now. A series' formulas are evaluated by the one evaluator
-//! ([`HostState::formula_values`], through [`calc_engine::DetachedFormula`]), so a chart follows
+//! (through [`calc_engine::DetachedFormula`]), so a chart follows
 //! every edit and recalculation; a series whose formula does not evaluate shows the points the
 //! file cached with it, and says so ([`SeriesView::cached`]).
 //!

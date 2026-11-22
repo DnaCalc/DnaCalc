@@ -1,8 +1,8 @@
 //! Review parts retain their original attributes, identities and unsupported children.
 //! Local author fields follow the published CT_Person contract:
-//! https://learn.microsoft.com/en-us/openspecs/office_standards/ms-xlsx/6274371e-7c5c-46e3-b661-cbeb4abfe968
+//! <https://learn.microsoft.com/en-us/openspecs/office_standards/ms-xlsx/6274371e-7c5c-46e3-b661-cbeb4abfe968>
 //! New record fields follow CT_ThreadedComment; no schema source code is included.
-//! https://learn.microsoft.com/en-us/openspecs/office_standards/ms-xlsx/adb84732-9fc8-48b6-bddc-6b0bcdaad940
+//! <https://learn.microsoft.com/en-us/openspecs/office_standards/ms-xlsx/adb84732-9fc8-48b6-bddc-6b0bcdaad940>
 use super::{
     SaveRefusal,
     author::Changes,

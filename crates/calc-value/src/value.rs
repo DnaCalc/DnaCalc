@@ -19,19 +19,33 @@ pub const EXCEL_TEXT_MAX_UTF16_CODE_UNITS: usize = 32_767;
 /// established here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WorksheetErrorCode {
+    /// The worksheet error `#NULL!`.
     Null,
+    /// The worksheet error `#DIV/0!`.
     Div0,
+    /// The worksheet error `#VALUE!`.
     Value,
+    /// The worksheet error `#REF!`.
     Ref,
+    /// The worksheet error `#NAME?`.
     Name,
+    /// The worksheet error `#NUM!`.
     Num,
+    /// The worksheet error `#N/A`.
     NA,
+    /// The worksheet error `#BUSY!`.
     Busy,
+    /// The worksheet error `#GETTING_DATA`.
     GettingData,
+    /// The worksheet error `#SPILL!`.
     Spill,
+    /// The worksheet error `#CALC!`.
     Calc,
+    /// The worksheet error `#FIELD!`.
     Field,
+    /// The worksheet error `#BLOCKED!`.
     Blocked,
+    /// The worksheet error `#CONNECT!`.
     Connect,
 }
 
@@ -102,10 +116,12 @@ impl ExcelText {
         Self::from_utf16_code_units(units)
     }
 
+    /// The length in UTF-16 code units.
     pub fn len_utf16_code_units(&self) -> usize {
         self.units.len()
     }
 
+    /// The original code units, including any unpaired surrogates.
     pub fn utf16_code_units(&self) -> &[u16] {
         &self.units
     }
@@ -126,7 +142,9 @@ impl ExcelText {
 /// The rows and columns of an array value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ArrayShape {
+    /// The number of rows.
     pub rows: usize,
+    /// The number of columns.
     pub cols: usize,
 }
 
@@ -214,6 +232,7 @@ impl CalcArray {
         )
     }
 
+    /// The dimensions of the array.
     pub const fn shape(&self) -> ArrayShape {
         self.shape
     }
@@ -259,6 +278,7 @@ impl CalcArray {
         })
     }
 
+    /// The length of the backing cell sequence.
     pub fn cell_count(&self) -> usize {
         self.cells.len()
     }
@@ -282,6 +302,7 @@ impl CalcArray {
         self.cells.get(start..end)
     }
 
+    /// Visits cells from left to right in each row, starting with the top row.
     pub fn iter_row_major(&self) -> std::slice::Iter<'_, CalcValue> {
         self.cells.iter()
     }
@@ -306,7 +327,12 @@ pub enum ReferenceError {
     NoAreas,
     /// The areas lie on more than one sheet; Excel's union operator works within one sheet.
     /// `first` is the sheet of the first area and `other` that of the first area on another.
-    SheetMismatch { first: SheetId, other: SheetId },
+    SheetMismatch {
+        /// The sheet of the first area.
+        first: SheetId,
+        /// The sheet of the first area on a different sheet.
+        other: SheetId,
+    },
 }
 
 impl fmt::Display for ReferenceError {
@@ -396,6 +422,7 @@ impl ReferenceLike {
         self.areas().iter().any(|area| area.sheet() != first)
     }
 
+    /// The referenced rectangles in their stored order.
     pub fn areas(&self) -> &[GridArea] {
         match &self.areas {
             Areas::One(area) => std::slice::from_ref(area),
@@ -403,6 +430,7 @@ impl ReferenceLike {
         }
     }
 
+    /// The number of rectangles in the reference.
     pub fn area_count(&self) -> usize {
         self.areas().len()
     }
@@ -411,19 +439,24 @@ impl ReferenceLike {
 /// The number of arguments a callable accepts, from `min` to `max` inclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CallableArityShape {
+    /// Inclusive minimum argument count.
     pub min: usize,
+    /// Inclusive maximum argument count.
     pub max: usize,
 }
 
 impl CallableArityShape {
+    /// An arity that accepts exactly `n` arguments.
     pub const fn exact(n: usize) -> Self {
         CallableArityShape { min: n, max: n }
     }
 
+    /// An arity with inclusive bounds.
     pub const fn range(min: usize, max: usize) -> Self {
         CallableArityShape { min, max }
     }
 
+    /// Whether the supplied argument count lies within the bounds.
     pub const fn accepts(self, argc: usize) -> bool {
         argc >= self.min && argc <= self.max
     }
@@ -434,6 +467,7 @@ impl CallableArityShape {
 /// Implementers are `Send + Sync`: a callable value carries a token or an immutable binding,
 /// never thread-bound evaluation state.
 pub trait OpaqueCallable: fmt::Debug + Send + Sync + 'static {
+    /// Exposes the token for downcasting by its evaluator.
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -448,6 +482,7 @@ pub struct CallableValue {
 }
 
 impl CallableValue {
+    /// Wraps the evaluator's shared handle with the accepted arity and display summary.
     pub fn new(arity: CallableArityShape, summary: &str, handle: Arc<dyn OpaqueCallable>) -> Self {
         CallableValue {
             arity,
@@ -456,14 +491,17 @@ impl CallableValue {
         }
     }
 
+    /// The accepted argument counts.
     pub const fn arity(&self) -> CallableArityShape {
         self.arity
     }
 
+    /// The caller-supplied text for display.
     pub fn summary(&self) -> &str {
         &self.summary
     }
 
+    /// The shared token identifying the callable.
     pub fn handle(&self) -> &Arc<dyn OpaqueCallable> {
         &self.handle
     }
@@ -478,27 +516,40 @@ impl PartialEq for CallableValue {
 /// The worksheet-visible part of a value.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CoreValue {
+    /// A binary64 number.
     Number(f64),
+    /// Worksheet text stored as UTF-16.
     Text(ExcelText),
+    /// An Excel logical value, TRUE or FALSE.
     Logical(bool),
+    /// A worksheet error value.
     Error(WorksheetErrorCode),
     /// An empty cell.
     Empty,
     /// An omitted argument.
     Missing,
+    /// A rectangular array of worksheet values.
     Array(CalcArray),
+    /// An address of one or more worksheet areas.
     Reference(ReferenceLike),
 }
 
 /// The picture formats a cell's image holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ImageFormat {
+    /// Portable Network Graphics.
     Png,
+    /// JPEG image.
     Jpeg,
+    /// Graphics Interchange Format.
     Gif,
+    /// Windows bitmap.
     Bmp,
+    /// Tagged Image File Format.
     Tiff,
+    /// Windows icon.
     Ico,
+    /// WebP image.
     Webp,
 }
 
@@ -538,6 +589,7 @@ impl ImageFormat {
         }
     }
 
+    /// The media type for an image part in this format.
     pub const fn content_type(self) -> &'static str {
         match self {
             Self::Png => "image/png",
@@ -554,9 +606,11 @@ impl ImageFormat {
 /// The members or set a CUBE function's value holds, by unique name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CubeValue {
+    /// The workbook connection associated with the member or set.
     pub connection: String,
     /// One tuple for a member; a set's tuples in its order.
     pub tuples: Vec<Vec<String>>,
+    /// Whether this value is a set of tuples.
     pub set: bool,
 }
 
@@ -565,12 +619,17 @@ pub struct CubeValue {
 pub struct ImageValue {
     /// The URL the formula named.
     pub source: String,
+    /// The alternative text passed to IMAGE, if supplied.
     pub alt_text: Option<String>,
     /// 0 fit, 1 fill, 2 original size, 3 custom size.
     pub sizing: u8,
+    /// The requested custom height in pixels, if supplied.
     pub height: Option<f64>,
+    /// The requested custom width in pixels, if supplied.
     pub width: Option<f64>,
+    /// The format of the encoded image.
     pub format: ImageFormat,
+    /// The shared encoded image data.
     pub bytes: Arc<[u8]>,
 }
 
@@ -610,15 +669,21 @@ impl ImageValue {
 /// borrowed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CoreRef<'a> {
+    /// A binary64 number.
     Number(f64),
+    /// Borrowed worksheet text.
     Text(&'a ExcelText),
+    /// An Excel logical value, TRUE or FALSE.
     Logical(bool),
+    /// A worksheet error value.
     Error(WorksheetErrorCode),
     /// An empty cell.
     Empty,
     /// An omitted argument.
     Missing,
+    /// A borrowed rectangular array.
     Array(&'a CalcArray),
+    /// A borrowed address of one or more worksheet areas.
     Reference(&'a ReferenceLike),
 }
 
@@ -695,6 +760,7 @@ impl PartialEq for CalcValue {
 }
 
 impl CalcValue {
+    /// Wraps a worksheet core value with no additional metadata.
     pub const fn new(core: CoreValue) -> Self {
         CalcValue {
             core,
@@ -702,6 +768,7 @@ impl CalcValue {
         }
     }
 
+    /// Wraps the supplied binary64 number.
     pub fn number(value: f64) -> Self {
         Self::new(CoreValue::Number(value))
     }
@@ -717,34 +784,42 @@ impl CalcValue {
         })
     }
 
+    /// Whether the value carries the Excel rounding-overflow qualification.
     pub fn is_excel_overflow(&self) -> bool {
         matches!(self.metadata.as_deref(), Some(ValueMetadata::ExcelOverflow))
     }
 
+    /// Wraps the supplied worksheet text without further truncation.
     pub fn text(value: ExcelText) -> Self {
         Self::new(CoreValue::Text(value))
     }
 
+    /// Creates a worksheet TRUE or FALSE value.
     pub fn logical(value: bool) -> Self {
         Self::new(CoreValue::Logical(value))
     }
 
+    /// Creates a value holding a worksheet error.
     pub fn error(code: WorksheetErrorCode) -> Self {
         Self::new(CoreValue::Error(code))
     }
 
+    /// Creates a value representing an empty cell.
     pub fn empty() -> Self {
         Self::new(CoreValue::Empty)
     }
 
+    /// Creates a value representing an omitted argument.
     pub fn missing() -> Self {
         Self::new(CoreValue::Missing)
     }
 
+    /// Wraps a rectangular array as one value.
     pub fn array(array: CalcArray) -> Self {
         Self::new(CoreValue::Array(array))
     }
 
+    /// Wraps a reference without reading the addressed cells.
     pub fn reference(reference: ReferenceLike) -> Self {
         Self::new(CoreValue::Reference(reference))
     }
@@ -758,6 +833,7 @@ impl CalcValue {
         }
     }
 
+    /// Borrows the stored worksheet core. Use [`Self::core_ref`] for pattern matching.
     pub fn core(&self) -> &CoreValue {
         &self.core
     }
@@ -777,6 +853,7 @@ impl CalcValue {
         }
     }
 
+    /// Returns the stored binary64 number if the core is numeric.
     pub fn as_number(&self) -> Option<f64> {
         match self.core {
             CoreValue::Number(value) => Some(value),
@@ -784,6 +861,7 @@ impl CalcValue {
         }
     }
 
+    /// Borrows the stored text if the core is text.
     pub fn as_text(&self) -> Option<&ExcelText> {
         match &self.core {
             CoreValue::Text(value) => Some(value),
@@ -791,6 +869,7 @@ impl CalcValue {
         }
     }
 
+    /// Returns the stored Boolean if the core is logical.
     pub fn as_logical(&self) -> Option<bool> {
         match self.core {
             CoreValue::Logical(value) => Some(value),
@@ -806,6 +885,7 @@ impl CalcValue {
         }
     }
 
+    /// Borrows the array if this value holds an array.
     pub fn as_array(&self) -> Option<&CalcArray> {
         match &self.core {
             CoreValue::Array(array) => Some(array),
@@ -813,6 +893,7 @@ impl CalcValue {
         }
     }
 
+    /// Borrows the address if this value holds a reference.
     pub fn as_reference(&self) -> Option<&ReferenceLike> {
         match &self.core {
             CoreValue::Reference(reference) => Some(reference),
@@ -820,14 +901,17 @@ impl CalcValue {
         }
     }
 
+    /// Whether this value represents an empty cell.
     pub fn is_empty(&self) -> bool {
         matches!(self.core, CoreValue::Empty)
     }
 
+    /// Whether this value represents an omitted argument.
     pub fn is_missing(&self) -> bool {
         matches!(self.core, CoreValue::Missing)
     }
 
+    /// Returns the callable metadata, if present.
     pub fn callable_value(&self) -> Option<&CallableValue> {
         match self.metadata.as_deref() {
             Some(ValueMetadata::Callable(callable)) => Some(callable),
@@ -857,6 +941,7 @@ impl CalcValue {
         }
     }
 
+    /// Returns the cube member or set metadata, if present.
     pub fn cube_value(&self) -> Option<&CubeValue> {
         match self.metadata.as_deref() {
             Some(ValueMetadata::Cube(value)) => Some(value),
@@ -864,6 +949,7 @@ impl CalcValue {
         }
     }
 
+    /// Returns the encoded image and its display parameters, if present.
     pub fn image_value(&self) -> Option<&ImageValue> {
         match self.metadata.as_deref() {
             Some(ValueMetadata::Image(image)) => Some(image),

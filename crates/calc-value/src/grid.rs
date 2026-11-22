@@ -20,7 +20,12 @@ pub enum GridError {
     /// The column is 0 or greater than [`MAX_COLUMNS`].
     ColumnOutOfRange(u32),
     /// An area's two corners lie on different sheets.
-    SheetMismatch { first: SheetId, last: SheetId },
+    SheetMismatch {
+        /// The sheet of the first corner argument.
+        first: SheetId,
+        /// The sheet of the second corner argument.
+        last: SheetId,
+    },
 }
 
 impl fmt::Display for GridError {
@@ -69,6 +74,7 @@ impl CellKey {
         Ok(CellKey { sheet, row, column })
     }
 
+    /// The worksheet that contains these coordinates.
     pub const fn sheet(self) -> SheetId {
         self.sheet
     }
@@ -136,6 +142,7 @@ impl GridArea {
         }
     }
 
+    /// The worksheet that contains these coordinates.
     pub const fn sheet(self) -> SheetId {
         self.sheet
     }
@@ -158,10 +165,12 @@ impl GridArea {
         }
     }
 
+    /// The number of rows, including both endpoints.
     pub const fn row_count(self) -> u32 {
         self.bottom - self.top + 1
     }
 
+    /// The number of columns, including both endpoints.
     pub const fn column_count(self) -> u32 {
         self.right - self.left + 1
     }
@@ -263,7 +272,9 @@ mod tests {
 /// A cell or area selection: the active cell and the selected areas.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
+    /// The active cell, when the caller has one.
     pub active: Option<CellKey>,
+    /// The selected rectangles, in selection order.
     pub areas: Vec<GridArea>,
 }
 

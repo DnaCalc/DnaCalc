@@ -109,7 +109,7 @@
 //! check_result(&mut reopened, CellKey::new(sheet, 2, 1).unwrap());
 //! ```
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-host/CONTRACT.md).
 
 mod actions;
 pub mod automation;

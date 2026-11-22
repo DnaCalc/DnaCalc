@@ -20,7 +20,24 @@
 //! The package declares no cargo features, so there is no thread-bound variant of any type:
 //! every public value type is `Send + Sync`.
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! ## Address a worksheet range
+//!
+//! Allocate a sheet identity and use one-based row and column numbers.
+//!
+//! ```
+//! use calc_value::{CellKey, GridArea, IdAllocator, MAX_COLUMNS, SheetId};
+//!
+//! let sheet = IdAllocator::<SheetId>::new().issue().unwrap();
+//! let a1 = CellKey::new(sheet, 1, 1).unwrap();
+//! let b3 = CellKey::new(sheet, 3, 2).unwrap();
+//! let area = GridArea::new(a1, b3).unwrap();
+//! assert_eq!((area.row_count(), area.column_count()), (3, 2));
+//! assert!(CellKey::new(sheet, 1, MAX_COLUMNS + 1).is_err());
+//! ```
+//!
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-value/CONTRACT.md).
+
+#![warn(missing_docs)]
 
 mod case_folding;
 mod combining_marks;
@@ -97,6 +114,7 @@ pub use value::{
 
 /// Maximum cells in one clipboard table.
 pub const COPY_LIMIT: u64 = 1_000_000;
+/// Returns the row and column counts of a nonempty rectangular clipboard table within [`COPY_LIMIT`].
 pub fn matrix_shape(rows: &[Vec<String>]) -> Result<(u32, u32), String> {
     let width = rows.first().map_or(0, Vec::len);
     if width == 0 || rows.is_empty() || rows.iter().any(|row| row.len() != width) {

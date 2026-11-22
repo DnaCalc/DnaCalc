@@ -72,7 +72,25 @@
 //!
 //! The codec opens no file: the source and the sink are supplied by the caller.
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! ## Read a workbook from memory
+//!
+//! Open workbook bytes under an explicit policy, then load the authored worksheet model.
+//!
+//! ```
+//! use std::sync::Arc;
+//! use calc_doc::{MemorySource, OpenPolicy, blank_package_named, load, open};
+//! use calc_doc::model::value::{IdAllocator, SheetId};
+//!
+//! let bytes = blank_package_named("Inputs");
+//! let document = open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default()).unwrap();
+//! let mut sheet_ids = IdAllocator::<SheetId>::new();
+//! let workbook = load(&document, &mut sheet_ids).unwrap();
+//! let sheets = workbook.model().sheets();
+//! assert_eq!(sheets.len(), 1);
+//! assert_eq!(sheets[0].name().text().to_string_lossy(), "Inputs");
+//! ```
+//!
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-doc/CONTRACT.md).
 
 mod blank;
 mod custom_xml;

@@ -5,7 +5,7 @@
 //! Its value API is the calc-value package, exposed as the module [`value`]: identities, checked
 //! grid coordinates, worksheet values and the numeric policy.
 //!
-//! The catalogue ([`catalogue`]) is generated at compile time from per-family fragments, each
+//! The catalogue ([`catalogue()`]) is generated at compile time from per-family fragments, each
 //! entry with an explicit stable [`FunctionId`]. A caller resolves an ID or a surface to a
 //! [`FunctionCallTarget`], reads its metadata (arity, parameter classes, [`ArgumentDemand`],
 //! signature help, oracle formula, the [`FilePrefix`] a file writes before a named function) and
@@ -13,7 +13,36 @@
 //! [`PreparedArguments`] and owning the [`EvalServices`] (the numeric mode and a [`CellReader`]
 //! for reference arguments) and the [`FunctionCallScratch`].
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! ## Invoke a worksheet function
+//!
+//! Use the catalogue to resolve a named call. The argument provider returns values on demand,
+//! so hosts can keep lazy arguments unevaluated until a function reads them.
+//!
+//! ```
+//! use calc_func::value::{CalcValue, NumericMode};
+//! use calc_func::{EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke};
+//!
+//! struct ScalarArgument(CalcValue);
+//!
+//! impl PreparedArguments for ScalarArgument {
+//!     fn count(&self) -> usize {
+//!         1
+//!     }
+//!     fn argument(&mut self, index: usize) -> CalcValue {
+//!         assert_eq!(index, 0);
+//!         self.0.clone()
+//!     }
+//! }
+//!
+//! let target = catalogue().resolve_surface(Notation::Call, "ABS").unwrap();
+//! let mut args = ScalarArgument(CalcValue::number(-42.0));
+//! let mut services = EvalServices::new(&NumericMode::Fast);
+//! let mut scratch = FunctionCallScratch::default();
+//! let result = invoke(target, &mut args, &mut services, &mut scratch).unwrap();
+//! assert_eq!(result.as_number(), Some(42.0));
+//! ```
+//!
+//! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-func/CONTRACT.md).
 
 pub use calc_value as value;
 

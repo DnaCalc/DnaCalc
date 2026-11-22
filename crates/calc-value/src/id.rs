@@ -218,17 +218,22 @@ generational_id! {
 /// The namespace of a defined name inside one workbook.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NameScope {
+    /// A name visible in workbook scope.
     Workbook,
+    /// A local name scoped to the given worksheet.
     Sheet(SheetId),
 }
 
 /// A case-folded namespace watch, including names that do not exist yet.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NameKey {
+    /// The namespace in which to watch for this name.
     pub scope: NameScope,
+    /// The normalized spelling used for defined-name lookup.
     pub folded: String,
 }
 impl NameKey {
+    /// Builds the lookup key by applying [`crate::fold_defined_name`] to the spelling.
     pub fn new(scope: NameScope, spelling: &str) -> Self {
         Self {
             scope,

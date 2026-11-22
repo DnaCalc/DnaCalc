@@ -17,7 +17,7 @@
 //! # Portable core (`expm1`/`log1p`/`sqrt` substrate)
 //! [`exp_portable`] / [`log_portable`] are a pure-Rust, zero-dependency port of
 //! Arm optimized-routines' `exp` and `log` (Szabolcs Nagy; `math/exp.c`, `math/log.c`,
-//! `math/exp_data.c`, `math/log_data.c` of https://github.com/ARM-software/optimized-routines
+//! `math/exp_data.c`, `math/log_data.c` of <https://github.com/ARM-software/optimized-routines>
 //! at 2ee4b0d4, MIT OR Apache-2.0 WITH LLVM-exception, used under MIT; Copyright (c) 2018-2025
 //! Arm Limited; notice in `deploy/notices/ported.txt`), configured without fused multiply-add
 //! and without the rounding intrinsics, `EXP_TABLE_BITS=7` / `LOG_TABLE_BITS=7`, `EXP_POLY_ORDER=5`,

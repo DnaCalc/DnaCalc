@@ -1,7 +1,7 @@
 //! Odd-first and odd-last period bond kernels (ODDFPRICE, ODDFYIELD, ODDLPRICE, ODDLYIELD).
 //!
 //! Parts of this file are a translation, changed, of ExcelFinancialFunctions by Luca Bolognese
-//! (https://github.com/fsprojects/ExcelFinancialFunctions, `oddbonds.fs` and `daycountbasis.fs`;
+//! (<https://github.com/fsprojects/ExcelFinancialFunctions>, `oddbonds.fs` and `daycountbasis.fs`;
 //! Copyright 2010-2013, Apache License 2.0): `oddfprice_kernel` (`oddFPrice`) and the helpers named
 //! after their F# counterparts in their doc comments (`changeMonth`, `findCouponDates`,
 //! `numberOfCoupons`, `CoupDays`, `coupNumber`, `aggrBetween`). They were rewritten in Rust and

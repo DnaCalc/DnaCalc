@@ -2,7 +2,7 @@
 //! DURATION, the COUP functions and their relatives).
 //!
 //! Parts of this file are a translation, changed, of ExcelFinancialFunctions by Luca Bolognese
-//! (https://github.com/fsprojects/ExcelFinancialFunctions, `bonds.fs` and `daycountbasis.fs`;
+//! (<https://github.com/fsprojects/ExcelFinancialFunctions>, `bonds.fs` and `daycountbasis.fs`;
 //! Copyright 2010-2013, Apache License 2.0): `yielddisc_kernel` (`yieldDisc`),
 //! `pricemat_kernel`'s factors and price association (`getMatFactors`, `priceMat`), the accrued-interest
 //! kernel (after `accrInt`), and the day-count and coupon-date helpers named after their F#
