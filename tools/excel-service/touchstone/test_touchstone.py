@@ -541,6 +541,48 @@ class RelayOutageTests(unittest.TestCase):
                 client.Connection.open()
 
 
+class WatchdogTests(unittest.TestCase):
+    def command(self, state, command="ensure"):
+        import broker as broker_module
+        with patch.object(sys, "argv", ["broker.py", command, "--state", str(state)]):
+            broker_module.main()
+
+    def test_a_live_broker_keeps_its_endpoint_even_when_status_writes_fail(self):
+        import broker as broker_module
+        instance, state, stop = start_broker(workers=1)
+        self.addCleanup(stop)
+        endpoint = state / "endpoint.json"
+        before = endpoint.stat().st_mtime_ns
+        with patch.object(instance, "write_status"), patch.object(broker_module, "launch_broker", create=True) as launch:
+            (state / "status.json").unlink(missing_ok=True)
+            self.command(state)
+        self.assertEqual(endpoint.stat().st_mtime_ns, before)
+        launch.assert_not_called()
+
+    def test_a_stale_status_does_not_block_restart_and_a_second_start_does_not_launch(self):
+        import broker as broker_module
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            (state / "status.json").write_text('{"running": true, "pid": 1}')
+            with patch.object(broker_module, "launch_broker", create=True) as launch:
+                launch.side_effect = lambda options: self.command(state, "start")
+                self.command(state)
+                launch.assert_called_once()
+
+    def test_a_manual_stop_holds_until_an_explicit_start(self):
+        import broker as broker_module
+        _, state, cleanup = start_broker(workers=1)
+        self.addCleanup(cleanup)
+        self.command(state, "stop")
+        self.assertTrue((state / "stop").exists())
+        self.assertFalse(json.loads((state / "status.json").read_text())["running"])
+        with patch.object(broker_module, "launch_broker", create=True) as launch:
+            self.command(state)
+            launch.assert_not_called()
+            self.command(state, "start")
+            launch.assert_called_once()
+
+
 class BrokerTests(unittest.TestCase):
     def connect(self, state, name="t"):
         from touchstone import client
