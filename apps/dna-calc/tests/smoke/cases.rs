@@ -13594,6 +13594,9 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Into(BAR, "Grace\u{E007}"),
             Action::Into("name-box", "B1:B3\u{E007}"),
             Action::OpenDetails("clipboard-tools"),
+            // The name box can show the typed address while the last edit is still pending.
+            Action::Wait(Check::Attr("selection", "data-area", "B1:B3")),
+            Action::Wait(Check::Rendered("[data-dnacalc=flash-fill]:enabled", true)),
             Action::Click("flash-fill"),
         ],
         checks: &[
