@@ -4,6 +4,7 @@ use super::*;
 use crate::{
     CellEdit, CellInput, CommandIngress, HostProgress, SkinIntent, TableChange, WorkbookCommand,
 };
+use std::collections::HashSet;
 
 /// What a table-aware pre-step leaves of a `Range.Value` write.
 enum PreWrite {
@@ -259,8 +260,7 @@ impl WorkbookAutomation {
             self.write_range(session, range, None)
         })
     }
-    /// A write that takes every area of the range (a scalar or a clear reaches each area, one committed
-    /// edit, as Excel's `Range("A1,C1:C2").Value2 = 5` is one Change); an array into several areas stays refused.
+    /// Clear every area of the range in one committed edit.
     fn mutate_areas(
         &self,
         target: &ObjectRef,
@@ -306,27 +306,43 @@ impl WorkbookAutomation {
             AutoValue::Array(a) => Some(a),
             _ => None,
         };
-        if array.is_some() && areas.len() != 1 {
-            return Err(AutoError::not_modelled(
-                "Range.Value array into a multi-area range",
-                "dc-1nbp.6",
-            ));
-        }
         if areas.iter().map(|area| u64::from(area.cell_count())).sum::<u64>() > 1_048_576 {
             return Err(AutoError::not_modelled(
                 "Range.Value write materialization limit",
                 OWNER,
             ));
         }
-        if array.is_some_and(|a| {
-            a.rows != areas[0].row_count()
-                || a.columns != areas[0].column_count()
-                || u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64
-        }) {
-            return Err(AutoError::not_modelled(
-                "Range.Value array/target shape difference (E11)",
-                "dc-1nbp.6",
-            ));
+        let multi_area = areas.len() > 1;
+        let broadcast = multi_area && array.is_some_and(|a| a.rows == 1 && a.columns == 1);
+        if let Some(a) = array {
+            // E11 broadcasts 1×1 or repeats a conforming array across equal-sized areas.
+            let shape = if broadcast {
+                (areas[0].row_count(), areas[0].column_count())
+            } else {
+                (a.rows, a.columns)
+            };
+            if u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64
+                || areas
+                    .iter()
+                    .any(|area| (area.row_count(), area.column_count()) != shape)
+            {
+                return Err(AutoError::not_modelled(
+                    "Range.Value array/target shape difference (E11)",
+                    "dc-1nbp.6",
+                ));
+            }
+            if multi_area
+                && session.host().model().definitions().tables().iter().any(|table| {
+                    areas
+                        .iter()
+                        .any(|area| table.area.intersection(*area).is_some())
+                })
+            {
+                return Err(AutoError::not_modelled(
+                    "Range.Value array into multiple areas touching a table (E11)",
+                    "dc-1nbp.6",
+                ));
+            }
         }
         // Convert every element before the first mutation: a refused element
         // cannot leave a partially written rectangle or emit an event.
@@ -340,6 +356,7 @@ impl WorkbookAutomation {
             vec![input(value, &environment)?]
         };
         let mut edits = Vec::new();
+        let mut array_targets = (multi_area && array.is_some() && !broadcast).then(HashSet::new);
         for area in areas {
             for row in 0..area.row_count() {
                 for column in 0..area.column_count() {
@@ -349,7 +366,16 @@ impl WorkbookAutomation {
                         area.first().column() + column,
                     )
                     .unwrap();
-                    let value = &values[if array.is_some() {
+                    if array_targets
+                        .as_mut()
+                        .is_some_and(|targets| !targets.insert(at))
+                    {
+                        return Err(AutoError::not_modelled(
+                            "Range.Value array into overlapping areas (E11)",
+                            "dc-1nbp.6",
+                        ));
+                    }
+                    let value = &values[if array.is_some() && !broadcast {
                         (row * area.column_count() + column) as usize
                     } else {
                         0

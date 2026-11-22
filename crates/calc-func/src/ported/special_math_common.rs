@@ -2168,6 +2168,111 @@ fn bratio_grat1(a: f64, x: f64, r: f64, eps: f64) -> (f64, f64) {
     (0.5 + (0.5 - q), q)
 }
 
+/// basym: asymptotic expansion for Ix(a, b) when `min(a, b) > 10_000` and
+/// `lambda <= 0.03 * min(a, b)` (dc-iuwct.52). Uses Excel's `rlog1` (`e * r - 2 * atanh_tail(r)`),
+/// scaled `erfc` (`normal_dist_common::erfc_scaled` above 0.5, `erf_approx` below 0.5),
+/// Stirling correction `s(a) + s(b) - s(a + b)`, and `excel_exp`.
+fn bratio_basym(a: f64, b: f64, lambda_: f64, eps: f64) -> f64 {
+    use crate::ported::discrete_dist::stirling_error;
+    use crate::ported::excel_numeric::{
+        excel_exp, excel_rlog1, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub,
+    };
+    use crate::ported::normal_dist_common::{erf_approx, erfc_scaled};
+
+    const NUM: usize = 20;
+    const E0: f64 = 1.128_379_167_095_512_6; // 2 / sqrt(pi)
+    const E1: f64 = 0.353_553_390_593_273_73; // 1 / (2 * sqrt(2))
+    let mut a0 = [0.0f64; 22];
+    let mut b0 = [0.0f64; 22];
+    let mut c = [0.0f64; 22];
+    let mut d = [0.0f64; 22];
+    let (h, r0, r1, w0) = if a >= b {
+        let h = b / a;
+        (h, 1.0 / (1.0 + h), (b - a) / a, 1.0 / (b * (1.0 + h)).sqrt())
+    } else {
+        let h = a / b;
+        (h, 1.0 / (1.0 + h), (b - a) / b, 1.0 / (a * (1.0 + h)).sqrt())
+    };
+    let e1 = excel_x87_div(-lambda_, a);
+    let e2 = excel_x87_div(lambda_, b);
+    let f = excel_x87_add(
+        excel_x87_mul(a, excel_rlog1(e1)),
+        excel_x87_mul(b, excel_rlog1(e2)),
+    );
+    let t = excel_exp(-f);
+    if t == 0.0 {
+        return 0.0;
+    }
+    let z0 = f.sqrt();
+    let z = 0.5 * (z0 / E1);
+    let z2 = f + f;
+    a0[1] = (2.0 / 3.0) * r1;
+    c[1] = -0.5 * a0[1];
+    d[1] = -c[1];
+    let scaled_erfc = if z0 >= 0.5 {
+        erfc_scaled(z0)
+    } else {
+        excel_x87_mul(
+            excel_exp(f),
+            excel_x87_add(0.5, excel_x87_sub(0.5, erf_approx(z0))),
+        )
+    };
+    let mut j0 = (0.5 / E0) * scaled_erfc;
+    let mut j1 = E1;
+    let mut summ = j0 + d[1] * w0 * j1;
+    let mut s = 1.0;
+    let h2 = h * h;
+    let mut hn = 1.0;
+    let mut w = w0;
+    let mut znm1 = z;
+    let mut zn = z2;
+    let mut n = 2usize;
+    while n <= NUM {
+        hn = h2 * hn;
+        a0[n] = 2.0 * r0 * (1.0 + h * hn) / (n as f64 + 2.0);
+        let np1 = n + 1;
+        s += hn;
+        a0[np1] = 2.0 * r1 * s / (n as f64 + 3.0);
+        for i in n..=np1 {
+            let r = -0.5 * (i as f64 + 1.0);
+            b0[1] = r * a0[1];
+            for m in 2..=i {
+                let mut bsum = 0.0;
+                let mm1 = m - 1;
+                for jj in 1..=mm1 {
+                    let mmj = m - jj;
+                    bsum += (jj as f64 * r - mmj as f64) * a0[jj] * b0[mmj];
+                }
+                b0[m] = r * a0[m] + bsum / m as f64;
+            }
+            c[i] = b0[i] / (i as f64 + 1.0);
+            let mut dsum = 0.0;
+            let im1 = i - 1;
+            for jj in 1..=im1 {
+                let imj = i - jj;
+                dsum += d[imj] * c[jj];
+            }
+            d[i] = -(dsum + c[i]);
+        }
+        j0 = E1 * znm1 + (n as f64 - 1.0) * j0;
+        j1 = E1 * zn + n as f64 * j1;
+        znm1 = z2 * znm1;
+        zn = z2 * zn;
+        w = w0 * w;
+        let t0 = d[n] * w * j0;
+        w = w0 * w;
+        let t1 = d[np1] * w * j1;
+        summ += t0 + t1;
+        if (t0.abs() + t1.abs()) <= eps * summ {
+            break;
+        }
+        n += 2;
+    }
+    let bc = (stirling_error(a) + stirling_error(b)) - stirling_error(a + b);
+    let u = excel_exp(-bc);
+    E0 * t * u * summ
+}
+
 /// bratio: evaluation of the incomplete beta function Ix(a, b). Returns
 /// (w, w1) = (Ix(a, b), 1 - Ix(a, b)). Domain errors (the Fortran ierr != 0
 /// cases) return (NaN, NaN).
@@ -2335,9 +2440,10 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
     }
 
     // Both shapes exceed one. The stored PC64 products decide the side at
-    // the mean and the power-series boundary at b*x = 0.7. Excel has no
-    // separate basym arm (dc-j9k.58): every b0 >= 40 case uses bfrac.
-    let lambda_ = if a > b {
+    // the mean and the power-series boundary at b*x = 0.7. Excel routes
+    // min(a0, b0) > 10_000 and lambda <= 0.03 * min(a0, b0) to basym
+    // (dc-iuwct.52); smaller shapes and farther tails use bfrac.
+    let mut lambda_ = if a >= b {
         sub(mul(add(a, b), y), b)
     } else {
         sub(a, mul(add(a, b), x))
@@ -2348,12 +2454,16 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         b0 = a;
         x0 = y;
         y0 = x;
+        lambda_ = lambda_.abs();
     }
+    let min_ab = a0.min(b0);
     let branch: &str;
     if b0 < 40.0 && mul(b0, x0) <= 0.7 {
         branch = "bpser";
     } else if b0 < 40.0 {
         branch = "bup_160";
+    } else if min_ab > 10_000.0 && lambda_ <= mul(0.03, min_ab) {
+        branch = "basym";
     } else {
         branch = "bfrac";
     }
@@ -2361,6 +2471,10 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
     match branch {
         "bpser" => {
             w = bratio_bpser(a0, b0, x0);
+            w1 = 0.5 + (0.5 - w);
+        }
+        "basym" => {
+            w = bratio_basym(a0, b0, lambda_, eps);
             w1 = 0.5 + (0.5 - w);
         }
         "bfrac" => {
