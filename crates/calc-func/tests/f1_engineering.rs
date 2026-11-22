@@ -76,16 +76,52 @@ use f1_support::*;
 fn radix_conversions() {
     exact(call("BIN2DEC", vec![t("1100100")]), 100.0);
     exact(call("BIN2DEC", vec![t("1111111111")]), -1.0);
-    text(call("DEC2BIN", vec![n(9.0), n(4.0)]), "1001");
+    assert_excel_capture(
+        call("DEC2BIN", vec![n(9.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        62,
+        1,
+    );
     text(call("DEC2BIN", vec![n(-100.0)]), "1110011100");
     error(call("DEC2BIN", vec![n(9.0), n(2.0)]), Num);
     text(call("DEC2HEX", vec![n(-54.0)]), "FFFFFFFFCA");
-    text(call("DEC2HEX", vec![n(100.0), n(4.0)]), "0064");
+    assert_excel_capture(
+        call("DEC2HEX", vec![n(100.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        63,
+        1,
+    );
     exact(call("HEX2DEC", vec![t("FFFFFFFF9C")]), -100.0);
-    exact(call("OCT2DEC", vec![n(54.0)]), 44.0);
-    text(call("HEX2BIN", vec![t("F"), n(8.0)]), "00001111");
-    text(call("OCT2HEX", vec![n(100.0), n(4.0)]), "0040");
-    text(call("BIN2OCT", vec![n(1001.0), n(3.0)]), "011");
+    assert_excel_capture(
+        call("OCT2DEC", vec![n(54.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        170,
+        1,
+    );
+    assert_excel_capture(
+        call("HEX2BIN", vec![t("F"), n(8.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        106,
+        1,
+    );
+    assert_excel_capture(
+        call("OCT2HEX", vec![n(100.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        171,
+        1,
+    );
+    assert_excel_capture(
+        call("BIN2OCT", vec![n(1001.0), n(3.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        24,
+        1,
+    );
     error(call("BIN2DEC", vec![b(true)]), Value);
     error(call("DEC2BIN", vec![missing()]), NA);
     error(call("BIN2DEC", vec![t("102")]), Num);
@@ -94,11 +130,41 @@ fn radix_conversions() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bit_functions() {
-    exact(call("BITAND", vec![n(13.0), n(25.0)]), 9.0);
-    exact(call("BITOR", vec![n(23.0), n(10.0)]), 31.0);
-    exact(call("BITXOR", vec![n(5.0), n(3.0)]), 6.0);
-    exact(call("BITLSHIFT", vec![n(4.0), n(2.0)]), 16.0);
-    exact(call("BITRSHIFT", vec![n(13.0), n(2.0)]), 3.0);
+    assert_excel_capture(
+        call("BITAND", vec![n(13.0), n(25.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        29,
+        1,
+    );
+    assert_excel_capture(
+        call("BITOR", vec![n(23.0), n(10.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        31,
+        1,
+    );
+    assert_excel_capture(
+        call("BITXOR", vec![n(5.0), n(3.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        33,
+        1,
+    );
+    assert_excel_capture(
+        call("BITLSHIFT", vec![n(4.0), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        30,
+        1,
+    );
+    assert_excel_capture(
+        call("BITRSHIFT", vec![n(13.0), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        32,
+        1,
+    );
     error(call("BITAND", vec![n(1.5), n(1.0)]), Num);
     error(call("BITAND", vec![n(-1.0), n(1.0)]), Num);
 }
@@ -106,18 +172,78 @@ fn bit_functions() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn complex_numbers() {
-    text(call("COMPLEX", vec![n(3.0), n(4.0)]), "3+4i");
+    assert_excel_capture(
+        call("COMPLEX", vec![n(3.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        46,
+        1,
+    );
     text(call("COMPLEX", vec![n(3.0), n(4.0), t("j")]), "3+4j");
-    text(call("COMPLEX", vec![n(0.0), n(1.0)]), "i");
+    assert_excel_capture(
+        call("COMPLEX", vec![n(0.0), n(1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        585,
+        4,
+    );
     error(call("COMPLEX", vec![n(3.0), n(4.0), t("k")]), Value);
-    exact(call("IMABS", vec![t("5+12i")]), 13.0);
-    exact(call("IMREAL", vec![t("6-9i")]), 6.0);
-    exact(call("IMAGINARY", vec![t("3+4i")]), 4.0);
-    text(call("IMCONJUGATE", vec![t("3+4i")]), "3-4i");
-    text(call("IMSUM", vec![t("3+4i"), t("5-3i")]), "8+i");
-    text(call("IMSUB", vec![t("13+4i"), t("5+3i")]), "8+i");
-    text(call("IMPRODUCT", vec![t("3+4i"), t("5-3i")]), "27+11i");
-    text(call("IMDIV", vec![t("-238+240i"), t("10+24i")]), "5+12i");
+    assert_excel_capture(
+        call("IMABS", vec![t("5+12i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        111,
+        1,
+    );
+    assert_excel_capture(
+        call("IMREAL", vec![t("6-9i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        127,
+        1,
+    );
+    assert_excel_capture(
+        call("IMAGINARY", vec![t("3+4i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        112,
+        1,
+    );
+    assert_excel_capture(
+        call("IMCONJUGATE", vec![t("3+4i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        114,
+        1,
+    );
+    assert_excel_capture(
+        call("IMSUM", vec![t("3+4i"), t("5-3i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        134,
+        1,
+    );
+    assert_excel_capture(
+        call("IMSUB", vec![t("13+4i"), t("5+3i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        133,
+        1,
+    );
+    assert_excel_capture(
+        call("IMPRODUCT", vec![t("3+4i"), t("5-3i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        126,
+        1,
+    );
+    assert_excel_capture(
+        call("IMDIV", vec![t("-238+240i"), t("10+24i")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        120,
+        1,
+    );
     text(call("IMPOWER", vec![t("2+3i"), n(2.0)]), "-5+12i");
     close(call("IMARGUMENT", vec![t("3+4i")]), 0.92729521800161, 1e-13);
     error(call("IMABS", vec![t("not complex")]), Num);
@@ -129,17 +255,26 @@ fn complex_numbers() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn complex_tangent_and_cotangent_keep_the_excel_circular_factors() {
-    text(
+    assert_excel_capture(
         call("IMTAN", vec![t("3.141592653589793+1e-100i")]),
-        "-3.2311393144413E-15+1E-100i",
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        389,
+        4,
     );
-    text(
+    assert_excel_capture(
         call("IMCOT", vec![t("1.5707963267948966-0.1i")]),
-        "6.65581526134877E-15+0.0996679946249558i",
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        407,
+        4,
     );
-    text(
+    assert_excel_capture(
         call("IMCOT", vec![t("-1.5707963267948966-0.1i")]),
-        "-6.65581526134877E-15+0.0996679946249558i",
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        408,
+        4,
     );
 }
 
@@ -147,13 +282,19 @@ fn complex_tangent_and_cotangent_keep_the_excel_circular_factors() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
-    text(
+    assert_excel_capture(
         call("IMTAN", vec![t("134217727+1e-100i")]),
-        "3.25845642561188+1.16175382776114E-99i",
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        391,
+        4,
     );
-    text(
+    assert_excel_capture(
         call("IMCOT", vec![t("134217727-0.1i")]),
-        "0.303561173457951+0.108953168171161i",
+        include_bytes!("captures/jnt/sections/jnt_parity_complex.capture.json"),
+        "jnt_parity_complex",
+        411,
+        4,
     );
 }
 
@@ -422,9 +563,12 @@ fn impower_empty_text_and_zero_power() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_functions() {
     // The original Excel reading is now matched by the published backward route.
-    exact(
+    assert_excel_capture(
         call("BESSELJ", vec![n(1.9), n(2.0)]),
-        f64::from_bits(0x3fd5_1d81_390f_83eb),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        15,
+        1,
     );
     close(call("BESSELI", vec![n(1.5), n(1.0)]), 0.981666428, 1e-8);
     close(call("BESSELK", vec![n(1.5), n(1.0)]), 0.277387804, 1e-8);
@@ -580,10 +724,22 @@ fn besseli_recorded_normalization_underflow_returns_zero() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delta_gestep_and_convert() {
-    exact(call("DELTA", vec![n(5.0), n(4.0)]), 0.0);
+    assert_excel_capture(
+        call("DELTA", vec![n(5.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        67,
+        1,
+    );
     exact(call("DELTA", vec![n(5.0), n(5.0)]), 1.0);
     exact(call("DELTA", vec![n(0.0)]), 1.0);
-    exact(call("GESTEP", vec![n(5.0), n(4.0)]), 1.0);
+    assert_excel_capture(
+        call("GESTEP", vec![n(5.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        103,
+        1,
+    );
     exact(call("GESTEP", vec![n(-4.0)]), 0.0);
     close(
         call("CONVERT", vec![n(1.0), t("lbm"), t("kg")]),
@@ -890,8 +1046,20 @@ fn bessel_low_rational_seeds_match_recorded_excel_bits() {
         };
         assert_eq!(actual.to_bits(), expected, "{function}({x}, {order})");
     }
-    error(call("BESSELY", vec![n(0.0), n(0.0)]), Num);
-    error(call("BESSELY", vec![n(0.0), n(1.0)]), Num);
+    assert_excel_capture(
+        call("BESSELY", vec![n(0.0), n(0.0)]),
+        include_bytes!("captures/catalogue/sections/dc96l3_bessel.capture.json"),
+        "dc96l3_bessel",
+        320,
+        4,
+    );
+    assert_excel_capture(
+        call("BESSELY", vec![n(0.0), n(1.0)]),
+        include_bytes!("captures/catalogue/sections/dc96l3_bessel.capture.json"),
+        "dc96l3_bessel",
+        321,
+        4,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1403,7 +1571,13 @@ fn bessel_published_backward_and_high_y1_match_recorded_excel_bits() {
         call("BESSELJ", vec![n(-0.3), n(3.0)]),
         -f64::from_bits(0x3f42541c0c752fd9),
     );
-    exact(call("BESSELJ", vec![n(0.0), n(2.0)]), 0.0);
+    assert_excel_capture(
+        call("BESSELJ", vec![n(0.0), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/dc96l3_bessel.capture.json"),
+        "dc96l3_bessel",
+        311,
+        4,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

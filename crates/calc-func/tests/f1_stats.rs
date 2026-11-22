@@ -2908,7 +2908,13 @@ fn moments_and_transforms() {
     error(call("STANDARDIZE", vec![n(42.0), n(40.0), n(0.0)]), Num);
     close(call("FISHER", vec![n(0.75)]), 0.9729550745276566, 1e-15);
     close(call("FISHERINV", vec![n(0.9729550745276566)]), 0.75, 1e-15);
-    error(call("FISHER", vec![n(1.0)]), Num);
+    assert_excel_capture(
+        call("FISHER", vec![n(1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_w111_elementary.capture.json"),
+        "jnt_w111_elementary",
+        2947,
+        4,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3405,15 +3411,45 @@ fn subtotal_needs_the_readers_exclusions() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn rounding_to_a_significance() {
-    exact(call("CEILING.MATH", vec![n(-8.1), n(2.0)]), -8.0);
+    assert_excel_capture(
+        call("CEILING.MATH", vec![n(-8.1), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        34,
+        1,
+    );
     exact(call("CEILING.MATH", vec![n(-5.5), n(2.0), n(-1.0)]), -6.0);
     exact(call("CEILING.MATH", vec![n(24.3), n(5.0)]), 25.0);
-    exact(call("FLOOR.MATH", vec![n(-8.1), n(2.0)]), -10.0);
+    assert_excel_capture(
+        call("FLOOR.MATH", vec![n(-8.1), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        87,
+        1,
+    );
     exact(call("FLOOR.MATH", vec![n(-5.5), n(2.0), n(-1.0)]), -4.0);
-    exact(call("CEILING.PRECISE", vec![n(4.3)]), 5.0);
+    assert_excel_capture(
+        call("CEILING.PRECISE", vec![n(4.3)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        35,
+        1,
+    );
     exact(call("CEILING.PRECISE", vec![n(-4.3), n(2.0)]), -4.0);
-    exact(call("ISO.CEILING", vec![n(-4.3), n(2.0)]), -4.0);
-    exact(call("FLOOR.PRECISE", vec![n(-3.2), n(-1.0)]), -4.0);
+    assert_excel_capture(
+        call("ISO.CEILING", vec![n(-4.3), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        137,
+        1,
+    );
+    assert_excel_capture(
+        call("FLOOR.PRECISE", vec![n(-3.2), n(-1.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        88,
+        1,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

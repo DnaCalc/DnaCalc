@@ -1048,48 +1048,132 @@ fn text_distinguishes_date_names_and_numeric_placeholders() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {
-    text(call("CHAR", vec![n(65.0)]), "A");
+    assert_excel_capture(
+        call("CHAR", vec![n(65.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        252,
+        1,
+    );
     // Excel: CHAR(128) is the euro sign, CHAR(150) an en dash (code page 1252).
     text(call("CHAR", vec![n(128.0)]), "\u{20AC}");
     text(call("CHAR", vec![n(150.0)]), "\u{2013}");
     text(call("CHAR", vec![n(129.0)]), "\u{0081}");
     text(call("CHAR", vec![n(255.9)]), "\u{00FF}");
-    error(call("CHAR", vec![n(0.0)]), Value);
-    error(call("CHAR", vec![n(256.0)]), Value);
+    assert_excel_capture(
+        call("CHAR", vec![n(0.0)]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        120,
+        4,
+    );
+    assert_excel_capture(
+        call("CHAR", vec![n(256.0)]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        121,
+        4,
+    );
     // Excel: CODE(UNICHAR(8364)) is 128, CODE(UNICHAR(1000)) 63, CODE(UNICHAR(233)) 233.
     exact(call("CODE", vec![t("\u{20AC}")]), 128.0);
     exact(call("CODE", vec![t("\u{03E8}")]), 63.0);
     exact(call("CODE", vec![t("\u{00E9}")]), 233.0);
     exact(call("CODE", vec![t("\u{1F600}")]), 63.0);
-    error(call("CODE", vec![t("")]), Value);
-    text(call("UNICHAR", vec![n(9731.0)]), "\u{2603}");
-    error(call("UNICHAR", vec![n(0.0)]), Value);
+    assert_excel_capture(
+        call("CODE", vec![t("")]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        4,
+        4,
+    );
+    assert_excel_capture(
+        call("UNICHAR", vec![n(9731.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        333,
+        1,
+    );
+    assert_excel_capture(
+        call("UNICHAR", vec![n(0.0)]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        182,
+        4,
+    );
     error(call("UNICHAR", vec![n(55296.0)]), NA);
     exact(call("UNICODE", vec![t("\u{20AC}")]), 8364.0);
     exact(call("UNICODE", vec![t("\u{1F600}x")]), 128512.0);
-    error(call("UNICODE", vec![t("")]), Value);
+    assert_excel_capture(
+        call("UNICODE", vec![t("")]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        185,
+        4,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn slices_and_lengths() {
-    exact(call("LEN", vec![t("abc")]), 3.0);
+    assert_excel_capture(
+        call("LEN", vec![t("abc")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        294,
+        1,
+    );
     exact(call("LEN", vec![n(12.5)]), 4.0);
     // Excel 16.0.20527 (dc-fl2, the catalogue's sheet dcfl2_text): LEN counts UTF-16 code units,
     // so a surrogate pair is 2.
     exact(call("LEN", vec![t("\u{1F600}")]), 2.0);
     exact(call("LENB", vec![t("\u{1F600}")]), 2.0);
     text(call("LEFT", vec![t("abc")]), "a");
-    text(call("LEFT", vec![t("abc"), n(2.0)]), "ab");
-    text(call("RIGHT", vec![t("abc"), n(2.0)]), "bc");
+    assert_excel_capture(
+        call("LEFT", vec![t("abc"), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        292,
+        1,
+    );
+    assert_excel_capture(
+        call("RIGHT", vec![t("abc"), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        313,
+        1,
+    );
     text(call("LEFT", vec![b(true), n(2.0)]), "TR");
     error(call("LEFT", vec![t("abc"), n(-1.0)]), Value);
-    text(call("MID", vec![t("abcdef"), n(2.0), n(3.0)]), "bcd");
+    assert_excel_capture(
+        call("MID", vec![t("abcdef"), n(2.0), n(3.0)]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        138,
+        4,
+    );
     text(call("MID", vec![t("abc"), n(5.0), n(3.0)]), "");
     error(call("MID", vec![t("abc"), n(0.0), n(1.0)]), Value);
-    text(call("LEFTB", vec![t("abc"), n(2.0)]), "ab");
-    text(call("RIGHTB", vec![t("abc"), n(2.0)]), "bc");
-    text(call("MIDB", vec![t("abc"), n(2.0), n(1.0)]), "b");
+    assert_excel_capture(
+        call("LEFTB", vec![t("abc"), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        293,
+        1,
+    );
+    assert_excel_capture(
+        call("RIGHTB", vec![t("abc"), n(2.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        314,
+        1,
+    );
+    assert_excel_capture(
+        call("MIDB", vec![t("abc"), n(2.0), n(1.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        298,
+        1,
+    );
     error(call("LEN", vec![e(Div0)]), Div0);
 }
 
@@ -1097,7 +1181,13 @@ fn slices_and_lengths() {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn casing_trim_clean_rept_exact() {
     text(call("UPPER", vec![t("straße")]), "STRAßE");
-    text(call("LOWER", vec![t("ABC")]), "abc");
+    assert_excel_capture(
+        call("LOWER", vec![t("ABC")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        296,
+        1,
+    );
     // Excel: LOWER("ΑΣ") ends in a final sigma.
     text(call("LOWER", vec![t("ΑΣ")]), "ας");
     text(call("PROPER", vec![t("ab cd-ef")]), "Ab Cd-Ef");
@@ -1116,7 +1206,13 @@ fn casing_trim_clean_rept_exact() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn find_search_replace_substitute() {
-    exact(call("FIND", vec![t("y"), t("xyz")]), 2.0);
+    assert_excel_capture(
+        call("FIND", vec![t("y"), t("xyz")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        282,
+        1,
+    );
     error(call("FIND", vec![t("Y"), t("xyz")]), Value);
     exact(call("FIND", vec![t(""), t("xyz"), n(2.0)]), 2.0);
     exact(call("SEARCH", vec![t("Y"), t("xyz")]), 2.0);
@@ -1132,9 +1228,12 @@ fn find_search_replace_substitute() {
         call("REPLACE", vec![t("abcdef"), n(2.0), n(3.0), t("X")]),
         "aXef",
     );
-    text(
+    assert_excel_capture(
         call("REPLACEB", vec![t("abc"), n(2.0), n(1.0), t("x")]),
-        "axc",
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        311,
+        1,
     );
     text(
         call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+")]),
@@ -1176,8 +1275,20 @@ fn joins_and_t() {
     );
     let long = "a".repeat(20000);
     error(call("CONCAT", vec![t(&long), t(&long)]), Calc);
-    text(call("T", vec![t("x")]), "x");
-    text(call("T", vec![n(1.0)]), "");
+    assert_excel_capture(
+        call("T", vec![t("x")]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        322,
+        1,
+    );
+    assert_excel_capture(
+        call("T", vec![n(1.0)]),
+        include_bytes!("captures/catalogue/sections/f2_rows.capture.json"),
+        "f2_rows",
+        32,
+        4,
+    );
     error(call("T", vec![e(Div0)]), Div0);
 }
 
@@ -1231,7 +1342,13 @@ fn ifs_and_switch() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn digit_text_is_no_logical() {
-    error(call("NOT", vec![t("1")]), Value);
+    assert_excel_capture(
+        call("NOT", vec![t("1")]),
+        include_bytes!("captures/jnt/sections/jnt_w111_text_dates.capture.json"),
+        "jnt_w111_text_dates",
+        4988,
+        4,
+    );
     error(call("NOT", vec![t("2020/01/02")]), Value);
     error(call("IFS", vec![t("1"), n(1.0)]), Value);
 }

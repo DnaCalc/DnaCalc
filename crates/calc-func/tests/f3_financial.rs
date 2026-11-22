@@ -814,9 +814,21 @@ fn time_value_of_money() {
         -87.96909770,
         1e-9,
     );
-    error(call("NOMINAL", vec![n(0.0), n(4.0)]), Num);
+    assert_excel_capture(
+        call("NOMINAL", vec![n(0.0), n(4.0)]),
+        include_bytes!("captures/catalogue/sections/f3_financial.capture.json"),
+        "f3_financial",
+        13,
+        4,
+    );
     error(call("PDURATION", vec![n(0.0), n(1.0), n(2.0)]), Num);
-    error(call("PMT", vec![n(0.1), n(0.0), n(1000.0)]), Num);
+    assert_excel_capture(
+        call("PMT", vec![n(0.1), n(0.0), n(1000.0)]),
+        include_bytes!("captures/catalogue/sections/f3_financial.capture.json"),
+        "f3_financial",
+        2,
+        4,
+    );
 }
 
 /// Original R31 scalar Excel16.0.20527 replies and exact operand readbacks:
@@ -1381,7 +1393,13 @@ fn cash_flows() {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn depreciation() {
-    exact(call("SLN", vec![n(30000.0), n(7500.0), n(10.0)]), 2250.0);
+    assert_excel_capture(
+        call("SLN", vec![n(30000.0), n(7500.0), n(10.0)]),
+        include_bytes!("captures/catalogue/sections/prefix_metadata.capture.json"),
+        "prefix_metadata",
+        388,
+        1,
+    );
     error(call("SLN", vec![n(30000.0), n(7500.0), n(0.0)]), Div0);
     close(
         call("SYD", vec![n(30000.0), n(7500.0), n(10.0), n(1.0)]),
@@ -1483,9 +1501,27 @@ fn dollar_fractions() {
     close(call("DOLLARFR", vec![n(1.125), n(32.0)]), 1.04, 1e-15);
     // OxFunc: DOLLARDE(3.69, 10) keeps the fraction, as the denominator is a power of ten.
     close(call("DOLLARDE", vec![n(3.69), n(10.0)]), 3.69, 1e-15);
-    error(call("DOLLARDE", vec![n(1.02), n(0.0)]), Div0);
-    error(call("DOLLARDE", vec![n(1.02), n(-1.0)]), Num);
-    error(call("DOLLARDE", vec![b(true), n(16.0)]), Value);
+    assert_excel_capture(
+        call("DOLLARDE", vec![n(1.02), n(0.0)]),
+        include_bytes!("captures/catalogue/sections/f3_financial.capture.json"),
+        "f3_financial",
+        11,
+        4,
+    );
+    assert_excel_capture(
+        call("DOLLARDE", vec![n(1.02), n(-1.0)]),
+        include_bytes!("captures/jnt/sections/jnt_text_formats.capture.json"),
+        "jnt_text_formats",
+        70,
+        4,
+    );
+    assert_excel_capture(
+        call("DOLLARDE", vec![b(true), n(16.0)]),
+        include_bytes!("captures/catalogue/sections/f3_financial.capture.json"),
+        "f3_financial",
+        12,
+        4,
+    );
     error(call("DOLLARFR", vec![n(1.0), missing()]), NA);
 }
 

@@ -305,3 +305,39 @@ pub fn array(result: Result<CalcValue, FunctionFault>) -> (usize, usize, Vec<f64
         .collect();
     (shape.rows, shape.cols, cells)
 }
+
+/// Checks a scalar call against a cell in an existing Excel section capture.
+#[track_caller]
+pub fn assert_excel_capture(
+    result: Result<CalcValue, FunctionFault>,
+    bytes: &[u8],
+    sheet: &str,
+    row: u32,
+    column: u32,
+) {
+    use calc_verdict::{CaptureRecord, Observation};
+
+    let capture = CaptureRecord::decode(bytes).expect("committed Excel section capture");
+    let mut cells = capture.observations.iter().filter(|entry| {
+        entry.cell.sheet() == sheet && entry.cell.row() == row && entry.cell.column() == column
+    });
+    let Some(Observation::ExcelRaw(expected)) = cells.next().map(|entry| &entry.observation) else {
+        panic!("{sheet} row {row} column {column}: missing raw Excel answer");
+    };
+    assert!(
+        cells.next().is_none(),
+        "{sheet} row {row} column {column}: duplicate observations"
+    );
+
+    match expected.core() {
+        CoreValue::Number(value) => exact(result, *value),
+        CoreValue::Text(value) => {
+            let actual = result.expect("expected Excel text result");
+            assert_eq!(actual.as_text(), Some(value), "{sheet} row {row} column {column}");
+        }
+        _ => error(
+            result,
+            expected.as_error().expect("expected an Excel worksheet error"),
+        ),
+    }
+}
