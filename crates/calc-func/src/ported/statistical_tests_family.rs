@@ -60,7 +60,8 @@ pub(crate) fn f_test_kernel(array1: &[f64], array2: &[f64]) -> Result<f64, Works
     if var1 == 0.0 || var2 == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let (ratio, df1, df2) = if var1 >= var2 {
+    // Equal stored variances put the second sample's degrees of freedom first.
+    let (ratio, df1, df2) = if var1 > var2 {
         (
             var1 / var2,
             (array1.len() - 1) as f64,
@@ -156,6 +157,15 @@ pub(crate) fn t_test_unequal_variance_kernel(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Excel 20228, answers-ftest-wrapper-heldout-v1.json, ft-wrapper-ho-010-equal-forward.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn pro10_equal_variance_uses_second_sample_first() {
+        let a = [-1.0, -1.0, 0.0, 1.0, 1.0];
+        let b = [-1.0, -1.0, -1.0, -1.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        assert_eq!(f_test_kernel(&a, &b).unwrap().to_bits(), 0x3fed7f7926fabb86);
+    }
 
     /// Excel's F.TEST answers (build 20228, `work/w109/G3-06-ftest-variance/
     /// answers-ftest-wrapper-heldout-v1.json`) for equal variances with unequal sizes, where the

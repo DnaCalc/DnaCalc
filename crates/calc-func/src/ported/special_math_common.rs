@@ -2041,9 +2041,10 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         return (w, 1);
     }
     // Q(b, z): half-shape uses Excel's erf/erfc both directly and when seeded
-    // by a finite recurrence (w > 0); unit shape uses exp(-z); for b < 1 and
-    // z >= 1.1 Excel uses the upper incomplete-gamma continued fraction scaled
-    // by r (dc-j9k.58).
+    // by a finite recurrence (w > 0); unit shape uses exp(-z).
+    // The fractional continued-fraction arm uses the shared gamma tail at the
+    // same rounded z. Its prefactor and the expansion normalizer r have separate
+    // rounding steps (dc-6332.4).
     let q = if b == 0.5 {
         let root = crate::ported::excel_numeric::excel_sqrt_staged(z);
         if root <= 0.5 {
@@ -2054,10 +2055,7 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
     } else if b == 1.0 {
         crate::ported::excel_numeric::excel_exp(-z)
     } else if z >= 1.1 && b < 1.0 {
-        crate::ported::excel_numeric::excel_x87_mul(
-            r,
-            crate::ported::excel_numeric::excel_gamma_fraction(b, z),
-        )
+        regularized_gamma_q(b, z)
     } else {
         bratio_grat1(b, z, r, eps).1
     };
@@ -2482,6 +2480,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Excel 20527, ax3/evidence/dispatch-stores-answers.jsonl, row 512.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn pro10_bgrat_gamma_tail_matches_excel() {
+        let value = crate::ported::beta_gamma_stats_family::beta_dist_kernel(
+            f64::from_bits(0x3fa6fa5cf5fcc070),
+            f64::from_bits(0x3ff8ff2b2536d599),
+            f64::from_bits(0x40409fe32635df40),
+            true,
+            0.0,
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(value.to_bits(), 0x3fe32d285762b933);
+    }
 
     /// bgrat at `eps`: Excel build 20131 BETA.DIST rows (`cache/oracle/build-20131/
     /// BETA.DIST.jsonl` oc315, oc248, oc1424: a > 15, b <= 1, x > 0.5, the swapped bgrat arm),

@@ -401,3 +401,23 @@ dc-6332.13 schedules them. This is a product issue outside the three pro-9 beads
    orientation)**, so the replay lane spends nothing on the C.5 log states, the TDIST closed forms, the
    BINOM k = 1 spellings or fixed FINV transforms, and takes the cheap +3-row tie change if the real
    kernel confirms it.
+
+## 8. Second-pass replay after the shared gamma changes
+
+Linux replay against CalcFunc-Evidence `4ef2c244` supports using the shared upper gamma tail at
+the existing rounded `z` in the non-half, fractional continued-fraction arm. This changes the
+tail approximation while retaining the beta expansion's own density normalizer. In the
+BETA.DIST bank it gains 1,072 matches and loses 30. Substituting the shared tail in the
+non-half, fractional small-`z` arm gains 62 and loses 39 in the numeric replay cohort. The
+half-shape and unit-shape routines still have direct Excel controls. The F.TEST production
+replay confirms the second sample goes first on a stored variance tie, with 8 gains and no
+losses across 20 tied rows.
+
+The research context in C.0 still belongs to dc-6332.4. Extend the existing paired-coordinate
+entry to `bratio` so each coordinate carries its own optional original operand, log and
+residual. Exchange those together when orienting the tail. The public beta complement and the
+F wrapper's reconstructed complement at unit shape need distinct origins. Replay one changed
+stage at a time through the existing witness judge, with intermediate choices available to
+the research runner and the production entry using its stored arithmetic. In a reduced-shape
+arm the original F degrees still describe the wrapper input, while the prefactor's shapes
+describe the kernel call.
