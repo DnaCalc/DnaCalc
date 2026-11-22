@@ -19,6 +19,16 @@
   src:local("Calibri Italic"),local("Calibri-Italic"),url(calc-sans-italic.woff2) format("woff2")}
 @font-face{font-family:"Calibri";font-style:italic;font-weight:700;
   src:local("Calibri Bold Italic"),local("Calibri-BoldItalic"),url(calc-sans-bold-italic.woff2) format("woff2")}
+/* Excel uses Aptos Narrow 11 for workbooks without styles. The Calibri fallback keeps
+   the default row height and digit width when the Office face is unavailable. */
+@font-face{font-family:"Aptos Narrow";font-style:normal;font-weight:400;
+  src:local("Aptos Narrow"),local("Aptos-Narrow"),local("Calibri"),url(calc-sans-regular.woff2) format("woff2")}
+@font-face{font-family:"Aptos Narrow";font-style:normal;font-weight:700;
+  src:local("Aptos Narrow Bold"),local("Aptos-Narrow-Bold"),local("Calibri Bold"),url(calc-sans-bold.woff2) format("woff2")}
+@font-face{font-family:"Aptos Narrow";font-style:italic;font-weight:400;
+  src:local("Aptos Narrow Italic"),local("Aptos-Narrow-Italic"),local("Calibri Italic"),url(calc-sans-italic.woff2) format("woff2")}
+@font-face{font-family:"Aptos Narrow";font-style:italic;font-weight:700;
+  src:local("Aptos Narrow Bold Italic"),local("Aptos-Narrow-Bold-Italic"),local("Calibri Bold Italic"),url(calc-sans-bold-italic.woff2) format("woff2")}
 @font-face{font-family:"Cambria";font-style:normal;font-weight:400;
   src:local("Cambria"),url(calc-serif-regular.woff2) format("woff2")}
 @font-face{font-family:"Cambria";font-style:normal;font-weight:700;

@@ -21,7 +21,7 @@
 .dc-head[data-row]::before,.dc-head[data-column]::before{content:""}
 .dc-corner{position:absolute;left:0;top:0;background:var(--dna-line-soft);border-right:1px solid var(--dna-line);border-bottom:1px solid var(--dna-line);box-sizing:border-box}
 .dc-selection{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
-.dc-selection-shade{position:absolute;background:rgb(0 0 0 / .12);pointer-events:none}
+.dc-selection-shade{position:absolute;background:rgb(0 0 0 / .22);pointer-events:none}
 .dc-active{position:absolute;box-sizing:border-box;border:2px solid var(--dc-selection);pointer-events:none}
 .dc-spill-outline{position:absolute;box-sizing:border-box;border:2px solid var(--dna-accent-ink);pointer-events:none}
 .dc-spill-outline[data-state=blocked]{border-style:dashed;border-color:var(--dna-red-ink)}

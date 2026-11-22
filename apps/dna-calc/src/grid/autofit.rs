@@ -616,8 +616,16 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
         } else {
             ";width:auto;white-space:pre".into()
         };
-        // A row is fitted to the stored size plus Excel's extra for the script (Q1), not to the smaller drawn size.
-        let fitted = if rows { TextStyle { script: None, ..cell.style.clone() } } else { cell.style.clone() };
+        // Excel fits the unwrapped content before shrink, fill or centering across a selection.
+        let mut fitted = cell.style.clone();
+        fitted.shrink = false;
+        if matches!(fitted.horizontal.as_deref(), Some("fill" | "centerContinuous")) {
+            fitted.horizontal = None;
+        }
+        if rows {
+            // Fit to the stored size plus Excel's extra for the script (Q1).
+            fitted.script = None;
+        }
         crate::style::css(
             probe.clone().unchecked_into(),
             format!(
@@ -654,7 +662,10 @@ pub fn measure(rows: bool, cells: &[wire::Cell]) -> Result<Vec<(u32, u64)>, Stri
             w
         } else {
             cell.shown()
-                .and_then(|shown| text_advances(&shown, text, 1.))
+                .and_then(|mut shown| {
+                    shown.style = fitted;
+                    text_advances(&shown, text, 1.)
+                })
                 .map_or(w, |advances| advances.iter().sum())
         };
         let pixels = if rows {

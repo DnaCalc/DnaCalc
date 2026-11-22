@@ -97,12 +97,12 @@ fn default_font(styles: &StyleTable) -> Option<(&str, f64)> {
             font.name.as_deref()?,
             font.size.as_deref()?.trim().parse().ok()?,
         )),
-        None => Some(("Calibri", 11.0)),
+        None => Some(("Aptos Narrow", 11.0)),
     }
 }
 
-/// The default font name of a workbook, if one is declared (or `"Calibri"` when the styles part
-/// has no font).
+/// The default font name of a workbook. A workbook without fonts uses the same Aptos Narrow
+/// default as a new workbook in Excel 16.0.20527.
 pub(crate) fn default_font_name(styles: &StyleTable) -> Option<&str> {
     default_font(styles).map(|(name, _)| name)
 }

@@ -69,6 +69,10 @@ pub fn text_style_for(
 ) -> TextStyle {
     let mut out = TextStyle::default();
     out.width = width;
+    if index == 0 && styles.fonts.is_empty() {
+        out.family = host.default_font_name().map(str::to_owned);
+        out.pixels = 11. * 96. / 72.;
+    }
     let Some(format) = styles.cell_formats.get(index as usize) else {
         if index != 0 {
             out.unsupported = Some("The cell style is unavailable".into());
@@ -308,14 +312,19 @@ pub fn text_style_for(
                 _ => out.unsupported = Some("This text rotation is unavailable".into()),
             }
         }
-        if a.shrink_to_fit
-            || matches!(
-                a.horizontal.as_deref(),
-                Some("fill" | "justify" | "distributed" | "centerContinuous")
-            )
+        let unwrapped = !out.wrap && out.rotation == 0;
+        let horizontal_fit_unavailable = match a.horizontal.as_deref() {
+            Some("justify" | "distributed") => true,
+            Some("fill" | "centerContinuous") => !unwrapped,
+            _ => false,
+        };
+        if horizontal_fit_unavailable
             || matches!(a.vertical.as_deref(), Some("justify" | "distributed"))
         {
-            out.unsupported=Some("AutoFit with shrink-to-fit, fill, justification or distributed alignment is unavailable".into());
+            out.unsupported = Some(
+                "AutoFit for justification, distributed alignment or these combined text styles is unavailable"
+                    .into(),
+            );
         }
         if out.wrap && !matches!(out.rotation, 0 | 255) {
             out.unsupported = Some("AutoFit combining wrapping and rotation is unavailable".into());
@@ -886,6 +895,60 @@ mod tests {
             let style = text_style_for(&host, at, 200., &table, index);
             assert_eq!(style.pixels, 14. * 96. / 72.);
             assert_eq!(style.family.as_deref(), Some("monospace"));
+        }
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn missing_workbook_styles_use_the_default_font_for_text_projection() {
+        let host = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(
+                include_bytes!("../../../crates/calc-doc/tests/fixtures/cdoc_m1_2/corner.xlsx")
+                    .to_vec(),
+            )),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let at = calc_host::value::CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+        assert!(host.styles().fonts.is_empty());
+        let style = text_style(&host, at, 64.);
+        assert_eq!(style.family.as_deref(), Some("Aptos Narrow"));
+        assert_eq!(style.pixels, 11. * 96. / 72.);
+        assert_eq!(style.unsupported, None);
+    }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn unwrapped_shrink_fill_and_center_across_can_be_fitted() {
+        let host = calc_host::HostState::open(
+            std::sync::Arc::new(calc_host::MemorySource::new(calc_host::blank_package())),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let at = calc_host::value::CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+        let mut table = (**host.styles()).clone();
+        for (horizontal, shrink, wrap, supported) in [
+            (None, true, false, true),
+            (Some("fill"), false, false, true),
+            (Some("centerContinuous"), false, false, true),
+            (Some("justify"), false, false, false),
+            (Some("fill"), false, true, false),
+        ] {
+            let index = calc_host::patched_style(
+                &mut table,
+                0,
+                &calc_host::FormatPatch {
+                    horizontal: horizontal.map(str::to_owned),
+                    shrink: Some(shrink),
+                    wrap: Some(wrap),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let style = text_style_for(&host, at, 64., &table, index);
+            assert_eq!(style.shrink, shrink);
+            assert_eq!(style.horizontal.as_deref(), horizontal);
+            assert_eq!(style.unsupported.is_none(), supported);
         }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]

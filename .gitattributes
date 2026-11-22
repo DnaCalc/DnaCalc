@@ -15,5 +15,7 @@ crates/calc-func/tests/fixtures/import/files/** -text
 .beads/issues.jsonl text eol=lf
 # The frozen pre-split catalogue tables and help hashes (dc-zsn.5) are compared byte for byte with generated text: LF in every checkout.
 crates/calc-catalogue/tests/fixtures/** text eol=lf
+# Worker projection replies use LF, including when the byte snapshot is checked on Windows.
+apps/dna-calc-worker/tests/fixtures/skin-projections.jsonl text eol=lf
 # Picture fixtures are compared byte for byte with media saved on Linux (dc-zjsg.3): keep their bytes exact.
 crates/calc-doc/tests/fixtures/drawing/pictures/** -text

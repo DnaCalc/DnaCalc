@@ -37,7 +37,10 @@ On the binary reopen, the flags-0 literal calls gave `#NAME?`. Both called the V
 after XML resave. The flags-0x0e calls gave 202 and 302 throughout. Ordinary BIFF8 Compatibility
 Mode returned 178 observations and 15 errors across 193 attempts. Full-spill reads confirmed
 all 84 pending MINVERSE selections from the earlier build comparison. Nine COMBIN/COMBINA
-requests reached their deadlines before returning any Excel values.
+requests reached the shared worker's deadlines. The ww6 isolated retry returned `#NUM!` for
+all nine. Excel 16.0.20527.20196 echoed the original Value2 input words, and the historical
+Excel bank and Win64 DNA Calc at `fab69794` each matched 9 of 9. The MINVERSE selections
+remain a separate set with 84 of 84 matches against each reference (`dc-ymjf.3`).
 
 The **“Goals, in order” in [the week plan](WEEK_PLAN_2026-11-13.md) are the owner's answers**,
 agreed on 2026-11-12. They call for the Windows alternative with working VBA/XLL and portable
@@ -546,6 +549,14 @@ tests, including the `MESSAGE` lifecycle regression (`dc-6332.10`). The first in
 runs could not resolve the cross-build's embedded fixture paths. The mapped-drive retry reached
 the catalogue prefix test, which needed a separate run.
 
+At `fab69794`, ww6 reverified archived X1 with the original Excel launch ledger: 289 of 289
+values, 599 of 599 ordered callback records and 149 of 149 lifecycle checks. Fresh traced and
+untraced Excel and Win64 runs verified X2 Hello (1 value, 5 lifecycle and 1 framework check)
+and xlw X3 (5 values, 12 ordered callback records, 3 lifecycle and 1 framework check).
+The archived native and typed X5 RTD pairs each passed 2 value, 6 ordered call and 2 lifecycle
+checks. The archived array and reuse pairs also passed. Live registered RTD, ribbon and X4
+teardown still need further evidence.
+
 The Win64 witness judge matched 40,710 of 40,836 pinned rows. In the local full bank
 (`CalcFunc-Evidence` `cdb7e401`), all 9,305 BESSEL rows and all 15,530 COMPLEX and complex
 hyperbolic rows matched. The 1,013 retained ww2 discrepancy rows had 226 differences or
@@ -586,6 +597,32 @@ styles and explicit or Normal formatting. The two product arms agreed on all 40 
 and heights and preserved them after reopening. Each arm matched Excel on 27 of 40 heights
 and zero of 40 widths at 96 DPI. The font comparison satisfies `dc-ysl.9`'s requirement that
 width and geometry failure counts stay equal when the product uses the bundled faces.
+
+The ww6 rerun matched 1,428 of 1,632 ink boxes and all 1,532 measured baselines for explicit
+Calibri at 75%, 100% and 150% across Chrome and WebView2. For the same content in the package
+without styles, the original browser worker matched 342 of 820 ink boxes and zero of 466
+measured baselines. Projecting Aptos Narrow 11 and supplying the local Office face raised
+Chrome's score to 748 of 820 ink boxes and 766 of 766 baselines. The Calibri fallback matched
+748 of 820 ink boxes and 466 of 466 measured baselines. All three browser runs matched 1,020
+of 1,020 geometry checks. The local Office font was used only for the comparison.
+The shipped font rules and the patched native worker matched 1,496 of 1,640 ink boxes and
+932 of 932 measured baselines across Chrome and WebView2. The original workers matched
+687 of 1,640 ink boxes and zero of 932 measured baselines. All 2,040 geometry checks matched
+in both runs.
+
+The new AutoFit calibration measured 264 combinations of font, style and text. The width
+difference between Excel and the Windows text measurement changes with each of those inputs.
+The 40 save-and-reopen controls retained their exact dimensions in both font arms. Excel
+matched 27 of 40 heights and zero of 40 widths in each arm. Fresh controls also found that
+shrink, fill and Center Across Selection use the plain text fit. The updated browser path fitted
+all four cases to 20 px high and 272 px wide. Excel fitted the same cases to 20 px high and
+281 px wide. Width parity and combined alignment dimensions remain with `dc-971p.16`.
+
+The frozen-pane range D4:F6 kept its active cell white and its lower-right handle in both
+browser painters at 75% and 150%. The interior selection tint now matches Excel's RGB
+199/199/199 in all four captures. All 32 measured edge positions match.
+The ordinary unmerged C2:E4 selection also matched the active cell, tint and handle in all six
+DOM and Canvas captures at 75%, 100% and 150%. All 48 measured edge positions match.
 
 ### Pivot and formula-language evidence
 
