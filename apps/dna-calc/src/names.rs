@@ -66,6 +66,12 @@ pub fn controls(controller: Controller) -> impl IntoView {
     let refresh = controller.name_field(|s| &s.refresh, |s| &mut s.refresh);
     let edit_revision = controller.name_field(|s| &s.edit_revision, |s| &mut s.edit_revision);
     let editor_session = StoredValue::new(0_u64);
+    // A selection or caller can change and return to its earlier value while a reply is in flight.
+    let evaluation_epoch = StoredValue::new(0_u64);
+    let supersede_evaluation = move || {
+        evaluation_epoch.update_value(|epoch| *epoch += 1);
+        evaluation_epoch.get_value()
+    };
     let close = move || {
         editor_session.update_value(|session| *session += 1);
         open.set(false);
@@ -123,6 +129,7 @@ pub fn controls(controller: Controller) -> impl IntoView {
         });
     });
     let new_name = move || {
+        supersede_evaluation();
         creating.set(true);
         selected.set(None);
         name.set(String::new());
@@ -230,6 +237,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
         };
         let generation = controller.generation.get_untracked();
         let id = row.id;
+        let session = editor_session.get_value();
+        let request = supersede_evaluation();
         controller.evaluate_name(
             Request::EvaluateName {
                 id,
@@ -239,6 +248,8 @@ pub fn controls(controller: Controller) -> impl IntoView {
             move |reply| {
                 if !open.get_untracked()
                     || controller.generation.get_untracked() != generation
+                    || editor_session.get_value() != session
+                    || evaluation_epoch.get_value() != request
                     || selected.with_untracked(|s| s.as_ref().map(|r| r.id)) != Some(id)
                 {
                     return;
@@ -272,7 +283,10 @@ pub fn controls(controller: Controller) -> impl IntoView {
                         aria-pressed=move || {
                             selected.with(|s| s.as_ref().is_some_and(|r| r.id == id)).to_string()
                         }
-                        on:click=move |_| choose(controller, click.clone())
+                        on:click=move |_| {
+                            supersede_evaluation();
+                            choose(controller, click.clone());
+                        }
                     >
                         {label.clone()}
                     </button>
@@ -468,7 +482,10 @@ pub fn controls(controller: Controller) -> impl IntoView {
                         <select
                             data-dnacalc="name-evaluation-sheet"
                             prop:value=move || anchor_sheet.get()
-                            on:change=move |ev| anchor_sheet.set(event_target_value(&ev))
+                            on:change=move |ev| {
+                                supersede_evaluation();
+                                anchor_sheet.set(event_target_value(&ev));
+                            }
                         >
                             {move || {
                                 controller
@@ -490,7 +507,10 @@ pub fn controls(controller: Controller) -> impl IntoView {
                         <input
                             data-dnacalc="name-anchor"
                             prop:value=move || anchor.get()
-                            on:input=move |ev| anchor.set(event_target_value(&ev))
+                            on:input=move |ev| {
+                                supersede_evaluation();
+                                anchor.set(event_target_value(&ev));
+                            }
                         />
                     </label>
                     <button
