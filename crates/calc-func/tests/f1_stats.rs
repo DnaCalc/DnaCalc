@@ -6791,3 +6791,97 @@ fn dc_j9k_84_cb14_unified_beta_inverse_and_tiny_shape_substrate() {
         exact(call(name, args), f64::from_bits(want));
     }
 }
+
+/// Excel 16.0.20527 (dc-iuwct.51): LowerEndpoint damped-Newton step `(factor * df) / density`
+/// and small-shape `beta_density_at` TwoSum exponent accumulation for `a < 1 || b < 1`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iuwct_51_beta_lower_endpoint_and_small_shape_bup_bgrat_exact() {
+    // 1. Gross LowerEndpoint $[7] (alias_7, previously 258,048 ULP) and ww2-b003 (previously
+    //    -18,272 ULP), plus all ig5 (dc-iuwct.51-BETA.INV.json) and cb14 (b1-00..04) b=1 controls.
+    for (name, p, a, b, want) in [
+        // alias_7 ($[7])
+        ("BETA.INV", 0x3e88a7338c2c15fb_u64, 0x3f894d4606760df7_u64, 0x3f91c3f4398310c2_u64, 0x1ffac33bbe071000_u64),
+        ("BETAINV",  0x3e88a7338c2c15fb,     0x3f894d4606760df7,     0x3f91c3f4398310c2,     0x1ffac33bbe071000),
+        // ww2-b003
+        ("BETA.INV", 0x36a0000000000000,     0x3fc0000000000000,     0x3f9f1e29b6b2af14,     0x2092e4d14ab15c68),
+        ("BETAINV",  0x36a0000000000000,     0x3fc0000000000000,     0x3f9f1e29b6b2af14,     0x2092e4d14ab15c68),
+        // ig5 b=1 controls
+        ("BETA.INV", 0x16687e92154ef7ac,     0x3fe0000000000000,     0x3ff0000000000000,     0x20ac572b87d36f98),
+        ("BETA.INV", 0x20ca2fe76a3f9475,     0x3fd8000000000000,     0x3ff0000000000000,     0x2092e4c7afe24340),
+        ("BETA.INV", 0x2b2bff2ee48e0530,     0x3fc0000000008000,     0x3ff0000000000000,     0x2092e4c7b2b06760),
+        ("BETA.INV", 0x2b2bff2ee48e0530,     0x3fbfffffffff0000,     0x3ff0000000000000,     0x2092e4c7ad146020),
+        ("BETA.INV", 0x20ca2fe76a3f9475,     0x3fd8000431bde82d,     0x3ff0000000000000,     0x2092f47d455f3d00),
+        ("BETA.INV", 0x20ca2fe76a3f9475,     0x3fd7fffbce4217d3,     0x3ff0000000000000,     0x2092d51f04084ae8),
+        // cb14 b=1 controls (b1-00..04)
+        ("BETA.INV", 0x26f0000000000000,     0x3fd5555555555556,     0x3ff0000000000000,     0x2086500000000000),
+        ("BETA.INV", 0x26f0000000000000,     0x3fd5555555555600,     0x3ff0000000000000,     0x1fe1600000000000),
+        ("BETA.INV", 0x26f0000000000000,     0x3fd5555555559bb3,     0x3ff0000000000000,     0x1f95310000000000),
+        ("BETA.INV", 0x26f0000000000000,     0x3fd5555560000000,     0x3ff0000000000000,     0x1f70c6f744000000),
+        ("BETA.INV", 0x26f0000000000000,     0x3fd5558000000000,     0x3ff0000000000000,     0x20b0c2c66c160000),
+    ] {
+        exact(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(p)),
+                    n(f64::from_bits(a)),
+                    n(f64::from_bits(b)),
+                ],
+            ),
+            f64::from_bits(want),
+        );
+    }
+
+    // 2. Small-shape BETA.DIST(FALSE) TwoSum witnesses (previously off under excel_exp_running).
+    for (x, a, b, want) in [
+        (0x3ed3ae194e5d7827_u64, 0x3fe0000000000000_u64, 0x4054c00000000000_u64, 0x40a280d95d81fc71_u64),
+        (0x3feffffde7210be9,     0x3fab37d6d5b62db4,     0x2caad073096dd14e,     0x2de992748b5f753b),
+        (0x3feffffde7210be9,     0x3fcd471b52759270,     0x30ff10ad44d18f65,     0x323da044fd4c19c0),
+    ] {
+        exact(
+            call(
+                "BETA.DIST",
+                vec![
+                    n(f64::from_bits(x)),
+                    n(f64::from_bits(a)),
+                    n(f64::from_bits(b)),
+                    f1_support::b(false),
+                ],
+            ),
+            f64::from_bits(want),
+        );
+    }
+
+    // 3. Remaining $[6] (alias_6) Newton trajectory: 165/166 BETA.DIST calls across all 83 steps
+    //    match live Excel 16.0.20527 to 0 ULP; only iteration 1 CDF sits +1 ULP above Excel on an
+    //    exact .5000 tie in 0.5 + (0.5 - tot) (owned by dc-j9k.55 / dc-j9k.70), amplifying across
+    //    81 catastrophic-cancellation steps.
+    recorded_calculation(
+        call(
+            "BETA.DIST",
+            vec![
+                n(f64::from_bits(0x3e50e6ec4e3332c0)),
+                n(f64::from_bits(0x3f7120226a7e99dd)),
+                n(f64::from_bits(0x3f9f1e28d638730c)),
+                f1_support::b(true),
+            ],
+        ),
+        f64::from_bits(0x3fea196f31880203),
+        f64::from_bits(0x3fea196f31880204),
+    );
+    for name in ["BETA.INV", "BETAINV"] {
+        recorded_calculation(
+            call(
+                name,
+                vec![
+                    n(f64::from_bits(0x3e833184a7ea4652)),
+                    n(f64::from_bits(0x3f7120226a7e99dd)),
+                    n(f64::from_bits(0x3f9f1e28d638730c)),
+                ],
+            ),
+            f64::from_bits(0x1ffeb1641b0fe800),
+            f64::from_bits(0x1ffeb1641b0e0dc0),
+        );
+    }
+}

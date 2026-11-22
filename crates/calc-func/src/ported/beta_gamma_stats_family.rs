@@ -275,7 +275,7 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
         last_correction = correction;
         let mut factor = 1.0;
         loop {
-            last_adjustment = excel_x87_mul(factor, correction);
+            last_adjustment = excel_x87_div(excel_x87_mul(factor, df), density);
             if last_adjustment.abs() >= step_limit {
                 factor = excel_x87_div(factor, 3.0);
                 if factor == 0.0 {
