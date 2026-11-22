@@ -1,0 +1,35 @@
+# DNA Calc video series plan (draft, `dc-6q2k.4`)
+
+Draft for owner review and discussion. Follows the Excel-DNA video style: short, practical walkthroughs on real screens with real workbooks and add-ins, paired with blog posts in [`docs/site/blog/`](../blog/).
+
+## Episodes
+
+| # | Title | Audience | The one thing shown | Demo workbook / add-in / files | Length | Paired blog post |
+|---|---|---|---|---|---:|---|
+| 1 | DNA Calc on Windows: opening a real workbook with VBA and add-ins | Excel users on Windows who want a second spreadsheet | Opening `.xlsx` and `.xlsm` files, enabling VBA macros, loading an `.xll` / `.xlam` add-in, and switching between all six skins over the same live workbook | `crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx`, `crates/calc-xll-reference/fixture/vba/DnaSimple.xlsm`, `crates/calc-xll-reference/fixture/vba/DnaExamples.xlam`, `crates/calc-xll-reference/fixture/X2Hello.csproj` (`X2Hello-AddIn64.xll`) | 6–7 min | [`2026-11-21-what-is-dna-calc.md`](../blog/2026-11-21-what-is-dna-calc.md) |
+| 2 | Formula Explorer as a test bench for an Excel-DNA add-in | Excel-DNA, xlOil, C API, and `.xlam` developers | Loading an Excel-DNA `.xll` in DNA Calc - Formula Explorer on Windows, inspecting `F1` help, `F9` part evaluation, the Evaluation trace, `Exact value`, and seeing a typed refusal when a host service is missing | `crates/calc-xll-reference/fixture/X2Hello.csproj` (`X2Hello-AddIn64.xll`), `crates/calc-xll-reference/fixture/X0.csproj` (`X0-AddIn64.xll`), `crates/calc-xll-reference/fixture/x2-cases.json`, `crates/calc-xll-reference/fixture/vba/DnaExamples.xlam` | 7–8 min | [`2026-11-21-onecalc-addin-bench.md`](../blog/2026-11-21-onecalc-addin-bench.md) |
+| 3 | How we know DNA Calc answers like Excel | Model reviewers, auditors, and engineers | Reading the oracle corpus and the 4.79M-row Function Bank, asking Excel 16.0 through Touchstone with frozen SHA-256 predictions, and fixing last-bit gaps (`NORMSINV`, gamma, `Q0.64` text rounding) | `docs/fun/function-bank.html`, `docs/fun/dna-calc-brochure.html`, `crates/calc-func/witness-status.tsv`, `tools/excel-service/README.md`, `docs/articles/last-bit-*.md` | 8–9 min | [`2026-11-21-checking-excel-answers.md`](../blog/2026-11-21-checking-excel-answers.md) |
+| 4 | Six skins over one workbook | Spreadsheet modelers and reviewers | Switching between Grid, Notebook, Atlas, Tree, Canvas, and Ledger on one open workbook without reloading, keeping selection, undo history, and in-flight formula edits intact | `crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx`, `crates/calc-host/tests/fixtures/circular-reference.xlsx` | 5–6 min | Future post (`dc-xfrhg` architecture write-up) |
+| 5 | DNA Calc in the browser: WebAssembly, no uploads | Anyone wanting to try a workbook without installing software | Opening a local `.xlsx` in the browser build, recalculating dynamic arrays and spills locally in WebAssembly, and checking the `connect-src 'self'` boundary | `crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx` (`sample.xlsx` on the site), `dnacalc.com` / `app.dnacalc.com` | 4–5 min | Future post (browser & privacy model) |
+| 6 | Check workbooks without Excel: the `dnacalc` Linux runner | Auditors, model reviewers, and CI pipeline owners | Running `dnacalc diff book.xlsx`, `recalc`, `get`, `set`, `run --macro-level guarded`, and `--json` from a Linux shell with strict exit codes | `crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx`, `crates/calc-xll-reference/fixture/vba/DnaSimple.xlsm`, `deploy/linux/README.txt` | 5–6 min | Future post (CI workbook checks) |
+| 7 | CalcVBA outside Excel: interpreter, JIT, and macro security | VBA authors and organizations with `.xlsm` / `.xlam` models | Running the same VBA worksheet functions on Windows, Linux, and WebAssembly under `Off`, `Guarded`, and `Unguarded` macro security, and inspecting typed refusals | `crates/calc-xll-reference/fixture/vba/DnaSimple.xlsm`, `crates/calc-xll-reference/fixture/vba/DnaExamples.xlsm`, `crates/calc-vba/tests/corpus/baseline.json` | 6–7 min | Future post (CalcVBA parity & safety) |
+| 8 | Inside the last bit: cracking Excel's `NORMSINV` and `Q0.64` rounding from answers alone | Numerical programmers and the curious | How Touchstone error maps, x87 `PC = 64` store-each-step arithmetic, and 4-binade discriminators uncover 1990s floating-point routines without reading Microsoft's code | `docs/articles/last-bit-normsinv.md`, `docs/articles/last-bit-number-text.md`, `docs/fun/function-bank.html#NORM-S-INV` | 8–10 min | Future post / series index for `docs/articles/` |
+
+## Readiness before recording
+
+| Episode | Can record today? | What must be true first / caveats to state on screen |
+|---|---|---|
+| 1 | Preview build only | Signed Windows MSIs (`dc-fk66.2`, `dc-fk66.3`) are not yet published; label desktop as preview (`0.2.0` candidate). State honestly that workbook events (`SheetChange`, `AfterCalculate`) and real workbook identity (`dc-1nbp.3`), drawings (`dc-zjsg`), printing (`dc-971p.57`), AutoFilter (`dc-971p.37`), and sort (`dc-971p.38`) are still in progress. |
+| 2 | Yes (from Windows cross-build) | Uses Windows `dna-onecalc-desktop.exe` and the browser build at `onecalc.dnacalc.com` (or local site preview). Keep the `dc-1nbp.3` `"Book1"` workbook-identity caveat clear when running `X0.csproj` (`Probe.cs`). |
+| 3 | Yes | All cited numbers are checked into master (`witness-status.tsv` at `acae3f80`, `RELEASES.md` at `6847cc02`, `docs/articles/last-bit-*.md` from 2026-11-21). Re-run `docs/fun/tools/refresh_function_bank.py` if recording against a newer snapshot so the screen matches the script. |
+| 4 | Yes | `dc-xfrhg` skin internals cleanup closed on 2026-11-21 (`87338d08`). |
+| 5 | After site publish (`dc-6q2k.2`) | Live site today (`2026-11-09` build) puts the web app at `dnacalc.com`; owner decision in `SITE_PLAN.md` moves it to `app.dnacalc.com` (or `/app/`). |
+| 6 | Yes | Linux runner (`dnacalc` tarball and `.deb`, `dc-icq4.1`/`.2`) is already built and accepted on `ubuntu:26.04`. |
+| 7 | Yes (with explicit scope) | `dna-simple` (`109/109`) and `dna-examples` (`22/26` `.xlsm`, `24/26` project) are green; third-party sets such as `vba-regex` and `vba-arraytools` still show refused/missing counts in `baseline.json`. |
+| 8 | Yes | All three `docs/articles/last-bit-*.md` pieces are complete and backed by frozen SHA-256 holdouts and `witness-status.tsv`. |
+
+## Owner decisions needed for Episode 1–3
+
+1. **Recording build:** Record Episodes 1 and 2 from the unsigned Windows cross-build zip as a preview, or wait until the first signed `0.2.0` MSI (`dc-fk66.3`) lands?
+2. **Site URL on screen:** Show `dnacalc.com` + `onecalc.dnacalc.com` as live today, or wait for the `dc-6q2k.2` content site + `app.dnacalc.com` split?
+3. **Host platform:** Show Episode 2 with `X2Hello` (`Hello.cs`) alone, or also show `X0` (`Probe.cs`) hitting `X0.Async` and `X0.Reference`? (Script 2 currently includes both `X2Hello` and `X0` so viewers see async and reference arguments as well as a simple string UDF.)
