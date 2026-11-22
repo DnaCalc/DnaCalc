@@ -32,6 +32,8 @@ pub mod dialogs;
 #[cfg(windows)]
 mod shell;
 #[cfg(windows)]
+mod startup_paint;
+#[cfg(windows)]
 mod webview;
 #[cfg(windows)]
 pub mod winhttp;

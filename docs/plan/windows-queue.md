@@ -2,7 +2,7 @@
 
 Refreshed for 2026-11-22 from the six copied status files (ww1–ww5 and ss1), ww4's queue audit
 and available Linux handoffs. There are **38 done**, **110 partly done** and
-**41 pending** rows. These states describe the Windows queue entry. A completed
+**42 pending** rows. These states describe the Windows queue entry. A completed
 measurement can still leave an implementation bead open. Evidence paths in a receipt are
 relative to its Windows lane. The copied indexes are under `~/codex-runs/win-results/`.
 Existing firehorse references and the Firehorse handoffs preserved in tracker or commit notes
@@ -230,6 +230,7 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 
 | Bead | Lane handoff | State | Windows evidence | Next step or prerequisite |
 | --- | --- | --- | --- | --- |
+| dc-yzv7z | K/dp1 | Pending | — | On GOVERT-OMEN, run the cross-built shell regression before and after the fix. Launch both desktop pages on the visible Windows desktop, capture startup diagnostics and actual window paint, and exercise resize and mixed-DPI moves. Run the software and covered-window controls in the handoff. |
 | dc-971p.74 | K/ux6 | Pending | — | Run the Classic grid comparison through the Windows desktop with the authored UX6 inputs and retained browser comparison. |
 | dc-8svfs.10 | K/cv2 | Pending | — | Run the faithful VM3/JIT file, Win32 and COM native reference matrices on Windows. |
 | dc-8svfs.11 | K/cv4 | Pending | — | Requires owned Excel for Mac. Compile the authored module in VBE and capture platform constants, filesystem and settings controls. |

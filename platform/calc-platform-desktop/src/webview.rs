@@ -7,14 +7,27 @@
 //! [`SEPARATOR`], base64 encoded: the page side is `apps/dna-calc/web/desktop-bridge.js`. What the
 //! messages mean is the application's.
 use crate::assets::{Assets, content_type, requested_name};
+use crate::{
+    shell,
+    startup_paint::{self, Paint},
+};
 use std::result::Result;
-use std::{path::Path, rc::Rc};
+use std::{
+    cell::Cell,
+    path::Path,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
 use windows::{
     Win32::Foundation::HWND as WinHwnd,
     core::{Interface, PCWSTR, PWSTR},
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::Win32::{
+    Foundation::{HWND, POINT},
+    Graphics::Gdi::ClientToScreen,
+    UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
+};
 
 const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -84,15 +97,16 @@ pub struct WebViewOptions<'a> {
     pub user_data: &'a Path,
     /// Extra Chromium switches (for example a remote debugging port).
     pub browser_args: String,
-    /// The first client size in pixels.
-    pub size: (i32, i32),
 }
 
 /// A WebView2 browser inside a window.
 pub struct WebView {
-    _environment: ICoreWebView2Environment,
-    controller: ICoreWebView2Controller,
+    parent: HWND,
+    bounds: Cell<Option<(i32, i32)>>,
+    origin: Cell<Option<(i32, i32)>>,
     view: ICoreWebView2,
+    controller: ICoreWebView2Controller,
+    environment: ICoreWebView2Environment,
 }
 
 fn environment(user_data: &Path, arguments: String) -> Result<ICoreWebView2Environment, String> {
@@ -152,32 +166,165 @@ fn controller(
 impl WebView {
     /// Creates the browser in `parent`, sized and visible. The calling thread must have entered
     /// a single-threaded apartment ([`crate::Shell::new`] does).
-    pub fn create(
-        parent: windows_sys::Win32::Foundation::HWND,
+    pub fn create(parent: HWND, options: &WebViewOptions<'_>) -> Result<Self, String> {
+        Self::create_with_paint_check(parent, options, Self::check_startup_paint)
+    }
+
+    fn create_with_paint_check(
+        parent: HWND,
         options: &WebViewOptions<'_>,
+        mut check: impl FnMut(&Self) -> Result<Paint, String>,
     ) -> Result<Self, String> {
-        let environment = environment(options.user_data, options.browser_args.trim().to_owned())?;
-        let controller = controller(&environment, WinHwnd(parent.cast()))?;
-        let view = unsafe { controller.CoreWebView2() }.map_err(|e| e.to_string())?;
-        let this = Self {
-            _environment: environment,
-            controller,
-            view,
+        let args = options.browser_args.trim();
+        let software_requested = [
+            args,
+            &std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default(),
+        ]
+        .into_iter()
+        .flat_map(str::split_ascii_whitespace)
+        .any(|arg| arg.trim_matches('"') == "--disable-gpu");
+        let web = Self::open(parent, options.user_data, args, software_requested)?;
+        if check(&web)? != Paint::Missing || software_requested {
+            return Ok(web);
+        }
+
+        let shutdown = match web.watch_browser_exit() {
+            Ok(watch) => watch,
+            Err(error) => {
+                eprintln!("WebView2 software retry unavailable: {error}");
+                return Ok(web);
+            }
         };
-        this.set_bounds(options.size.0, options.size.1);
-        let _ = unsafe { this.controller.SetIsVisible(true) };
+        drop(web);
+        // A WebView2 profile can have only one browser configuration at a time. Keep the
+        // original profile and wait for the runtime to release it before changing the switches.
+        if shutdown.wait() {
+            eprintln!(
+                "WebView2 renderer responded without desktop paint; retrying with --disable-gpu"
+            );
+            match Self::open(
+                parent,
+                options.user_data,
+                &format!("{args} --disable-gpu"),
+                true,
+            ) {
+                Ok(web) => {
+                    check(&web)?;
+                    return Ok(web);
+                }
+                Err(error) => eprintln!("WebView2 software retry failed: {error}"),
+            }
+        } else {
+            eprintln!("WebView2 software retry unavailable: browser still using the profile");
+        }
+        Self::open(parent, options.user_data, args, software_requested)
+    }
+
+    fn open(
+        parent: HWND,
+        user_data: &Path,
+        args: &str,
+        software_requested: bool,
+    ) -> Result<Self, String> {
+        if unsafe { IsWindow(parent) } == 0 {
+            return Err("WebView2 parent closed during startup".to_owned());
+        }
+        let environment = environment(user_data, args.trim().to_owned())?;
+        let controller = controller(&environment, WinHwnd(parent.cast()))?;
+        let view = match unsafe { controller.CoreWebView2() } {
+            Ok(view) => view,
+            Err(error) => {
+                let _ = unsafe { controller.Close() };
+                return Err(error.to_string());
+            }
+        };
+        let this = Self {
+            parent,
+            bounds: Cell::new(None),
+            origin: Cell::new(None),
+            view,
+            controller,
+            environment,
+        };
+        this.update_parent()?;
+        unsafe { this.controller.SetIsVisible(true) }.map_err(|e| e.to_string())?;
+        let mut version = PWSTR::null();
+        let version = unsafe { this.environment.BrowserVersionString(&mut version) }
+            .map(|()| take_pwstr(version))
+            .unwrap_or_else(|_| "unknown".to_owned());
+        let dpi = unsafe { GetDpiForWindow(parent) };
+        let visible = unsafe { IsWindowVisible(parent) } != 0;
+        eprintln!(
+            "WebView2 startup: runtime={version}, hosting=HWND, disable-gpu requested={software_requested}, parent visible={visible}, bounds={:?}, dpi={dpi}",
+            this.bounds.get()
+        );
         Ok(this)
     }
 
-    /// Makes the browser fill `width` by `height` client pixels.
-    pub fn set_bounds(&self, width: i32, height: i32) {
-        let bounds = windows::Win32::Foundation::RECT {
-            left: 0,
-            top: 0,
-            right: width,
-            bottom: height,
-        };
-        let _ = unsafe { self.controller.SetBounds(bounds) };
+    fn check_startup_paint(&self) -> Result<Paint, String> {
+        match startup_paint::check(&self.view, self.parent, || self.sync_parent()) {
+            Ok(Paint::WindowClosed) => Err("WebView2 parent closed during startup".to_owned()),
+            Ok(result) => Ok(result),
+            Err(error) => {
+                eprintln!("WebView2 startup paint check unavailable: {error}");
+                Ok(Paint::Unobservable)
+            }
+        }
+    }
+
+    /// Synchronizes the browser with its HWND's client size and screen position after window
+    /// messages have been dispatched.
+    pub fn sync_parent(&self) {
+        let _ = self.update_parent();
+    }
+
+    fn update_parent(&self) -> Result<(), String> {
+        if let Some((width, height)) = shell::client_size(self.parent)
+            && width > 0
+            && height > 0
+            && self.bounds.get() != Some((width, height))
+        {
+            let bounds = windows::Win32::Foundation::RECT {
+                left: 0,
+                top: 0,
+                right: width,
+                bottom: height,
+            };
+            unsafe { self.controller.SetBounds(bounds) }.map_err(|e| e.to_string())?;
+            self.bounds.set(Some((width, height)));
+        }
+        let mut origin = POINT { x: 0, y: 0 };
+        if unsafe { ClientToScreen(self.parent, &mut origin) } != 0
+            && self.origin.get() != Some((origin.x, origin.y))
+        {
+            unsafe { self.controller.NotifyParentWindowPositionChanged() }
+                .map_err(|e| e.to_string())?;
+            self.origin.set(Some((origin.x, origin.y)));
+        }
+        Ok(())
+    }
+
+    fn watch_browser_exit(&self) -> Result<BrowserExit, String> {
+        let environment = self
+            .environment
+            .cast::<ICoreWebView2Environment5>()
+            .map_err(|e| e.to_string())?;
+        let exited = Rc::new(Cell::new(false));
+        let handler = BrowserProcessExitedEventHandler::create(Box::new({
+            let exited = exited.clone();
+            move |_, _| {
+                exited.set(true);
+                Ok(())
+            }
+        }));
+        let mut token = 0;
+        unsafe { environment.add_BrowserProcessExited(&handler, &mut token) }
+            .map_err(|e| e.to_string())?;
+        Ok(BrowserExit {
+            environment,
+            exited,
+            token,
+        })
     }
 
     /// Runs `source` in every document before its own scripts (the page side of the bridge).
@@ -226,7 +373,7 @@ impl WebView {
             )
         }
         .map_err(|e| e.to_string())?;
-        let environment = self._environment.clone();
+        let environment = self.environment.clone();
         let prefix = format!("https://{host}");
         let mut token = 0i64;
         unsafe {
@@ -429,6 +576,30 @@ Cache-Control: no-store
     }
 }
 
+impl Drop for WebView {
+    fn drop(&mut self) {
+        let _ = unsafe { self.controller.Close() };
+    }
+}
+
+struct BrowserExit {
+    environment: ICoreWebView2Environment5,
+    exited: Rc<Cell<bool>>,
+    token: i64,
+}
+
+impl BrowserExit {
+    fn wait(self) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !self.exited.get() && Instant::now() < deadline {
+            shell::pump_pending();
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        let _ = unsafe { self.environment.remove_BrowserProcessExited(self.token) };
+        self.exited.get()
+    }
+}
+
 /// The version of the WebView2 Evergreen runtime installed on this machine, or `None` when there
 /// is none (a runtime in the folder `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` names is the one asked
 /// about).
@@ -564,6 +735,45 @@ pub fn run_message_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Native-only: reconfiguring the profile requires the actual WebView2 browser process.
+    #[test]
+    #[ignore = "requires WebView2 Evergreen and an uncovered interactive Windows desktop"]
+    fn missing_startup_paint_recreates_browser_in_software() {
+        let shell = crate::Shell::new("WebView2 software retry test").unwrap();
+        shell.show(800, 600);
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let profile = std::env::temp_dir().join(format!("dnacalc-paint-{stamp}"));
+        let options = WebViewOptions {
+            user_data: &profile,
+            browser_args: String::new(),
+        };
+        let mut browsers = Vec::new();
+        let web = WebView::create_with_paint_check(shell.workbook_hwnd(), &options, |web| {
+            let mut pid = 0;
+            unsafe { web.view.BrowserProcessId(&mut pid) }.unwrap();
+            assert_ne!(pid, 0);
+            browsers.push(pid);
+            if browsers.len() == 1 {
+                // Supply a failed observation so a healthy machine also exercises the retry.
+                return Ok(Paint::Missing);
+            }
+            assert_eq!(web.check_startup_paint()?, Paint::Presented);
+            Ok(Paint::Presented)
+        })
+        .unwrap();
+
+        let shutdown = web.watch_browser_exit().unwrap();
+        drop(web);
+        if shutdown.wait() {
+            let _ = std::fs::remove_dir_all(&profile);
+        }
+        assert_eq!(browsers.len(), 2);
+        assert_ne!(browsers[0], browsers[1]);
+    }
 
     /// Native-only: a name WebView2 made unique is given back as the page named it.
     #[test]
