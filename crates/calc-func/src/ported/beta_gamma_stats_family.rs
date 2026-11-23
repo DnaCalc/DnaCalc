@@ -1361,21 +1361,21 @@ mod tests {
     fn dc_iuwct_58_gamma_inv_structural_and_gross_boundaries() {
         // 1. Five live Touchstone single-bit bisected MAX_TRIALS = 105 edges
         //    (p_err -> #NUM!, p_ok -> x_105 where best_err <= 1e-12 * target).
-        //    Edges 3..5 carry a <=3 ULP forward gratio st200 residual (dc-j9k.59) at x_0 < 1.1;
-        //    all five single-bit #NUM! -> finite transitions match live Excel bit-for-bit.
-        let edges: [(u64, u64, u64, u64, u64); 5] = [
+        //    With Carbon cb23 exact go200 arithmetic, all five single-bit #NUM! -> finite
+        //    transitions and all five x_105 answers match live Excel bit-for-bit (0 ULP).
+        let edges: [(u64, u64, u64, u64); 5] = [
             // a = 0.0252 (!switch_comp)
-            (0x3f99ce075f6fd220, 0x3fefa4e3873b90a2, 0x3fefa4e3873b90a3, 0x3fe3eeb2ef1e000f, 0),
+            (0x3f99ce075f6fd220, 0x3fefa4e3873b90a2, 0x3fefa4e3873b90a3, 0x3fe3eeb2ef1e000f),
             // a = 0.02055 (!switch_comp)
-            (0x3f950b0f27bb2fec, 0x3fefdb099876b81d, 0x3fefdb099876b81e, 0x3ff03121a2dfde85, 0),
+            (0x3f950b0f27bb2fec, 0x3fefdb099876b81d, 0x3fefdb099876b81e, 0x3ff03121a2dfde85),
             // a = 0.019 (!switch_comp)
-            (0x3f9374bc6a7ef9db, 0x3fefe649f3cec807, 0x3fefe649f3cec808, 0x3ff2fedd97d00a21, 2),
+            (0x3f9374bc6a7ef9db, 0x3fefe649f3cec807, 0x3fefe649f3cec808, 0x3ff2fedd97d00a21),
             // a = 0.0128 (!switch_comp)
-            (0x3f8a36e2eb1c432d, 0x3feffca516ac6df6, 0x3feffca516ac6df7, 0x40029f26191448a4, 4),
+            (0x3f8a36e2eb1c432d, 0x3feffca516ac6df6, 0x3feffca516ac6df7, 0x40029f26191448a4),
             // a = 0.0097 (p > 0.9999, switch_comp = true, target = comp_prob)
-            (0x3f83dd97f62b6ae8, 0x3fefff6c4cbc26a1, 0x3fefff6c4cbc26a2, 0x400bdcc7b0943823, 4),
+            (0x3f83dd97f62b6ae8, 0x3fefff6c4cbc26a1, 0x3fefff6c4cbc26a2, 0x400bdcc7b0943823),
         ];
-        for (a_bits, p_err, p_ok, x_ok, max_ulp) in edges {
+        for (a_bits, p_err, p_ok, x_ok) in edges {
             let a = f64::from_bits(a_bits);
             assert_eq!(
                 gamma_inv_kernel(f64::from_bits(p_err), a, 1.0),
@@ -1385,9 +1385,9 @@ mod tests {
             let got = gamma_inv_kernel(f64::from_bits(p_ok), a, 1.0)
                 .expect("expected finite at p_ok")
                 .to_bits();
-            assert!(
-                got.abs_diff(x_ok) <= max_ulp,
-                "expected {x_ok:#x} +/- {max_ulp}u at p={p_ok:#x}, a={a_bits:#x}, got {got:#x}",
+            assert_eq!(
+                got, x_ok,
+                "expected {x_ok:#x} at p={p_ok:#x}, a={a_bits:#x}, got {got:#x}",
             );
         }
 
@@ -1402,8 +1402,7 @@ mod tests {
                 Err(WorksheetErrorCode::Num),
             );
         }
-        // Group B finite recoveries (halley[5008] and cb6[244] carry 1-ULP forward gratio st200
-        // residuals -> +46u / +3u at x_105, owned by dc-j9k.59; halley[4829] is bit-exact).
+        // Group B finite recoveries (all bit-exact with Carbon cb23 go200 arithmetic).
         let got_5008 = gamma_inv_kernel(
             f64::from_bits(0x3fefa4e3c3261e13),
             f64::from_bits(0x3f99ce075f6fd220),
@@ -1411,7 +1410,7 @@ mod tests {
         )
         .expect("halley[5008] must be finite")
         .to_bits();
-        assert!(got_5008.abs_diff(0x3fe3eebdb25852fa) <= 46, "halley[5008]={got_5008:#x}");
+        assert_eq!(got_5008, 0x3fe3eebdb25852fa, "halley[5008]={got_5008:#x}");
         let got_cb6_244 = gamma_inv_kernel(
             f64::from_bits(0x3fefff6c4cdc47e3),
             f64::from_bits(0x3f83dd97f62b6ae8),
@@ -1419,7 +1418,7 @@ mod tests {
         )
         .expect("cb6[244] must be finite")
         .to_bits();
-        assert!(got_cb6_244.abs_diff(0x400bdcc918e32713) <= 3, "cb6[244]={got_cb6_244:#x}");
+        assert_eq!(got_cb6_244, 0x400bdcc918e32713, "cb6[244]={got_cb6_244:#x}");
 
         for (p_bits, a_bits, expected) in [
             (0x3fefef942c5c3563_u64, 0x3f91b71758e21965_u64, 0x3ff6aa4ac43db371_u64), // halley[4829]

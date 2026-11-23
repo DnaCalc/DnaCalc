@@ -80,7 +80,6 @@ pub fn gamma(z: f64) -> f64 {
 const GRATIO_INV_RTPI: f64 = f64::from_bits(0x3fe2_0dd7_5042_9b6d);
 // 1 / sqrt(2*pi) to binary64 for the Temme correction term.
 const TEMME_RT2PIN: f64 = f64::from_bits(0x3fd9_8845_33d4_3651);
-const GRATIO_E: f64 = 2.220446049250313e-16; // spmpar(1) = 2^-52
 const GRATIO_SPMPAR3: f64 = 1.7976931348623157e308;
 
 // Full binary64 exact rational Temme expansion coefficients c_k(eta) (DLMF 8.12 / Temme 1979):
@@ -208,9 +207,6 @@ const TEMME_TABLES: [&[f64]; 11] = [
     &TEMME_C0, &TEMME_C1, &TEMME_C2, &TEMME_C3, &TEMME_C4, &TEMME_C5, &TEMME_C6, &TEMME_C7,
     &TEMME_C8, &TEMME_C9, &TEMME_C10,
 ];
-
-// gratio.f iop-selected accuracy vector (used by the a < 1 leaf); ind = 0 -> iop = 1 (acc = 5e-15).
-const GRATIO_ACC0: [f64; 3] = [5e-15, 5e-7, 5e-4];
 
 // RN53(1/k!), k = 0..19. R35: each adjacent coefficient load is separated
 // by an original Excel question, conditional on the other loads and EXP.
@@ -508,7 +504,6 @@ fn gratio_gamma_nswc(a: f64) -> f64 {
 /// Excel's incomplete-gamma-ratio kernel. Returns `(P(a,x), Q(a,x))`.
 /// `(2.0, 2.0)` is the NSWC error sentinel for invalid arguments.
 pub fn gratio(a: f64, x: f64) -> (f64, f64) {
-    let e = GRATIO_E;
     if a < 0.0 || x < 0.0 || (a == 0.0 && x == 0.0) {
         return (2.0, 2.0);
     }
@@ -526,21 +521,21 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             crate::ported::excel_numeric::excel_exp(-x),
         );
     }
-    // Excel uses ind = 0 (unscaled). gratio.f: iop = ind + 1 = 1 selects acc = 5e-15 for the a < 1 leaf.
-    let iop = 1usize;
-    let acc = GRATIO_ACC0[iop - 1].max(e);
 
     if a < 1.0 {
         // DEVIATION 1: no a == 0.5 special dispatch; 0.5 flows into these
         // general a < 1 branches.
         if x < 1.1 {
-            // statement 160 / 200: TOMS 654 iop = 1 double-precision st200 branch (inclusive
-            // `a - x <= 0.25` for `x > 0.5`, Carbon cb20 / dc-j9k.5) with PC64 excel_x87_* +
-            // excel_log(x) + excel_expm1_internal(z); `!go200` routes to Modified-Lentz
-            // `gratio_cf_lower` (cb20 Rule 1).
+            // statement 160 / 200 (Carbon cb20 + cb23 / dc-j9k.5 + dc-j9k.71 + dc-j9k.95):
+            // inclusive `a - x <= 0.25` for `x > 0.5`; `!go200` routes to Modified-Lentz
+            // `gratio_cf_lower`. Inside `go200`, Excel runs direct `k = 1..` alternating
+            // `j(a, x)` with `-c * (x / k)` and subnormal term flush, spilled Kahan
+            // `l = excel_expm1_spilled(z)`, direct `w = excel_exp(z)`, and direct division
+            // by `denom_g = a * excel_exp(gammaln_excel(a))` for all `a < 1` (no threshold).
+            use crate::ported::beta_gamma_stats_family::flush_subnormal;
             use crate::ported::excel_numeric::{
-                excel_expm1_internal, excel_log, excel_x87_add, excel_x87_div, excel_x87_mul,
-                excel_x87_sub,
+                excel_exp, excel_expm1_spilled, excel_log, excel_x87_add, excel_x87_div,
+                excel_x87_mul, excel_x87_sub, gammaln_excel,
             };
             const NEG_LN2: f64 = f64::from_bits(0xbfe6_2e42_fefa_39ef); // -ln(2)
             let z = excel_x87_mul(a, excel_log(x));
@@ -557,47 +552,29 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
                     (f64::NAN, f64::NAN)
                 };
             }
-            // statement 200
-            let mut an = 3.0_f64;
-            let mut c = x;
-            let mut summ = excel_x87_div(x, excel_x87_add(a, 3.0));
-            let tol = excel_x87_div(3.0 * acc, excel_x87_add(a, 1.0));
-            loop {
-                an += 1.0;
-                c = -excel_x87_mul(c, excel_x87_div(x, an));
-                let t = excel_x87_div(c, excel_x87_add(a, an));
-                summ = excel_x87_add(summ, t);
-                if t.abs() <= tol {
-                    break;
+            // statement 200 (cb23 / dc-j9k.5 + dc-j9k.71 + dc-j9k.95)
+            let mut c = excel_x87_mul(a, x);
+            let mut s = flush_subnormal(excel_x87_div(c, excel_x87_add(a, 1.0)));
+            if s != 0.0 {
+                let mut k = 1.0_f64;
+                loop {
+                    k += 1.0;
+                    c = -excel_x87_mul(c, excel_x87_div(x, k));
+                    let t = flush_subnormal(excel_x87_div(c, excel_x87_add(a, k)));
+                    let ns = excel_x87_add(s, t);
+                    if ns == s {
+                        break;
+                    }
+                    s = ns;
                 }
             }
-            let inner = excel_x87_add(
-                excel_x87_mul(
-                    excel_x87_sub(
-                        excel_x87_div(summ, 6.0),
-                        excel_x87_div(0.5, excel_x87_add(a, 2.0)),
-                    ),
-                    x,
-                ),
-                excel_x87_div(1.0, excel_x87_add(a, 1.0)),
-            );
-            let j = excel_x87_mul(excel_x87_mul(a, x), inner);
+            let j = s;
             let h = gratio_gam1(a);
-            let mut g = excel_x87_add(1.0, h);
-            // When 1 + a rounds to one, Excel's GAMMALN recurrence gives
-            // -LN(a). Rounding that logarithm can move exp(-GAMMALN(a))/a
-            // away from one. Use the cb21 normalizer only when the change
-            // exceeds the existing accuracy of the st200 series.
-            if 1.0 + a == 1.0 {
-                let candidate = crate::ported::excel_numeric::excel_exp_div(excel_log(a), a);
-                if (candidate - g).abs() > acc && (0.5..2.0).contains(&candidate) {
-                    g = candidate;
-                }
-            }
-            let l = excel_expm1_internal(z);
-            let w = excel_x87_add(0.5, excel_x87_add(0.5, l));
+            let l = excel_expm1_spilled(z);
+            let w = excel_exp(z);
+            let denom_g = excel_x87_mul(a, excel_exp(gammaln_excel(a)));
             let qans = excel_x87_sub(
-                excel_x87_mul(excel_x87_sub(excel_x87_mul(w, j), l), g),
+                excel_x87_div(excel_x87_sub(excel_x87_mul(w, j), l), denom_g),
                 h,
             );
             if qans < 0.0 {
@@ -2910,5 +2887,108 @@ mod tests {
                 .to_bits();
             assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
         }
+    }
+
+    /// Excel 16.0.20625.20108 (Carbon cb23 / dc-j9k.71 + dc-j9k.5 + dc-j9k.95):
+    /// Exact `gratio` `go200` (`st200`) PC64 arithmetic with no fitted threshold:
+    /// - Rule 1A: direct division by `denom_g = x87_mul(a, excel_exp(gammaln_excel(a)))` for all `a < 1`,
+    ///   replacing both `g = 1 + h` and the fitted `5e-15` tiny-`a` switch (`dc-j9k.95`).
+    /// - Rule 1B: direct `w = excel_exp(z)` instead of `0.5 + (0.5 + l)`.
+    /// - Rule 1C: direct `k = 1..` alternating `j(a, x)` series with `-c * (x / k)` and subnormal term flush.
+    /// - Rule 1D: spilled Kahan `l = excel_expm1_spilled(z)`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb23_gratio_go200_exact_arithmetic_and_gamma_inv_plateaus_match_excel() {
+        use crate::ported::beta_gamma_stats_family::{
+            beta_dist_kernel, beta_inv_kernel, gamma_dist_kernel, gamma_inv_kernel,
+        };
+
+        // GAMMA.DIST(..., TRUE) across C2 (a >= 0.7), C3 (w = exp), C4a (k=1..), C4b (-c*(x/k)),
+        // C5 (spilled l), C7 (unbiased holdout), and S2 (plateau holdout).
+        for &(label, xb, ab, bb, expected) in &[
+            ("C2_000", 0x3fea_bf7d_f231_536d_u64, 0x3fea_1b8c_1712_909d_u64, 0x3ff0_0000_0000_0000_u64, 0x3fe4_ea23_fce0_b279_u64),
+            ("C2_008", 0x4001_1e3a_418b_ae61, 0x3fe7_43da_2aea_3e9a, 0x4002_b09f_7aed_f248, 0x3fe7_2918_7fcc_5c62),
+            ("C3_000", 0x3fec_dd04_84f7_9054, 0x3fe2_c9ce_7fba_08b2, 0x3ff3_b367_249d_f07a, 0x3fe7_5251_250b_f897),
+            ("C3_010", 0x3fe1_e4f0_4c26_3de2, 0x3fdd_174d_c80f_e116, 0x3ff4_5ff1_d931_fe28, 0x3fe5_d8cc_81a2_3bd2),
+            ("C4a_001", 0x3ff8_798f_52e2_9d37, 0x3fe6_7818_cfda_5e3c, 0x3ffb_2835_ee48_cee2, 0x3fe7_5ec2_755f_ae3a),
+            ("C4b_005", 0x3ff2_f687_ca57_8754, 0x3fdb_ee1c_9d39_80cc, 0x3ff5_b246_10a7_9a1f, 0x3fea_efaf_30b5_0fcd),
+            ("C5_000", 0x3fe9_f89b_bfa4_f8c8, 0x3fe7_ccb7_8949_ec10, 0x3ff0_0000_0000_0000, 0x3fe5_bba5_a9e8_a7ec),
+            ("C7_023", 0x3f46_ea51_e7de_ebe4, 0x3f99_4458_6301_2d8f, 0x3fca_0f43_14a8_8667, 0x3fec_33c7_ba98_4b03),
+            ("S2_002", 0x4008_4f0b_b0a6_d1d6, 0x3fe6_424e_477e_d59d, 0x400e_4b8b_1b68_d6e0, 0x3fe6_6124_b639_ba46),
+        ] {
+            let got = gamma_dist_kernel(
+                f64::from_bits(xb),
+                f64::from_bits(ab),
+                f64::from_bits(bb),
+                true,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, expected, "cb23 GAMMA.DIST {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+
+        // GAMMA.INV / GAMMAINV: 9,061-ULP gross row $[4740] plus C1..C5/C7/S2 controls.
+        for &(label, pb, ab, bb, expected) in &[
+            ("gross_4740", 0.9999293760171398_f64.to_bits(), 0.0097_f64.to_bits(), 1.0_f64.to_bits(), 0x4087_1fff_ffd0_aed2_u64),
+            ("C1_000", 0x3fef_ff76_beb2_a019, 0x3f84_6a72_bb3e_03a8, 0x3fe0_3ee0_49f7_ee60, 0x3ffc_f4cf_6ac4_16bf),
+            ("C1_008", 0x3fef_fc34_8c1d_ee13, 0x3f8e_75a9_2575_9a22, 0x3ffa_f045_e636_34e6, 0x400f_a90b_f7cd_d722),
+            ("C2_012", 0x3fe6_55b3_bb68_4db0, 0x3fe7_0e08_d9a6_2a79, 0x4005_394c_db2f_6ff7, 0x4001_a78b_ac5b_0bdb),
+            ("C3_019", 0x3fed_18a2_e7f7_3b2c, 0x3fc5_6347_c95f_1a86, 0x4000_c82c_08bc_2200, 0x3ff2_8aa9_ec23_8c85),
+            ("C4a_010", 0x3fe9_2a97_8385_5821, 0x3fe3_0d6e_fe97_e0c3, 0x3ffb_2fca_9af1_9d7e, 0x3ff9_4567_a144_c783),
+            ("C4b_008", 0x3feb_a508_a95c_abd1, 0x3fda_141d_dbc5_c6a8, 0x3ff9_baa5_da92_a2d8, 0x3ff7_be58_e865_8368),
+            ("C5_008", 0x3fe5_069d_5174_c900, 0x3fbf_88ca_2b63_baac, 0x3ff0_0000_0000_0000, 0x3f95_4de5_5238_0728),
+            ("C7_031", 0x3fe6_3ad0_4978_8df4, 0x3fb1_ecd8_7e33_8397, 0x3fea_929f_196c_f7a7, 0x3f66_4821_1947_0f70),
+            ("S2_006", 0x3fef_95fd_aa33_fb61, 0x3f6d_9204_7fb4_e900, 0x3fd3_c5c5_7a81_9d77, 0x3f73_9b9d_239f_1714),
+            ("S2_gammainv_000", 0x3fef_644b_21b5_e039, 0x3f6a_9aba_7628_3340, 0x4002_7b71_9fc2_d074, 0x3f6c_f853_61a1_3a0c),
+        ] {
+            let got = gamma_inv_kernel(
+                f64::from_bits(pb),
+                f64::from_bits(ab),
+                f64::from_bits(bb),
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, expected, "cb23 GAMMA.INV {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+
+        // BETA.DIST / BETADIST / BETA.INV through bgrat -> gratio go200, including tiny-shape
+        // subnormal term flush (C6a, as1 shape-15/98) and 1 + b == 1 without any 5e-15 threshold (S2_001).
+        for &(label, xb, ab, bb, expected) in &[
+            ("C1_012", 0x3fef_f957_4ffa_2d06_u64, 0x4033_279e_d681_6612_u64, 0x3f9d_e756_ccd8_c7c0_u64, 0x3fb9_dfdd_6bd8_5495_u64),
+            ("C2_020", 0x3fef_346a_28a4_804d, 0x403b_c971_79ae_7e24, 0x3fe9_f17c_aa27_fccd, 0x3fd9_ca52_9a91_b395),
+            ("C4a_014", 0x3fef_74b8_6cf5_d4ce, 0x4049_792f_0a18_07a4, 0x3fd3_b276_f0cb_13ed, 0x3fbb_1046_8b82_5807),
+            ("C4b_012", 0x3fef_8a10_3d31_e120, 0x404f_7916_807b_74c2, 0x3fed_c3b5_9bcc_c15c, 0x3fd7_ae6f_d354_036e),
+            ("C5_012", 0x3fef_d734_063e_269f, 0x4053_605a_6ae7_c124, 0x3fb9_8895_3489_a912, 0x3fb3_22b6_e4d6_dc0f),
+            ("C6a_001", 0x3fef_fffe_f87c_238e, 0x405b_c875_fc75_7661, 0x02d7_7b6f_37df_bbe9, 0x030b_220c_5a76_0f96),
+            ("C6a_010", 0x3fef_ffc8_520a_c50b, 0x404c_ef0f_b138_b448, 0x0184_31f7_e9fd_10f0, 0x01ad_d847_dd7c_18dc),
+            ("as1_shape15", 0x3fef_ff81_c1ea_49d1, 0x4066_fb43_f1d0_f4df, 0x01d5_3aa4_9a7d_c562, 0x01f4_e972_685e_8dbe),
+            ("as1_shape98", 0x3fef_fff8_9abb_500f, 0x4030_72fd_ccc0_ebfb, 0x02e7_9b91_9210_983d, 0x031b_2c81_c413_aca9),
+            ("S2_tiny_b_001", 0x3fef_fff1_75aa_14ca, 0x4031_6e12_01b8_83c0, 0x25cc_edac_ce90_d709, 0x25fe_a360_baba_4d27),
+        ] {
+            let got = beta_dist_kernel(
+                f64::from_bits(xb),
+                f64::from_bits(ab),
+                f64::from_bits(bb),
+                true,
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, expected, "cb23 BETA.DIST {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+        assert_eq!(
+            beta_inv_kernel(
+                f64::from_bits(0x3fef_e2af_eb3c_764e),
+                f64::from_bits(0x3f84_4189_fc9a_6a33),
+                f64::from_bits(0x4040_cc14_85b9_d7cc),
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3f96_12cb_71e2_2a20,
+            "cb23 BETA.INV C1_020"
+        );
     }
 }
