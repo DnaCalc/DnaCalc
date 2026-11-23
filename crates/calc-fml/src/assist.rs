@@ -137,6 +137,7 @@ pub enum TokenRole {
     Function,
     /// Any other unquoted or quoted name: a reference, a defined name, `TRUE`, a sheet name.
     Name,
+    /// A numeric literal.
     Number,
     /// A string literal, quotes included.
     Text,
@@ -146,6 +147,7 @@ pub enum TokenRole {
     Operator,
     /// `(` `)` `,` `;` `{` `}`.
     Delimiter,
+    /// Whitespace between formula tokens.
     Whitespace,
     /// A character the lexer does not recognise.
     Unknown,
@@ -155,8 +157,11 @@ pub enum TokenRole {
 /// in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HighlightRun {
+    /// The run location in UTF-16 code units of the input.
     pub span: TextSpan,
+    /// The exact input text covered by this run.
     pub text: String,
+    /// The editor classification of the run.
     pub role: TokenRole,
 }
 
@@ -258,7 +263,9 @@ pub enum ProposalKind {
 /// functions. LET names and LAMBDA parameters come from the formula text itself.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Scope {
+    /// Additional names visible at the caret.
     pub names: Vec<String>,
+    /// Additional callable names visible at the caret.
     pub functions: Vec<String>,
     /// What the registered functions' providers documented (argument names, help text, category),
     /// matched to [`Scope::functions`] by name in any case. A function without one still completes.
@@ -277,6 +284,7 @@ impl Scope {
 /// One completion: a function, a name or a local whose spelling starts with the typed prefix.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Proposal {
+    /// The source category of this completion.
     pub kind: ProposalKind,
     /// The catalogue entry, for [`ProposalKind::Function`].
     pub target: Option<FunctionCallTarget<'static>>,
@@ -331,7 +339,9 @@ impl Proposal {
 pub struct Completion {
     /// The typed prefix's span, which an accepted proposal replaces.
     pub replace: TextSpan,
+    /// The input fragment matched by the proposals.
     pub prefix: String,
+    /// Candidates in the order presented to the user.
     pub proposals: Vec<Proposal>,
 }
 
@@ -466,6 +476,7 @@ pub fn complete_in(text: &str, caret: usize, scope: &Scope) -> Option<Completion
 /// (no value until the LAMBDA is called).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LocalBinding {
+    /// The displayed parameter name.
     pub name: String,
     /// The source text of the LET name's value; `None` for a LAMBDA parameter.
     pub value: Option<String>,
@@ -609,6 +620,7 @@ pub fn local_bindings_at(tree: &SyntaxTree, text: &str, caret: usize) -> Vec<Loc
 pub struct CallSite {
     /// The call's name as written.
     pub callee: String,
+    /// The UTF-16 span of the callee text in the formula.
     pub callee_span: TextSpan,
     /// The whole call, name to closing parenthesis (or to where the text ends, for a call not
     /// closed yet).

@@ -62,9 +62,13 @@ pub enum GrammarRule {
 /// signature.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Rejection {
+    /// The formula violates a grammar or binding rule.
     Grammar(GrammarRule),
+    /// A worksheet function call violates its entry signature.
     Function {
+        /// Function whose entry signature refused the call.
         function: FunctionId,
+        /// Specific entry rule that refused the call.
         rule: EntryRule,
     },
 }
@@ -102,7 +106,9 @@ impl fmt::Display for Rejection {
 /// A formula Excel's entry refuses: the rule, at the span of the call or name it refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EntryRejection {
+    /// The refused call or name’s UTF-16 source span.
     pub span: TextSpan,
+    /// The rule responsible for the rejection.
     pub rule: Rejection,
 }
 

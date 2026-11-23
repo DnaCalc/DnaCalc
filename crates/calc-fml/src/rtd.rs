@@ -19,12 +19,19 @@ use std::sync::Arc;
 /// What admitting one event did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RtdDisposition {
+    /// The connection incarnation was retired.
     Retired,
+    /// The ledger accepted an update or retired a connection.
     Accepted,
+    /// The same update was already accepted.
     Duplicate,
+    /// An older sequence or connection incarnation was ignored.
     StaleSequence,
+    /// The same sequence carried differing data.
     ConflictingSequence,
+    /// The provider identity changed.
     ProviderChanged,
+    /// The update carried a missing value or a zero sequence.
     InvalidValue,
 }
 
@@ -34,13 +41,22 @@ pub enum RtdEvent {
     /// A value with its sequence for a topic's connection incarnation. A lease above the held one
     /// is a new incarnation and starts a new sequence.
     Update {
+        /// Topic identity from the provider registration and arguments.
         topic: TopicKey,
+        /// Connection incarnation issuing the update.
         lease: RtdLease,
+        /// Monotonic sequence within the lease.
         sequence: u64,
+        /// Worksheet value supplied by the provider.
         value: CalcValue,
     },
     /// The incarnation is disconnected.
-    Retire { topic: TopicKey, lease: RtdLease },
+    Retire {
+        /// Topic whose connection ended.
+        topic: TopicKey,
+        /// Specific incarnation being disconnected.
+        lease: RtdLease,
+    },
 }
 
 /// The latest admitted entry per topic, the tombstones and the view version.
@@ -64,6 +80,7 @@ impl RtdLedger {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+    /// Reports whether the ledger holds any admitted topic entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

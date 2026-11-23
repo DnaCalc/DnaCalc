@@ -64,14 +64,17 @@ pub struct FormulaAnchor {
 }
 
 impl FormulaAnchor {
+    /// Uses this worksheet cell as the origin for unqualified and relative references.
     pub const fn new(cell: CellKey) -> Self {
         FormulaAnchor { cell }
     }
 
+    /// Returns the cell that supplies the row, column and sheet origin.
     pub const fn cell(self) -> CellKey {
         self.cell
     }
 
+    /// Returns the worksheet used for an unqualified reference.
     pub const fn sheet(self) -> SheetId {
         self.cell.sheet()
     }
@@ -111,7 +114,9 @@ impl AxisRef {
 /// The row and column of one cell of a reference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CellRef {
+    /// The absolute or relative row.
     pub row: AxisRef,
+    /// The absolute or relative column.
     pub column: AxisRef,
 }
 
@@ -125,13 +130,28 @@ pub enum ReferenceShape {
     /// (`D7:B3` binds as `B3:D7`), an absolute and a relative one absolute first (`B3:$D$7` binds
     /// as `$D$7:B3`), since those cross as the anchor moves. `first` and `last` are therefore not
     /// always the top-left and bottom-right corners; placing the operand finds those.
-    Area { first: CellRef, last: CellRef },
+    Area {
+        /// First endpoint in the canonical binding order.
+        first: CellRef,
+        /// Second endpoint in the canonical binding order.
+        last: CellRef,
+    },
     /// Whole rows, every column: `2:$4`, `R[-1]:R[1]`, `R3`, `R`, the pair ordered as an
     /// [`ReferenceShape::Area`]'s rows are.
-    Rows { first: AxisRef, last: AxisRef },
+    Rows {
+        /// First row endpoint in the canonical binding order.
+        first: AxisRef,
+        /// Second row endpoint in the canonical binding order.
+        last: AxisRef,
+    },
     /// Whole columns, every row: `B:$D`, `C1:C3`, `C[1]`, `C`, the pair ordered as an
     /// [`ReferenceShape::Area`]'s columns are.
-    Columns { first: AxisRef, last: AxisRef },
+    Columns {
+        /// First column endpoint in the canonical binding order.
+        first: AxisRef,
+        /// Second column endpoint in the canonical binding order.
+        last: AxisRef,
+    },
     /// The `#REF!` Excel writes in place of a reference whose cells were deleted
     /// (`Sheet2!#REF!`): it covers no cell, and placing the operand gives
     /// [`PlacementError::DeletedCells`].
@@ -155,14 +175,41 @@ pub enum SheetTarget {
     /// expands it into one operand per sheet the catalogue lists
     /// ([`ReferenceCatalog::sheet_span`]); placing a span operand itself gives
     /// [`PlacementError::SheetSpan`].
-    Span { first: SheetId, last: SheetId },
+    Span {
+        /// First worksheet as written in the qualifier.
+        first: SheetId,
+        /// Last worksheet as written in the qualifier.
+        last: SheetId,
+    },
 }
 
 /// A bound grid reference: its sheet and shape, with every coordinate absolute or relative to the
 /// anchor. It holds no anchor, so the operands of a formula and of its copies are equal values.
+///
+/// A reference with an absolute column and a relative row follows the formula's row:
+///
+/// ```
+/// use calc_fml::reference::{AxisRef, CellRef, FormulaAnchor, ReferenceOperand, ReferenceShape, SheetTarget};
+/// use calc_func::value::{CellKey, SheetId};
+///
+/// let sheet = SheetId::from_parts(1, 0);
+/// let anchor = FormulaAnchor::new(CellKey::new(sheet, 5, 3).unwrap());
+/// let operand = ReferenceOperand {
+///     sheet: SheetTarget::Anchor,
+///     shape: ReferenceShape::Cell(CellRef {
+///         row: AxisRef::Relative(-1),
+///         column: AxisRef::Absolute(2),
+///     }),
+/// };
+/// let area = operand.instantiate(anchor).unwrap();
+/// assert_eq!(area.first(), CellKey::new(sheet, 4, 2).unwrap());
+/// assert_eq!(area.cell_count(), 1);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ReferenceOperand {
+    /// The worksheet qualifier resolved by the binder.
     pub sheet: SheetTarget,
+    /// The reference coordinates before placement at an anchor.
     pub shape: ReferenceShape,
 }
 
@@ -175,9 +222,15 @@ pub enum PlacementError {
     /// The reference is `#REF!` on its sheet (`Sheet2!#REF!`): its cells were deleted.
     DeletedCells,
     /// A row lands at `resolved`, outside rows 1 to [`MAX_ROWS`].
-    RowOffGrid { resolved: i64 },
+    RowOffGrid {
+        /// The computed, out-of-bounds row.
+        resolved: i64,
+    },
     /// A column lands at `resolved`, outside columns 1 to [`MAX_COLUMNS`].
-    ColumnOffGrid { resolved: i64 },
+    ColumnOffGrid {
+        /// The computed, out-of-bounds column.
+        resolved: i64,
+    },
     /// The operand names a run of sheets ([`SheetTarget::Span`]), which names no one area; compile
     /// places each sheet of the span on its own.
     SheetSpan,

@@ -73,6 +73,7 @@ pub enum Interest {
 pub struct SubscriptionId(u64);
 
 impl SubscriptionId {
+    /// Returns the numeric subscription identifier within this session.
     pub fn get(self) -> u64 {
         self.0
     }
@@ -81,10 +82,14 @@ impl SubscriptionId {
 /// What a [`HostDelta`] follows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DeltaCause {
+    /// A provider input changed the projection at the current workbook revision.
     ExternalInputsChanged {
+        /// Authored revision at which the new external input became visible.
         revision: AuthoredRevision,
     },
+    /// The workbook’s callable registrations or invoking services changed.
     CallablesChanged {
+        /// Authored revision after the callable change.
         revision: AuthoredRevision,
     },
     /// The subscription was registered: its interest's cells as they stand.
@@ -94,17 +99,22 @@ pub enum DeltaCause {
     InterestMoved,
     /// A transaction committed this revision.
     Committed {
+        /// Revision created by the committed transaction.
         revision: AuthoredRevision,
     },
     /// A recalculation of this revision published a generation.
     Recalculated {
+        /// Identity of the published calculation unit.
         publication: calc_engine::contract::PublicationUnitId,
+        /// Authored revision evaluated by this publication.
         revision: AuthoredRevision,
+        /// Calculation generation delivered by this publication.
         tick: CalcTick,
     },
     /// A recalculation of this revision published nothing; the results it would have replaced
     /// are stale ([`crate::StaleCause::RecalcFailed`]).
     RecalcFailed {
+        /// Revision whose calculation did not publish replacement results.
         revision: AuthoredRevision,
     },
 }
@@ -112,9 +122,11 @@ pub enum DeltaCause {
 /// The cells of a subscription's interest that changed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HostDelta {
+    /// Identifies the subscriber receiving this delta.
     pub subscription: SubscriptionId,
     /// Counts the deltas of this subscription from 1, so a mirror can see a gap.
     pub seq: u64,
+    /// The session change that produced the delta.
     pub cause: DeltaCause,
     /// The authored revision the cells were projected at.
     pub authored: AuthoredRevision,
@@ -135,23 +147,40 @@ pub enum SkinIntent {
     Command(crate::WorkbookCommand),
     /// Text typed into a cell, read as Excel reads a cell entry ([`crate::interpret_entry`]): a
     /// formula, a value, or, for an empty text, a clear. One transaction, one undo step.
-    EnterCell { at: CellKey, text: String },
+    EnterCell {
+        /// Cell receiving the edit.
+        at: CellKey,
+        /// Raw Excel cell entry.
+        text: String,
+    },
     /// One validated entry and its layout metadata in the same undo group.
     EnterCellAndLayout {
+        /// The worksheet cell receiving the entry.
         at: CellKey,
+        /// Raw cell entry as typed by the user.
         text: String,
+        /// Layout edits committed in the same transaction as the entry.
         layout: Vec<calc_doc_model::SkinLayoutEdit>,
     },
     /// Enter one source across the current selection, relocating formulas from its active cell.
     /// All entries are validated before one transaction and one undo step.
-    EnterSelection { text: String },
+    EnterSelection {
+        /// Raw Excel cell entry to apply across the selection.
+        text: String,
+    },
     /// Entries typed over areas without touching the selection (an Automation `Range.Formula`
     /// put): each text is read and relocated as `EnterSelection` does over its own area, and all
     /// of them are one transaction and one undo step.
-    EnterEntries { entries: Vec<(GridArea, String)> },
+    EnterEntries {
+        /// Areas and their entries, each interpreted at its own starting cell.
+        entries: Vec<(GridArea, String)>,
+    },
     /// Cell edits (values, formulas and clears, over any cells) applied in order as one
     /// transaction and one undo step.
-    Edit { edits: Vec<CellEdit> },
+    Edit {
+        /// Authored model edits in application order.
+        edits: Vec<CellEdit>,
+    },
     /// Inserts or deletes rows or columns of a sheet, as one transaction and one undo step: the
     /// cells and what moves with them shift, and references adjust as Excel's do (a reference
     /// to a deleted cell becomes #REF!). Undo brings back the revision before it.
@@ -169,11 +198,16 @@ pub enum SkinIntent {
     Rebuild,
     /// Explicit exact-area calculation. An eligible formula cache outside the areas can supply
     /// a P02 boundary read, with cache provenance and separate coverage.
-    CalculateRange { areas: Vec<GridArea> },
+    CalculateRange {
+        /// Explicit worksheet areas to calculate.
+        areas: Vec<GridArea>,
+    },
     /// Explicit SliceV1 scope and selection. Manual range calculation normalizes to ForceAll
     /// through `CalculateRange`; this request preserves the supplied selection.
     Calculate {
+        /// Exact calculation scope requested by the caller.
         scope: calc_engine::CalcScope,
+        /// How eligible formulas within the scope are selected.
         selection: calc_engine::EvalSelection,
     },
     /// Sets the host's calculation mode; leaving manual mode recalculates.
@@ -182,7 +216,9 @@ pub enum SkinIntent {
     Select(Selection),
     /// Moves a subscription's interest.
     SetInterest {
+        /// Subscription whose projection should move.
         subscription: SubscriptionId,
+        /// The new set of cells to project.
         interest: Interest,
     },
     /// Copies the cells of `from` into `to` as Excel's copy and paste does: values as they are,
@@ -192,8 +228,11 @@ pub enum SkinIntent {
     /// the target, the source is emptied, and every reference to the moved cells follows them, as
     /// Excel's cut and paste does. One transaction, one undo step (dc-09v).
     Copy {
+        /// Source cells being copied or moved.
         from: GridArea,
+        /// Requested destination of the copy or move.
         to: GridArea,
+        /// Whether to move the cells and update references to them.
         cut: bool,
     },
 }
@@ -207,8 +246,11 @@ pub enum IntentError {
     Entry(EntryRefusal),
     /// The transaction was refused; the workbook is as it was.
     Command(CommandError),
+    /// The operation requires an active selection.
     EmptySelection,
+    /// The session has no earlier edit to undo.
     NothingToUndo,
+    /// The session has no undone edit to redo.
     NothingToRedo,
     /// The step an undo would take back cannot be undone; it stays the last step.
     Irreversible(Irreversible),
@@ -249,11 +291,13 @@ impl std::error::Error for IntentError {}
 /// What one dispatched intent did.
 #[derive(Debug, PartialEq)]
 pub struct IntentReceipt {
+    /// The source of the dispatched command, used for event ordering.
     pub ingress: CommandIngress,
     /// The intent's place in the session's log, from 1.
     pub seq: u64,
     /// The synchronous command whose handler issued this command, if any.
     pub parent: Option<u64>,
+    /// The typed refusal if the command was rejected.
     pub error: Option<IntentError>,
     /// The transaction the intent committed, if any.
     pub committed: Option<CommandReceipt>,
@@ -266,6 +310,7 @@ pub struct IntentReceipt {
 }
 
 impl IntentReceipt {
+    /// Reports whether the session accepted the command.
     pub fn accepted(&self) -> bool {
         self.error.is_none()
     }
@@ -276,10 +321,15 @@ impl IntentReceipt {
 pub struct IntentRecord {
     /// The host that recorded the command; replay may rebind only plans from this scope.
     scope: u64,
+    /// Sequence number assigned when the intent was dispatched.
     pub seq: u64,
+    /// Sequence number of the enclosing command if issued by a synchronous handler.
     pub parent: Option<u64>,
+    /// The source of the dispatched command.
     pub ingress: CommandIngress,
+    /// The original typed command.
     pub intent: SkinIntent,
+    /// Whether the dispatch was accepted.
     pub accepted: bool,
     /// The authored revision after the intent.
     pub revision: AuthoredRevision,
@@ -289,14 +339,18 @@ pub struct IntentRecord {
 /// retained in the log because it determines the event observation position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandIngress {
+    /// An edit issued by the application’s user interface.
     UserInterface,
+    /// A command issued through the Automation interface.
     Automation,
 }
 
 /// What [`replay`] did.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReplayOutcome {
+    /// Number of root commands dispatched during replay.
     pub dispatched: usize,
+    /// Number of dispatched root commands that were accepted.
     pub accepted: usize,
     /// Root records whose acceptance or nested command transcript differed, plus
     /// child records whose recorded parent ancestry is missing or cyclic.
@@ -424,6 +478,7 @@ impl fmt::Debug for HostSession {
 }
 
 impl HostSession {
+    /// Replaces callable registrations and notifies affected projection subscribers.
     pub fn set_user_functions(&mut self, functions: calc_fml::CallableTable) {
         self.host.set_user_functions(functions);
         self.deliver_changes(
@@ -486,6 +541,7 @@ impl HostSession {
         self.file_location = Some(full_name);
         self.notify_workbook_context();
     }
+    /// Returns the supplied native location, or the workbook name when no location was supplied.
     pub fn file_full_name(&self) -> &str {
         self.file_location.as_deref().unwrap_or_else(|| {
             self.host
@@ -534,6 +590,7 @@ impl HostSession {
             budget
         };
     }
+    /// Reports whether another calculation advance can be scheduled.
     pub fn has_pending_calculation(&self) -> bool {
         self.host.has_pending_calculation()
     }
@@ -542,6 +599,7 @@ impl HostSession {
     pub fn has_unfinished_calculation(&self) -> bool {
         self.host.work.is_some() || self.has_pending_calculation()
     }
+    /// Drains the calculation events recorded since the last drain.
     pub fn take_calculation_events(&mut self) -> Vec<calc_engine::CalcEvent> {
         self.host.take_calculation_events()
     }
@@ -576,6 +634,7 @@ impl HostSession {
         disposition
     }
 
+    /// Submits a sequenced RTD value and updates projections if admitted.
     pub fn update_rtd(
         &mut self,
         topic: calc_fml::TopicKey,
@@ -595,6 +654,7 @@ impl HostSession {
         disposition
     }
 
+    /// Delivers a provider’s result to the calculation identified by its async token.
     pub fn complete_async(
         &mut self,
         token: &calc_engine::contract::AsyncToken,
@@ -603,6 +663,7 @@ impl HostSession {
         self.host.complete_async(token, value)
     }
 
+    /// Cancels scheduled or retained calculation and revokes its continuation handles.
     pub fn cancel_calculation(&mut self) {
         self.host.revoke_calculation_handles();
         if let Some(mut work) = self.host.work.take() {
@@ -664,6 +725,7 @@ impl HostSession {
         &self.host
     }
 
+    /// Borrows the current selection and its active cell.
     pub fn selection(&self) -> &Selection {
         &self.selection
     }
@@ -697,12 +759,14 @@ impl HostSession {
     ) -> Result<crate::CalculatingSave, crate::CalculatedSaveError> {
         crate::begin_calculated_save(&mut self.host, policy)
     }
+    /// Finishes a calculating save once its retained calculation has completed.
     pub fn finish_calculated_save(
         &mut self,
         save: crate::CalculatingSave,
     ) -> Result<crate::PreparedSave, crate::CalculatedSaveError> {
         save.finish(&mut self.host)
     }
+    /// Prepares a save from the current workbook and result view.
     pub fn prepare_save(&self, policy: &SavePolicy) -> Result<crate::PreparedSave, SaveFailed> {
         crate::prepare_save(&self.host, policy)
     }
@@ -717,6 +781,7 @@ impl HostSession {
         self.finish_save_synchronously(save)?.write(out)
     }
 
+    /// Starts an ordinary Save with the session’s active worksheet and save settings.
     pub fn begin_save(&mut self, policy: &SavePolicy) -> Result<crate::OrdinarySave, SaveFailed> {
         let active_sheet = self
             .selection
@@ -891,6 +956,35 @@ impl HostSession {
     }
 
     /// Registers `sink` for the cells of `interest` and delivers them as they stand.
+    ///
+    /// Apply the initial snapshot and later edits to the same mirror.
+    ///
+    /// ```
+    /// use std::{cell::RefCell, rc::Rc, sync::Arc};
+    /// use calc_host::{
+    ///     DeltaMirror, HostOptions, HostSession, Interest, MemorySource, OpenPolicy, SkinIntent,
+    ///     blank_package, value::{CellKey, GridArea},
+    /// };
+    ///
+    /// let mut session = HostSession::open(
+    ///     Arc::new(MemorySource::new(blank_package())),
+    ///     &OpenPolicy::default(),
+    ///     HostOptions::default(),
+    /// ).unwrap();
+    /// let at = CellKey::new(session.host().sheets()[0].id(), 1, 1).unwrap();
+    /// let mirror = Rc::new(RefCell::new(DeltaMirror::default()));
+    /// let sink = Rc::clone(&mirror);
+    /// let id = session.subscribe(
+    ///     Interest::Area(GridArea::cell(at)),
+    ///     Box::new(move |delta| sink.borrow_mut().apply(delta).unwrap()),
+    /// ).unwrap();
+    /// assert!(mirror.borrow().cell(at).is_none());
+    ///
+    /// let entry = SkinIntent::EnterCell { at, text: "42".into() };
+    /// assert!(session.dispatch(entry).accepted());
+    /// assert!(mirror.borrow().cell(at).unwrap().input().is_some());
+    /// assert!(session.unsubscribe(id));
+    /// ```
     pub fn subscribe(
         &mut self,
         interest: Interest,
@@ -2031,7 +2125,9 @@ pub struct DeltaMirror {
 /// Why [`DeltaMirror::apply`] refused a delta: it does not follow the last one applied.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DeltaGap {
+    /// Sequence number the mirror expected next.
     pub expected: u64,
+    /// Sequence number supplied by the delta.
     pub received: u64,
 }
 

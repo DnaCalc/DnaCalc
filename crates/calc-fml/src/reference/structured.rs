@@ -41,6 +41,7 @@ use calc_func::value::{GridArea, SheetId};
 pub struct TableInfo {
     /// The name structured references use (the table part's `displayName`).
     pub name: String,
+    /// Worksheet containing the table.
     pub sheet: SheetId,
     /// The whole table: its header row, data rows and totals row.
     pub area: GridArea,
@@ -55,6 +56,7 @@ pub struct TableInfo {
 /// What a catalogue knows of a table.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TableLookup {
+    /// The catalogue found the table and supplied its geometry and columns.
     Found(TableInfo),
     /// The workbook has no such table.
     Unknown,
@@ -128,6 +130,7 @@ struct Parsed {
 /// The table an unqualified selector can name at this authored formula's locus.
 #[derive(Clone, Copy)]
 pub enum TableColumnContext<'a> {
+    /// An authored cell, with its table name when the cell belongs to a table.
     Cell(Option<&'a str>),
     /// A name can be evaluated from different tables; its unqualified selectors are ambiguous.
     Name,

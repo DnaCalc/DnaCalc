@@ -193,9 +193,11 @@ impl CompiledPlan {
         NameMemoEligibility::RequiresReadCertificate { cell_reads }
     }
 
+    /// Returns the callable namespace probes retained when compiling the plan.
     pub fn callable_bindings(&self) -> &[crate::CallableBindingProof] {
         &self.callable_bindings
     }
+    /// Returns the defined-name namespace probes retained when compiling the plan.
     pub fn name_bindings(&self) -> &[crate::reference::NameBindingProof] {
         &self.name_bindings
     }
@@ -314,6 +316,7 @@ impl CompiledPlan {
             .collect()
     }
 
+    /// Checks whether any bound user call advertises a reevaluation policy.
     pub fn has_provisional_calls(&self, functions: &crate::CallableTable) -> bool {
         self.blocks.iter().flatten().any(|instruction| matches!(instruction,
             Instruction::UserCall { binding: Some(binding), .. }
@@ -440,6 +443,7 @@ impl CompiledPlan {
 /// The source identity of a workbook-qualified procedure, preserved in the compiled plan.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UserFunctionSource {
+    /// Workbook qualifier retained from the written formula.
     pub book: crate::reference::ExternalBookRef,
     /// Exact external-link target; `None` for this workbook.
     pub target: Option<String>,
@@ -495,47 +499,75 @@ pub struct UserFunctionEffects {
     pub(crate) omitted_name_invocations: u64,
 }
 
+/// Maximum number of name-body invocation records retained per formula evaluation.
 pub const MAX_RECORDED_NAME_INVOCATIONS: usize = 1024;
 
 /// One executed definition body, scoped by its producing formula invocation.
 /// This records context and result kind, without introducing a name-value cache.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NameInvocation {
+    /// Execution ordinal within the producing formula evaluation.
     pub ordinal: u64,
+    /// Ordinal of the enclosing name invocation, when there is one.
     pub parent: Option<u64>,
+    /// Resolved definition and version used for this invocation.
     pub definition: crate::reference::BoundName,
+    /// Calling cell and definition scope in effect during the invocation.
     pub context: crate::reference::NameEvaluationContext,
     /// Index in the producing formula's plan, not a standalone reuse key.
     pub body: usize,
+    /// The kind of result the definition produced.
     pub result: NameResultKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// A summary of a name body’s result for evaluation telemetry.
 pub enum NameResultKind {
+    /// An empty value.
     Empty,
+    /// An omitted value.
     Missing,
+    /// A numeric value.
     Number,
+    /// A text value.
     Text,
+    /// A logical value.
     Logical,
+    /// A worksheet error and its code.
     Error(WorksheetErrorCode),
+    /// A reference with a bounded sample of its areas.
     Reference {
+        /// Areas retained for diagnostics.
         areas: Vec<GridArea>,
+        /// Number of additional areas omitted from the record.
         omitted_areas: usize,
     },
+    /// An array and its dimensions.
     Array(ArrayShape),
+    /// A callable value.
     Callable,
+    /// A body that stopped with an evaluation refusal.
     Refused,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Execution record of one registered user-function call.
 pub struct UserCallRecord {
+    /// Invocation identity assigned by the evaluator.
     pub id: u64,
+    /// Identity of the enclosing user invocation, if any.
     pub parent: Option<u64>,
+    /// Resolved callable slot and generation.
     pub callable: crate::CallableHandle,
+    /// Provider’s serialization lane, when it has one.
     pub state_lane: Option<u64>,
+    /// Compiled position of the call in the formula.
     pub call_site: u32,
+    /// Nested execution path identifying this occurrence of the call.
     pub occurrence: Vec<u32>,
+    /// Whether this invocation ran to completion.
     pub completed: bool,
+    /// Whether the provider executed a non-preemptible call.
     pub non_preemptible: bool,
 }
 
@@ -550,24 +582,31 @@ impl UserFunctionEffects {
             || !self.external_inputs.is_empty()
     }
 
+    /// Returns the retained name-body invocation records.
     pub fn name_invocations(&self) -> &[NameInvocation] {
         &self.name_invocations
     }
+    /// Returns how many name-body records exceeded the recording limit.
     pub fn omitted_name_invocations(&self) -> u64 {
         self.omitted_name_invocations
     }
+    /// Returns the RTD inputs observed by the evaluation.
     pub fn external_inputs(&self) -> &[calc_func::RtdRead] {
         &self.external_inputs
     }
+    /// Returns the requested reevaluation reason, if any.
     pub fn reevaluation(&self) -> Option<calc_func::UserReevaluationReason> {
         self.reevaluation
     }
+    /// Returns the callable binding facts read by the evaluation.
     pub fn callable_reads(&self) -> &[crate::CallableBindingProof] {
         &self.callable_reads
     }
+    /// Returns the registered user-function invocation records.
     pub fn invocations(&self) -> &[UserCallRecord] {
         &self.invocations
     }
+    /// Returns the number of user-function calls recorded.
     pub fn calls(&self) -> usize {
         self.calls
     }
@@ -771,39 +810,57 @@ impl Hash for Target {
 /// can lower the same name to a different body. Retaining this record owns that plan.
 #[derive(Clone, Debug)]
 pub struct NameMemoCandidate {
+    /// Owning formula plan that contains the compiled body.
     pub plan: Arc<CompiledPlan>,
+    /// Identity of the defined name.
     pub name: calc_func::value::NameId,
+    /// Index of the definition body within the owning plan.
     pub body: usize,
+    /// Whether the body may participate in certified reuse.
     pub eligibility: NameMemoEligibility,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Result of screening a name body for memoization.
 pub enum NameMemoEligibility {
     /// Still requires the owning plan/binding proofs, caller and definition-sheet context,
     /// workbook, numeric/semantic environment, scenario and a valid executed read certificate.
     /// This is not a reusable value or a certificate, even when `cell_reads` is false.
     RequiresReadCertificate {
+        /// Whether the body may read cell values.
         cell_reads: bool,
     },
+    /// A reason this definition cannot be reused through this path.
     Ineligible(NameMemoBlocker),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Construct that rules out reuse of a name body.
 pub enum NameMemoBlocker {
+    /// A volatile function call.
     Volatile,
+    /// A call to a registered user function.
     UserFunction,
+    /// A read of an external workbook input.
     ExternalInput,
+    /// Construction or use of a callable value.
     CallableValue,
+    /// A read or write of a frame-local binding.
     LocalEnvironment,
+    /// A function whose effects lack a reuse classification.
     UnclassifiedFunction,
+    /// A recursive name definition.
     RecursiveDefinition,
 }
 
 /// Interner metadata counts, not byte or resident-memory measurements.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PlanCacheStats {
+    /// Total weak plan entries still held in the cache.
     pub entries: usize,
+    /// Entries whose bytecode is still owned elsewhere.
     pub live: usize,
+    /// Expired entries still awaiting collection.
     pub expired: usize,
 }
 
@@ -817,10 +874,12 @@ pub struct PlanCache {
 }
 
 impl PlanCache {
+    /// Creates an empty plan interner.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns counts of live and expired cache entries.
     pub fn stats(&self) -> PlanCacheStats {
         let entries = self.plans.values().map(Vec::len).sum();
         let live = self
@@ -900,10 +959,12 @@ pub struct FormulaInstance {
 }
 
 impl FormulaInstance {
+    /// Returns the shared plan owned by this instance.
     pub fn plan(&self) -> &Arc<CompiledPlan> {
         &self.plan
     }
 
+    /// Returns the anchor at which the plan was placed.
     pub fn anchor(&self) -> FormulaAnchor {
         self.anchor
     }
@@ -1098,6 +1159,7 @@ pub struct EvalScratch {
 }
 
 impl EvalScratch {
+    /// Creates empty evaluation scratch storage.
     pub fn new() -> Self {
         Self::default()
     }

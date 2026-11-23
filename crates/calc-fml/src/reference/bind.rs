@@ -129,9 +129,13 @@ pub enum ExternalBookRef {
 /// belongs to a defined name's formula, whose relative references wrap at the grid's edge (dc-ylr).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ExternalOperand {
+    /// Workbook name or numbered link from the qualifier.
     pub book: ExternalBookRef,
+    /// Worksheet name spelled by the external qualifier.
     pub sheet: String,
+    /// Coordinates on that worksheet before placement.
     pub shape: ReferenceShape,
+    /// Whether relative coordinates wrap at the grid edges.
     pub wrapped: bool,
 }
 
@@ -226,11 +230,15 @@ pub enum NameScope {
 /// Local definitions select their own worksheet; workbook aliases inherit this context.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NameEvaluationContext {
+    /// Original calling cell used for relative placement.
     pub caller: FormulaAnchor,
+    /// Identity of the definition currently being lowered, when known.
     pub definition: Option<calc_func::value::NameId>,
+    /// Scope worksheet inherited by unqualified references.
     pub definition_sheet: Option<SheetId>,
 }
 impl NameEvaluationContext {
+    /// Starts name resolution at an ordinary formula’s anchor.
     pub fn for_formula(caller: FormulaAnchor) -> Self {
         Self {
             caller,
@@ -238,9 +246,11 @@ impl NameEvaluationContext {
             definition_sheet: None,
         }
     }
+    /// Returns the inherited worksheet for the next unqualified lookup.
     pub fn lookup_sheet(self) -> SheetId {
         self.definition_sheet.unwrap_or(self.caller.sheet())
     }
+    /// Enters a nested definition while retaining the original calling cell.
     pub fn child(
         self,
         definition: Option<calc_func::value::NameId>,
@@ -258,8 +268,11 @@ impl NameEvaluationContext {
 /// Its span is in its owner's equals-prefixed source, in UTF-16 units.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameUse {
+    /// Location of the name occurrence within its owning source.
     pub span: TextSpan,
+    /// Scope and caller active at the occurrence.
     pub context: NameEvaluationContext,
+    /// The chosen definition, if the occurrence resolved.
     pub resolved: Option<BoundName>,
 }
 
@@ -277,15 +290,22 @@ pub enum NameDefinition {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// The identity, version and resolved scope of a defined name.
 pub struct BoundName {
+    /// Workbook identity of the name.
     pub id: calc_func::value::NameId,
+    /// Version of the authored definition used to compile the plan.
     pub version: u64,
+    /// Workbook or worksheet scope that supplied the definition.
     pub scope: calc_func::value::NameScope,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// One attempted defined-name lookup in a particular namespace.
 pub struct NameProbe {
+    /// Name spelling and scope probed by the binder.
     pub key: calc_func::value::NameKey,
+    /// Name identity found in that scope, when present.
     pub found: Option<calc_func::value::NameId>,
 }
 
@@ -293,8 +313,11 @@ pub struct NameProbe {
 /// Missing local probes are retained when resolution falls back to the workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NameBindingProof {
+    /// The definition chosen after the probes.
     pub resolved: Option<BoundName>,
+    /// The scope checks that made this binding valid.
     pub probes: Vec<NameProbe>,
+    /// The enclosing name definition, if the lookup came from one.
     pub parent: Option<calc_func::value::NameId>,
 }
 
@@ -303,6 +326,7 @@ pub struct NameBindingProof {
 pub struct ReferenceSite {
     /// The site's source, in UTF-16 code units of the formula text.
     pub span: TextSpan,
+    /// The bound operand or the reason no operand was produced.
     pub binding: Result<ReferenceOperand, BindError>,
     /// The reference takes the formula's row from its area by implicit intersection: a
     /// structured reference's `#This Row` (`Sales[@Qty]`), bound to the column's data rows.
@@ -316,7 +340,10 @@ pub enum BindError {
     /// `$XFE$1`, `1:1048577`, `R0C1`, `R[1048576]C`.
     OutsideGrid,
     /// The catalogue has no sheet of this name.
-    UnknownSheet { name: String },
+    UnknownSheet {
+        /// Worksheet name from the qualifier.
+        name: String,
+    },
     /// A qualifier naming another workbook (`[Book2.xlsx]Sheet1!A1`, or `[1]Sheet1!A1` as a file
     /// stores it): external references are not modelled (L3, dc-m3u), and a formula holding one
     /// is refused.
@@ -326,10 +353,16 @@ pub enum BindError {
     SheetSpan,
     /// A structured reference names a table the workbook does not hold (Excel refuses to enter
     /// such a formula).
-    UnknownTable { name: String },
+    UnknownTable {
+        /// Table name from the structured reference.
+        name: String,
+    },
     /// A structured reference names a column its table does not hold (Excel refuses to enter
     /// such a formula).
-    UnknownColumn { name: String },
+    UnknownColumn {
+        /// Column name from the structured reference.
+        name: String,
+    },
     /// A structured reference bound against a catalogue that does not carry tables.
     TablesNotModelled,
     /// A structured reference whose combination of sections this package does not bind

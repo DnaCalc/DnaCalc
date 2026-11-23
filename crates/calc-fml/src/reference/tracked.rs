@@ -9,6 +9,7 @@ use std::{
     rc::Rc,
 };
 #[derive(Debug)]
+/// Tracks live retained references within a workbook on the owning thread.
 pub struct ReferenceTracker {
     owner: u64,
     next: Cell<u64>,
@@ -20,6 +21,7 @@ pub struct ReferenceTracker {
     refused: RefCell<BTreeSet<u64>>,
 }
 impl ReferenceTracker {
+    /// Creates an empty tracker with a new workbook owner identity.
     pub fn new() -> Rc<Self> {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let owner = NEXT
@@ -40,6 +42,7 @@ impl ReferenceTracker {
             refused: RefCell::default(),
         })
     }
+    /// Captures the current retained references for a single invocation.
     pub fn pin(self: &Rc<Self>) -> Rc<ReferenceView> {
         Rc::new(ReferenceView {
             owner: self.clone(),
@@ -48,6 +51,7 @@ impl ReferenceTracker {
             refused: self.refused.borrow().clone(),
         })
     }
+    /// Closes the workbook and invalidates every retained handle.
     pub fn close(&self) {
         self.closed.set(true);
         self.entries.borrow_mut().clear();
@@ -55,6 +59,7 @@ impl ReferenceTracker {
         self.index.borrow_mut().clear();
         self.refused.borrow_mut().clear();
     }
+    /// Transforms live handles to the locations that survive a structural edit.
     pub fn apply(&self, edit: &StructuralEdit) {
         let mut entries = self.entries.borrow_mut();
         let mut refused = self.refused.borrow_mut();
@@ -109,6 +114,7 @@ impl ReferenceTracker {
     }
 }
 #[derive(Debug)]
+/// Invocation-time view of a workbook’s retained references.
 pub struct ReferenceView {
     owner: Rc<ReferenceTracker>,
     epoch: u64,

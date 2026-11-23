@@ -17,36 +17,48 @@ pub struct CallableBindings {
     parallel: BTreeMap<CallableHandle, usize>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// Evidence for a binding or a miss in the callable namespace.
 pub struct CallableBindingProof {
+    /// Provider qualifier used for the lookup, if present.
     pub provider: Option<String>,
+    /// Function name used for the lookup.
     pub name: String,
+    /// Callable identity that the lookup resolved at binding time.
     pub bound: Option<CallableHandle>,
 }
 impl CallableBindings {
+    /// Reports whether the binding can execute before independent work has completed.
     pub fn permits_early_execution(&self, handle: CallableHandle) -> bool {
         self.early.contains(&handle)
     }
+    /// Returns the maximum admitted parallel calls for the binding.
     pub fn max_parallel_calls(&self, handle: CallableHandle) -> usize {
         self.parallel.get(&handle).copied().unwrap_or(1)
     }
+    /// Reports whether the callable uses cached worksheet observations.
     pub fn uses_cached_reads(&self, handle: CallableHandle) -> bool {
         self.cached_readers.contains(&handle)
     }
+    /// Reports whether the binding can participate in a provisional evaluation.
     pub fn permits_provisional(&self, handle: CallableHandle) -> bool {
         self.provisional.contains(&handle)
     }
+    /// Checks that the same lookup still resolves to the recorded identity or miss.
     pub fn validates(&self, proof: &CallableBindingProof) -> bool {
         self.bind(proof.provider.as_deref(), &proof.name) == proof.bound
     }
 
+    /// Resolves a function name in the selected provider’s namespace.
     pub fn bind(&self, provider: Option<&str>, name: &str) -> Option<CallableHandle> {
         self.entries
             .get(&CallableTable::key(provider, name))
             .copied()
     }
+    /// Tests for a name under the selected provider.
     pub fn contains_for(&self, provider: Option<&str>, name: &str) -> bool {
         self.bind(provider, name).is_some()
     }
+    /// Tests for an unqualified workbook callable.
     pub fn contains(&self, name: &str) -> bool {
         self.contains_for(None, name)
     }
@@ -55,6 +67,7 @@ impl CallableBindings {
 /// One parameter of a registered function, as its provider documented it.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CallableParameter {
+    /// Parameter name as supplied by the provider.
     pub name: String,
     /// What the argument is for; empty when the provider gave no text.
     pub description: String,
@@ -69,11 +82,17 @@ pub struct CallableDescriptor {
     pub name: String,
     /// Where it comes from, for people: `xll Name.xll`, `VBA module Module1`.
     pub origin: String,
+    /// Provider-supplied category for function help.
     pub category: String,
+    /// Description supplied for function help.
     pub description: String,
+    /// Parameters in signature order.
     pub parameters: Vec<CallableParameter>,
+    /// Whether the provider advertises the callable as volatile.
     pub volatile: bool,
+    /// Whether the provider advertises the callable as thread-safe.
     pub thread_safe: bool,
+    /// Whether the provider advertises asynchronous completion.
     pub asynchronous: bool,
 }
 
@@ -108,6 +127,7 @@ impl CallableDescriptor {
 }
 
 #[derive(Clone, Debug)]
+/// Per-host registry of executable worksheet callables and their descriptors.
 pub struct CallableTable {
     identity: u64,
     entries: BTreeMap<(Option<String>, String), Registration>,
@@ -158,10 +178,12 @@ struct Registration {
 }
 
 impl CallableTable {
+    /// Creates an empty registry with its own callable identity.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Captures thread-independent binding and scheduling facts for compilation.
     pub fn bindings(&self) -> CallableBindings {
         CallableBindings {
             early: self
@@ -211,11 +233,13 @@ impl CallableTable {
                 .collect(),
         }
     }
+    /// Resolves a registration name to its generation-checked callable identity.
     pub fn bind(&self, provider: Option<&str>, name: &str) -> Option<CallableHandle> {
         self.entries
             .get(&Self::key(provider, name))
             .map(|r| r.handle)
     }
+    /// Borrows the executable adapter if the handle identifies a live slot in this table.
     pub fn resolve(&self, handle: CallableHandle) -> Option<&Rc<dyn UserFunction>> {
         (handle.table == self.identity
             && self.generations.get(handle.slot as usize) == Some(&handle.generation))
@@ -384,10 +408,12 @@ impl CallableTable {
             .map(|(_, descriptor)| descriptor)
     }
 
+    /// Tests for an unqualified workbook registration.
     pub fn contains(&self, name: &str) -> bool {
         self.contains_for(None, name)
     }
 
+    /// Tests for a registration under the selected provider.
     pub fn contains_for(&self, provider: Option<&str>, name: &str) -> bool {
         self.entries.contains_key(&Self::key(provider, name))
     }

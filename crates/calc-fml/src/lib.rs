@@ -45,6 +45,8 @@
 //!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-fml/CONTRACT.md).
 
+#![warn(missing_docs)]
+
 pub mod assist;
 pub mod eval;
 pub mod reference;

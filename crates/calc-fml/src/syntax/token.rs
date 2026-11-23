@@ -9,11 +9,14 @@ use calc_func::value::WorksheetErrorCode;
 /// A range of the formula text, in UTF-16 code units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct TextSpan {
+    /// Zero-based offset from the start of the input.
     pub start: usize,
+    /// Length in UTF-16 code units.
     pub len: usize,
 }
 
 impl TextSpan {
+    /// Constructs a span from a UTF-16 offset and length.
     pub fn new(start: usize, len: usize) -> Self {
         Self { start, len }
     }
@@ -33,38 +36,71 @@ impl TextSpan {
 /// token, so the tokens (whitespace included) reproduce the input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenKind {
+    /// The equals sign, used for comparison or at formula entry.
     Equals,
+    /// The `<>` comparison operator.
     NotEqual,
+    /// The `<` comparison operator.
     Less,
+    /// The `<=` comparison operator.
     LessEqual,
+    /// The `>` comparison operator.
     Greater,
+    /// The `>=` comparison operator.
     GreaterEqual,
+    /// A numeric literal, including its exponent when present.
     Number,
+    /// An unquoted identifier or reference token.
     Identifier,
+    /// An Excel error literal such as `#REF!`.
     ErrorLiteral,
+    /// A single-quoted name or sheet qualifier.
     QuotedIdentifier,
+    /// Text enclosed in brackets within a reference.
     BracketedQualifier,
+    /// A double-quoted text literal.
     StringLiteral,
+    /// An opening parenthesis.
     LParen,
+    /// A closing parenthesis.
     RParen,
+    /// A comma, used between arguments or as a union operator.
     Comma,
+    /// A colon, used to form a range.
     Colon,
+    /// The text concatenation operator, `&`.
     Ampersand,
+    /// A unary plus or binary addition operator.
     Plus,
+    /// A unary minus or binary subtraction operator.
     Minus,
+    /// The postfix percent operator.
     Percent,
+    /// The exponentiation operator, `^`.
     Caret,
+    /// The multiplication operator, `*`.
     Star,
+    /// The division operator, `/`.
     Slash,
+    /// A period outside a number or identifier.
     Dot,
+    /// The implicit-intersection operator, `@`.
     At,
+    /// The spill reference operator, `#`.
     Hash,
+    /// The sheet-qualifier separator, `!`.
     Bang,
+    /// The opening brace of an array literal.
     LBrace,
+    /// The closing brace of an array literal.
     RBrace,
+    /// A semicolon, used between array rows.
     Semicolon,
+    /// Whitespace, which can represent reference intersection.
     Whitespace,
+    /// Input the lexer could not classify.
     Unknown,
+    /// A zero-width marker at the end of the input.
     Eof,
 }
 
@@ -88,10 +124,12 @@ impl Trivia {
         Self { text, span }
     }
 
+    /// Returns the exact whitespace text.
     pub fn text(&self) -> &str {
         &self.text
     }
 
+    /// Returns the position and length of the whitespace.
     pub fn span(&self) -> TextSpan {
         self.span
     }
@@ -136,6 +174,7 @@ impl Token {
         self.leading_trivia = trivia;
     }
 
+    /// Returns the lexical classification of the token.
     pub fn kind(&self) -> TokenKind {
         self.kind
     }
@@ -156,6 +195,7 @@ impl Token {
         &self.leading_trivia
     }
 
+    /// Reports whether parser recovery inserted this token without consuming input.
     pub fn is_missing(&self) -> bool {
         self.missing
     }
@@ -218,9 +258,13 @@ pub enum SyntaxDiagnosticKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// A parser or lexer diagnostic attached to the original formula.
 pub struct SyntaxDiagnostic {
+    /// Human-readable explanation for the editor.
     pub message: String,
+    /// Location in the original input, possibly zero-width for a missing token.
     pub span: TextSpan,
+    /// Whether the problem is malformed input or an unsupported construct.
     pub kind: SyntaxDiagnosticKind,
 }
 

@@ -14,6 +14,7 @@ use std::fmt;
 /// The cells a projection reads, in the order the page returns them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProjectionRequest {
+    /// Requested cell addresses in projection order.
     pub cells: Vec<CellKey>,
 }
 
@@ -74,6 +75,7 @@ impl StaleValue {
         self.file_cache.as_ref()
     }
 
+    /// Returns why this result is stale.
     pub fn cause(&self) -> StaleCause {
         self.cause
     }
@@ -93,13 +95,17 @@ pub enum ProjectedValue {
     /// `calculation` has changed the formula or anything it reads. `calculation` names the
     /// revision whose inputs it read, which may be earlier than the current revision.
     Calculated {
+        /// The engine-calculated worksheet value.
         value: CalcValue,
+        /// Calculation that published the value and identifies the inputs it read.
         calculation: Calculation,
     },
     /// The engine refused the cell's formula, and the refusal still stands as a calculated value
     /// would; it has no value.
     NotModeled {
+        /// The typed reason the engine refused the formula.
         refusal: NotModeled,
+        /// Calculation that recorded the refusal.
         calculation: Calculation,
     },
     /// The cell's formula has no result that stands at the current revision.
@@ -109,7 +115,9 @@ pub enum ProjectedValue {
 /// The extent of a current dynamic-array result or blocked attempt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProjectedSpill {
+    /// The area occupied by a published spill.
     Filled(GridArea),
+    /// The area the blocked result attempted to occupy.
     Blocked(GridArea),
 }
 
@@ -136,6 +144,7 @@ impl ProjectedCell {
         }
     }
 
+    /// Returns this cell’s worksheet address.
     pub fn at(&self) -> CellKey {
         self.at
     }
@@ -145,10 +154,12 @@ impl ProjectedCell {
         self.input.as_ref()
     }
 
+    /// Returns the displayed value together with its provenance.
     pub fn value(&self) -> &ProjectedValue {
         &self.value
     }
 
+    /// Returns the spill extent or blocked attempt at this cell, when present.
     pub fn spill(&self) -> Option<ProjectedSpill> {
         self.spill
     }
@@ -188,6 +199,7 @@ impl ProjectionPage {
 /// [`project`] was asked for a cell of a sheet the current revision does not hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ProjectionError {
+    /// Requested worksheet that is absent from the current revision.
     pub sheet: SheetId,
 }
 

@@ -53,11 +53,26 @@ use std::sync::Arc;
 pub enum CompileError {
     /// Excel's formula entry refuses this formula too ([`check_entry`]): a claim, scored against
     /// Excel like a value.
-    Rejected { span: TextSpan, rule: Rejection },
+    Rejected {
+        /// Source span of the rejected entry.
+        span: TextSpan,
+        /// Excel entry rule that refused the formula.
+        rule: Rejection,
+    },
     /// A construct this compiler does not model: a typed refusal.
-    NotModelled { span: TextSpan, gap: Gap },
+    NotModelled {
+        /// Source span of the unsupported construct.
+        span: TextSpan,
+        /// Compiler capability missing for this construct.
+        gap: Gap,
+    },
     /// A reference that binding refused.
-    Reference { span: TextSpan, error: BindError },
+    Reference {
+        /// Source span of the reference.
+        span: TextSpan,
+        /// Reason the reference could not bind.
+        error: BindError,
+    },
 }
 
 /// What [`CompileError::NotModelled`] does not model.
@@ -66,12 +81,17 @@ pub enum Gap {
     /// Formula syntax this compiler does not lower yet: `construct` says what it is and `owner`
     /// names the work package that owns it.
     Construct {
+        /// Description of the unsupported construct.
         construct: &'static str,
+        /// Work package responsible for the construct.
         owner: &'static str,
     },
     /// No catalogue entry is written this way: a function the catalogue does not hold yet, or a
     /// name Excel does not know (whose `#NAME?` result is not modelled either).
-    UnknownFunction { spelling: String },
+    UnknownFunction {
+        /// Function name as written in the formula.
+        spelling: String,
+    },
     /// A number literal whose Excel value is not modelled: more than 15 significant digits
     /// (which Excel rounds to 15 at entry), beyond binary64's range, or in or below its subnormal
     /// range. Owned by bead dc-m3u (numeric text policy).
@@ -304,11 +324,14 @@ pub fn compile_loaded_with_bindings(
 /// Spans and caller context never participate in semantic interning.
 #[derive(Debug)]
 pub struct NameAnalysis {
+    /// Executable plan produced by the canonical compiler.
     pub plan: Arc<CompiledPlan>,
+    /// Resolved or unresolved name occurrences retained with their source spans.
     pub uses: Vec<crate::reference::NameUse>,
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Compiles a stored formula and records its name occurrences for diagnostics.
 pub fn analyze_loaded_names(
     tree: &SyntaxTree,
     notation: ReferenceNotation,

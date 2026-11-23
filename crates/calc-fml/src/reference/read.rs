@@ -38,6 +38,7 @@ pub trait ReferenceReader {
         false
     }
 
+    /// Returns the typed reason for a refused read, when the reader recorded one.
     fn read_denial(&self) -> Option<crate::ReadDenial>;
     /// Records a host question without demanding the cell's value. Metadata reads retain their
     /// own facets and invalidation policy through a value overlay.
@@ -112,6 +113,7 @@ impl CellRun<'_> {
         }
     }
 
+    /// Reports whether this run accounts for zero cells.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -166,7 +168,9 @@ pub fn read_cell_by_area<R: ReferenceReader + ?Sized>(
 /// holds, or fewer although the visit never stopped the read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReadContractError {
+    /// The requested area whose reported runs broke the contract.
     pub area: GridArea,
+    /// The number of cells accounted for by the reported runs.
     pub covered: u64,
 }
 

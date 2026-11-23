@@ -40,7 +40,9 @@ use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 /// The rows or the columns of a sheet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EditAxis {
+    /// Edit addresses by row.
     Rows,
+    /// Edit addresses by column.
     Columns,
 }
 
@@ -49,30 +51,48 @@ pub enum EditAxis {
 pub enum StructuralEdit {
     /// Insert or delete cells within one row/column stripe. Whole axes use Insert/Delete.
     ShiftCells {
+        /// The rectangle to insert or delete.
         area: GridArea,
+        /// Shift along rows when true and columns when false.
         down: bool,
+        /// Insert cells when true and delete them when false.
         insert: bool,
     },
     /// `count` rows or columns inserted on `sheet` before the 1-based position `first`.
     Insert {
+        /// Worksheet receiving the inserted bands.
         sheet: SheetId,
+        /// Whether the bands are rows or columns.
         axis: EditAxis,
+        /// One-based index of the first new band.
         first: u32,
+        /// Number of bands inserted.
         count: u32,
     },
     /// `count` rows or columns deleted on `sheet` from the 1-based position `first`.
     Delete {
+        /// Worksheet losing the deleted bands.
         sheet: SheetId,
+        /// Whether the bands are rows or columns.
         axis: EditAxis,
+        /// One-based index of the first band removed.
         first: u32,
+        /// Number of bands removed.
         count: u32,
     },
     /// `sheet` renamed to `name`.
-    RenameSheet { sheet: SheetId, name: String },
+    RenameSheet {
+        /// Worksheet identity being renamed.
+        sheet: SheetId,
+        /// New worksheet name.
+        name: String,
+    },
     /// `sheet` removed; `order` is the workbook's sheets, with their names, in their order before
     /// the removal.
     RemoveSheet {
+        /// Worksheet identity being removed.
         sheet: SheetId,
+        /// Ordered worksheet identities and names before removal.
         order: Vec<(SheetId, String)>,
     },
     /// The cells of `area` moved (cut and pasted) so that its top-left cell is `to`, on the same
@@ -80,9 +100,13 @@ pub enum StructuralEdit {
     /// `area`'s sheet and `to`'s, as the workbook holds them. A defined name's reference moves
     /// only when every coordinate it holds is absolute.
     MoveCells {
+        /// Source area whose cells are moving.
         area: GridArea,
+        /// Destination of the source area’s top-left cell.
         to: CellKey,
+        /// Source worksheet name as stored in the workbook.
         source_name: String,
+        /// Destination worksheet name as stored in the workbook.
         target_name: String,
     },
 }

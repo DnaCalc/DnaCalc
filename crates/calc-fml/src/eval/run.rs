@@ -116,13 +116,19 @@ pub enum EvalFault {
     /// model, an arithmetic site under Exact).
     Function(FunctionFault),
     /// The formula reads `cell`, which the reader reported as missing: an input it cannot supply.
-    MissingInput { cell: CellKey },
+    MissingInput {
+        /// Cell that the reader could not supply.
+        cell: CellKey,
+    },
     /// The reader's runs did not cover an area exactly.
     ReadContract(ReadContractError),
     /// A reference to more than one cell where a legacy formula takes one value at a place whose
     /// evaluation in Excel this package does not model (see [`super::FormulaForm::Legacy`]); work
     /// package dc-m3u owns it (L1, dc-mzk, left it open).
-    AreaAsValue { area: GridArea },
+    AreaAsValue {
+        /// Area used where the legacy placement expects a scalar.
+        area: GridArea,
+    },
     /// The formula's final operation is an infix `+` or `-` (seen through parentheses, a prefix
     /// `+` or `-` and the arguments IF may return) whose result is a non-zero number of at most
     /// 1e-13 times the magnitude of its larger operand; `result` is the binary64 result.
@@ -130,11 +136,16 @@ pub enum EvalFault {
     /// The result of the formula's final addition or subtraction, which Excel may adjust to 0
     /// ([`calc_func::adjust_final_sum`]), when its left operand does not read as a number, so the rule
     /// cannot be applied; refused rather than published.
-    NearZeroFinalSum { result: f64 },
+    NearZeroFinalSum {
+        /// Unadjusted binary64 result of the final addition or subtraction.
+        result: f64,
+    },
     /// The evaluation reached a construct whose result is not modelled: `construct` says what it
     /// is and `owner` names the work package that owns it.
     NotModelled {
+        /// Construct that stopped evaluation.
         construct: &'static str,
+        /// Work package responsible for the construct.
         owner: &'static str,
     },
 }
@@ -164,13 +175,18 @@ const CALLABLE_ARGUMENT_COST: usize = 1;
 /// A bounded handoff from the root instruction stream or a cooperative eager kernel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContinuationProgress {
+    /// Index of the next root instruction.
     pub next_instruction: usize,
+    /// Elements already processed by retained kernel work.
     pub completed_elements: usize,
 }
 
 #[derive(Debug)]
+/// Result of advancing a bounded formula evaluation.
 pub enum EvalStep {
+    /// The continuation can advance again after this handoff.
     Suspended(ContinuationProgress),
+    /// The evaluation completed with a value or a typed refusal.
     Complete(Result<CalcValue, EvalFault>),
 }
 
@@ -330,6 +346,7 @@ pub struct EvalContinuation {
 }
 
 impl EvalContinuation {
+    /// Starts an activation at the placed formula and takes ownership of reusable scratch.
     pub fn new(instance: &FormulaInstance, mut scratch: super::EvalScratch) -> Self {
         scratch.stack.clear();
         scratch.locals.clear();
@@ -367,6 +384,7 @@ impl EvalContinuation {
         call.external = Some((request, Some(value)));
         true
     }
+    /// Reports the retained instruction and kernel progress.
     pub fn progress(&self) -> ContinuationProgress {
         ContinuationProgress {
             next_instruction: self.cursor.at,
@@ -393,6 +411,7 @@ impl EvalContinuation {
         self.finished = matches!(step, EvalStep::Complete(_));
         step
     }
+    /// Consumes the activation and returns its reusable scratch storage.
     pub fn into_scratch(self) -> super::EvalScratch {
         self.scratch
     }

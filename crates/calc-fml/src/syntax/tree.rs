@@ -17,8 +17,11 @@ pub enum SyntaxKind {
     /// The whole formula: an optional `=`, one expression, any trailing tokens the parser could
     /// not place, and the end of input.
     FormulaRoot,
+    /// A numeric literal expression.
     NumberLiteralExpr,
+    /// A text literal expression.
     StringLiteralExpr,
+    /// An Excel error literal expression.
     ErrorLiteralExpr,
     /// `{1,2;3,4}`: elements separated by `,` within a row and `;` between rows.
     ArrayLiteralExpr,
@@ -46,6 +49,7 @@ pub enum SyntaxKind {
     PrefixExpr,
     /// A postfix operator: `%` or `#` (spilled range).
     PostfixExpr,
+    /// An expression grouped by parentheses.
     GroupingExpr,
     /// The range operator `:`.
     RangeExpr,
@@ -74,7 +78,9 @@ pub enum SyntaxKind {
 /// A child of a [`SyntaxNode`]: a node or a token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SyntaxChild {
+    /// A nested syntax node.
     Node(SyntaxNode),
+    /// A lexical token, including attached trivia.
     Token(Token),
 }
 
@@ -88,6 +94,7 @@ impl SyntaxChild {
 }
 
 #[derive(Debug)]
+/// A lossless formula syntax node with ordered children.
 pub struct SyntaxNode {
     kind: SyntaxKind,
     span: TextSpan,
@@ -201,6 +208,7 @@ impl SyntaxNode {
         }
     }
 
+    /// Returns this node’s syntactic classification.
     pub fn kind(&self) -> SyntaxKind {
         self.kind
     }
@@ -210,6 +218,7 @@ impl SyntaxNode {
         self.span
     }
 
+    /// Returns children in source order.
     pub fn children(&self) -> &[SyntaxChild] {
         &self.children
     }
@@ -271,6 +280,7 @@ impl SyntaxTree {
         Self { root, diagnostics }
     }
 
+    /// Returns the complete formula node, including recovered syntax.
     pub fn root(&self) -> &SyntaxNode {
         &self.root
     }
@@ -280,6 +290,7 @@ impl SyntaxTree {
         self.root.child_nodes().next()
     }
 
+    /// Returns the diagnostics collected while parsing.
     pub fn diagnostics(&self) -> &[SyntaxDiagnostic] {
         &self.diagnostics
     }

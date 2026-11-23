@@ -95,7 +95,9 @@ impl std::error::Error for OpenFailure {}
 /// counts without treating a repaired workbook as a clean open.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenReport<'a> {
+    /// Repairs in the order reported by the document loader.
     pub repairs: &'a [calc_doc::LoadRepair],
+    /// Number of repairs by diagnostic code.
     pub repair_counts: std::collections::BTreeMap<&'static str, u64>,
 }
 
@@ -208,6 +210,7 @@ impl HostState {
             .name_memo_candidates(&self.model, self.engine.node_at(caller)?)
     }
 
+    /// Returns live and expired entries in the engine’s formula plan interner.
     pub fn plan_cache_stats(&self) -> calc_fml::PlanCacheStats {
         self.engine.plan_cache_stats()
     }
@@ -230,6 +233,7 @@ impl HostState {
             .expect("host and engine revisions agree")
     }
 
+    /// Supplies or removes the live snapshot for a numbered external link in this workbook.
     pub fn set_linked_workbook(
         &mut self,
         number: u32,
@@ -248,6 +252,7 @@ impl HostState {
         self.engine.result_storage_stats()
     }
 
+    /// Captures the current callable identities and binding-time capabilities.
     pub fn user_function_bindings(&self) -> calc_fml::CallableBindings {
         self.functions.bindings()
     }
@@ -259,6 +264,7 @@ impl HostState {
     pub fn user_function_descriptors(&self) -> Vec<calc_fml::CallableDescriptor> {
         self.functions.descriptors().cloned().collect()
     }
+    /// Replaces user-function registrations while preserving the host’s installed service routes.
     pub fn set_user_functions(&mut self, mut functions: calc_fml::CallableTable) {
         if let Some(route) = &self.fetch_route {
             functions.register_fetch_route(route);
@@ -397,6 +403,7 @@ impl HostState {
         self.model.definitions().styles()
     }
 
+    /// Resolves a workbook style colour for display, preserving indexed colour identity.
     pub fn style_color(&self, color: &calc_doc_model::StyleColor) -> Option<crate::LookColor> {
         crate::conditional::resolve(self, color)
     }
@@ -416,6 +423,7 @@ impl HostState {
             _ => None,
         }
     }
+    /// Resolves a style colour, including a palette lookup for an indexed colour.
     pub fn resolved_style_color(&self, color: &calc_doc_model::StyleColor) -> Option<String> {
         match self.style_color(color)? {
             crate::LookColor::Rgb(rgb) => Some(rgb),
@@ -423,6 +431,7 @@ impl HostState {
         }
     }
 
+    /// Borrows the workbook package and model as loaded at open.
     pub fn loaded(&self) -> &LoadedWorkbook {
         &self.loaded
     }
@@ -511,6 +520,7 @@ impl HostState {
                 && self.last_failure.is_none()
                 && self.engine.needs_recalc(&self.model)
     }
+    /// Drains the recorded calculation event stream.
     pub fn take_calculation_events(&mut self) -> Vec<calc_engine::CalcEvent> {
         std::mem::take(&mut self.calc_events)
     }
@@ -520,6 +530,7 @@ impl HostState {
             .is_some_and(|work| !matches!(work.admission().scope, calc_engine::CalcScope::Workbook))
     }
 
+    /// Borrows the workbook’s host options.
     pub fn options(&self) -> &HostOptions {
         &self.options
     }
@@ -531,6 +542,7 @@ impl HostState {
         self.engine.set_threads(threads);
     }
 
+    /// Returns the current evaluation thread limit.
     pub fn threads(&self) -> usize {
         self.engine.threads()
     }
@@ -727,6 +739,7 @@ impl HostState {
         (areas, false)
     }
 
+    /// Returns the area of the spill published at this anchor.
     pub fn spill_area(&self, anchor: CellKey) -> Option<GridArea> {
         self.engine.spill(anchor).map(|spill| spill.area())
     }
@@ -878,6 +891,7 @@ impl HostState {
         cells.into_iter().collect()
     }
 
+    /// Reports whether the cell has an authored formula, including legacy-array and data-table members.
     pub fn holds_formula(&self, at: CellKey) -> bool {
         if matches!(
             self.model.cell(at),
@@ -1070,6 +1084,7 @@ impl HostState {
         Some(view)
     }
 
+    /// Returns current review notes and hyperlinks with the loaded review metadata.
     pub fn sheet_review(&self, sheet: SheetId) -> calc_doc::SheetReview {
         let mut review = self
             .loaded
