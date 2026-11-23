@@ -157,8 +157,9 @@ separately from those worksheet rules.
   callbacks. Exclude workbook- and host-bound functions such as ROW, COLUMN, CELL, INDIRECT,
   OFFSET, ISFORMULA, FORMULATEXT, INFO, RTD, WEBSERVICE, CUBE functions, GETPIVOTDATA and
     IMAGE. Publish the specific availability reason from the completed catalogue. The separate
-    CalcFml formula API (dc-dfl.2.7) owns the small workbook model, formula parsing, addresses,
-    workbook facts and Excel LAMBDA. Services with no provider remain unavailable there.
+    [CalcFml formula API](calcfunc-formula-evaluator.md) (dc-dfl.2.7) owns the small workbook
+    model, formula parsing, addresses, workbook facts and Excel LAMBDA. Services with no provider
+    remain unavailable there.
 
 ## Profiles and fidelity
 
