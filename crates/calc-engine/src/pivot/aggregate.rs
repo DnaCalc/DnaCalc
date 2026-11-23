@@ -81,6 +81,9 @@ impl Total {
     pub(super) fn supports_calculated_inputs(&self) -> bool {
         !self.unsafe_moment
     }
+    pub(super) fn is_empty(&self) -> bool {
+        self.nonempty == 0
+    }
     pub(super) fn source_error(&self) -> Option<WorksheetErrorCode> {
         self.error
     }
