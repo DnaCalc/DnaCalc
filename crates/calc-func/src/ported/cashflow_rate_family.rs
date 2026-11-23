@@ -485,16 +485,26 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
     use crate::ported::excel_numeric::{
         excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub,
     };
+    let tracing = crate::trace::is_active();
     if !u_start.is_finite() {
         return None;
     }
     let npv = |u: f64| {
         let v = sub(1.0, u);
         if v == 0.0 {
+            if tracing {
+                crate::trace::hit(7);
+            }
             return None;
+        }
+        if tracing && v < 0.0 {
+            crate::trace::hit(19);
         }
         let base = div(1.0, v);
         if !base.is_finite() || base == 0.0 {
+            if tracing {
+                crate::trace::hit(7);
+            }
             return None;
         }
         let mut total = 0.0;
@@ -505,10 +515,16 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
             }
             let divisor = irr_daz(power);
             if !divisor.is_finite() || divisor == 0.0 {
+                if tracing {
+                    crate::trace::hit(8);
+                }
                 return None;
             }
             let term = irr_daz(div(flow, divisor));
             if !term.is_finite() {
+                if tracing {
+                    crate::trace::hit(9);
+                }
                 return None;
             }
             total = add(total, term);
@@ -517,11 +533,21 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
     };
     let publish = |u: f64| {
         let v = sub(1.0, u);
+        if tracing {
+            crate::trace::observe_boundary("irr_publish_v", v, 0.0);
+        }
         if v <= 0.0 {
+            if tracing {
+                crate::trace::hit(19);
+            }
             return None;
         }
         let rate = sub(div(1.0, v), 1.0);
-        (rate.is_finite() && rate > -1.0).then_some(rate)
+        let ok = rate.is_finite() && rate > -1.0;
+        if tracing && !ok {
+            crate::trace::hit(19);
+        }
+        ok.then_some(rate)
     };
 
     let mut before = u_start;
@@ -530,62 +556,136 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
     let mut current = add(before, offset);
     let mut value = npv(current)?;
     let mut step = f64::INFINITY;
-    for _ in 0..200 {
+    for iter in 0..200u32 {
         let mut change = sub(value, value_before);
         if change == 0.0 {
             let nudge = if current > before { 0.001 } else { -0.001 };
+            if tracing {
+                crate::trace::hit(if current > before { 10 } else { 11 });
+            }
             before = add(before, nudge);
             value_before = npv(before)?;
             change = sub(value, value_before);
             if change == 0.0 {
+                if tracing {
+                    crate::trace::hit(12);
+                }
                 continue;
             }
         }
         let divisor = irr_daz(change);
         if divisor == 0.0 {
+            if tracing {
+                crate::trace::hit(13);
+                crate::trace::record_iterations(iter + 1);
+            }
             return None;
         }
         let numerator = irr_daz(mul(value, sub(current, before)));
         let next = sub(current, div(numerator, divisor));
         if !next.is_finite() {
+            if tracing {
+                crate::trace::hit(14);
+                crate::trace::record_iterations(iter + 1);
+            }
             return None;
         }
         step = sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
         value = npv(current)?;
+        if tracing {
+            crate::trace::observe_boundary("irr_strict_step", step, 1e-7);
+            crate::trace::observe_boundary("irr_strict_value", value.abs(), 1e-7);
+        }
         if step < 1e-7 && value.abs() < 1e-7 {
+            if tracing {
+                let iters = iter + 1;
+                crate::trace::record_iterations(iters);
+                if iters <= 5 {
+                    crate::trace::hit(15);
+                } else if iters > 50 {
+                    crate::trace::hit(16);
+                }
+            }
             return publish(current);
         }
+    }
+    if tracing {
+        crate::trace::record_iterations(200);
+        crate::trace::observe_boundary("irr_post_step", step, 1e-4);
+        crate::trace::observe_boundary("irr_post_value", value.abs(), 1e-4);
     }
     // After the budget, RATE's separate 1e-4 step and balance check (RATE_FINAL_TOLERANCE):
     // cash flows of 7e10 cannot bring the balance under 1e-7, and Excel 16.0.20527 answers
     // the iterate at budget for IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24
     // D3378); from 2^25 on #NUM!.
-    (step <= 1e-4 && value.abs() <= 1e-4)
+    let published = (step <= 1e-4 && value.abs() <= 1e-4)
         .then(|| publish(current))
-        .flatten()
+        .flatten();
+    if tracing {
+        crate::trace::hit(if published.is_some() { 17 } else { 18 });
+    }
+    published
 }
 
 pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, WorksheetErrorCode> {
     use crate::ported::excel_numeric::{excel_x87_add as add, excel_x87_div as div};
+    let tracing = crate::trace::is_active();
     let guess = guess.unwrap_or(0.1);
+    if tracing {
+        crate::trace::observe_boundary("irr_guess_neg_one", guess, -1.0);
+        crate::trace::observe_boundary("irr_guess_2p53", guess.abs(), 9_007_199_254_740_992.0);
+    }
     // The initial growth factor must be positive and retain its unit
     // increment. At 2^53 adjacent guesses alternate between VALUE and NUM;
     // a magnitude cutoff would erase that stored-addition boundary.
     if guess.is_finite() && (guess <= -1.0 || add(1.0, guess) == guess) {
+        if tracing {
+            crate::trace::hit(0);
+        }
         return Err(WorksheetErrorCode::Value);
     }
-    validate_cashflows(cashflows)?;
+    if let Err(e) = validate_cashflows(cashflows) {
+        if tracing {
+            crate::trace::hit(1);
+        }
+        return Err(e);
+    }
     // When the search from the given guess fails, Excel 16.0.20527 retries from the default
     // guess 0.1 (`u = 0.1 / 1.1`), then `u = -0.1`, then `u = 2.0 / 3.0` (`guess = 2.0`),
     // before returning `#NUM!`.
     let u_guess = div(guess, add(1.0, guess));
-    irr_u_secant(cashflows, u_guess)
-        .or_else(|| (guess != 0.1).then(|| irr_u_secant(cashflows, div(0.1, add(1.0, 0.1)))).flatten())
-        .or_else(|| irr_u_secant(cashflows, -0.1))
-        .or_else(|| irr_u_secant(cashflows, div(2.0, 3.0)))
-        .ok_or(WorksheetErrorCode::Num)
+    if let Some(r) = irr_u_secant(cashflows, u_guess) {
+        if tracing {
+            crate::trace::hit(2);
+        }
+        return Ok(r);
+    }
+    if guess != 0.1
+        && let Some(r) = irr_u_secant(cashflows, div(0.1, add(1.0, 0.1)))
+    {
+        if tracing {
+            crate::trace::hit(3);
+        }
+        return Ok(r);
+    }
+    if let Some(r) = irr_u_secant(cashflows, -0.1) {
+        if tracing {
+            crate::trace::hit(4);
+        }
+        return Ok(r);
+    }
+    if let Some(r) = irr_u_secant(cashflows, div(2.0, 3.0)) {
+        if tracing {
+            crate::trace::hit(5);
+        }
+        return Ok(r);
+    }
+    if tracing {
+        crate::trace::hit(6);
+    }
+    Err(WorksheetErrorCode::Num)
 }
 
 /// Worksheet `XNPV` — bit-exact to 64-bit Excel on `x86_64` (W109 pilot,

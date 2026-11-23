@@ -361,9 +361,16 @@ pub fn rate(
     guess: Option<f64>,
 ) -> Result<f64, FinancialError> {
     let guess = guess.unwrap_or(0.1);
+    let tracing = crate::trace::is_active();
+    if tracing {
+        crate::trace::observe_boundary("guess_neg_one", guess, -1.0);
+    }
     // The initial guess has its own domain error. Preserve the numeric API's
     // existing NUM result for nonfinite values, which cannot be worksheet inputs.
     if guess.is_finite() && guess <= -1.0 {
+        if tracing {
+            crate::trace::hit(0);
+        }
         return Err(FinancialError::Value);
     }
     let result = rate_secant(
@@ -377,9 +384,29 @@ pub fn rate(
     // This is a result rule, not an evaluation-domain bound: Excel accepts
     // near-minus-one starting guesses that lead to an ordinary root. Adjacent
     // exact-root probes locate the final boundary at the solver's tolerance.
-    if excel_x87_add(1.0, result) < RATE_TOLERANCE {
+    let one_plus = excel_x87_add(1.0, result);
+    if tracing {
+        crate::trace::observe_boundary("final_one_plus_rate", one_plus, RATE_TOLERANCE);
+    }
+    if one_plus < RATE_TOLERANCE {
+        if tracing {
+            crate::trace::hit(25);
+        }
         Err(FinancialError::Num)
     } else {
+        if tracing {
+            let abs_r = result.abs();
+            if abs_r >= 536_870_912.0 && abs_r < 549_755_813_888.0 {
+                crate::trace::hit(26);
+            } else if abs_r >= 549_755_813_888.0 {
+                crate::trace::hit(27);
+            }
+            if result < 0.0 {
+                crate::trace::hit(28);
+            } else if result == 0.0 {
+                crate::trace::hit(29);
+            }
+        }
         Ok(result)
     }
 }
@@ -406,18 +433,40 @@ fn rate_secant(
     timing: PaymentTiming,
     guess: f64,
 ) -> Result<f64, FinancialError> {
+    let tracing = crate::trace::is_active();
+    if tracing && matches!(timing, PaymentTiming::BeginningOfPeriod) {
+        crate::trace::hit(5);
+    }
     let balance = |rate: f64| -> Result<f64, FinancialError> {
         if rate == 0.0 {
+            if tracing {
+                crate::trace::hit(1);
+            }
             return Ok(excel_x87_add(
                 excel_x87_add(future_value, present_value),
                 excel_underflow_to_zero(excel_x87_mul(payment_value, periods)),
             ));
         }
         let base = excel_x87_add(1.0, rate);
+        if tracing && base <= 0.0 {
+            crate::trace::hit(2);
+        }
         // The initial guess and final root have separate domain rules. An
         // intermediate integer-period power can cross a negative base.
-        let factor = growth_from_base(base, periods)?;
-        let end_term = excel_underflow_to_zero(excel_x87_div(excel_x87_sub(factor, 1.0), rate));
+        let factor = match growth_from_base(base, periods) {
+            Ok(f) => f,
+            Err(e) => {
+                if tracing {
+                    crate::trace::hit(3);
+                }
+                return Err(e);
+            }
+        };
+        let raw_end_term = excel_x87_div(excel_x87_sub(factor, 1.0), rate);
+        let end_term = excel_underflow_to_zero(raw_end_term);
+        if tracing && raw_end_term != 0.0 && end_term == 0.0 {
+            crate::trace::hit(4);
+        }
         let term = excel_x87_mul(end_term, timing.factor(rate));
         Ok(excel_x87_add(
             payment_balance(present_value, payment_value, factor, term),
@@ -437,9 +486,27 @@ fn rate_secant(
     // still reaches the division's DAZ check. Later-step probes distinguish the
     // flat-balance nudge from returning NUM as soon as the slope underflows.
     let flat_change = |change: f64| change > -f64::MIN_POSITIVE / 16.0 && change <= 0.0;
-    for _ in 0..200 {
+    for iter in 0..200u32 {
         let mut change = excel_x87_sub(value, value_before);
+        if tracing {
+            crate::trace::observe_boundary("flat_change_cutoff", change, -f64::MIN_POSITIVE / 16.0);
+            crate::trace::observe_boundary("change_daz_pos", change, f64::MIN_POSITIVE);
+        }
         if flat_change(change) {
+            if tracing {
+                crate::trace::hit(6);
+                if change < 0.0 {
+                    crate::trace::hit(7);
+                }
+                if current > before {
+                    crate::trace::hit(8);
+                } else if current < before {
+                    crate::trace::hit(9);
+                } else {
+                    crate::trace::hit(8);
+                    crate::trace::hit(10);
+                }
+            }
             // Excel 20625, gx1-RATE-2092 and its neighbours: move the previous
             // rate once in the direction of travel and use that slope on this step.
             let nudge = if current >= before { 0.001 } else { -0.001 };
@@ -447,6 +514,10 @@ fn rate_secant(
             value_before = balance(before)?;
             change = excel_x87_sub(value, value_before);
             if flat_change(change) {
+                if tracing {
+                    crate::trace::hit(11);
+                    crate::trace::record_iterations(iter + 1);
+                }
                 // A second flat balance is #NUM! even inside the final 1e-4 tolerance.
                 return Err(FinancialError::Num);
             }
@@ -454,9 +525,17 @@ fn rate_secant(
         // The flat-change comparison precedes the division's DAZ input stage.
         let divisor = financial_daz(change);
         if divisor == 0.0 {
+            if tracing {
+                crate::trace::hit(12);
+                crate::trace::record_iterations(iter + 1);
+            }
             return Err(FinancialError::Div0);
         }
-        let numerator = excel_underflow_to_zero(excel_x87_mul(value, excel_x87_sub(current, before)));
+        let raw_num = excel_x87_mul(value, excel_x87_sub(current, before));
+        let numerator = excel_underflow_to_zero(raw_num);
+        if tracing && raw_num != 0.0 && numerator == 0.0 {
+            crate::trace::hit(13);
+        }
         let quotient = excel_x87_div(numerator, divisor);
         // With negative periods the balance at +infinity has growth factor 0, and
         // its annuity term `(-1 / rate) * timing` flushes `-1 / current` to zero
@@ -472,21 +551,62 @@ fn rate_secant(
                 payment_balance(present_value, payment_value, 0.0, term_inf),
                 future_value,
             );
+            if tracing {
+                crate::trace::observe_boundary("overflow_limit", limit.abs(), RATE_TOLERANCE);
+            }
             if limit.abs() <= RATE_TOLERANCE {
+                if tracing {
+                    crate::trace::hit(14);
+                    crate::trace::record_iterations(iter + 1);
+                }
                 return Ok(current);
+            } else if tracing {
+                crate::trace::hit(15);
             }
         }
         let next = excel_x87_sub(current, quotient);
         if !next.is_finite() {
+            if tracing {
+                crate::trace::hit(16);
+                crate::trace::record_iterations(iter + 1);
+            }
             return Err(FinancialError::Num);
         }
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
         value = balance(current)?;
+        if tracing {
+            crate::trace::observe_boundary("strict_step", step, RATE_TOLERANCE);
+            crate::trace::observe_boundary("strict_value", value.abs(), RATE_TOLERANCE);
+        }
         if step < RATE_TOLERANCE && value.abs() < RATE_TOLERANCE {
+            if tracing {
+                let iters = iter + 1;
+                crate::trace::record_iterations(iters);
+                if iters <= 5 {
+                    crate::trace::hit(17);
+                } else if iters <= 50 {
+                    crate::trace::hit(18);
+                } else {
+                    crate::trace::hit(19);
+                }
+                if step == 0.0 {
+                    crate::trace::hit(20);
+                }
+            }
             return Ok(current);
         }
+    }
+    if tracing {
+        crate::trace::record_iterations(200);
+        crate::trace::observe_boundary("post_step", step, RATE_FINAL_TOLERANCE);
+        crate::trace::observe_boundary("post_value", value.abs(), RATE_FINAL_TOLERANCE);
+        crate::trace::observe_boundary(
+            "post_base",
+            excel_x87_add(1.0, current),
+            RATE_FINAL_TOLERANCE,
+        );
     }
     // Excel has a separate final check after the iteration budget. Adjacent-word
     // public calls locate its step, balance and near-minus-one boundaries.
@@ -496,8 +616,20 @@ fn rate_secant(
         && value.abs() <= RATE_FINAL_TOLERANCE
         && excel_x87_add(1.0, current) >= RATE_FINAL_TOLERANCE
     {
+        if tracing {
+            crate::trace::hit(21);
+        }
         Ok(current)
     } else {
+        if tracing {
+            if step > RATE_FINAL_TOLERANCE {
+                crate::trace::hit(22);
+            } else if value.abs() > RATE_FINAL_TOLERANCE {
+                crate::trace::hit(23);
+            } else {
+                crate::trace::hit(24);
+            }
+        }
         Err(FinancialError::Num)
     }
 }

@@ -509,7 +509,8 @@ pub fn yield_kernel(
     frequency: f64,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let c = ctx(settlement, maturity, frequency, basis_).map_err(|error| {
+    let tracing = crate::trace::is_active();
+    let c = match ctx(settlement, maturity, frequency, basis_).map_err(|error| {
         // Finite invalid date serials are NUM in YIELD. Preserve the direct
         // numeric API's VALUE result for nonfinite inputs.
         if settlement.is_finite()
@@ -520,15 +521,58 @@ pub fn yield_kernel(
         } else {
             error
         }
-    })?;
-    let p = period(c)?;
-    let rate_ = rate(rate_)?;
-    let price = pos(price)?;
-    let red = pos(red)?;
+    }) {
+        Ok(c) => c,
+        Err(e) => {
+            if tracing {
+                crate::trace::hit(0);
+            }
+            return Err(e);
+        }
+    };
+    let p = match period(c) {
+        Ok(p) => p,
+        Err(e) => {
+            if tracing {
+                crate::trace::hit(0);
+            }
+            return Err(e);
+        }
+    };
+    let rate_ = match rate(rate_) {
+        Ok(r) => r,
+        Err(e) => {
+            if tracing {
+                crate::trace::hit(0);
+            }
+            return Err(e);
+        }
+    };
+    let price = match pos(price) {
+        Ok(pr) => pr,
+        Err(e) => {
+            if tracing {
+                crate::trace::hit(0);
+            }
+            return Err(e);
+        }
+    };
+    let red = match pos(red) {
+        Ok(rd) => rd,
+        Err(e) => {
+            if tracing {
+                crate::trace::hit(0);
+            }
+            return Err(e);
+        }
+    };
     // A coupon-date bond priced and redeemed at 100 has yield equal to its coupon
     // rate; Excel does not return that root directly but takes the same near-par
     // seed as every other price near 100 (answer 11 B1 Y2), so no shortcut here.
     if p.n == 1 {
+        if tracing {
+            crate::trace::hit(1);
+        }
         // R33 paired COUP/DAYS360 controls isolate the documented normalized
         // formula. A and DSR share the existing numerator-position day rule;
         // Actual/360 and Actual/365 use the actual coupon length here. The
@@ -543,6 +587,9 @@ pub fn yield_kernel(
         // A positive calendar interval can have zero remaining 30/360 days.
         // Original last-day controls across prices/rates publish zero there.
         if dsc == 0.0 {
+            if tracing {
+                crate::trace::hit(2);
+            }
             return Ok(0.0);
         }
         // Each named arithmetic result stores RN53(RN64(operation)). The
@@ -565,9 +612,22 @@ pub fn yield_kernel(
     //    iterations, stopping when `|step| <= 1e-10` and publishing the un-updated iterate `y`.
     let f = c.frequency as f64;
     let tau = match c.basis {
-        DayCountBasis::Us30_360 => f * (d360us(c.settlement, c.maturity)? / 360.0),
-        DayCountBasis::European30_360 => f * (d360eu(c.settlement, c.maturity)? / 360.0),
+        DayCountBasis::Us30_360 => {
+            if tracing {
+                crate::trace::hit(4);
+            }
+            f * (d360us(c.settlement, c.maturity)? / 360.0)
+        }
+        DayCountBasis::European30_360 => {
+            if tracing {
+                crate::trace::hit(4);
+            }
+            f * (d360eu(c.settlement, c.maturity)? / 360.0)
+        }
         DayCountBasis::ActualActual | DayCountBasis::Actual360 | DayCountBasis::Actual365 => {
+            if tracing {
+                crate::trace::hit(5);
+            }
             let (sy, sm, sd) =
                 ymd_from_excel_serial(WorkbookDateSystem::System1900, c.settlement as f64)
                     .ok_or(derr(WorksheetErrorCode::Value))?;
@@ -593,6 +653,9 @@ pub fn yield_kernel(
     // The stored seed quotient can survive cancellation as Newton approaches zero.
     let mut y = f * excel_x87_div(tc - d, den);
     if !y.is_finite() {
+        if tracing {
+            crate::trace::hit(3);
+        }
         return Err(derr(WorksheetErrorCode::Num));
     }
 
@@ -602,12 +665,22 @@ pub fn yield_kernel(
     let cp = (100.0 * rate_) / f;
     let accr = (cp * a) / e;
 
-    for _ in 0..100 {
+    for iter in 0..100u32 {
         let base = 1.0 + y / f;
+        if tracing {
+            crate::trace::observe_boundary("yield_base_zero", base, 0.0);
+        }
         // On a whole coupon interval the discount exponents are integers. Newton
         // can cross -frequency and continue on the negative-base price curve.
         if base == 0.0 || (base < 0.0 && off.fract() != 0.0) {
+            if tracing {
+                crate::trace::hit(6);
+                crate::trace::record_iterations(iter + 1);
+            }
             return Err(derr(WorksheetErrorCode::Num));
+        }
+        if tracing && base < 0.0 {
+            crate::trace::hit(7);
         }
         let (mut pv, mut slope) = (0.0_f64, 0.0_f64);
         for k in 0..p.n {
@@ -622,18 +695,47 @@ pub fn yield_kernel(
         // Excel keeps the finite iterate on the negative-base zero-coupon curve
         // when the price slope reaches the subnormal range (sx1 bond-term row 110).
         if base < 0.0 && rate_ == 0.0 && slope.is_subnormal() {
+            if tracing {
+                crate::trace::hit(8);
+                crate::trace::record_iterations(iter + 1);
+            }
             return Ok(y);
         }
         let step = ((pv - accr) - price) / slope;
         if !step.is_finite() {
+            if tracing {
+                crate::trace::hit(9);
+                crate::trace::record_iterations(iter + 1);
+            }
             return Err(derr(WorksheetErrorCode::Num));
         }
+        if tracing {
+            crate::trace::observe_boundary("yield_step_tol", step.abs(), 1e-10);
+        }
         if step.abs() <= 1e-10 {
+            if tracing {
+                let iters = iter + 1;
+                crate::trace::record_iterations(iters);
+                if iters <= 5 {
+                    crate::trace::hit(10);
+                } else if iters <= 25 {
+                    crate::trace::hit(11);
+                } else {
+                    crate::trace::hit(12);
+                }
+            }
             return Ok(y);
         }
         y -= step;
     }
+    if tracing {
+        crate::trace::record_iterations(100);
+        crate::trace::hit(13);
+    }
     if !y.is_finite() {
+        if tracing {
+            crate::trace::hit(14);
+        }
         return Err(derr(WorksheetErrorCode::Num));
     }
     Ok(y)

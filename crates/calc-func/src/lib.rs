@@ -72,6 +72,7 @@ pub mod locale;
 mod number_text;
 mod number_words;
 mod ported;
+pub mod trace;
 mod value_text;
 
 pub use call::{
