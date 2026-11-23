@@ -1,0 +1,31 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "REGEXEXTRACT",
+  "selection": "dc-zmk.12; 34 Touchstone v2 calls; frozen predictions SHA-256 b93240cfd7f867ec52cb1f3aaa908a8a30f190a893ad722e11e5693393caac2c",
+  "readings": [
+    {"id":"r0","source":"Touchstone v2 request 325b440f7a6b4ee3a11a013d9b758ebb (2026-11-23; env 218a399794f8)","excel_build":"16.0.20527.20196","platform":"Windows","invocation":{"input_transport":"cell_value2_bulk","date_system":"1900","compatibility_version":"2","decimal_separator":".","thousands_separator":" "}},
+    {"id":"r1","source":"Touchstone v2 request 26ba55a6db7243fa832c30d3d97167b5 (2026-11-23; env 218a399794f8)","excel_build":"16.0.20527.20196","platform":"Windows","invocation":{"input_transport":"cell_value2_bulk","date_system":"1900","compatibility_version":"2","decimal_separator":".","thousands_separator":" "}}
+  ],
+  "witnesses": [
+    {"id":"dc-zmk.12-alt-precedence","args":["ab","(a|ab)"],"expected_bits":"text:a","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-alt-backtrack","args":["abc","(a|ab)c"],"expected_bits":"text:abc","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-repeat-plus","args":["abab!","(ab)+"],"expected_bits":"text:abab","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-repeat-lazy","args":["abab!","(ab)+?"],"expected_bits":"text:ab","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-repeat-backtrack","args":["abab!","(ab)+ab"],"expected_bits":"text:abab","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-lookbehind-class","args":["x7x","(?<=\\d)x"],"expected_bits":"text:x","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-lookbehind-negative-hit","args":["idX xyX","(?<!id)X"],"expected_bits":"text:X","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-repeat-last-capture-c1","args":["a1b2!","([a-z][0-9])+","0x4000000000000000"],"expected_bits":"text:b2","reading":"r1","result_index":[1,1],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-capture-no-match-one","args":["none","(id)","0x4000000000000000"],"expected_bits":"error:NA","reading":"r1"},
+    {"id":"dc-zmk.12-capture-no-match-many","args":["none","(id)([0-9])","0x4000000000000000"],"expected_bits":"error:NA","reading":"r1"},
+    {"id":"dc-zmk.12-zero-lookbehind-spill-c1","args":["aaa","(?<=a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,1],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-lookbehind-spill-c2","args":["aaa","(?<=a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,2],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-lookbehind-spill-c3","args":["aaa","(?<=a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,3],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-optional-spill-c1","args":["ba","(a)?","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,1],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-optional-spill-c2","args":["ba","(a)?","0x3ff0000000000000"],"expected_bits":"text:a","reading":"r1","result_index":[1,2],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-optional-spill-c3","args":["ba","(a)?","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,3],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-retry-spill-c1","args":["ab","(|a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,1],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-retry-spill-c2","args":["ab","(|a)","0x3ff0000000000000"],"expected_bits":"text:a","reading":"r1","result_index":[1,2],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-retry-spill-c3","args":["ab","(|a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,3],"calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-retry-spill-c4","args":["ab","(|a)","0x3ff0000000000000"],"expected_bits":"text:","reading":"r1","result_index":[1,4],"calc_func":"fault:NotImplemented"}
+  ]
+}

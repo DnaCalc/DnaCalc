@@ -834,8 +834,7 @@ fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
                 })
                 .collect(),
         )),
-        // No-match capture-group behavior remains unmeasured.
-        (2, []) => Err(site.not_modelled(Some(2))),
+        (2, []) => fail(WorksheetErrorCode::NA),
         _ => fail(WorksheetErrorCode::Value),
     }
 }
