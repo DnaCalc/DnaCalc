@@ -2855,6 +2855,56 @@ fn rate_stores_underflow_before_the_secant_division() {
         Num,
     );
 }
+
+/// Excel 16.0.20527.20150, RATE underflow v3 holdout rows 5, 36, 55 and 80.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_mixed_underflow_returns_num() {
+    for bits in [
+        [0xbff0_0000_0000_0000, 0x804a_f724_4261_2914, 0x8066_789e_3750_f791,
+         0x0066_789e_3750_f791, 0x0000_0000_0000_0000, 0x3fe0_0000_0000_0000],
+        [0x4010_0000_0000_0000, 0x804a_f724_4261_2914, 0x0066_789e_3750_f791,
+         0x0066_789e_3750_f791, 0x3ff0_0000_0000_0000, 0xbfc9_9999_9999_999a],
+        [0xc000_0000_0000_0000, 0x8064_395b_31c8_decf, 0x8080_da76_a97c_b9ad,
+         0x0080_da76_a97c_b9ad, 0x0000_0000_0000_0000, 0x3fe0_0000_0000_0000],
+        [0x3ff0_0000_0000_0000, 0x0031_fa18_2c40_c60e, 0x8066_789e_3750_f791,
+         0x8066_789e_3750_f791, 0x0000_0000_0000_0000, 0x3fe0_0000_0000_0000],
+    ] {
+        error(call("RATE", bits.into_iter().map(|bits| n(f64::from_bits(bits))).collect()), Num);
+    }
+}
+
+/// Excel 16.0.20625.20108 distinguishes the negative slope cutoff from the
+/// positive side and reuses the nudge during the search.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_nudges_at_a_tiny_negative_balance_change() {
+    let zero = 0.0_f64.to_bits();
+    let one = 1.0_f64.to_bits();
+    let negative_guess = (-0.9_f64).to_bits();
+    for (bits, expected) in [
+        ([one, zero, 0x006f_3fff_ffff_ff78, zero, zero, negative_guess], Num),
+        ([one, zero, 0x006f_3fff_ffff_ffb4, zero, zero, negative_guess], Div0),
+        (
+            [one, zero, 0x006f_3800_0000_0000, 0x81a5_6e1f_c2f8_f359, zero, 0.5_f64.to_bits()],
+            Div0,
+        ),
+    ] {
+        error(call("RATE", bits.into_iter().map(|bits| n(f64::from_bits(bits))).collect()), expected);
+    }
+    exact(
+        call("RATE", vec![
+            n(2.0),
+            n(f64::from_bits(0x81a5_dbd8_b783_0cb2)),
+            n(f64::from_bits(0x01a5_6e1f_c2f8_f359)),
+            n(f64::from_bits(0x01ab_70a8_7ea1_3466)),
+            n(0.0),
+            n(-0.5),
+        ]),
+        f64::from_bits(0xbfdf_2e86_7bed_23ab),
+    );
+}
+
 /// Excel20527 adjacent words isolate RATE's three post-budget checks (fix1 batch4 service packets).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

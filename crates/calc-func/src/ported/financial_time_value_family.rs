@@ -432,22 +432,26 @@ fn rate_secant(
     let mut current = excel_x87_add(before, offset);
     let mut value = balance(current)?;
     let mut step = f64::INFINITY;
+    // Excel 20625 treats negative changes with magnitude less than MIN_NORMAL/16
+    // as flat. At the cutoff and on the positive subnormal side, the divisor
+    // still reaches the division's DAZ check. Later-step probes distinguish the
+    // flat-balance nudge from returning NUM as soon as the slope underflows.
+    let flat_change = |change: f64| change > -f64::MIN_POSITIVE / 16.0 && change <= 0.0;
     for _ in 0..200 {
         let mut change = excel_x87_sub(value, value_before);
-        if change == 0.0 {
+        if flat_change(change) {
             // Excel 20625, gx1-RATE-2092 and its neighbours: move the previous
             // rate once in the direction of travel and use that slope on this step.
             let nudge = if current >= before { 0.001 } else { -0.001 };
             before = excel_x87_add(before, nudge);
             value_before = balance(before)?;
             change = excel_x87_sub(value, value_before);
-            if change == 0.0 {
+            if flat_change(change) {
                 // A second flat balance is #NUM! even inside the final 1e-4 tolerance.
                 return Err(FinancialError::Num);
             }
         }
-        // The slope comparison precedes the division's DAZ input stage:
-        // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
+        // The flat-change comparison precedes the division's DAZ input stage.
         let divisor = financial_daz(change);
         if divisor == 0.0 {
             return Err(FinancialError::Div0);
