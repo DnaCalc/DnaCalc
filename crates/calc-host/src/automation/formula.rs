@@ -18,7 +18,7 @@ impl WorkbookAutomation {
         area: GridArea,
         what: &str,
     ) -> Result<Vec<crate::ProjectedCell>, AutoError> {
-        let Access::Session(session) = access else {
+        let Access::Session(session, _) = access else {
             return Err(AutoError::not_modelled(
                 format!("{what} inside a worksheet invocation"),
                 OWNER,
@@ -92,7 +92,7 @@ impl WorkbookAutomation {
             no_args(call)?;
             let area = range.areas()[0];
             let cells = Self::session_cells(access, area, "Range.Text")?;
-            let Access::Session(session) = access else {
+            let Access::Session(session, _) = access else {
                 unreachable!("session_cells refused");
             };
             let host = session.host();

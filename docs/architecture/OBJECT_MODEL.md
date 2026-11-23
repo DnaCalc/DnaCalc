@@ -17,7 +17,7 @@ Four hand-written member tables, none generated, none shared:
 | COM facade for add-ins: Excel IIDs, hand-filled vtables, a `_wcsicmp` DISPID chain, member semantics in C++ (Address, Union, Count, Rows/Columns, Workbook name) | `calc-com-host/src/projection.cpp` | the descriptor (section 3), the Rust COM projection (section 6), member semantics in profiles (section 5) |
 | Office objects (COMAddIns, CommandBars, ribbon) | `calc-com-host/src/projection-office.h` | Office members of the descriptor; semantics in `calc-com-host` (Rust) |
 | RTD client and update sink | `calc-com-host/src/rtd.cpp` | Rust (`windows` crate) in `calc-com-host` |
-| VBA UDF objects (private tokens, DNA IIDs) and VBA event objects (typed slots) | `calc-vba/src/runtime/spreadsheet.rs`, `calc-vba/src/events/` | later, by the CalcVBA session, binding to the same descriptor and profiles (section 8). Not touched tonight |
+| VBA UDF objects (private tokens, DNA IIDs) and VBA event objects (typed slots) | `calc-vba/src/runtime/spreadsheet.rs`, `calc-vba/src/events/` | the descriptor (`excel.json`, `office.json`) and one VBA projection onto `ObjectModel` (`calc-vba`, `calc-host-vba`; section 8, dc-piw0.5) |
 
 What stays: the session's one event source with its observer fan-out (`calc-host/src/events.rs`
 `WorkbookEventObserver`, 9159812c), the one EnableEvents switch, the session reference tracker for Range
@@ -96,9 +96,9 @@ Session access for the workbook profile (calc-host): one trait the desktop imple
   borrowed for the call; busy is a typed refusal, never a deadlock.
 Writes (Range.Value2 put, Calculate) go through the session's Automation ingress in the event and command
 contexts only, as the VBA event route already does; inside a worksheet invocation they are Excel's 1004.
-The command host must implement `AutomationHost::with_session_mut`; its default is a typed refusal.
-The current desktop host supplies only the read callback, so its command writes remain refused until
-that application callback is wired. Event writes use the observer's mutable session loan already.
+The command host implements `AutomationHost::with_session_mut` (its default is a typed refusal for read-only
+hosts). Both the desktop host (`apps/dna-calc-desktop/src/automation.rs`, since dc-km7i) and event loans supply
+mutable session access over the same Automation ingress.
 The hooks must also say which kind of invocation is running (XLL or VBA), because ThisCell differs.
 
 Address formatting, Union geometry, Rows/Columns/Count are one portable module (`calc-object-model`), so the
@@ -156,10 +156,12 @@ Rust test driving the real vtables and IDispatch (Windows), plus the page accept
 
 ## 8. Later routes
 
-- **VBA (CalcVBA session)**: DNA Calc's VBA host gives CalcVBA the descriptor's type information for the
-  "Excel" reference (Excel's IIDs, DISPIDs and slots, so code compiled against Excel binds early), and its
-  host objects call the same profiles. CalcVBA's `ObjectHeader` typed slots carry the descriptor's members.
-  The CalcVBA session owns that change; this note is its requirement.
+- **VBA (CalcVBA session)**: DNA Calc's VBA host (`calc-vba` and `calc-host-vba`, dc-piw0.5) gives CalcVBA
+  the descriptor's type information for the "Excel" and "Office" references (Excel's and Office's real IIDs,
+  DISPIDs and vtable slots, so workbook VBA projects bind early without private member tables), and its
+  service-backed host objects route member calls directly to the same `ObjectModel` profiles
+  (`WorkbookAutomation` in DNA Calc; invocation / `ValuesOnly` in Formula Explorer). CalcVBA itself remains
+  host-neutral.
 - **JavaScript**: Office.js-shaped batches over the same `ObjectModel`, once J1-J5 measure Office.js
   (deferred; harvest 14 section 6).
 
@@ -291,7 +293,8 @@ rows); `a:rPr lang` is `en-US` where the recorded machine wrote `en-ZA`.
 - The COM translator records typed E11 refusals for unsupported SAFEARRAY ranks and element types
   before member dispatch. The supported form remains a 2-D SAFEARRAY(VARIANT); a Windows control
   checks that Value2 puts of other legal forms cannot bypass refusal recording.
-- Command writes need the desktop's mutable session callback; event writes are implemented.
+- Command writes use the desktop's mutable session callback (`with_session_mut`, wired in dc-km7i); event
+  writes use the observer's and VBA event host's scoped session loan.
 - Session WorksheetFunction calls supply numeric mode, environment and reference reads; unavailable
   catalogue services (for example SUBTOTAL exclusion facts) remain typed refusals.
 - Workbook.Names currently supports global names only. A collection containing sheet-local names,

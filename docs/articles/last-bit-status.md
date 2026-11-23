@@ -1,6 +1,6 @@
-# The last bit: beta, Bessel and trigonometry
+# The last bit: numerical family status
 
-The November 22 measurements use recorded Excel answers. Each result below describes a particular witness set. Exact means the returned binary64 bits matched on every row in that set.
+Each result below describes a particular witness set measured against recorded Excel answers. A numeric result is exact when its returned binary64 bits match the recorded bits.
 
 ## Beta distributions
 
@@ -12,7 +12,11 @@ Unifying `PMT` onto one `PC = 64` balance formula, switching `alnrel` to the sha
 
 ## Bessel functions
 
-The large-argument seeds and backward recurrence now retain extended precision at the measured arithmetic steps. BESSELJ went from 3,803 to 4,244 exact matches out of 4,244 and BESSELY from 2,901 to 2,905 out of 2,905. BESSELI remained at 1,365 of 1,365 and BESSELK at 1,236 of 1,236. [Bessel change and tests](https://github.com/DnaCalc/DnaCalc/commit/c3500807)
+The large-argument seeds and backward recurrence now round from extended precision to binary64 at the measured steps. BESSELJ went from 3,803 to 4,244 exact matches out of 4,244 and BESSELY from 2,901 to 2,905 out of 2,905. BESSELI remained at 1,365 of 1,365 and BESSELK at 1,236 of 1,236. The frozen holdout rose from 29 to 240 of 240 exact. [Bessel change and tests](https://github.com/DnaCalc/DnaCalc/commit/c3500807) · [Bessel family article](last-bit-bessel.md)
+
+## LINEST and regression
+
+Staged x87 arithmetic in the QR fit, statistics and prediction loops took LINEST from 3,224 to 3,445 of 3,445 exact and GROWTH from 1,254 to 1,260 of 1,260. Together with LOGEST, TREND, FORECAST and FORECAST.LINEAR, the full witness banks matched all 15,716 rows. The frozen holdout rose from 16 to 250 of 250 exact. [Regression change and tests](https://github.com/DnaCalc/DnaCalc/commit/43853e35) · [LINEST family article](last-bit-linest.md)
 
 ## Circular trigonometry and gamma
 

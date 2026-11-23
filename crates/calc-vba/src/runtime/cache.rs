@@ -137,12 +137,20 @@ type SplitModule = (
     Option<Arc<spreadsheet::SpreadsheetHost>>,
     bool,
 );
-fn split_module(module: Module) -> SplitModule {
-    let spreadsheet = module.spreadsheet.as_ref().map(|_| {
+fn split_module(
+    module: Module,
+    model: Option<std::rc::Rc<dyn calc_object_model::ObjectModel>>,
+    values_only: bool,
+) -> SplitModule {
+    let spreadsheet = module.spreadsheet_objects.then(|| {
+        let external = model.is_some();
+        let resolved: std::rc::Rc<dyn calc_object_model::ObjectModel> = model
+            .unwrap_or_else(|| std::rc::Rc::new(crate::invocation_model::InvocationModel::new(values_only)));
         Arc::new(spreadsheet::SpreadsheetHost::new(
-            module.event_project,
             module.com,
             module.late.clone(),
+            resolved,
+            external,
         ))
     });
     let engine = if let Some(host) = &spreadsheet {
@@ -166,7 +174,13 @@ impl CodeCache {
     pub fn clear(&mut self) {
         self.0.clear();
     }
-    pub fn prepare(&mut self, module: Module, backend: Backend) -> Result<OwnedSession, Error> {
+    pub fn prepare(
+        &mut self,
+        module: Module,
+        backend: Backend,
+        model: Option<std::rc::Rc<dyn calc_object_model::ObjectModel>>,
+        values_only: bool,
+    ) -> Result<OwnedSession, Error> {
         // The dynamic JIT currently drops a native WithEvents binding without
         // calling the host's subscription refusal. Decline that image before
         // initialization or user code; default admission can select the VM.
@@ -182,7 +196,7 @@ impl CodeCache {
                 "dynamic native WithEvents binding requires the interpreter (dc-snz.15)".into(),
             ));
         }
-        let (module, functions, spreadsheet, event_project) = split_module(module);
+        let (module, functions, spreadsheet, event_project) = split_module(module, model, values_only);
         OwnedSession::wrap(
             self.0.prepare(module, backend).map_err(engine_error)?,
             functions,

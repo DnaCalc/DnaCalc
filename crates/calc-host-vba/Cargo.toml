@@ -11,14 +11,15 @@ description = "Shared workbook VBA project and automatic event composition"
 portability = "portable"
 
 [dependencies]
+calc-func = { path = "../calc-func" }
 calc-host = { path = "../calc-host" }
+calc-object-model = { path = "../calc-object-model" }
 calc-vba = { path = "../calc-vba" }
 calc-macro-security = { path = "../calc-macro-security" }
 calc-value = { path = "../calc-value" }
 
 [dev-dependencies]
 calc-doc = { path = "../calc-doc" }
-calc-func = { path = "../calc-func" }
 cfb = "=0.10.0"
 miniz_oxide = "=0.8.9"
 

@@ -40,6 +40,18 @@ const ARTICLES: &[(&str, &str, Section, &str)] = &[
         "How the five PMT and amortization functions reached 100% exact on 308,710 witness rows.",
     ),
     (
+        "last-bit-bessel.md",
+        "/articles/last-bit-bessel/",
+        Section::Evidence,
+        "The rounding of large-argument Bessel approximations and backward recurrence.",
+    ),
+    (
+        "last-bit-linest.md",
+        "/articles/last-bit-linest/",
+        Section::Evidence,
+        "The rounding and summation order behind Excel's regression and prediction results.",
+    ),
+    (
         "last-bit-number-text.md",
         NUMBER_TEXT_ROUTE,
         Section::Evidence,
@@ -49,7 +61,7 @@ const ARTICLES: &[(&str, &str, Section, &str)] = &[
         "last-bit-status.md",
         "/articles/last-bit-status/",
         Section::Evidence,
-        "November 22 witness results for beta, Bessel, circular trigonometry and gamma.",
+        "Witness results for the numerical families covered in the last-bit articles.",
     ),
     (
         "calcvba-variant.md",

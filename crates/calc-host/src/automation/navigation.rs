@@ -444,7 +444,7 @@ impl WorkbookAutomation {
                 ));
             }
             let result = match &access {
-                Access::Session(session) => {
+                Access::Session(session, _) => {
                     session.host().resolve_reference_text(at, &definition.name)
                 }
                 _ => crate::resolve_reference_text(&meta.model, at, &definition.name),

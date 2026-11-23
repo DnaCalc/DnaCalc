@@ -66,14 +66,14 @@ scoped_tls_hkt::scoped_thread_local!(static EVENT_SESSION: for<'a> (
 ));
 
 trait EventSession {
-    fn read(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply;
+    fn read(&self, call: &mut dyn FnMut(&HostSession, bool) -> Reply) -> Reply;
     fn write(&self, call: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply;
 }
-struct EventLoan<'a>(RefCell<&'a mut HostSession>);
+struct EventLoan<'a>(RefCell<&'a mut HostSession>, bool);
 impl EventSession for EventLoan<'_> {
-    fn read(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply {
+    fn read(&self, call: &mut dyn FnMut(&HostSession, bool) -> Reply) -> Reply {
         let session = self.0.try_borrow().map_err(|_| busy())?;
-        call(&session)
+        call(&session, self.1)
     }
     fn write(&self, call: &mut dyn FnMut(&mut HostSession) -> Reply) -> Reply {
         let mut session = self.0.try_borrow_mut().map_err(|_| busy())?;
@@ -89,6 +89,7 @@ struct Snapshot {
     active: Option<CellKey>,
     enabled: Rc<Cell<bool>>,
     workbook: u64,
+    from_session: bool,
 }
 
 /// Construct once per application. `observer` attaches the session's existing event source;
@@ -111,7 +112,7 @@ struct RangeLeases {
 
 enum Access<'a> {
     Invocation(&'a mut dyn UserFunctionContext),
-    Session(&'a HostSession),
+    Session(&'a HostSession, bool),
 }
 
 impl WorkbookAutomation {
@@ -133,9 +134,36 @@ impl WorkbookAutomation {
         );
         handlers.on(
             "Application",
+            "ThisWorkbook",
+            InvokeKind::Get,
+            Self::current_book,
+        );
+        handlers.on(
+            "Application",
             "ActiveSheet",
             InvokeKind::Get,
             Self::get_active_sheet,
+        );
+        handlers.on(
+            "Application",
+            "Worksheets",
+            InvokeKind::Get,
+            Self::app_sheets,
+        );
+        handlers.on("Application", "Sheets", InvokeKind::Get, Self::app_sheets);
+        handlers.on("Application", "Names", InvokeKind::Get, Self::app_names);
+        handlers.on("Application", "Cells", InvokeKind::Get, Self::app_cells);
+        handlers.on(
+            "Application",
+            "Selection",
+            InvokeKind::Get,
+            Self::app_selection,
+        );
+        handlers.on(
+            "Application",
+            "Volatile",
+            InvokeKind::Method,
+            Self::app_volatile,
         );
         handlers.on("Application", "Workbooks", InvokeKind::Get, Self::delegate);
         handlers.on("Application", "EnableEvents", InvokeKind::Get, Self::events);
@@ -237,7 +265,7 @@ impl WorkbookAutomation {
                             )
                         })
                     }
-                    Access::Session(session) => {
+                    Access::Session(session, strict) => {
                         let target = calc_func::catalogue()
                             .resolve_surface(calc_func::Notation::Call, name)
                             .map_err(|_| AutoError::not_modelled(call.label(), "dc-1nbp.5"))?;
@@ -255,7 +283,7 @@ impl WorkbookAutomation {
                                                 "dc-1nbp.6",
                                             ));
                                         }
-                                        return read_session(session, r.areas()[0]);
+                                        return read_session(session, r.areas()[0], *strict);
                                     }
                                 }
                                 Ok(v.clone())
@@ -263,7 +291,7 @@ impl WorkbookAutomation {
                             .collect::<Result<Vec<_>, _>>()?;
                         let environment = session.host().entry_environment();
                         let numeric = session.host().recalc_context().numeric;
-                        let mut reader = SessionCells(session);
+                        let mut reader = SessionCells(session, *strict);
                         let mut services =
                             calc_func::EvalServices::with_cells(&numeric, &mut reader)
                                 .with_environment(&environment);
@@ -279,20 +307,124 @@ impl WorkbookAutomation {
             events,
         })
     }
-    pub fn context_changed(&self, session: &HostSession) {
-        let enabled = session.workbook_events_switch();
+    /// Lend `session` synchronously for a VBA document event callback. When
+    /// `strict_file_provenance` is true (file projects, dc-snz.15), reading a cached
+    /// or uncertified cell refuses explicitly so VBA `On Error` cannot hide it.
+    pub fn with_event_session<T>(
+        self: &Rc<Self>,
+        session: &mut HostSession,
+        strict_file_provenance: bool,
+        call: impl FnOnce() -> T,
+    ) -> T {
+        self.context_changed(session);
+        let loan = EventLoan(RefCell::new(session), strict_file_provenance);
+        EVENT_SESSION.set((&**self, &loan), call)
+    }
+    /// The workbook object identity for the current snapshot.
+    pub fn workbook_object(&self) -> Result<ObjectRef, AutoError> {
+        let meta = self.metadata()?;
+        Ok(object("Workbook", ObjectKey::Workbook(meta.workbook)))
+    }
+    /// The worksheet object identity for `sheet` in the current snapshot.
+    pub fn worksheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
+        let meta = self.metadata()?;
+        sheet_name(&meta, sheet)?;
+        Ok(object(
+            "Worksheet",
+            ObjectKey::Worksheet {
+                workbook: meta.workbook,
+                sheet,
+            },
+        ))
+    }
+    /// Acquire a tracked Range identity for an event Target on `session`.
+    pub fn acquire_event_range(
+        &self,
+        session: &HostSession,
+        reference: &ReferenceLike,
+    ) -> Result<ObjectRef, AutoError> {
+        self.context_changed(session);
+        match self.acquire(
+            &mut Access::Session(session, false),
+            reference,
+            RangeAxis::Cells,
+        )? {
+            AutoValue::Object(obj) => Ok(obj),
+            _ => unreachable!("acquire always returns an Object"),
+        }
+    }
+    /// Seed snapshot metadata from a `HostState` before a `HostSession` installs the handler.
+    pub fn context_changed_from_host(&self, host: &crate::HostState, full_name: &str) {
         let previous = self.snapshot.borrow().clone();
-        let workbook = match previous.as_ref() {
-            Some(old) if Rc::ptr_eq(&old.enabled, &enabled) => old.workbook,
-            _ => {
-                if let Some(old) = previous {
-                    enabled.set(old.enabled.get());
-                }
+        let (workbook, enabled) = match previous.as_ref() {
+            Some(old) => (old.workbook, old.enabled.clone()),
+            None => {
                 let id = self.next_workbook.get();
                 self.next_workbook
                     .set(id.checked_add(1).expect("workbook identity exhausted"));
-                id
+                (id, Rc::new(Cell::new(true)))
             }
+        };
+        let active = host
+            .loaded()
+            .active_sheet()
+            .or_else(|| host.sheets().first().map(|s| s.id()))
+            .and_then(|sheet| CellKey::new(sheet, 1, 1).ok());
+        *self.snapshot.borrow_mut() = Some(Rc::new(Snapshot {
+            model: host.model().clone(),
+            formats: value::Formats::new(host),
+            references: host.reference_view(),
+            full_name: full_name.to_owned(),
+            active,
+            enabled,
+            workbook,
+            from_session: false,
+        }));
+    }
+    /// Update the workbook's file identity (e.g. Save As) without replacing workbook identity.
+    pub fn set_full_name(&self, full_name: &str) {
+        let previous = self.snapshot.borrow().clone();
+        if let Some(old) = previous {
+            *self.snapshot.borrow_mut() = Some(Rc::new(Snapshot {
+                model: old.model.clone(),
+                formats: old.formats.clone(),
+                references: old.references.clone(),
+                full_name: full_name.to_owned(),
+                active: old.active,
+                enabled: old.enabled.clone(),
+                workbook: old.workbook,
+                from_session: old.from_session,
+            }));
+        }
+    }
+    pub fn context_changed(&self, session: &HostSession) {
+        let enabled = session.workbook_events_switch();
+        let previous = self.snapshot.borrow().clone();
+        let same_workbook = matches!(
+            previous.as_ref(),
+            Some(old) if Rc::ptr_eq(&old.enabled, &enabled) || !old.from_session
+        );
+        let workbook = if same_workbook {
+            previous.as_ref().expect("previous snapshot").workbook
+        } else {
+            if let Some(old) = previous.as_ref() {
+                enabled.set(old.enabled.get());
+            }
+            let id = self.next_workbook.get();
+            self.next_workbook
+                .set(id.checked_add(1).expect("workbook identity exhausted"));
+            id
+        };
+        let session_name = session.file_full_name();
+        let full_name = if !session_name.is_empty() {
+            session_name.to_owned()
+        } else if same_workbook {
+            previous
+                .as_ref()
+                .map(|old| old.full_name.clone())
+                .unwrap_or_default()
+        } else {
+            String::new()
         };
         let active = session.selection().active.or_else(|| {
             let sheet = session
@@ -306,10 +438,11 @@ impl WorkbookAutomation {
             model: session.host().model().clone(),
             formats: value::Formats::new(session.host()),
             references: session.host().reference_view(),
-            full_name: session.file_full_name().to_owned(),
+            full_name,
             active,
             enabled,
             workbook,
+            from_session: true,
         }));
         self.host.context_changed(session);
     }
@@ -339,9 +472,9 @@ impl WorkbookAutomation {
                 if !std::ptr::eq(model, self) {
                     return None;
                 }
-                let status = loan.read(&mut |session| {
+                let status = loan.read(&mut |session, strict| {
                     self.context_changed(session);
-                    value = Some(call(Access::Session(session)));
+                    value = Some(call(Access::Session(session, strict)));
                     Ok(AutoValue::Empty)
                 });
                 Some(status.and_then(|_| value.take().expect("event callback called once")))
@@ -352,7 +485,7 @@ impl WorkbookAutomation {
         }
         let status = self.host.with_session(&mut |session| {
             self.context_changed(session);
-            value = Some(call(Access::Session(session)));
+            value = Some(call(Access::Session(session, false)));
             Ok(AutoValue::Empty)
         });
         status?;
@@ -387,7 +520,7 @@ impl WorkbookAutomation {
     ) -> Result<ReferenceLike, AutoError> {
         let result = match access {
             Access::Invocation(context) => context.resolve_reference(reference),
-            Access::Session(session) => session.host().reference_view().resolve(reference),
+            Access::Session(session, _) => session.host().reference_view().resolve(reference),
         };
         result.map_err(|e| match e {
             ReferenceHandleError::Deleted => AutoError::excel(424, "Object required"),
@@ -397,7 +530,7 @@ impl WorkbookAutomation {
     fn acquire(&self, access: &mut Access<'_>, range: &ReferenceLike, axis: RangeAxis) -> Reply {
         let reference = match access {
             Access::Invocation(context) => context.retain_reference(range),
-            Access::Session(session) => session.host().reference_view().retain(range),
+            Access::Session(session, _) => session.host().reference_view().retain(range),
         }
         .map_err(|e| AutoError::not_modelled(format!("Range reference {e}"), OWNER))?;
         let references = self.metadata()?.references.clone();
@@ -469,7 +602,7 @@ impl WorkbookAutomation {
                         )
                     })?;
                 let target = match access {
-                    Access::Session(session) => session.host().resolve_reference_text(at, &text),
+                    Access::Session(session, _) => session.host().resolve_reference_text(at, &text),
                     _ => crate::resolve_reference_text(&meta.model, at, &text),
                 };
                 match target {
@@ -605,6 +738,75 @@ impl WorkbookAutomation {
         self.with_target(target, |access, meta| {
             no_args(call)?;
             self.active_sheet(access, meta)
+        })
+    }
+    fn app_sheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Object(object(
+                "Sheets",
+                ObjectKey::Sheets(meta.workbook),
+            )))
+        })
+    }
+    fn app_names(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Object(object(
+                "Names",
+                ObjectKey::Names(meta.workbook),
+            )))
+        })
+    }
+    fn app_cells(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |access, meta| {
+            no_args(call)?;
+            let sheet = match access {
+                Access::Invocation(context) => context
+                    .user_view()
+                    .map(|v| v.active_sheet)
+                    .or_else(|| meta.active.map(|at| at.sheet())),
+                _ => meta.active.map(|at| at.sheet()),
+            }
+            .ok_or_else(|| {
+                AutoError::not_modelled("_Application.Cells without an active worksheet", OWNER)
+            })?;
+            sheet_name(meta, sheet)?;
+            self.acquire(
+                access,
+                &ReferenceLike::area(GridArea::full_sheet(sheet)),
+                RangeAxis::Cells,
+            )
+        })
+    }
+    fn app_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |access, meta| {
+            no_args(call)?;
+            let at = match access {
+                Access::Invocation(context) => context.user_view().map(|v| v.selection),
+                _ => meta.active,
+            }
+            .ok_or_else(|| {
+                AutoError::not_modelled("_Application.Selection without a user view", OWNER)
+            })?;
+            sheet_name(meta, at.sheet())?;
+            self.acquire(access, &ReferenceLike::cell(at), RangeAxis::Cells)
+        })
+    }
+    fn app_volatile(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |access, _| {
+            if call.args.len() > 1 {
+                return Err(geometry::bad_count());
+            }
+            let enabled = if call.arg(0).is_missing() {
+                true
+            } else {
+                geometry::boolean(call.arg(0))?
+            };
+            if let Access::Invocation(context) = access {
+                context.set_volatile(enabled);
+            }
+            Ok(AutoValue::Empty)
         })
     }
     fn events(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -811,7 +1013,7 @@ impl WorkbookAutomation {
                     .map_err(|why| {
                         AutoError::not_modelled(format!("Range.Value read: {why}"), OWNER)
                     })?,
-                Access::Session(session) => read_session(session, area)?,
+                Access::Session(session, strict) => read_session(session, area, *strict)?,
             };
         let cells = value
             .as_array()
@@ -955,7 +1157,11 @@ impl WorkbookEventObserver for AutomationObserver {
         let meta = self.model.metadata().map_err(|e| e.description())?;
         let value = self
             .model
-            .acquire(&mut Access::Session(session), &reference, RangeAxis::Cells)
+            .acquire(
+                &mut Access::Session(session, false),
+                &reference,
+                RangeAxis::Cells,
+            )
             .map_err(|e| e.description())?;
         let args = [
             AutoValue::Object(object(
@@ -967,7 +1173,7 @@ impl WorkbookEventObserver for AutomationObserver {
             )),
             value,
         ];
-        let loan = EventLoan(RefCell::new(session));
+        let loan = EventLoan(RefCell::new(session), false);
         let result = EVENT_SESSION.set((&*self.model, &loan), || {
             self.events
                 .raise(&self.model.application(), "AppEvents", "SheetChange", &args)
@@ -984,7 +1190,7 @@ impl WorkbookEventObserver for AutomationObserver {
                 sheet,
             },
         ))];
-        let loan = EventLoan(RefCell::new(session));
+        let loan = EventLoan(RefCell::new(session), false);
         EVENT_SESSION
             .set((&*self.model, &loan), || {
                 self.events.raise(
@@ -998,7 +1204,7 @@ impl WorkbookEventObserver for AutomationObserver {
     }
     fn after_calculate(&self, session: &mut HostSession) -> Result<(), String> {
         self.model.context_changed(session);
-        let loan = EventLoan(RefCell::new(session));
+        let loan = EventLoan(RefCell::new(session), false);
         EVENT_SESSION
             .set((&*self.model, &loan), || {
                 self.events.raise(
@@ -1056,7 +1262,30 @@ fn auto_value(value: &CalcValue) -> Reply {
         _ => return Err(AutoError::not_modelled("Range.Value cell kind", OWNER)),
     })
 }
-fn read_session(session: &HostSession, area: GridArea) -> Result<CalcValue, AutoError> {
+// A copied event value outlives its read in mutable VBA state. Until that state
+// carries observation provenance, file projects cannot erase these qualifications.
+fn event_input_needs_provenance(value: &ProjectedValue) -> bool {
+    match value {
+        ProjectedValue::FileCached(_) | ProjectedValue::Stale(_) => true,
+        ProjectedValue::Calculated { calculation, .. } => {
+            calculation.reads_external_links()
+                || calculation.held_by_circular_rule()
+                || calculation.stamp().is_none_or(|stamp| {
+                    stamp.reads.uses_imported_cache
+                        || stamp.reads.uses_boundary_cache
+                        || stamp.reads.legacy_boundary
+                        || !stamp.reads.observations.is_empty()
+                })
+        }
+        _ => false,
+    }
+}
+
+fn read_session(
+    session: &HostSession,
+    area: GridArea,
+    strict_provenance: bool,
+) -> Result<CalcValue, AutoError> {
     if area.cell_count() > 1_048_576 {
         return Err(AutoError::not_modelled(
             "Automation range materialization limit",
@@ -1075,6 +1304,12 @@ fn read_session(session: &HostSession, area: GridArea) -> Result<CalcValue, Auto
         .cells()
         .iter()
         .map(|cell| match cell.value() {
+            value if strict_provenance && event_input_needs_provenance(value) => Err(
+                AutoError::not_modelled(
+                    "File-project event reads with cached or uncertified provenance",
+                    "dc-snz.15",
+                ),
+            ),
             ProjectedValue::Empty => Ok(CalcValue::empty()),
             ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => {
                 Ok(v.clone())
@@ -1107,14 +1342,14 @@ fn read_session(session: &HostSession, area: GridArea) -> Result<CalcValue, Auto
     .ok_or_else(|| AutoError::not_modelled("Range.Value array shape", OWNER))
 }
 
-struct SessionCells<'a>(&'a HostSession);
+struct SessionCells<'a>(&'a HostSession, bool);
 impl calc_func::CellReader for SessionCells<'_> {
     fn read_area(
         &mut self,
         area: GridArea,
         visit: &mut dyn FnMut(CellKey, &CalcValue) -> std::ops::ControlFlow<()>,
     ) -> Result<(), calc_func::Unreadable> {
-        let value = read_session(self.0, area).map_err(|_| calc_func::Unreadable)?;
+        let value = read_session(self.0, area, self.1).map_err(|_| calc_func::Unreadable)?;
         if let Some(array) = value.as_array() {
             for (index, value) in array.iter_row_major().enumerate() {
                 let at = CellKey::new(

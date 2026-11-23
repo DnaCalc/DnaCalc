@@ -1138,16 +1138,16 @@
     },
     "power-negation/module/interpreter": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/interpreter"
     },
     "power-negation/module/jit": {
       "loaded": true,
-      "matched": 0,
-      "mismatched": 1,
+      "matched": 1,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "module/jit"

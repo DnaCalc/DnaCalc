@@ -1,13 +1,16 @@
 //! Shared application composition of CalcHost and CalcVBA. One project session owns
-//! worksheet functions and automatic document events, including projects read from files.
+//! worksheet functions and automatic document events, including projects read from files,
+//! and routes every Excel/Office member call to `calc_host::automation::WorkbookAutomation`
+//! (docs/architecture/OBJECT_MODEL.md section 8, dc-piw0.5).
 use calc_host::{
-    BeforeSaveOutcome, HostState, ProjectedValue, ProjectionRequest, SaveOperation,
-    WorkbookEventHandler, project,
+    BeforeSaveOutcome, HostState, SaveOperation, WorkbookEventHandler,
+    automation::{AutomationHost, WorkbookAutomation},
 };
-use calc_value::{ArrayShape, CalcArray, CalcValue, GridArea, ReferenceLike, SheetId};
-use calc_vba::events::{EventReadContext, EventSource, LoadedProject, ModuleKind, ProjectModule};
+use calc_object_model::{AutoError, AutoValue, profile::ApplicationHost};
+use calc_value::{GridArea, ReferenceLike, SheetId};
+use calc_vba::events::{EventSource, LoadedProject, ModuleKind, ProjectModule};
 use std::{
-    cell::RefCell,
+    cell::Cell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
@@ -17,6 +20,7 @@ pub use trust::{FileOrigin, GrantReason, MacroBlock, ProjectGrant};
 
 pub struct WorkbookEvents {
     project: LoadedProject,
+    automation: Rc<WorkbookAutomation>,
     sheets: BTreeMap<SheetId, EventSource>,
     book: Option<EventSource>,
     max_steps: u64,
@@ -25,6 +29,52 @@ pub struct WorkbookEvents {
     /// Why a file's project runs; `None` for source modules a person loaded.
     grant: Option<ProjectGrant>,
 }
+
+struct VbaAutomationHost {
+    events_enabled: Cell<bool>,
+}
+
+impl VbaAutomationHost {
+    fn new() -> Self {
+        Self {
+            events_enabled: Cell::new(true),
+        }
+    }
+}
+
+impl ApplicationHost for VbaAutomationHost {
+    fn hwnd(&self) -> isize {
+        0
+    }
+    fn run(&self, _: &str, _: &[AutoValue]) -> Result<AutoValue, AutoError> {
+        Err(AutoError::not_modelled("_Application.Run", "dc-piw0.5"))
+    }
+    fn events_enabled(&self) -> bool {
+        self.events_enabled.get()
+    }
+    fn set_events_enabled(&self, enabled: bool) {
+        self.events_enabled.set(enabled);
+    }
+}
+
+impl AutomationHost for VbaAutomationHost {
+    fn with_invocation(
+        &self,
+        call: &mut dyn FnMut(&mut dyn calc_func::UserFunctionContext) -> Result<AutoValue, AutoError>,
+    ) -> Option<Result<AutoValue, AutoError>> {
+        calc_vba::with_active_invocation(call)
+    }
+    fn with_session(
+        &self,
+        _call: &mut dyn FnMut(&calc_host::HostSession) -> Result<AutoValue, AutoError>,
+    ) -> Result<AutoValue, AutoError> {
+        Err(AutoError::not_modelled(
+            "Automation session outside a workbook event or worksheet invocation",
+            "dc-piw0.5",
+        ))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModuleTarget {
     Standard,
@@ -289,6 +339,9 @@ fn prepare_project(
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
+    // One WorkbookAutomation instance owns every Excel/Office member call for this project.
+    let automation = Rc::new(WorkbookAutomation::new(Rc::new(VbaAutomationHost::new())));
+    automation.context_changed_from_host(host, name);
     // The grant's policy wraps every host built for this load (CalcVBA's PolicyHost); a stricter
     // policy the thread already holds (Guarded) stays, and the thread's earlier policy is put back
     // after the load.
@@ -300,7 +353,7 @@ fn prepare_project(
         })
     });
     let loaded = if file_project {
-        calc_vba::events::load_file_project_with(
+        calc_vba::events::load_file_project_with_model(
             &modules,
             references,
             max_steps,
@@ -310,13 +363,21 @@ fn prepare_project(
             } else {
                 calc_vba::events::DocumentEvents::None
             },
+            automation.clone(),
         )
     } else {
-        calc_vba::events::load_project(&modules, max_steps, backend)
+        calc_vba::events::load_project_with_model(
+            &modules,
+            references,
+            max_steps,
+            backend,
+            automation.clone(),
+        )
     };
     let project = loaded?;
     let mut owner = WorkbookEvents {
         project,
+        automation: automation.clone(),
         sheets: BTreeMap::new(),
         book: None,
         max_steps,
@@ -327,295 +388,36 @@ fn prepare_project(
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.
     for (module, sheet) in documents {
-        let name = host
-            .model()
-            .sheet_by_id(sheet)
-            .expect("validated worksheet")
-            .name()
-            .text()
-            .to_string_lossy();
-        let source = EventSource::worksheet(&name);
+        let obj = automation
+            .worksheet_object(sheet)
+            .map_err(|e| e.description())?;
+        let source = EventSource::for_object(automation.clone(), obj)?;
         owner.project.attach_document(&module, &source)?;
         owner.sheets.insert(sheet, source);
     }
     for module in modules.iter().filter(|m| m.kind == ModuleKind::Workbook) {
-        let source = EventSource::workbook(name);
+        let obj = automation.workbook_object().map_err(|e| e.description())?;
+        let source = EventSource::for_object(automation.clone(), obj)?;
         owner.project.attach_document(&module.name, &source)?;
         owner.book = Some(source);
     }
     Ok(Rc::new(owner))
 }
 
-// A copied event value outlives its read in mutable VBA state. Until that state
-// carries observation provenance, file projects cannot erase these qualifications.
-fn event_input_needs_provenance(value: &ProjectedValue) -> bool {
-    match value {
-        ProjectedValue::FileCached(_) | ProjectedValue::Stale(_) => true,
-        ProjectedValue::Calculated { calculation, .. } => {
-            calculation.reads_external_links()
-                || calculation.held_by_circular_rule()
-                || calculation.stamp().is_none_or(|stamp| {
-                    stamp.reads.uses_imported_cache
-                        || stamp.reads.uses_boundary_cache
-                        || stamp.reads.legacy_boundary
-                        || !stamp.reads.observations.is_empty()
-                })
-        }
-        _ => false,
-    }
-}
-
-struct Read<'a>(&'a HostState, bool);
-impl EventReadContext for Read<'_> {
-    fn read_reference(&self, reference: &ReferenceLike) -> Result<CalcValue, String> {
-        if reference.area_count() != 1 {
-            return Err("Value2 of a multi-area event Target is not modelled".into());
-        }
-        let area = reference.areas()[0];
-        if area.cell_count() > 1_048_576 {
-            return Err("Event Range.Value2 exceeds its materialization limit".into());
-        }
-        let mut cells = Vec::with_capacity(area.cell_count() as usize);
-        for row in area.first().row()..=area.last().row() {
-            for column in area.first().column()..=area.last().column() {
-                cells.push(
-                    calc_value::CellKey::new(area.sheet(), row, column)
-                        .map_err(|e| e.to_string())?,
-                );
-            }
-        }
-        let page = project(self.0, &ProjectionRequest { cells }).map_err(|e| e.to_string())?;
-        let values = page
-            .cells()
-            .iter()
-            .map(|cell| match cell.value() {
-                value if self.1 && event_input_needs_provenance(value) => Err(
-                    "File-project event reads with cached or uncertified provenance are not modelled (dc-snz.15)".into(),
-                ),
-                ProjectedValue::Literal(value) | ProjectedValue::Calculated { value, .. } => {
-                    Ok(value.clone())
-                }
-                ProjectedValue::FileCached(cache) => Ok(cache.value().to_value()),
-                ProjectedValue::Stale(stale) => Ok(stale
-                    .last_value()
-                    .cloned()
-                    .or_else(|| stale.file_cache().map(|cache| cache.value().to_value()))
-                    .unwrap_or_else(CalcValue::empty)),
-                ProjectedValue::Empty => Ok(CalcValue::empty()),
-                ProjectedValue::NotModeled { .. } => {
-                    Err("A VBA event read an unmodelled formula result".into())
-                }
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        if values.len() == 1 {
-            return Ok(values[0].clone());
-        }
-        CalcArray::new(
-            ArrayShape {
-                rows: area.row_count() as usize,
-                cols: area.column_count() as usize,
-            },
-            values,
-        )
-        .map(CalcValue::array)
-        .ok_or_else(|| "Invalid event Range.Value2 array shape".into())
-    }
-}
-
-/// One synchronous loan of the authoritative session. A host operation releases
-/// every read borrow before dispatch, and a nested event receives a fresh reborrow
-/// of this same session. No queued edits, session pointers or copied workbook owner.
-struct Application<'a> {
-    session: RefCell<&'a mut calc_host::HostSession>,
-    file_project: bool,
-}
-impl EventReadContext for Application<'_> {
-    fn read_reference(&self, reference: &ReferenceLike) -> Result<CalcValue, String> {
-        let session = self.session.borrow();
-        Read(session.host(), self.file_project).read_reference(reference)
-    }
-    fn resolve_reference(&self, text: &str) -> Result<ReferenceLike, String> {
-        let session = self.session.borrow();
-        let host = session.host();
-        let sheet = session
-            .selection()
-            .active
-            .map(|at| at.sheet())
-            .or_else(|| host.loaded().active_sheet())
-            .filter(|sheet| host.model().sheet_by_id(*sheet).is_some())
-            .ok_or("Range lookup has no active worksheet (dc-hsa5.12)")?;
-        let origin = calc_value::CellKey::new(sheet, 1, 1).map_err(|e| e.to_string())?;
-        match host.resolve_reference_text(origin, text) {
-            calc_host::ReferenceTarget::Area(area) => Ok(ReferenceLike::area(area)),
-            _ => Err(
-                "application Range lookup outside a single local area is not modelled (dc-hsa5.12)"
-                    .into(),
-            ),
-        }
-    }
-    fn write_reference(&self, reference: &ReferenceLike, value: CalcValue) -> Result<(), String> {
-        if reference.area_count() != 1 {
-            return Err("multi-area Range.Value2 writes are not modelled (dc-hsa5.12)".into());
-        }
-        let area = reference.areas()[0];
-        if area.cell_count() > 1_048_576 {
-            return Err("Range.Value2 write exceeds its materialization limit (dc-hsa5.12)".into());
-        }
-        let array = value.as_array();
-        if let Some(array) = array
-            && (array.shape().rows != area.row_count() as usize
-                || array.shape().cols != area.column_count() as usize)
-        {
-            return Err(
-                "Range.Value2 array/target shape differences are not modelled (dc-hsa5.12)".into(),
-            );
-        }
-        // Validate every element before dispatch. One Automation edit owns the
-        // complete rectangle, its calculation and its nested Change event.
-        let scalar = array.is_none().then(|| value_input(&value)).transpose()?;
-        let edits = if scalar == Some(None) {
-            vec![calc_host::CellEdit::Clear { area }]
-        } else {
-            let mut edits = Vec::with_capacity(area.cell_count() as usize);
-            for row in 0..area.row_count() {
-                for column in 0..area.column_count() {
-                    let input = if let Some(array) = array {
-                        value_input(
-                            array
-                                .get(row as usize, column as usize)
-                                .expect("validated rectangle"),
-                        )?
-                    } else {
-                        scalar.as_ref().expect("scalar input").clone()
-                    };
-                    let at = calc_value::CellKey::new(
-                        area.sheet(),
-                        area.first().row() + row,
-                        area.first().column() + column,
-                    )
-                    .map_err(|e| e.to_string())?;
-                    edits.push(match input {
-                        Some(input) => calc_host::CellEdit::Set { at, input },
-                        None => calc_host::CellEdit::Clear {
-                            area: GridArea::cell(at),
-                        },
-                    });
-                }
-            }
-            edits
-        };
-        let receipt = self.session.borrow_mut().dispatch_from(
-            calc_host::CommandIngress::Automation,
-            calc_host::SkinIntent::Edit { edits },
-        );
-        match receipt.recalc {
-            Some(calc_host::HostProgress::Failed(error)) => {
-                return Err(format!(
-                    "calculation after a macro write failed: {error:?} (dc-hsa5.12)"
-                ));
-            }
-            Some(calc_host::HostProgress::Waiting { .. }) => {
-                return Err(
-                    "calculation after a macro write is waiting for a provider (dc-hsa5.12)".into(),
-                );
-            }
-            Some(calc_host::HostProgress::Cancelled) => {
-                return Err("calculation after a macro write was cancelled (dc-hsa5.12)".into());
-            }
-            _ => {}
-        }
-        if self.session.borrow().has_unfinished_calculation() {
-            return Err("calculation after a macro write is unfinished (dc-hsa5.12)".into());
-        }
-        match receipt.error {
-            Some(error) => Err(error.to_string()),
-            None => Ok(()),
-        }
-    }
-    fn calculate(&self, command: calc_vba::events::CalculationCommand) -> Result<(), String> {
-        use calc_host::{CalcScope, EvalSelection, SkinIntent};
-        use calc_vba::events::CalculationCommand as C;
-        let intent = match command {
-            C::Dirty => SkinIntent::Recalculate,
-            C::Full => SkinIntent::Calculate {
-                scope: CalcScope::Workbook,
-                selection: EvalSelection::ForceAll,
-            },
-            C::Rebuild => SkinIntent::Rebuild,
-            C::Range(reference) => SkinIntent::CalculateRange {
-                areas: reference.areas().to_vec(),
-            },
-        };
-        let mut session = self.session.borrow_mut();
-        let receipt = session.dispatch_from(calc_host::CommandIngress::Automation, intent);
-        if let Some(error) = receipt.error {
-            return Err(error.to_string());
-        }
-        let mut progress = receipt.recalc;
-        loop {
-            match progress {
-                Some(calc_host::HostProgress::Failed(error)) => return Err(format!("macro calculation failed: {error:?} (dc-hsa5.12)")),
-                Some(calc_host::HostProgress::Waiting { .. }) => return Err("a synchronous macro calculation waiting for a provider is not modelled (dc-hsa5.12)".into()),
-                Some(calc_host::HostProgress::Cancelled) => return Err("macro calculation was cancelled (dc-hsa5.12)".into()),
-                _ => {},
-            }
-            if !session.has_pending_calculation() {
-                return if session.has_unfinished_calculation() {
-                    Err(
-                        "a synchronous macro calculation has unfinished provider work (dc-hsa5.12)"
-                            .into(),
-                    )
-                } else {
-                    Ok(())
-                };
-            }
-            progress = Some(session.advance_calculation());
-        }
-    }
-    fn events_enabled(&self) -> Result<bool, String> {
-        Ok(self.session.borrow().workbook_events_enabled())
-    }
-    fn set_events_enabled(&self, enabled: bool) -> Result<(), String> {
-        self.session
-            .borrow_mut()
-            .set_workbook_events_enabled(enabled);
-        Ok(())
-    }
-}
-fn value_input(value: &CalcValue) -> Result<Option<calc_host::CellInput>, String> {
-    use calc_host::{CellInput, CellText, FiniteNumber};
-    use calc_value::CoreRef;
-    Ok(Some(match value.core_ref() {
-        CoreRef::Empty => return Ok(None),
-        CoreRef::Number(n) => CellInput::Number(
-            FiniteNumber::new(n)
-                .ok_or("nonfinite Range.Value2 write is not modelled (dc-hsa5.12)")?,
-        ),
-        CoreRef::Text(t) => CellInput::Text(
-            CellText::new(t.clone())
-                .ok_or("Range.Value2 text exceeds the cell limit (dc-hsa5.12)")?,
-        ),
-        CoreRef::Logical(b) => CellInput::Logical(b),
-        CoreRef::Error(e) => CellInput::Error(e),
-        _ => return Err("a nonscalar Range.Value2 element is not modelled (dc-hsa5.12)".into()),
-    }))
-}
 impl WorkbookEventHandler for WorkbookEvents {
+    fn context_changed(&self, session: &calc_host::HostSession) {
+        self.automation.context_changed(session);
+    }
     fn file_identity_changed(&self, name: &str) {
-        if let Some(source) = &self.book {
-            source.set_name(name);
-        }
+        self.automation.set_full_name(name);
     }
     fn workbook_open(&self, session: &mut calc_host::HostSession) -> Result<(), String> {
         self.require_automatic_events()?;
         if let Some(source) = &self.book {
-            source.open(
-                &Application {
-                    session: RefCell::new(session),
-                    file_project: self.file_project,
-                },
-                self.max_steps,
-            )?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    source.open_model(self.max_steps)
+                })?;
         }
         Ok(())
     }
@@ -627,14 +429,16 @@ impl WorkbookEventHandler for WorkbookEvents {
     ) -> Result<(), String> {
         self.require_automatic_events()?;
         if let Some(source) = self.sheets.get(&sheet) {
-            source.change(
-                ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?,
-                &Application {
-                    session: RefCell::new(session),
-                    file_project: self.file_project,
-                },
-                self.max_steps,
-            )?;
+            let reference =
+                ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
+            let target_obj = self
+                .automation
+                .acquire_event_range(session, &reference)
+                .map_err(|e| e.description())?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    source.change_object(target_obj, self.max_steps)
+                })?;
         }
         Ok(())
     }
@@ -645,13 +449,10 @@ impl WorkbookEventHandler for WorkbookEvents {
     ) -> Result<(), String> {
         self.require_automatic_events()?;
         if let Some(source) = self.sheets.get(&sheet) {
-            source.calculate(
-                &Application {
-                    session: RefCell::new(session),
-                    file_project: self.file_project,
-                },
-                self.max_steps,
-            )?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    source.calculate_model(self.max_steps)
+                })?;
         }
         Ok(())
     }
@@ -662,14 +463,10 @@ impl WorkbookEventHandler for WorkbookEvents {
     ) -> Result<BeforeSaveOutcome, String> {
         self.require_automatic_events()?;
         let cancel = if let Some(source) = &self.book {
-            source.before_save(
-                operation == SaveOperation::SaveAsDialog,
-                &Application {
-                    session: RefCell::new(session),
-                    file_project: self.file_project,
-                },
-                self.max_steps,
-            )?
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    source.before_save_model(operation == SaveOperation::SaveAsDialog, self.max_steps)
+                })?
         } else {
             false
         };

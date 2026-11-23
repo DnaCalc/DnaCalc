@@ -364,7 +364,7 @@ fn vba_callbacks_use_measured_methods_without_formula_lifting_or_swallowed_refus
 End Function
 Public Function UnsupportedCallback()
  On Error Resume Next
- UnsupportedCallback = Application.WorksheetFunction.Abs(-1)
+ UnsupportedCallback = Application.WorksheetFunction.Round(1.5, 0)
  UnsupportedCallback = 7
 End Function
 "#;

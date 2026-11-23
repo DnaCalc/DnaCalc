@@ -1148,11 +1148,15 @@ fn push_unique(cands: &mut Vec<usize>, p: usize) {
 ///   flank is empty), peak unbiased ACF `>= 0.45`, and short-period tail checks
 ///   (`p = 3`: `u[3] > u[2] && u[4] > u[5] && u[4] > u[6]` in short windows;
 ///   `p = 4`: `u[5] > u[6]`; `p = 5`: `slope(u[6..=9]) < 0`).
-/// - Spectral 2.5-sigma outlier (`p_top >= 6`) enters the candidate set;
-///   multiple candidates break ties by fundamental power on trailing whole
+/// - Spectral 2.5-sigma outlier (`p_top >= 6`) enters the candidate set.
+///   If its lag has autocorrelation below 0.45, the strongest eligible lower
+///   frequency bin can supersede it by validating a longer period whose
+///   second harmonic falls in the outlier bin (Excel 20625, dc-j9k.68).
+///   Remaining candidates break ties by fundamental power on trailing whole
 ///   cycles of raw `y`. When no candidate survives, a dominant bin (`p <= 5`)
 ///   falls back to `p_top`.
 fn detect_period(y: &[f64]) -> usize {
+    const MIN_PEAK_CORRELATION: f64 = 0.45;
     let n = y.len();
     let last_lag = 2 * n / 5;
     if last_lag < 2 {
@@ -1249,6 +1253,15 @@ fn detect_period(y: &[f64]) -> usize {
     };
 
     let mean_power = power[1..].iter().sum::<f64>() / half as f64;
+    let bin_period = |k: usize| (n as f64 / k as f64 + 0.5).floor() as usize;
+    let harmonic_bin = if outlier_period != 0 && u[outlier_period] < MIN_PEAK_CORRELATION {
+        (2..top)
+            .rev()
+            .filter(|&k| bin_period(k) <= last_lag)
+            .max_by(|&a, &b| power[a].total_cmp(&power[b]))
+    } else {
+        None
+    };
     let tail_ok = |pk: usize| -> bool {
         if pk == 4 {
             6 < n && u[5] > u[6]
@@ -1265,7 +1278,7 @@ fn detect_period(y: &[f64]) -> usize {
         if power[k] <= mean_power {
             continue;
         }
-        let p_bin = (n as f64 / k as f64 + 0.5).floor() as usize;
+        let p_bin = bin_period(k);
         if p_bin < 2 || p_bin > last_lag {
             continue;
         }
@@ -1278,10 +1291,10 @@ fn detect_period(y: &[f64]) -> usize {
         let left = a.max(1);
         let right = (b + 2).min(n - 1);
 
-        if right < left + 4 {
+        let pk = if right < left + 4 {
             if p_bin == 3
                 && 3 <= last_lag
-                && u[3] >= 0.45
+                && u[3] >= MIN_PEAK_CORRELATION
                 && u[3] > u[2]
                 && 6 < n
                 && u[4] > u[5]
@@ -1290,43 +1303,45 @@ fn detect_period(y: &[f64]) -> usize {
                 push_unique(&mut candidates, 3);
                 continue;
             }
-            let pk = argmax_slice(&u, left, right);
-            if pk >= 4 && pk <= last_lag && u[pk] >= 0.45 && tail_ok(pk) {
-                push_unique(&mut candidates, pk);
-            }
-            continue;
-        }
-
-        let mut best_err = f64::INFINITY;
-        let mut best_sl = 0.0;
-        let mut best_sr = 0.0;
-        for t in (left + 2)..=(right - 2) {
-            let (mse_l, sl) = ols_mse_and_slope(&u[left..=t]);
-            let (mse_r, sr) = ols_mse_and_slope(&u[t..=right]);
-            let err = mse_l + mse_r;
-            if err < best_err {
-                best_err = err;
-                best_sl = sl;
-                best_sr = sr;
-            }
-        }
-
-        let left_flank_start = a.saturating_sub(3).max(2);
-        let bf = if left_flank_start >= a {
-            0.0
+            argmax_slice(&u, left, right)
         } else {
-            flank.clear();
-            flank.extend(left_flank_start..a);
-            flank.extend((b + 1)..(b + 4).min(n));
-            ols_slope_indexed(&u, &flank)
-        };
-
-        if best_sl > bf && best_sr < bf {
-            let (pk_lo, pk_hi) = if p_bin == 4 { (a.max(1), b.min(n - 1)) } else { (left, right) };
-            let pk = argmax_slice(&u, pk_lo, pk_hi);
-            if pk >= 4 && pk <= last_lag && u[pk] >= 0.45 && tail_ok(pk) {
-                push_unique(&mut candidates, pk);
+            let mut best_err = f64::INFINITY;
+            let mut best_sl = 0.0;
+            let mut best_sr = 0.0;
+            for t in (left + 2)..=(right - 2) {
+                let (mse_l, sl) = ols_mse_and_slope(&u[left..=t]);
+                let (mse_r, sr) = ols_mse_and_slope(&u[t..=right]);
+                let err = mse_l + mse_r;
+                if err < best_err {
+                    best_err = err;
+                    best_sl = sl;
+                    best_sr = sr;
+                }
             }
+
+            let left_flank_start = a.saturating_sub(3).max(2);
+            let bf = if left_flank_start >= a {
+                0.0
+            } else {
+                flank.clear();
+                flank.extend(left_flank_start..a);
+                flank.extend((b + 1)..(b + 4).min(n));
+                ols_slope_indexed(&u, &flank)
+            };
+            if !(best_sl > bf && best_sr < bf) {
+                continue;
+            }
+            let (pk_lo, pk_hi) = if p_bin == 4 { (a.max(1), b.min(n - 1)) } else { (left, right) };
+            argmax_slice(&u, pk_lo, pk_hi)
+        };
+        if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION && tail_ok(pk) {
+            if harmonic_bin == Some(k)
+                && pk > outlier_period
+                && (2.0 * n as f64 / pk as f64).round() as usize == top
+            {
+                return pk;
+            }
+            push_unique(&mut candidates, pk);
         }
     }
 

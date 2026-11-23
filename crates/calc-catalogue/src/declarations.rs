@@ -357,7 +357,8 @@ pub struct EntryTraits {
     pub take_reference_array: bool,
     /// How a held reference of an array of references is read otherwise.
     pub held_references: HeldReferences,
-    /// Lift a computed array even when this entry takes a reference whole.
+    /// Lift a computed array even when this entry takes a reference whole (COUNTBLANK,
+    /// W111 count-family readings and w089-axis-reference-vs-array-variant).
     pub lift_computed_array: bool,
     pub paired_result: PairedResult,
     pub whole_result_policy: WholeResultPolicy,
@@ -373,6 +374,37 @@ pub struct EntryTraits {
 }
 
 impl EntryTraits {
+    /// Whether an admitted ordinary array drives a call. A value slot may lift an array of
+    /// references even if its reference elements will be supplied as worksheet errors.
+    /// The closures delay inspecting array cells and legacy parameter declarations.
+    pub fn lifts_admitted_array(
+        self,
+        id: FunctionId,
+        index: usize,
+        dynamic: bool,
+        value_slot: bool,
+        contains_references: impl FnOnce() -> bool,
+        lifts_over_references: impl FnOnce() -> bool,
+    ) -> bool {
+        if value_slot || self.lift_computed_array {
+            return true;
+        }
+        let from = usize::from(self.lift_references_from);
+        // AGGREGATE's ref2 and later lift ordinary arrays too.
+        if dynamic && from > 0 && index >= from {
+            return true;
+        }
+        // Excel 20527 runs a database call for each value in a dynamic criteria array.
+        // The kernel determines whether each element supplies a criteria reference.
+        let database_criteria =
+            dynamic && index == 2 && id.family() == crate::ported::database::CODE;
+        if (database_criteria || index >= from) && contains_references() {
+            index >= from && lifts_over_references()
+        } else {
+            database_criteria
+        }
+    }
+
     pub const NONE: Self = Self {
         intersect_legacy_result: false,
         reject_multi_cell_reference: false,
@@ -603,6 +635,52 @@ pub enum LegacyPlace {
     AggregateIntersectReference,
     /// Aggregate and intersect a reference even below an array place.
     AggregateAlwaysIntersectReference,
+}
+
+impl LegacyPlace {
+    /// The legacy placement of a call position, using the final declaration for a repeated tail.
+    pub fn for_position(parameters: &[Parameter], index: usize) -> Self {
+        let last = parameters.len().saturating_sub(1);
+        let Some(parameter) = parameters.get(index.min(last)) else {
+            return Self::Default;
+        };
+        let place = parameter.legacy;
+        if index <= last
+            || matches!(
+                place,
+                Self::ArrayAlwaysRepeated
+                    | Self::ArrayAlwaysLiftReferencesRepeated
+                    | Self::ArrayAtRootRepeated
+                    | Self::AggregateAtRootRepeated
+                    | Self::AggregateUnderArrayRepeated
+            )
+            || (index == last + 1 && place == Self::AggregateAtRootTwice)
+        {
+            place
+        } else {
+            Self::Default
+        }
+    }
+
+    /// Whether the compiler inserts implicit intersection on a reference at this position.
+    pub fn intersects_reference(self, below_array: bool) -> bool {
+        match self {
+            Self::IntersectReferenceAlways | Self::AggregateAlwaysIntersectReference => true,
+            Self::IntersectReference | Self::AggregateIntersectReference => !below_array,
+            _ => false,
+        }
+    }
+
+    /// A declaration which enables per-reference lifting for the legacy call.
+    pub fn lifts_references(self) -> bool {
+        matches!(
+            self,
+            Self::ArrayAlwaysLiftReferences
+                | Self::ArrayAlwaysLiftReferencesRepeated
+                | Self::AggregateRootArrayNestedLiftReferences
+                | Self::LiftReferences
+        )
+    }
 }
 
 impl Parameter {

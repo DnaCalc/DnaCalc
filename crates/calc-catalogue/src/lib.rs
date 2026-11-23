@@ -65,6 +65,8 @@ mod file_function_ids;
 pub use file_function_ids::{EXCEL_FUNCTION_IDS, binary_function};
 
 pub mod admission;
+pub mod lifting;
+pub use lifting::{LegacyContext, Lifting, LiftingMode, LiftingOrigin, parameter_lifting};
 pub mod aggregate;
 pub mod conditional;
 pub mod error_fallback;

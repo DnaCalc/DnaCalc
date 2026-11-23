@@ -10,3 +10,14 @@ fn admission_export_is_current() {
         "admission-families.tsv is stale; regenerate it"
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn parameter_lifting_export_is_current() {
+    let checked_in =
+        include_str!("../../../docs/reference/parameter-lifting.tsv").replace("\r\n", "\n");
+    assert!(
+        checked_in == calc_catalogue::lifting::export_tsv(),
+        "parameter-lifting.tsv is stale; regenerate it"
+    );
+}

@@ -18,7 +18,7 @@ pub(super) fn entries(
                 OxTy::Long => Some(api::ScalarType::Long),
                 OxTy::Double => Some(api::ScalarType::Double),
                 OxTy::Object(calcvba_oxir::ObjClass::ComIface(id)|calcvba_oxir::ObjClass::Iface(id))
-                    if inner.com_interfaces().get(id.0).is_some_and(|interface|matches!(interface,calcvba_oxir::ComInterface::Com(meta) if meta.iid==Some(spreadsheet::typed_iid()))) => Some(api::ScalarType::HostObject),
+                    if inner.com_interfaces().get(id.0).is_some_and(|interface|matches!(interface,calcvba_oxir::ComInterface::Com(meta) if meta.iid==Some(crate::descriptor::typed_range_com_iid()))) => Some(api::ScalarType::HostObject),
                 _ => None,
             };
             if procedure

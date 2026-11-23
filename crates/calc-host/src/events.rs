@@ -30,6 +30,7 @@ pub enum WorkbookEvent {
 /// BeforeSave may also return an authored batch for the existing pre-pin route.
 pub trait WorkbookEventHandler {
     fn file_identity_changed(&self, _name: &str) {}
+    fn context_changed(&self, _session: &HostSession) {}
     fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> {
         Ok(())
     }
@@ -133,6 +134,7 @@ impl HostSession {
     }
     pub fn set_workbook_event_handler(&mut self, owner: Option<Rc<dyn WorkbookEventHandler>>) {
         self.workbook_events.owner = owner;
+        self.notify_workbook_context();
     }
     pub fn set_workbook_events_enabled(&mut self, enabled: bool) {
         self.workbook_events.enabled.set(enabled);
@@ -149,6 +151,9 @@ impl HostSession {
         self.notify_workbook_context();
     }
     pub(crate) fn notify_workbook_context(&self) {
+        if let Some(owner) = &self.workbook_events.owner {
+            owner.context_changed(self);
+        }
         if let Some(observer) = &self.workbook_events.observer {
             observer.context_changed(self);
         }

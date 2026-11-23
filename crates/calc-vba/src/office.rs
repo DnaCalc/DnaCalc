@@ -71,8 +71,10 @@ impl OfficeReference {
 
 /// The VBA library itself (VBE7): built into CalcVBA's compiler.
 pub(crate) const VBA_LIBRARY: &str = "000204EF-0000-0000-C000-000000000046";
-/// The Excel object library: bound to DNA's own objects where OneCalc and DNA Calc have them.
+/// The Excel object library: supplied from DNA Calc's committed object-model descriptor.
 pub(crate) const EXCEL_LIBRARY: &str = "00020813-0000-0000-C000-000000000046";
+/// The Office object library: supplied from DNA Calc's committed object-model descriptor.
+pub(crate) const OFFICE_LIBRARY: &str = "2DF8D04C-5BFA-101B-BDE5-00AA0044DE52";
 /// OLE Automation (stdole2.tlb): CalcVBA's catalogue knows it on every platform.
 pub(crate) const STDOLE_LIBRARY: &str = "00020430-0000-0000-C000-000000000046";
 
@@ -213,7 +215,7 @@ impl OfficeProject {
                 OfficeReference::TypeLibrary { .. }
                     if matches!(
                         reference.guid().as_deref(),
-                        Some(VBA_LIBRARY | EXCEL_LIBRARY)
+                        Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY)
                     ) => {}
                 _ => references.push(held.type_library().map_err(|e| e.to_string())?),
             }
@@ -221,15 +223,15 @@ impl OfficeProject {
         Ok(references)
     }
 
-    /// The references that need the platform's registered type libraries (all but VBA, Excel and
-    /// OLE Automation), by the name code uses.
+    /// The references that need the platform's registered type libraries (all but VBA, Excel,
+    /// Office and OLE Automation), by the name code uses.
     pub fn com_references(&self) -> Vec<&OfficeReference> {
         self.references
             .iter()
             .filter(|reference| {
                 !matches!(
                     reference.guid().as_deref(),
-                    Some(VBA_LIBRARY | EXCEL_LIBRARY | STDOLE_LIBRARY)
+                    Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY | STDOLE_LIBRARY)
                 )
             })
             .collect()

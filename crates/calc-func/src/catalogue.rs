@@ -647,35 +647,15 @@ impl<'c> FunctionCallTarget<'c> {
         if index >= self.entry.arity.max || self.entry.parameters.is_empty() {
             return None;
         }
-        let last = self.entry.parameters.len() - 1;
-        let legacy = self.entry.parameters[index.min(last)].legacy;
-        if index > last
-            && !matches!(
-                legacy,
-                LegacyPlace::ArrayAlwaysRepeated
-                    | LegacyPlace::ArrayAlwaysLiftReferencesRepeated
-                    | LegacyPlace::ArrayAtRootRepeated
-                    | LegacyPlace::AggregateAtRootRepeated
-                    | LegacyPlace::AggregateUnderArrayRepeated
-            )
-            && !(index == last + 1 && legacy == LegacyPlace::AggregateAtRootTwice)
-        {
-            return Some(LegacyPlace::Default);
-        }
-        Some(legacy)
+        Some(LegacyPlace::for_position(self.entry.parameters, index))
     }
 
     /// Whether a legacy call runs once for each reference in an array of references.
     pub fn legacy_lifts_over_references(self) -> bool {
-        self.entry.parameters.iter().any(|parameter| {
-            matches!(
-                parameter.legacy,
-                LegacyPlace::ArrayAlwaysLiftReferences
-                    | LegacyPlace::ArrayAlwaysLiftReferencesRepeated
-                    | LegacyPlace::AggregateRootArrayNestedLiftReferences
-                    | LegacyPlace::LiftReferences
-            )
-        })
+        self.entry
+            .parameters
+            .iter()
+            .any(|parameter| parameter.legacy.lifts_references())
     }
 
     pub fn argument_demand(self) -> ArgumentDemand {
