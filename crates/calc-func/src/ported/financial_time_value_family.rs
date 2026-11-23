@@ -2,7 +2,7 @@
 // Paired worksheet calls constrain each stage independently of its producers.
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::excel_numeric::{
-    excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_atanh, excel_pow_chain,
+    excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_times, excel_pow_chain,
     excel_pow_x87_direct, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip,
     excel_x87_sub, exp_portable,
 };
@@ -89,14 +89,10 @@ fn growth(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
     }
 }
 
-/// `ln(1 + r)` as Excel's growth forms it: Morris's alnrel, the atanh series below 3/8 in size and
-/// LN of the stored `1 + r` from there.
+/// `ln(1 + r)` as Excel's internal logarithm forms it (dc-j9k.90 / cb19): shared `PC=64`
+/// forward `atanh` series below `|r| = 3/8` and `LN(stored(1 + r))` from `3/8`.
 fn alnrel(rate: f64) -> f64 {
-    if rate.abs() < 0.375 {
-        excel_log1p_atanh(rate)
-    } else {
-        crate::ported::excel_numeric::excel_log(excel_x87_add(1.0, rate))
-    }
+    excel_log1p_times(1.0, rate)
 }
 
 fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
@@ -252,106 +248,26 @@ pub fn pmt(
     {
         return Err(FinancialError::Num);
     }
-    // W109 G6-01 (2026-07-23, multi-agent workflow): the transcendental substrate is
-    // the x87 chain (Excel's PMT `exp` is the x87 exponential `excel_exp`, matched 234/234; `expm1` is the internal
-    // x87 double-rounded Kahan), and the combine is the live-Excel-pinned **quotient-first,
-    // ·rate LAST** graph for end payments. R30 separately identifies the positive-rate
-    // discount/type-one coefficient and its stores below; other routes keep the timing division.
-    //
-    // dc-j9k.12: the logarithm is not a correctly rounded log1p but the atanh series of
-    // `excel_log1p_atanh`. Holding pv varied at fixed (rate, nper) pins Excel's binary64 em in
-    // 4,720 recorded groups (fv 0, type 0, rate > 0). For each of the 1,184 rates among them
-    // one binary64 L reproduces em = expm1(-(nper * L)) through the x87 Kahan expm1 below at
-    // every nper; the series gives that L for 1,181 rates, a correctly rounded log1p for 667.
-    // The series was used where its twelve terms have converged (-1/3 <= rate <= 1/2, so
-    // |s| <= 1/5); outside that range Excel's logarithm was not identified and the
-    // correctly rounded one stayed. The range is Morris's alnrel bound instead, as in
-    // `excel_log1p_times`: one rate at 0.419 held 128 rows, all cleared by LN of the stored 1 + r.
-    let log_growth = alnrel(periodic_rate);
-    let neg_log = -(periods * log_growth);
-    let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log); // (1+r)^-n − 1  (x87 Kahan; negative for r>0)
+    // dc-j9k.12 / dc-j9k.90 (cb19): unified PC=64 annuity formula across every nonzero rate and
+    // period sign. `alnrel(r)` calls the shared `excel_log1p_times(1.0, r)`, the exponent product
+    // `-excel_x87_mul(periods, log_growth)` is stored from PC=64, the balance fold is
+    // `(pv + fv)/em + fv` with stored PC=64 operations (naturally handling `fv == -pv` and
+    // `nper < 0` without overflow), and timing multiplies by `due_coefficient(r)` or `r`.
+    let neg_log = -excel_x87_mul(periods, alnrel(periodic_rate));
+    let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log);
     // Preserve the growth-reciprocal overflow refusal before the balance
     // fold can turn pv/Inf + fv into a finite payment. R31 paired parts keep
     // first-period beginning IPMT zero ahead of this shared PMT check.
     if em == 0.0 || !em.is_finite() {
         return Err(FinancialError::Num);
     }
-    let tf = timing.factor(periodic_rate); // 1 + r·type
-    // Equal opposite balances are interest only: pv + fv*v = fv*(v - 1).
-    // Cancelling that common factor before rounding avoids subtracting nearly
-    // equal balances. Negative rates use the common stored fold below: its
-    // quotient is exactly fv here, retaining their measured final stores.
-    if periodic_rate > 0.0 && present_value != 0.0 && future_value == -present_value {
-        let product = future_value * periodic_rate;
-        let result = if product.is_finite() {
-            // Beginning payments are fv / stored(1 + stored(1 / rate)), the reciprocal coefficient
-            // of the pole check above: 20 of the 21 rows that missed by a unit here.
-            match timing {
-                PaymentTiming::EndOfPeriod => excel_x87_mul(future_value, periodic_rate),
-                PaymentTiming::BeginningOfPeriod => excel_x87_div(
-                    future_value,
-                    excel_x87_add(1.0, excel_x87_recip(periodic_rate)),
-                ),
-            }
-        } else {
-            let scaled = (future_value / tf) * periodic_rate;
-            if scaled.is_finite() {
-                scaled
-            } else {
-                // With beginning payments and a positive rate, rate/tf <= 1.
-                // This order cannot overflow a finite balance. The previous
-                // order can round MAX/tf upward and overflow its final product.
-                future_value * (periodic_rate / tf)
-            }
-        };
-        return if result.is_finite() {
-            Ok(result)
-        } else {
-            Err(FinancialError::Num)
-        };
-    }
-    // Both arms store the quotient from PC64 (dc-j9k.12). With pv varied at fixed (rate, nper),
-    // fv 0 and type 0, q = RN53(RN64(pv / em)) followed by RN53(RN64(q * rate)) admits one
-    // binary64 em in every one of 4,802 recorded groups; a binary64 quotient leaves 59 groups
-    // with no em at all.
-    let quotient = if neg_log < 0.0 || periodic_rate < 0.0 {
-        // dc-j9k.12, R29/R31: the discount and negative-rate arms combine balances as
-        // (pv + fv)/em + fv, with both additions and the division stored
-        // from PC64. Public type-zero calls constrain em independently:
-        // this fold matches all192 paired future-value calls for each rate sign.
-        // Separate negative-rate ties distinguish each addition (84 and114 readings).
-        // Forming pv + fv*(1+em) loses those recorded roundings.
-        excel_x87_add(
-            discounted_balance(present_value, future_value, em),
-            future_value,
-        )
-    } else {
-        let inv_factor = 1.0 + em;
-        let numerator = present_value + future_value * inv_factor;
-        excel_x87_div(numerator, em)
-    };
-    let result = if (neg_log < 0.0 || periodic_rate < 0.0)
-        && matches!(timing, PaymentTiming::BeginningOfPeriod)
-    {
-        // R30/R31: paired type-zero calls pin em independently of timing. The
-        // discount and negative-rate arms multiply by 1/(1+1/r), storing each
-        // operation from PC64. Negative-rate calls also pin this coefficient
-        // under either final-word model before 44 fresh product ties distinguish
-        // the PC64 store. Dividing by (1+r) loses those recorded roundings.
-        // If its reciprocal overflows, r is subnormal and the coefficient
-        // rounds to r because r*r is below half a subnormal unit.
-        let factor = due_coefficient(periodic_rate);
-        excel_x87_mul(quotient, factor)
-    } else {
-        let quotient = excel_x87_div(quotient, tf);
-        // R31: 32 independently measured negative-rate product ties require
-        // the PC64-to-binary64 store after the already stored quotient.
-        // Their denominators are pinned by separate public type-zero calls.
-        if neg_log < 0.0 || periodic_rate < 0.0 {
-            excel_x87_mul(quotient, periodic_rate)
-        } else {
-            quotient * periodic_rate
-        }
+    let quotient = excel_x87_add(
+        discounted_balance(present_value, future_value, em),
+        future_value,
+    );
+    let result = match timing {
+        PaymentTiming::BeginningOfPeriod => excel_x87_mul(quotient, due_coefficient(periodic_rate)),
+        PaymentTiming::EndOfPeriod => excel_x87_mul(quotient, periodic_rate),
     };
     if result.is_finite() {
         Ok(result)
@@ -690,7 +606,7 @@ fn end_payment_quotient(
         return None;
     }
     let log_growth = alnrel(periodic_rate);
-    let em = crate::ported::excel_numeric::excel_expm1_spilled(-(periods * log_growth));
+    let em = crate::ported::excel_numeric::excel_expm1_spilled(-excel_x87_mul(periods, log_growth));
     if em == 0.0 || !em.is_finite() {
         return None;
     }
@@ -732,8 +648,9 @@ fn end_payment_parts(
     // (nper - per) + 1 order. Excel 16.0.20527 (dc-iuwct.33, Touchstone 2026-11-20): 7/7 nper
     // sweeps, every full-bank IPMT, PPMT, CUMIPMT and CUMPRINC row, and 2,997/3,000 fresh IPMT
     // and PPMT controls each with predictions frozen first (the region-limited rule it
-    // replaces held 2,409 and 2,869). Open: IPMT(0.2404, 1 + 2^-52, 1 - 2^-53, -486.8,
-    // 111969.3) still answers as the (nper - per) + 1 order (246 ulp).
+    // replaces held 2,409 and 2,869). Switching `alnrel` to `excel_log1p_times` (dc-j9k.90 / cb19)
+    // also resolves `IPMT(0.2404, 1 + 2^-52, 1 - 2^-53, -486.8, 111969.3)` at 0 ulp under this
+    // same `(nper + 1) - per` order.
     let remaining = excel_x87_sub(excel_x87_add(periods, 1.0), period_index);
     let (interest, principal) = period_components(remaining, future_value, log_growth, quotient);
     let factor = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
@@ -939,9 +856,9 @@ pub(crate) fn cumulative_principal(
     let mut total = 0.0;
     if end_period >= first {
         let last = periods - f64::from(end_period) + 1.0;
-        let discount = crate::ported::excel_numeric::excel_exp(-(last * log_growth));
+        let discount = crate::ported::excel_numeric::excel_exp(-excel_x87_mul(last, log_growth));
         let count = f64::from(end_period - first + 1);
-        let span = -crate::ported::excel_numeric::excel_expm1_spilled(-(count * log_growth));
+        let span = -crate::ported::excel_numeric::excel_expm1_spilled(-excel_x87_mul(count, log_growth));
         total = excel_x87_mul(quotient, excel_x87_mul(discount, span));
         if !beginning {
             total = excel_x87_mul(total, excel_x87_add(1.0, periodic_rate));

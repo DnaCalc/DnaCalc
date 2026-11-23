@@ -541,6 +541,18 @@ mod tests {
             rlog1::<Soft>(0.0269).to_bits(),
             excel_rlog1(0.0269).to_bits()
         );
+        for rate in [
+            0.24042490731562907,
+            f64::from_bits(0xbfd7_84fc_f9e6_1850),
+            f64::from_bits(0x3fbe_8362_4deb_28b0),
+            -0.375,
+            0.375,
+        ] {
+            assert_eq!(
+                log1p_times::<Soft>(&ext_one(), rate).to_bits(),
+                excel_log1p_times(1.0, rate).to_bits()
+            );
+        }
         assert_eq!(
             beta_power_series::<Soft>(
                 401.5,

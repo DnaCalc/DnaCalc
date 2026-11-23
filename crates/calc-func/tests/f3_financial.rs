@@ -30,11 +30,10 @@ fn first_adjacent_period_uses_measured_remaining_period_order() {
     }
 }
 
-/// Open (dc-iuwct.33): Excel 20527 still answers this control (re-asked 2026-11-20) as the
-/// (nper - per) + 1 order would; the (nper + 1) - per order, right on 2,997 of 3,000 fresh
-/// controls and every bank row, is 246 ulp away here. Kept as Excel's value, not passing yet.
-#[test]
-#[ignore = "open: dc-iuwct.33 remaining-period order exception, Excel 0x405d4310bdc21078"]
+/// Resolved (dc-j9k.90 / cb19): switching alnrel to the shared x87 `excel_log1p_times(1.0, rate)`
+/// clears this Excel 20527 control at 0 ULP under the standard `(nper + 1) - per` order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn first_adjacent_period_open_exception() {
     let period = 1.0 + f64::EPSILON;
     exact(
@@ -42,6 +41,115 @@ fn first_adjacent_period_open_exception() {
             n(-486.83764968944774), n(111969.28369137854)]),
         f64::from_bits(0x405d_4310_bdc2_1078),
     );
+}
+
+/// Carbon cb19 (dc-j9k.90 / dc-j9k.12): Excel 16.0.20527.20196 bit-exact controls for the unified
+/// PC=64 PMT quotient body, shared `excel_log1p_times(1.0, rate)` in `alnrel`, and PC=64 stored
+/// exponent products across PMT, IPMT, PPMT, CUMPRINC and CUMIPMT.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cb19_pmt_and_amortization_pc64_unification_matches_excel() {
+    let pmt_cases: [([u64; 5], u64, &str); 8] = [
+        (
+            [0x3fa9_9999_9999_999a, 0x3ff0_0000_0000_0000, 0x7fcf_ffff_ffff_ffff, 0xffcf_ffff_ffff_ffff, 0x3ff0_0000_0000_0000],
+            0xff88_6186_1861_8617,
+            "round3-pmt-balance-0529",
+        ),
+        (
+            [0x3fce_19ee_4d31_3d1e, 0x4028_0000_0000_0000, 0x4171_6fcc_fa54_b766, 0xc171_6fcc_fa54_b766, 0x3ff0_0000_0000_0000],
+            0xc14a_8efd_da32_2031,
+            "cb19-probe1-0001-P1a",
+        ),
+        (
+            [0x40ac_606c_17a9_30f4, 0x4000_0000_0000_0000, 0x7fcd_a8d4_6e5c_7797, 0xffcd_a8d4_6e5c_7797, 0x3ff0_0000_0000_0000],
+            0xffcd_a6bd_6e9b_e85d,
+            "cb19-probe1-0013-P1b",
+        ),
+        (
+            [0x3fc1_d162_db62_a013, 0xc04a_57b6_e8e0_da25, 0x415f_86fa_946f_f104, 0xc0c1_8adf_8c41_8956, 0x0000_0000_0000_0000],
+            0xc049_a3f0_bcf6_0aca,
+            "cb19-probe1-0021-P2a",
+        ),
+        (
+            [0x3fc0_fc35_4914_f867, 0xc029_22c1_f98c_ec14, 0x40d2_6a9b_05f2_679d, 0x0000_0000_0000_0000, 0x3ff0_0000_0000_0000],
+            0x4082_3aac_f12b_e2e5,
+            "cb19-probe1-0029-P2b",
+        ),
+        (
+            [0x3fdb_06e8_efcc_9a3d, 0xc05a_26dd_70f1_7112, 0xff01_b438_bf6d_40c6, 0xff62_d938_4bc5_33a2, 0x3ff0_0000_0000_0000],
+            0xff46_62a8_e3ba_d70c,
+            "cb19-probe1-0037-P2c",
+        ),
+        (
+            [0x3fc3_3b6a_faad_dbc3, 0x4022_06b0_0db5_a8c8, 0x40f1_b6af_d7ff_b1e3, 0x0000_0000_0000_0000, 0x3ff0_0000_0000_0000],
+            0xc0c9_d2d2_c216_7469,
+            "cb19-probe1-0173-P9",
+        ),
+        (
+            [0x3fc8_35d2_e3e2_2ff8, 0xc04e_a8b7_6eea_f598, 0x40f8_07ea_0f15_5e50, 0x0000_0000_0000_0000, 0x0000_0000_0000_0000],
+            0x3fdd_08bc_992a_449c,
+            "cb19-holdout-0073-H2c",
+        ),
+    ];
+    for (args, expected, label) in pmt_cases {
+        let got = number(call("PMT", args.into_iter().map(|b| n(f64::from_bits(b))).collect()));
+        assert_eq!(got.to_bits(), expected, "{label}: got {:#018x}", got.to_bits());
+    }
+
+    let six_arg_cases: [(&str, [u64; 6], u64, &str); 8] = [
+        (
+            "IPMT",
+            [0xbfd4_8a2f_a414_95f4, 0x3ff1_2cfb_aa08_24b3, 0x3fce_cecd_8578_7d32, 0x3f60_9fcf_e3f9_5359, 0x0000_0000_0000_0000, 0x0000_0000_0000_0000],
+            0x3f3d_3a28_835f_6639,
+            "fx2-IPMT-819",
+        ),
+        (
+            "IPMT",
+            [0xbfd7_303d_660e_b18c, 0x3ff0_0000_0000_0000, 0x3fca_40b5_e134_3b6e, 0x3f52_b4dd_f2ab_2ea3, 0x0000_0000_0000_0000, 0x0000_0000_0000_0000],
+            0x3f3b_1c65_6f8e_7687,
+            "fx2-IPMT-1670",
+        ),
+        (
+            "IPMT",
+            [0xbfd7_84fc_f9e6_1850, 0x3ff0_0000_0000_0001, 0x3fed_b3af_2e8a_ad3e, 0xbff1_a557_a15e_5ccd, 0x4032_57af_7241_2b6a, 0x0000_0000_0000_0000],
+            0xbfd9_f059_0aaa_04d2,
+            "fx2-IPMT-2389",
+        ),
+        (
+            "PPMT",
+            [0x3fbe_8362_4deb_28b0, 0x3ff0_0000_0000_0000, 0x3ff1_2eec_dc5e_ef7e, 0xc042_e6db_fc4b_0502, 0x0000_0000_0000_0000, 0x0000_0000_0000_0000],
+            0x4041_868d_7af5_6c0b,
+            "fx2-PPMT-200",
+        ),
+        (
+            "PPMT",
+            [0x3f46_8372_3fe5_3b1d, 0x3ff0_0000_0000_0000, 0x3fee_9c83_1141_89a8, 0xc037_e594_57c4_39fc, 0x4112_3c22_1ca7_a09d, 0x3ff0_0000_0000_0000],
+            0xc113_0c39_d2ba_9205,
+            "fx2-PPMT-1628",
+        ),
+        (
+            "PPMT",
+            [0xbfd7_3760_80e6_c044, 0x3ff0_0000_0000_0000, 0x3fef_ffff_ffff_fffd, 0xbfa6_9126_51dc_d8b9, 0x3fb0_7089_a7cf_945e, 0x0000_0000_0000_0000],
+            0xbf94_9fd9_fb84_a007,
+            "fx2-PPMT-2154",
+        ),
+        (
+            "CUMPRINC",
+            [0x3f6e_1e62_ac2e_55f3, 0x40f0_0000_0000_0000, 0x40f0_d930_a8b9_b912, 0x40d1_cdc0_0000_0000, 0x40e8_d500_0000_0000, 0x0000_0000_0000_0000],
+            0xbc14_6a20_070e_ecbb,
+            "cb19-holdout-0203-H5b",
+        ),
+        (
+            "CUMIPMT",
+            [0x3fb1_0b4a_e5de_1d32, 0x404a_335f_ceaa_fde2, 0x40fd_560a_d612_8e0d, 0x3ff0_0000_0000_0000, 0x4044_0000_0000_0000, 0x3ff0_0000_0000_0000],
+            0xc10f_1656_ede7_0a3f,
+            "cb19-holdout-0233-H6b",
+        ),
+    ];
+    for (func, args, expected, label) in six_arg_cases {
+        let got = number(call(func, args.into_iter().map(|b| n(f64::from_bits(b))).collect()));
+        assert_eq!(got.to_bits(), expected, "{label}: got {:#018x}", got.to_bits());
+    }
 }
 
 /// Independent Excel 20527 controls for the higher-rate rounding path.
