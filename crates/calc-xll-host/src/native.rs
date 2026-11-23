@@ -994,7 +994,9 @@ impl XllHost {
             })
             .collect::<Vec<_>>();
         for (provider, name, function) in aliases {
-            functions.register_for(provider.as_deref(), &name, function)?;
+            functions.register_provider(
+                calc_fml::CallableProvider::Xll, provider.as_deref(), &name, function, None,
+            )?;
         }
         Ok(functions)
     }
@@ -1044,11 +1046,12 @@ impl XllHost {
                 registration: registration.clone(),
                 bound: true,
             });
-            functions.register_described(
+            functions.register_provider(
+                calc_fml::CallableProvider::Xll,
                 None,
                 name,
                 adapter.clone(),
-                registration.info.descriptor(),
+                Some(registration.info.descriptor()),
             )?;
         }
         Ok(functions)

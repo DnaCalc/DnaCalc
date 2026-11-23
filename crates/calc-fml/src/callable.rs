@@ -1,6 +1,7 @@
 //! The host callable table: names bind once to checked slots; execution retains leases.
 use calc_func::value::{CalcValue, WorksheetErrorCode};
 use calc_func::{UserFunction, UserFunctionContext};
+use calc_macro_security::MacroSecurity;
 use std::{collections::BTreeMap, rc::Rc};
 
 /// Per-host registrations, matched by the shared workbook-name comparison. Built-ins and local formula names keep their
@@ -169,12 +170,26 @@ fn keeps_measured_concurrency(policy: Option<calc_func::UserReevaluationReason>)
     )
 }
 
+/// Runtime supplying a user-defined worksheet function, independent of its lookup name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallableProvider {
+    /// A native XLL registration.
+    Xll,
+    /// A VBA module or add-in running under its host's VBA policy.
+    Vba,
+    /// A custom function running in a bounded JavaScript host.
+    JavaScript,
+    /// A native COM Automation add-in.
+    Automation,
+}
+
 #[derive(Clone, Debug)]
 struct Registration {
     /// Retain the inventory spelling separately from its shared comparison key.
     name: String,
     handle: CallableHandle,
     parallel: usize,
+    kind: Option<CallableProvider>,
 }
 
 impl CallableTable {
@@ -270,6 +285,7 @@ impl CallableTable {
                 Registration {
                     name: registration.name,
                     parallel: registration.parallel,
+                    kind: registration.kind,
                     handle: CallableHandle {
                         table: self.identity,
                         slot: slot as u32,
@@ -312,6 +328,33 @@ impl CallableTable {
         name: &str,
         function: Rc<dyn UserFunction>,
     ) -> Result<(), String> {
+        self.register_at(provider, name, function, None)
+    }
+
+    /// Register a worksheet function together with its runtime and optional formula help.
+    pub fn register_provider(
+        &mut self,
+        kind: CallableProvider,
+        provider: Option<&str>,
+        name: &str,
+        function: Rc<dyn UserFunction>,
+        descriptor: Option<CallableDescriptor>,
+    ) -> Result<(), String> {
+        self.register_at(provider, name, function, Some(kind))?;
+        if let Some(descriptor) = descriptor {
+            self.descriptors
+                .insert(Self::key(provider, name), descriptor);
+        }
+        Ok(())
+    }
+
+    fn register_at(
+        &mut self,
+        provider: Option<&str>,
+        name: &str,
+        function: Rc<dyn UserFunction>,
+        kind: Option<CallableProvider>,
+    ) -> Result<(), String> {
         let key = Self::key(provider, name);
         if key.1.is_empty() || provider == Some("") || self.entries.contains_key(&key) {
             return Err(format!("duplicate or empty user function: {name}"));
@@ -338,6 +381,7 @@ impl CallableTable {
                 name: name.to_ascii_uppercase(),
                 handle,
                 parallel,
+                kind,
             },
         );
         Ok(())
@@ -346,23 +390,55 @@ impl CallableTable {
     /// Registers every function of `other` with its descriptor at its own provider target.
     /// A name both tables register is refused ([`Self::register_for`]), and the table remains as it was.
     pub fn add_from(&mut self, other: &CallableTable) -> Result<(), String> {
-        let mut functions = Vec::new();
-        for (provider, name) in other.registrations() {
-            let function = other
-                .bind(provider, name)
-                .and_then(|handle| other.resolve(handle))
-                .ok_or("a registration lost its function")?;
-            let key = Self::key(provider, name);
-            if self.entries.contains_key(&key) {
+        for (key, registration) in &other.entries {
+            if self.entries.contains_key(key) {
+                let name = &registration.name;
                 return Err(format!("duplicate or empty user function: {name}"));
             }
-            functions.push((provider.map(str::to_owned), name.to_owned(), Rc::clone(function)));
         }
-        for (provider, name, function) in functions {
-            self.register_for(provider.as_deref(), &name, function)?;
+        for ((provider, _), registration) in &other.entries {
+            let function = other
+                .resolve(registration.handle)
+                .expect("live registration")
+                .clone();
+            self.register_at(
+                provider.as_deref(),
+                &registration.name,
+                function,
+                registration.kind,
+            )?;
         }
         self.descriptors.extend(other.descriptors.clone());
         Ok(())
+    }
+
+    /// The runtime tag of a live, classified callable.
+    pub fn provider_kind(&self, handle: CallableHandle) -> Option<CallableProvider> {
+        self.entries
+            .values()
+            .find(|registration| registration.handle == handle)
+            .and_then(|registration| registration.kind)
+    }
+
+    /// Restrict a provider table before publication. Add host services such as RTD separately.
+    /// Guarded admits only providers whose hosts enforce the restricted execution policy.
+    pub fn admitted(mut self, level: MacroSecurity) -> Self {
+        if level == MacroSecurity::Unguarded {
+            return self;
+        }
+        self.entries.retain(|key, registration| {
+            let allowed = level == MacroSecurity::Guarded
+                && matches!(
+                    registration.kind,
+                    Some(CallableProvider::Vba | CallableProvider::JavaScript)
+                );
+            if !allowed {
+                self.slots[registration.handle.slot as usize] = None;
+                self.descriptors.remove(key);
+            }
+            allowed
+        });
+        self
     }
 
     /// [`Self::register_for`] with the descriptor people see (completion, signature help, help).
@@ -555,6 +631,68 @@ mod tests {
             Ok(CalcValue::number(42.0))
         }
     }
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn provider_kinds_survive_composition_and_follow_execution_policy() {
+        use CallableProvider::{Automation, JavaScript, Vba, Xll};
+        use MacroSecurity::{Guarded, Off, Unguarded};
+
+        let mut table = CallableTable::new();
+        for (kind, name) in [
+            (Xll, "NativeFn"),
+            (Vba, "Module1.VbaFn"),
+            (JavaScript, "ADDIN.ScriptFn"),
+            (Automation, "Addin.Component.ComFn"),
+        ] {
+            let mut provider = CallableTable::new();
+            provider
+                .register_provider(
+                    kind,
+                    None,
+                    name,
+                    Rc::new(Permission {
+                        early: false,
+                        cached: false,
+                        lane: false,
+                    }),
+                    Some(CallableDescriptor {
+                        name: name.to_owned(),
+                        origin: format!("{kind:?} test provider"),
+                        parameters: vec![CallableParameter {
+                            name: "argument".into(),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    }),
+                )
+                .unwrap();
+            table.add_from(&provider).unwrap();
+            let handle = table.bind(None, &name.to_ascii_lowercase()).unwrap();
+            assert_eq!(table.provider_kind(handle), Some(kind));
+            let descriptor = table.descriptor(None, name).unwrap();
+            assert_eq!(descriptor.signature(), format!("{name}(argument)"));
+            assert_eq!(descriptor.origin, format!("{kind:?} test provider"));
+        }
+
+        let native = table.bind(None, "NativeFn").unwrap();
+        assert_eq!(table.clone().admitted(Unguarded).descriptors().count(), 4);
+        let guarded = table.clone().admitted(Guarded);
+        assert_eq!(guarded.descriptors().count(), 2);
+        assert!(guarded.bindings().contains("module1.vbafn"));
+        assert!(guarded.bindings().contains("addin.scriptfn"));
+        assert!(guarded.resolve(native).is_none());
+        assert!(!guarded.contains("addin.component.comfn"));
+        let script = table.bind(None, "addin.scriptfn").unwrap();
+        table.replace(guarded);
+        assert!(table.resolve(script).is_none());
+        let script = table.bind(None, "addin.scriptfn").unwrap();
+        assert_eq!(table.provider_kind(script), Some(JavaScript));
+        let off = table.admitted(Off);
+        assert_eq!(off.descriptors().count(), 0);
+        assert!(!off.contains("addin.scriptfn"));
+        assert!(off.resolve(script).is_none());
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn early_execution_is_separate_from_parallelism_and_is_revoked_on_replacement() {

@@ -2,7 +2,7 @@ use crate::{
     DataType, Dimensionality, FunctionSpec, FunctionsMetadata, JsArgument, JsEngine, JsHostError,
     JsInvocation, Parameter,
 };
-use calc_fml::{CallableDescriptor, CallableParameter, CallableTable};
+use calc_fml::{CallableDescriptor, CallableParameter, CallableProvider, CallableTable};
 use calc_func::{UserFunction, UserFunctionContext};
 use calc_value::{CalcArray, CalcValue, CellKey, CoreRef, GridArea, WorksheetErrorCode as W};
 use std::{
@@ -51,7 +51,8 @@ impl JsAddin {
                 ..CallableDescriptor::default()
             };
             table
-                .register_described(
+                .register_provider(
+                    CallableProvider::JavaScript,
                     None,
                     &name,
                     Rc::new(JsCallable {
@@ -60,7 +61,7 @@ impl JsAddin {
                         spec: spec.clone(),
                         allow_any_errors: metadata.allow_error_for_data_type_any,
                     }),
-                    descriptor,
+                    Some(descriptor),
                 )
                 .map_err(JsHostError::Registration)?;
         }

@@ -92,7 +92,7 @@ pub use calc_func::{
 };
 pub use callable::{
     CallableBindingProof, CallableBindings, CallableDescriptor, CallableHandle, CallableParameter,
-    CallableTable,
+    CallableProvider, CallableTable,
 };
 
 pub use calc_func::{

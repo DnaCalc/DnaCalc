@@ -1,5 +1,6 @@
 use calc_com_host::{Projection, RtdClient, RtdInput};
 use calc_fml::CallableTable;
+use calc_macro_security::MacroSecurity;
 use calc_platform_desktop::Shell;
 use calc_value::{CalcValue, SheetId};
 use calc_xll_host::{AsyncReturn, RegistrationInfo, XllHost};
@@ -384,7 +385,13 @@ impl AddinHost {
     /// the application's owner of formulas. A new table each call: one published after a load or
     /// unload replaces the one before it, and a handle bound to the old one stays unable to run.
     pub fn callables(&self) -> Result<CallableTable, String> {
-        self.callables_with_early_execution(&[])
+        self.callables_for_policy(MacroSecurity::Unguarded)
+    }
+
+    /// Build the callable view for an owner that has selected an execution level.
+    /// The legacy VBA add-in loaders do not give the project a Guarded execution policy.
+    pub fn callables_for_policy(&self, level: MacroSecurity) -> Result<CallableTable, String> {
+        self.collect_callables(level, &[])
     }
 
     /// [`Self::callables`], with the XLL registrations in `early_execution` (ids from
@@ -393,21 +400,31 @@ impl AddinHost {
         &self,
         early_execution: &[u64],
     ) -> Result<CallableTable, String> {
-        let mut table = self
-            .native
-            .functions_with_early_execution(early_execution)?;
-        let addins: Vec<CallableTable> = self
-            .vba_addins
-            .iter()
-            .map(|(_, load)| load.project.functions())
-            .collect();
-        for module in self.vba.iter().map(|(_, module)| module).chain(&addins) {
-            table.add_from(module)?;
+        self.collect_callables(MacroSecurity::Unguarded, early_execution)
+    }
+
+    fn collect_callables(
+        &self,
+        level: MacroSecurity,
+        early_execution: &[u64],
+    ) -> Result<CallableTable, String> {
+        let mut table = CallableTable::new();
+        if level == MacroSecurity::Off {
+            return Ok(table);
+        }
+        if level == MacroSecurity::Unguarded {
+            table = self.native.functions_with_early_execution(early_execution)?;
+            for (_, module) in &self.vba {
+                table.add_from(module)?;
+            }
+            for (_, addin) in &self.vba_addins {
+                table.add_from(&addin.project.functions())?;
+            }
         }
         for (_, addin) in &self.js {
             table.add_from(addin.callables())?;
         }
-        Ok(table)
+        Ok(table.admitted(level))
     }
 
     /// Lets native add-ins return asynchronously: the returns arrive through

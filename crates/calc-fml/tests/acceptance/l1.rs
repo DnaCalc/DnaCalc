@@ -1466,6 +1466,41 @@ impl Book {
     }
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn call_syntax_resolves_builtins_and_workbook_names_before_providers() {
+    use calc_fml::{CallableProvider, CallableTable};
+
+    let mut book = Book::new();
+    book.name("LocalFn", "=LAMBDA(x,x*3)");
+    let mut functions = CallableTable::new();
+    for (kind, name) in [
+        (CallableProvider::Xll, "SUM"),
+        (CallableProvider::Automation, "LocalFn"),
+        (CallableProvider::Automation, "Vendor.Component.LocalFn"),
+        (CallableProvider::Vba, "Module1.VbaFn"),
+        (CallableProvider::JavaScript, "ADDIN.JSFn"),
+    ] {
+        functions
+            .register_provider(kind, None, name, std::rc::Rc::new(Identity), None)
+            .unwrap();
+    }
+
+    for (formula, expected) in [
+        ("=SUM(1,2)", 3.0),
+        ("=LocalFn(2)", 6.0),
+        ("=vendor.component.localfn(2)", 2.0),
+        ("=module1.vbafn(2)", 2.0),
+        ("=addin.jsfn(2)", 2.0),
+    ] {
+        assert_eq!(
+            book.with_functions(formula, &functions),
+            n(expected),
+            "{formula}"
+        );
+    }
+}
+
 /// UI30 (Excel 16.0.20527, measured by COM): a built-in typed bare where a LAMBDA value is taken
 /// works (`=MAP({1,2,3},SUM)`); `=SUM` alone is #CALC!; a named LAMBDA passed bare works (6, 30,
 /// 60); an unknown name passed bare is #VALUE!; a VBA function passed bare is #VALUE!, and one

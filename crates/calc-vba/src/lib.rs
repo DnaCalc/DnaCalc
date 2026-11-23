@@ -214,8 +214,12 @@ fn prepare_project(
             name: metadata.qualified_name.clone(),
             ..descriptor.clone()
         };
-        functions.register_described(None, &metadata.name, function.clone(), descriptor)?;
-        functions.register_described(None, &metadata.qualified_name, function, qualified)?;
+        functions.register_provider(
+            calc_fml::CallableProvider::Vba, None, &metadata.name, function.clone(), Some(descriptor),
+        )?;
+        functions.register_provider(
+            calc_fml::CallableProvider::Vba, None, &metadata.qualified_name, function, Some(qualified),
+        )?;
     }
     for (name, qualified, reason) in refusals {
         let function = Rc::new(RefusedVbaFunction {
@@ -223,8 +227,12 @@ fn prepare_project(
             name: qualified.clone(),
             reason,
         });
-        functions.register(&name, function.clone())?;
-        functions.register(&qualified, function)?;
+        functions.register_provider(
+            calc_fml::CallableProvider::Vba, None, &name, function.clone(), None,
+        )?;
+        functions.register_provider(
+            calc_fml::CallableProvider::Vba, None, &qualified, function, None,
+        )?;
     }
     Ok(events::LoadedProject { session, functions })
 }

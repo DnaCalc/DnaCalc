@@ -14,6 +14,7 @@ portability = "portable"
 calc-catalogue = { path = "../calc-catalogue" }
 calc-syntax = { path = "../calc-syntax" }
 calc-func = { path = "../calc-func" }
+calc-macro-security = { path = "../calc-macro-security" }
 # The descriptors of registered functions cross OneCalc's session port and the DNA Calc worker wire.
 serde = { version = "=1.0.229", features = ["derive"] }
 
