@@ -28,8 +28,11 @@ pub const EMU_PER_PIXEL: f64 = 9_525.0;
 /// A corner of a chart: a cell, and the offset into it in pixels at 100%.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChartCorner {
+    /// Worksheet cell containing the anchor point.
     pub cell: CellKey,
+    /// Horizontal offset from the cell origin in pixels at 100% zoom.
     pub dx: f64,
+    /// Vertical offset from the cell origin in pixels at 100% zoom.
     pub dy: f64,
 }
 
@@ -37,18 +40,30 @@ pub struct ChartCorner {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ChartPlace {
     /// Between two corners: it moves and sizes with the cells under them.
-    Cells { from: ChartCorner, to: ChartCorner },
+    Cells {
+        /// Top-left anchor.
+        from: ChartCorner,
+        /// Bottom-right anchor.
+        to: ChartCorner,
+    },
     /// From a corner, with a size in pixels at 100%.
     Sized {
+        /// Top-left anchor.
         from: ChartCorner,
+        /// Fixed width in pixels at 100% zoom.
         width: f64,
+        /// Fixed height in pixels at 100% zoom.
         height: f64,
     },
     /// At a position on the sheet, in pixels at 100%.
     Absolute {
+        /// Horizontal position from the sheet origin.
         x: f64,
+        /// Vertical position from the sheet origin.
         y: f64,
+        /// Fixed width.
         width: f64,
+        /// Fixed height.
         height: f64,
     },
 }
@@ -60,10 +75,15 @@ pub enum ChartKind {
     Column,
     /// Horizontal bars.
     Bar,
+    /// Points joined by lines across categories.
     Line,
+    /// Filled regions beneath series lines across categories.
     Area,
+    /// Slices of a circle sized by value.
     Pie,
+    /// Slices of a ring sized by value.
     Doughnut,
+    /// Points positioned by numeric X and Y coordinates.
     Scatter,
     /// `radarChart` (dc-zjsg.6).
     Radar,
@@ -92,6 +112,7 @@ pub enum ChartKind {
 /// One series as the chart shows it now.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SeriesView {
+    /// Display name resolved for the series.
     pub name: String,
     /// The categories (a scatter's X values), one per point; `None` for a blank.
     pub categories: Vec<Option<CalcValue>>,
@@ -116,43 +137,53 @@ pub struct SeriesView {
     /// What the series' labels show (its own `dLbls`, else its plot's), and each value as its cell shows it when
     /// they show values (empty when the cells' formats are not ones the session renders).
     pub labels: Option<calc_doc_model::ChartLabels>,
+    /// Source value labels indexed by point when formatting is available.
     pub label_values: Vec<Option<String>>,
 }
 
 /// One plot of a chart.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlotView {
+    /// Plot geometry used to draw the series.
     pub kind: ChartKind,
     /// `stacked` or `percentStacked` grouping: each series is drawn on those before it.
     pub stacked: bool,
+    /// Whether the stack is expressed as percentages of its category total.
     pub percent: bool,
     /// Each point its own colour (a pie's slices).
     pub vary_colors: bool,
+    /// Series in plot order.
     pub series: Vec<SeriesView>,
+    /// Identifiers of the axes used by this plot.
     pub axis_ids: Vec<u32>,
     /// Drawn flat from a 3-D plot (`bar3DChart`, `line3DChart`, `area3DChart`, `pie3DChart`).
     pub three_d: bool,
     /// A radar's style: `standard`, `marker` or `filled`.
     pub style: Option<String>,
-    /// A bubble plot's scale (percent of the default size) and whether size is the bubble's width, not its area.
+    /// Bubble scale as a percentage of the default size.
     pub bubble_scale: f64,
+    /// Whether the bubble size denotes its width. The default is area.
     pub bubble_width: bool,
-    /// A stock or line plot's high-low lines, a stock plot's up/down bars, a line or area plot's drop lines.
+    /// Whether a stock or line plot shows high-low lines.
     pub high_low_lines: bool,
+    /// Whether line or area points are connected to their category axis by drop lines.
     pub drop_lines: bool,
     /// A waterfall's subtotal points, by index.
     pub subtotals: Vec<u32>,
     /// A box and whisker's quartile method (inclusive or exclusive) and what it shows: mean markers, mean line,
     /// outliers, inner points.
     pub box_inclusive: bool,
-    /// A histogram's binning (`None`: automatic) and whether it is a Pareto.
+    /// Histogram binning options, with `None` selecting automatic binning.
     pub binning: Option<calc_doc_model::Binning>,
+    /// Whether the histogram includes a cumulative percentage line.
     pub pareto: bool,
     /// A surface plot drawn as a wireframe.
     pub wireframe: bool,
     /// An Excel 2016 chart's gap between bars as a share of a bar (`None`: the kind's default).
     pub gap_width: Option<f64>,
+    /// Visibility of mean markers, mean line, outliers and inner points, in that order.
     pub box_visibility: [bool; 4],
+    /// Whether stock plots show bars between the opening and closing values.
     pub up_down_bars: bool,
 }
 
@@ -161,19 +192,27 @@ pub struct PlotView {
 pub struct ChartView {
     /// The frame's name (`Chart 1`).
     pub name: String,
+    /// Package part path identifying this chart.
     pub part: String,
+    /// Position and sizing behavior on the worksheet.
     pub place: ChartPlace,
+    /// Display title, when present.
     pub title: Option<String>,
     /// The legend's position (`r`, `l`, `t`, `b`, `tr`), `None` without a legend.
     pub legend: Option<String>,
+    /// Plots in chart display order.
     pub plots: Vec<PlotView>,
+    /// Axis definitions referenced by the plots.
     pub axes: Vec<calc_doc_model::ChartAxis>,
-    /// Workbook locale and date system used to format explicit axis labels.
+    /// Workbook format profile used to render explicit axis labels.
     pub format_profile: calc_fml::FormatProfile,
+    /// Workbook date system used to interpret serial dates.
     pub date_system: calc_func::locale::DateSystem,
     /// The theme's accent colours, accent1 to accent6, `RRGGBB`: a varied plot's point colours.
     pub palette: Vec<String>,
+    /// Default chart text style.
     pub text_style: calc_doc_model::ChartTextStyle,
+    /// Text style overrides keyed by chart element.
     pub element_text: std::collections::BTreeMap<String, calc_doc_model::ChartTextStyle>,
 }
 
@@ -996,6 +1035,7 @@ pub(crate) fn prepare_series(
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
+/// Return automatic linear bounds and major tick spacing as `(minimum, maximum, step)`.
 pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
     let (mut low, mut high) = (low.min(0.0), high.max(0.0));
     if !(low.is_finite() && high.is_finite()) || high - low <= 0.0 {
@@ -1026,13 +1066,31 @@ pub fn axis(low: f64, high: f64) -> (f64, f64, f64) {
 /// A validated value scale shared by command validation and chart drawing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChartScale {
+    /// Lower numeric bound.
     pub minimum: f64,
+    /// Upper numeric bound.
     pub maximum: f64,
+    /// Major tick spacing on a linear axis or the base on a logarithmic axis.
     pub step: f64,
+    /// Whether increasing values run in the reverse display direction.
     pub reversed: bool,
+    /// Logarithmic base, or `None` for a linear axis.
     pub log_base: Option<f64>,
 }
 
+/// Build a scale from the data extent and any authored axis overrides.
+///
+/// Invalid bounds or spacing return an error.
+///
+/// ```
+/// use calc_host::chart::chart_scale;
+///
+/// let scale = chart_scale(2.0, 18.0, None).unwrap();
+/// assert_eq!(scale.minimum, 0.0);
+/// assert!(scale.maximum >= 18.0);
+/// assert_eq!(scale.position(scale.maximum), Some(1.0));
+/// assert_eq!(scale.ticks().first(), Some(&scale.minimum));
+/// ```
 pub fn chart_scale(
     low: f64,
     high: f64,
@@ -1117,6 +1175,7 @@ impl ChartScale {
         t.is_finite()
             .then_some(if self.reversed { 1. - t } else { t })
     }
+    /// Return major tick values in ascending numeric order.
     pub fn ticks(self) -> Vec<f64> {
         if let Some(base) = self.log_base {
             let log = base.ln();
@@ -1297,7 +1356,7 @@ pub(crate) fn prepare_axis(
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
-/// Category combinations use one primary pair and an optional secondary pair.
+/// Report whether the plot axis references account for every chart axis and the chart axis IDs are unique.
 pub fn axes_associated(chart: &ChartView) -> bool {
     let actual = chart
         .axes
@@ -1325,6 +1384,7 @@ fn check_axes_for_edit(host: &HostState, sheet: SheetId, part: &str) -> Result<(
     }
     Ok(())
 }
+/// Report whether the chart uses a supported combination of plots and axis pairs.
 pub fn combination_supported(chart: &ChartView) -> bool {
     if !axes_associated(chart) {
         return false;
@@ -1421,6 +1481,7 @@ fn positive_range(values: impl Iterator<Item = f64>) -> (f64, f64) {
     }
     range.unwrap_or((0., 0.))
 }
+/// Return the X and Y extents of paired scatter points, excluding nonpositive coordinates on logarithmic axes.
 pub fn scatter_scale_ranges(plot: &PlotView, xlog: bool, ylog: bool) -> ((f64, f64), (f64, f64)) {
     if !xlog && !ylog {
         return scatter_ranges(plot);
@@ -1577,7 +1638,7 @@ pub fn value_axes<'a>(
         Ok(vec![value])
     }
 }
-/// Scatter X fallback is shared by drawing and axis-command validation.
+/// Return numeric X coordinates, using sequential one-based point positions if any X is missing or nonnumeric.
 pub fn scatter_x_values(series: &SeriesView) -> Vec<Option<f64>> {
     let xs = series
         .categories
@@ -1590,6 +1651,7 @@ pub fn scatter_x_values(series: &SeriesView) -> Vec<Option<f64>> {
         xs
     }
 }
+/// Return linear X and Y extents of paired scatter points, including zero on both axes.
 pub fn scatter_ranges(plot: &PlotView) -> ((f64, f64), (f64, f64)) {
     let (mut xl, mut xh, mut yl, mut yh) = (0f64, 0f64, 0f64, 0f64);
     for series in &plot.series {
@@ -2540,10 +2602,15 @@ pub(crate) fn prepare_element_text_style(
 /// `high`, and for the overflow bin above `low`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bin {
+    /// Lower edge of the bin.
     pub low: f64,
+    /// Upper edge of the bin.
     pub high: f64,
+    /// Number of observations assigned to the bin.
     pub count: usize,
+    /// Whether this is the special bin below the regular bins.
     pub underflow: bool,
+    /// Whether this is the special bin above the regular bins.
     pub overflow: bool,
 }
 
