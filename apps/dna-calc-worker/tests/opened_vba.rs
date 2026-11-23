@@ -948,3 +948,245 @@ fn add_ins_are_the_desktop_apps_and_a_changed_set_recalculates() {
         projected[0].value()
     );
 }
+
+/// dc-1nbp.7: P22-style two-sheet macro workbook (`Sheet1` + `S`) driven through the DNA Calc
+/// page worker (`Server`: Open, EnableMacros, SetCalcMode, EnterCell, Recalculate) in both
+/// Automatic and Manual modes. `Worksheet_Change` writes `Me.Range("C1")`,
+/// `Worksheets("S").Range("D1")`, `ThisWorkbook.Worksheets("S").Range("E1")`, and
+/// `Range.Cells(2, 2).Value2`, producing exact cell values and handler order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_7_page_worker_replays_me_range_and_cross_sheet_change_in_automatic_and_manual_modes() {
+    use calc_host::{SheetEdit, SheetKey, SheetName};
+    use dna_calc_worker::{
+        server::Server,
+        wire::{Intent, Key, Reply, Request},
+    };
+
+    // Build a two-sheet .xlsm package (Sheet1 + S) carrying the P22-style event project.
+    let vba_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            (
+                "Module1",
+                "Public History As String\nPublic Function Trace() As String\n Trace = History\nEnd Function\n",
+            ),
+            ("PrivateModule", "Option Private Module\n"),
+            (
+                "Sheet1",
+                "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n \
+                 History = History & \"Chg:\" & Target.Address(False, False) & \";\"\n \
+                 If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub\n \
+                 Dim v As Double\n \
+                 v = CDbl(Target.Value2)\n \
+                 Me.Range(\"C1\").Value2 = v * 10\n \
+                 Worksheets(\"S\").Range(\"D1\").Value2 = CDbl(Me.Range(\"C1\").Value2) + 1\n \
+                 ThisWorkbook.Worksheets(\"S\").Range(\"E1\").Value2 = CDbl(Worksheets(\"S\").Range(\"D1\").Value2) + 2\n \
+                 Me.Range(\"A1:B2\").Cells(2, 2).Value2 = v + 5\n \
+                 Worksheets(\"S\").Range(\"A1:B2\").Cells(2, 2).Value2 = CDbl(Me.Range(\"A1:B2\").Cells(2, 2).Value2) + 100\n \
+                 Worksheets(\"S\").Cells(3, 1) = 77\n\
+                 End Sub\n\
+                 Private Sub Worksheet_Calculate()\n \
+                 History = History & \"Calc;\"\n\
+                 End Sub\n",
+            ),
+            ("ThisWorkbook", ""),
+        ],
+    );
+    let two_sheet_xlsm = {
+        let mut prep = Workbook::open_with_project_policy(
+            "p22-page.xlsm",
+            vba_bytes,
+            WorkBudget::UNLIMITED,
+            FileOrigin::Local,
+        )
+        .unwrap();
+        assert!(
+            prep.dispatch(SkinIntent::Edit {
+                edits: vec![calc_host::CellEdit::Sheet(SheetEdit::Insert {
+                    key: SheetKey::new(2),
+                    name: SheetName::new(calc_value::ExcelText::from_interop_assignment("S"))
+                        .unwrap(),
+                    position: std::num::NonZeroU32::new(2).unwrap(),
+                })],
+            })
+            .accepted()
+        );
+        let sheet1 = prep.host().sheets()[0].id();
+        let sheet_s = prep.host().sheets()[1].id();
+        assert!(
+            prep.dispatch(SkinIntent::Edit {
+                edits: vec![calc_host::CellEdit::Clear {
+                    area: calc_value::GridArea::new(
+                        calc_value::CellKey::new(sheet1, 1, 1).unwrap(),
+                        calc_value::CellKey::new(sheet1, 5, 5).unwrap(),
+                    )
+                    .unwrap(),
+                }],
+            })
+            .accepted()
+        );
+        assert!(
+            prep.dispatch(SkinIntent::EnterCell {
+                at: calc_value::CellKey::new(sheet1, 1, 6).unwrap(),
+                text: "=C1+S!D1+S!E1+B2+S!B2".into(),
+            })
+            .accepted()
+        );
+        assert!(
+            prep.dispatch(SkinIntent::EnterCell {
+                at: calc_value::CellKey::new(sheet_s, 1, 6).unwrap(),
+                text: "=D1+E1+B2".into(),
+            })
+            .accepted()
+        );
+        drain(&mut prep);
+        prep.save().unwrap().0
+    };
+
+    let settle = |server: &mut Server| {
+        for _ in 0..1000 {
+            if !server.has_pending_calculation() {
+                return;
+            }
+            server.advance_calculation();
+        }
+        panic!("worker did not settle"); // ubs:ignore[rust.ownership.panic-macro] A bounded drain must finish.
+    };
+    let read_num = |server: &Server, sheet: calc_value::SheetId, r: u32, c: u32| {
+        let at = calc_value::CellKey::new(sheet, r, c).unwrap();
+        match server.book().project(vec![at])[0].value() {
+            ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => {
+                v.as_number().unwrap()
+            }
+            other => panic!("unexpected value at ({r},{c}): {other:?}"), // ubs:ignore[rust.ownership.panic-macro] Expected number cell.
+        }
+    };
+    let read_trace = |server: &mut Server, sheet_s: calc_value::SheetId, col: u32| {
+        let at = calc_value::CellKey::new(sheet_s, 1, col).unwrap();
+        assert!(
+            server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(at),
+                        text: "=Trace()".into(),
+                    }),
+                    None,
+                )
+                .reply
+                .is_ok()
+        );
+        // Calculate just S!col so Sheet1's Worksheet_Calculate is unaffected in Manual mode.
+        server.book_mut().dispatch(SkinIntent::CalculateRange {
+            areas: vec![calc_value::GridArea::cell(at)],
+        });
+        settle(server);
+        match server.book().project(vec![at])[0].value() {
+            ProjectedValue::Calculated { value, .. } => value.as_text().unwrap().to_string_lossy(),
+            other => panic!("unexpected Trace() value: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] Expected Trace text.
+        }
+    };
+
+    for manual in [false, true] {
+        let mut server = Server::new();
+        server.set_open_origin(FileOrigin::Local);
+        assert!(
+            matches!(
+                server
+                    .execute_current(
+                        Request::Open {
+                            name: "p22-page.xlsm".into(),
+                        },
+                        Some(two_sheet_xlsm.clone()),
+                    )
+                    .reply,
+                Ok(Reply::Done { .. })
+            ),
+            "manual={manual}: open failed"
+        );
+        settle(&mut server);
+        assert!(
+            server
+                .execute_current(Request::EnableMacros, None)
+                .reply
+                .is_ok(),
+            "manual={manual}: enable macros failed"
+        );
+        settle(&mut server);
+        assert!(
+            server
+                .execute_current(Request::Intent(Intent::SetCalcMode { manual }), None)
+                .reply
+                .is_ok()
+        );
+        settle(&mut server);
+
+        let sheet1 = server.book().host().sheets()[0].id();
+        let sheet_s = server.book().host().sheets()[1].id();
+        let a1 = calc_value::CellKey::new(sheet1, 1, 1).unwrap();
+        assert!(
+            server
+                .execute_current(
+                    Request::Intent(Intent::EnterCell {
+                        at: Key::of(a1),
+                        text: "3".into(),
+                    }),
+                    None,
+                )
+                .reply
+                .is_ok()
+        );
+        settle(&mut server);
+        assert!(
+            server.book_mut().take_workbook_event_failures().failures.is_empty(),
+            "manual={manual}: event failures"
+        );
+
+        assert_eq!(read_num(&server, sheet1, 1, 3), 30.0);
+        assert_eq!(read_num(&server, sheet_s, 1, 4), 31.0);
+        assert_eq!(read_num(&server, sheet_s, 1, 5), 33.0);
+        assert_eq!(read_num(&server, sheet1, 2, 2), 8.0);
+        assert_eq!(read_num(&server, sheet_s, 2, 2), 108.0);
+        assert_eq!(read_num(&server, sheet_s, 3, 1), 77.0);
+
+        // EnableMacros recalculates the workbook once before the person's edit (leading "Calc;").
+        if manual {
+            let assert_stale_zero = |sheet: calc_value::SheetId, r: u32, c: u32| {
+                let at = calc_value::CellKey::new(sheet, r, c).unwrap();
+                let got = server.book().project(vec![at])[0].value().clone();
+                assert!(
+                    matches!(
+                        &got,
+                        ProjectedValue::Stale(stale)
+                            if stale.last_value().and_then(|v| v.as_number()) == Some(0.0)
+                    ),
+                    "expected Stale(0.0) at ({r},{c}), got {got:?}"
+                );
+            };
+            assert_stale_zero(sheet1, 1, 6);
+            assert_stale_zero(sheet_s, 1, 6);
+            assert_eq!(
+                read_trace(&mut server, sheet_s, 8),
+                "Calc;Chg:A1;Chg:C1;Chg:B2;"
+            );
+            assert!(
+                server
+                    .execute_current(Request::Intent(Intent::Recalculate), None)
+                    .reply
+                    .is_ok()
+            );
+            settle(&mut server);
+            assert_eq!(
+                read_trace(&mut server, sheet_s, 9),
+                "Calc;Chg:A1;Chg:C1;Chg:B2;Calc;"
+            );
+        } else {
+            assert_eq!(
+                read_trace(&mut server, sheet_s, 8),
+                "Calc;Chg:A1;Calc;Chg:C1;Calc;Calc;Calc;Chg:B2;Calc;"
+            );
+        }
+        assert_eq!(read_num(&server, sheet1, 1, 6), 210.0);
+        assert_eq!(read_num(&server, sheet_s, 1, 6), 172.0);
+    }
+}
