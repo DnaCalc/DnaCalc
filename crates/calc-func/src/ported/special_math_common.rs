@@ -534,14 +534,30 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         // DEVIATION 1: no a == 0.5 special dispatch; 0.5 flows into these
         // general a < 1 branches.
         if x < 1.1 {
-            // statement 160: Taylor series for small a, with TOMS 654 iop = 1 double-precision
-            // st200 branch thresholds (cb11 / dc-j9k.67), PC64 excel_x87_* + excel_log(x) staging,
-            // and Excel's internal Kahan expm1 (excel_expm1_internal) in st200.
+            // statement 160 / 200: TOMS 654 iop = 1 double-precision st200 branch (inclusive
+            // `a - x <= 0.25` for `x > 0.5`, Carbon cb20 / dc-j9k.5) with PC64 excel_x87_* +
+            // excel_log(x) + excel_expm1_internal(z); `!go200` routes to Modified-Lentz
+            // `gratio_cf_lower` (cb20 Rule 1).
             use crate::ported::excel_numeric::{
-                excel_exp, excel_expm1_internal, excel_log, excel_x87_add, excel_x87_div,
-                excel_x87_mul, excel_x87_sub,
+                excel_expm1_internal, excel_log, excel_x87_add, excel_x87_div, excel_x87_mul,
+                excel_x87_sub,
             };
             const NEG_LN2: f64 = f64::from_bits(0xbfe6_2e42_fefa_39ef); // -ln(2)
+            let z = excel_x87_mul(a, excel_log(x));
+            let go200 = if x <= 0.5 {
+                z >= NEG_LN2
+            } else {
+                excel_x87_sub(a, x) <= 0.25
+            };
+            if !go200 {
+                let pm = poisson_mass(a, x);
+                return if pm.is_finite() {
+                    gratio_cf_lower(a, x, pm)
+                } else {
+                    (f64::NAN, f64::NAN)
+                };
+            }
+            // statement 200
             let mut an = 3.0_f64;
             let mut c = x;
             let mut summ = excel_x87_div(x, excel_x87_add(a, 3.0));
@@ -566,34 +582,18 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
                 excel_x87_div(1.0, excel_x87_add(a, 1.0)),
             );
             let j = excel_x87_mul(excel_x87_mul(a, x), inner);
-            let z = excel_x87_mul(a, excel_log(x));
             let h = gratio_gam1(a);
             let g = excel_x87_add(1.0, h);
-            let go200 = if x <= 0.5 {
-                z >= NEG_LN2
-            } else {
-                excel_x87_sub(a, x) < 0.25
-            };
-            if go200 {
-                // statement 200
-                let l = excel_expm1_internal(z);
-                let w = excel_x87_add(0.5, excel_x87_add(0.5, l));
-                let qans = excel_x87_sub(
-                    excel_x87_mul(excel_x87_sub(excel_x87_mul(w, j), l), g),
-                    h,
-                );
-                if qans < 0.0 {
-                    return (1.0, 0.0);
-                }
-                return (excel_x87_add(0.5, excel_x87_sub(0.5, qans)), qans);
-            }
-            // statement 190
-            let w = excel_exp(z);
-            let ans = excel_x87_mul(
-                excel_x87_mul(w, g),
-                excel_x87_add(0.5, excel_x87_sub(0.5, j)),
+            let l = excel_expm1_internal(z);
+            let w = excel_x87_add(0.5, excel_x87_add(0.5, l));
+            let qans = excel_x87_sub(
+                excel_x87_mul(excel_x87_sub(excel_x87_mul(w, j), l), g),
+                h,
             );
-            return (ans, 0.5 + (0.5 - ans));
+            if qans < 0.0 {
+                return (1.0, 0.0);
+            }
+            return (excel_x87_add(0.5, excel_x87_sub(0.5, qans)), qans);
         }
         // a < 1, x >= 1.1 (cb8 / dc-j9k.64): unified poisson_mass + Modified-Lentz gratio_cf.
         let pm = poisson_mass(a, x);
@@ -633,14 +633,10 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         return gratio_cf(a, x, pm);
     }
 
-    // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3).
+    // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3;
+    // x < 1.1 uses Modified-Lentz gratio_cf_lower, which also produces dc-ymjf.2.154's
+    // a >= 0x79b4484bfeebc2a0 #NUM! from c = a + a / 1e-30 -> +Inf and 0 * Inf = NaN).
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
-    // Excel 16.0.20527.20196 (dc-ymjf.2.154, 1-ULP bisected across POISSON(.DIST) and
-    // GAMMA(.DIST)): for strict `x < 1.1`, `a / 1e-30` overflowing binary64
-    // (`a >= 0x79b4484bfeebc2a0`) returns `#NUM!`, while `x >= 1.1` stays finite.
-    if x < 1.1 && !excel_x87_div(a, 1.0e-30).is_finite() {
-        return (f64::NAN, f64::NAN);
-    }
     let l = excel_x87_div(x, a);
     if l > 0.7 && l < 1.3 {
         return gratio_temme(a, x);
@@ -648,6 +644,9 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     let pm = poisson_mass(a, x);
     if !pm.is_finite() {
         return (f64::NAN, f64::NAN);
+    }
+    if x < 1.1 {
+        return gratio_cf_lower(a, x, pm);
     }
     let r = excel_x87_mul(pm, a);
     if r == 0.0 {
@@ -735,6 +734,47 @@ fn gratio_cf(a: f64, x: f64, pm: f64) -> (f64, f64) {
     }
     let qans = excel_x87_mul(pm, f);
     (0.5 + (0.5 - qans), qans)
+}
+
+/// Lower incomplete gamma continued fraction for both `a < 1, x < 1.1, !go200` and
+/// `a > 20, x < 1.1` (Carbon cb20 / dc-j9k.5): Thompson-Barnett Modified Lentz
+/// (`TINY = 1e-30`, matching `gratio_cf`) on the contracted lower incomplete gamma CF
+/// (DLMF 8.9.2) with `ax = excel_x87_add(a, x)` stored once before the loop,
+/// `a_0 = b_0 = a`, `a_k = -excel_x87_mul(excel_x87_add(a, (k - 1) as f64), x)`,
+/// `b_k = excel_x87_add(ax, k as f64)`, stopping at `k > 0 && del == 1.0`.
+fn gratio_cf_lower(a: f64, x: f64, pm: f64) -> (f64, f64) {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
+    const TINY: f64 = 1.0e-30;
+    let ax = excel_x87_add(a, x);
+    let (mut f, mut c, mut d) = (TINY, TINY, 0.0_f64);
+    for k in 0..=10_000usize {
+        let ak = if k == 0 {
+            a
+        } else {
+            -excel_x87_mul(excel_x87_add(a, (k - 1) as f64), x)
+        };
+        let bk = if k == 0 {
+            a
+        } else {
+            excel_x87_add(ax, k as f64)
+        };
+        d = excel_x87_add(bk, excel_x87_mul(ak, d));
+        if d.abs() < TINY {
+            d = TINY;
+        }
+        c = excel_x87_add(bk, excel_x87_div(ak, c));
+        if c.abs() < TINY {
+            c = TINY;
+        }
+        d = excel_x87_div(1.0, d);
+        let del = excel_x87_mul(c, d);
+        f = excel_x87_mul(f, del);
+        if k > 0 && del == 1.0 {
+            break;
+        }
+    }
+    let p = excel_x87_mul(pm, f);
+    (p, 0.5 + (0.5 - p))
 }
 
 /// Temme expansion for `a > 20` and `0.7 < x/a < 1.3` (dc-ymjf.2.27).
@@ -2777,5 +2817,88 @@ mod tests {
             0x3ff1f73d1fb8ec17,
             "cb18 P7 F.INV.RT"
         );
+    }
+
+    /// Excel 16.0.20527.20196 (Carbon cb20 / dc-j9k.5):
+    /// - Unified Thompson-Barnett Modified-Lentz lower incomplete gamma CF (`gratio_cf_lower`,
+    ///   `TINY = 1e-30`, `ax = x87_add(a, x)` stored once, `b_k = ax + k`, `del == 1.0` stop)
+    ///   for both `a < 1, x < 1.1, !go200` and `a > 20, x < 1.1` (deriving `dc-ymjf.2.154`'s
+    ///   `a >= 0x79b4484bfeebc2a0` `#NUM!` from `c = a + a / 1e-30 -> +Inf` and `0 * Inf = NaN`).
+    /// - Inclusive `excel_x87_sub(a, x) <= 0.25` `go200` boundary for `0.5 < x < 1.1`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb20_gratio_cf_lower_and_inclusive_go200_match_excel() {
+        use crate::ported::beta_gamma_stats_family::{gamma_dist_kernel, gamma_inv_kernel};
+        use crate::ported::chi_f_t_family::{chisq_dist_kernel, chisq_inv_kernel};
+        use calc_value::WorksheetErrorCode;
+
+        // Forward GAMMA.DIST(..., TRUE): P1/P2 ((a+x)+k), P3 (del == 1.0), P4 (a > 20, x < 1.1),
+        // P6 (exact a - x == 0.25 inclusive go200), H1/H2 unseen holdouts.
+        let gamma_fwd: &[(&str, u64, u64, u64, u64)] = &[
+            ("P1_001", 0x3fc7_b8d2_03da_737d, 0x3fde_f8fd_9995_df70, 0x4004_8399_cff9_7f2e, 0x3fd3_caf2_8579_d7ef),
+            ("P1_002", 0x3fdd_971b_028a_87bf, 0x3fd9_2a4a_a032_34ef, 0x4007_0b14_6350_33f0, 0x3fe0_ccb9_64b7_af24),
+            ("P2_025", 0x3fc8_eaa1_df47_8f82, 0x3fec_01ec_0218_ab4e, 0x3ff9_468b_f598_b46a, 0x3fc4_4ad9_a05c_18c3),
+            ("P2_026", 0x3fb1_2ce0_7826_68b8, 0x3fdb_c516_3134_f54a, 0x3fe6_d97c_15eb_1f88, 0x3fd9_2c7a_933c_68c6),
+            ("P3_049", 0x3ff1_7263_4822_91d9, 0x3fe9_2ce6_55dc_8beb, 0x4000_4e88_9a4b_de4b, 0x3fe0_ddbe_02b2_842f),
+            ("P4_069", 0x3fe2_267f_039e_8487, 0x404f_e201_2c9f_677f, 0x3fe0_ca23_9acf_59d0, 0x2de0_8710_c06e_d673),
+            ("P6_102", 0x3ff7_1187_0a5c_5f9b, 0x3fef_1187_0a5c_5f9b, 0x4000_0000_0000_0000, 0x3fe0_e373_bb6e_95ab),
+            ("P6_107", 0x3fe1_03d2_b350_5b55, 0x3fe9_03d2_b350_5b55, 0x3ff0_0000_0000_0000, 0x3fe0_e5e0_1871_2893),
+            ("H1_001", 0x3fd0_6e0e_9a20_3c34, 0x3fe9_832d_dc71_be64, 0x3fff_ed2c_a43d_a16b, 0x3fc9_58d4_e01a_14c4),
+            ("H2_031", 0x3fd7_9d70_326c_8c18, 0x4054_7df9_6141_fba8, 0x3fd6_f83d_932c_6e5f, 0x2696_7259_5658_1d97),
+        ];
+        for &(label, xb, ab, bb, expected) in gamma_fwd {
+            let got = gamma_dist_kernel(
+                f64::from_bits(xb),
+                f64::from_bits(ab),
+                f64::from_bits(bb),
+                true,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+
+        // P5: dc-ymjf.2.154 overflow edge arises naturally inside gratio_cf_lower (no ad-hoc guard).
+        assert_eq!(
+            gamma_dist_kernel(0.5, f64::from_bits(0x79b4_484b_feeb_c29f), 0.5, true),
+            Ok(0.0)
+        );
+        assert_eq!(
+            gamma_dist_kernel(0.5, f64::from_bits(0x79b4_484b_feeb_c2a0), 0.5, true),
+            Err(WorksheetErrorCode::Num)
+        );
+
+        // Forward CHISQ.DIST(..., TRUE): P3 (del == 1.0), P4 & H2 (a > 20, x < 1.1).
+        for &(label, xb, dfb, expected) in &[
+            ("P3_062", 0x3ffb_b6f9_bb59_d21e_u64, 0x4061_e000_0000_0000_u64, 0x2993_0dae_2ce1_9e4d_u64),
+            ("P4_081", 0x3ff0_3d68_039d_d9dd, 0x4068_8000_0000_0000, 0x19ed_989f_9b9b_ad0a),
+            ("H2_049", 0x4000_ae85_6083_7f40, 0x4069_a999_9999_999a, 0x1e62_f0e4_23da_c364),
+        ] {
+            let got = chisq_dist_kernel(f64::from_bits(xb), f64::from_bits(dfb), true)
+                .unwrap()
+                .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+
+        // Inverse propagation through gratio_cf_lower: GAMMA.INV (P7, P8, H4) & CHISQ.INV (P8, H7).
+        for &(label, pb, ab, bb, expected) in &[
+            ("P7_121", 0x3fba_d20f_7c43_ea49_u64, 0x3fe2_4626_bc7d_7dfa_u64, 0x4003_73f7_5179_3730_u64, 0x3fa3_c1cd_f07c_8a1f_u64),
+            ("P8_145", 0x305b_b2f5_9bb3_faa6, 0x4046_39e3_5658_c4ee, 0x3fe2_919b_d0af_9b34, 0x3fca_c744_cf87_e17b),
+            ("H4_085", 0x3ecc_a510_fdb3_60a5, 0x3fd9_29ca_9c1c_598d, 0x4009_b143_cd2f_9608, 0x3d20_a989_18df_f075),
+        ] {
+            let got = gamma_inv_kernel(f64::from_bits(pb), f64::from_bits(ab), f64::from_bits(bb))
+                .unwrap()
+                .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+        for &(label, pb, dfb, expected) in &[
+            ("P8_153", 0x31c9_634d_f06d_5426_u64, 0x4055_4000_0000_0000_u64, 0x3fea_e8ca_c868_2c17_u64),
+            ("H7_175", 0x35f4_d422_dd75_7f06, 0x404f_8000_0000_0000, 0x3fe8_57a0_2eb4_0abf),
+        ] {
+            let got = chisq_inv_kernel(f64::from_bits(pb), f64::from_bits(dfb))
+                .unwrap()
+                .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
+        }
     }
 }
