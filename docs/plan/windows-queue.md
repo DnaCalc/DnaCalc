@@ -35,6 +35,24 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   `BETADIST` spot checks matched. Exact inputs and differences are in `ww10/as1` and
   `ww10/bank-rows`. Beta inverse arithmetic remains open here.
 
+### ww10 COM and add-in replay, 2026-11-23
+
+- **dc-17spk.11.** Win64 `189d5f9d9` passed the COM WorkbookEvents ByRef Cancel test. The
+  unmodified desktop Windows-target build stopped in CalcVBA `c3ca0486` with E0308 at the two
+  UTF-16 writes in `bstr.rs`. The pin fix and dependent replay remain with dc-piw0.4 and dc-17spk.11.
+- **dc-17spk.13.** A scratch copy with just the buffer mutability correction built the desktop
+  binaries. OneCalc listed all ten providers and matched 350/350 page cases. All ten providers
+  unloaded. The three workbook-only VBA cases matched separately in the DNA Calc engine. The
+  unmodified dependent check is open. Automation UDF parity remains dc-17spk.8.
+- **dc-17spk.16 and dc-6332.10.** Win64 XLL host tests passed 15/15. Against retained Excel answers,
+  x13 matched 65/68, x13-open 1/1, x14 128/145 and x17 28/28. The 20 boundary refusals repeat the
+  prior results. With the same fixture and tracer hashes as Excel, the cross-revision X1 replay
+  matched 289 formulas, 599 ordered callback codes and contexts, and 148 post-`xlFree` operands.
+  The strict X1 verifier rejected the difference in repository revisions. OneCalc matched both
+  X2Pool endpoints. Strict X2Pool and x18 live RTD replay remain open. The x18 fixture generates
+  HKCU names during startup, so its registry paths need to be predetermined and recorded first.
+  Evidence is in `ww10/af2` and `ww10/bank-rows`.
+
 ### ww10 VBA comparison, 2026-11-23
 
 **dc-tey4.7.** Excel 16.0.20625.20108 timed all 21 workloads on GOVERT-OMEN (Ryzen 7 4800H).
