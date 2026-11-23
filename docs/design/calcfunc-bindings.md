@@ -62,13 +62,28 @@ aliases, optional holes, repeating groups and alternate signatures according to 
 A trailing absent argument and a `Missing` marker inside the argument list need distinct encoding.
 
 Use `calc_catalogue::parameter_lifting` for each zero-based call position, including repeated
-positions. Supply the formula mode, the evaluated argument's origin, and the enclosing call
-position for a legacy formula. The [generated table](../reference/parameter-lifting.tsv) gives
-the same policy for the bindings and handbook, with inclusive one-based position spans.
-The counts cover each position, mode and origin. Ordinary arrays, contiguous multi-cell ranges
-and arrays of references have separate columns. For example, COUNTBLANK takes a range whole
-and lifts a computed array. The table describes pre-publication call behavior. Excel build
-availability, formula entry, 3-D references, boxed arrays and callable values have separate rules.
+positions resolved through `ArgumentGroups` (`DeclarationRef::parameter`). Supply the formula
+mode, the evaluated argument's origin, and the enclosing call position for a legacy formula. The
+[generated table](../reference/parameter-lifting.tsv) gives the same policy for the bindings and
+handbook, with inclusive one-based position spans. The counts cover each position, mode and
+origin. Ordinary arrays, contiguous multi-cell ranges and arrays of references have separate
+columns. For example, COUNTBLANK takes a range whole and lifts a computed array. Parameters
+marked `Parameter::kernel_lifts` (criteria of COUNTIF/SUMIF/AVERAGEIF and the `*IFS` family) are
+declared `ValueOrReference` so references reach the kernel, and the kernel lifts ordinary arrays
+and multi-cell ranges elementwise; the table reports `elementwise` for those positions (including
+repeated `*IFS` group positions) while leaving their alternating `criteria_range` positions
+`whole`. The table describes pre-publication call behavior. Excel build availability, formula
+entry, 3-D references, boxed arrays and callable values have separate rules.
+
+The bulk agreement test in `crates/calc-fml/src/eval/run.rs`
+(`catalogue_lifting_matches_argument_preparation`) proves that `parameter_lifting` matches
+CalcFml's pre-kernel argument preparation (`admit_arguments`, `admit` and `lift_operand`), not
+directly Excel for kernel-lifted functions. For `kernel_lifts` parameters it proves that CalcFml
+passes arrays and ranges through whole to the kernel (while intercepting reference arrays before
+the kernel as declared); separate end-to-end tests (`catalogue_lifting_tracks_kernel_lifted_parameters`
+and `catalogue_lifting_tracks_lazy_selectors`) exercise actual kernel and lazy evaluation against
+Excel-measured behavior. Legacy implicit-intersection nuances on kernel-lifted range criteria remain
+tracked with other unmeasured legacy cases in `dc-b1l`.
 
 `elementwise-when-lifted` means a lazy IF or CHOOSE branch participates only when the selector
 lifts. In a legacy aggregate placement, a scalar selector can return a whole range from the

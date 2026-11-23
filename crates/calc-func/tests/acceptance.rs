@@ -10175,7 +10175,14 @@ fn cfunc_m3_5__criteria_semantics() {
         (
             "COUNTIFS",
             (2, 254),
-            vec![reference_class, either, reference_class, either, either],
+            vec![
+                reference_class,
+                either,
+                reference_class,
+                either,
+                reference_class,
+                either,
+            ],
         ),
         (
             "SUMIF",
@@ -10191,6 +10198,7 @@ fn cfunc_m3_5__criteria_semantics() {
                 either,
                 reference_class,
                 either,
+                reference_class,
                 either,
             ],
         ),
@@ -10286,9 +10294,9 @@ fn cfunc_m3_5__criteria_semantics() {
         CONDITIONALS.map(|(spelling, _)| spelling)
     );
 
-    // Through the call interface alone. A range that is not a reference is refused naming it:
-    // at admission for a declared reference parameter, by the kernel for a criteria range past
-    // the declared ones; a count of arguments that does not form pairs is ArityMismatch.
+    // Through the call interface alone. A range that is not a reference is refused naming it at
+    // admission for every reference parameter, including repeated group positions; a count of
+    // arguments that does not form pairs is ArityMismatch.
     let range = reference(s, &["A1:A16"]).value;
     let one = CalcValue::number(1.0);
     let array = CalcValue::array(

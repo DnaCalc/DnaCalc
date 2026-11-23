@@ -35,55 +35,55 @@ const RANGE_CRITERIA: &[Parameter] = &[
     Parameter::reference("range")
         .entry(EntryClass::Reference)
         .legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
-    Parameter::value_or_reference("criteria"),
+    Parameter::value_or_reference("criteria").kernel_lifts(),
 ];
 const SUM_RANGE: &[Parameter] = &[
     Parameter::reference("range")
         .entry(EntryClass::Reference)
         .legacy(super::LegacyPlace::ArrayAlwaysLiftReferences),
-    Parameter::value_or_reference("criteria"),
+    Parameter::value_or_reference("criteria").kernel_lifts(),
     Parameter::reference("sum_range").entry(EntryClass::Reference),
 ];
 const AVERAGE_RANGE: &[Parameter] = &[
     Parameter::reference("range").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria"),
+    Parameter::value_or_reference("criteria").kernel_lifts(),
     Parameter::reference("average_range").entry(EntryClass::Reference),
 ];
-// The catalogue repeats only the last named parameter, so arguments past these names take its
-// class, ValueOrReference: a criteria range there reaches the kernel, which requires a reference.
+// Repeated pairs beyond these named positions map back to the first pair through `ArgumentGroups`,
+// keeping each criteria range `Reference` and each criterion `ValueOrReference` with `kernel_lifts`.
 const COUNT_PAIRS: &[Parameter] = &[
     Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
+    Parameter::value_or_reference("criteria1").kernel_lifts(),
     Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
+    Parameter::value_or_reference("criteria2").kernel_lifts(),
 ];
 const SUM_PAIRS: &[Parameter] = &[
     Parameter::reference("sum_range").entry(EntryClass::Reference),
     Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
+    Parameter::value_or_reference("criteria1").kernel_lifts(),
     Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
+    Parameter::value_or_reference("criteria2").kernel_lifts(),
 ];
 const AVERAGE_PAIRS: &[Parameter] = &[
     Parameter::reference("average_range").entry(EntryClass::Reference),
     Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
+    Parameter::value_or_reference("criteria1").kernel_lifts(),
     Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
+    Parameter::value_or_reference("criteria2").kernel_lifts(),
 ];
 const MAX_PAIRS: &[Parameter] = &[
     Parameter::reference("max_range").entry(EntryClass::Reference),
     Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
+    Parameter::value_or_reference("criteria1").kernel_lifts(),
     Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
+    Parameter::value_or_reference("criteria2").kernel_lifts(),
 ];
 const MIN_PAIRS: &[Parameter] = &[
     Parameter::reference("min_range").entry(EntryClass::Reference),
     Parameter::reference("criteria_range1").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria1"),
+    Parameter::value_or_reference("criteria1").kernel_lifts(),
     Parameter::reference("criteria_range2").entry(EntryClass::Reference),
-    Parameter::value_or_reference("criteria2"),
+    Parameter::value_or_reference("criteria2").kernel_lifts(),
 ];
 
 /// An eager named call taking `min` to `max` arguments.

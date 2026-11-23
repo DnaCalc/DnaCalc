@@ -3004,6 +3004,15 @@ mod tests {
         }
     }
 
+    /// Verifies that `calc_catalogue::parameter_lifting` agrees with CalcFml's pre-kernel
+    /// argument preparation (`admit_arguments`, `admit` and `lift_operand`) across all held
+    /// entries, positions, modes and origins.
+    ///
+    /// Scope: this check proves agreement with CalcFml's pre-kernel admission, not directly with
+    /// Excel for kernel-lifted functions. For parameters marked `Parameter::kernel_lifts` (such as
+    /// COUNTIF/SUMIF/AVERAGEIF and `*IFS` criteria), pre-kernel admission passes `Array` and
+    /// `Range` operands through `Whole` while `parameter_lifting` reports `Elementwise`; actual
+    /// kernel lifting is exercised end-to-end by `catalogue_lifting_tracks_kernel_lifted_parameters`.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn catalogue_lifting_matches_argument_preparation() {
@@ -3201,10 +3210,21 @@ mod tests {
                             }
                             Err(fault) => panic!("unexpected admission fault: {fault:?}"),
                         };
+                        let expected = if entry
+                            .parameter(index)
+                            .is_some_and(|parameter| parameter.kernel_lifts)
+                            && actual == Lifting::Whole
+                        {
+                            // Pre-kernel CalcFml admission passed the operand whole; the kernel
+                            // lifts it elementwise (verified end-to-end below).
+                            Lifting::Elementwise
+                        } else {
+                            actual
+                        };
                         assert_eq!(
                             calc_catalogue::parameter_lifting(entry, index, mode, *origin),
-                            Some(actual),
-                            "{} argument {} at {mode:?} with {origin:?}",
+                            Some(expected),
+                            "{} argument {} at {mode:?} with {origin:?} (pre-kernel admission: {actual:?})",
                             entry.spelling(),
                             index + 1,
                         );
@@ -3215,6 +3235,242 @@ mod tests {
             }
         }
         println!("Compared {count} parameter lifting decisions.");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn catalogue_lifting_tracks_kernel_lifted_parameters() {
+        use calc_catalogue::{
+            LegacyContext, Lifting, LiftingMode, LiftingOrigin, named, parameter_lifting,
+        };
+        use std::collections::BTreeMap;
+
+        struct SheetGrid {
+            cells: BTreeMap<(u32, u32), CalcValue>,
+        }
+
+        impl ReferenceReader for SheetGrid {
+            fn can_reuse_reads(&self) -> bool {
+                true
+            }
+            fn read_denial(&self) -> Option<crate::ReadDenial> {
+                None
+            }
+            fn read_fact(&mut self, _fact: crate::FactRead) {}
+            fn spill_extent(
+                &mut self,
+                _: calc_func::value::CellKey,
+            ) -> crate::reference::SpillExtent {
+                crate::reference::SpillExtent::NotModelled
+            }
+            fn subtotal_exclusions(
+                &mut self,
+                _: calc_func::value::GridArea,
+            ) -> Option<calc_func::SubtotalExclusions> {
+                None
+            }
+            fn read_area(
+                &mut self,
+                _request: crate::ReadRequest,
+                area: GridArea,
+                sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+            ) {
+                let empty = CalcValue::empty();
+                for row in area.first().row()..=area.last().row() {
+                    for col in area.first().column()..=area.last().column() {
+                        let cell = self.cells.get(&(row, col)).unwrap_or(&empty);
+                        if sink(CellRun::Values(std::slice::from_ref(cell))).is_break() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Data table:
+        // A1:A4 = 10, 20, 30, 40 (values)
+        // B1:B4 = "a", "b", "a", "b" (category 1)
+        // C1:C4 = 1, 1, 2, 2 (category 2)
+        // D1:D4 = "x", "x", "x", "y" (category 3, for 3rd repeated *IFS pair)
+        // E1:E2 = "a", "b" (vertical criteria range)
+        // F1:G1 = 1, 2 (horizontal criteria range)
+        let mut cells = BTreeMap::new();
+        for (row, (a, b, c, d)) in [
+            (1u32, (10.0, "a", 1.0, "x")),
+            (2, (20.0, "b", 1.0, "x")),
+            (3, (30.0, "a", 2.0, "x")),
+            (4, (40.0, "b", 2.0, "y")),
+        ] {
+            cells.insert((row, 1), CalcValue::number(a));
+            cells.insert((row, 2), CalcValue::text(ExcelText::from_interop_assignment(b)));
+            cells.insert((row, 3), CalcValue::number(c));
+            cells.insert((row, 4), CalcValue::text(ExcelText::from_interop_assignment(d)));
+        }
+        cells.insert((1, 5), CalcValue::text(ExcelText::from_interop_assignment("a")));
+        cells.insert((2, 5), CalcValue::text(ExcelText::from_interop_assignment("b")));
+        cells.insert((1, 6), CalcValue::number(1.0));
+        cells.insert((1, 7), CalcValue::number(2.0));
+
+        let eval = |formula: &str, form: FormulaForm| -> CalcValue {
+            let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+            let anchor = FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 10, 10).unwrap());
+            let plan = crate::compile_with(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+                form,
+            )
+            .unwrap();
+            let instance = instantiate(&plan, anchor);
+            let mut reader = SheetGrid {
+                cells: cells.clone(),
+            };
+            let mut scratch = EvalScratch::new();
+            evaluate(
+                EvalFrame::new(&instance, &mut scratch),
+                &mut FormulaEvaluationContext::new(
+                    &NumericMode::Fast,
+                    &mut reader,
+                    None,
+                    None,
+                    crate::ReadRequest::DEPENDENCY,
+                ),
+            )
+            .unwrap_or_else(|fault| panic!("{formula} ({form:?}) faulted: {fault:?}"))
+        };
+        let row_array = |values: &[CalcValue]| {
+            CalcValue::array(CalcArray::from_rows(vec![values.to_vec()]).unwrap())
+        };
+        let col_array = |values: &[CalcValue]| {
+            CalcValue::array(
+                CalcArray::from_rows(values.iter().cloned().map(|v| vec![v]).collect()).unwrap(),
+            )
+        };
+        let n = CalcValue::number;
+        let na = || CalcValue::error(WorksheetErrorCode::NA);
+        let div0 = || CalcValue::error(WorksheetErrorCode::Div0);
+
+        // Single-criterion functions: array and multi-cell range criteria lift elementwise.
+        assert_eq!(
+            eval(r#"=COUNTIF(A1:A4,{">15","<25"})"#, FormulaForm::Dynamic),
+            row_array(&[n(3.0), n(2.0)]),
+        );
+        assert_eq!(
+            eval("=COUNTIF(B1:B4,E1:E2)", FormulaForm::Dynamic),
+            col_array(&[n(2.0), n(2.0)]),
+        );
+        assert_eq!(
+            eval(r#"=SUMIF(B1:B4,{"a","b"},A1:A4)"#, FormulaForm::Dynamic),
+            row_array(&[n(40.0), n(60.0)]),
+        );
+        assert_eq!(
+            eval("=SUMIF(B1:B4,E1:E2,A1:A4)", FormulaForm::Dynamic),
+            col_array(&[n(40.0), n(60.0)]),
+        );
+        assert_eq!(
+            eval(r#"=AVERAGEIF(B1:B4,{"a","z"},A1:A4)"#, FormulaForm::Dynamic),
+            row_array(&[n(20.0), div0()]),
+        );
+        assert_eq!(
+            eval("=AVERAGEIF(B1:B4,E1:E2,A1:A4)", FormulaForm::Dynamic),
+            col_array(&[n(20.0), n(30.0)]),
+        );
+
+        // *IFS family: named criteria pairs AND repeated group positions (3rd pair: COUNTIFS
+        // arg 6 / index 5, SUMIFS/AVERAGEIFS/MAXIFS/MINIFS arg 7 / index 6), plus 2D/mismatched
+        // shapes and range criteria.
+        assert_eq!(
+            eval(
+                r#"=COUNTIFS(B1:B4,"a",C1:C4,1,D1:D4,{"x","y"})"#,
+                FormulaForm::Dynamic,
+            ),
+            row_array(&[n(1.0), n(0.0)]),
+        );
+        assert_eq!(
+            eval(
+                r#"=SUMIFS(A1:A4,B1:B4,"b",C1:C4,">0",D1:D4,{"x","y"})"#,
+                FormulaForm::Dynamic,
+            ),
+            row_array(&[n(20.0), n(40.0)]),
+        );
+        assert_eq!(
+            eval(
+                r#"=AVERAGEIFS(A1:A4,B1:B4,"a",C1:C4,">0",D1:D4,{"x","y"})"#,
+                FormulaForm::Dynamic,
+            ),
+            row_array(&[n(20.0), div0()]),
+        );
+        assert_eq!(
+            eval(
+                r#"=MAXIFS(A1:A4,B1:B4,"b",C1:C4,">0",D1:D4,{"x","y"})"#,
+                FormulaForm::Dynamic,
+            ),
+            row_array(&[n(20.0), n(40.0)]),
+        );
+        assert_eq!(
+            eval(
+                r#"=MINIFS(A1:A4,B1:B4,"b",C1:C4,">0",D1:D4,{"x","y"})"#,
+                FormulaForm::Dynamic,
+            ),
+            row_array(&[n(20.0), n(40.0)]),
+        );
+        // Multi-cell range criteria across two dimensions pad missing positions with #N/A.
+        assert_eq!(
+            eval("=SUMIFS(A1:A4,B1:B4,E1:E2,C1:C4,F1:G1)", FormulaForm::Dynamic),
+            CalcValue::array(
+                CalcArray::from_rows(vec![vec![n(10.0), na()], vec![na(), na()]]).unwrap()
+            ),
+        );
+        // Legacy aggregate and array contexts receive the kernel-lifted array intact.
+        assert_eq!(
+            eval(r#"=SUM(COUNTIF(A1:A4,{">15","<25"}))"#, FormulaForm::Legacy),
+            n(5.0),
+        );
+        assert_eq!(
+            eval("=SUMPRODUCT(SUMIF(B1:B4,E1:E2,A1:A4))", FormulaForm::Legacy),
+            n(100.0),
+        );
+
+        // Catalogue table agrees on every tested criterion and alternating range position,
+        // including repeated group positions beyond the named parameter list.
+        for (spelling, range_indices, criterion_indices) in [
+            ("COUNTIF", &[0usize][..], &[1usize][..]),
+            ("SUMIF", &[0, 2][..], &[1][..]),
+            ("AVERAGEIF", &[0, 2][..], &[1][..]),
+            ("COUNTIFS", &[0, 2, 4, 6][..], &[1, 3, 5, 7][..]),
+            ("SUMIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
+            ("AVERAGEIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
+            ("MAXIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
+            ("MINIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
+        ] {
+            let entry = named(spelling).unwrap();
+            for mode in [
+                LiftingMode::Dynamic,
+                LiftingMode::Legacy(LegacyContext::Aggregate),
+                LiftingMode::Legacy(LegacyContext::Array),
+            ] {
+                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
+                    for &index in range_indices {
+                        assert_eq!(
+                            parameter_lifting(entry, index, mode, origin),
+                            Some(Lifting::Whole),
+                            "{spelling} range position {} at {mode:?} / {origin:?}",
+                            index + 1,
+                        );
+                    }
+                    for &index in criterion_indices {
+                        assert_eq!(
+                            parameter_lifting(entry, index, mode, origin),
+                            Some(Lifting::Elementwise),
+                            "{spelling} criterion position {} at {mode:?} / {origin:?}",
+                            index + 1,
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

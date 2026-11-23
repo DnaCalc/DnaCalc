@@ -203,21 +203,25 @@ const fn check_attachments(families: &[&Family]) {
 const _: () = check_attachments(&FAMILIES);
 
 impl CatalogueEntry {
+    /// The declared parameter slot for argument `index`: its group's parameter when it lies in a
+    /// repeating group beyond the named parameters, else the last named one.
+    fn parameter_index(&self, index: usize) -> usize {
+        let named = self.parameters.len();
+        match self.groups.and_then(|groups| groups.parameter(index)) {
+            Some(at) if index >= named => at,
+            _ => index.min(named.saturating_sub(1)),
+        }
+    }
+
     /// The class of argument `index`, which the arity admits.
     pub(crate) fn parameter_class(&self, index: usize) -> ParameterClass {
-        let last = self.parameters.len().saturating_sub(1);
-        self.parameters[index.min(last)].class
+        self.parameters[self.parameter_index(index)].class
     }
 
     /// The entry class of argument `index`, which the arity admits: its group's parameter's when
     /// it lies in a repeating group beyond the named parameters, else the last named one's.
     pub(crate) fn entry_class(&self, index: usize) -> EntryClass {
-        let named = self.parameters.len();
-        let at = match self.groups.and_then(|groups| groups.parameter(index)) {
-            Some(at) if index >= named => at,
-            _ => index.min(named.saturating_sub(1)),
-        };
-        self.parameters[at].entry
+        self.parameters[self.parameter_index(index)].entry
     }
 }
 

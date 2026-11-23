@@ -131,6 +131,29 @@ impl DeclarationRef {
             Self::Other(x) => x.parameters,
         }
     }
+    /// The parameter declaration at zero-based call position `index`, repeating a declared
+    /// group or the final parameter beyond the named slice. `None` when `index` exceeds the
+    /// entry's maximum arity or the declaration has no parameters.
+    pub const fn parameter(self, index: usize) -> Option<&'static Parameter> {
+        if index >= self.arity().max {
+            return None;
+        }
+        let parameters = self.parameters();
+        if parameters.is_empty() {
+            return None;
+        }
+        if index < parameters.len() {
+            return Some(&parameters[index]);
+        }
+        if let Some(groups) = self.groups() {
+            if let Some(named) = groups.parameter(index) {
+                if named < parameters.len() {
+                    return Some(&parameters[named]);
+                }
+            }
+        }
+        Some(&parameters[parameters.len() - 1])
+    }
     /// Result form visible to formula admission.
     pub const fn result(self) -> ResultForm {
         match self {

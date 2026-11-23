@@ -103,21 +103,26 @@ type Kernel = fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, Funct
 /// position one of them lacks #N/A (Excel 16.0.20527, 2026-11-16, Touchstone sheet cases:
 /// `=COUNTIFS(A1:A15,{">10","<5"})` spills {4,1}, `=AVERAGEIFS(B1:B15,A1:A15,{">10","<5"},C1:C15,E2)`
 /// {5,#DIV/0!}). A cell of a criteria reference is passed as a one-cell reference.
+/// Lifted positions follow the catalogue declaration (`Parameter::kernel_lifts` with `ArgumentGroups`).
 fn lift(
     id: super::FunctionId,
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
-    criterion: fn(usize) -> bool,
     kernel: Kernel,
 ) -> Result<CalcValue, FunctionFault> {
     enum Many<'a> {
         Array(&'a CalcArray),
         Area(GridArea),
     }
+    let entry = calc_catalogue::declaration(id).expect("conditional entry is declared");
     let many: Vec<(usize, Many<'_>)> = arguments
         .iter()
         .enumerate()
-        .filter(|(index, _)| criterion(*index))
+        .filter(|(index, _)| {
+            entry
+                .parameter(*index)
+                .is_some_and(|parameter| parameter.kernel_lifts)
+        })
         .filter_map(|(index, value)| match value.core_ref() {
             CoreRef::Array(array) => Some((index, Many::Array(array))),
             CoreRef::Reference(reference) => match reference.areas() {
@@ -171,38 +176,29 @@ fn lift(
     ))
 }
 
-fn odd(index: usize) -> bool {
-    index % 2 == 1
-}
-fn second(index: usize) -> bool {
-    index == 1
-}
-fn even_after_target(index: usize) -> bool {
-    index >= 2 && index % 2 == 0
-}
 fn countif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(COUNTIF, a, sv, second, countif)
+    lift(COUNTIF, a, sv, countif)
 }
 fn countifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(COUNTIFS, a, sv, odd, countifs)
+    lift(COUNTIFS, a, sv, countifs)
 }
 fn sumif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(SUMIF, a, sv, second, sumif)
+    lift(SUMIF, a, sv, sumif)
 }
 fn sumifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(SUMIFS, a, sv, even_after_target, sumifs)
+    lift(SUMIFS, a, sv, sumifs)
 }
 fn averageif_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(AVERAGEIF, a, sv, second, averageif)
+    lift(AVERAGEIF, a, sv, averageif)
 }
 fn averageifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(AVERAGEIFS, a, sv, even_after_target, averageifs)
+    lift(AVERAGEIFS, a, sv, averageifs)
 }
 fn maxifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(MAXIFS, a, sv, even_after_target, maxifs)
+    lift(MAXIFS, a, sv, maxifs)
 }
 fn minifs_lifted(a: &[CalcValue], sv: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
-    lift(MINIFS, a, sv, even_after_target, minifs)
+    lift(MINIFS, a, sv, minifs)
 }
 
 /// COUNTIF: the cells of the range that meet the criterion.

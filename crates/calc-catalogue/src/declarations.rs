@@ -676,6 +676,10 @@ pub struct Parameter {
     pub entry: EntryClass,
     /// Implicit-intersection and lifting placement in legacy formulas.
     pub legacy: LegacyPlace,
+    /// Whether the kernel itself lifts elementwise over an ordinary array or multi-cell
+    /// single-area range when pre-kernel admission passes the operand whole (for example,
+    /// criteria of COUNTIF/SUMIF/AVERAGEIF and the *IFS family).
+    pub kernel_lifts: bool,
 }
 
 /// Measured treatment of a reference supplied to a parameter in a legacy formula.
@@ -777,6 +781,7 @@ impl Parameter {
             class,
             entry: EntryClass::Any,
             legacy: LegacyPlace::Default,
+            kernel_lifts: false,
         }
     }
 
@@ -804,6 +809,13 @@ impl Parameter {
     /// Set the placement used when lowering a legacy formula.
     pub const fn legacy(mut self, legacy: LegacyPlace) -> Self {
         self.legacy = legacy;
+        self
+    }
+
+    /// Mark a non-`Value` parameter whose kernel lifts elementwise over ordinary arrays and
+    /// multi-cell single-area ranges.
+    pub const fn kernel_lifts(mut self) -> Self {
+        self.kernel_lifts = true;
         self
     }
 }
