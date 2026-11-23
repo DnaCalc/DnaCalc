@@ -613,11 +613,12 @@ impl ModelObject {
             }
             return self.invoke_member(member, values, names);
         }
-        // Late-bound indexed property assignment (`ws.Cells(2, 2) = 9`): evaluate the 0-arg
-        // getter and forward the indexed assignment to the returned object's default setter.
+        // VBA forwards Let through a read-only object getter to the returned object's default
+        // setter (`lo.Range = 9`). Set with no indices targets the named property itself.
+        // Indexed assignments such as `ws.Cells(2, 2) = 9` pass their indices to the setter.
         if name.is_some()
             && !values.is_empty()
-            && matches!(kind, InvokeKind::Put | InvokeKind::Putref)
+            && (kind == InvokeKind::Put || (kind == InvokeKind::Putref && values.len() > 1))
             && let Some(getter) =
                 lookup_member_by_name(self.object.interface, name, InvokeKind::Get)
             && getter.arguments().next().is_none()

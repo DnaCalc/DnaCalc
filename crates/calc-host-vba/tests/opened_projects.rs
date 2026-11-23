@@ -2551,6 +2551,54 @@ End Sub
     }
 }
 
+/// Excel Q13: a late-bound Let through a read-only table member writes the returned
+/// range's default value. An object assignment to the property itself raises 438.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn late_bound_table_range_let_writes_values_and_set_raises_438() {
+    let sheet_source = r#"
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub
+ Application.EnableEvents = False
+ Me.Range("A1").Value2 = "H1"
+ Me.Range("B1").Value2 = "H2"
+ Me.Range("A2").Value2 = 1
+ Me.Range("B2").Value2 = 2
+ Me.Range("A3").Value2 = 3
+ Me.Range("B3").Value2 = 4
+ Dim lo As Object
+ Set lo = Me.ListObjects.Add(xlSrcRange, Me.Range("A1:B3"), , xlYes)
+ On Error Resume Next
+ Set lo.Range = Me.Range("D1")
+ History = CStr(Err.Number)
+ Err.Clear
+ On Error GoTo 0
+ lo.DataBodyRange = 5
+ lo.HeaderRowRange = "z"
+ History = History & ":" & CStr(Me.Range("A2").Value2) & ":" & CStr(Me.Range("B3").Value2)
+ History = History & ":" & CStr(Me.Range("A1").Value2) & ":" & CStr(Me.Range("B1").Value2)
+ History = History & ":" & CStr(Me.ListObjects.Count)
+ lo.Range = 9
+ History = History & ":" & CStr(Me.Range("A1").Value2) & ":" & CStr(Me.Range("B3").Value2)
+ History = History & ":" & CStr(Me.ListObjects.Count)
+ Application.EnableEvents = True
+End Sub
+"#;
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "table-let.xlsm");
+        let project = mutable_owner(&mut session, sheet_source, OWNER_STATE, 50_000, backend);
+        enter(&mut session, 1, 1, "go");
+        let trace = project.functions().call("Trace", &[]).unwrap();
+        let trace = trace.as_text().unwrap().to_string_lossy();
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?} at {trace}: {:?}",
+            session.workbook_event_failures()
+        );
+        assert_eq!(trace, "438:5:5:z:z2:1:9:9:0", "{backend:?}");
+    }
+}
+
 /// dc-1nbp.7: Worksheet and Workbook objects (`Me.Range`, `Worksheets("S").Range`,
 /// `ThisWorkbook.Worksheets("S").Range`, `Range.Cells`, `Range.Value2` reads/writes,
 /// including late-bound `Worksheets("S").Range(...).Cells(r, c)`) run over the existing
