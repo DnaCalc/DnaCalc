@@ -16,51 +16,79 @@ use std::sync::Arc;
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CellEdit {
+    /// Replace the rich-text source map keyed by cell.
     TextSources(std::collections::BTreeMap<CellKey, Arc<[u8]>>),
-    /// Authored style table, in the same transaction as its cell assignments.
+    /// Replace the workbook’s authored table definitions.
     Tables(Vec<calc_doc_model::Table>),
+    /// Replace the workbook’s pivot table and pivot cache state.
     Pivots(Arc<calc_doc_model::pivot::PivotState>),
+    /// Replace the workbook’s embedded data-model state.
     DataModel(Arc<calc_doc_model::DataModel>),
+    /// Replace the authored style table in the same transaction as its cell assignments.
     Styles(Arc<calc_doc_model::StyleTable>),
+    /// Replace the worksheet’s print and page setup.
     PageSetup {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The replacement page setup.
         setup: calc_doc_model::PageSetup,
     },
+    /// Replace the worksheet’s chart collection.
     Charts {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The complete chart collection.
         charts: Vec<calc_doc_model::Chart>,
     },
     /// The sheet's drawing objects other than charts (dc-zjsg.1).
     Shapes {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The complete shape collection in drawing order.
         shapes: Vec<calc_doc_model::Shape>,
     },
     /// The sheet's sparkline groups (dc-zjsg.7).
     Sparklines {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The complete collection of sparkline groups.
         groups: Vec<calc_doc_model::SparklineGroup>,
     },
+    /// Set or remove the worksheet AutoFilter.
     AutoFilter {
+        /// The worksheet to edit.
         sheet: calc_doc_model::value::SheetId,
+        /// The replacement filter, or `None` to remove it.
         filter: Option<calc_doc_model::AutoFilter>,
     },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
+    /// Replace the worksheet’s data validation rules.
     Validations {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The complete collection of validation rules.
         rules: Vec<calc_doc_model::Validation>,
     },
+    /// Replace the worksheet’s hyperlink records.
     ReviewLinks {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The complete collection of hyperlinks.
         links: Vec<calc_doc_model::ReviewLink>,
     },
+    /// Replace the worksheet’s note records.
     ReviewNotes {
+        /// The worksheet to edit.
         sheet: calc_doc_model::value::SheetId,
+        /// The complete collection of notes.
         notes: Vec<calc_doc_model::ReviewNote>,
     },
     /// Replaces authored conditional rules, retaining original XML fields.
     ConditionalRules {
+        /// The worksheet to edit.
         sheet: calc_doc_model::value::SheetId,
+        /// The complete collection of authored conditional rules.
         rules: Vec<calc_doc_model::ConditionalRuleSource>,
     },
     /// A worksheet lifecycle operation, with reference rewriting and snapshot history.
@@ -69,20 +97,28 @@ pub enum CellEdit {
     AxisFormat(calc_doc_model::AxisFormatEdit),
     /// Changes a worksheet window's frozen leading bands without changing cells.
     PaneLayout {
+        /// The worksheet to edit.
         sheet: calc_value::SheetId,
+        /// The replacement pane layout, or `None` to clear it.
         layout: Option<calc_doc_model::PaneLayout>,
     },
+    /// Set or clear frozen panes on a worksheet.
     FrozenPanes {
+        /// The worksheet to edit.
         sheet: calc_doc_model::value::SheetId,
+        /// The replacement frozen panes, or `None` to clear them.
         panes: Option<calc_doc_model::FrozenPanes>,
     },
     /// Sets a cell of an existing sheet to a value or a formula.
     Set {
+        /// The cell to write.
         at: CellKey,
+        /// The new authored input.
         input: CellInput,
     },
     /// Removes the contents of every cell of an area of an existing sheet.
     Clear {
+        /// The inclusive area to clear.
         area: GridArea,
     },
     /// Authors an array formula: the rest of the array's area is emptied and its anchor holds
@@ -90,7 +126,9 @@ pub enum CellEdit {
     /// alone is what Excel stores for a formula entered into one cell that can return an array;
     /// a legacy array is a Ctrl+Shift+Enter formula over its area.
     SetArray {
+        /// The anchor, extent and kind of array formula.
         array: ArrayFormula,
+        /// The formula text stored at the anchor.
         formula: FormulaText,
     },
     /// Inserts or deletes rows or columns of a sheet ([`calc_doc::prepare_structural_edit`]):
@@ -101,14 +139,18 @@ pub enum CellEdit {
     /// `None` to return it to the format the file gave it ([`calc_doc_model::WorkbookOp::SetFormat`],
     /// dc-09v). It changes no input and no value.
     SetFormat {
+        /// The cell to format.
         at: CellKey,
+        /// The style index, or `None` to clear the override.
         format: Option<u32>,
     },
     /// Gives the defined name `name` of `scope` the formula `formula`
     /// ([`calc_doc_model::WorkbookOp::SetNameFormula`], dc-gf0). Scoped graph watches rebind
     /// its users without changing the authored formulas or their generations.
     SetName {
+        /// The defined name to edit.
         name: String,
+        /// The workbook or worksheet scope of the name.
         scope: calc_doc_model::NameScope,
         /// `None` removes the name; a name the workbook does not hold is defined.
         formula: Option<String>,
@@ -210,7 +252,9 @@ impl CellEdit {
 /// revision the caller prepared them against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostCommand {
+    /// The authored revision against which these edits were prepared.
     pub base: AuthoredRevision,
+    /// The edits in application order.
     pub edits: Vec<CellEdit>,
 }
 
@@ -278,7 +322,9 @@ pub enum CommandError {
     NoEdits,
     /// The command was prepared against another revision than the current one.
     StaleBase {
+        /// The base revision supplied with the command.
         command: AuthoredRevision,
+        /// The workbook revision at dispatch.
         current: AuthoredRevision,
     },
     /// The document refused the batch (calc-doc's [`calc_doc::prepare_edit`]): a sheet the
@@ -291,7 +337,12 @@ pub enum CommandError {
     /// The batch adds formula cells and would leave `formula_cells` of them, more than the host's
     /// [`crate::HostOptions::formula_cell_budget`]; the node IDs the engine reserved for them are
     /// released.
-    FormulaBudget { formula_cells: usize, budget: usize },
+    FormulaBudget {
+        /// The number of formula cells the workbook would hold after the edit.
+        formula_cells: usize,
+        /// The maximum number of formula cells admitted by the host.
+        budget: usize,
+    },
 }
 
 impl fmt::Display for CommandError {
@@ -340,6 +391,30 @@ impl std::error::Error for CommandError {}
 ///
 /// A refusal at steps 1 to 5 drops whatever was prepared; dropping the engine's change releases
 /// its reserved node IDs.
+///
+/// ```
+/// use std::sync::Arc;
+/// use calc_host::value::CellKey;
+/// use calc_host::{
+///     CellEdit, CellInput, HostCommand, HostOptions, HostState, MemorySource, OpenPolicy,
+///     blank_package, dispatch,
+/// };
+///
+/// let mut host = HostState::open(
+///     Arc::new(MemorySource::new(blank_package())),
+///     &OpenPolicy::default(),
+///     HostOptions::default(),
+/// ).unwrap();
+/// let base = host.revision();
+/// let at = CellKey::new(host.sheets()[0].id(), 1, 1).unwrap();
+/// let receipt = dispatch(&mut host, HostCommand {
+///     base,
+///     edits: vec![CellEdit::Set { at, input: CellInput::Logical(true) }],
+/// }).unwrap();
+/// assert_eq!(receipt.base(), base);
+/// assert_eq!(receipt.revision(), host.revision());
+/// assert_eq!(receipt.changed_cells(), &[at]);
+/// ```
 pub fn dispatch(
     host: &mut HostState,
     command: HostCommand,
@@ -347,6 +422,9 @@ pub fn dispatch(
     dispatch_slice(host, command.base, &command.edits)
 }
 
+/// Commit a borrowed list of edits against the supplied authored revision.
+///
+/// Applies the same transaction and validation rules as [`dispatch`].
 pub fn dispatch_slice(
     host: &mut HostState,
     base: AuthoredRevision,
