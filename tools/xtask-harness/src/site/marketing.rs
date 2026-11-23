@@ -28,6 +28,18 @@ const ARTICLES: &[(&str, &str, Section, &str)] = &[
         "Excel measurements and arithmetic behind the gamma family.",
     ),
     (
+        "last-bit-beta.md",
+        "/articles/last-bit-beta/",
+        Section::Evidence,
+        "How the 29 incomplete-beta callers moved across AS 109, Ext80 bgrat and Modified-Lentz bfrac.",
+    ),
+    (
+        "last-bit-pmt.md",
+        "/articles/last-bit-pmt/",
+        Section::Evidence,
+        "How the five PMT and amortization functions reached 100% exact on 308,710 witness rows.",
+    ),
+    (
         "last-bit-number-text.md",
         NUMBER_TEXT_ROUTE,
         Section::Evidence,

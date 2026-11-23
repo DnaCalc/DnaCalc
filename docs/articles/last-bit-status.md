@@ -4,7 +4,11 @@ The November 22 measurements use recorded Excel answers. Each result below descr
 
 ## Beta distributions
 
-The AS 109 inverse and incomplete-beta update shares the solver across tiny shapes and changes where subnormal intermediate values become zero. In that change's 29-function bank, exact matches rose from 172,505 to 173,725 out of 192,972. BETA.INV went from 5,571 to 6,596 out of 7,636, while BETA.DIST went from 3,965 to 4,127 out of 15,845. Near-endpoint and small-shape differences remain. [Solver change and tests](https://github.com/DnaCalc/DnaCalc/commit/a423c5c0)
+The AS 109 inverse and incomplete-beta update shares the solver across tiny shapes and changes where subnormal intermediate values become zero. In that change's 29-function bank, exact matches rose from 172,505 to 173,725 out of 192,972. BETA.INV went from 5,571 to 6,596 out of 7,636, while BETA.DIST went from 3,965 to 4,127 out of 15,845. [Solver change and tests](https://github.com/DnaCalc/DnaCalc/commit/a423c5c0). Follow-on landings—retaining `dc-i2wk3`'s Ext80 `bgrat` ([bgrat change](https://github.com/DnaCalc/DnaCalc/commit/8ac7c9e8)), fixing the `LowerEndpoint` Newton step ([Newton change](https://github.com/DnaCalc/DnaCalc/commit/b0c75eb2)), and switching `bfrac` to DiDonato & Morris Eq. (2.8) in Modified Lentz ([bfrac change](https://github.com/DnaCalc/DnaCalc/commit/9b35d0fc))—brought the 29-function bank to 182,814 of 192,972, with density-prefactor and `ln B` work remaining under `dc-j9k.55`. See the [incomplete-beta family article](last-bit-beta.md).
+
+## PMT and amortization
+
+Unifying `PMT` onto one `PC = 64` balance formula, switching `alnrel` to the shared x87 logarithm, and storing exponent products from `PC = 64` took all five amortization functions (`PMT`, `IPMT`, `PPMT`, `CUMIPMT`, and `CUMPRINC`) from 308,703 to 308,710 exact matches out of 308,710 (100.000%), matching all 409 original `dc-j9k.12` oracle-corpus cells and 240 of 240 unseen holdout rows. [PMT change and tests](https://github.com/DnaCalc/DnaCalc/commit/b4bd656d). See the [PMT and amortization article](last-bit-pmt.md).
 
 ## Bessel functions
 
