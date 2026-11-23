@@ -15,6 +15,7 @@ pub struct Rng {
     state: [u64; 4],
 }
 
+#[allow(dead_code)]
 fn splitmix64(x: &mut u64) -> u64 {
     *x = x.wrapping_add(0x9e37_79b9_7f4a_7c15);
     let mut z = *x;
@@ -24,6 +25,7 @@ fn splitmix64(x: &mut u64) -> u64 {
 }
 
 impl Rng {
+    #[allow(dead_code)]
     pub fn from_seed(seed: u64) -> Self {
         let mut sm = seed ^ 0x517c_c1b7_2722_0a95;
         let state = [

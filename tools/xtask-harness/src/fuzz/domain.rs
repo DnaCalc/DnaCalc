@@ -1132,22 +1132,78 @@ fn gen_irr_multi_sign_and_retries(rng: &mut Rng) -> Vec<Value> {
 
 fn gen_irr_scale_and_budget(rng: &mut Rng) -> Vec<Value> {
     let base = [-70000.0, 12000.0, 15000.0, 18000.0, 21000.0, 26000.0];
-    let exp = match rng.gen_range(4) {
-        0 => rng.gen_i64_inclusive(15, 32) as i32,     // 2^20..2^25 post-budget 1e-4 frontier!
-        1 => rng.gen_i64_inclusive(-1000, -940) as i32, // tiny DAZ/FTZ underflow
-        2 => rng.gen_i64_inclusive(950, 1005) as i32,   // near-overflow
-        _ => rng.gen_i64_inclusive(-30, 30) as i32,
-    };
-    let factor = 2.0_f64.powi(exp);
-    let flows: Vec<f64> = base
-        .iter()
-        .map(|&x| {
-            let v = x * factor * rng.uniform(0.8, 1.2);
-            if is_value2_exact(v) { v } else { x }
-        })
-        .collect();
-    let guess = if rng.chance(0.4) { None } else { Some(rng.uniform(-0.8, 2.0)) };
-    pack_irr(&flows, guess)
+    match rng.gen_range(6) {
+        0 => {
+            // 2^15..2^32 scaling: post-budget 1e-4 frontier!
+            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(15, 32) as i32);
+            let flows: Vec<f64> = base
+                .iter()
+                .map(|&x| x * factor * rng.uniform(0.8, 1.2))
+                .collect();
+            let guess = if rng.chance(0.4) { None } else { Some(rng.uniform(-0.8, 2.0)) };
+            pack_irr(&flows, guess)
+        }
+        1 => {
+            // Ultra-tiny normal cashflows (2^-1022 .. 2^-1005) triggering secant divisor DAZ abort!
+            let len = 2 + rng.gen_range(5);
+            let mut flows = Vec::with_capacity(len);
+            flows.push(-rng.log_uniform(-1022, -1005, false));
+            for _ in 1..len {
+                flows.push(rng.log_uniform(-1022, -1005, false));
+            }
+            let guess = Some(rng.uniform(-0.5, 1.5));
+            pack_irr(&flows, guess)
+        }
+        2 => {
+            // Long chain (25..50 flows) with extreme guess so discount power underflows/overflows!
+            let len = 25 + rng.gen_range(26);
+            let mut flows = Vec::with_capacity(len);
+            flows.push(-100.0);
+            for _ in 1..len {
+                flows.push(rng.uniform(1.0, 20.0));
+            }
+            let guess = if rng.chance(0.5) {
+                Some(rng.log_uniform(20, 40, false))
+            } else {
+                Some(-1.0 + rng.log_uniform(-40, -15, false))
+            };
+            pack_irr(&flows, guess)
+        }
+        3 => {
+            // Near-overflow cashflows
+            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(950, 1005) as i32);
+            let flows: Vec<f64> = base
+                .iter()
+                .map(|&x| {
+                    let v = x * factor * rng.uniform(0.8, 1.2);
+                    if is_value2_exact(v) { v } else { x }
+                })
+                .collect();
+            let guess = if rng.chance(0.4) { None } else { Some(rng.uniform(-0.8, 2.0)) };
+            pack_irr(&flows, guess)
+        }
+        4 => {
+            // Small-exponent cashflows near DAZ/FTZ
+            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(-1020, -960) as i32);
+            let flows: Vec<f64> = base
+                .iter()
+                .map(|&x| {
+                    let v = x * factor * rng.uniform(0.8, 1.2);
+                    if is_value2_exact(v) { v } else { f64::MIN_POSITIVE }
+                })
+                .collect();
+            pack_irr(&flows, Some(rng.uniform(-0.8, 2.0)))
+        }
+        _ => {
+            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(-30, 30) as i32);
+            let flows: Vec<f64> = base
+                .iter()
+                .map(|&x| x * factor * rng.uniform(0.8, 1.2))
+                .collect();
+            let guess = if rng.chance(0.4) { None } else { Some(rng.uniform(-0.8, 2.0)) };
+            pack_irr(&flows, guess)
+        }
+    }
 }
 
 fn gen_irr_flat_and_edges(rng: &mut Rng) -> Vec<Value> {
@@ -1268,11 +1324,27 @@ fn gen_yield_extreme_price_and_coupon(rng: &mut Rng) -> Vec<Value> {
     } else {
         (s, s + rng.gen_i64_inclusive(400, 15000) as f64)
     };
-    let (rate, pr, red) = match rng.gen_range(4) {
-        0 => (0.0, rng.log_uniform(-15, 25, false), 100.0),             // zero-coupon extreme prices
+    let (rate, pr, red) = match rng.gen_range(6) {
+        0 => (0.0, rng.log_uniform(-15, 25, false), 100.0), // zero-coupon extreme prices
         1 => (rng.uniform(0.01, 0.2), rng.log_uniform(-12, 2, false), 100.0), // deep discount tiny pr
-        2 => (rng.uniform(0.01, 0.2), rng.log_uniform(8, 25, false), 100.0),  // huge premium pr
-        _ => (rng.log_uniform(0, 12, false), rng.uniform(1.0, 500.0), rng.log_uniform(0, 15, false)),
+        2 => (rng.uniform(0.01, 0.2), rng.log_uniform(8, 25, false), 100.0), // huge premium pr
+        3 => (
+            // Extreme scale triggering multi_period_seed_nonfinite / newton_final_nonfinite_num
+            rng.log_uniform(900, 1020, false),
+            rng.log_uniform(-1020, -900, false),
+            rng.log_uniform(900, 1020, false),
+        ),
+        4 => (
+            // Zero-coupon on-coupon huge price / tiny redemption -> negative base & subnormal slope!
+            0.0,
+            rng.log_uniform(200, 1015, false),
+            rng.log_uniform(-1015, -200, false),
+        ),
+        _ => (
+            rng.log_uniform(0, 12, false),
+            rng.uniform(1.0, 500.0),
+            rng.log_uniform(0, 15, false),
+        ),
     };
     pack_yield(m.0, m.1, rate, pr, red, freq, basis)
 }

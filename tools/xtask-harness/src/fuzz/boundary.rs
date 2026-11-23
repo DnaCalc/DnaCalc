@@ -155,7 +155,7 @@ pub fn discover_local_frontiers(
     seeds: &[FuzzCase],
     context: &WitnessInvocation,
     max_frontiers: usize,
-    rng: &mut Rng,
+    _rng: &mut Rng,
 ) -> Vec<Frontier> {
     if seeds.is_empty() || max_frontiers == 0 {
         return Vec::new();
@@ -175,76 +175,108 @@ pub fn discover_local_frontiers(
         return frontiers;
     }
 
-    // Prioritize high-iteration, small-margin, or error-adjacent seeds.
-    let mut order: Vec<usize> = (0..seeds.len()).collect();
-    order.sort_by(|&i, &j| {
-        let sa = &seeds[i];
-        let sb = &seeds[j];
-        let key_a = (
-            sa.trace.min_boundary_margin.is_finite(),
-            sa.trace.iterations,
-        );
-        let key_b = (
-            sb.trace.min_boundary_margin.is_finite(),
-            sb.trace.iterations,
-        );
-        key_b
-            .0
-            .cmp(&key_a.0)
-            .then_with(|| key_b.1.cmp(&key_a.1))
-            .then_with(|| {
-                sa.trace
-                    .min_boundary_margin
-                    .total_cmp(&sb.trace.min_boundary_margin)
-            })
-    });
+    // Stratify candidate seeds across regions AND high-interest (small-margin / high-iter) cases
+    // so frontier mapping covers every axis and region rather than clustering on one 200-iter basin.
+    let mut by_region: std::collections::BTreeMap<&str, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (idx, s) in seeds.iter().enumerate() {
+        by_region.entry(s.region.as_str()).or_default().push(idx);
+    }
+    for indices in by_region.values_mut() {
+        indices.sort_by(|&i, &j| {
+            let sa = &seeds[i];
+            let sb = &seeds[j];
+            let key_a = (
+                sa.trace.min_boundary_margin.is_finite(),
+                sa.trace.iterations,
+            );
+            let key_b = (
+                sb.trace.min_boundary_margin.is_finite(),
+                sb.trace.iterations,
+            );
+            key_b
+                .0
+                .cmp(&key_a.0)
+                .then_with(|| key_b.1.cmp(&key_a.1))
+                .then_with(|| {
+                    sa.trace
+                        .min_boundary_margin
+                        .total_cmp(&sb.trace.min_boundary_margin)
+                })
+        });
+    }
+    // Round-robin interleave across regions so every strategic region gets fair frontier probes.
+    let mut order: Vec<usize> = Vec::with_capacity(seeds.len());
+    let mut pos = 0usize;
+    let probe_limit = seeds.len().min(max_frontiers * 16).max(64);
+    while order.len() < probe_limit {
+        let mut added = false;
+        for indices in by_region.values() {
+            if let Some(&idx) = indices.get(pos) {
+                order.push(idx);
+                added = true;
+                if order.len() >= probe_limit {
+                    break;
+                }
+            }
+        }
+        if !added {
+            break;
+        }
+        pos += 1;
+    }
 
-    let probe_limit = order.len().min(max_frontiers * 12);
     let factors: &[f64] = &[
         -10.0, -2.0, -1.0, -0.5, -0.1, 0.0, 0.5, 0.9, 0.99, 1.01, 1.1, 2.0, 10.0, 100.0,
     ];
     let additive: &[f64] = &[-1.0, -0.1, -0.01, -1e-4, -1e-7, 1e-7, 1e-4, 0.01, 0.1, 1.0];
 
-    for &seed_idx in order.iter().take(probe_limit) {
+    let max_per_axis = ((max_frontiers + scalar_axes.len() - 1) / scalar_axes.len()).max(2);
+    let mut per_axis_count: std::collections::BTreeMap<usize, usize> =
+        std::collections::BTreeMap::new();
+    let mut axis_cursor = 0usize;
+
+    // Pass 0: prioritize predicate flips (number <-> error, error <-> error) across all axes.
+    // Pass 1: fill remaining slots with route_flip frontiers.
+    for allow_route_only in [false, true] {
         if frontiers.len() >= max_frontiers {
             break;
         }
-        let seed = &seeds[seed_idx];
-        let axis = *rng.pick(&scalar_axes);
-        if axis >= seed.args.len() {
-            continue;
-        }
-        let Some(base_bits) = parse_hex_bits(&seed.args[axis]) else {
-            continue;
-        };
-        let base_val = f64::from_bits(base_bits);
-        if !base_val.is_finite() {
-            continue;
-        }
-        let base_pred = predicate_tag(&seed.prediction);
-        let base_mask = seed.trace.route_mask;
-
-        // Probe offsets around base_val to find an opposite-side bracket
-        let mut bracket: Option<(f64, bool)> = None;
-        for &f in factors {
-            let cand = base_val * f;
-            if !cand.is_finite() || cand.is_subnormal() || cand == base_val {
-                continue;
-            }
-            let mut args = seed.args.clone();
-            args[axis] = hex_f64(cand);
-            let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
-            if predicate_tag(&res) != base_pred {
-                bracket = Some((cand, false));
+        for &seed_idx in &order {
+            if frontiers.len() >= max_frontiers {
                 break;
             }
-            if bracket.is_none() && trace.route_mask != base_mask {
-                bracket = Some((cand, true));
+            let seed = &seeds[seed_idx];
+            // Pick the next scalar axis in round-robin order that fits this seed's arity and cap.
+            let mut chosen_axis = None;
+            for offset in 0..scalar_axes.len() {
+                let ax = scalar_axes[(axis_cursor + offset) % scalar_axes.len()];
+                if ax < seed.args.len()
+                    && parse_hex_bits(&seed.args[ax]).is_some()
+                    && (*per_axis_count.get(&ax).unwrap_or(&0) < max_per_axis || allow_route_only)
+                {
+                    chosen_axis = Some(ax);
+                    axis_cursor = (axis_cursor + offset + 1) % scalar_axes.len();
+                    break;
+                }
             }
-        }
-        if bracket.is_none() {
-            for &d in additive {
-                let cand = base_val + d;
+            let Some(axis) = chosen_axis else {
+                continue;
+            };
+            let Some(base_bits) = parse_hex_bits(&seed.args[axis]) else {
+                continue;
+            };
+            let base_val = f64::from_bits(base_bits);
+            if !base_val.is_finite() {
+                continue;
+            }
+            let base_pred = predicate_tag(&seed.prediction);
+            let base_mask = seed.trace.route_mask;
+
+            // Probe offsets around base_val to find an opposite-side bracket
+            let mut bracket: Option<(f64, bool)> = None;
+            for &f in factors {
+                let cand = base_val * f;
                 if !cand.is_finite() || cand.is_subnormal() || cand == base_val {
                     continue;
                 }
@@ -255,55 +287,82 @@ pub fn discover_local_frontiers(
                     bracket = Some((cand, false));
                     break;
                 }
-                if bracket.is_none() && trace.route_mask != base_mask {
+                if allow_route_only && bracket.is_none() && trace.route_mask != base_mask {
                     bracket = Some((cand, true));
                 }
             }
+            if bracket.is_none() {
+                for &d in additive {
+                    let cand = base_val + d;
+                    if !cand.is_finite() || cand.is_subnormal() || cand == base_val {
+                        continue;
+                    }
+                    let mut args = seed.args.clone();
+                    args[axis] = hex_f64(cand);
+                    let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
+                    if predicate_tag(&res) != base_pred {
+                        bracket = Some((cand, false));
+                        break;
+                    }
+                    if allow_route_only && bracket.is_none() && trace.route_mask != base_mask {
+                        bracket = Some((cand, true));
+                    }
+                }
+            }
+            let Some((other_val, route_only)) = bracket else {
+                continue;
+            };
+            if route_only && !allow_route_only {
+                continue;
+            }
+            let Some((lo_bits, lo_out, hi_bits, hi_out)) = bisect_local_axis(
+                &spec.function,
+                &seed.args,
+                axis,
+                base_val,
+                other_val,
+                context,
+                route_only,
+            ) else {
+                continue;
+            };
+            let kind = if predicate_tag(&lo_out) != predicate_tag(&hi_out) {
+                format!("{}<->{}", predicate_tag(&lo_out), predicate_tag(&hi_out))
+            } else {
+                "route_flip".to_owned()
+            };
+            if !allow_route_only && kind == "route_flip" {
+                continue;
+            }
+            // Deduplicate by (axis, top 32 bits of lo_bits, kind) so nearby perturbations of the
+            // same point don't crowd out distinct regions of the frontier map.
+            let coarse_key = format!("{axis}|{:08x}|{kind}", lo_bits >> 32);
+            if !seen_frontiers.insert(coarse_key) {
+                continue;
+            }
+            let axis_name = spec
+                .params
+                .get(axis)
+                .map_or_else(|| format!("arg{axis}"), |p| p.name.clone());
+            *per_axis_count.entry(axis).or_insert(0) += 1;
+            frontiers.push(Frontier {
+                id: format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1),
+                function: spec.function.clone(),
+                axis,
+                axis_name,
+                kind,
+                base_args: seed.args.clone(),
+                dna_lo_bits: lo_bits,
+                dna_hi_bits: hi_bits,
+                dna_lo_outcome: lo_out,
+                dna_hi_outcome: hi_out,
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+            });
         }
-        let Some((other_val, route_only)) = bracket else {
-            continue;
-        };
-        let Some((lo_bits, lo_out, hi_bits, hi_out)) = bisect_local_axis(
-            &spec.function,
-            &seed.args,
-            axis,
-            base_val,
-            other_val,
-            context,
-            route_only,
-        ) else {
-            continue;
-        };
-        let kind = if predicate_tag(&lo_out) != predicate_tag(&hi_out) {
-            format!("{}<->{}", predicate_tag(&lo_out), predicate_tag(&hi_out))
-        } else {
-            "route_flip".to_owned()
-        };
-        let dedup_key = format!("{axis}|{lo_bits:016x}|{hi_bits:016x}|{kind}");
-        if !seen_frontiers.insert(dedup_key) {
-            continue;
-        }
-        let axis_name = spec
-            .params
-            .get(axis)
-            .map_or_else(|| format!("arg{axis}"), |p| p.name.clone());
-        frontiers.push(Frontier {
-            id: format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1),
-            function: spec.function.clone(),
-            axis,
-            axis_name,
-            kind,
-            base_args: seed.args.clone(),
-            dna_lo_bits: lo_bits,
-            dna_hi_bits: hi_bits,
-            dna_lo_outcome: lo_out,
-            dna_hi_outcome: hi_out,
-            excel_lo_bits: None,
-            excel_hi_bits: None,
-            excel_lo_outcome: None,
-            excel_hi_outcome: None,
-            shifted_ulps: None,
-        });
     }
 
     frontiers
