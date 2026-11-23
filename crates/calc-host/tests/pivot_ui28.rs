@@ -1112,10 +1112,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     part,
                 },
             ));
-            if matches!(
-                stage.as_str(),
-                "agg-two-level-columns" | "prec-all-functions"
-            ) {
+            if stage == "prec-all-functions" {
                 assert!(
                     !receipt.accepted(),
                     "unmodelled calculations must refuse: {stage}"
@@ -1172,7 +1169,14 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     .unwrap_or(0)
                     .max(60);
                 let got = held(&book, sheet, width, 120);
-                let exact = matches!(stage.as_str(), "nodata-nullstring" | "subtotals-all-eleven");
+                let exact = matches!(
+                    stage.as_str(),
+                    "agg-two-level-columns"
+                        | "nodata-nullstring"
+                        | "prec-column-grand"
+                        | "prec-sum-average"
+                        | "subtotals-all-eleven"
+                );
                 let agrees = |expected, actual| {
                     if exact {
                         same_cell_bits(expected, actual)
@@ -1215,6 +1219,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "agg-all-amount",
             "agg-all-units",
             "agg-text-field",
+            "agg-two-level-columns",
             "blank-line-both",
             "blank-line-compact-columns",
             "blank-line-outer",
@@ -1251,7 +1256,9 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "nodata-rows",
             "nodata-rows-hidden",
             "nodata-two-row-fields",
+            "prec-column-grand",
             "prec-grand-only",
+            "prec-sum-average",
             "show-count-average",
             "show-difference-east",
             "show-difference-next",
@@ -2141,16 +2148,17 @@ fn dc_8wp_10__pivot_precision_uses_the_same_path_in_both_numeric_modes() {
         ));
         assert!(receipt.accepted(), "{receipt:?}");
         let cells = held(&book, sheet, 5, 20);
-        for address in ["B4", "C4", "B9", "C9"] {
+        for address in ["B4", "C4", "B9", "C9", "B13", "C13"] {
             let captured = include_str!("fixtures/pivot/m1-calculation/cells.tsv")
                 .lines()
                 .map(|line| line.splitn(4, '\t').collect::<Vec<_>>())
                 .find(|f| f.len() == 4 && f[0] == "prec-sum-average" && f[1] == address)
                 .unwrap();
-            assert_eq!(
-                cells.get(address),
-                Some(&Cell::Number(captured[3].parse().unwrap())),
-                "{address}"
+            let expected = Cell::Number(captured[3].parse().unwrap());
+            assert!(
+                same_cell_bits(&expected, cells.get(address)),
+                "{address}: Excel {expected:?}, DNA Calc {:?}",
+                cells.get(address)
             );
         }
         outputs.push(cells);
@@ -2792,6 +2800,8 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     let mut property_matches = [0usize; 16];
     let mut dark_matches = [0usize; 16];
     let mut dark_cells = 0;
+    let mut light16_edges = [0, 0];
+    let mut light16_cells = 0;
     let mut unavailable = [0usize; 16];
     let mut value_matches = 0;
     let mut text_matches = 0;
@@ -3017,6 +3027,11 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
                 assert_eq!(stage_properties[i], cells.len(), "{stage}: {}", names[i]);
             }
         }
+        if stage.ends_with("PivotStyleLight16") || stage.starts_with("option-light16-") {
+            light16_cells += cells.len();
+            light16_edges[0] += stage_properties[9];
+            light16_edges[1] += stage_properties[10];
+        }
         if stage.ends_with("PivotStyleDark6") || stage.ends_with("PivotStyleDark11") {
             dark_cells += cells.len();
             for (total, matched) in dark_matches.iter_mut().zip(stage_properties) {
@@ -3068,13 +3083,20 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
         );
     }
     assert_eq!(dark_cells, 190);
-    for i in [3, 5, 6, 7] {
+    assert_eq!(light16_cells, 270);
+    println!(
+        "Light16 top and bottom border: {}/{} and {}/{} match",
+        light16_edges[0], light16_cells, light16_edges[1], light16_cells
+    );
+    let dark_properties = [3, 5, 6, 7, 8, 9, 10, 11];
+    for i in dark_properties {
         println!(
             "Dark6 and Dark11 {}: {}/{} match",
             names[i], dark_matches[i], dark_cells
         );
     }
-    for i in [3, 5, 6, 7] {
+    assert_eq!(light16_edges, [light16_cells; 2]);
+    for i in dark_properties {
         assert_eq!(dark_matches[i], dark_cells, "Dark6 and Dark11 {}", names[i]);
     }
 }
@@ -3581,4 +3603,165 @@ fn dc_8wp_19__model_pivot_refuses_transformed_values() {
         page.cells()[0].value(),
         ProjectedValue::Calculated { .. }
     ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_6__noncompact_rows_crossed_with_month_against_excel() {
+    let mut expected = BTreeMap::<&str, BTreeMap<&str, Cell>>::new();
+    for line in include_str!("fixtures/pivot/m8-axes/cells.tsv").lines() {
+        let fields: Vec<_> = line.splitn(4, '\t').collect();
+        let value = match fields[2] {
+            "n" => Cell::Number(f64::from_bits(u64::from_str_radix(fields[3], 16).unwrap())),
+            "s" => Cell::Text(fields[3].into()),
+            "e" => Cell::Error(fields[3].into()),
+            other => panic!("unexpected capture type {other}"),
+        };
+        expected
+            .entry(fields[0])
+            .or_default()
+            .insert(fields[1], value);
+    }
+    let mut compared = 0;
+    let mut failures = Vec::new();
+    for (bytes, plain) in [
+        (
+            include_bytes!("fixtures/pivot/m8-axes/m1-layout-plain.xlsx").as_slice(),
+            true,
+        ),
+        (
+            include_bytes!("fixtures/pivot/m8-axes/m1-layout-error.xlsx").as_slice(),
+            false,
+        ),
+    ] {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
+        let mut book =
+            HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        assert!(book.dispatch(SkinIntent::Recalculate).accepted());
+        let tables: Vec<_> = book
+            .host()
+            .sheets()
+            .iter()
+            .filter_map(|sheet| {
+                let name = String::from_utf16_lossy(sheet.name().text().utf16_code_units());
+                let table = book
+                    .host()
+                    .model()
+                    .definitions()
+                    .pivots()
+                    .sheet(sheet.id())?
+                    .tables
+                    .first()?;
+                Some((sheet.id(), name, table.clone()))
+            })
+            .collect();
+        // The second workbook also contains the six original sheets.
+        let cases: Vec<_> = tables
+            .iter()
+            .filter(|(_, _, table)| table.name.ends_with("_plain") == plain)
+            .collect();
+        let failures_before = failures.len();
+        for &(sheet, name, original) in &cases {
+            let sheet = *sheet;
+            compared += 1;
+            let receipt = book.dispatch(SkinIntent::Command(
+                calc_host::WorkbookCommand::PivotRefresh {
+                    sheet,
+                    revision: book.host().revision().get(),
+                    part: original.part.clone(),
+                },
+            ));
+            if !receipt.accepted() {
+                failures.push(format!("{name}: {:?}", receipt.error));
+                continue;
+            }
+            let refreshed = &book
+                .host()
+                .model()
+                .definitions()
+                .pivots()
+                .sheet(sheet)
+                .unwrap()
+                .tables[0];
+            let last = original.area.last();
+            let actual = held(&book, sheet, last.column(), last.row());
+            let want = &expected[name.as_str()];
+            let differences: Vec<_> = want
+                .iter()
+                .filter(|(at, value)| !same_cell_bits(value, actual.get(**at)))
+                .take(8)
+                .map(|(at, value)| format!("{at}: Excel {value:?}, DNA Calc {:?}", actual.get(*at)))
+                .chain(
+                    actual
+                        .iter()
+                        .filter(|(at, _)| !want.contains_key(at.as_str()))
+                        .take(8)
+                        .map(|(at, value)| format!("{at}: unexpected {value:?}")),
+                )
+                .collect();
+            let row_diff = refreshed
+                .row_items
+                .iter()
+                .zip(&original.row_items)
+                .position(|(a, b)| a != b);
+            let col_diff = refreshed
+                .col_items
+                .iter()
+                .zip(&original.col_items)
+                .position(|(a, b)| a != b);
+            if actual.len() != want.len()
+                || !differences.is_empty()
+                || refreshed.area != original.area
+                || refreshed.location != original.location
+                || refreshed.row_items != original.row_items
+                || refreshed.col_items != original.col_items
+            {
+                failures.push(format!("{name}: cells {}/{}, range {:?}/{:?}, rows {}/{}, columns {}/{}, first differing row {row_diff:?}, first differing column {col_diff:?}, {differences:?}",
+                    actual.len(), want.len(), refreshed.area, original.area, refreshed.row_items.len(), original.row_items.len(),
+                    refreshed.col_items.len(), original.col_items.len()));
+            }
+        }
+        if failures.len() == failures_before {
+            let mut saved = Vec::new();
+            book.save(&SavePolicy::default(), &mut saved).unwrap();
+            let saved = HostSession::open(
+                Arc::new(MemorySource::new(saved)),
+                &OpenPolicy::default(),
+                HostOptions::default(),
+            )
+            .unwrap();
+            for &(sheet, name, original) in &cases {
+                let sheet = *sheet;
+                let reopened = &saved
+                    .host()
+                    .model()
+                    .definitions()
+                    .pivots()
+                    .sheet(sheet)
+                    .unwrap()
+                    .tables[0];
+                let last = original.area.last();
+                let actual = held(&saved, sheet, last.column(), last.row());
+                let want = &expected[name.as_str()];
+                if reopened.area != original.area
+                    || reopened.location != original.location
+                    || reopened.row_items != original.row_items
+                    || reopened.col_items != original.col_items
+                    || actual.len() != want.len()
+                    || !want
+                        .iter()
+                        .all(|(at, value)| same_cell_bits(value, actual.get(*at)))
+                {
+                    failures.push(format!("{name}: saved output or axis metadata differs"));
+                }
+            }
+        }
+    }
+    assert_eq!(compared, 12);
+    println!(
+        "M8 noncompact layouts: {}/{} matched",
+        compared - failures.len(),
+        compared
+    );
+    assert!(failures.is_empty(), "{failures:#?}");
 }

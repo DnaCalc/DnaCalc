@@ -76,6 +76,8 @@ pub(super) struct Walk<'a> {
     /// Output rows that carry a value and the field-item path defining their total.
     pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>, Option<&'static str>)>,
     custom_subtotals: &'a [CustomSubtotal],
+    custom_level: usize,
+    subtotal_source_name: Option<&'a str>,
     pub(super) sort_inner_ascending: Option<bool>,
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
@@ -200,24 +202,41 @@ impl AxisVisitor for Walk<'_> {
         }
         let g = path[level];
         let x = self.position[level][g].expect("visible group");
-        if !self.custom_subtotals.is_empty() && level == 0 {
-            let group = &self.levels[level][g];
+        if !self.custom_subtotals.is_empty() && level == self.custom_level {
+            let group = label_text(&self.levels[level][g])?;
             let label_column = if self.form == Form::Compact {
                 0
             } else {
                 level as u32
             };
             for &(_, item_kind, caption, calculation) in self.custom_subtotals {
-                self.cells.insert(
-                    (self.r, label_column),
-                    plain_text(&format!("{} {caption}", label_text(group)?)),
-                );
-                self.axis.push(axis_item(item_kind, level as u32, vec![x]));
-                if self.collect_paths {
-                    self.row_paths
-                        .push((self.r, path.to_vec(), None, Some(calculation)));
+                let label = match self.subtotal_source_name {
+                    Some(source) => format!("{group} {caption} of {source}"),
+                    None => format!("{group} {caption}"),
+                };
+                let measures = if self.subtotal_source_name.is_some() {
+                    0..self.value_captions.len()
+                } else {
+                    let measure = self
+                        .values_level
+                        .and_then(|index| path.get(index))
+                        .copied()
+                        .unwrap_or(0);
+                    measure..measure + 1
+                };
+                for measure in measures {
+                    self.cells
+                        .insert((self.r, label_column), plain_text(&label));
+                    let mut item = axis_item(item_kind, level as u32, vec![x]);
+                    item.data_index = measure as u32;
+                    self.axis.push(item);
+                    if self.collect_paths {
+                        let measure = self.values_level.map(|_| measure);
+                        self.row_paths
+                            .push((self.r, path.to_vec(), measure, Some(calculation)));
+                    }
+                    self.r += 1;
                 }
-                self.r += 1;
             }
             self.printed = level;
         } else if self.subtotal_on[level] && self.values_level.is_some_and(|v| level + 1 < v) {
@@ -562,26 +581,46 @@ pub(super) fn render_axes(
             })
             .count()
     });
+    let crossed_row_values = row_values.is_some()
+        && row_fields.len() == 3
+        && !compact_rows
+        && table.column_fields.len() == 1
+        && table.column_fields[0] >= 0
+        && table
+            .data_fields
+            .iter()
+            .map(|data| data.subtotal.as_str())
+            .eq(["sum", "count", "average"])
+        && table
+            .data_fields
+            .iter()
+            .all(|data| data.field == table.data_fields[0].field);
     let subtotal_list = match subtotal_count {
+        3 if crossed_row_values => &CUSTOM_SUBTOTALS[..3],
         5 => &CUSTOM_SUBTOTALS[..5],
         11 if rows_only => &CUSTOM_SUBTOTALS[..],
         _ => &[],
     };
-    let custom = row_fields.len() == 2
-        && row_values.is_none()
-        && table.fields.len() == cache.fields.len()
-        && ((rows_only && table.data_fields.len() == 1)
-            || (values_only && table.data_fields.len() == 2))
-        && table.data_fields.iter().all(|data| data.subtotal == "sum")
+    let custom = table.fields.len() == cache.fields.len()
+        && (crossed_row_values
+            || (row_fields.len() == 2
+                && row_values.is_none()
+                && ((rows_only && table.data_fields.len() == 1)
+                    || (values_only && table.data_fields.len() == 2))
+                && table.data_fields.iter().all(|data| data.subtotal == "sum")))
         && show == "normal"
         && table.page_fields.is_empty()
         && table.filters.is_empty()
-        && row_fields.iter().all(|&field| {
-            table.fields[field].sort_measure.is_none()
-                && table.fields[field].items.iter().all(|item| !item.hidden)
-                && !truthy(table.fields[field].attributes.get("insertBlankRow"), false)
-        })
-        && !custom_subtotal(row_fields[1])
+        && row_fields
+            .iter()
+            .filter(|&&field| field < cache.fields.len())
+            .all(|&field| {
+                let field_options = &table.fields[field];
+                field_options.sort_measure.is_none()
+                    && field_options.items.iter().all(|item| !item.hidden)
+                    && !truthy(field_options.attributes.get("insertBlankRow"), false)
+                    && (field == row || !custom_subtotal(field))
+            })
         && !subtotal_list.is_empty()
         && subtotal_list
             .iter()
@@ -589,6 +628,7 @@ pub(super) fn render_axes(
         && selected_subtotals(row)
             .into_iter()
             .eq(subtotal_list.iter().map(|&(_, item, _, _)| item));
+    let crossed_row_values = crossed_row_values && custom;
     let custom_subtotals = if custom { subtotal_list } else { &[] };
     let product_subtotals = custom_subtotals.iter().any(|entry| entry.3 == "product");
     if (multiple_rows && show != "normal" && !parent_percent)
@@ -598,6 +638,7 @@ pub(super) fn render_axes(
             && !custom
             && !compact_column_values)
         || (row_values.is_some()
+            && !crossed_row_values
             && (row_fields.len() > 3
                 || table.column_fields.len() > 1
                 || table.data_fields.iter().any(|d| d.subtotal != "sum")))
@@ -833,13 +874,17 @@ pub(super) fn render_axes(
         && !compact_rows
         && !outline_rows
         && row_values == Some(2);
-    if row_values.is_some() && row_fields.len() == 3 && !tabular_values {
+    if row_values.is_some() && row_fields.len() == 3 && !tabular_values && !crossed_row_values {
         return Err(bad(
             "Values with two row fields are only modelled in tabular form",
         ));
     }
     if multiple_rows
-        && ((!compact_rows && !tabular_values && !rows_only && !(custom && values_only))
+        && ((!compact_rows
+            && !tabular_values
+            && !rows_only
+            && !crossed_row_values
+            && !(custom && values_only))
             || row_fields
                 .iter()
                 .filter(|&&field| field < cache.fields.len())
@@ -891,6 +936,9 @@ pub(super) fn render_axes(
         ));
     }
     if let Some(level) = row_values {
+        if crossed_row_values {
+            subtotal_on[level] = false;
+        }
         if level > 0 {
             subtotal_on[level - 1] = false;
         } else {
@@ -1074,6 +1122,23 @@ pub(super) fn render_axes(
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
     let mut row_totals: Vec<BTreeMap<Vec<usize>, Total>> =
         (0..row_fields.len()).map(|_| BTreeMap::new()).collect();
+    // M1 records Product over one row field and one column field, followed by Values.
+    let ordered_product = (!root_only
+        && !multiple_rows
+        && levels.len() == 2
+        && levels[0].field.is_some()
+        && levels[1].field.is_none()
+        && show == "normal"
+        && table.filters.is_empty()
+        && table.page_fields.is_empty()
+        && table
+            .data_fields
+            .iter()
+            .map(|data| data.subtotal.as_str())
+            .eq(["stdDev", "product"])
+        && table.data_fields[0].field == table.data_fields[1].field)
+        .then_some(1);
+    let mut product_records = BTreeMap::<(usize, usize), Vec<&PivotItem>>::new();
     let mut subtotal_records = BTreeMap::<Vec<usize>, Vec<&PivotItem>>::new();
     for record in &snapshot.records {
         if !page_allows(table, cache, record)? {
@@ -1148,6 +1213,12 @@ pub(super) fn render_axes(
             } else {
                 row_keys.push(row_path[0]);
             }
+            if ordered_product == Some(m) {
+                product_records
+                    .entry((row_keys[0], indexes[0]))
+                    .or_default()
+                    .push(value);
+            }
             for depth in 0..=indexes.len() {
                 let path = indexes[..depth].to_vec();
                 for &key in &row_keys {
@@ -1177,7 +1248,33 @@ pub(super) fn render_axes(
             return Err(bad("The pivot has too many row and column combinations"));
         }
     }
-    if custom && totals.values().any(|total| total.source_error().is_some()) {
+    if let Some(measure) = ordered_product {
+        // Retain source order within an intersection. Row and column totals multiply their
+        // contributing intersections in the displayed order of the other axis.
+        let mut ordered = BTreeMap::<_, Total>::new();
+        for ((row, column), records) in product_records {
+            for value in records {
+                for key in [
+                    (row, Vec::new(), measure),
+                    (usize::MAX, vec![column, measure], measure),
+                    (usize::MAX, Vec::new(), measure),
+                ] {
+                    ordered.entry(key).or_default().push(value)?;
+                }
+            }
+        }
+        if ordered
+            .get(&(usize::MAX, Vec::new(), measure))
+            .is_some_and(|total| {
+                !total.supports_grouped_product("product") && !total.has_finite_zero_product()
+            })
+        {
+            return Err(bad("The two-axis grand Product order is not modelled"));
+        }
+        totals.extend(ordered);
+    }
+    if custom && !crossed_row_values && totals.values().any(|total| total.source_error().is_some())
+    {
         return Err(bad("Source errors with custom subtotals are not modelled"));
     }
     if custom
@@ -1275,13 +1372,17 @@ pub(super) fn render_axes(
             ));
         }
     }
-    if row_values.is_some() && totals.values().any(|total| total.source_error().is_some()) {
+    if row_values.is_some()
+        && !crossed_row_values
+        && totals.values().any(|total| total.source_error().is_some())
+    {
         return Err(bad("Source errors with Values on rows are not modelled"));
     }
     if totals.iter().any(|((_, _, measure), total)| {
         let kind = &table.data_fields[*measure].subtotal;
         !total.supports(kind)
-            || ((multiple_rows || levels.iter().any(|level| level.field.is_some()))
+            || (ordered_product != Some(*measure)
+                && (multiple_rows || levels.iter().any(|level| level.field.is_some()))
                 && !total.supports_grouped_product(kind))
     }) {
         return Err(bad(
@@ -1333,7 +1434,10 @@ pub(super) fn render_axes(
         1
     } else if root_only {
         0
-    } else if ((rows_only || (custom && values_only)) && form != Form::Compact) || tabular_values {
+    } else if ((rows_only || (custom && values_only)) && form != Form::Compact)
+        || tabular_values
+        || crossed_row_values
+    {
         row_fields.len() as u32
     } else {
         1
@@ -1361,7 +1465,8 @@ pub(super) fn render_axes(
         .get("grandTotalCaption")
         .map(String::as_str)
         .unwrap_or("Grand Total");
-    if rows_only {
+    if rows_only || crossed_row_values {
+        let row_header = if crossed_row_values { header - 1 } else { 0 };
         if form == Form::Compact {
             cells.insert(
                 (0, 0),
@@ -1384,13 +1489,14 @@ pub(super) fn render_axes(
                 } else {
                     &cache.fields[field].name
                 };
-                cells.insert((0, level as u32), plain_text(label));
+                cells.insert((row_header, level as u32), plain_text(label));
             }
         }
         if row_values.is_none() {
             cells.insert((0, label_width), plain_text(&caption(0)));
         }
-    } else if values_only {
+    }
+    if values_only {
         if root_only { /* The axis root has no row label. */
         } else if custom && form != Form::Compact {
             for (level, &field) in row_fields.iter().enumerate() {
@@ -1399,7 +1505,7 @@ pub(super) fn render_axes(
         } else {
             cells.insert((0, 0), plain_text(row_caption));
         }
-    } else {
+    } else if !rows_only {
         if table.data_fields.len() == 1 && !column_root {
             cells.insert((0, 0), plain_text(&caption(0)));
         }
@@ -1414,8 +1520,8 @@ pub(super) fn render_axes(
                     &cache.fields[levels[0].field.unwrap()].name
                 }
             });
-        cells.insert((0, 1), plain_text(column_caption));
-        if !column_root {
+        cells.insert((0, label_width), plain_text(column_caption));
+        if !column_root && !crossed_row_values {
             cells.insert((header - 1, 0), plain_text(row_caption));
         }
     }
@@ -1428,7 +1534,7 @@ pub(super) fn render_axes(
         if rows_only {
             continue;
         }
-        let column = i as u32 + if values_only { label_width } else { 1 };
+        let column = i as u32 + label_width;
         let repeat = if entry.kind == "data" {
             previous
                 .iter()
@@ -1889,6 +1995,11 @@ pub(super) fn render_axes(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if ordered_product == Some(entry.measure)
+            && matches!(value.core_ref(), calc_value::CoreRef::Number(0.0))
+        {
+            return CalcValue::number(0.0);
+        }
         if parent_percent {
             return CalcValue::empty();
         }
@@ -2107,6 +2218,12 @@ pub(super) fn render_axes(
             row_paths: Vec::new(),
             collect_paths: true,
             custom_subtotals,
+            custom_level: usize::from(crossed_row_values && row_values == Some(0)),
+            subtotal_source_name: (crossed_row_values && row_values != Some(0)).then(|| {
+                cache.fields[table.data_fields[0].field as usize]
+                    .name
+                    .as_str()
+            }),
             sort_inner_ascending: inner_sort.then(|| {
                 table.fields[row_fields[1]]
                     .attributes
@@ -2129,7 +2246,10 @@ pub(super) fn render_axes(
                     .or_else(|| row_values.and_then(|level| path.get(level)).copied())
                     .unwrap_or(entry.measure);
                 if let Some(total) = totals.get(&(key, entry.path.clone(), measure)) {
-                    let value = if parent_percent {
+                    let kind = subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal);
+                    let value = if crossed_row_values && total.is_empty() {
+                        CalcValue::empty()
+                    } else if parent_percent {
                         let base = table.data_fields[0].attributes["baseField"]
                             .parse::<usize>()
                             .unwrap();
@@ -2153,6 +2273,11 @@ pub(super) fn render_axes(
                                 _ => CalcValue::empty(),
                             }
                         }
+                    } else if crossed_row_values
+                        && (subtotal_kind.is_some() || entry.kind == "grand")
+                        && let Some(error) = total.source_error()
+                    {
+                        CalcValue::error(error)
                     } else if subtotal_kind == Some("product") {
                         let product = subtotal_products[&path[0]].result("product");
                         if matches!(product.core_ref(), calc_value::CoreRef::Number(0.0)) {
@@ -2161,7 +2286,7 @@ pub(super) fn render_axes(
                             product
                         }
                     } else {
-                        total.result(subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal))
+                        total.result(kind)
                     };
                     cells.insert((output_row, col as u32 + label_width), value);
                 }
@@ -2248,8 +2373,17 @@ pub(super) fn render_axes(
                 if let Some(value) = calculated.get(&(usize::MAX, entry.path.clone(), m)) {
                     cells.insert((r, col as u32 + label_width), value.clone());
                 } else if let Some(total) = totals.get(&(usize::MAX, entry.path.clone(), m)) {
-                    let value = common_error.map(CalcValue::error).unwrap_or_else(|| {
-                        if row_values.is_some() {
+                    let error = common_error.or_else(|| {
+                        if crossed_row_values {
+                            total.source_error()
+                        } else {
+                            None
+                        }
+                    });
+                    let value = error.map(CalcValue::error).unwrap_or_else(|| {
+                        if crossed_row_values && total.is_empty() {
+                            CalcValue::empty()
+                        } else if row_values.is_some() {
                             total.result(&table.data_fields[m].subtotal)
                         } else {
                             displayed(total, usize::MAX, entry)
@@ -2336,7 +2470,7 @@ pub(super) fn render_axes(
                     }),
             );
         }
-        if custom && field == row_fields[0] {
+        if custom && field == row {
             out.extend(
                 table.fields[field]
                     .items

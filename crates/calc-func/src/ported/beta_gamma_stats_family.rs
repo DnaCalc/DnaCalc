@@ -1173,6 +1173,35 @@ mod tests {
         }
     }
 
+    /// At these beta shapes GAMMALN's recurrence rounds 1 + beta to one.
+    /// cb21 G1 (Excel 20625) resolves the normalizer on both sides of one.
+    /// ax2 beta-end-initial-derivative [1424] and [2148] (Excel 20527)
+    /// retain the original series result inside its stated accuracy.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn beta_cdf_tiny_shape_gamma_normalizer_matches_excel() {
+        for (x, alpha, beta, expected) in [
+            (0x3feffec7bfaa2300, 0x4062d44250b4743f, 0x2746cc43efa13925, 0x27627fb0d4c9e52f),
+            (0x3fefff2d5e27c634, 0x404cb4b660ab5615, 0x2351638f41f86f9f, 0x2373f7656d0b8a7d),
+            (0x3feffffde7210be9, 0x405bfab85ed4672a, 0x3b242fe5a4c77b4a, 0x3b55831dd4ae0a2d),
+            (0x3feffffde7210be9, 0x40add219dde80e07, 0x3afe42bd0b9a4728, 0x3b22e4dfeb21d174),
+        ] {
+            let cdf = beta_dist_kernel(
+                f64::from_bits(x),
+                f64::from_bits(alpha),
+                f64::from_bits(beta),
+                true,
+                0.0,
+                1.0,
+            )
+            .unwrap();
+            assert_eq!(
+                cdf.to_bits(), expected,
+                "x={x:#018x} alpha={alpha:#018x} beta={beta:#018x}"
+            );
+        }
+    }
+
     /// Excel 16.0.20527 (dc-iuwct.50): BETA.INV structural and billion-ULP gross rows
     /// surfaced by the discrepancies bank (`ax2`), plus live Touchstone boundary edges.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

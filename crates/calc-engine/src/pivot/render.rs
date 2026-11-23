@@ -1,8 +1,6 @@
 use super::*;
 
-/// The first refresh scope: one row field, one measure, no column/page/group/calculated fields.
-/// It preserves manual item order and applies saved ascending/descending sorts through the
-/// shared text comparator. Multi-field compact/outline/tabular layouts remain unmeasured.
+/// Render the supported row and column layouts from an explicit source snapshot.
 pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, PivotIssue> {
     let bad = |why: &str| refusal(&table.part, why);
     let snapshot = cache

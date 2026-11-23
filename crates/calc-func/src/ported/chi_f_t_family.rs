@@ -1233,6 +1233,20 @@ mod tests {
         }
     }
 
+    /// Excel 20625, cb21-student-t-bup-2. Passing binary64 epsilon to bgrat
+    /// loses a previously exact T.DIST.RT answer on each of its two half-shape paths.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn t_dist_rt_bgrat_direct_and_shifted_tails_match_excel() {
+        for (x, df, expected) in [
+            (0x4002_9eb9_4db8_b7d0, 33.0, 0x3f8a_d91e_5b36_4b6a),
+            (0x3ff0_3c63_cda4_df44, 3.0, 0x3fc8_a307_e4b0_8257),
+        ] {
+            let tail = t_dist_rt_kernel(f64::from_bits(x), df).unwrap();
+            assert_eq!(tail.to_bits(), expected, "x={x:#018x}, df={df}");
+        }
+    }
+
     /// Excel 16.0.20527 (dc-iuwct.66 / ww2 `dc-iuwct.66-current-TDIST.json` & `T.DIST.RT`/`2T`):
     /// Exact nonzero-to-zero `bgrat` underflow boundaries (`|u * s_no| < DBL_MIN && total < 2^-970`)
     /// across all four narrowed degrees (`45,000`, `1,048,576`, `209,321,321`, `10,000,000,000`),
