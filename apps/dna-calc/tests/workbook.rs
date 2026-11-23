@@ -3125,6 +3125,154 @@ fn dc_8wp_1__saved_pivots_cross_the_page_wire_without_refresh_claims() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_15__layout_edit_crosses_the_worker_wire() {
+    use dna_calc_worker::{
+        server::{Server, answer_text},
+        wire::{self, Area, FromServer, Intent, Key, Reply, Request, Sheet, ToServer},
+    };
+    let mut server = Server::new();
+    let bytes =
+        include_bytes!("../../../crates/calc-host/tests/fixtures/pivot_getpivotdata/oracle.xlsx");
+    let open = Request::Open {
+        name: "pivot.xlsx".into(),
+    };
+    assert!(
+        server
+            .execute_current(open.clone(), Some(bytes.to_vec()))
+            .reply
+            .is_ok()
+    );
+    let sheet = |server: &Server, name| {
+        server
+            .book()
+            .host()
+            .sheets()
+            .iter()
+            .find(|s| s.name().text().to_string_lossy() == name)
+            .unwrap()
+            .id()
+    };
+    let tables = |server: &mut Server, sheet| {
+        let request = Request::PivotTables(Sheet::of(sheet));
+        let Ok(Reply::PivotTables { tables, issues }) = server.execute_current(request, None).reply
+        else {
+            panic!("expected saved pivots");
+        };
+        assert!(issues.is_empty(), "{issues:?}");
+        tables
+    };
+    let send = |server: &mut Server, intent| {
+        let request = server.envelope(Request::Intent(intent));
+        let (reply, _) = answer_text(server, &wire::encode(&ToServer { id: 810, request }), None);
+        let result: FromServer = wire::decode(&reply).unwrap();
+        let FromServer::Reply {
+            reply: Reply::Done { outcome, .. },
+            ..
+        } = result
+        else {
+            panic!("{result:?}");
+        };
+        outcome
+    };
+    let source = sheet(&server, "Source");
+    let output = sheet(&server, "PvRowCol");
+    let checks = sheet(&server, "GPD");
+    let key = CellKey::new(checks, 43, 2).unwrap();
+    let before = tables(&mut server, output);
+    let pivot = &before[0];
+    let layout = pivot.layout.as_ref().unwrap();
+    assert_eq!(&layout.source_fields[..2], &["Region", "Product"]);
+    assert_eq!(
+        (&layout.rows[..], &layout.columns[..]),
+        (&[0][..], &[1][..])
+    );
+
+    let revision = server.book().host().revision().get();
+    let edit = send(
+        &mut server,
+        Intent::EnterCell {
+            at: Key::of(CellKey::new(source, 2, 4).unwrap()),
+            text: "999999".into(),
+        },
+    );
+    assert!(edit.accepted, "{edit:?}");
+    let swap = |revision| Intent::PivotSetLayout {
+        sheet: Sheet::of(output),
+        revision,
+        part: pivot.part.clone(),
+        rows: vec![1],
+        columns: vec![0],
+    };
+    let current = server.book().host().revision().get();
+    let stale = send(&mut server, swap(revision));
+    assert!(!stale.accepted, "{stale:?}");
+    assert_eq!(server.book().host().revision().get(), current);
+
+    let changed = send(&mut server, swap(current));
+    assert!(changed.accepted, "{changed:?}");
+    let after = tables(&mut server, output);
+    let layout = after[0].layout.as_ref().unwrap();
+    assert_eq!(
+        (&layout.rows[..], &layout.columns[..]),
+        (&[1][..], &[0][..])
+    );
+    assert_eq!(after[0].refreshed_revision, None);
+    let projected = calc_host::project(
+        server.book().host(),
+        &calc_host::ProjectionRequest { cells: vec![key] },
+    )
+    .unwrap();
+    assert!(matches!(
+        projected.cells()[0].value(),
+        calc_host::ProjectedValue::Calculated { value, .. } if value.as_number() == Some(691.5)
+    ));
+
+    let current = server.book().host().revision().get();
+    let area = Area::of(
+        calc_value::GridArea::new(
+            CellKey::new(source, 1, 1).unwrap(),
+            CellKey::new(source, 36, 5).unwrap(),
+        )
+        .unwrap(),
+    );
+    let created = send(
+        &mut server,
+        Intent::PivotCreateLayout {
+            revision: current,
+            source: area,
+            destination: "GPD!H150".into(),
+            rows: vec![0],
+            columns: vec![1],
+            values: vec![(3, "sum".into()), (4, "sum".into())],
+        },
+    );
+    assert!(created.accepted, "{created:?}");
+    let created_layout = |server: &mut Server, sheet| {
+        tables(server, sheet)
+            .into_iter()
+            .find(|table| table.area.0 == Key::of(CellKey::new(sheet, 150, 8).unwrap()))
+            .unwrap()
+            .layout
+            .unwrap()
+    };
+    let creation = created_layout(&mut server, checks);
+    assert_eq!(creation.rows, [0]);
+    assert_eq!(creation.columns, [1, wire::SavedPivotLayout::VALUES]);
+
+    let save = server.execute_current(Request::Save, None);
+    assert!(save.reply.is_ok(), "{:?}", save.reply);
+    assert!(server.execute_current(open, save.bytes).reply.is_ok());
+    let reopened = sheet(&server, "PvRowCol");
+    assert_eq!(
+        tables(&mut server, reopened)[0].layout.as_ref(),
+        Some(layout)
+    );
+    let reopened_checks = sheet(&server, "GPD");
+    assert_eq!(created_layout(&mut server, reopened_checks), creation);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_2__refresh_crosses_the_actual_wire_and_retry_does_not_refresh_twice() {
     use dna_calc_worker::{
         server::{Server, answer_text},

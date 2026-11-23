@@ -304,6 +304,21 @@ pub enum Intent {
         value: u32,
         subtotal: String,
     },
+    PivotCreateLayout {
+        revision: u64,
+        source: Area,
+        destination: String,
+        rows: Vec<u32>,
+        columns: Vec<u32>,
+        values: Vec<(u32, String)>,
+    },
+    PivotSetLayout {
+        sheet: Sheet,
+        revision: u64,
+        part: String,
+        rows: Vec<i32>,
+        columns: Vec<i32>,
+    },
     PivotRefresh {
         sheet: Sheet,
         revision: u64,
@@ -2347,6 +2362,21 @@ pub struct SavedPivot {
     pub source: String,
     pub fields: String,
     pub cache: String,
+    #[serde(default)]
+    pub layout: Option<SavedPivotLayout>,
+}
+
+/// Cache field identities and their current axis positions for the field list.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedPivotLayout {
+    pub source_fields: Vec<String>,
+    pub rows: Vec<i32>,
+    pub columns: Vec<i32>,
+}
+
+impl SavedPivotLayout {
+    /// The axis item that places the measures when the pivot has multiple value fields.
+    pub const VALUES: i32 = -2;
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

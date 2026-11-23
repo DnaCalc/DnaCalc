@@ -15209,7 +15209,7 @@ pub(crate) const CALC_CASES: &[Case] = &[
         checks: &[Check::PlanCell("N6", "provenance", "calculated")],
     },
     Case {
-        name: "pivot creation: real XLSX reopening discovers the new implicit table relationship",
+        name: "pivot creation: reopen XLSX, edit the field layout and undo",
         actions: &[
             Action::ClearDownloads,
             Action::Click("save"),
@@ -15217,6 +15217,16 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::DiscardReplacement,
             Action::OpenDetails("pivot-tools"),
             Action::Wait(Check::Count("[data-dnacalc=saved-pivot]", 3)),
+            Action::Wait(Check::PlanCell("N6", "provenance", "literal")),
+            Action::OpenDetails("[data-pivot=PivotTable1] [data-dnacalc=pivot-layout]"),
+            Action::Choose("[data-pivot=PivotTable1] [data-dnacalc=pivot-column-add]", "1"),
+            Action::Click("[data-pivot=PivotTable1] [data-dnacalc=pivot-layout-apply]"),
+            Action::Wait(Check::TextContains(
+                "[data-pivot=PivotTable1] [data-dnacalc=pivot-fields]",
+                "Columns: Amount",
+            )),
+            Action::Click("undo"),
+            Action::Wait(Check::PlanCell("N6", "text", "62")),
         ],
         checks: &[
             Check::PlanCell("N6", "text", "62"),
