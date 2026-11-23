@@ -454,9 +454,13 @@ pub use calc_fml::rtd::RtdDisposition;
 /// One RTD value the host admitted: its topic, lease and sequence, and the value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtdAdmission {
+    /// Topic whose input advanced.
     pub topic: calc_fml::TopicKey,
+    /// Subscription lease under which the input was accepted.
     pub lease: calc_fml::RtdLease,
+    /// Sequence of this update within its lease.
     pub sequence: u64,
+    /// Accepted worksheet value.
     pub value: calc_doc_model::value::CalcValue,
 }
 impl HostState {

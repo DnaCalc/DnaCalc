@@ -2,18 +2,32 @@
 //! before execution, including validation and calculation; an old identity never starts again.
 use std::collections::BTreeMap;
 
+/// Delivery identity and workbook revision expected by a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CommandStamp {
+    /// Monotonically increasing identity within the serial command source.
     pub id: u64,
+    /// Workbook instance addressed by the command.
     pub workbook: u64,
+    /// Authored revision the command expects to edit.
     pub base_revision: u64,
 }
+/// Reason a delivered command cannot start.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandRefusal {
+    /// The retained identity belongs to a different payload.
     IdentityReused,
+    /// The identity is at or below the high watermark and has no retained receipt.
     ReceiptExpired,
+    /// The command addresses a workbook that has been replaced.
     StaleWorkbook,
-    StaleRevision { base: u64, current: u64 },
+    /// The command was prepared for a different authored revision.
+    StaleRevision {
+        /// Revision supplied by the caller.
+        base: u64,
+        /// Current authored revision.
+        current: u64,
+    },
 }
 impl std::fmt::Display for CommandRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -37,6 +51,21 @@ impl std::fmt::Display for CommandRefusal {
 /// One journal per serial command source, retained across workbook replacement. Only the most
 /// recent receipts are retained; the high watermark prevents an evicted identity applying twice.
 /// This is an in-memory delivery guarantee, not a recovery log or an effect replay mechanism.
+///
+/// ```
+/// use calc_host::{CommandJournal, CommandStamp};
+///
+/// let mut journal = CommandJournal::new(16, 1024);
+/// let stamp = CommandStamp {
+///     id: journal.next_id(),
+///     workbook: 7,
+///     base_revision: 10,
+/// };
+/// let payload = "clear A1";
+/// assert_eq!(journal.admit(stamp, 7, 10, payload), Ok(None));
+/// journal.remember(stamp.id, payload.into(), 11_u64, size_of::<u64>());
+/// assert_eq!(journal.admit(stamp, 7, 11, payload), Ok(Some(11)));
+/// ```
 pub struct CommandJournal<T> {
     high: u64,
     receipts: BTreeMap<u64, (String, T, usize)>,
@@ -45,6 +74,11 @@ pub struct CommandJournal<T> {
     max_bytes: usize,
 }
 impl<T: Clone> CommandJournal<T> {
+    /// Create a journal limited by receipt count and total payload plus receipt bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `capacity` is zero.
     pub fn new(capacity: usize, max_bytes: usize) -> Self {
         assert!(capacity > 0);
         Self {
@@ -55,11 +89,18 @@ impl<T: Clone> CommandJournal<T> {
             max_bytes,
         }
     }
+    /// Return the next identity above the high watermark.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the high watermark has reached `u64::MAX`.
     pub fn next_id(&self) -> u64 {
         self.high
             .checked_add(1)
             .expect("command identities exhausted")
     }
+    /// Return `Ok(None)` to execute a new delivery, or `Ok(Some(receipt))` to replay a receipt.
+    /// A fresh identity is consumed even when workbook or revision validation rejects it.
     pub fn admit(
         &mut self,
         stamp: CommandStamp,
@@ -91,6 +132,8 @@ impl<T: Clone> CommandJournal<T> {
         }
         Ok(None)
     }
+    /// Keep the receipt for an admitted identity, evicting the oldest identities to fit both limits.
+    /// A single receipt whose weight including the payload exceeds the byte limit is skipped.
     pub fn remember(&mut self, id: u64, payload: String, receipt: T, receipt_bytes: usize) {
         let weight = payload.len().saturating_add(receipt_bytes);
         if weight > self.max_bytes {

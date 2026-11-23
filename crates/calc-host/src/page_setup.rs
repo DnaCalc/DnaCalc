@@ -2,14 +2,20 @@
 use crate::{CellEdit, HostState};
 use calc_doc_model::{HEADER_FIELDS, PageBreak};
 use calc_value::{CellKey, ExcelText, GridArea, NameScope, SheetId};
+/// Patch to a worksheet’s print settings and built-in print names.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PageSetupChange {
+    /// Updates as (element, attribute, value), with no value removing the attribute.
     pub attributes: Vec<(String, String, Option<String>)>,
+    /// Header or footer field names and their replacement text.
     pub headers: Vec<(String, String)>,
+    /// Replacement horizontal page breaks. `None` leaves the current breaks in place.
     pub row_breaks: Option<Vec<PageBreak>>,
+    /// Replacement vertical page breaks. `None` leaves the current breaks in place.
     pub column_breaks: Option<Vec<PageBreak>>,
     /// Empty removes the scoped name; None leaves it unchanged.
     pub print_area: Option<String>,
+    /// Print title rows or columns. Empty text removes the name and `None` leaves it in place.
     pub print_titles: Option<String>,
 }
 /// Split a reference union without splitting a quoted sheet name containing commas.
@@ -41,6 +47,7 @@ pub fn print_references(
         _=>Err("Print ranges need cell ranges or whole rows/columns on this worksheet (dc-971p.56)".into()),
     }).collect()
 }
+/// Return the text of a worksheet-scoped print name, if defined.
 pub fn print_name(host: &HostState, sheet: SheetId, name: &str) -> Option<String> {
     host.model()
         .definitions()

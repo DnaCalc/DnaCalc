@@ -17,9 +17,13 @@ pub enum SaveFailed {
     Refused(SaveRefusal),
     /// The write failed.
     Write(WriteError),
+    /// The BeforeSave handler cancelled the save.
     Cancelled,
+    /// The host refused the save before package writing.
     Operation {
+        /// Work package responsible for the refusal.
         owner: &'static str,
+        /// Explanation suitable for displaying to the caller.
         reason: String,
     },
 }
@@ -37,18 +41,23 @@ impl fmt::Display for SaveFailed {
 
 impl std::error::Error for SaveFailed {}
 
+/// Application or automation command that requested the save.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SaveOperation {
+    /// Save the workbook in place.
     Save,
+    /// Save the workbook to a supplied destination.
     SaveAs,
     /// A Save As selected in the application's file dialog.
     SaveAsDialog,
+    /// Write a copy of the workbook.
     SaveCopyAs,
 }
 
 /// A registered event owner returns one authored batch before the serialization pin.
 /// Loading a VBA project does not by itself register an event owner.
 pub trait BeforeSaveHandler {
+    /// Return the authored edits and cancellation decision for this operation.
     fn before_save(
         &mut self,
         host: &HostState,
@@ -56,19 +65,27 @@ pub trait BeforeSaveHandler {
     ) -> Result<BeforeSaveOutcome, String>;
 }
 
+/// Edits and cancellation requested by a BeforeSave handler.
 #[derive(Debug, Default)]
 pub struct BeforeSaveOutcome {
+    /// Authored cell edits returned as one batch.
     pub edits: Vec<crate::CellEdit>,
+    /// Whether to cancel package preparation.
     pub cancel: bool,
 }
 
 /// P06's measured command settings, supplied by the application/automation owner.
 /// Disabled worksheets are session policy; Excel restores them enabled on reopen.
 pub struct ExcelSaveContext<'a> {
+    /// Command requesting the save.
     pub operation: SaveOperation,
+    /// Whether the caller enabled calculation before saving.
     pub calculate_before_save: bool,
+    /// Active worksheet used by the save calculation policy.
     pub active_sheet: calc_value::SheetId,
+    /// Worksheets with calculation disabled in this session.
     pub disabled_sheets: &'a [calc_value::SheetId],
+    /// Optional handler invoked ahead of the serialization pin.
     pub before_save: Option<&'a mut dyn BeforeSaveHandler>,
 }
 
@@ -82,7 +99,9 @@ pub(crate) fn operation_failed(reason: impl Into<String>) -> SaveFailed {
 /// What a noncalculating save may retain. Dirty array topology is not yet permitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SaveCachePolicy {
+    /// Write caches from current calculated results only.
     CurrentCalculatedOnly,
+    /// Also retain scalar caches allowed by the manual-save profile.
     PreservePermittedCaches,
 }
 
@@ -132,11 +151,17 @@ pub(crate) fn save_scope_satisfied(host: &HostState, scope: &crate::CalcScope) -
 /// This is provenance for the save; it makes no workbook-wide freshness claim.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavePin {
+    /// Result destination that owns the pinned view.
     pub destination: calc_engine::contract::ResultDestination,
+    /// Identity of the workbook instance being saved.
     pub workbook: calc_engine::contract::WorkbookInstanceId,
+    /// Authored revision selected for serialization.
     pub model: calc_doc_model::AuthoredRevision,
+    /// Identifier of the result view selected for serialization.
     pub results: calc_engine::contract::ReadViewId,
+    /// Identifier of the calculation active when this pin was taken, if any.
     pub active_calculation: Option<calc_engine::contract::CalcCommandId>,
+    /// Which formula caches may be serialized.
     pub cache_policy: SaveCachePolicy,
 }
 
@@ -148,12 +173,15 @@ pub struct PreparedSave {
     calculation: Option<calc_engine::contract::CompletionReceipt>,
 }
 impl PreparedSave {
+    /// Return the calculation completion receipt attached to this save, if any.
     pub fn calculation(&self) -> Option<&calc_engine::contract::CompletionReceipt> {
         self.calculation.as_ref()
     }
+    /// Identify the model, results, and cache policy used to prepare these bytes.
     pub fn pin(&self) -> &SavePin {
         &self.pin
     }
+    /// Consume the plan and write to the supplied sink. Discard any partial output on error.
     pub fn write(self, out: &mut dyn PackageWrite) -> Result<SaveReceipt, SaveFailed> {
         calc_doc::write(self.plan, out).map_err(SaveFailed::Write)
     }

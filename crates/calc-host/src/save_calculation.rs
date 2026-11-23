@@ -8,27 +8,45 @@ use calc_engine::{
 use calc_value::CalcValue;
 use std::{cell::Cell, fmt, rc::Rc, sync::Arc};
 
+/// Observable state of a save that may require calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CalculatedSaveProgress {
+    /// The caller can advance calculation work.
     Calculating,
+    /// Calculation is waiting for an external result.
     Waiting,
+    /// The save is waiting for a calculation owned by the live workbook.
     WaitingForLive,
+    /// The package plan is ready to write.
     Ready,
+    /// The save ended with a refusal, cancellation, or failure.
     Failed,
 }
 
+/// Why the host could not complete a pinned calculated save.
 #[derive(Debug)]
 pub enum CalculatedSaveError {
+    /// Another pinned save owns the calculation slot.
     Busy,
+    /// The caller attempted to finish before calculation completed.
     Pending,
+    /// The workbook or required live calculation was replaced.
     Superseded,
+    /// The callable bindings changed after the save was pinned.
     ProviderChanged,
+    /// The caller cancelled the save calculation.
     Cancelled,
+    /// Calculation completed with insufficient result coverage for saving.
     Incomplete(CompletionReceipt),
+    /// The required live result view is no longer available.
     MissingCompletion,
+    /// An asynchronous return conflicts with the recorded invocation identity.
     ReturnIdentityConflict(AsyncRejection),
+    /// The engine declined to start the calculation.
     Start(StartError),
+    /// The engine failed while advancing the calculation.
     Calculation(RecalcFailure),
+    /// Preparation of the package from the calculation result failed.
     Save(SaveFailed),
 }
 impl fmt::Display for CalculatedSaveError {
@@ -86,6 +104,7 @@ pub struct CalculatingSave {
     events: Vec<calc_engine::CalcEvent>,
 }
 
+/// Pin the workbook and start a save calculation or wait for its active live calculation.
 pub fn begin_calculated_save(
     host: &mut HostState,
     policy: &SavePolicy,
@@ -143,6 +162,7 @@ pub fn begin_calculated_save(
 }
 
 impl CalculatingSave {
+    /// Inspect the current state without advancing work.
     pub fn progress(&self) -> CalculatedSaveProgress {
         if let Some(result) = &self.terminal {
             if result.is_ok() {
@@ -162,11 +182,13 @@ impl CalculatingSave {
             CalculatedSaveProgress::Calculating
         }
     }
+    /// Return the pending work count for the isolated calculation, or zero when it has not started.
     pub fn remaining(&self) -> usize {
         self.calculation
             .as_ref()
             .map_or(0, |calculation| calculation.remaining())
     }
+    /// Report whether a scheduling step can advance work or observe a change in its authority.
     pub fn needs_advance(&self, live: &HostState) -> bool {
         self.terminal.is_none()
             && (self.authority(live).is_err()
@@ -179,27 +201,33 @@ impl CalculatingSave {
                 })
                 || self.has_pending_calculation())
     }
+    /// Return the command identity allocated to this save.
     pub fn id(&self) -> CommandId {
         self.id
     }
+    /// Return the authored revision selected for the save.
     pub fn model_revision(&self) -> AuthoredRevision {
         self.pin.model
     }
+    /// Drain the calculation events collected for this save.
     pub fn take_events(&mut self) -> Vec<calc_engine::CalcEvent> {
         std::mem::take(&mut self.events)
     }
+    /// Return pending async tokens from the isolated calculation.
     pub fn pending_async(&self) -> Vec<AsyncToken> {
         self.calculation
             .as_ref()
             .map(|calculation| calculation.pending_async())
             .unwrap_or_default()
     }
+    /// Report whether the isolated calculation has runnable work.
     pub fn has_pending_calculation(&self) -> bool {
         self.terminal.is_none()
             && self.calculation.as_ref().is_some_and(|calculation| {
                 calculation.completion().is_none() && !calculation.is_waiting()
             })
     }
+    /// Borrow the terminal error, if the save failed.
     pub fn error(&self) -> Option<&CalculatedSaveError> {
         self.terminal
             .as_ref()
@@ -223,6 +251,7 @@ impl CalculatingSave {
         self.terminal = Some(Err(error));
         CalculatedSaveProgress::Failed
     }
+    /// Offer an asynchronous result to the calculation owned by this save.
     pub fn complete_async(
         &mut self,
         live: &HostState,
@@ -252,6 +281,7 @@ impl CalculatingSave {
         self.events.extend(calculation.take_events());
         disposition
     }
+    /// Advance the save within the supplied calculation budget and report its new state.
     pub fn advance(&mut self, live: &HostState, budget: WorkBudget) -> CalculatedSaveProgress {
         if let Some(result) = &self.terminal {
             return if result.is_ok() {
@@ -343,6 +373,7 @@ impl CalculatingSave {
         )
         .map_err(CalculatedSaveError::Save)
     }
+    /// Cancel this pinned save and release its calculation slot.
     pub fn cancel(&mut self) {
         if self.terminal.is_none() {
             self.fail(CalculatedSaveError::Cancelled);
@@ -452,9 +483,11 @@ impl OrdinarySave {
             && self.functions == host.functions.bindings()
             && self.mode == host.calc_mode()
     }
+    /// Return the authored revision selected for the save.
     pub fn model_revision(&self) -> AuthoredRevision {
         self.model
     }
+    /// Inspect the current state without advancing work.
     pub fn progress(&self) -> CalculatedSaveProgress {
         match &self.terminal {
             Some(Ok(_)) => CalculatedSaveProgress::Ready,
@@ -463,6 +496,7 @@ impl OrdinarySave {
             None => CalculatedSaveProgress::Calculating,
         }
     }
+    /// Report whether a scheduling step can advance work or observe a change in its authority.
     pub fn needs_advance(&self, host: &HostState) -> bool {
         self.terminal.is_none()
             && (!self.authority(host)
@@ -473,6 +507,7 @@ impl OrdinarySave {
                             .is_some_and(|command| command != work.admission().command)
                 }))
     }
+    /// Advance the save within the supplied calculation budget and report its new state.
     pub fn advance(
         &mut self,
         session: &mut crate::HostSession,
@@ -588,6 +623,7 @@ impl OrdinarySave {
         self.terminal = Some(Err(crate::save::operation_failed(reason)));
         CalculatedSaveProgress::Failed
     }
+    /// Cancel the save, also cancelling live calculation when this save owns the request.
     pub fn cancel(&mut self, session: &mut crate::HostSession) {
         if self.terminal.is_none() {
             if session.host.engine.workbook_instance() == self.workbook
@@ -605,6 +641,7 @@ impl OrdinarySave {
             self.terminal = Some(Err(SaveFailed::Cancelled));
         }
     }
+    /// Consume the save and return its prepared package, or report a pending or failed save.
     pub fn finish(mut self) -> Result<PreparedSave, SaveFailed> {
         self.terminal
             .take()

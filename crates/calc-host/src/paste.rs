@@ -3,20 +3,31 @@
 use crate::value::{CellKey, GridArea};
 use crate::{CellEdit, CopySnapshot, HostState, PasteMode};
 
+/// Input to the host paste planner.
 pub enum PasteSource<'a> {
+    /// Paste an immutable range captured by the host.
     Snapshot {
+        /// Captured authored content, styles, and calculated values.
         snapshot: &'a CopySnapshot,
+        /// Move the source cells when true.
         cut: bool,
     },
+    /// Extend an existing range into adjacent cells.
     Fill {
+        /// Range providing the seed cells.
         from: GridArea,
+        /// Fill down when true and right when false.
         down: bool,
+        /// Extend a series instead of repeating the seed pattern.
         series: bool,
     },
+    /// Paste a matrix of external cell-entry strings.
     External(Vec<Vec<String>>),
+    /// Infer values from examples on the worksheet.
     FlashFill,
 }
 
+/// A prepared paste bound to the workbook and revision inspected during preview.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastePlan {
     coordinates: Option<calc_fml::reference::StructuralEdit>,
@@ -53,9 +64,12 @@ impl PastePlan {
             .take(8)
             .collect()
     }
+    /// Return the destination after any expansion of the selected range.
     pub fn target(&self) -> GridArea {
         self.target
     }
+    /// Return the number of occupied destination cells for overwrite confirmation.
+    /// Format-only and Flash Fill plans report zero.
     pub fn replaces(&self) -> u64 {
         self.replaces
     }
@@ -78,6 +92,7 @@ impl PastePlan {
     }
 }
 
+/// Validate the source and destination and prepare a paste in its original orientation.
 pub fn prepare_paste(
     host: &HostState,
     source: PasteSource<'_>,
