@@ -87,10 +87,46 @@ backends). Ratios are the CalcVBA median divided by the Excel median.
 | VariantMix | 100,000 | 39.097 | 56.062 (1.43×) | 361.272 (9.24×) |
 | WorksheetSum | 5,000 | 25.325 | 5.203 (0.21×) | 7.720 (0.30×) |
 
-Excel medians for `RangeBlock`, `RangeCells` and `UdfRecalculate` were 5.330, 255.657 and 73.239 ms.
-The corresponding hosted CalcVBA timings and `LoopDouble` arithmetic remain dc-tey4.7. Raw
-samples, the build patches and the full comparison are in `ww10/pf1`. The two differing checksum
-rows are in `ww10/bank-rows/pf1-loop-double.json`.
+The hosted range diagnostics used the Win64 development build of DNA Calc `189d5f9d9` and the
+scratch-corrected CalcVBA pin `c3ca0486`. The same `B_Sheet.bas` routines ran on the owning VBA
+thread. Both checksums matched Excel on every sample. Timings include the workbook event call and
+checksum write. The following ratios use these development timings.
+
+| Workload | Size | Excel ms | Hosted VM3 ms (ratio) | Hosted JIT ms (ratio) |
+| --- | ---: | ---: | ---: | ---: |
+| RangeBlock | 2,000 | 5.330 | 525.005 (98.50×) | 624.652 (117.20×) |
+| RangeCells | 2,000 | 255.657 | 2,390.093 (9.35×) | 2,519.386 (9.85×) |
+| UdfRecalculate | 10,000 | 73.239 | blocked | blocked |
+
+The 12-cell `UdfRecalculate` diagnostic refused `Range.Dirty` on both backends (dc-1nbp.5).
+The two 10,000-cell attempts were stopped in setup after that diagnosis. Release-profile hosted
+timings and `LoopDouble` arithmetic remain dc-tey4.7. Raw samples, build patches and comparisons
+are in `ww10/pf1`. The two differing checksums are in `ww10/bank-rows/pf1-loop-double.json`.
+
+### ww10 pivot replay, 2026-11-23
+
+- **dc-8wp.6.** Excel build 20625 captured 20 manually ordered axis layouts, including extra row
+  and column fields and Values placement on both axes. All 20 retained the captured axis XML
+  through refresh and save. The twelve existing DNA Calc saves opened in Excel. All 8,912 cell
+  readings matched the authored references and the saved axis definitions survived Excel SaveCopyAs.
+  Native replay and before/after XML are in `ww10/pt1`. Product parity for the 20 new cases stays
+  with dc-8wp.6.
+- **dc-8wp.10.** The committed Windows replay reproduced M1 84/85. The new Excel precision set
+  recorded 11 pivots and five unchanged source matrices through refresh and reopening. Its
+  two-axis Product grand total changed with the column display order and source order. DNA Calc
+  refused all 11 new refreshes with the numeric-input refusal, leaving 0/1,014 cell matches. Exact
+  inputs and answers are in `ww10/bank-rows/pivot-precision-refusals.json`. Those cases and the
+  retained M1 refusal remain dc-8wp.10.
+- **dc-8wp.12.** The Win64 grid control kept its Light16 border and explicit fill. Excel recorded
+  one header cell for each of 84 presets at three layouts, plus nine Ion-theme samples. At the
+  overlap of a formatted data area and an explicitly formatted cell, the later direct formatting
+  set the fill. The conditional fill won in all four order/preserve combinations, including after
+  refresh and reopening. The caption and AutoFit captures include exact widths, alignment, the
+  worksheet font and zoom. The tested number displayed `####` at width 4 and `120000012` after
+  AutoFit widened its column to 9.29. Full cell-by-cell style parity remains dc-8wp.12.
+
+The pivot host suite passed 31 tests, and the worker grid regression passed one. These binaries
+used the same scratch correction to the CalcVBA pin as the desktop replay.
 
 ## Workbook calculation, VBA, COM and add-ins
 
