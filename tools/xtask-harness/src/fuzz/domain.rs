@@ -1335,10 +1335,10 @@ fn gen_yield_extreme_price_and_coupon(rng: &mut Rng) -> Vec<Value> {
             rng.log_uniform(900, 1020, false),
         ),
         4 => (
-            // Zero-coupon on-coupon huge price / tiny redemption -> negative base & subnormal slope!
+            // Zero-coupon on-coupon deep premium -> Newton crosses base < 0 and hits subnormal slope!
             0.0,
-            rng.log_uniform(200, 1015, false),
-            rng.log_uniform(-1015, -200, false),
+            rng.log_uniform(7, 35, false),
+            if rng.chance(0.5) { 100.0 } else { rng.log_uniform(-30, 10, false) },
         ),
         _ => (
             rng.log_uniform(0, 12, false),

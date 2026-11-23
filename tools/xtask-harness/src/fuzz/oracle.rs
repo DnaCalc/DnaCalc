@@ -7,16 +7,16 @@
 //! are recorded as discrepancies and exported to `bank-rows`.
 
 use super::boundary::{
-    Frontier, discover_local_frontiers, expand_frontier_windows, predicate_tag,
-    record_excel_window_flips,
+    Frontier, discover_local_frontiers, expand_frontier_windows, get_axis_bits, predicate_tag,
+    record_excel_window_flips, set_axis_f64,
 };
 use super::cluster::{
     DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, judge_pair,
 };
 use super::domain::DomainSpec;
 use super::rng::{
-    Rng, StreamCaseHasher, canonical_case_key, f64_to_ordered, hex_f64, ordered_to_f64,
-    parse_hex_bits, step_ulps,
+    Rng, StreamCaseHasher, canonical_case_key, f64_to_ordered, ordered_to_f64, parse_hex_bits,
+    step_ulps,
 };
 use super::steer::{
     CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
@@ -710,7 +710,9 @@ fn bisect_shifted_frontiers_excel(
                 continue;
             }
             let mut args = f.base_args.clone();
-            args[f.axis] = hex_f64(v);
+            if !set_axis_f64(&mut args, f.axis, f.axis_cell, v) {
+                continue;
+            }
             let _ = seen_keys.insert(canonical_case_key(&f.function, &args));
             let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
             *next_id += 1;
@@ -822,7 +824,9 @@ fn bisect_shifted_frontiers_excel(
                     continue;
                 }
                 let mut args = f.base_args.clone();
-                args[f.axis] = hex_f64(val);
+                if !set_axis_f64(&mut args, f.axis, f.axis_cell, val) {
+                    continue;
+                }
                 let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
                 *next_id += 1;
                 let region = format!("boundary_bisect:{}", f.axis_name);
@@ -1016,8 +1020,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             );
             for (rel_idx, c) in expanded {
                 let fidx = probed_frontier_count + rel_idx;
-                let axis = frontiers[fidx].axis;
-                let bits = parse_hex_bits(&c.args[axis]).unwrap_or(0);
+                let f = &frontiers[fidx];
+                let bits = get_axis_bits(&c.args, f.axis, f.axis_cell).unwrap_or(0);
                 case_hasher.update_case(&c.region, &c.args);
                 inter_meta.push((fidx, bits));
                 inter_cases.push(c);
@@ -1135,13 +1139,21 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         );
         let existing: HashSet<String> = frontiers
             .iter()
-            .map(|f| format!("{}|{:016x}|{:016x}|{}", f.axis, f.dna_lo_bits, f.dna_hi_bits, f.kind))
+            .map(|f| {
+                format!(
+                    "{}|{:?}|{:016x}|{:016x}|{}",
+                    f.axis, f.axis_cell, f.dna_lo_bits, f.dna_hi_bits, f.kind
+                )
+            })
             .collect();
         for mut f in more {
             if frontiers.len() >= cfg.max_frontiers {
                 break;
             }
-            let k = format!("{}|{:016x}|{:016x}|{}", f.axis, f.dna_lo_bits, f.dna_hi_bits, f.kind);
+            let k = format!(
+                "{}|{:?}|{:016x}|{:016x}|{}",
+                f.axis, f.axis_cell, f.dna_lo_bits, f.dna_hi_bits, f.kind
+            );
             if !existing.contains(&k) {
                 f.id = format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1);
                 frontiers.push(f);
@@ -1161,8 +1173,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         let mut final_meta = Vec::new();
         for (rel_idx, c) in expanded {
             let fidx = probed_frontier_count + rel_idx;
-            let axis = frontiers[fidx].axis;
-            let bits = parse_hex_bits(&c.args[axis]).unwrap_or(0);
+            let f = &frontiers[fidx];
+            let bits = get_axis_bits(&c.args, f.axis, f.axis_cell).unwrap_or(0);
             case_hasher.update_case(&c.region, &c.args);
             final_meta.push((fidx, bits));
             final_cases.push(c);
@@ -1272,6 +1284,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fuzz::rng::hex_f64;
     use calc_verdict::WitnessSet;
     use serde_json::json;
     use std::io::{Read, Write};
@@ -1591,6 +1604,7 @@ mod tests {
             id: "frontier-RATE-001".to_owned(),
             function: "RATE".to_owned(),
             axis: 5,
+            axis_cell: None,
             axis_name: "guess".to_owned(),
             kind: "error:Value<->number".to_owned(),
             base_args,

@@ -31,12 +31,53 @@ pub fn predicate_tag(encoded: &str) -> String {
     }
 }
 
-/// One discovered frontier along a single numeric argument axis (holding other args fixed).
+/// Read the raw binary64 bits at `(axis, cell)` (`cell == None` for scalar, `Some((r, c))` for
+/// a 2D numeric array argument like `IRR`'s `values`).
+pub fn get_axis_bits(args: &[Value], axis: usize, cell: Option<(usize, usize)>) -> Option<u64> {
+    let slot = args.get(axis)?;
+    match cell {
+        None => parse_hex_bits(slot),
+        Some((r, c)) => {
+            let rows = slot.as_array()?;
+            let row = rows.get(r)?.as_array()?;
+            parse_hex_bits(row.get(c)?)
+        }
+    }
+}
+
+/// Replace the value at `(axis, cell)` with Value2-safe hex double `val`.
+pub fn set_axis_f64(args: &mut [Value], axis: usize, cell: Option<(usize, usize)>, val: f64) -> bool {
+    let Some(slot) = args.get_mut(axis) else {
+        return false;
+    };
+    match cell {
+        None => {
+            *slot = hex_f64(val);
+            true
+        }
+        Some((r, c)) => {
+            let Some(rows) = slot.as_array_mut() else {
+                return false;
+            };
+            let Some(row) = rows.get_mut(r).and_then(Value::as_array_mut) else {
+                return false;
+            };
+            if c >= row.len() {
+                return false;
+            }
+            row[c] = hex_f64(val);
+            true
+        }
+    }
+}
+
+/// One discovered frontier along a single numeric argument (or array cell) axis.
 #[derive(Clone, Debug)]
 pub struct Frontier {
     pub id: String,
     pub function: String,
     pub axis: usize,
+    pub axis_cell: Option<(usize, usize)>,
     pub axis_name: String,
     pub kind: String,
     pub base_args: Vec<Value>,
@@ -58,6 +99,7 @@ impl Frontier {
             "id": self.id,
             "function": self.function,
             "axis": self.axis,
+            "axis_cell": self.axis_cell.map(|(r, c)| [r, c]),
             "axis_name": self.axis_name,
             "kind": self.kind,
             "base_args": self.base_args,
@@ -74,13 +116,14 @@ impl Frontier {
     }
 }
 
-/// Bisect locally on DNA Calc along scalar numeric argument `axis` between `lo_val` and `hi_val`
-/// where `predicate(lo) != predicate(hi)`, returning exact adjacent Value2-safe doubles
-/// `(lo_bits, lo_result, hi_bits, hi_result)`.
-pub fn bisect_local_axis(
+/// Bisect locally on DNA Calc along scalar or array-cell numeric argument `(axis, cell)` between
+/// `lo_val` and `hi_val` where `predicate(lo) != predicate(hi)`, returning exact adjacent
+/// Value2-safe doubles `(lo_bits, lo_result, hi_bits, hi_result)`.
+pub fn bisect_local_axis_cell(
     function: &str,
     base_args: &[Value],
     axis: usize,
+    cell: Option<(usize, usize)>,
     lo_val: f64,
     hi_val: f64,
     context: &WitnessInvocation,
@@ -96,7 +139,7 @@ pub fn bisect_local_axis(
     };
     let eval_at = |x: f64| -> (String, u64) {
         let mut args = base_args.to_vec();
-        args[axis] = hex_f64(x);
+        set_axis_f64(&mut args, axis, cell, x);
         let (res, trace, _) = evaluate_traced(function, &args, context);
         (res, trace.route_mask)
     };
@@ -148,6 +191,19 @@ pub fn bisect_local_axis(
     Some((a_bits, ea.0, b_bits, eb.0))
 }
 
+#[allow(dead_code)]
+pub fn bisect_local_axis(
+    function: &str,
+    base_args: &[Value],
+    axis: usize,
+    lo_val: f64,
+    hi_val: f64,
+    context: &WitnessInvocation,
+    route_mode: bool,
+) -> Option<(u64, String, u64, String)> {
+    bisect_local_axis_cell(function, base_args, axis, None, lo_val, hi_val, context, route_mode)
+}
+
 /// Discover DNA Calc number-vs-error and route-change frontiers by probing axis sweeps from
 /// interesting seed cases, then bisecting every detected flip to adjacent doubles.
 pub fn discover_local_frontiers(
@@ -163,15 +219,18 @@ pub fn discover_local_frontiers(
     let mut frontiers = Vec::new();
     let mut seen_frontiers: HashSet<String> = HashSet::new();
 
-    // Candidate scalar numeric axes
-    let scalar_axes: Vec<usize> = spec
-        .params
-        .iter()
-        .enumerate()
-        .filter(|(_, p)| p.kind != super::domain::ParamKind::ArrayNumeric)
-        .map(|(i, _)| i)
-        .collect();
-    if scalar_axes.is_empty() {
+    // Candidate numeric axes: all scalar numeric params PLUS first 3 rows of numeric arrays (e.g. IRR values[0..3]).
+    let mut probe_axes: Vec<(usize, Option<(usize, usize)>)> = Vec::new();
+    for (i, p) in spec.params.iter().enumerate() {
+        if p.kind == super::domain::ParamKind::ArrayNumeric {
+            for r in 0..3 {
+                probe_axes.push((i, Some((r, 0))));
+            }
+        } else {
+            probe_axes.push((i, None));
+        }
+    }
+    if probe_axes.is_empty() {
         return frontiers;
     }
 
@@ -231,8 +290,8 @@ pub fn discover_local_frontiers(
     ];
     let additive: &[f64] = &[-1.0, -0.1, -0.01, -1e-4, -1e-7, 1e-7, 1e-4, 0.01, 0.1, 1.0];
 
-    let max_per_axis = ((max_frontiers + scalar_axes.len() - 1) / scalar_axes.len()).max(2);
-    let mut per_axis_count: std::collections::BTreeMap<usize, usize> =
+    let max_per_axis = ((max_frontiers + probe_axes.len() - 1) / probe_axes.len()).max(2);
+    let mut per_axis_count: std::collections::BTreeMap<(usize, Option<(usize, usize)>), usize> =
         std::collections::BTreeMap::new();
     let mut axis_cursor = 0usize;
 
@@ -247,23 +306,22 @@ pub fn discover_local_frontiers(
                 break;
             }
             let seed = &seeds[seed_idx];
-            // Pick the next scalar axis in round-robin order that fits this seed's arity and cap.
+            // Pick the next numeric axis (scalar or array cell) in round-robin order.
             let mut chosen_axis = None;
-            for offset in 0..scalar_axes.len() {
-                let ax = scalar_axes[(axis_cursor + offset) % scalar_axes.len()];
-                if ax < seed.args.len()
-                    && parse_hex_bits(&seed.args[ax]).is_some()
+            for offset in 0..probe_axes.len() {
+                let ax = probe_axes[(axis_cursor + offset) % probe_axes.len()];
+                if get_axis_bits(&seed.args, ax.0, ax.1).is_some()
                     && (*per_axis_count.get(&ax).unwrap_or(&0) < max_per_axis || allow_route_only)
                 {
                     chosen_axis = Some(ax);
-                    axis_cursor = (axis_cursor + offset + 1) % scalar_axes.len();
+                    axis_cursor = (axis_cursor + offset + 1) % probe_axes.len();
                     break;
                 }
             }
-            let Some(axis) = chosen_axis else {
+            let Some((axis, cell)) = chosen_axis else {
                 continue;
             };
-            let Some(base_bits) = parse_hex_bits(&seed.args[axis]) else {
+            let Some(base_bits) = get_axis_bits(&seed.args, axis, cell) else {
                 continue;
             };
             let base_val = f64::from_bits(base_bits);
@@ -281,7 +339,7 @@ pub fn discover_local_frontiers(
                     continue;
                 }
                 let mut args = seed.args.clone();
-                args[axis] = hex_f64(cand);
+                set_axis_f64(&mut args, axis, cell, cand);
                 let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
                 if predicate_tag(&res) != base_pred {
                     bracket = Some((cand, false));
@@ -298,7 +356,7 @@ pub fn discover_local_frontiers(
                         continue;
                     }
                     let mut args = seed.args.clone();
-                    args[axis] = hex_f64(cand);
+                    set_axis_f64(&mut args, axis, cell, cand);
                     let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
                     if predicate_tag(&res) != base_pred {
                         bracket = Some((cand, false));
@@ -315,10 +373,11 @@ pub fn discover_local_frontiers(
             if route_only && !allow_route_only {
                 continue;
             }
-            let Some((lo_bits, lo_out, hi_bits, hi_out)) = bisect_local_axis(
+            let Some((lo_bits, lo_out, hi_bits, hi_out)) = bisect_local_axis_cell(
                 &spec.function,
                 &seed.args,
                 axis,
+                cell,
                 base_val,
                 other_val,
                 context,
@@ -334,21 +393,27 @@ pub fn discover_local_frontiers(
             if !allow_route_only && kind == "route_flip" {
                 continue;
             }
-            // Deduplicate by (axis, top 32 bits of lo_bits, kind) so nearby perturbations of the
-            // same point don't crowd out distinct regions of the frontier map.
-            let coarse_key = format!("{axis}|{:08x}|{kind}", lo_bits >> 32);
+            // Deduplicate by (axis, cell, top 32 bits of lo_bits, kind) so nearby perturbations
+            // don't crowd out distinct regions of the frontier map.
+            let coarse_key = format!("{axis}|{cell:?}|{:08x}|{kind}", lo_bits >> 32);
             if !seen_frontiers.insert(coarse_key) {
                 continue;
             }
-            let axis_name = spec
+            let base_name = spec
                 .params
                 .get(axis)
                 .map_or_else(|| format!("arg{axis}"), |p| p.name.clone());
-            *per_axis_count.entry(axis).or_insert(0) += 1;
+            let axis_name = match cell {
+                None => base_name,
+                Some((r, 0)) => format!("{base_name}[{r}]"),
+                Some((r, c)) => format!("{base_name}[{r},{c}]"),
+            };
+            *per_axis_count.entry((axis, cell)).or_insert(0) += 1;
             frontiers.push(Frontier {
                 id: format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1),
                 function: spec.function.clone(),
                 axis,
+                axis_cell: cell,
                 axis_name,
                 kind,
                 base_args: seed.args.clone(),
@@ -395,7 +460,9 @@ pub fn expand_frontier_windows(
         }
         for v in pts {
             let mut args = frontier.base_args.clone();
-            args[frontier.axis] = hex_f64(v);
+            if !set_axis_f64(&mut args, frontier.axis, frontier.axis_cell, v) {
+                continue;
+            }
             let key = canonical_case_key(&frontier.function, &args);
             if !seen_keys.insert(key) {
                 continue;
@@ -500,5 +567,33 @@ mod tests {
             f64_to_ordered(f64::from_bits(lo2)) + 1,
             f64_to_ordered(f64::from_bits(hi2))
         );
+    }
+
+    #[test]
+    fn array_cell_bisection_pinpoints_irr_cashflow_sign_boundary() {
+        let ctx = touchstone_bulk_context();
+        let base = vec![
+            Value::Array(vec![
+                Value::Array(vec![hex_f64(-100.0)]),
+                Value::Array(vec![hex_f64(120.0)]),
+            ]),
+            hex_f64(0.1),
+        ];
+        // Sweeping values[1] from -10.0 (#NUM!, all-negative flows) to +120.0 (number) must hit
+        // the exact adjacent Value2-safe double boundary at 0.0 -> +MIN_POSITIVE (or first valid root).
+        let (lo, lo_out, hi, hi_out) = bisect_local_axis_cell(
+            "IRR",
+            &base,
+            0,
+            Some((1, 0)),
+            -10.0,
+            120.0,
+            &ctx,
+            false,
+        )
+        .expect("IRR cashflow boundary found");
+        assert_eq!(lo_out, "error:Num");
+        assert!(hi_out.starts_with("0x"), "expected number, got {hi_out}");
+        assert!(f64_to_ordered(f64::from_bits(lo)) < f64_to_ordered(f64::from_bits(hi)));
     }
 }
