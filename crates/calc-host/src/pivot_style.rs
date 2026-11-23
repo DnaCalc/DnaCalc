@@ -421,14 +421,6 @@ impl HostState {
         {
             return None;
         }
-        // The measured Dark11 subtotal tint differs from the shared conversion.
-        if preset == Preset::Dark11
-            && self
-                .resolved_style_color(&theme(6, "0"))
-                .is_none_or(|color| !color.eq_ignore_ascii_case("#196b24"))
-        {
-            return None;
-        }
         let first = table.area.first();
         let data_row = first
             .row()
@@ -556,13 +548,13 @@ impl HostState {
                     },
                 ));
             } else if preset == Preset::Dark11 {
-                look.fill = Some(if is_header || is_total {
-                    rgb("FF404040")
+                look.fill = if is_header || is_total {
+                    Some(rgb("FF404040"))
                 } else if is_subtotal {
-                    rgb("FF83E28E")
+                    pivot_tint(self, 6, 60)
                 } else {
-                    theme(6, "0.7999816888943144")
-                });
+                    pivot_tint(self, 6, 80)
+                };
             } else if preset == Preset::Medium1 && is_header {
                 look.fill = Some(rgb("FF808080"));
             } else if preset == Preset::Medium1 && is_subtotal {

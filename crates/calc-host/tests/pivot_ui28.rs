@@ -3101,6 +3101,69 @@ fn dc_8wp_12__all_captured_stages_report_number_format_codes() {
     }
 }
 
+/// The M6 theme capture varied accents while leaving the neutral palette unchanged.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_12__dark11_subtotal_uses_the_workbook_accent() {
+    use existing_wire_support::d1::{part_text, replace_part};
+    let bytes = include_bytes!("fixtures/pivot/m2-formatting/built.xlsx");
+    let capture = include_str!("fixtures/pivot/m6-followup/theme-formats.tsv");
+    let theme_part = "xl/theme/theme1.xml";
+    let theme = part_text(bytes, theme_part);
+    let mut matched = 0;
+    let mut cases = 0;
+    for (stage, accent) in [
+        ("office/dark11", "196B24"),
+        ("accent1-and-3-changed/dark11", "00C000"),
+    ] {
+        assert_eq!(theme.matches("196B24").count(), 1);
+        let xml = theme.replace("196B24", accent);
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(replace_part(
+            bytes,
+            theme_part,
+            xml.as_bytes(),
+        )));
+        let book =
+            HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+        let host = book.host();
+        let table = host
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_style_rows_PivotStyleDark11")
+            .unwrap();
+        let sheet = table.area.first().sheet();
+        for line in capture.lines() {
+            let fields: Vec<_> = line.split('\t').collect();
+            if fields[0] != stage || fields[5] != "0.5999938962981048" {
+                continue;
+            }
+            let look = host.pivot_style_look(at(sheet, fields[1]));
+            let fill = look.as_ref().and_then(|look| look.fill.as_ref());
+            let bottom = look.as_ref().and_then(|look| look.borders[2].as_ref());
+            let expected_bottom = fields[12].split(':').nth(2).unwrap();
+            for (color, expected) in [
+                (fill, fields[3]),
+                (bottom.and_then(|edge| edge.color.as_ref()), expected_bottom),
+            ] {
+                let actual = color.and_then(|color| host.resolved_style_color(color));
+                let pass = actual
+                    .as_deref()
+                    .is_some_and(|rgb| rgb.trim_start_matches('#').eq_ignore_ascii_case(expected));
+                cases += 1;
+                matched += usize::from(pass);
+                if !pass {
+                    println!("{stage} {} expected {expected}, got {actual:?}", fields[1]);
+                }
+            }
+        }
+    }
+    println!("M6 Dark11 subtotal fill and bottom color: {matched}/{cases} match");
+    assert_eq!(cases, 60);
+    assert_eq!(matched, cases);
+}
+
 /// A changed neutral theme cannot silently reuse the captured Office grayscale palette.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -3119,8 +3182,8 @@ fn dc_8wp_12__unmeasured_neutral_themes_do_not_reuse_office_pivot_colors() {
             "pvt_style_rows_PivotStyleDark1",
         ),
         (
-            "val=\"196B24\"",
-            "val=\"006B24\"",
+            "val=\"window\" lastClr=\"FFFFFF\"",
+            "val=\"window\" lastClr=\"E0E0E0\"",
             "pvt_style_rows_PivotStyleDark11",
         ),
     ] {
