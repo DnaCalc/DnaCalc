@@ -3882,3 +3882,155 @@ fn dc_8wp_6__noncompact_rows_crossed_with_month_against_excel() {
     );
     assert!(failures.is_empty(), "{failures:#?}");
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_23__crossed_rows_use_layout_and_each_measure_source() {
+    use calc_doc_model::pivot::{PivotFieldItem, PivotItem, PivotSnapshot, PivotSnapshotOrigin};
+
+    let book = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("fixtures/pivot/m8-axes/m1-layout-plain.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let pivots = book.host().model().definitions().pivots();
+    let original = pivots.tables().next().unwrap();
+    let mut cache = (*pivots.caches.caches[&original.cache_id]).clone();
+    for (i, field) in cache.fields.iter_mut().enumerate() {
+        field.items = [["East", "West"], ["A", "B"], ["Jan", "Feb"]]
+            .get(i)
+            .into_iter()
+            .flatten()
+            .map(|label| PivotItem::Text((*label).into()))
+            .collect();
+        field.shared_items = (i < 3).then_some(2);
+        field.group = None;
+        field.unused_items.clear();
+    }
+    let records = [[0, 0, 0, 2, 7], [0, 1, 1, 3, 11], [1, 1, 1, 5, 13]]
+        .map(|record| {
+            record
+                .into_iter()
+                .enumerate()
+                .map(|(i, value)| {
+                    if i < 3 {
+                        PivotItem::Index(value)
+                    } else {
+                        PivotItem::Number(value.to_string())
+                    }
+                })
+                .collect()
+        })
+        .into();
+    cache.snapshot = Some(Arc::new(PivotSnapshot {
+        records,
+        origin: PivotSnapshotOrigin::SourceRead,
+        source_revision: 0,
+        numeric: calc_host::value::NumericMode::Fast,
+    }));
+    let sheet = original.area.first().sheet();
+    let mut passed = 0;
+    let mut failures = Vec::new();
+    for (row_fields, outline, custom, first_jan) in [
+        (vec![-2, 0], false, false, "D5"),
+        (vec![0, -2, 1], true, false, "E7"),
+        (vec![0, 1, -2], false, true, "E5"),
+    ] {
+        let mut table = original.clone();
+        table.row_fields = row_fields;
+        table.data_fields.truncate(2);
+        table.data_fields[0].subtotal = "max".into();
+        table.data_fields[0].name = Some("Max Amount".into());
+        table.data_fields[1].field = 4;
+        table.data_fields[1].subtotal = "sum".into();
+        table.data_fields[1].name = Some("Sum Units".into());
+        for field in &mut table.fields {
+            field.items.clear();
+            field
+                .attributes
+                .retain(|name, _| !name.ends_with("Subtotal"));
+            field
+                .attributes
+                .insert("outline".into(), u8::from(outline).to_string());
+            field.attributes.insert("sortType".into(), "ascending".into());
+        }
+        if custom {
+            for (flag, kind) in [("sumSubtotal", "sum"), ("maxSubtotal", "max")] {
+                table.fields[0].attributes.insert(flag.into(), "1".into());
+                table.fields[0].items.push(PivotFieldItem {
+                    index: None,
+                    kind: kind.into(),
+                    hidden: false,
+                    missing: false,
+                    calculated: false,
+                });
+            }
+        }
+        let layout = match calc_engine::pivot::layout(&table, &cache) {
+            Ok(layout) => layout,
+            Err(issue) => {
+                failures.push(format!("{:?}: {}", table.row_fields, issue.detail));
+                continue;
+            }
+        };
+        let width = table.row_fields.len() as u32;
+        assert_eq!(layout.table.location["firstDataCol"], width.to_string());
+        assert!(matches!(layout.cells[&at(sheet, first_jan)].core_ref(),
+            CoreRef::Number(n) if n.to_bits() == 2.0f64.to_bits()));
+        let last = layout.table.area.last();
+        let measure_column = last.column();
+        for (row, label, amount) in [
+            (last.row() - 1, "Total Max Amount", 5.0),
+            (last.row(), "Total Sum Units", 31.0),
+        ] {
+            let cell = |column| layout.cells[&CellKey::new(sheet, row, column).unwrap()].core_ref();
+            assert!(matches!(cell(1), CoreRef::Text(text)
+                if String::from_utf16_lossy(text.utf16_code_units()) == label));
+            assert!(
+                matches!(cell(measure_column), CoreRef::Number(n) if n.to_bits() == f64::to_bits(amount))
+            );
+        }
+        if custom {
+            let subtotals: Vec<_> = layout
+                .table
+                .row_items
+                .iter()
+                .enumerate()
+                .filter(|(_, item)| item.kind == "sum" || item.kind == "max")
+                .take(4)
+                .map(|(i, item)| {
+                    let row = i as u32 + 5;
+                    let label = layout.cells[&CellKey::new(sheet, row, 1).unwrap()].core_ref();
+                    let number =
+                        layout.cells[&CellKey::new(sheet, row, measure_column).unwrap()].core_ref();
+                    let CoreRef::Text(label) = label else {
+                        panic!("{label:?}")
+                    };
+                    let CoreRef::Number(number) = number else {
+                        panic!("{number:?}")
+                    };
+                    (
+                        String::from_utf16_lossy(label.utf16_code_units()),
+                        item.data_index,
+                        number.to_bits(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                subtotals,
+                [
+                    ("East Sum of Amount".into(), 0, 5.0f64.to_bits()),
+                    ("East Sum of Units".into(), 1, 18.0f64.to_bits()),
+                    ("East Max of Amount".into(), 0, 3.0f64.to_bits()),
+                    ("East Max of Units".into(), 1, 11.0f64.to_bits()),
+                ]
+            );
+        }
+        passed += 1;
+    }
+    println!("Varied crossed row layouts: {passed}/3 passed");
+    assert_eq!(passed, 3, "{failures:?}");
+}

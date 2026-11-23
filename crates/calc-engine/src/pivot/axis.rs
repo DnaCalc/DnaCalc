@@ -77,7 +77,7 @@ pub(super) struct Walk<'a> {
     pub(super) row_paths: Vec<(u32, Vec<usize>, Option<usize>, Option<&'static str>)>,
     custom_subtotals: &'a [CustomSubtotal],
     custom_level: usize,
-    subtotal_source_name: Option<&'a str>,
+    subtotal_source_names: Option<&'a [&'a str]>,
     pub(super) sort_inner_ascending: Option<bool>,
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
@@ -210,11 +210,7 @@ impl AxisVisitor for Walk<'_> {
                 level as u32
             };
             for &(_, item_kind, caption, calculation) in self.custom_subtotals {
-                let label = match self.subtotal_source_name {
-                    Some(source) => format!("{group} {caption} of {source}"),
-                    None => format!("{group} {caption}"),
-                };
-                let measures = if self.subtotal_source_name.is_some() {
+                let measures = if self.subtotal_source_names.is_some() {
                     0..self.value_captions.len()
                 } else {
                     let measure = self
@@ -225,6 +221,10 @@ impl AxisVisitor for Walk<'_> {
                     measure..measure + 1
                 };
                 for measure in measures {
+                    let label = match self.subtotal_source_names {
+                        Some(sources) => format!("{group} {caption} of {}", sources[measure]),
+                        None => format!("{group} {caption}"),
+                    };
                     self.cells
                         .insert((self.r, label_column), plain_text(&label));
                     let mut item = axis_item(item_kind, level as u32, vec![x]);
@@ -570,39 +570,25 @@ pub(super) fn render_axes(
             .map(|item| item.kind.as_str())
             .collect::<Vec<_>>()
     };
-    let subtotal_count = table.fields.get(row).map_or(0, |field| {
-        field
-            .attributes
-            .iter()
-            .filter(|(name, value)| {
-                name.ends_with("Subtotal")
-                    && name.as_str() != "defaultSubtotal"
-                    && truthy(Some(value), false)
-            })
-            .count()
-    });
-    let crossed_row_values = row_values.is_some()
-        && row_fields.len() == 3
-        && !compact_rows
-        && table.column_fields.len() == 1
-        && table.column_fields[0] >= 0
-        && table
-            .data_fields
-            .iter()
-            .map(|data| data.subtotal.as_str())
-            .eq(["sum", "count", "average"])
-        && table
-            .data_fields
-            .iter()
-            .all(|data| data.field == table.data_fields[0].field);
-    let subtotal_list = match subtotal_count {
-        3 if crossed_row_values => &CUSTOM_SUBTOTALS[..3],
-        5 => &CUSTOM_SUBTOTALS[..5],
-        11 if rows_only => &CUSTOM_SUBTOTALS[..],
-        _ => &[],
-    };
+    // With Values on noncompact rows, each row level has its own label column.
+    // A column field adds a header above those labels and supplies the intersections.
+    let crossed_row_values = row_values.is_some() && !compact_rows && !rows_only;
+    let custom_level = usize::from(row_values == Some(0));
+    let subtotal_list: Vec<_> = CUSTOM_SUBTOTALS
+        .iter()
+        .copied()
+        .filter(|(flag, _, _, _)| {
+            table
+                .fields
+                .get(row)
+                .is_some_and(|field| truthy(field.attributes.get(*flag), false))
+        })
+        .collect();
     let custom = table.fields.len() == cache.fields.len()
-        && (crossed_row_values
+        && ((crossed_row_values
+            && row_fields[custom_level + 1..]
+                .iter()
+                .any(|&field| field != usize::MAX))
             || (row_fields.len() == 2
                 && row_values.is_none()
                 && ((rows_only && table.data_fields.len() == 1)
@@ -622,14 +608,15 @@ pub(super) fn render_axes(
                     && (field == row || !custom_subtotal(field))
             })
         && !subtotal_list.is_empty()
-        && subtotal_list
-            .iter()
-            .all(|(flag, _, _, _)| truthy(table.fields[row].attributes.get(*flag), false))
+        && (rows_only || !subtotal_list.iter().any(|entry| entry.3 == "product"))
         && selected_subtotals(row)
             .into_iter()
             .eq(subtotal_list.iter().map(|&(_, item, _, _)| item));
-    let crossed_row_values = crossed_row_values && custom;
-    let custom_subtotals = if custom { subtotal_list } else { &[] };
+    let custom_subtotals = if custom {
+        subtotal_list.as_slice()
+    } else {
+        &[]
+    };
     let product_subtotals = custom_subtotals.iter().any(|entry| entry.3 == "product");
     if (multiple_rows && show != "normal" && !parent_percent)
         || (multiple_rows
@@ -638,10 +625,11 @@ pub(super) fn render_axes(
             && !custom
             && !compact_column_values)
         || (row_values.is_some()
-            && !crossed_row_values
-            && (row_fields.len() > 3
-                || table.column_fields.len() > 1
-                || table.data_fields.iter().any(|d| d.subtotal != "sum")))
+            && (table.column_fields.len() > 1
+                || (!crossed_row_values
+                    && (row_fields.len() > 3
+                        || table.data_fields.iter().any(|d| d.subtotal != "sum")))
+                || table.data_fields.iter().any(|d| d.extended_show.is_some())))
         || row >= cache.fields.len()
         || table.fields.len() != cache.fields.len()
         || value_level + usize::from(row_values.is_some()) > 1
@@ -821,6 +809,7 @@ pub(super) fn render_axes(
         .any(|&field| {
             (custom_subtotal(field) && !custom)
                 || (!rows_only
+                    && !crossed_row_values
                     && !truthy(table.fields[field].attributes.get("defaultSubtotal"), true))
         })
         || table
@@ -889,7 +878,7 @@ pub(super) fn render_axes(
                 .filter(|&&field| field < cache.fields.len())
                 .any(|&field| {
                     truthy(table.fields[field].attributes.get("compact"), true) != compact_rows
-                        || ((rows_only || tabular_values || custom)
+                        || ((rows_only || tabular_values || crossed_row_values || custom)
                             && truthy(table.fields[field].attributes.get("outline"), true)
                                 != outline_rows)
                 }))
@@ -1286,6 +1275,7 @@ pub(super) fn render_axes(
         return Err(bad("Source errors with custom subtotals are not modelled"));
     }
     if custom
+        && !crossed_row_values
         && row_totals[0].values().any(|total| {
             custom_subtotals
                 .iter()
@@ -2208,6 +2198,11 @@ pub(super) fn render_axes(
     let mut axis = Vec::new();
     let mut r = header;
     if multiple_rows {
+        let value_sources: Vec<_> = table
+            .data_fields
+            .iter()
+            .map(|data| cache.fields[data.field as usize].name.as_str())
+            .collect();
         let mut walk = Walk {
             levels: &row_levels,
             totals: &row_totals,
@@ -2226,12 +2221,9 @@ pub(super) fn render_axes(
             row_paths: Vec::new(),
             collect_paths: true,
             custom_subtotals,
-            custom_level: usize::from(crossed_row_values && row_values == Some(0)),
-            subtotal_source_name: (crossed_row_values && row_values != Some(0)).then(|| {
-                cache.fields[table.data_fields[0].field as usize]
-                    .name
-                    .as_str()
-            }),
+            custom_level,
+            subtotal_source_names: (crossed_row_values && row_values != Some(0))
+                .then_some(value_sources.as_slice()),
             sort_inner_ascending: inner_sort.then(|| {
                 table.fields[row_fields[1]]
                     .attributes
@@ -2255,6 +2247,15 @@ pub(super) fn render_axes(
                     .unwrap_or(entry.measure);
                 if let Some(total) = totals.get(&(key, entry.path.clone(), measure)) {
                     let kind = subtotal_kind.unwrap_or(&table.data_fields[measure].subtotal);
+                    if crossed_row_values
+                        && subtotal_kind.is_some()
+                        && !total.is_empty()
+                        && !total.supports(kind)
+                    {
+                        return Err(bad(
+                            "This numeric input for custom subtotals is not modelled",
+                        ));
+                    }
                     let value = if crossed_row_values && total.is_empty() {
                         CalcValue::empty()
                     } else if parent_percent {
@@ -2500,7 +2501,9 @@ pub(super) fn render_axes(
     };
     for (level, &field) in row_fields.iter().enumerate() {
         if field < cache.fields.len() {
-            let add_default = if row_values.is_some() || !rows_only {
+            let add_default = if crossed_row_values {
+                truthy(table.fields[field].attributes.get("defaultSubtotal"), true)
+            } else if row_values.is_some() || !rows_only {
                 true
             } else if row_fields.len() == 1 {
                 row_grand
