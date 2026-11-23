@@ -42,9 +42,14 @@ fn rgb(color: &str) -> StyleColor {
         ..Default::default()
     }
 }
-fn edge(color: StyleColor) -> BorderEdge {
+fn pivot_tint(host: &HostState, index: u32, percent: i8) -> Option<StyleColor> {
+    let base = calc_doc::look::rgb_triple(&theme(index, "0"), host.loaded().theme_colors())?;
+    let (r, g, b) = calc_doc::look::pivot_style_tint(base, percent);
+    Some(rgb(&format!("FF{r:02X}{g:02X}{b:02X}")))
+}
+fn edge(style: &str, color: StyleColor) -> BorderEdge {
     BorderEdge {
-        style: Some("thin".into()),
+        style: Some(style.into()),
         color: Some(color),
     }
 }
@@ -495,12 +500,19 @@ impl HostState {
             .or_else(|| parent.and_then(|p| p.border_id))
             .unwrap_or(0);
         let mut look = PivotStyleLook::default();
-        let is_header = at.row() < data_row && header;
-        let is_total = at.row() == table.area.last().row();
-        let is_subtotal = row_layout && at.row() >= data_row && !is_total && {
-            let item = &table.row_items[(at.row() - data_row) as usize];
-            (item.repeat as usize).checked_add(item.indexes.len())? < table.row_fields.len()
+        let row = at.row();
+        let last = table.area.last();
+        let is_header = row < data_row && header;
+        let is_total = row == last.row();
+        let subtotal_at = |row| {
+            row_layout && (data_row..last.row()).contains(&row) && {
+                let item = &table.row_items[(row - data_row) as usize];
+                (item.repeat as usize)
+                    .checked_add(item.indexes.len())
+                    .is_some_and(|depth| depth < table.row_fields.len())
+            }
         };
+        let is_subtotal = subtotal_at(row);
         let muted = matches!(preset, Preset::Medium1 | Preset::Medium2);
         if font == 0
             && (is_total
@@ -578,17 +590,72 @@ impl HostState {
                 }
             }
         }
-        if preset == Preset::Light16 && border == 0 {
-            // The horizontal theme edge needs the preset's exact tint conversion; leave it
-            // unresolved until that conversion reproduces the captured DisplayFormat colour.
-            if columns && at.row() >= data_row {
-                let vertical = edge(rgb("FFBFBFBF"));
-                if at.column() >= data_col {
-                    look.borders[0] = Some(vertical.clone());
+        if border == 0 {
+            match preset {
+                Preset::Light16 => {
+                    let rule_below = |row| {
+                        (header && row + 1 == data_row) || row + 1 == last.row() || subtotal_at(row)
+                    };
+                    for (side, upper_row) in [(1, row - 1), (2, row)] {
+                        if rule_below(upper_row) {
+                            look.borders[side] =
+                                pivot_tint(self, 4, 40).map(|color| edge("thin", color));
+                        }
+                    }
+                    if columns && row >= data_row {
+                        let vertical = edge("thin", rgb("FFBFBFBF"));
+                        if at.column() >= data_col {
+                            look.borders[0] = Some(vertical.clone());
+                        }
+                        if at.column() < last.column() {
+                            look.borders[3] = Some(vertical);
+                        }
+                    }
                 }
-                if at.column() < table.area.last().column() {
-                    look.borders[3] = Some(vertical);
+                Preset::Dark6 => {
+                    let rule_below = |upper_row| {
+                        if !(first.row()..last.row()).contains(&upper_row) {
+                            return None;
+                        }
+                        let tint = if upper_row + 1 < data_row {
+                            -50
+                        } else if upper_row + 1 == data_row {
+                            0
+                        } else if subtotal_at(upper_row) || subtotal_at(upper_row + 1) {
+                            40
+                        } else {
+                            80
+                        };
+                        pivot_tint(self, 8, tint).map(|color| edge("thin", color))
+                    };
+                    look.borders[1] = rule_below(row - 1);
+                    look.borders[2] = rule_below(row);
                 }
+                Preset::Dark11 => {
+                    let outer = edge("medium", rgb("FF808080"));
+                    for (side, on_perimeter) in [
+                        at.column() == first.column(),
+                        row == first.row(),
+                        is_total,
+                        at.column() == last.column(),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        if on_perimeter {
+                            look.borders[side] = Some(outer.clone());
+                        }
+                    }
+                    if subtotal_at(row - 1) {
+                        look.borders[1] =
+                            pivot_tint(self, 6, 80).map(|color| edge("medium", color));
+                    }
+                    if is_subtotal {
+                        look.borders[2] =
+                            pivot_tint(self, 6, 80).map(|color| edge("medium", color));
+                    }
+                }
+                _ => {}
             }
         }
         Some(look)

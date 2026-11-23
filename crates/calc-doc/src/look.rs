@@ -481,7 +481,34 @@ pub fn resolve_color(color: &StyleColor, theme: &[String]) -> Option<LookColor> 
 
 /// A colour with a tint applied as Windows' HLS arithmetic does (HLSMAX 240, ColorRGBToHLS and
 /// ColorHLSToRGB): the luminance moved toward black (`tint` < 0) or white.
-pub fn tinted((r, g, b): (u8, u8, u8), tint: f64) -> (u8, u8, u8) {
+pub fn tinted(rgb: (u8, u8, u8), tint: f64) -> (u8, u8, u8) {
+    tinted_luminance(rgb, |l, max| {
+        let lf = l as f64;
+        if tint < 0.0 {
+            (lf * (1.0 + tint)).round() as i64
+        } else {
+            (lf * (1.0 - tint) + (max as f64 - max as f64 * (1.0 - tint))).round() as i64
+        }
+    })
+}
+
+/// Applies the whole-percent shade of a built-in pivot style, which truncates HLS
+/// luminance before converting back to RGB.
+pub fn pivot_style_tint(rgb: (u8, u8, u8), percent: i8) -> (u8, u8, u8) {
+    if percent == 0 {
+        return rgb;
+    }
+    tinted_luminance(rgb, |l, max| {
+        let scale = i64::from(percent);
+        if scale < 0 {
+            l * (100 + scale) / 100
+        } else {
+            l + (max - l) * scale / 100
+        }
+    })
+}
+
+fn tinted_luminance((r, g, b): (u8, u8, u8), adjust: impl FnOnce(i64, i64) -> i64) -> (u8, u8, u8) {
     const HLSMAX: i64 = 240;
     const RGBMAX: i64 = 255;
     let (r, g, b) = (i64::from(r), i64::from(g), i64::from(b));
@@ -512,13 +539,7 @@ pub fn tinted((r, g, b): (u8, u8, u8), tint: f64) -> (u8, u8, u8) {
         }
         (h, s)
     };
-    let lf = l as f64;
-    let l = if tint < 0.0 {
-        (lf * (1.0 + tint)).round() as i64
-    } else {
-        (lf * (1.0 - tint) + (HLSMAX as f64 - HLSMAX as f64 * (1.0 - tint))).round() as i64
-    }
-    .clamp(0, HLSMAX);
+    let l = adjust(l, HLSMAX).clamp(0, HLSMAX);
     if s == 0 {
         let v = (l * RGBMAX / HLSMAX) as u8;
         return (v, v, v);
@@ -610,6 +631,9 @@ mod tests {
             hex(tinted((0x15, 0x60, 0x82), 0.59999389629810485)),
             "#83cceb"
         );
+        // M6 measured the same Light16 border before and after changing Accent 1.
+        assert_eq!(hex(pivot_style_tint((0x15, 0x60, 0x82), 40)), "#44b3e1");
+        assert_eq!(hex(pivot_style_tint((0xc0, 0, 0), 40)), "#ff4040");
         assert_eq!(hex(tinted((0, 0, 0), 0.5)), hex(tinted((0, 0, 0), 0.5)));
     }
 

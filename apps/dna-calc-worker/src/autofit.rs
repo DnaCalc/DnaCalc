@@ -658,6 +658,12 @@ mod tests {
                 .and_then(|edge| edge.color.as_deref()),
             Some("#bfbfbf")
         );
+        assert_eq!(
+            stripe.borders[2]
+                .as_ref()
+                .and_then(|edge| edge.color.as_deref()),
+            Some("#44b3e1")
+        );
         let total = text_style(book.host(), at(10, 2), 64.);
         assert!(total.bold);
         assert_eq!(total.fill.as_deref(), Some("#c0e6f5"));
@@ -702,11 +708,13 @@ mod tests {
             .area
             .first()
             .sheet();
+        let stripe = text_style(reopened.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.);
+        assert_eq!(stripe.fill.as_deref(), Some("#ffff00"));
         assert_eq!(
-            text_style(reopened.host(), CellKey::new(sheet, 5, 2).unwrap(), 64.)
-                .fill
-                .as_deref(),
-            Some("#ffff00")
+            stripe.borders[2]
+                .as_ref()
+                .and_then(|edge| edge.color.as_deref()),
+            Some("#44b3e1")
         );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
