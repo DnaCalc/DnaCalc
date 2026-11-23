@@ -4,7 +4,7 @@ use crate::{
     controller::{Controller, grid::GridController},
     wire::{self, Reply, Request, SpecialCellKind},
 };
-use dna_calc_model::{Command, FindMode, Target};
+use dna_calc_model::{Command, CommandId, FindMode, Target};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -480,6 +480,7 @@ pub fn controls(controller: Controller) -> AnyView {
             "clear" => controller.clear_active(),
             "insert" => controller.edit_axis(true),
             "delete" => controller.edit_axis(false),
+            "format-cells" => controller.command(Command::FormatCells),
             "find" => controller.command(Command::Find),
             "goto" => controller.command(Command::GoTo),
             "review" => controller.review_open.set(true),
@@ -774,6 +775,14 @@ pub fn controls(controller: Controller) -> AnyView {
             </button>
             <button role="menuitem" data-dnacalc="context-goto" on:click=move |_| command("goto")>
                 "Go to…"
+            </button>
+            <button
+                role="menuitem"
+                data-dnacalc="context-format-cells"
+                disabled=move || controller.command_availability(CommandId::FormatCells).is_err()
+                on:click=move |_| command("format-cells")
+            >
+                "Format Cells…"
             </button>
             <button
                 role="menuitem"

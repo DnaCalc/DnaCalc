@@ -16449,6 +16449,37 @@ pub(crate) const CALC_CASES: &[Case] = &[
     spreadsheet_font_case!("Arial"),
     spreadsheet_font_case!("Times New Roman"),
     spreadsheet_font_case!("Courier New"),
+    Case {
+        name: "Classic context menu applies a number format to the selected range",
+        actions: &[
+            Action::Into(BAR, "1\u{E007}"),
+            Action::Into(BAR, "2\u{E007}"),
+            Action::Into("name-box", "A1:A2\u{E007}"),
+            Action::Wait(Check::Focused("grid")),
+            Action::Keys("grid", "\u{E008}\u{E03A}\u{E000}"),
+            Action::Click("context-format-cells"),
+            Action::Wait(Check::Focused("format-number")),
+            Action::Into("format-number", "0.00"),
+            Action::Click("format-apply"),
+        ],
+        checks: &[
+            Check::PlanCell("A1", "text", "1.00"),
+            Check::PlanCell("A2", "text", "2.00"),
+            Check::Absent("[data-dnacalc=context-menu][open]"),
+        ],
+    },
+    Case {
+        name: "Classic formula bar underlines a syntax error until the draft is corrected",
+        actions: &[
+            Action::Into(BAR, "=1+"),
+            Action::Wait(Check::Text("[data-dnacalc=formula-bar] .oc-diag", "+")),
+            Action::Keys(BAR, "2"),
+            Action::Wait(Check::Value(BAR, "=1+2")),
+            Action::Wait(Check::Absent("[data-dnacalc=formula-bar] .oc-diag")),
+            Action::Keys(BAR, ENTER),
+        ],
+        checks: &[Check::Text(cell!("A1"), "3")],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -18065,8 +18096,22 @@ pub(crate) const CALC_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "spreadsheet-fonts",
         start: 889,
-        end: CALC_CASES.len(),
+        end: 896,
         core: 7,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-context-format-cells",
+        start: 896,
+        end: 897,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "classic-formula-syntax",
+        start: 897,
+        end: CALC_CASES.len(),
+        core: 1,
         setup: &[],
     },
 ];

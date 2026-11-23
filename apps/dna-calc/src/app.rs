@@ -311,6 +311,31 @@ pub fn app_with_transport(
     let spill_read_only = Signal::derive(move || {
         controller.editing.get().is_none() && spill_child.get().is_some()
     });
+    let formula_diagnostics = Signal::derive(move || {
+        if controller.editing.get() != Some(EditOrigin::Bar) {
+            return Vec::new();
+        }
+        controller.edit_text.with(|source| {
+            if !source.trim_start().starts_with('=') {
+                return Vec::new();
+            }
+            let end = source.encode_utf16().count();
+            calc_fml::parse_formula(source)
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    let span = diagnostic.span;
+                    if span.len == 0 && span.start == end {
+                        // End-of-input has no overlay run. Mark the last visible token.
+                        let last = source.trim_end().encode_utf16().count() - 1;
+                        calc_fml::syntax::TextSpan::new(last, 1)
+                    } else {
+                        span
+                    }
+                })
+                .collect()
+        })
+    });
 
     let name_box = RwSignal::new(String::new());
     let name_box_field = NodeRef::<leptos::html::Input>::new();
@@ -1152,7 +1177,7 @@ pub fn app_with_transport(
                         }
                     }
                 >
-                    {assist.field_with_read_only(Signal::derive(Vec::new), Some(bar_key), 1, "", spill_read_only)}
+                    {assist.field_with_read_only(formula_diagnostics, Some(bar_key), 1, "", spill_read_only)}
                     {move || {
                         (controller.editing.get() == Some(EditOrigin::Bar))
                             .then(|| {
