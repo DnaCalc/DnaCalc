@@ -44,6 +44,21 @@ workbook_commands! { WorkbookCommand => Intent {
         value: u32,
         subtotal: String,
     },
+    PivotCreateLayout {
+        revision: u64,
+        source: Target => wire_area,
+        destination: String,
+        rows: Vec<u32>,
+        columns: Vec<u32>,
+        values: Vec<(u32, String)>,
+    },
+    PivotSetLayout {
+        sheet: Target => wire_sheet,
+        revision: u64,
+        part: String,
+        rows: Vec<i32>,
+        columns: Vec<i32>,
+    },
     PivotRefresh {
         sheet: Target => wire_sheet,
         revision: u64,

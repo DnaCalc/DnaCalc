@@ -2331,6 +2331,34 @@ impl Server {
                 value,
                 subtotal,
             }),
+            Intent::PivotCreateLayout {
+                revision,
+                source,
+                destination,
+                rows,
+                columns,
+                values,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::PivotCreateLayout {
+                revision,
+                source: source.area().ok_or("Invalid pivot source range")?,
+                destination,
+                rows,
+                columns,
+                values,
+            }),
+            Intent::PivotSetLayout {
+                sheet,
+                revision,
+                part,
+                rows,
+                columns,
+            } => SkinIntent::Command(calc_host::WorkbookCommand::PivotSetLayout {
+                sheet: sheet.id(),
+                revision,
+                part,
+                rows,
+                columns,
+            }),
             Intent::PivotRefresh {
                 sheet,
                 revision,
@@ -4520,10 +4548,11 @@ impl Server {
             .tables
             .iter()
             .map(|p| {
-                let (source, fields, cache) = match caches.caches.get(&p.cache_id) {
+                let saved_cache = caches.caches.get(&p.cache_id);
+                let (source, fields, cache) = match saved_cache {
                     Some(c) => {
                         let field = |index: i32| {
-                            if index == -2 {
+                            if index == wire::SavedPivotLayout::VALUES {
                                 "Values".to_owned()
                             } else {
                                 usize::try_from(index)
@@ -4619,11 +4648,31 @@ impl Server {
                         cell.row()
                     )
                 };
+                let layout = saved_cache.and_then(|cache| {
+                    (cache.source_type == "worksheet"
+                        && cache.fields.len() == p.fields.len()
+                        && cache.unsupported.is_empty()
+                        && (cache.records_part.is_some() || cache.snapshot.is_some())
+                        && p.page_fields.is_empty()
+                        && p.filters.is_empty()
+                        && p.unsupported.is_empty()
+                        && !p.data_fields.is_empty())
+                    .then(|| wire::SavedPivotLayout {
+                        source_fields: cache.fields.iter().map(|field| field.name.clone()).collect(),
+                        rows: p.row_fields.clone(),
+                        columns: p.column_fields.clone(),
+                    })
+                });
                 wire::SavedPivot {
-                    refreshed_revision: caches
-                        .caches
-                        .get(&p.cache_id)
-                        .and_then(|c| c.snapshot.as_ref().map(|s| s.source_revision)),
+                    refreshed_revision: saved_cache
+                        .and_then(|cache| cache.snapshot.as_ref())
+                        .filter(|snapshot| {
+                            !matches!(
+                                snapshot.origin,
+                                calc_host::PivotSnapshotOrigin::FileRecords { .. }
+                            )
+                        })
+                        .map(|snapshot| snapshot.source_revision),
                     name: p.name.clone(),
                     part: p.part.clone(),
                     area: Area::of(p.area),
@@ -4631,6 +4680,7 @@ impl Server {
                     source,
                     fields,
                     cache,
+                    layout,
                 }
             })
             .collect();

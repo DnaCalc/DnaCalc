@@ -1,9 +1,201 @@
 //! Pivot refresh and saved definitions over the worksheet's existing grid presentation.
-use dna_calc_model::Target;
 use crate::workbook_command::{WorkbookCommand, projected_area};
 use crate::{controller::Controller, wire};
+use dna_calc_model::Target;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
+
+fn source_field_select(
+    name: &'static str,
+    selector: &'static str,
+    fields: RwSignal<Vec<String>>,
+    selected: RwSignal<String>,
+    optional: bool,
+) -> impl IntoView {
+    view! {
+        <label>
+            {name}
+            <select
+                data-dnacalc=selector
+                prop:value=move || selected.get()
+                on:change=move |ev| selected.set(event_target_value(&ev))
+            >
+                {optional.then(|| view! {
+                    <option value="" prop:selected=move || selected.get().is_empty()>"None"</option>
+                })}
+                <For
+                    each={move || fields.get().into_iter().enumerate().collect::<Vec<_>>()}
+                    key=|(index, name)| (*index, name.clone())
+                    children={move |(index, name)| view! {
+                        <option value=index.to_string()
+                            prop:selected=move || selected.get() == index.to_string()>
+                            {name}
+                        </option>
+                    }}
+                />
+            </select>
+        </label>
+    }
+}
+
+fn move_field(axis: RwSignal<Vec<i32>>, field: i32, offset: isize) {
+    axis.update(|fields| {
+        if let Some(index) = fields.iter().position(|&item| item == field)
+            && let Some(other) = index.checked_add_signed(offset)
+            && other < fields.len()
+        {
+            fields.swap(index, other);
+        }
+    });
+}
+
+fn pivot_axis(
+    name: &'static str,
+    add_selector: &'static str,
+    axis: RwSignal<Vec<i32>>,
+    other: RwSignal<Vec<i32>>,
+    fields: StoredValue<Vec<(i32, String)>>,
+) -> impl IntoView {
+    view! {
+        <fieldset>
+            <legend>{name}</legend>
+            <ol>
+                <For
+                    each=move || axis.get()
+                    key=|field| *field
+                    children=move |field| {
+                        let label = fields.with_value(|fields| {
+                            fields.iter().find(|(id, _)| *id == field)
+                                .map(|(_, name)| name.clone()).unwrap_or_else(|| format!("Field {field}"))
+                        });
+                        let position = move || axis.with(|fields| fields.iter().position(|&id| id == field));
+                        view! {
+                            <li>
+                                {label}
+                                <button type="button"
+                                    disabled=move || position() == Some(0)
+                                    on:click=move |_| move_field(axis, field, -1)>
+                                    "Move up"
+                                </button>
+                                <button type="button"
+                                    disabled=move || position().is_some_and(|index| index + 1 == axis.with(Vec::len))
+                                    on:click=move |_| move_field(axis, field, 1)>
+                                    "Move down"
+                                </button>
+                                <button type="button" on:click=move |_| axis.update(|fields| {
+                                    fields.retain(|&id| id != field);
+                                })>
+                                    "Remove"
+                                </button>
+                            </li>
+                        }
+                    }
+                />
+            </ol>
+            <label>
+                "Add field "
+                <select data-dnacalc=add_selector on:change=move |ev| {
+                    let Ok(field) = event_target_value(&ev).parse::<i32>() else { return };
+                    if !axis.with_untracked(|ids| ids.contains(&field))
+                        && !other.with_untracked(|ids| ids.contains(&field))
+                    {
+                        axis.update(|ids| ids.push(field));
+                    }
+                }>
+                    <option value="">"Choose a field"</option>
+                    <For
+                        each=move || {
+                            let occupied = [axis.get(), other.get()];
+                            fields.with_value(|fields| {
+                                fields.iter()
+                                    .filter(|(field, _)| !occupied.iter().any(|ids| ids.contains(field)))
+                                    .cloned().collect::<Vec<_>>()
+                            })
+                        }
+                        key=|(field, _)| *field
+                        children={move |(field, label)| view! { <option value=field.to_string()>{label}</option> }}
+                    />
+                </select>
+            </label>
+        </fieldset>
+    }
+}
+
+fn pivot_layout_editor(
+    controller: Controller,
+    sheet: calc_value::SheetId,
+    revision: u64,
+    generation: u64,
+    part: String,
+    layout: wire::SavedPivotLayout,
+) -> AnyView {
+    let mut fields: Vec<_> = layout
+        .source_fields
+        .into_iter()
+        .enumerate()
+        .map(|(index, name)| (index as i32, name))
+        .collect();
+    let values = wire::SavedPivotLayout::VALUES;
+    let has_values = layout.rows.contains(&values) || layout.columns.contains(&values);
+    if has_values {
+        fields.push((values, "Values".into()));
+    }
+    let fields = StoredValue::new(fields);
+    let original_rows = StoredValue::new(layout.rows.clone());
+    let original_columns = StoredValue::new(layout.columns.clone());
+    let rows = RwSignal::new(layout.rows);
+    let columns = RwSignal::new(layout.columns);
+    let apply = move |_| {
+        let rows = rows.get_untracked();
+        let columns = columns.get_untracked();
+        let part = part.clone();
+        controller.after_input(move || {
+            if controller.generation.get_untracked() != generation
+                || controller.summary.get_untracked().revision != revision
+                || controller.sheet.get_untracked() != Some(sheet)
+            {
+                controller.say("The workbook changed; review the pivot layout again", true);
+                return;
+            }
+            controller.dispatch(
+                WorkbookCommand::PivotSetLayout {
+                    sheet: Target::Sheet(sheet),
+                    revision,
+                    part,
+                    rows,
+                    columns,
+                },
+                move |outcome| {
+                    if outcome.accepted {
+                        controller.say("Pivot layout updated", false);
+                    }
+                },
+            );
+        });
+    };
+    view! {
+        <details data-dnacalc="pivot-layout">
+            <summary>"Edit field layout"</summary>
+            {pivot_axis("Rows", "pivot-row-add", rows, columns, fields)}
+            {pivot_axis("Columns", "pivot-column-add", columns, rows, fields)}
+            <button
+                type="button"
+                data-dnacalc="pivot-layout-apply"
+                disabled=move || {
+                    let rows = rows.get();
+                    let columns = columns.get();
+                    (has_values && !rows.contains(&values) && !columns.contains(&values))
+                        || original_rows.with_value(|original| *original == rows)
+                            && original_columns.with_value(|original| *original == columns)
+                }
+                on:click=apply
+            >
+                "Apply layout"
+            </button>
+        </details>
+    }
+    .into_any()
+}
 
 pub fn controls(controller: Controller) -> AnyView {
     let open = RwSignal::new(false);
@@ -48,6 +240,7 @@ pub fn controls(controller: Controller) -> AnyView {
     let source = RwSignal::new(None::<(u64, u64, wire::Area)>);
     let source_fields = RwSignal::new(Vec::<String>::new());
     let row_field = RwSignal::new("0".to_owned());
+    let column_field = RwSignal::new(String::new());
     let value_field = RwSignal::new("1".to_owned());
     let destination = RwSignal::new("D3".to_owned());
     let subtotal = RwSignal::new("sum".to_owned());
@@ -91,6 +284,7 @@ pub fn controls(controller: Controller) -> AnyView {
                             Ok(fields) => {
                                 value_field.set(if fields.len() > 1 { "1" } else { "0" }.into());
                                 row_field.set("0".into());
+                                column_field.set(String::new());
                                 source_fields.set(fields);
                             }
                             Err(reason) => {
@@ -115,6 +309,12 @@ pub fn controls(controller: Controller) -> AnyView {
             controller.say("Choose the row and value fields", true);
             return;
         };
+        let columns = column_field
+            .get_untracked()
+            .parse::<u32>()
+            .ok()
+            .into_iter()
+            .collect();
         let destination = destination.get_untracked();
         let subtotal = subtotal.get_untracked();
         controller.after_input(move || {
@@ -125,13 +325,13 @@ pub fn controls(controller: Controller) -> AnyView {
                 return;
             }
             controller.dispatch(
-                WorkbookCommand::PivotCreate {
+                WorkbookCommand::PivotCreateLayout {
                     revision,
                     source: projected_area(area),
                     destination,
-                    row,
-                    value,
-                    subtotal,
+                    rows: vec![row],
+                    columns,
+                    values: vec![(value, subtotal)],
                 },
                 move |outcome| {
                     if outcome.accepted {
@@ -240,64 +440,9 @@ pub fn controls(controller: Controller) -> AnyView {
                     </button>
                     <Show when=move || !source_fields.get().is_empty()>
                         <div class="dc-command-row">
-                            <label>
-                                "Rows "
-                                <select
-                                    data-dnacalc="pivot-create-row"
-                                    prop:value=move || row_field.get()
-                                    on:change=move |ev| row_field.set(event_target_value(&ev))
-                                >
-                                    <For
-                                        each={move || {
-                                            source_fields
-                                                .get()
-                                                .into_iter()
-                                                .enumerate()
-                                                .collect::<Vec<_>>()
-                                        }}
-                                        key=|(i, _)| *i
-                                        children={move |(i, name)| {
-                                            view! {
-                                                <option
-                                                    value=i.to_string()
-                                                    prop:selected=move || row_field.get() == i.to_string()
-                                                >
-                                                    {name}
-                                                </option>
-                                            }
-                                        }}
-                                    />
-                                </select>
-                            </label>
-                            <label>
-                                "Values "
-                                <select
-                                    data-dnacalc="pivot-create-value"
-                                    prop:value=move || value_field.get()
-                                    on:change=move |ev| value_field.set(event_target_value(&ev))
-                                >
-                                    <For
-                                        each={move || {
-                                            source_fields
-                                                .get()
-                                                .into_iter()
-                                                .enumerate()
-                                                .collect::<Vec<_>>()
-                                        }}
-                                        key=|(i, _)| *i
-                                        children={move |(i, name)| {
-                                            view! {
-                                                <option
-                                                    value=i.to_string()
-                                                    prop:selected=move || value_field.get() == i.to_string()
-                                                >
-                                                    {name}
-                                                </option>
-                                            }
-                                        }}
-                                    />
-                                </select>
-                            </label>
+                            {source_field_select("Rows ", "pivot-create-row", source_fields, row_field, false)}
+                            {source_field_select("Columns ", "pivot-create-column", source_fields, column_field, true)}
+                            {source_field_select("Values ", "pivot-create-value", source_fields, value_field, false)}
                         </div>
                         <div class="dc-command-row">
                             <label>
@@ -327,10 +472,6 @@ pub fn controls(controller: Controller) -> AnyView {
                                 />
                             </label>
                         </div>
-                        <p class="dc-note">
-                            "Creates one row field and one value field. The destination must have space "
-                            "for labels, values and the grand total. Excel layout and formatting remain unmeasured."
-                        </p>
                         <button type="button" data-dnacalc="pivot-create-apply" on:click=create>
                             "Create pivot table"
                         </button>
@@ -338,7 +479,11 @@ pub fn controls(controller: Controller) -> AnyView {
                 </fieldset>
                 <For
                     each={move || saved.get()}
-                    key=|p| p.part.clone()
+                    key=move |p| (
+                        p.part.clone(),
+                        controller.generation.get_untracked(),
+                        controller.summary.get_untracked().revision,
+                    )
                     children={move |pivot| {
                         let area = pivot.area;
                         let generation = controller.generation.get_untracked();
@@ -347,6 +492,9 @@ pub fn controls(controller: Controller) -> AnyView {
                         let label = pivot.location.clone();
                         let name = pivot.name.clone();
                         let refresh_part = pivot.part.clone();
+                        let layout = sheet.zip(pivot.layout).map(|(sheet, layout)| {
+                            pivot_layout_editor(controller, sheet, revision, generation, pivot.part, layout)
+                        });
                         view! {
                             <section
                                 class="dc-pivot-summary"
@@ -357,10 +505,7 @@ pub fn controls(controller: Controller) -> AnyView {
                                 <p data-dnacalc="pivot-source">{pivot.source}</p>
                                 <p data-dnacalc="pivot-fields">{pivot.fields}</p>
                                 <p class="dc-note">{pivot.cache}</p>
-                                <p class="dc-note">
-                                    "Refresh supports one row field and one value field. Layout and formatting have not "
-                                    "been measured against Excel; multi-field, column and page layouts are not implemented."
-                                </p>
+                                {layout}
                                 <button
                                     type="button"
                                     data-dnacalc="pivot-refresh"
