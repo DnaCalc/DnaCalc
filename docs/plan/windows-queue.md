@@ -35,6 +35,45 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   `BETADIST` spot checks matched. Exact inputs and differences are in `ww10/as1` and
   `ww10/bank-rows`. Beta inverse arithmetic remains open here.
 
+### ww10 VBA comparison, 2026-11-23
+
+**dc-tey4.7.** Excel 16.0.20625.20108 timed all 21 workloads on GOVERT-OMEN (Ryzen 7 4800H).
+The first private run recorded and dismissed a compile dialog for the reserved name `scale` in
+`SampleLoads`. A rename to `loadFactor` let the fresh run compile. Both owned Excel PIDs exited.
+The CalcVBA release binary used `185b12412`, the same VBA rename, and a scratch-only mutability
+correction for the buffer allocated by `SysAllocStringLen`. The original build failed with
+E0308 in `calcvba-automation/src/bstr.rs`.
+
+VM3 and JIT each completed 18 standalone cases. Each matched 17 checksums exactly. `LoopDouble`
+again differed by nine ULP (`40981b23aa82125b` in Excel and `40981b23aa821252` on both CalcVBA
+backends). Ratios are the CalcVBA median divided by the Excel median.
+
+| Workload | Size | Excel ms | VM3 ms (ratio) | JIT ms (ratio) |
+| --- | ---: | ---: | ---: | ---: |
+| Amort | 2,000 | 58.168 | 50.859 (0.87×) | 92.047 (1.58×) |
+| ArrayScan | 20,000 | 0.888 | 5.749 (6.48×) | 33.048 (37.22×) |
+| ArraySort | 4,096 | 3.413 | 28.421 (8.33×) | 190.531 (55.83×) |
+| ClassCalls | 50,000 | 5.404 | 38.609 (7.14×) | 184.804 (34.20×) |
+| Coll | 5,000 | 34.702 | 6.475 (0.19×) | 28.681 (0.83×) |
+| Dict | 2,000 | 9.617 | 11.982 (1.25×) | 26.958 (2.80×) |
+| FileLines | 1,000 | 5.152 | 25.928 (5.03×) | 25.731 (4.99×) |
+| LateClassCalls | 50,000 | 125.363 | 33.811 (0.27×) | 177.416 (1.42×) |
+| LoopDouble | 300,000 | 14.247 | 55.099 (3.87×) | 330.932 (23.23×) |
+| LoopLong | 500,000 | 12.141 | 86.741 (7.14×) | 248.137 (20.44×) |
+| Recursion | 21 | 2.478 | 11.404 (4.60×) | 54.608 (22.04×) |
+| SampleInvoices | 20,000 | 4.139 | 25.828 (6.24×) | 111.311 (26.89×) |
+| SampleLoads | 20,000 | 5.069 | 40.216 (7.93×) | 129.341 (25.51×) |
+| StrBuild | 20,000 | 15.093 | 16.983 (1.13×) | 80.671 (5.34×) |
+| StrFuncs | 20,000 | 39.333 | 47.631 (1.21×) | 161.141 (4.10×) |
+| UdtArray | 50,000 | 3.138 | 18.113 (5.77×) | 295.860 (94.27×) |
+| VariantMix | 100,000 | 39.097 | 56.062 (1.43×) | 361.272 (9.24×) |
+| WorksheetSum | 5,000 | 25.325 | 5.203 (0.21×) | 7.720 (0.30×) |
+
+Excel medians for `RangeBlock`, `RangeCells` and `UdfRecalculate` were 5.330, 255.657 and 73.239 ms.
+The corresponding hosted CalcVBA timings and `LoopDouble` arithmetic remain dc-tey4.7. Raw
+samples, the build patches and the full comparison are in `ww10/pf1`. The two differing checksum
+rows are in `ww10/bank-rows/pf1-loop-double.json`.
+
 ## Workbook calculation, VBA, COM and add-ins
 
 | Bead | Lane handoff | State | Windows evidence | Next step or prerequisite |
