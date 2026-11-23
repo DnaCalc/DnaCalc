@@ -4,20 +4,34 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 9;
 
+/// Stable ID for `INDEX`.
 pub const INDEX: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `MATCH`.
 pub const MATCH: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `XMATCH`.
 pub const XMATCH: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `XLOOKUP`.
 pub const XLOOKUP: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `VLOOKUP`.
 pub const VLOOKUP: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `HLOOKUP`.
 pub const HLOOKUP: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `LOOKUP`.
 pub const LOOKUP: FunctionId = FunctionId::new(CODE, 7);
+/// Stable ID for `CHOOSE`.
 pub const CHOOSE: FunctionId = FunctionId::new(CODE, 8);
+/// Stable ID for `ROW`.
 pub const ROW: FunctionId = FunctionId::new(CODE, 9);
+/// Stable ID for `COLUMN`.
 pub const COLUMN: FunctionId = FunctionId::new(CODE, 10);
+/// Stable ID for `ROWS`.
 pub const ROWS: FunctionId = FunctionId::new(CODE, 11);
+/// Stable ID for `COLUMNS`.
 pub const COLUMNS: FunctionId = FunctionId::new(CODE, 12);
+/// Stable ID for `AREAS`.
 pub const AREAS: FunctionId = FunctionId::new(CODE, 13);
 
 /// An eager named call.
@@ -45,6 +59,7 @@ const fn eager(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     // A call may give a reference (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and
     // Formula alike): `=COUNTBLANK(INDEX(A1:A2,1))` enters, and so does `=INDEX(A1:A2,1)(3)`

@@ -6,6 +6,7 @@ use calc_value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
 const OWNER: &str = "dc-1nbp.5";
 
+/// Register the WorksheetFunction members for a profile, with its call and Application handlers.
 pub fn register<C>(
     handlers: &mut Handlers<C>,
     method: Handler<C>,
@@ -43,6 +44,8 @@ pub fn catalogue_name(name: &str) -> String {
     name.replace('_', ".").to_ascii_uppercase()
 }
 
+/// Validate a WorksheetFunction call and convert its arguments for the supplied invocation.
+/// Convert the returned value to Automation or raise an Automation error for a worksheet error.
 pub fn dispatch(
     call: &Call<'_>,
     mut argument: impl FnMut(&AutoValue) -> Result<CalcValue, AutoError>,
@@ -127,6 +130,7 @@ pub fn catalogue_call(
     })
 }
 
+/// Convert an Automation value into a CalcFunc argument, including elements of a rectangular array.
 pub fn to_calc(value: &AutoValue) -> Result<CalcValue, AutoError> {
     Ok(match value {
         AutoValue::Empty => CalcValue::empty(),
@@ -183,6 +187,7 @@ pub fn to_calc(value: &AutoValue) -> Result<CalcValue, AutoError> {
     })
 }
 
+/// Convert a CalcFunc result back to an Automation value, or return a typed error for unsupported values.
 pub fn from_calc(value: &CalcValue) -> Result<AutoValue, AutoError> {
     Ok(match value.core_ref() {
         CoreRef::Empty => AutoValue::Empty,

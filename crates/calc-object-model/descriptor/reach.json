@@ -1,0 +1,35 @@
+{
+  "members": {
+    "_Application.ExecuteExcel4Macro (Method)": ["process", "ffi", "fs.read", "fs.write", "network"],
+    "_Application.RegisterXLL (Method)": ["fs.read", "ffi"],
+    "_Application.Run (Method)": ["fs.read", "ffi"],
+    "_Application._Run2 (Method)": ["fs.read", "ffi"],
+    "_Application.SendKeys (Method)": ["ui.keys"],
+    "_Application.Save (Method)": ["fs.write"],
+    "_Application.SaveWorkspace (Method)": ["fs.write"],
+    "_Application.VBE (Get)": ["project.write"],
+    "_Workbook.Close (Method)": ["fs.write"],
+    "_Workbook.FollowHyperlink (Method)": ["network", "process"],
+    "_Workbook.OpenLinks (Method)": ["fs.read", "network"],
+    "_Workbook.RunAutoMacros (Method)": ["fs.read", "ffi"],
+    "_Workbook.Save (Method)": ["fs.write"],
+    "_Workbook.SaveAs (Method)": ["fs.write", "network"],
+    "_Workbook._SaveAs (Method)": ["fs.write", "network"],
+    "_Workbook.__SaveAs (Method)": ["fs.write", "network"],
+    "_Workbook.SaveAsXMLData (Method)": ["fs.write", "network"],
+    "_Workbook.SaveCopyAs (Method)": ["fs.write", "network"],
+    "_Workbook.VBProject (Get)": ["project.write"],
+    "Workbooks.Close (Method)": ["fs.write"],
+    "Workbooks.Open (Method)": ["fs.read", "network"],
+    "Workbooks._Open (Method)": ["fs.read", "network"],
+    "Workbooks.OpenDatabase (Method)": ["fs.read", "network"],
+    "Workbooks.OpenText (Method)": ["fs.read", "network"],
+    "Workbooks._OpenText (Method)": ["fs.read", "network"],
+    "Workbooks.__OpenText (Method)": ["fs.read", "network"],
+    "Workbooks.OpenXML (Method)": ["fs.read", "network"],
+    "Workbooks._OpenXML (Method)": ["fs.read", "network"]
+  },
+  "xlc": {
+    "xlcExec": ["process"]
+  }
+}

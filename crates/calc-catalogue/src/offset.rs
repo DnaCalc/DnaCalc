@@ -2,13 +2,18 @@
 use crate::{ArgumentDemand, FunctionId, Notation, Parameter, WorksheetDeclaration};
 use calc_value::CallableArityShape;
 
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 40;
 
+/// Stable ID for `OFFSET`.
 pub const OFFSET: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `ISOMITTED`.
 pub const ISOMITTED: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `TRIMRANGE`.
 pub const TRIMRANGE: FunctionId = FunctionId::new(CODE, 3);
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
     // reference takes only an operand that may give one (`=OFFSET(2,0,0)`, `=OFFSET({1,2},0,0)`,

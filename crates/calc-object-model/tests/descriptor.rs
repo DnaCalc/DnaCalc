@@ -59,3 +59,49 @@ fn office_types_resolve_by_qualified_name_and_through_their_bases() {
     assert_eq!(d.ty(ole).base.as_deref(), Some("IAccessible"));
     assert_eq!(d.ty(ole).vtable_slots, Some(30));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn descriptor_reach_overlay_resolves_every_entry() {
+    let descriptor = Descriptor::get();
+    let overlay: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../descriptor/reach.json")).unwrap();
+    let entries = overlay["members"].as_object().unwrap();
+    for ((interface, name, kind), capabilities) in [
+        (("Workbooks", "Open", InvokeKind::Method), &["fs.read", "network"][..]),
+        (("_Workbook", "SaveAs", InvokeKind::Method), &["fs.write", "network"][..]),
+        (("_Workbook", "FollowHyperlink", InvokeKind::Method), &["network", "process"][..]),
+        (("_Application", "ExecuteExcel4Macro", InvokeKind::Method), &["process", "ffi", "fs.read", "fs.write", "network"][..]),
+        (("_Application", "RegisterXLL", InvokeKind::Method), &["fs.read", "ffi"][..]),
+        (("_Application", "Run", InvokeKind::Method), &["fs.read", "ffi"][..]),
+        (("_Application", "VBE", InvokeKind::Get), &["project.write"][..]),
+        (("_Workbook", "VBProject", InvokeKind::Get), &["project.write"][..]),
+    ] {
+        let id = descriptor.id(interface).unwrap();
+        let member = descriptor.member(id, name, kind).unwrap();
+        assert_eq!(
+            member.reach.iter().map(|reach| reach.key()).collect::<Vec<_>>(),
+            capabilities,
+        );
+    }
+    for (key, expected) in entries {
+        let (member, kind) = key.strip_suffix(')').unwrap().rsplit_once(" (").unwrap();
+        let (interface, name) = member.split_once('.').unwrap();
+        let kind = match kind {
+            "Get" => InvokeKind::Get,
+            "Put" => InvokeKind::Put,
+            "Putref" => InvokeKind::Putref,
+            "Method" => InvokeKind::Method,
+            _ => panic!("unknown invoke kind in {key}"),
+        };
+        let id = descriptor.id(interface).unwrap_or_else(|| panic!("{key}"));
+        let described = descriptor.member(id, name, kind).unwrap_or_else(|| panic!("{key}"));
+        assert_eq!(
+            described.reach.iter().map(|reach| reach.key()).collect::<Vec<_>>(),
+            serde_json::from_value::<Vec<String>>(expected.clone()).unwrap(),
+            "{key}",
+        );
+    }
+    assert_eq!(descriptor.xlc_reach("xlcExec")[0].key(), "process");
+    assert!(descriptor.xlc_reach("xlcCalculateNow").is_empty());
+}

@@ -7,7 +7,9 @@ use std::collections::HashMap;
 
 /// One call of a described member, as every projection presents it.
 pub struct Call<'a> {
+    /// Interface on which this member was resolved.
     pub interface: InterfaceId,
+    /// Descriptor entry for the method or property invocation.
     pub member: &'a Member,
     /// The caller-supplied arguments in declared order ([`Member::arguments`]): `[lcid]` and
     /// `[out, retval]` are not included; an omitted optional argument is [`AutoValue::Missing`].
@@ -18,6 +20,7 @@ pub struct Call<'a> {
 }
 
 impl Call<'_> {
+    /// Return an argument by zero-based call position, or Missing when the caller omitted it.
     pub fn arg(&self, index: usize) -> &AutoValue {
         self.args.get(index).unwrap_or(&AutoValue::Missing)
     }
@@ -38,10 +41,29 @@ pub enum AutoError {
     /// arguments). Every route answers it the same way: a run-time error 1004 whose description
     /// names the member and its owning bead, and a typed refusal recorded on the calling formula
     /// when the call happens inside a worksheet invocation.
-    NotModelled { what: String, owner: &'static str },
+    NotModelled {
+        /// Unsupported operation or member name.
+        what: String,
+        /// Tracker ID owning the unsupported behavior.
+        owner: &'static str,
+    },
     /// An error Excel itself raises for this call (number and description as Excel gives them,
     /// for example 1004 "needs a workbook: open in DNA Calc" in the values-only profile).
-    Excel { number: i32, description: String },
+    Excel {
+        /// Number reported to Automation clients.
+        number: i32,
+        /// Description reported with the error.
+        description: String,
+    },
+    /// A capability request refused by the caller's execution policy.
+    PolicyDenied {
+        /// Stable key for the first capability requested by the call.
+        capability: &'static str,
+        /// Descriptor member that requested the capability.
+        subject: String,
+        /// Error number reported to the caller.
+        number: i32,
+    },
     /// A COM status a projection passes through unchanged (E_INVALIDARG, DISP_E_TYPEMISMATCH, ...).
     Status(i32),
     /// The object's workbook or projection is gone (CO_E_OBJNOTCONNECTED on COM).
@@ -49,12 +71,14 @@ pub enum AutoError {
 }
 
 impl AutoError {
+    /// Construct a typed refusal that records the unsupported operation and its owning bead.
     pub fn not_modelled(what: impl Into<String>, owner: &'static str) -> AutoError {
         AutoError::NotModelled {
             what: what.into(),
             owner,
         }
     }
+    /// Construct an Excel Automation error with a number and description.
     pub fn excel(number: i32, description: impl Into<String>) -> AutoError {
         AutoError::Excel {
             number,
@@ -65,17 +89,25 @@ impl AutoError {
     pub fn number(&self) -> i32 {
         match self {
             AutoError::NotModelled { .. } => 1004,
-            AutoError::Excel { number, .. } => *number,
+            AutoError::Excel { number, .. } | AutoError::PolicyDenied { number, .. } => *number,
             AutoError::Status(status) => *status,
             AutoError::Disconnected => 0x8004_0201u32 as i32,
         }
     }
+    /// Return the client-facing Automation error description.
     pub fn description(&self) -> String {
         match self {
             AutoError::NotModelled { what, owner } => {
                 format!("DNA Calc does not model {what} yet ({owner})")
             }
             AutoError::Excel { description, .. } => description.clone(),
+            AutoError::PolicyDenied {
+                capability,
+                subject,
+                ..
+            } => {
+                format!("Execution policy denied {capability} for {subject}")
+            }
             AutoError::Status(status) => format!("COM status {status:#x}"),
             AutoError::Disconnected => "the object is no longer connected".into(),
         }
@@ -118,6 +150,7 @@ impl<C> Default for Handlers<C> {
 }
 
 impl<C> Handlers<C> {
+    /// Create an empty profile handler table.
     pub fn new() -> Self {
         Self::default()
     }
@@ -140,6 +173,7 @@ impl<C> Handlers<C> {
         self.table.insert((id, found.dispid, kind), handler);
         self
     }
+    /// Find a handler for this interface, dispatch identifier and invocation kind.
     pub fn get(&self, interface: InterfaceId, member: &Member) -> Option<Handler<C>> {
         self.table
             .get(&(interface, member.dispid, member.invoke))

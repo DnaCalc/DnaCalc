@@ -16,26 +16,49 @@ pub struct UnheldEntry {
     pub localized_names: Option<&'static [crate::LocalizedDisplayName]>,
     /// `None` means the complete set of facilities has not been classified.
     pub context_facilities: Option<&'static [crate::ContextFacility]>,
+    /// The entry's stable catalogue identity.
     pub id: FunctionId,
+    /// Invariant spelling used in formulas.
     pub spelling: &'static str,
+    /// Named call or operator notation.
     pub notation: Notation,
+    /// Syntax or host route used for this entry.
     pub kind: UnheldKind,
+    /// Observed build or compatibility availability.
     pub availability: Availability,
+    /// Supported range of argument counts.
     pub arity: CallableArityShape,
+    /// Repeating parameter groups, when declared.
     pub groups: Option<crate::ArgumentGroups>,
+    /// Parameter declarations in call order.
     pub parameters: &'static [Parameter],
+    /// Result form visible to formula admission.
     pub result: ResultForm,
+    /// When arguments are evaluated.
     pub demand: ArgumentDemand,
+    /// Additional evaluation and publication behavior.
     pub traits: EntryTraits,
+    /// What owns execution or the reason it is deferred.
     pub implementation: Implementation,
 }
 
 #[derive(Clone, Copy, Debug)]
+/// Forms represented by a declaration without an ordinary worksheet kernel.
 pub enum UnheldKind {
+    /// A named worksheet call.
     Worksheet,
+    /// A special form that introduces names during binding.
     Binding(BindingForm),
-    Operator { file_spelling: Option<&'static str> },
-    Rtd { provider: &'static str },
+    /// An operator that uses a formula-language route.
+    Operator {
+        /// Named spelling used when the file stores this operator as a call.
+        file_spelling: Option<&'static str>,
+    },
+    /// A real-time data call routed to a host provider.
+    Rtd {
+        /// Key used to resolve the provider.
+        provider: &'static str,
+    },
 }
 
 /// The binding form (LET or LAMBDA) a call written `name` introduces: `name` is an invariant
@@ -69,11 +92,15 @@ pub const CODE: u16 = 325;
 
 /// Stable IDs of the two reference operators with function-shaped file forms.
 pub const IMPLICIT_INTERSECTION_ID: FunctionId = FunctionId::new(CODE, 15);
+/// Stable ID for the postfix spill-reference operator.
 pub const SPILL_ID: FunctionId = FunctionId::new(CODE, 16);
 /// Stable ID of RTD.
 pub const RTD_ID: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `DETECTLANGUAGE`.
 pub const DETECTLANGUAGE_ID: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `STOCKHISTORY`.
 pub const STOCKHISTORY_ID: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `TRANSLATE`.
 pub const TRANSLATE_ID: FunctionId = FunctionId::new(CODE, 7);
 
 /// The file spelling of a declared reference operator.
@@ -291,6 +318,7 @@ const fn reference_operator(
     result.result = ResultForm::MayBeReference;
     result
 }
+/// Declarations for entries whose execution is deferred or supplied by a special route.
 pub const UNHELD_ENTRIES: &[UnheldEntry] = &[
     macro_sheet_only(entry(
         1,

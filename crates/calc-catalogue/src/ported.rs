@@ -17,6 +17,7 @@ macro_rules! data_family {
         $(three_d ($take:expr, $value:expr, $reference:expr);)?
         $(context [$($facility:ident),*];)? ;
     )*) => {
+        /// Worksheet declarations in this family's member order.
         pub const ENTRIES: &[WorksheetDeclaration] = &[$({
             #[allow(unused_mut)]
             let mut item = WorksheetDeclaration {
@@ -43,6 +44,11 @@ macro_rules! data_family {
     (@class F) => { ParameterClass::Reference };
 }
 
+/// Look up a declaration within one family fragment by stable ID.
+///
+/// # Panics
+///
+/// Panics if the fragment has no entry with this ID.
 pub const fn find(
     entries: &'static [WorksheetDeclaration],
     id: FunctionId,
@@ -57,8 +63,10 @@ pub const fn find(
     panic!("kernel has no declaration")
 }
 
+/// Probability distributions, densities and quantiles.
 pub mod distributions {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 104;
     data_family! {
         code: CODE;
@@ -139,8 +147,10 @@ pub mod distributions {
     }
 }
 
+/// Coupon schedules, security prices and yields.
 pub mod bonds {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 301;
     data_family! {
         code: CODE;
@@ -173,8 +183,10 @@ pub mod bonds {
     }
 }
 
+/// Mathematical, trigonometric and matrix functions.
 pub mod math {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 100;
     data_family! {
         code: CODE;
@@ -233,8 +245,10 @@ pub mod math {
     }
 }
 
+/// Functions that invoke a LAMBDA for an array or accumulator.
 pub mod lambda_helpers {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 311;
     data_family! {
         code: CODE;
@@ -253,8 +267,10 @@ pub mod lambda_helpers {
     }
 }
 
+/// Descriptive statistics, regression and statistical tests.
 pub mod statistics {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 103;
     data_family! {
         code: CODE;
@@ -323,10 +339,14 @@ pub mod statistics {
     }
 }
 
+/// Array grouping and pivoting functions.
 pub mod grouping {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 321;
+    /// Stable ID for `GROUPBY`.
     pub const GROUPBY: FunctionId = FunctionId::new(CODE, 1);
+    /// Stable ID for `PIVOTBY`.
     pub const PIVOTBY: FunctionId = FunctionId::new(CODE, 2);
     data_family! {
         code: CODE;
@@ -337,15 +357,24 @@ pub mod grouping {
     }
 }
 
+/// Functions that read workbook, sheet, cell or application facts.
 pub mod host_facts {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 204;
+    /// Stable ID for `CELL`.
     pub const CELL: FunctionId = FunctionId::new(CODE, 1);
+    /// Stable ID for `INFO`.
     pub const INFO: FunctionId = FunctionId::new(CODE, 2);
+    /// Stable ID for `SHEET`.
     pub const SHEET: FunctionId = FunctionId::new(CODE, 3);
+    /// Stable ID for `SHEETS`.
     pub const SHEETS: FunctionId = FunctionId::new(CODE, 4);
+    /// Stable ID for `FORMULATEXT`.
     pub const FORMULATEXT: FunctionId = FunctionId::new(CODE, 5);
+    /// Stable ID for `ADDRESS`.
     pub const ADDRESS: FunctionId = FunctionId::new(CODE, 6);
+    /// Stable ID for `GETPIVOTDATA`.
     pub const GETPIVOTDATA: FunctionId = FunctionId::new(CODE, 7);
     data_family! {
         code: CODE;
@@ -361,8 +390,10 @@ pub mod host_facts {
     }
 }
 
+/// Cash-flow, depreciation and interest functions.
 pub mod financial {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 300;
     data_family! {
         code: CODE;
@@ -398,16 +429,26 @@ pub mod financial {
     }
 }
 
+/// Date serial, calendar and time functions.
 pub mod dates {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 203;
+    /// Stable ID for `WEEKNUM`.
     pub const WEEKNUM: FunctionId = FunctionId::new(CODE, 17);
+    /// Stable ID for `ISOWEEKNUM`.
     pub const ISOWEEKNUM: FunctionId = FunctionId::new(CODE, 18);
+    /// Stable ID for `YEAR`.
     pub const YEAR: FunctionId = FunctionId::new(CODE, 3);
+    /// Stable ID for `MONTH`.
     pub const MONTH: FunctionId = FunctionId::new(CODE, 4);
+    /// Stable ID for `DAY`.
     pub const DAY: FunctionId = FunctionId::new(CODE, 5);
+    /// Stable ID for `HOUR`.
     pub const HOUR: FunctionId = FunctionId::new(CODE, 6);
+    /// Stable ID for `MINUTE`.
     pub const MINUTE: FunctionId = FunctionId::new(CODE, 7);
+    /// Stable ID for `SECOND`.
     pub const SECOND: FunctionId = FunctionId::new(CODE, 8);
     data_family! {
         code: CODE;
@@ -439,8 +480,10 @@ pub mod dates {
     }
 }
 
+/// Additional rounding and decimal-conversion functions.
 pub mod rounding_more {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 101;
     data_family! {
         code: CODE;
@@ -452,8 +495,10 @@ pub mod rounding_more {
     }
 }
 
+/// Engineering functions for bases, bits, complex numbers and special functions.
 pub mod engineering {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 105;
     data_family! {
         code: CODE;
@@ -510,8 +555,10 @@ pub mod engineering {
     }
 }
 
+/// Aggregates over database tables and criteria ranges.
 pub mod database {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 205;
     data_family! {
         code: CODE;
@@ -530,11 +577,16 @@ pub mod database {
     }
 }
 
+/// Functions that create, select, sort or reshape arrays.
 pub mod arrays {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 310;
+    /// Stable ID for `SEQUENCE`.
     pub const SEQUENCE: FunctionId = FunctionId::new(CODE, 1);
+    /// Stable ID for `FILTER`.
     pub const FILTER: FunctionId = FunctionId::new(CODE, 2);
+    /// Stable ID for `SORTBY`.
     pub const SORTBY: FunctionId = FunctionId::new(CODE, 4);
     data_family! {
         code: CODE;
@@ -558,10 +610,14 @@ pub mod arrays {
     }
 }
 
+/// Subtotal and aggregate functions with nested-subtotal behavior.
 pub mod subtotal {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 102;
+    /// Stable ID for `SUBTOTAL`.
     pub const SUBTOTAL: FunctionId = FunctionId::new(CODE, 1);
+    /// Stable ID for `AGGREGATE`.
     pub const AGGREGATE: FunctionId = FunctionId::new(CODE, 2);
     data_family! {
         code: CODE;
@@ -570,9 +626,12 @@ pub mod subtotal {
     }
 }
 
+/// Formatting, parsing and hyperlink functions.
 pub mod text_format {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 202;
+    /// Stable ID for `HYPERLINK`.
     pub const HYPERLINK: FunctionId = FunctionId::new(CODE, 21);
     data_family! {
         code: CODE;
@@ -600,9 +659,12 @@ pub mod text_format {
     }
 }
 
+/// Text search, transformation and character functions.
 pub mod text_functions {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 200;
+    /// Stable ID for `CONCATENATE`.
     pub const CONCATENATE: FunctionId = FunctionId::new(CODE, 28);
     data_family! {
         code: CODE;
@@ -651,8 +713,10 @@ pub mod text_functions {
     }
 }
 
+/// Worksheet functions that draw random values.
 pub mod random {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 106;
     data_family! {
         code: CODE;
@@ -662,8 +726,10 @@ pub mod random {
     }
 }
 
+/// Functions for multidimensional cube data.
 pub mod cube_functions {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 324;
     data_family! {
         code: CODE;
@@ -684,8 +750,10 @@ pub mod cube_functions {
     }
 }
 
+/// Host-routed functions that fetch a resource.
 pub mod fetching {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 323;
     data_family! {
         code: CODE;
@@ -695,8 +763,10 @@ pub mod fetching {
     }
 }
 
+/// Host-routed functions that import text data.
 pub mod importing {
     use super::*;
+    /// Stable family code used by the entries in this fragment.
     pub const CODE: u16 = 326;
     data_family! {
         code: CODE;

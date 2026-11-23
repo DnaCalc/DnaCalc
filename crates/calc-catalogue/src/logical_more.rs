@@ -4,13 +4,17 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 201;
+/// Stable ID for `IFS`.
 pub const IFS: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `SWITCH`.
 pub const SWITCH: FunctionId = FunctionId::new(CODE, 2);
 
 const IFS_CONDITIONS: [usize; 127] = super::alternate(&[], 0);
 const IFS_VALUES: [usize; 126] = super::alternate(&[], 3);
 
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): the
     // conditions and values come in pairs, so IFS takes 2, 4, 6 or 8 arguments of 1 to 8

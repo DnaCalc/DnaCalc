@@ -815,7 +815,10 @@ impl HostSession {
                     return Err(operation_failed(error.to_string()));
                 }
             }
-            if outcome.cancel {
+            let mut cancel = outcome.cancel;
+            self.notify_observers_before_save(context.operation, &mut cancel)
+                .map_err(operation_failed)?;
+            if cancel {
                 return Err(SaveFailed::Cancelled);
             }
         }
@@ -1679,7 +1682,19 @@ impl HostSession {
                 return Err(IntentError::UnknownSheet(sheet));
             }
         }
-        self.select_quietly(selection, receipt);
+        if self.selection != selection {
+            self.select_quietly(selection, receipt);
+            let sheet = self.selection.active.map(|at| at.sheet())
+                .or_else(|| self.selection.areas.first().map(|area| area.sheet()));
+            if let Some(sheet) = sheet {
+                let mut target: Vec<_> = self.selection.areas.iter().copied()
+                    .filter(|area| area.sheet() == sheet).collect();
+                if target.is_empty() && let Some(at) = self.selection.active {
+                    target.push(GridArea::new(at, at).expect("active cell is a valid area"));
+                }
+                self.notify_workbook_selection_changed(sheet, &target);
+            }
+        }
         Ok(())
     }
 

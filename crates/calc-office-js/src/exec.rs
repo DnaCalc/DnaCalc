@@ -412,6 +412,7 @@ pub fn map_error(failure: &AutoError) -> BatchError {
         AutoError::Status(status) if *status == 0x8002_000Bu32 as i32 => {
             error("ItemNotFound", "the item was not found", None, 0)
         }
+        AutoError::PolicyDenied { .. } => error("AccessDenied", &failure.description(), None, 0),
         AutoError::Excel { .. } | AutoError::Status(_) => {
             error("GeneralException", &failure.description(), None, 0)
         }

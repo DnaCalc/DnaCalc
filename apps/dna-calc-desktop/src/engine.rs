@@ -387,10 +387,10 @@ pub fn run(
         Some(project) => {
             functions.add_from(&project.functions())?;
             project.clone().install_with_registry(&mut book, functions);
-            book.notify_workbook_open();
         }
         None => book.set_user_functions(functions),
     }
+    book.notify_workbook_open();
     let bindings = book.host().user_function_bindings();
     let providers = addins
         .registrations()

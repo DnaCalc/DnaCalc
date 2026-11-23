@@ -20,4 +20,19 @@ pub trait EventSource {
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError>;
+
+    /// Raise an event whose last argument is a synchronous ByRef Boolean. `args`
+    /// contains the preceding arguments. Each connection can update the same Cancel value.
+    fn raise_with_cancel(
+        &self,
+        source: &ObjectRef,
+        interface: &str,
+        event: &str,
+        args: &[AutoValue],
+        cancel: &mut bool,
+    ) -> Result<(), AutoError> {
+        let mut arguments = args.to_vec();
+        arguments.push(AutoValue::Bool(*cancel));
+        self.raise(source, interface, event, &arguments)
+    }
 }

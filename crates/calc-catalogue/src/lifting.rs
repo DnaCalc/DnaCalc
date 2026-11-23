@@ -21,8 +21,11 @@ pub enum LegacyContext {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Evaluation mode used to interpret an argument's enclosing position.
 pub enum LiftingMode {
+    /// Dynamic-array evaluation.
     Dynamic,
+    /// Legacy evaluation with the enclosing expression's placement.
     Legacy(LegacyContext),
 }
 
@@ -30,12 +33,16 @@ pub enum LiftingMode {
 /// ranges are single-area references with more than one cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LiftingOrigin {
+    /// An ordinary value array.
     Array,
+    /// A multi-cell reference to one area.
     Range,
+    /// An array whose elements are references.
     ReferenceArray,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The call's treatment of an argument at one position.
 pub enum Lifting {
     /// This argument does not trigger or extend lifting and is passed as a single operand.
     Whole,

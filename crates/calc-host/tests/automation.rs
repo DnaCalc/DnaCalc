@@ -32,12 +32,17 @@ struct Host {
     session: RefCell<HostSession>,
     enabled: Cell<bool>,
     commands: Cell<u32>,
+    runs: Cell<u32>,
 }
 impl ApplicationHost for Host {
     fn hwnd(&self) -> isize {
         123
     }
-    fn run(&self, _: &str, _: &[AutoValue]) -> Reply {
+    fn run(&self, name: &str, _: &[AutoValue]) -> Reply {
+        if name == "TestCommand" {
+            self.runs.set(self.runs.get() + 1);
+            return Ok(AutoValue::Empty);
+        }
         Err(AutoError::not_modelled("Run in test host", "dc-1nbp.5"))
     }
     fn events_enabled(&self) -> bool {
@@ -88,6 +93,7 @@ fn setup_session(session: HostSession) -> (Rc<Host>, Rc<WorkbookAutomation>) {
         session: RefCell::new(session),
         enabled: Cell::new(true),
         commands: Cell::new(0),
+        runs: Cell::new(0),
     });
     let model = Rc::new(WorkbookAutomation::new(host.clone()));
     model.context_changed(&host.session.borrow());
@@ -375,8 +381,15 @@ impl EventSource for Events {
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
-        assert_eq!(interface, "AppEvents");
         let model = self.model.upgrade().unwrap();
+        if interface != "AppEvents" {
+            for value in args {
+                if let AutoValue::Object(object) = value {
+                    model.released(object);
+                }
+            }
+            return Ok(());
+        }
         if event == "AfterCalculate" {
             self.calculated.set(self.calculated.get() + 1);
             return Ok(());
@@ -474,11 +487,19 @@ impl EventSource for Names {
     fn raise(
         &self,
         _: &ObjectRef,
-        _: &str,
+        interface: &str,
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
         let model = self.model.upgrade().unwrap();
+        if interface != "AppEvents" {
+            for value in args {
+                if let AutoValue::Object(object) = value {
+                    model.released(object);
+                }
+            }
+            return Ok(());
+        }
         let name = match event {
             "SheetCalculate" => {
                 assert_eq!(args.len(), 1);
@@ -1342,7 +1363,7 @@ impl EventSource for WritingEvents {
     fn raise(
         &self,
         _: &ObjectRef,
-        _: &str,
+        interface: &str,
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
@@ -1350,8 +1371,16 @@ impl EventSource for WritingEvents {
         if event == "AfterCalculate" || event == "SheetCalculate" {
             return Ok(());
         }
-        assert_eq!(event, "SheetChange");
         let model = self.model.upgrade().unwrap();
+        if interface != "AppEvents" {
+            for value in args {
+                if let AutoValue::Object(object) = value {
+                    model.released(object);
+                }
+            }
+            return Ok(());
+        }
+        assert_eq!(event, "SheetChange");
         let target = obj(args[1].clone());
         let address = text(&model, &target, "Address");
         self.changes.borrow_mut().push(address.clone());
@@ -3684,4 +3713,311 @@ q22! {
     dc_piw0_11__q22_c11h_plot_by_alone_over_dates_without_an_automatic_source => "c11h",
     dc_piw0_11__q22_m1_a_non_square_source_is_plotted_by_the_rule_after_rows => "m1",
     dc_piw0_11__q22_m2_a_non_square_source_without_an_automatic_source => "m2",
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn guarded_policy_refuses_and_audits_reaching_members_once() {
+    use calc_object_model::policy::{MacroSecurity, PolicyAudit, PolicyChecker};
+
+    let (host, _) = setup();
+    let level = Rc::new(Cell::new(MacroSecurity::Guarded));
+    let audit = Rc::new(RefCell::new(Vec::<PolicyAudit>::new()));
+    let checker = PolicyChecker::new(
+        {
+            let level = level.clone();
+            move || level.get()
+        },
+        {
+            let audit = audit.clone();
+            move |record| audit.borrow_mut().push(record)
+        },
+    );
+    let guarded = WorkbookAutomation::with_policy(host.clone(), checker.clone());
+    guarded.context_changed(&host.session.borrow());
+    let app = guarded.application();
+    let run = |model: &dyn ObjectModel| {
+        let member = Descriptor::get()
+            .member(app.interface, "Run", InvokeKind::Method)
+            .unwrap();
+        model.invoke(&app, &Call {
+            interface: app.interface,
+            member,
+            args: vec![AutoValue::text("TestCommand")],
+            lcid: 0,
+        })
+    };
+
+    assert!(matches!(run(&guarded), Err(AutoError::PolicyDenied { capability: "fs.read", number: 70, .. })));
+    assert_eq!(host.runs.get(), 0);
+    assert_eq!(audit.borrow().len(), 1);
+    assert!(!audit.borrow()[0].allowed);
+
+    let range = invoke(&guarded, &app, "Range", vec![AutoValue::text("A1")]).unwrap();
+    let AutoValue::Object(range) = range else { panic!("expected a range") };
+    invoke(&guarded, &range, "Value2", vec![]).unwrap();
+    invoke_kind(&guarded, &app, "Calculate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(audit.borrow().len(), 1);
+
+    level.set(MacroSecurity::Unguarded);
+    assert!(matches!(run(&guarded), Ok(AutoValue::Empty)));
+    assert_eq!(host.runs.get(), 1);
+    assert_eq!(audit.borrow().len(), 2);
+    assert!(audit.borrow()[1].allowed);
+    assert_eq!(audit.borrow()[1].subject, "_Application.Run");
+
+    let standalone = calc_object_model::profile::values_only::ValuesOnly::with_policy(
+        host.clone(), checker,
+    );
+    level.set(MacroSecurity::Off);
+    assert!(matches!(run(&standalone), Err(AutoError::PolicyDenied { .. })));
+    assert_eq!(host.runs.get(), 1);
+    assert_eq!(audit.borrow().len(), 3);
+    assert!(!audit.borrow()[2].allowed);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn multiple_observers_receive_ordered_events_under_one_enable_events_switch() {
+    struct Listener(&'static str, Rc<RefCell<Vec<(&'static str, &'static str)>>>);
+    impl Listener {
+        fn record(&self, event: &'static str) -> Result<(), String> {
+            self.1.borrow_mut().push((self.0, event));
+            Ok(())
+        }
+    }
+    impl WorkbookEventHandler for Listener {
+        fn worksheet_change(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+            _: &[calc_value::GridArea],
+        ) -> Result<(), String> {
+            self.record("Change")
+        }
+        fn worksheet_calculate(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+        ) -> Result<(), String> {
+            self.record("Calculate")
+        }
+        fn selection_changed(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+            _: &[calc_value::GridArea],
+        ) -> Result<(), String> {
+            self.record("SelectionChanged")
+        }
+        fn before_save(
+            &self,
+            _: &mut HostSession,
+            _: SaveOperation,
+        ) -> Result<BeforeSaveOutcome, String> {
+            self.record("BeforeSave")?;
+            Ok(BeforeSaveOutcome::default())
+        }
+    }
+    impl WorkbookEventObserver for Listener {
+        fn worksheet_change(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+            _: &[calc_value::GridArea],
+        ) -> Result<(), String> {
+            self.record("Change")
+        }
+        fn worksheet_calculate(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+        ) -> Result<(), String> {
+            self.record("Calculate")
+        }
+        fn after_calculate(&self, _: &mut HostSession) -> Result<(), String> {
+            self.record("AfterCalculate")
+        }
+        fn selection_changed(
+            &self,
+            _: &mut HostSession,
+            _: calc_value::SheetId,
+            _: &[calc_value::GridArea],
+        ) -> Result<(), String> {
+            self.record("SelectionChanged")
+        }
+    }
+
+    let (host, model) = setup();
+    let calculate = || {
+        host.session.borrow_mut().dispatch(SkinIntent::Recalculate);
+        while host.session.borrow().has_pending_calculation() {
+            host.session.borrow_mut().advance_calculation();
+        }
+    };
+    calculate();
+    let trace = Rc::new(RefCell::new(Vec::new()));
+    let first = {
+        let mut session = host.session.borrow_mut();
+        session.set_workbook_event_handler(Some(Rc::new(Listener("VBA", trace.clone()))));
+        let first = session.add_workbook_event_observer(Rc::new(Listener("COM", trace.clone())));
+        session.add_workbook_event_observer(Rc::new(Listener("Office.js", trace.clone())));
+        first
+    };
+    let select = |row| {
+        let cell = at(&host, row, 1);
+        let area = calc_value::GridArea::new(cell, cell).unwrap();
+        assert!(
+            host.session
+                .borrow_mut()
+                .dispatch(SkinIntent::Select(Selection {
+                    active: Some(cell),
+                    areas: vec![area],
+                }))
+                .accepted()
+        );
+    };
+
+    enter(&host, at(&host, 30, 1), "=1+2");
+    calculate();
+    select(30);
+    select(30);
+    assert_eq!(
+        &*trace.borrow(),
+        &[
+            ("VBA", "Change"),
+            ("COM", "Change"),
+            ("Office.js", "Change"),
+            ("VBA", "Calculate"),
+            ("COM", "Calculate"),
+            ("Office.js", "Calculate"),
+            ("COM", "AfterCalculate"),
+            ("Office.js", "AfterCalculate"),
+            ("VBA", "SelectionChanged"),
+            ("COM", "SelectionChanged"),
+            ("Office.js", "SelectionChanged"),
+        ]
+    );
+
+    let set_events = |enabled| {
+        invoke_kind(
+            &model,
+            &model.application(),
+            "EnableEvents",
+            InvokeKind::Put,
+            vec![AutoValue::Bool(enabled)],
+        )
+        .unwrap();
+    };
+    trace.borrow_mut().clear();
+    set_events(false);
+    enter(&host, at(&host, 31, 1), "=2+3");
+    calculate();
+    select(31);
+    assert!(trace.borrow().is_empty());
+
+    assert!(
+        host.session
+            .borrow_mut()
+            .remove_workbook_event_observer(first)
+    );
+    assert!(
+        !host
+            .session
+            .borrow_mut()
+            .remove_workbook_event_observer(first)
+    );
+    set_events(true);
+    select(32);
+    assert_eq!(
+        &*trace.borrow(),
+        &[
+            ("VBA", "SelectionChanged"),
+            ("Office.js", "SelectionChanged")
+        ]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn automation_projects_document_events_and_cancels_before_save_is_prepared() {
+    struct Receiver {
+        model: Rc<WorkbookAutomation>,
+        trace: RefCell<Vec<(String, String)>>,
+    }
+    impl EventSource for Receiver {
+        fn raise(
+            &self,
+            _: &ObjectRef,
+            interface: &str,
+            event: &str,
+            args: &[AutoValue],
+        ) -> Result<(), AutoError> {
+            self.trace
+                .borrow_mut()
+                .push((interface.into(), event.into()));
+            for value in args {
+                if let AutoValue::Object(object) = value {
+                    self.model.released(object);
+                }
+            }
+            Ok(())
+        }
+
+        fn raise_with_cancel(
+            &self,
+            source: &ObjectRef,
+            interface: &str,
+            event: &str,
+            args: &[AutoValue],
+            cancel: &mut bool,
+        ) -> Result<(), AutoError> {
+            self.raise(source, interface, event, args)?;
+            if interface == "WorkbookEvents" {
+                assert!(!*cancel);
+                assert!(matches!(args, [AutoValue::Bool(false)]));
+                *cancel = true;
+            } else {
+                assert!(*cancel);
+            }
+            Ok(())
+        }
+    }
+    let (host, model) = setup();
+    let receiver = Rc::new(Receiver {
+        model: model.clone(),
+        trace: RefCell::default(),
+    });
+    {
+        let mut session = host.session.borrow_mut();
+        session.set_workbook_event_observer(Some(model.observer(receiver.clone())));
+        session.notify_workbook_open();
+        session.notify_workbook_open();
+    }
+    enter(&host, at(&host, 30, 1), "3");
+    let mut output = Vec::new();
+    assert!(matches!(
+        host.session
+            .borrow_mut()
+            .save(&SavePolicy::default(), &mut output),
+        Err(SaveFailed::Cancelled)
+    ));
+    assert!(output.is_empty());
+    let trace = receiver.trace.borrow();
+    let expected = [
+        ("WorkbookEvents", "Open"),
+        ("AppEvents", "WorkbookOpen"),
+        ("DocEvents", "Change"),
+        ("WorkbookEvents", "SheetChange"),
+        ("AppEvents", "SheetChange"),
+        ("WorkbookEvents", "BeforeSave"),
+        ("AppEvents", "WorkbookBeforeSave"),
+    ];
+    assert_eq!(
+        trace
+            .iter()
+            .map(|(i, e)| (i.as_str(), e.as_str()))
+            .collect::<Vec<_>>(),
+        expected
+    );
 }

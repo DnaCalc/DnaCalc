@@ -24,12 +24,14 @@ use crate::{DeclarationRef, Notation};
 pub struct SignatureHelp {
     /// The signature as a tooltip shows it, such as `SUM(number1, [number2], ...)`.
     pub display: String,
+    /// Parameter names and position metadata in signature order.
     pub parameters: Vec<HelpParameter>,
 }
 
 /// One parameter of a [`SignatureHelp`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HelpParameter {
+    /// The parameter label shown to the user.
     pub name: &'static str,
     /// Whether a call may leave it out: its position is at or after the arity's minimum.
     pub optional: bool,

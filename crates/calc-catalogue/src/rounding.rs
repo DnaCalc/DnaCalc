@@ -4,22 +4,38 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 6;
 
+/// Stable ID for `ABS`.
 pub const ABS: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `SIGN`.
 pub const SIGN: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `INT`.
 pub const INT: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `TRUNC`.
 pub const TRUNC: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `ROUND`.
 pub const ROUND: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `ROUNDUP`.
 pub const ROUNDUP: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `ROUNDDOWN`.
 pub const ROUNDDOWN: FunctionId = FunctionId::new(CODE, 7);
+/// Stable ID for `MROUND`.
 pub const MROUND: FunctionId = FunctionId::new(CODE, 8);
+/// Stable ID for `CEILING`.
 pub const CEILING: FunctionId = FunctionId::new(CODE, 9);
+/// Stable ID for `FLOOR`.
 pub const FLOOR: FunctionId = FunctionId::new(CODE, 10);
+/// Stable ID for `MOD`.
 pub const MOD: FunctionId = FunctionId::new(CODE, 11);
+/// Stable ID for `QUOTIENT`.
 pub const QUOTIENT: FunctionId = FunctionId::new(CODE, 12);
+/// Stable ID for `EVEN`.
 pub const EVEN: FunctionId = FunctionId::new(CODE, 13);
+/// Stable ID for `ODD`.
 pub const ODD: FunctionId = FunctionId::new(CODE, 14);
+/// Stable ID for `ECMA.CEILING`.
 pub const ECMA_CEILING: FunctionId = FunctionId::new(CODE, 15);
 
 const NUMBER: &[Parameter] = &[Parameter::value("number")];
@@ -57,6 +73,7 @@ const fn call(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     call(ABS, "ABS", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
     call(SIGN, "SIGN", 1, NUMBER).with_three_d(super::ThreeD::new(None, None, Some(&[]))),

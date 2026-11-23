@@ -16,6 +16,10 @@ pub enum WorkbookEvent {
         target: Vec<GridArea>,
     },
     AfterCalculate,
+    SelectionChanged {
+        sheet: SheetId,
+        target: Vec<GridArea>,
+    },
     WorksheetCalculate {
         sheet: SheetId,
     },
@@ -41,6 +45,14 @@ pub trait WorkbookEventHandler {
         target: &[GridArea],
     ) -> Result<(), String>;
     fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String>;
+    fn selection_changed(
+        &self,
+        _session: &mut HostSession,
+        _sheet: SheetId,
+        _target: &[GridArea],
+    ) -> Result<(), String> {
+        Ok(())
+    }
     fn before_save(
         &self,
         session: &mut HostSession,
@@ -48,10 +60,29 @@ pub trait WorkbookEventHandler {
     ) -> Result<BeforeSaveOutcome, String>;
 }
 
-/// A native projection observes the same committed events after the owning VBA handler.
+/// A projection observes the same committed events after the owning VBA handler.
 /// Callbacks borrow the session only for their duration; they must not retain its address.
 pub trait WorkbookEventObserver {
     fn context_changed(&self, _session: &HostSession) {}
+    fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> {
+        Ok(())
+    }
+    fn selection_changed(
+        &self,
+        _session: &mut HostSession,
+        _sheet: SheetId,
+        _target: &[GridArea],
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    fn before_save(
+        &self,
+        _session: &mut HostSession,
+        _operation: SaveOperation,
+        _cancel: &mut bool,
+    ) -> Result<(), String> {
+        Ok(())
+    }
     fn worksheet_change(
         &self,
         _session: &mut HostSession,
@@ -89,26 +120,35 @@ pub struct WorkbookEventFailures {
     pub omitted: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WorkbookEventObserverId(u64);
+
 pub(crate) struct WorkbookEventState {
     owner: Option<Rc<dyn WorkbookEventHandler>>,
-    observer: Option<Rc<dyn WorkbookEventObserver>>,
+    observers: BTreeMap<WorkbookEventObserverId, Rc<dyn WorkbookEventObserver>>,
+    application_observer: Option<WorkbookEventObserverId>,
+    next_observer: u64,
     enabled: Rc<Cell<bool>>,
     next: u64,
     failures: VecDeque<WorkbookEventFailure>,
     omitted: u64,
-    open_delivered: bool,
+    owner_open_delivered: bool,
+    observer_open_delivered: bool,
     calculation: Option<(crate::CalcCommandId, BTreeSet<SheetId>)>,
 }
 impl Default for WorkbookEventState {
     fn default() -> Self {
         Self {
             owner: None,
-            observer: None,
+            observers: BTreeMap::new(),
+            application_observer: None,
+            next_observer: 1,
             enabled: Rc::new(Cell::new(true)),
             next: 1,
             failures: VecDeque::new(),
             omitted: 0,
-            open_delivered: false,
+            owner_open_delivered: false,
+            observer_open_delivered: false,
             calculation: None,
         }
     }
@@ -120,16 +160,23 @@ impl HostSession {
             owner.file_identity_changed(name);
         }
     }
-    /// The application calls this once after admitting a file's owning project,
-    /// before its first automatic calculation. Source replacement is not an open.
+    /// The application announces an open after project admission. A project admitted later
+    /// can receive its own Open without replaying the already delivered projection event.
     pub fn notify_workbook_open(&mut self) {
-        if std::mem::replace(&mut self.workbook_events.open_delivered, true) {
-            return;
-        }
-        if let Some(owner) = self.event_owner()
+        let notify_owner = self.workbook_events.owner.is_some()
+            && !std::mem::replace(&mut self.workbook_events.owner_open_delivered, true);
+        let notify_observers =
+            !std::mem::replace(&mut self.workbook_events.observer_open_delivered, true);
+        if notify_owner
+            && let Some(owner) = self.event_owner()
             && let Err(reason) = owner.workbook_open(self)
         {
             self.record_event_failure(WorkbookEvent::Open, reason);
+        }
+        if notify_observers {
+            let _ = self.notify_observers(WorkbookEvent::Open, |observer, session| {
+                observer.workbook_open(session)
+            });
         }
     }
     pub fn set_workbook_event_handler(&mut self, owner: Option<Rc<dyn WorkbookEventHandler>>) {
@@ -146,18 +193,63 @@ impl HostSession {
     pub fn workbook_events_switch(&self) -> Rc<Cell<bool>> {
         self.workbook_events.enabled.clone()
     }
+    /// Replace the application observer, preserving independently registered observers.
     pub fn set_workbook_event_observer(&mut self, observer: Option<Rc<dyn WorkbookEventObserver>>) {
-        self.workbook_events.observer = observer;
-        self.notify_workbook_context();
+        if let Some(previous) = self.workbook_events.application_observer.take() {
+            self.remove_workbook_event_observer(previous);
+        }
+        self.workbook_events.application_observer =
+            observer.map(|observer| self.add_workbook_event_observer(observer));
+    }
+    pub fn add_workbook_event_observer(
+        &mut self,
+        observer: Rc<dyn WorkbookEventObserver>,
+    ) -> WorkbookEventObserverId {
+        let id = WorkbookEventObserverId(self.workbook_events.next_observer);
+        self.workbook_events.next_observer =
+            id.0.checked_add(1)
+                .expect("workbook event observer IDs exhausted");
+        observer.context_changed(self);
+        self.workbook_events.observers.insert(id, observer);
+        id
+    }
+    pub fn remove_workbook_event_observer(&mut self, id: WorkbookEventObserverId) -> bool {
+        self.workbook_events.observers.remove(&id).is_some()
     }
     pub(crate) fn notify_workbook_context(&self) {
         if let Some(owner) = &self.workbook_events.owner {
             owner.context_changed(self);
         }
-        if let Some(observer) = &self.workbook_events.observer {
+        for observer in self.workbook_events.observers.values() {
             observer.context_changed(self);
         }
     }
+
+    fn notify_observers(
+        &mut self,
+        event: WorkbookEvent,
+        mut deliver: impl FnMut(&dyn WorkbookEventObserver, &mut HostSession) -> Result<(), String>,
+    ) -> Result<(), String> {
+        if !self.workbook_events_enabled() {
+            return Ok(());
+        }
+        // Callbacks can remove observers, start nested commands, or disable events.
+        let recipients: Vec<_> = self.workbook_events.observers.keys().copied().collect();
+        let mut first_failure = None;
+        for id in recipients {
+            if !self.workbook_events_enabled() {
+                break;
+            }
+            if let Some(observer) = self.workbook_events.observers.get(&id).cloned()
+                && let Err(reason) = deliver(&*observer, self)
+            {
+                self.record_event_failure(event.clone(), reason.clone());
+                first_failure.get_or_insert(reason);
+            }
+        }
+        first_failure.map_or(Ok(()), Err)
+    }
+
     /// Inspect the bounded event report without editing or invalidating the workbook.
     pub fn workbook_event_failures(&self) -> WorkbookEventFailures {
         WorkbookEventFailures {
@@ -234,21 +326,46 @@ impl HostSession {
                 }
             }
             // Nested handler writes finish their own VBA and native events before this target.
-            if self.workbook_events_enabled() && self.host.model().sheet_by_id(sheet).is_some() {
-                if let Some(observer) = self.workbook_events.observer.clone() {
-                    if let Err(reason) = observer.worksheet_change(self, sheet, &target) {
-                        self.record_event_failure(
-                            WorkbookEvent::WorksheetChange { sheet, target },
-                            reason,
-                        );
-                    }
-                }
+            if self.host.model().sheet_by_id(sheet).is_some() {
+                let _ = self.notify_observers(
+                    WorkbookEvent::WorksheetChange {
+                        sheet,
+                        target: target.clone(),
+                    },
+                    |observer, session| observer.worksheet_change(session, sheet, &target),
+                );
             }
+        }
+    }
+    pub(crate) fn notify_workbook_selection_changed(
+        &mut self,
+        sheet: SheetId,
+        target: &[GridArea],
+    ) {
+        if let Some(owner) = self.event_owner()
+            && let Err(reason) = owner.selection_changed(self, sheet, target)
+        {
+            self.record_event_failure(
+                WorkbookEvent::SelectionChanged {
+                    sheet,
+                    target: target.to_vec(),
+                },
+                reason,
+            );
+        }
+        if self.host.model().sheet_by_id(sheet).is_some() {
+            let _ = self.notify_observers(
+                WorkbookEvent::SelectionChanged {
+                    sheet,
+                    target: target.to_vec(),
+                },
+                |observer, session| observer.selection_changed(session, sheet, target),
+            );
         }
     }
     pub(crate) fn refuse_automation_change(&mut self, receipt: &CommandReceipt) {
         if !self.workbook_events_enabled()
-            || (self.workbook_events.owner.is_none() && self.workbook_events.observer.is_none())
+            || (self.workbook_events.owner.is_none() && self.workbook_events.observers.is_empty())
         {
             return;
         }
@@ -308,12 +425,11 @@ impl HostSession {
             }
             // The native projection's SheetCalculate follows the owning VBA handler's, as its
             // SheetChange does.
-            if self.workbook_events_enabled()
-                && self.host.model().sheet_by_id(sheet).is_some()
-                && let Some(observer) = self.workbook_events.observer.clone()
-                && let Err(reason) = observer.worksheet_calculate(self, sheet)
-            {
-                self.record_event_failure(WorkbookEvent::WorksheetCalculate { sheet }, reason);
+            if self.host.model().sheet_by_id(sheet).is_some() {
+                let _ = self.notify_observers(
+                    WorkbookEvent::WorksheetCalculate { sheet },
+                    |observer, session| observer.worksheet_calculate(session, sheet),
+                );
             }
         }
         // AfterCalculate follows a calculation that ran: one that calculated a formula or that was
@@ -323,14 +439,21 @@ impl HostSession {
         if delta.completion().is_some_and(|receipt| {
             receipt.outcome == crate::CompletionOutcome::Complete
                 && (receipt.coverage.calculated > 0 || demanded)
-        }) && self.workbook_events_enabled()
-        {
-            if let Some(observer) = self.workbook_events.observer.clone() {
-                if let Err(reason) = observer.after_calculate(self) {
-                    self.record_event_failure(WorkbookEvent::AfterCalculate, reason);
-                }
-            }
+        }) {
+            let _ = self.notify_observers(WorkbookEvent::AfterCalculate, |observer, session| {
+                observer.after_calculate(session)
+            });
         }
+    }
+    pub(crate) fn notify_observers_before_save(
+        &mut self,
+        operation: SaveOperation,
+        cancel: &mut bool,
+    ) -> Result<(), String> {
+        self.notify_observers(
+            WorkbookEvent::BeforeSave { operation },
+            |observer, session| observer.before_save(session, operation, cancel),
+        )
     }
     pub(crate) fn notify_workbook_before_save(
         &mut self,

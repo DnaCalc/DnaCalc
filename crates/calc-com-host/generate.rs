@@ -121,6 +121,7 @@ pub fn write() {
         "office.json",
         "addin-designer.json",
         "accessibility.json",
+        "reach.json",
     ] {
         println!("cargo:rerun-if-changed=../calc-object-model/descriptor/{file}");
     }

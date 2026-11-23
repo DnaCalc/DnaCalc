@@ -95,6 +95,7 @@ struct Snapshot {
 /// Construct once per application. `observer` attaches the session's existing event source;
 /// `context_changed` updates file identity and selection even with EnableEvents=False.
 pub struct WorkbookAutomation {
+    policy: calc_object_model::policy::PolicyChecker,
     host: Rc<dyn AutomationHost>,
     fallback: ValuesOnly<Rc<dyn AutomationHost>>,
     handlers: Handlers<Self>,
@@ -117,6 +118,13 @@ enum Access<'a> {
 
 impl WorkbookAutomation {
     pub fn new(host: Rc<dyn AutomationHost>) -> Self {
+        Self::with_policy(host, Default::default())
+    }
+
+    pub fn with_policy(
+        host: Rc<dyn AutomationHost>,
+        policy: calc_object_model::policy::PolicyChecker,
+    ) -> Self {
         let mut handlers = Handlers::new();
         handlers.on(
             "Application",
@@ -223,6 +231,7 @@ impl WorkbookAutomation {
         );
         Self {
             fallback: ValuesOnly::new(host.clone()),
+            policy,
             host,
             handlers,
             snapshot: RefCell::new(None),
@@ -676,10 +685,10 @@ impl WorkbookAutomation {
         })
     }
     fn fallback_member(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.fallback.invoke(target, call)
+        self.fallback.handlers().dispatch(&self.fallback, target, call, "dc-1nbp.5")
     }
     fn delegate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, _| self.fallback.invoke(target, call))
+        self.with_target(target, |_, _| self.fallback_member(target, call))
     }
     fn application_range(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
@@ -1096,12 +1105,12 @@ impl ObjectModel for WorkbookAutomation {
         self.fallback.application()
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let result = if let Some(handler) = self.handlers.get(call.interface, call.member) {
+        self.policy.check(call)?;
+        if let Some(handler) = self.handlers.get(call.interface, call.member) {
             handler(self, target, call)
         } else {
-            self.fallback.invoke(target, call)
-        };
-        result
+            self.fallback_member(target, call)
+        }
     }
     fn released(&self, target: &ObjectRef) {
         if let ObjectKey::Range(reference)
@@ -1142,71 +1151,119 @@ pub struct AutomationObserver {
     model: Rc<WorkbookAutomation>,
     events: Rc<dyn EventSource>,
 }
+impl AutomationObserver {
+    fn sheet_target_event(
+        &self,
+        session: &mut HostSession,
+        sheet: SheetId,
+        target: &[GridArea],
+        document_event: &str,
+        sheet_event: &str,
+    ) -> Result<(), AutoError> {
+        let reference = ReferenceLike::from_areas(target.to_vec())
+            .map_err(|error| AutoError::not_modelled(error.to_string(), "dc-17spk.11"))?;
+        self.model.context_changed(session);
+        let worksheet = self.model.worksheet_object(sheet)?;
+        let workbook = self.model.workbook_object()?;
+        let application = self.model.application();
+        let mut first_failure = None;
+        for (source, interface, event) in [
+            (&worksheet, "DocEvents", document_event),
+            (&workbook, "WorkbookEvents", sheet_event),
+            (&application, "AppEvents", sheet_event),
+        ] {
+            if !session.workbook_events_enabled() {
+                break;
+            }
+            // Each delivery owns one acquisition of the Range argument.
+            let target = AutoValue::Object(self.model.acquire_event_range(session, &reference)?);
+            let mut args = Vec::with_capacity(2);
+            if interface != "DocEvents" {
+                args.push(AutoValue::Object(worksheet.clone()));
+            }
+            args.push(target);
+            let result = self.model.with_event_session(session, false, || {
+                self.events.raise(source, interface, event, &args)
+            });
+            if let Err(error) = result {
+                first_failure.get_or_insert(error);
+            }
+        }
+        first_failure.map_or(Ok(()), Err)
+    }
+}
+
 impl WorkbookEventObserver for AutomationObserver {
     fn context_changed(&self, session: &HostSession) {
         self.model.context_changed(session);
     }
+
+    fn workbook_open(&self, session: &mut HostSession) -> Result<(), String> {
+        self.model
+            .with_event_session(session, false, || {
+                let workbook = self.model.workbook_object()?;
+                let document = self.events.raise(&workbook, "WorkbookEvents", "Open", &[]);
+                let application = self.events.raise(
+                    &self.model.application(),
+                    "AppEvents",
+                    "WorkbookOpen",
+                    &[AutoValue::Object(workbook)],
+                );
+                document.and(application)
+            })
+            .map_err(|error: AutoError| error.description())
+    }
+
     fn worksheet_change(
         &self,
         session: &mut HostSession,
         sheet: SheetId,
         target: &[GridArea],
     ) -> Result<(), String> {
-        self.model.context_changed(session);
-        let reference = ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
-        let meta = self.model.metadata().map_err(|e| e.description())?;
-        let value = self
-            .model
-            .acquire(
-                &mut Access::Session(session, false),
-                &reference,
-                RangeAxis::Cells,
-            )
-            .map_err(|e| e.description())?;
-        let args = [
-            AutoValue::Object(object(
-                "Worksheet",
-                ObjectKey::Worksheet {
-                    workbook: meta.workbook,
-                    sheet,
-                },
-            )),
-            value,
-        ];
-        let loan = EventLoan(RefCell::new(session), false);
-        let result = EVENT_SESSION.set((&*self.model, &loan), || {
-            self.events
-                .raise(&self.model.application(), "AppEvents", "SheetChange", &args)
-        });
-        result.map_err(|e| e.description())
+        self.sheet_target_event(session, sheet, target, "Change", "SheetChange")
+            .map_err(|error| error.description())
     }
+
+    fn selection_changed(
+        &self,
+        session: &mut HostSession,
+        sheet: SheetId,
+        target: &[GridArea],
+    ) -> Result<(), String> {
+        self.sheet_target_event(
+            session,
+            sheet,
+            target,
+            "SelectionChange",
+            "SheetSelectionChange",
+        )
+        .map_err(|error| error.description())
+    }
+
     fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String> {
-        self.model.context_changed(session);
-        let meta = self.model.metadata().map_err(|e| e.description())?;
-        let args = [AutoValue::Object(object(
-            "Worksheet",
-            ObjectKey::Worksheet {
-                workbook: meta.workbook,
-                sheet,
-            },
-        ))];
-        let loan = EventLoan(RefCell::new(session), false);
-        EVENT_SESSION
-            .set((&*self.model, &loan), || {
-                self.events.raise(
+        self.model
+            .with_event_session(session, false, || {
+                let worksheet = self.model.worksheet_object(sheet)?;
+                let workbook = self.model.workbook_object()?;
+                let document = self.events.raise(&worksheet, "DocEvents", "Calculate", &[]);
+                let args = [AutoValue::Object(worksheet)];
+                let book = self
+                    .events
+                    .raise(&workbook, "WorkbookEvents", "SheetCalculate", &args);
+                let application = self.events.raise(
                     &self.model.application(),
                     "AppEvents",
                     "SheetCalculate",
                     &args,
-                )
+                );
+                document.and(book).and(application)
             })
-            .map_err(|e| e.description())
+            .map_err(|error: AutoError| error.description())
     }
+
     fn after_calculate(&self, session: &mut HostSession) -> Result<(), String> {
-        self.model.context_changed(session);
-        let loan = EventLoan(RefCell::new(session), false);
-        EVENT_SESSION
-            .set((&*self.model, &loan), || {
+        self.model
+            .with_event_session(session, false, || {
                 self.events.raise(
                     &self.model.application(),
                     "AppEvents",
@@ -1214,7 +1271,36 @@ impl WorkbookEventObserver for AutomationObserver {
                     &[],
                 )
             })
-            .map_err(|e| e.description())
+            .map_err(|error| error.description())
+    }
+
+    fn before_save(
+        &self,
+        session: &mut HostSession,
+        operation: crate::SaveOperation,
+        cancel: &mut bool,
+    ) -> Result<(), String> {
+        self.model
+            .with_event_session(session, false, || {
+                let workbook = self.model.workbook_object()?;
+                let save_as_ui = AutoValue::Bool(operation == crate::SaveOperation::SaveAsDialog);
+                let document = self.events.raise_with_cancel(
+                    &workbook,
+                    "WorkbookEvents",
+                    "BeforeSave",
+                    &[save_as_ui.clone()],
+                    cancel,
+                );
+                let application = self.events.raise_with_cancel(
+                    &self.model.application(),
+                    "AppEvents",
+                    "WorkbookBeforeSave",
+                    &[AutoValue::Object(workbook), save_as_ui],
+                    cancel,
+                );
+                document.and(application)
+            })
+            .map_err(|error: AutoError| error.description())
     }
 }
 

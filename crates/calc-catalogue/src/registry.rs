@@ -60,29 +60,35 @@ pub const DECLARATION_COUNT: usize = declaration_count();
 /// A declaration, whether it has an attached kernel or a typed refusal.
 #[derive(Clone, Copy, Debug)]
 pub enum DeclarationRef {
+    /// A worksheet declaration with an execution route.
     Worksheet(&'static WorksheetDeclaration),
+    /// A declaration whose syntax, availability or execution ownership needs separate metadata.
     Other(&'static UnheldEntry),
 }
 
 impl DeclarationRef {
+    /// Stable identity used to look up this declaration.
     pub const fn id(self) -> FunctionId {
         match self {
             Self::Worksheet(x) => x.id,
             Self::Other(x) => x.id,
         }
     }
+    /// Invariant formula spelling.
     pub const fn spelling(self) -> &'static str {
         match self {
             Self::Worksheet(x) => x.spelling,
             Self::Other(x) => x.spelling,
         }
     }
+    /// Formula notation of the entry.
     pub const fn notation(self) -> Notation {
         match self {
             Self::Worksheet(x) => x.notation,
             Self::Other(x) => x.notation,
         }
     }
+    /// Execution owner and call kind.
     pub const fn kind(self) -> EntryKind {
         match self {
             Self::Worksheet(x) => x.kind,
@@ -97,42 +103,49 @@ impl DeclarationRef {
             },
         }
     }
+    /// Availability observed in Excel.
     pub const fn availability(self) -> Availability {
         match self {
             Self::Worksheet(x) => x.availability,
             Self::Other(x) => x.availability,
         }
     }
+    /// Supported argument counts.
     pub const fn arity(self) -> CallableArityShape {
         match self {
             Self::Worksheet(x) => x.arity,
             Self::Other(x) => x.arity,
         }
     }
+    /// Repeating groups in the argument list, when declared.
     pub const fn groups(self) -> Option<ArgumentGroups> {
         match self {
             Self::Worksheet(x) => x.groups,
             Self::Other(x) => x.groups,
         }
     }
+    /// Ordered parameter declarations.
     pub const fn parameters(self) -> &'static [Parameter] {
         match self {
             Self::Worksheet(x) => x.parameters,
             Self::Other(x) => x.parameters,
         }
     }
+    /// Result form visible to formula admission.
     pub const fn result(self) -> ResultForm {
         match self {
             Self::Worksheet(x) => x.result,
             Self::Other(x) => x.result,
         }
     }
+    /// Evaluation demand for the argument positions.
     pub const fn demand(self) -> ArgumentDemand {
         match self {
             Self::Worksheet(x) => x.demand,
             Self::Other(x) => x.demand,
         }
     }
+    /// Call behavior shared by the evaluator and binder.
     pub const fn traits(self) -> EntryTraits {
         match self {
             Self::Worksheet(x) => x.traits,
@@ -153,10 +166,12 @@ impl DeclarationRef {
             Self::Other(x) => x.context_facilities,
         }
     }
+    /// Whether the classified facilities include the requested one.
     pub fn uses_context(self, facility: crate::ContextFacility) -> bool {
         self.context_facilities()
             .is_some_and(|facilities| facilities.contains(&facility))
     }
+    /// How the entry is implemented or deferred.
     pub const fn implementation(self) -> Implementation {
         match self {
             Self::Worksheet(_) => Implementation::Held,
@@ -262,7 +277,7 @@ pub fn declarations() -> impl Iterator<Item = DeclarationRef> {
         )
 }
 
-/// Look up an invariant worksheet spelling in the shared declarations.
+/// Look up an invariant worksheet spelling by exact, case-sensitive comparison.
 pub fn named(spelling: &str) -> Option<DeclarationRef> {
     declarations().find(|entry| entry.notation() == Notation::Call && entry.spelling() == spelling)
 }

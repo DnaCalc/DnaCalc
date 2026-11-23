@@ -1598,3 +1598,143 @@ fn unsupported_safearray_forms_record_e11_refusals_before_value2_put() {
     }
     assert_eq!(model.refusals.get(), 3);
 }
+
+#[windows::core::interface("00024412-0000-0000-C000-000000000046")]
+unsafe trait WorkbookEvents: IDispatch {}
+
+#[implement(WorkbookEvents, Agile = false)]
+struct CancellingSaveSink(Rc<Cell<u32>>);
+impl WorkbookEvents_Impl for CancellingSaveSink_Impl {}
+impl IDispatch_Impl for CancellingSaveSink_Impl {
+    fn GetTypeInfoCount(&self) -> windows::core::Result<u32> {
+        Ok(0)
+    }
+    fn GetTypeInfo(&self, _: u32, _: u32) -> windows::core::Result<ITypeInfo> {
+        Err(windows::core::Error::from_hresult(E_NOTIMPL))
+    }
+    fn GetIDsOfNames(
+        &self,
+        _: *const GUID,
+        _: *const PCWSTR,
+        _: u32,
+        _: u32,
+        _: *mut i32,
+    ) -> windows::core::Result<()> {
+        Err(windows::core::Error::from_hresult(E_NOTIMPL))
+    }
+    fn Invoke(
+        &self,
+        dispid: i32,
+        _: *const GUID,
+        _: u32,
+        _: DISPATCH_FLAGS,
+        params: *const DISPPARAMS,
+        _: *mut VARIANT,
+        _: *mut EXCEPINFO,
+        _: *mut u32,
+    ) -> windows::core::Result<()> {
+        assert_eq!(
+            Some(dispid),
+            Descriptor::get().dispid_of(id("WorkbookEvents"), "BeforeSave")
+        );
+        let params = unsafe { &*params };
+        assert_eq!((params.cArgs, params.cNamedArgs), (2, 2));
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(params.rgdispidNamedArgs, 2) },
+            [0, 1]
+        );
+        let save_as_ui = unsafe { &*params.rgvarg };
+        let cancel = unsafe { &*params.rgvarg.add(1) };
+        unsafe {
+            assert_eq!(save_as_ui.Anonymous.Anonymous.vt, VT_BOOL);
+            assert_eq!(
+                save_as_ui.Anonymous.Anonymous.Anonymous.boolVal,
+                VARIANT_FALSE
+            );
+            assert_eq!(cancel.Anonymous.Anonymous.vt, VT_BYREF | VT_BOOL);
+            let cancel = cancel.Anonymous.Anonymous.Anonymous.pboolVal;
+            assert_eq!(*cancel, VARIANT_FALSE);
+            *cancel = VARIANT_TRUE;
+        }
+        self.0.set(self.0.get() + 1);
+        Ok(())
+    }
+}
+
+/// Native-only: exercises the Windows COM sink ABI against HostSession's ordinary save.
+#[test]
+fn com_before_save_sink_cancels_save_via_byref_bool() {
+    use calc_host::{
+        HostOptions, HostSession, MemorySource, OpenPolicy, SaveFailed, SavePolicy,
+        automation::{AutomationHost, WorkbookAutomation},
+    };
+
+    struct Host;
+    impl ApplicationHost for Host {
+        fn hwnd(&self) -> isize {
+            0
+        }
+        fn run(&self, _: &str, _: &[AutoValue]) -> Result<AutoValue, AutoError> {
+            Err(AutoError::Disconnected)
+        }
+        fn events_enabled(&self) -> bool {
+            true
+        }
+        fn set_events_enabled(&self, _: bool) {}
+    }
+    impl AutomationHost for Host {
+        fn with_invocation(
+            &self,
+            _: &mut dyn FnMut(
+                &mut dyn calc_func::UserFunctionContext,
+            ) -> Result<AutoValue, AutoError>,
+        ) -> Option<Result<AutoValue, AutoError>> {
+            None
+        }
+        fn with_session(
+            &self,
+            _: &mut dyn FnMut(&HostSession) -> Result<AutoValue, AutoError>,
+        ) -> Result<AutoValue, AutoError> {
+            Err(AutoError::Disconnected)
+        }
+    }
+
+    let _apartment = Apartment::new();
+    let projection = Rc::new(projection());
+    let model = Rc::new(WorkbookAutomation::new(Rc::new(Host)));
+    let mut session = HostSession::open(
+        std::sync::Arc::new(MemorySource::new(
+            include_bytes!("../../calc-host/tests/fixtures/dc_09v/formats.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    projection.bind_model(model.clone()).unwrap();
+    session.set_workbook_event_observer(Some(model.observer(projection.clone())));
+    let workbook = projection
+        .state
+        .wrap(&model.workbook_object().unwrap())
+        .unwrap();
+    let container = workbook.cast::<IConnectionPointContainer>().unwrap();
+    let point = unsafe { container.FindConnectionPoint(&WorkbookEvents::IID) }.unwrap();
+    let calls = Rc::new(Cell::new(0));
+    let sink: WorkbookEvents = CancellingSaveSink(calls.clone()).into();
+    let cookie = unsafe { point.Advise(&sink.cast::<IUnknown>().unwrap()) }.unwrap();
+
+    let original = b"existing destination contents".to_vec();
+    let mut destination = original.clone();
+    assert!(matches!(
+        session.save(&SavePolicy::default(), &mut destination),
+        Err(SaveFailed::Cancelled)
+    ));
+    assert_eq!(calls.get(), 1);
+    assert_eq!(destination, original);
+    unsafe { point.Unadvise(cookie) }.unwrap();
+    let mut destination = Vec::new();
+    session
+        .save(&SavePolicy::default(), &mut destination)
+        .unwrap();
+    assert!(!destination.is_empty());
+    assert_eq!(calls.get(), 1);
+}

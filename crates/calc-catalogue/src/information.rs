@@ -4,23 +4,40 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 10;
 
+/// Stable ID for `ISBLANK`.
 pub const ISBLANK: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `ISERR`.
 pub const ISERR: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `ISERROR`.
 pub const ISERROR: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `ISNA`.
 pub const ISNA: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `ISNUMBER`.
 pub const ISNUMBER: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `ISTEXT`.
 pub const ISTEXT: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `ISNONTEXT`.
 pub const ISNONTEXT: FunctionId = FunctionId::new(CODE, 7);
+/// Stable ID for `ISLOGICAL`.
 pub const ISLOGICAL: FunctionId = FunctionId::new(CODE, 8);
+/// Stable ID for `ISEVEN`.
 pub const ISEVEN: FunctionId = FunctionId::new(CODE, 9);
+/// Stable ID for `ISODD`.
 pub const ISODD: FunctionId = FunctionId::new(CODE, 10);
+/// Stable ID for `ISREF`.
 pub const ISREF: FunctionId = FunctionId::new(CODE, 11);
+/// Stable ID for `ISFORMULA`.
 pub const ISFORMULA: FunctionId = FunctionId::new(CODE, 12);
+/// Stable ID for `TYPE`.
 pub const TYPE: FunctionId = FunctionId::new(CODE, 13);
+/// Stable ID for `N`.
 pub const N: FunctionId = FunctionId::new(CODE, 14);
+/// Stable ID for `NA`.
 pub const NA: FunctionId = FunctionId::new(CODE, 15);
+/// Stable ID for `ERROR_TYPE`.
 pub const ERROR_TYPE: FunctionId = FunctionId::new(CODE, 16);
 
 const VALUE: &[Parameter] = &[Parameter::value("value")];
@@ -66,6 +83,7 @@ const fn unary(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     unary(ISBLANK, "ISBLANK", VALUE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
     unary(ISERR, "ISERR", VALUE).with_three_d(super::ThreeD::new(None, None, Some(&[]))),
