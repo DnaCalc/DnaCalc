@@ -1,3 +1,4 @@
+use crate::callback_abi::{CallbackReply, ResultWrite, operands};
 use crate::native::{Module, Registration, RegistrationInfo, Shared, current_sheet};
 use calc_func::UserFunctionContext;
 use calc_value::{CalcValue, CoreRef, ExcelText, ReferenceLike, WorksheetErrorCode};
@@ -79,59 +80,7 @@ impl Frame<'_> {
     }
 }
 
-/// What one callback answers: its exact status, what happens to the caller's result operand,
-/// and whether the calling formula becomes a typed refusal. `dispatch` applies it in one place.
-pub(crate) struct CallbackReply {
-    pub status: i32,
-    pub write: ResultWrite,
-    pub refusal: Option<String>,
-}
-pub(crate) enum ResultWrite {
-    /// The result operand is not touched.
-    Unchanged,
-    /// All 32 bytes are zeroed (xlAsyncReturn's accepted completion, Excel20527).
-    ZeroAll,
-    /// A result operand built by the host; its allocation is already registered.
-    Operand(XlOper12),
-    /// A failed callback inside a frame: Excel 16.0.20527 writes an xltypeErr into the result
-    /// operand: #VALUE! for statuses 2, 32 and 128 (x13 boundary batch, every failed row in the
-    /// normal, `#`, `$` and xlAutoOpen contexts), the source's own error when xlCoerce fails on
-    /// an error value (x14). Other statuses leave it untouched.
-    Error(i32),
-}
 impl CallbackReply {
-    fn status(status: i32) -> Self {
-        Self {
-            status,
-            write: if matches!(status, INVALID_FUNCTION | FAILED | NOT_THREAD_SAFE) {
-                ResultWrite::Error(15)
-            } else {
-                ResultWrite::Unchanged
-            },
-            refusal: None,
-        }
-    }
-    fn operand(oper: XlOper12) -> Self {
-        Self {
-            status: SUCCESS,
-            write: ResultWrite::Operand(oper),
-            refusal: None,
-        }
-    }
-    /// The first status 64 of an attempt: #VALUE! in the result operand (x17), no refusal.
-    fn uncalced() -> Self {
-        Self {
-            status: UNCALCED,
-            write: ResultWrite::Error(15),
-            refusal: None,
-        }
-    }
-    fn refused(status: i32, why: String) -> Self {
-        Self {
-            refusal: Some(why),
-            ..Self::status(status)
-        }
-    }
     unsafe fn apply(self, frame: Option<&mut Frame<'_>>, result: *mut XlOper12) -> i32 {
         if let Some(frame) = frame {
             if let Some(why) = &self.refusal {
@@ -144,19 +93,7 @@ impl CallbackReply {
                 free(&frame.state, oper);
             }
         }
-        if !result.is_null() {
-            match self.write {
-                ResultWrite::Unchanged => {}
-                ResultWrite::ZeroAll => unsafe {
-                    std::ptr::write_bytes(result.cast::<u8>(), 0, std::mem::size_of::<XlOper12>());
-                },
-                ResultWrite::Operand(oper) => unsafe { result.write_unaligned(oper) },
-                ResultWrite::Error(code) => unsafe {
-                    result.write_unaligned(XlOper12::error(code));
-                },
-            }
-        }
-        self.status
+        unsafe { self.write_result(result) }
     }
 }
 thread_local! { static FRAME:Cell<*mut Frame<'static>>=const{Cell::new(std::ptr::null_mut())}; }
@@ -341,19 +278,11 @@ pub unsafe fn dispatch(
     result: *mut XlOper12,
 ) -> i32 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
-        if !(0..=255).contains(&count) {
-            return INVALID_COUNT;
-        }
-        if count > 0 && args.is_null() {
-            return INVALID_OPER;
-        }
-        let pointers: Vec<_> = (0..count as usize)
-            .map(|i| args.add(i).read_unaligned())
-            .collect();
+        let pointers = match operands(count, args) {
+            Ok(pointers) => pointers,
+            Err(status) => return status,
+        };
         let args = pointers.as_slice();
-        if args.iter().any(|a| a.is_null()) {
-            return INVALID_OPER;
-        }
         if function == XL_ASYNC_RETURN {
             return async_return(args, result);
         }

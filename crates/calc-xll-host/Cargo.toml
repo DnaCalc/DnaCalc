@@ -9,11 +9,13 @@ description = "Windows XLL loading and C API callbacks through the shared user-f
 [package.metadata.dnacalc]
 portability = "native-only"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+calc-xll-abi = { path = "../calc-xll-abi" }
+
 [target.'cfg(windows)'.dependencies]
 calc-catalogue = { path = "../calc-catalogue" }
 calc-value = { path = "../calc-value" }
 calc-func = { path = "../calc-func" }
 calc-fml = { path = "../calc-fml" }
-calc-xll-abi = { path = "../calc-xll-abi" }
 libffi = "=5.2.0"
 sha2 = "=0.10.9"
