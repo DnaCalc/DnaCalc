@@ -8,22 +8,35 @@ use std::{
     rc::Rc,
 };
 
+/// The workbook event associated with a delivery failure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookEvent {
+    /// The application announced that the workbook opened.
     Open,
+    /// A committed command wrote worksheet inputs.
     WorksheetChange {
+        /// Worksheet containing the input writes.
         sheet: SheetId,
+        /// Areas written by the command on this worksheet.
         target: Vec<GridArea>,
     },
+    /// A successful calculation evaluated formulas or was explicitly requested.
     AfterCalculate,
+    /// The worksheet selection changed.
     SelectionChanged {
+        /// Worksheet containing the selection.
         sheet: SheetId,
+        /// Areas in the new selection.
         target: Vec<GridArea>,
     },
+    /// A completed calculation published values on a worksheet.
     WorksheetCalculate {
+        /// Worksheet that published calculated values.
         sheet: SheetId,
     },
+    /// The session was preparing to save the workbook.
     BeforeSave {
+        /// Requested save operation.
         operation: SaveOperation,
     },
 }
@@ -33,18 +46,24 @@ pub enum WorkbookEvent {
 /// command completes its transaction, calculation and events before the caller resumes.
 /// BeforeSave may also return an authored batch for the existing pre-pin route.
 pub trait WorkbookEventHandler {
+    /// Update the runtime workbook name, even while event delivery is disabled.
     fn file_identity_changed(&self, _name: &str) {}
+    /// Refresh runtime context from the current session.
     fn context_changed(&self, _session: &HostSession) {}
+    /// Handle the open announcement for the admitted project.
     fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> {
         Ok(())
     }
+    /// Handle committed input writes to one sheet.
     fn worksheet_change(
         &self,
         session: &mut HostSession,
         sheet: SheetId,
         target: &[GridArea],
     ) -> Result<(), String>;
+    /// Handle a sheet that published values in a completed calculation.
     fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String>;
+    /// Handle the new selection areas on a worksheet.
     fn selection_changed(
         &self,
         _session: &mut HostSession,
@@ -53,6 +72,7 @@ pub trait WorkbookEventHandler {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// Return the save outcome, including any edits to apply before pinning the revision.
     fn before_save(
         &self,
         session: &mut HostSession,
@@ -62,11 +82,45 @@ pub trait WorkbookEventHandler {
 
 /// A projection observes the same committed events after the owning VBA handler.
 /// Callbacks borrow the session only for their duration; they must not retain its address.
+///
+/// # Examples
+///
+/// ```
+/// use std::{cell::Cell, rc::Rc, sync::Arc};
+///
+/// use calc_host::{
+///     HostOptions, HostSession, MemorySource, OpenPolicy, WorkbookEventObserver, blank_package,
+/// };
+///
+/// #[derive(Default)]
+/// struct Opens(Cell<u32>);
+///
+/// impl WorkbookEventObserver for Opens {
+///     fn workbook_open(&self, _: &mut HostSession) -> Result<(), String> {
+///         self.0.set(self.0.get() + 1);
+///         Ok(())
+///     }
+/// }
+///
+/// let mut book = HostSession::open(
+///     Arc::new(MemorySource::new(blank_package())),
+///     &OpenPolicy::default(),
+///     HostOptions::default(),
+/// ).unwrap();
+/// let observer = Rc::new(Opens::default());
+/// let registration = book.add_workbook_event_observer(observer.clone());
+/// book.notify_workbook_open();
+/// assert_eq!(observer.0.get(), 1);
+/// assert!(book.remove_workbook_event_observer(registration));
+/// ```
 pub trait WorkbookEventObserver {
+    /// Bind to the current session context, including on initial registration.
     fn context_changed(&self, _session: &HostSession) {}
+    /// Observe the application open announcement.
     fn workbook_open(&self, _session: &mut HostSession) -> Result<(), String> {
         Ok(())
     }
+    /// Observe the new selection areas on a worksheet.
     fn selection_changed(
         &self,
         _session: &mut HostSession,
@@ -75,6 +129,7 @@ pub trait WorkbookEventObserver {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// Observe the requested save and set the shared cancel flag to request cancellation.
     fn before_save(
         &self,
         _session: &mut HostSession,
@@ -83,6 +138,7 @@ pub trait WorkbookEventObserver {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// Observe committed input writes after the owning handler.
     fn worksheet_change(
         &self,
         _session: &mut HostSession,
@@ -100,26 +156,35 @@ pub trait WorkbookEventObserver {
     ) -> Result<(), String> {
         Ok(())
     }
+    /// Observe successful completion after any worksheet calculation callbacks.
     fn after_calculate(&self, _session: &mut HostSession) -> Result<(), String> {
         Ok(())
     }
 }
 
+/// A callback error or an event delivery refusal recorded by the session.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkbookEventFailure {
+    /// Sequence number assigned in failure recording order.
     pub sequence: u64,
+    /// Authored revision current when the session recorded the failure.
     pub revision: calc_doc_model::AuthoredRevision,
+    /// Event whose delivery failed or was refused.
     pub event: WorkbookEvent,
+    /// Diagnostic text supplied by the callback or session.
     pub reason: String,
 }
 
+/// A bounded report of event failures and the number of older entries dropped.
 #[derive(Debug, Default)]
 pub struct WorkbookEventFailures {
+    /// Retained failures in recording order, oldest first.
     pub failures: Vec<WorkbookEventFailure>,
     /// Older undrained failures omitted from the bounded queue, never counted as successes.
     pub omitted: u64,
 }
 
+/// A session-local registration ID for removing a workbook event observer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WorkbookEventObserverId(u64);
 
@@ -179,13 +244,16 @@ impl HostSession {
             });
         }
     }
+    /// Replace or clear the owning handler and refresh the workbook context.
     pub fn set_workbook_event_handler(&mut self, owner: Option<Rc<dyn WorkbookEventHandler>>) {
         self.workbook_events.owner = owner;
         self.notify_workbook_context();
     }
+    /// Set the session-wide event delivery switch used by the owner and observers.
     pub fn set_workbook_events_enabled(&mut self, enabled: bool) {
         self.workbook_events.enabled.set(enabled);
     }
+    /// Return the current event delivery setting.
     pub fn workbook_events_enabled(&self) -> bool {
         self.workbook_events.enabled.get()
     }
@@ -201,6 +269,11 @@ impl HostSession {
         self.workbook_events.application_observer =
             observer.map(|observer| self.add_workbook_event_observer(observer));
     }
+    /// Register an independent observer and immediately deliver its current context.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the session exhausts its observer IDs.
     pub fn add_workbook_event_observer(
         &mut self,
         observer: Rc<dyn WorkbookEventObserver>,
@@ -213,6 +286,7 @@ impl HostSession {
         self.workbook_events.observers.insert(id, observer);
         id
     }
+    /// Remove the registration and return whether it was present.
     pub fn remove_workbook_event_observer(&mut self, id: WorkbookEventObserverId) -> bool {
         self.workbook_events.observers.remove(&id).is_some()
     }
@@ -257,6 +331,7 @@ impl HostSession {
             omitted: self.workbook_events.omitted,
         }
     }
+    /// Drain the retained failures and reset the count of omitted entries.
     pub fn take_workbook_event_failures(&mut self) -> WorkbookEventFailures {
         WorkbookEventFailures {
             failures: self.workbook_events.failures.drain(..).collect(),
