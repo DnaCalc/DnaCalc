@@ -211,30 +211,34 @@ impl<M: ObjectModel> Executor<M> {
                 self.invoke(&target, name, Operation::Set, value)?;
             }
             Op::Load { target, props } => {
+                if props.is_empty() {
+                    return Ok(result);
+                }
+                let target = match self.object(context, *target) {
+                    Ok(object) => Some(object),
+                    Err(failure)
+                        if failure.code == "ItemNotFound"
+                            && props.iter().any(|prop| prop == "isNullObject") =>
+                    {
+                        None
+                    }
+                    Err(failure) => return Err(failure),
+                };
                 for prop in props {
                     if prop == "isNullObject" {
-                        let handles = self.handles.borrow();
-                        let handle = handles.get(&(context, *target)).ok_or_else(|| {
-                            error(
-                                "InvalidObjectPath",
-                                "the target handle is not live",
-                                None,
-                                0,
-                            )
-                        })?;
                         result.loaded.push((
                             prop.clone(),
                             WireValue::Bool {
-                                v: handle.object.is_none(),
+                                v: target.is_none(),
                             },
                         ));
                         continue;
                     }
-                    let target = self.object(context, *target)?;
+                    let Some(target) = &target else { continue };
                     let mapped = map::lookup(prop);
-                    let value = self.invoke(&target, prop, Operation::Get, vec![])?;
+                    let value = self.invoke(target, prop, Operation::Get, vec![])?;
                     let value = if prop == "address" {
-                        self.sheet_address(&target, value)?
+                        self.sheet_address(target, value)?
                     } else {
                         value
                     };

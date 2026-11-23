@@ -215,3 +215,46 @@ fn dc_17spk_5__only_item_not_found_becomes_a_null_object() {
     assert_eq!(reply.results[5].loaded[0].1, WireValue::Bool { v: true });
     assert_eq!(reply.error.unwrap().ordinal, 6);
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn loading_nullness_with_properties_skips_only_missing_objects() {
+    let host = host();
+    let mut ops = range();
+    for (out, key, props) in [
+        (5, "Missing", ["isNullObject", "name"]),
+        (6, "Absent", ["name", "isNullObject"]),
+        (7, "Sheet1", ["name", "isNullObject"]),
+    ] {
+        ops.extend([
+            Op::Call {
+                target: 2,
+                name: "getItemOrNullObject".into(),
+                args: vec![WireValue::text(key)],
+                out: Some(out),
+            },
+            Op::Load {
+                target: out,
+                props: props.into_iter().map(String::from).collect(),
+            },
+        ]);
+    }
+
+    let reply = batch(&host, 1, ops);
+    assert_eq!(reply.error, None);
+    for ordinal in [4, 6] {
+        assert!(reply.results[ordinal].null_object);
+        assert_eq!(
+            reply.results[ordinal + 1].loaded,
+            [("isNullObject".into(), WireValue::Bool { v: true })]
+        );
+    }
+    assert!(!reply.results[8].null_object);
+    assert_eq!(
+        reply.results[9].loaded,
+        [
+            ("name".into(), WireValue::text("Sheet1")),
+            ("isNullObject".into(), WireValue::Bool { v: false }),
+        ]
+    );
+}
