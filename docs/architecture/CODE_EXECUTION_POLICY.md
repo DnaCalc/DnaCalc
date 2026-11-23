@@ -27,10 +27,10 @@ What each level means per runtime:
 |---|---|---|---|
 | VBA (CalcVBA) | not compiled to run | runs; the CalcVBA hosting interface (section 4) mediates every outside reach | runs; the same interface, with a policy that allows everything |
 | XLL and COM add-ins (native code) | not loaded | **not available.** Native code in our process (or in the surrogate, ADDIN_SURROGATE.md section 9) has the person's full rights and cannot be mediated. Guarded never loads native code. | loaded |
-| JavaScript add-ins (later) | not loaded | runs in its host's sandbox (WebView2 or the browser); its only bridges out are the host's Office.js projection and the host's fetch, both mediated by this policy | the same sandbox; the host bridges allow everything |
+| Embedded JavaScript custom functions | no module load | runs with time and memory limits in QuickJS, with worksheet values and invocation metadata as inputs | same embedded runtime capabilities |
+| JavaScript task panes (dc-17spk.5) | not loaded | runs in its host's sandbox (WebView2 or the browser); its only bridges out are the host's Office.js projection and the host's fetch, both mediated by this policy | the same sandbox; the host bridges allow everything |
 
-Guarded for VBA is therefore the only level at which untrusted code runs and is still contained.
-That makes its design the core of this document.
+The rest of this section describes the closely related VBA policy and object model.
 
 ## 2. Guarded is a model, not a deny list
 

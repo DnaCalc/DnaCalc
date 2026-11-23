@@ -1224,7 +1224,8 @@ fn cell_text(written: &str, row: u32, column: u32) -> String {
 }
 
 /// The letters of a 1-based column: 1 is A, 27 is AA.
-pub(crate) fn column_letters(mut column: u32) -> String {
+/// Letters of a one-based Excel column index.
+pub fn column_letters(mut column: u32) -> String {
     let mut letters = Vec::new();
     while column > 0 {
         let rest = (column - 1) % 26;

@@ -8,3 +8,7 @@ mod opened_vba;
 
 #[path = "support/projection_wire.rs"]
 mod projection_wire;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "js.rs"]
+mod js;

@@ -263,6 +263,18 @@
       "reason": "ADDIN_SURROGATE.md sections 4 and 10: the surrogate envelope moves envelopes and bytes and never decodes a payload; the platform and both applications build on it"
     },
     {
+      "package": "calc-js-host",
+      "scope": "closure",
+      "forbidden": [
+        "calc-host",
+        "calc-engine",
+        "calc-doc",
+        "calc-addin-host",
+        "calc-platform-desktop"
+      ],
+      "reason": "API_FACES.md section 5.5: the embedded JavaScript host attaches through CalcFml without the workbook host, document codec or desktop shell."
+    },
+    {
       "package": "calc-addin-host",
       "scope": "closure",
       "forbidden": [
