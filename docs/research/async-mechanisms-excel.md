@@ -57,11 +57,11 @@ completed individual calls.
 
 ## Registered RTD measurements
 
-On GOVERT-OMEN, two owned private Excel sessions at 16.0.20625.20108 ran the
+On GOVERT-OMEN, owned private Excel sessions at 16.0.20625.20108 ran the
 numeric RTD server from the existing X5 fixture. The scratch DLL used a
 fixed test CLSID, tick-stamped callbacks and three notifications. The sessions
 reported a 2,000 ms RTD throttle and 16 calculation threads with MTR enabled.
-Both runs removed the per-user CLSID and ProgID. The event run recorded zero
+The runs removed the per-user CLSID and ProgID. The event and F9 runs recorded zero
 owned Excel windows on the user desktop.
 
 | Case | Excel observation |
@@ -69,13 +69,14 @@ owned Excel windows on the user desktop.
 | Automatic, two cells with the same topic | One ConnectData served both subscribers. The initial value was 1. The first notification refreshed 42 immediately. Excel coalesced the 43 and 44 notifications, then refreshed 44 about 2,000 ms after the first refresh. The two dependent chains ended at 45 → 90 and 54 → 162. The two refreshes each raised SheetCalculate and AfterCalculate. |
 | Remove one subscriber and retarget the other | Removing the first formula left the original topic connected. The replacement topic connected before the old topic disconnected. Closing the workbook disconnected the replacement and terminated the server. |
 | Manual | The server still refreshed 42 and 44 while the sheet kept showing 1 in both topic cells and the dependents retained their calculated values. Retargeting showed the new topic's 44 while its dependents stayed stale. Calculate published the two affected chains. CalculateFull kept the settled values. |
+| Native F9 in Manual | On the focused private Excel grid, F9 changed the topic cells from 1 to 44 and both dependent chains from 2 and 4 / 11 and 33 to 45 and 90 / 54 and 162. CalculationState went from 2 to 0. See ww9/rtd-f9. |
 | Save and reopen in Manual | The reopened topic initially showed saved 44 and dependents showed 54 and 162. Calculate reconnected and showed 1, 11 and 33. The server again refreshed 42 and 44 while the worksheet retained 1 until another calculation. |
 | DNA Calc numeric control | The Win64 workbook harness admitted 1, 42 and 44, ended with 44 and dependent 45, and held zero RTD subscriptions after close. The comparison covers a single topic in the harness. |
 
 Excel snapshots, tick-stamped callbacks and ordered AppEvents are in
 `ww9/rtd-events/{excel.json,rtd.tsv,events.tsv}`. The DNA Calc results are in
 `ww9/rtd-product/{engine.out,rtd.tsv}`. The remaining dc-26wtr.1 cases include
-native F9 and interruption during RTD work, Promise cancellation and streaming.
+interruption during RTD work, Promise cancellation and streaming.
 Managed RTD remains dc-snz.23.
 
 ## Remaining experiment setup
