@@ -70,9 +70,9 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 - `ObjectRef { interface, key }`: the default interface and what it denotes. Workbook objects name session
   identities and are resolved on every call. A Range is a `StoredReference` handle of the session tracker
   (harvest finding 1), released when the last wrapper is released (`ObjectModel::released`).
-- The COM projection currently makes a fresh wrapper per acquisition. Excel's measured identity
-  is shared across the Application acquisition paths below. Window and Range acquisitions have
-  separate identities. The Application identity correction is owned by dc-6332.16.
+- The COM projection shares one Application wrapper across acquisitions on its STA. Window and
+  Range acquisitions have separate identities, matching the measured Excel identities below.
+  The second-apartment and no-Office measurements remain with dc-6332.16.
 
 ## 5. Dispatch and profiles
 
@@ -129,9 +129,11 @@ CalcVBA session can drop its own copies later.
   descriptor with `CreateTypeLib2` (names and FUNCDESCs, so `TypeName` and late-bound introspection work).
 - **Events**: connection points per source interface; `EventSource::raise` invokes subscribers with the
   descriptor's DISPIDs, snapshotting subscribers so a handler can Unadvise during delivery.
+  The Application also accepts an `IID_IDispatch` connection point for late-bound AppEvents clients.
 - **Activation**: WM_GETOBJECT with OBJID_NATIVEOM returns the Window object (`LresultFromObject`), as
-  Excel-DNA's and xlOil's `AccessibleObjectFromWindow` expect. Nothing is registered; Excel's own
-  registrations are never touched.
+  Excel-DNA's and xlOil's `AccessibleObjectFromWindow` expect. The full Windows desktop can also
+  publish its Application and file-backed workbook in the ROT and expose a local class factory for
+  `DnaCalc.Application`. The server class uses a DNA Calc CLSID.
 - **Threading**: the projection lives on the workbook window's STA. Direct calls through a raw
   interface pointer on another thread return `RPC_E_WRONG_THREAD`. A COM-marshaled call goes
   through the apartment proxy. Its admission while the owning STA calculates is measured

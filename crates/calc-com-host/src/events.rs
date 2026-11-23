@@ -33,6 +33,7 @@ struct Point {
     state: Weak<State>,
     target: ObjectRef,
     interface: InterfaceId,
+    sink_iid: GUID,
     // Keeps COM identity stable for GetConnectionPointContainer; no strong Rust state link.
     owner: IUnknown,
     apartment: std::sync::Arc<crate::runtime::Apartment>,
@@ -55,7 +56,7 @@ impl Point {
 impl IConnectionPoint_Impl for Point_Impl {
     fn GetConnectionInterface(&self) -> windows::core::Result<GUID> {
         self.state()?;
-        Ok(guid(self.interface))
+        Ok(self.sink_iid)
     }
     fn GetConnectionPointContainer(&self) -> windows::core::Result<IConnectionPointContainer> {
         self.state()?;
@@ -67,7 +68,7 @@ impl IConnectionPoint_Impl for Point_Impl {
             .as_ref()
             .ok_or_else(|| windows::core::Error::from_hresult(E_POINTER))?;
         let mut raw = ptr::null_mut();
-        unsafe { sink.query(&guid(self.interface), &mut raw) }
+        unsafe { sink.query(&self.sink_iid, &mut raw) }
             .ok()
             .map_err(|_| windows::core::Error::from_hresult(CONNECT_E_CANNOTCONNECT))?;
         let sink = unsafe { IDispatch::from_raw(raw) };
@@ -126,10 +127,15 @@ impl State {
         owner: *mut Wrapper,
     ) -> Result<IConnectionPoint, AutoError> {
         self.apartment.check()?;
+        // AppEvents is a dispinterface. Late-bound clients without Excel can use the system
+        // IDispatch proxy for the sink, with the same descriptor DISPIDs and delivery order.
         let interface = self
             .source_interfaces(target)
             .into_iter()
-            .find(|id| guid(*id) == *iid)
+            .find(|id| {
+                guid(*id) == *iid
+                    || (*iid == IDispatch::IID && *id == crate::runtime::id("AppEvents"))
+            })
             .ok_or(AutoError::Status(CONNECT_E_NOCONNECTION.0))?;
         let raw = owner.cast();
         let owner = unsafe { IUnknown::from_raw_borrowed(&raw) }
@@ -139,6 +145,7 @@ impl State {
             state: Rc::downgrade(self),
             target: target.clone(),
             interface,
+            sink_iid: *iid,
             owner,
             apartment: self.apartment.clone(),
         }

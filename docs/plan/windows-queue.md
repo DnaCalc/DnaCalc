@@ -28,6 +28,7 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 
 | Bead | Lane handoff | State | Windows evidence | Next step or prerequisite |
 | --- | --- | --- | --- | --- |
+| dc-17spk.2 | K/oop1 | Pending | Linux cross-build only | Run the desktop and external client on a Win64 user profile without Office. See the commands under [desktop Automation](#dc-17spk2-desktop-automation). |
 | dc-0f1k.10 | K/om1 | Done | **ww1**. Private-desktop Formula Explorer build 2edde91f loaded X1.xll through the native picker, listed SHA-256 98565cfb43cbeb7b947bc893a2cd2901b311b8c47d1e59270cec7e0e510d1940, returned 3 for =MyAdd(1,2), unloaded and canceled a second picker with zero providers. Evidence onecalc-picker/picker.json and current10.guard.json. | — |
 | dc-0f1k.4 | K/om1 and K/ev2 | Partly done | **ww4**. Windows native Formula Explorer SaveAsUI regression passed 1/1. Excel 20527 normal and Cancel both compiled and ran. Managed Invoke and native Invoke/LegacyIAccessible exposed no usable End action on private desktop for error 5. Error arms timed out and owned PIDs exited; UIA End continuation stays dc-0f1k.4. Status rows also in ww1, ww2, ww3. | Use K/ev2 for the Formula Explorer End continuation and native replay. The earlier Excel Save control completed in ww1. Later UI Automation-only reruns left the raised Save unresolved. Full workbook edit effects belong to dc-hsa5.12. |
 | dc-1nbp.3.1 | K/px1 and K/ev2 | Partly done | **ww4**. Post-ev2 Win64 95eb0cb2 with retained page bundle matched 47/73 total; X0 20/45 in both load arms, AfterCalculate 10 vs Excel 9 and SheetCalculate 6 vs Excel 5. xlOil 15/16 and original 12/12. Private Excel showed the owned grid but gave no keyboard focus. Target/event parity remains dc-1nbp.3.1, grid entry dc-1nbp.6. Status rows also in ww1. | Continue true keyboard entry and fix Target, ordered notifications and the extra PyTargets row using K/ev2. Share the owned Excel setup with dc-1nbp.6. |
@@ -268,3 +269,92 @@ acquisition or comparison. Account for all 150,519 inventoried
 cp1 formula cells under dc-ebb. Under dc-ebb.4, map the authored captures to the declared anchors
 and spills, fill the expected answers and wire the formula and VBA cases into their existing
 corpora. Report missing captures and execution errors alongside pass/fail counts.
+
+### dc-17spk.2 Desktop Automation
+
+Run from the DnaCalc root in 64-bit Windows PowerShell 5.1 on a disposable, non-elevated
+profile with WebView2 and without Office. Use an owned desktop session and a fresh stage
+folder. The test workbook is a disposable copy of an authored Formula Explorer fixture.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$env:CARGO_BUILD_JOBS = '5'
+$env:CARGO_PROFILE_DEV_DEBUG = '0'
+$stage = Join-Path $env:TEMP ("dnacalc-oop1-" + [guid]::NewGuid())
+New-Item -ItemType Directory $stage | Out-Null
+cargo xtask app bundle calc --out "$stage\page"
+if ($LASTEXITCODE) { throw 'DNA Calc page bundle failed' }
+cargo build --locked -p dna-calc-desktop
+if ($LASTEXITCODE) { throw 'DNA Calc desktop build failed' }
+cargo test --locked -p calc-com-host -- --test-threads=1
+if ($LASTEXITCODE) { throw 'Native COM tests failed' }
+Copy-Item target\debug\dna-calc-desktop.exe $stage
+$exe = Join-Path $stage 'dna-calc-desktop.exe'
+$book = Join-Path $stage 'Automation.xlsx'
+Copy-Item apps\dna-onecalc\tests\fixtures\excel-roundtrip\onecalc-saved.xlsx $book
+$env:DNACALC_WEBVIEW2_DATA = Join-Path $stage 'webview'
+```
+
+Stop if a build or test exits nonzero. The next step uses only the two DNA Calc keys.
+Use the staged exe path so any process launched by COM can be identified by its path.
+
+```powershell
+$clsid = '{B363DB86-B412-4C60-91F2-9D538F75BB65}'
+$class = "Software\Classes\CLSID\$clsid"
+$prog = 'Software\Classes\DnaCalc.Application'
+$hkcu = [Microsoft.Win32.Registry]::CurrentUser
+if ((Test-Path "HKCU:\$class") -or (Test-Path "HKCU:\$prog")) {
+    throw 'Use a clean profile without a registered DnaCalc.Application'
+}
+function Set-DefaultString($path, $value) {
+    $key = $hkcu.CreateSubKey($path)
+    try { $key.SetValue('', $value, [Microsoft.Win32.RegistryValueKind]::String) }
+    finally { $key.Dispose() }
+}
+Set-DefaultString "$class\LocalServer32" ('"' + $exe + '"')
+Set-DefaultString "$class\ProgID" 'DnaCalc.Application'
+Set-DefaultString "$prog\CLSID" $clsid
+$env:DNACALC_AUTOMATION_WORKBOOK = $book
+$p = Start-Process $exe -ArgumentList ('--automation --open "' + $book + '"') -PassThru
+```
+
+When Automation.xlsx is visible, verify the ProgID attachment and run the Win64 client.
+It compares controlling IUnknowns, retrieves Range type information, reads and writes A1,
+receives one SheetChange, unadvises, and restores the starting value in the disposable
+session. Retain the output and the owned server PID.
+
+```powershell
+$a = [Runtime.InteropServices.Marshal]::GetActiveObject('DnaCalc.Application')
+[Runtime.InteropServices.Marshal]::FinalReleaseComObject($a) | Out-Null
+cargo test --locked -p calc-com-host tests::external_automation_client -- --exact --ignored --nocapture
+if ($LASTEXITCODE) { throw 'Warm Automation client failed' }
+$p.CloseMainWindow() | Out-Null
+if (-not $p.WaitForExit(10000)) { throw "Close the staged DNA Calc window (PID $($p.Id))" }
+cargo test --locked -p calc-com-host tests::external_automation_revoked -- --exact --ignored --nocapture
+if ($LASTEXITCODE) { throw 'Warm ROT revocation failed' }
+```
+
+Then exercise cold activation with no published application. The client uses CoCreateInstance
+and verifies it reaches the newly published Application. Repeat by ProgID in PowerShell
+while that window is open. Record that the started executable came from the stage.
+
+```powershell
+Remove-Item Env:DNACALC_AUTOMATION_WORKBOOK
+cargo test --locked -p calc-com-host tests::external_automation_client -- --exact --ignored --nocapture
+if ($LASTEXITCODE) { throw 'Cold Automation client failed' }
+$a = New-Object -ComObject DnaCalc.Application
+$a.Version
+[Runtime.InteropServices.Marshal]::FinalReleaseComObject($a) | Out-Null
+Get-Process dna-calc-desktop | Where-Object Path -eq $exe | Select-Object Id, Path
+```
+
+Close the staged window, repeat the revocation test, and remove the two new HKCU keys
+in that disposable profile. Record which of the controls passed. Dedicated dual-interface
+marshaling remains with dc-17spk.2. The second-STA Excel comparison and no-Office result
+also inform dc-6332.16.
+
+```powershell
+cargo test --locked -p calc-com-host tests::external_automation_revoked -- --exact --ignored --nocapture
+Remove-Item -LiteralPath "HKCU:\$prog", "HKCU:\$class" -Recurse
+Remove-Item Env:DNACALC_WEBVIEW2_DATA
+```

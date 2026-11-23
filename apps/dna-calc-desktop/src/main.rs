@@ -72,7 +72,12 @@ fn run() -> Result<(), String> {
     }
     // `--open FILE` and a file path as the first argument are app mode: the page with that workbook.
     let first_is_file = all.first().is_some_and(|arg| !arg.starts_with("--"));
-    if first_is_file || all.iter().any(|arg| arg == "--app" || arg == "--open") {
+    if first_is_file
+        || all.iter().any(|arg| {
+            matches!(arg.as_str(), "--app" | "--open" | "--automation")
+                || arg.eq_ignore_ascii_case("-Embedding")
+        })
+    {
         return app::run(&all);
     }
     let mut xlls = Vec::new();

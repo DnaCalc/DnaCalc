@@ -33,6 +33,7 @@ pub(crate) struct State {
     pub office: Office,
     pub connections: Connections,
     pub wrappers: RefCell<HashMap<usize, ObjectRef>>,
+    pub application_wrapper: RefCell<Option<IDispatch>>,
     foreign: RefCell<HashMap<u64, Foreign>>,
     next_foreign: Cell<u64>,
 }
@@ -270,6 +271,7 @@ impl Projection {
             office: Office::new(weak.clone()),
             connections: RefCell::default(),
             wrappers: RefCell::default(),
+            application_wrapper: RefCell::default(),
             foreign: RefCell::default(),
             next_foreign: Cell::new(1),
         });
@@ -417,7 +419,7 @@ impl Projection {
             }
         }
     }
-    fn member(
+    pub(crate) fn member(
         &self,
         target: &ObjectRef,
         name: &str,
@@ -484,6 +486,8 @@ impl Drop for Projection {
         drop(connections);
         let foreign = std::mem::take(&mut *self.state.foreign.borrow_mut());
         drop(foreign);
+        let application = self.state.application_wrapper.take();
+        drop(application);
     }
 }
 fn message(error: AutoError) -> String {

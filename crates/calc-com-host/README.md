@@ -39,7 +39,31 @@ Calc's page (codex-runs/om-acceptance-20261114/REPORT.md); the Excel-DNA and xlO
 page comparison has not run yet. Unsupported members return the descriptor-named 1004 refusal and record
 it through the supplied model; they do not read cached workbook answers.
 
-The projection uses local objects and Windows' object-return mechanism. It neither
-saves nor registers its type library, and it changes no Excel registrations or
-security settings. The former C++ projection and RTD sources and their `cc` build
-dependency have been removed.
+## Desktop Automation
+
+Start `dna-calc-desktop.exe --automation` to publish the running Application. A client
+can call `GetActiveObject` with CLSID `{B363DB86-B412-4C60-91F2-9D538F75BB65}` on the
+same Windows desktop. The desktop also publishes its current workbook under a file moniker
+when a native open or save gives it an absolute local-drive path. Application identity is
+shared with the in-process projection. The desktop revokes both registrations on exit.
+
+For ProgID-based clients and cold activation, a Windows user can opt in by setting these
+default string values under `HKEY_CURRENT_USER\Software\Classes`:
+
+| Key | Default string |
+| --- | --- |
+| `DnaCalc.Application\CLSID` | `{B363DB86-B412-4C60-91F2-9D538F75BB65}` |
+| `CLSID\{B363DB86-B412-4C60-91F2-9D538F75BB65}\LocalServer32` | Absolute path to `dna-calc-desktop.exe`, in double quotes |
+| `CLSID\{B363DB86-B412-4C60-91F2-9D538F75BB65}\ProgID` | `DnaCalc.Application` |
+
+This enables `GetObject(, "DnaCalc.Application")` and `CreateObject("DnaCalc.Application")`
+for late-bound clients. COM passes `-Embedding` when it starts the desktop. The server
+uses the visible window's lifetime and answers requests on its original STA.
+
+External clients use the system `IDispatch` proxy and the descriptor's dispatch type
+information. To advise an Application event sink, call
+`IConnectionPointContainer::FindConnectionPoint(IID_IDispatch)` and supply the sink's
+`IDispatch`. It receives the same AppEvents DISPIDs and argument order as the add-in
+connection point. Clients unadvise and release their references when finished.
+Native Windows acceptance and dedicated dual-interface marshaling remain tracked in
+dc-17spk.2. See [the Windows queue](../../docs/plan/windows-queue.md#dc-17spk2-desktop-automation).

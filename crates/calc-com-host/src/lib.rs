@@ -1,6 +1,5 @@
 //! Excel/Office COM projection of the one Rust object model and descriptor.
 //! Vtables and IDispatch lower to the same Call; only COM-owned Office members live here.
-//! No class registration, activation hook, type-library registration or registry write.
 #[cfg(target_arch = "wasm32")]
 compile_error!("calc-com-host is native-only");
 #[cfg(all(windows, not(target_arch = "x86_64")))]
@@ -83,6 +82,8 @@ mod layout_tests {
 #[cfg(windows)]
 mod application;
 #[cfg(windows)]
+mod automation;
+#[cfg(windows)]
 mod dispatch;
 #[cfg(windows)]
 mod events;
@@ -102,6 +103,8 @@ mod tests;
 mod typeinfo;
 #[cfg(windows)]
 mod values;
+#[cfg(windows)]
+pub use automation::{APPLICATION_CLSID, LocalAutomation};
 #[cfg(windows)]
 pub use projection::Projection;
 #[cfg(windows)]

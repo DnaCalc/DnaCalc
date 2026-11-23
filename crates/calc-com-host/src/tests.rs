@@ -386,6 +386,187 @@ fn every_advertised_interface_has_exact_descriptor_vtable_length() {
     }
 }
 
+/// Native-only: Excel shares Application identity across acquisitions on the owning STA.
+#[test]
+fn application_identity_is_shared_across_acquisitions() {
+    let _apartment = Apartment::new();
+    let projection = projection();
+    let app = projection.application().unwrap();
+    let identity = app.cast::<IUnknown>().unwrap();
+    let acquire = |object: IDispatch| {
+        assert_eq!(
+            object.cast::<IUnknown>().unwrap().as_raw(),
+            identity.as_raw()
+        );
+    };
+    acquire(projection.application().unwrap());
+    acquire(dispatch(get(&app, "Application")));
+    acquire(dispatch(get(&app, "Parent")));
+    let window = ObjectRef::new(id("Window"), ObjectKey::Window);
+    let first = projection.state.wrap(&window).unwrap();
+    let second = projection.state.wrap(&window).unwrap();
+    acquire(dispatch(get(&first, "Application")));
+    assert_ne!(
+        first.cast::<IUnknown>().unwrap().as_raw(),
+        second.cast::<IUnknown>().unwrap().as_raw()
+    );
+}
+
+#[implement(IDispatch, Agile = false)]
+struct ExternalSink {
+    sheet_change: i32,
+    changes: Rc<Cell<u32>>,
+}
+
+impl IDispatch_Impl for ExternalSink_Impl {
+    fn GetTypeInfoCount(&self) -> windows::core::Result<u32> {
+        Ok(0)
+    }
+    fn GetTypeInfo(&self, _: u32, _: u32) -> windows::core::Result<ITypeInfo> {
+        Err(windows::core::Error::from_hresult(E_NOTIMPL))
+    }
+    fn GetIDsOfNames(
+        &self,
+        _: *const GUID,
+        _: *const PCWSTR,
+        _: u32,
+        _: u32,
+        _: *mut i32,
+    ) -> windows::core::Result<()> {
+        Err(windows::core::Error::from_hresult(E_NOTIMPL))
+    }
+    fn Invoke(
+        &self,
+        dispid: i32,
+        _: *const GUID,
+        _: u32,
+        _: DISPATCH_FLAGS,
+        params: *const DISPPARAMS,
+        _: *mut VARIANT,
+        _: *mut EXCEPINFO,
+        _: *mut u32,
+    ) -> windows::core::Result<()> {
+        if dispid == self.sheet_change {
+            if unsafe { params.as_ref() }.is_none_or(|params| params.cArgs != 2) {
+                return Err(windows::core::Error::from_hresult(DISP_E_BADPARAMCOUNT));
+            }
+            self.changes.set(self.changes.get() + 1);
+        }
+        Ok(())
+    }
+}
+
+fn active_application() -> windows::core::Result<IDispatch> {
+    let mut object = None;
+    unsafe { GetActiveObject(&crate::APPLICATION_CLSID, None, &mut object) }?;
+    object.unwrap().cast()
+}
+
+fn running_workbook(path: &std::ffi::OsStr) -> windows::core::Result<IDispatch> {
+    use std::os::windows::ffi::OsStrExt;
+    let path: Vec<_> = path.encode_wide().chain(Some(0)).collect();
+    let moniker = unsafe { CreateFileMoniker(PCWSTR(path.as_ptr())) }?;
+    let rot = unsafe { GetRunningObjectTable(0) }?;
+    unsafe { rot.GetObject(&moniker) }?.cast()
+}
+
+/// Native-only: drives another process, its COM proxies and its live workbook session.
+#[test]
+#[ignore = "requires the Windows desktop and the registration steps in windows-queue.md"]
+fn external_automation_client() {
+    let _apartment = Apartment::new();
+    let workbook_path = std::env::var_os("DNACALC_AUTOMATION_WORKBOOK");
+    let attaching = workbook_path.is_some();
+    let active = attaching.then(|| active_application().unwrap());
+    let app: IDispatch = unsafe {
+        CoCreateInstance(
+            &crate::APPLICATION_CLSID,
+            None::<&IUnknown>,
+            CLSCTX_LOCAL_SERVER,
+        )
+    }
+    .unwrap();
+    let identity = app.cast::<IUnknown>().unwrap();
+    let active = active.unwrap_or_else(|| active_application().unwrap());
+    assert_eq!(
+        active.cast::<IUnknown>().unwrap().as_raw(),
+        identity.as_raw()
+    );
+    assert_eq!(
+        dispatch(get(&app, "Application"))
+            .cast::<IUnknown>()
+            .unwrap()
+            .as_raw(),
+        identity.as_raw()
+    );
+    let workbook = if let Some(path) = &workbook_path {
+        running_workbook(path).unwrap()
+    } else {
+        dispatch(get(&app, "ActiveWorkbook"))
+    };
+    assert_eq!(
+        dispatch(get(&workbook, "Application"))
+            .cast::<IUnknown>()
+            .unwrap()
+            .as_raw(),
+        identity.as_raw()
+    );
+    let worksheet = dispatch(get(&app, "ActiveSheet"));
+    let range = dispatch(
+        call(
+            &worksheet,
+            "Range",
+            DISPATCH_PROPERTYGET,
+            vec![VARIANT::from("A1")],
+        )
+        .unwrap(),
+    );
+    let info = unsafe { range.GetTypeInfo(0, 0) }.unwrap();
+    let mut name = BSTR::new();
+    unsafe { info.GetDocumentation(-1, Some(&mut name), None, ptr::null_mut(), None) }.unwrap();
+    assert_eq!(name.to_string(), "Range");
+
+    let container = app.cast::<IConnectionPointContainer>().unwrap();
+    let point = unsafe { container.FindConnectionPoint(&IDispatch::IID) }.unwrap();
+    let changes = Rc::new(Cell::new(0));
+    let sink: IDispatch = ExternalSink {
+        sheet_change: Descriptor::get()
+            .dispid_of(id("AppEvents"), "SheetChange")
+            .unwrap(),
+        changes: changes.clone(),
+    }
+    .into();
+    let cookie = unsafe { point.Advise(&sink) }.unwrap();
+    let initial = get(&range, "Value2");
+    let write = VARIANT::from(651.125);
+    let write = if f64::try_from(&initial).ok() == Some(651.125) {
+        VARIANT::from(710.25)
+    } else {
+        write
+    };
+    let written = f64::try_from(&write).unwrap();
+    call(&range, "Value2", DISPATCH_PROPERTYPUT, vec![write]).unwrap();
+    assert_eq!(f64::try_from(&get(&range, "Value2")).unwrap(), written);
+    assert_eq!(changes.get(), 1);
+    unsafe { point.Unadvise(cookie) }.unwrap();
+    call(&range, "Value2", DISPATCH_PROPERTYPUT, vec![initial]).unwrap();
+    assert_eq!(changes.get(), 1);
+}
+
+/// Native-only: queries the Windows ROT after the owned desktop process has exited.
+#[test]
+#[ignore = "run after external_automation_client and desktop shutdown"]
+fn external_automation_revoked() {
+    let _apartment = Apartment::new();
+    assert_eq!(active_application().unwrap_err().code(), MK_E_UNAVAILABLE);
+    if let Some(path) = std::env::var_os("DNACALC_AUTOMATION_WORKBOOK") {
+        assert_eq!(
+            running_workbook(&path).unwrap_err().code(),
+            MK_E_UNAVAILABLE
+        );
+    }
+}
+
 /// Native-only: named arguments, property puts, VT_BYREF, LCID and reversed positional arguments.
 #[test]
 fn dispatch_decodes_names_reverse_order_and_byref_through_the_shared_model() {

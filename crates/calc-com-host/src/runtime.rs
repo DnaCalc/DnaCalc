@@ -1,6 +1,6 @@
 //! Raw COM identity and generated x64 ABI entry points. No member semantics live here.
 use crate::{dispatch::decode_slot, projection::State, typeinfo};
-use calc_object_model::{AutoError, Descriptor, InterfaceId, ObjectRef};
+use calc_object_model::{AutoError, Descriptor, InterfaceId, ObjectKey, ObjectRef};
 use std::{
     ffi::c_void,
     panic::{AssertUnwindSafe, catch_unwind},
@@ -105,6 +105,17 @@ impl Wrapper {
 pub(crate) fn wrap(state: &Rc<State>, target: &ObjectRef) -> Result<IDispatch, AutoError> {
     state.apartment.check()?;
     let interface = Descriptor::get().default_interface(target.interface);
+    let application = target.key == ObjectKey::Application && interface == id("Application");
+    if application {
+        let existing = state.application_wrapper.borrow().clone();
+        if let Some(existing) = existing {
+            let model = state.model.borrow().clone();
+            // The canonical wrapper owns its original model lease. Return this acquisition's
+            // lease now, since the caller gets another reference to the same COM object.
+            model.released(target);
+            return Ok(existing);
+        }
+    }
     // Incomplete inherited layouts still work through IDispatch. Their IID is never advertised.
     let table = generated_vtable(interface)
         .unwrap_or_else(|| generated_vtable(id("Window")).expect("complete IDispatch layout"));
@@ -134,7 +145,11 @@ pub(crate) fn wrap(state: &Rc<State>, target: &ObjectRef) -> Result<IDispatch, A
         .wrappers
         .borrow_mut()
         .insert(pointer as usize, wrapper.target.clone());
-    Ok(unsafe { IDispatch::from_raw(Box::into_raw(wrapper).cast()) })
+    let dispatch = unsafe { IDispatch::from_raw(Box::into_raw(wrapper).cast()) };
+    if application {
+        *state.application_wrapper.borrow_mut() = Some(dispatch.clone());
+    }
+    Ok(dispatch)
 }
 pub(crate) unsafe fn query_raw(this: *mut Wrapper, iid: &GUID, out: *mut *mut c_void) -> HRESULT {
     if out.is_null() {

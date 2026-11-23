@@ -68,6 +68,7 @@ struct Options {
     no_print_ui: bool,
     /// A workbook file to open as the page starts (`--open FILE`, or a path as the first argument).
     open: Option<PathBuf>,
+    automation: bool,
     /// `--trust-macros`: pins the macro security level to Unguarded (dc-15dk).
     trust_macros: bool,
     /// `--macros off|guarded|unguarded`: pins the macro security level for this run (`safe` is
@@ -88,6 +89,7 @@ fn options(args: &[String]) -> Result<Options, String> {
         save_dir: None,
         no_print_ui: false,
         open: None,
+        automation: false,
         trust_macros: false,
         macros: None,
     };
@@ -100,6 +102,8 @@ fn options(args: &[String]) -> Result<Options, String> {
         };
         match arg.as_str() {
             "--app" => {}
+            "--automation" => o.automation = true,
+            arg if arg.eq_ignore_ascii_case("-Embedding") => o.automation = true,
             "--url" => o.url = Some(value()?),
             "--assets" => o.assets = Some(PathBuf::from(value()?)),
             "--xll" => o.xlls.push(PathBuf::from(value()?)),
@@ -156,6 +160,9 @@ const TICK_ID: usize = 0x444e41;
 const WORKBOOK: &str = "Book1";
 
 struct App {
+    automation_server: RefCell<Option<calc_com_host::LocalAutomation>>,
+    publish_automation: Cell<bool>,
+    startup_error: RefCell<Option<String>>,
     server: Rc<RefCell<Server>>,
     automation: Rc<calc_host::automation::WorkbookAutomation>,
     automation_observer: Rc<dyn calc_host::WorkbookEventObserver>,
@@ -337,6 +344,20 @@ impl App {
             self.book.set(server.workbook_id());
             *self.server.borrow_mut() = server;
             self.bind_sheets();
+            // The initial hello replaces the provisional session. Publish only when COM callers
+            // can use the same workbook the page will use.
+            if self.publish_automation.replace(false) {
+                let projection = self.addins.borrow().projection_handle();
+                match calc_com_host::LocalAutomation::publish(projection) {
+                    Ok(registration) => *self.automation_server.borrow_mut() = Some(registration),
+                    Err(why) => {
+                        self.startup_error.replace(Some(why));
+                        self.quit.set(true);
+                        return;
+                    }
+                }
+            }
+            self.publish_workbook();
             self.post(&message::started(), None);
             return;
         }
@@ -409,6 +430,26 @@ impl App {
         }
         self.post(&reply, out.as_deref());
         self.rebind_after_open();
+        self.publish_workbook();
+    }
+
+    fn publish_workbook(&self) {
+        let Ok(mut registration) = self.automation_server.try_borrow_mut() else {
+            return;
+        };
+        let Some(registration) = registration.as_mut() else {
+            return;
+        };
+        let (id, path) = {
+            let server = self.server.borrow();
+            (
+                server.workbook_id(),
+                PathBuf::from(server.book().session().file_full_name()),
+            )
+        };
+        if let Err(why) = registration.set_workbook(id, &path) {
+            eprintln!("dna-calc-desktop: workbook COM registration: {why}");
+        }
     }
 
     /// Runs the platform action on the shared native add-in set.
@@ -754,6 +795,9 @@ Open the download page now?"
     };
     // Declared after the shell so that it drops first: the add-ins close while their windows exist.
     let app = Rc::new(App {
+        automation_server: RefCell::default(),
+        publish_automation: Cell::new(o.automation),
+        startup_error: RefCell::default(),
         book: Cell::new(server.borrow().workbook_id()),
         server: server.clone(),
         automation,
@@ -786,11 +830,19 @@ Open the download page now?"
             let weak = Rc::downgrade(&app);
             Some(Rc::new(move |path: &std::path::Path| {
                 if let Some(app) = weak.upgrade() {
-                    if let Ok(mut server) = app.server.try_borrow_mut() {
+                    let saved = if let Ok(mut server) = app.server.try_borrow_mut() {
                         if server.workbook_id() == workbook && server.book().save_name() == expected
                         {
                             server.set_file_location(path.to_string_lossy().into_owned());
+                            true
+                        } else {
+                            false
                         }
+                    } else {
+                        false
+                    };
+                    if saved {
+                        app.publish_workbook();
                     }
                 }
             }) as Rc<dyn Fn(&std::path::Path)>)
@@ -841,9 +893,10 @@ Open the download page now?"
         },
     );
     drop(timer);
+    let startup_error = app.startup_error.take();
     drop(app);
     drop(shell);
-    Ok(())
+    startup_error.map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
