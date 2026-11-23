@@ -187,10 +187,9 @@ fn rate_retains_last_finite_iterate_at_zero_asymptote() {
     error(call("RATE", vec![n(-9.269189098231718e-6), n(0.0), n(-46.717097843305744), n(-0.00013582248485746642), n(0.0), n(10.0)]), Num);
 }
 
-/// dc-iuwct.11, Excel 16.0.20527 (Touchstone, 2026-11-20): when the next secant iterate
-/// overflows, the last finite iterate stands if the balance's limit at +infinity (fv at the end
-/// of the period, fv - pmt at its beginning) is under 1e-7; and a secant step that rounds back
-/// onto its own rate restarts the starting offset away (huge negative periods, guess 0).
+/// dc-iuwct.11, Excel 16.0.20527 (Touchstone, 2026-11-20). These flows exercise
+/// the balance at +infinity when the secant quotient overflows. With huge negative
+/// periods and guess zero, the rates coincide at 0.001 and the previous rate moves to 0.002.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn rate_overflow_limit_and_flat_secant_restart() {
@@ -220,6 +219,20 @@ fn rate_overflow_limit_and_flat_secant_restart() {
             Some(bits) => exact(result, f64::from_bits(bits)),
             None => error(result, Num),
         }
+    }
+}
+
+/// Excel 16.0.20625.20108, cb22 P1_001 and P1_019. The first call distinguishes
+/// an upward nudge at equal rates from reusing the negative initial offset.
+/// The second still has a flat balance after the nudge, with a residual below 1e-4.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rate_rejects_a_flat_balance_after_one_nudge() {
+    for args in [
+        [85.25, -0.0002, 1e230, -0.8, 1.0, -0.997],
+        [-2000.0, 0.0, -1e304, -3e-5, 0.0, 0.423026],
+    ] {
+        error(call("RATE", args.into_iter().map(n).collect()), Num);
     }
 }
 

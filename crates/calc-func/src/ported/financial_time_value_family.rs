@@ -433,22 +433,18 @@ fn rate_secant(
     let mut value = balance(current)?;
     let mut step = f64::INFINITY;
     for _ in 0..200 {
-        let change = excel_x87_sub(value, value_before);
+        let mut change = excel_x87_sub(value, value_before);
         if change == 0.0 {
-            // A balance that does not move between two rates has no secant step. The search
-            // takes a fresh second point the starting offset away from the current rate and
-            // goes on (each restart one of the 200 steps): with a huge negative period and
-            // guess 0 the first step rounds back to 0.001, and Excel 16.0.20527 answers as the
-            // secant from 0.002 to 0.001 does (dc-iuwct.11: 8/8 frozen predictions; the
-            // offset re-signed from the current balance missed 1/8). A balance flat
-            // everywhere stays flat and the after-budget check decides, as in IRR's search:
-            // #NUM! far from zero (dcztvv_r23: RATE(0,-100,1000,0,0,0.5),
-            // RATE(2^-1022,-100,1000,0,0,0.5) and RATE(FALSE,-200,8000)); an iterate that
-            // stopped moving at a root of 1.2e10, where no step can be below 1e-7, is the
-            // answer (full bank: RATE(0.12897432973391876,1235,-0.5,10) is 12232404830.799618).
-            before = excel_x87_add(current, offset);
+            // Excel 20625, gx1-RATE-2092 and its neighbours: move the previous
+            // rate once in the direction of travel and use that slope on this step.
+            let nudge = if current >= before { 0.001 } else { -0.001 };
+            before = excel_x87_add(before, nudge);
             value_before = balance(before)?;
-            continue;
+            change = excel_x87_sub(value, value_before);
+            if change == 0.0 {
+                // A second flat balance is #NUM! even inside the final 1e-4 tolerance.
+                return Err(FinancialError::Num);
+            }
         }
         // The slope comparison precedes the division's DAZ input stage:
         // an exactly flat objective is NUM, a subnormal divisor is DIV/0.
@@ -1457,9 +1453,7 @@ mod tests {
         }
     }
 
-    /// Native and browser: a root past 1e9, where no secant step can be below 1e-7, is the
-    /// iterate that stopped moving. Excel 16.0.20527, full bank (bank2-answers-rate-more and
-    /// -scalar); within 1e-14 relative.
+    /// Large-root iterates from Excel 16.0.20527 (bank2-answers-rate-more and -scalar).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rate_at_a_huge_root_is_the_iterate_that_stopped_moving() {
@@ -1470,7 +1464,31 @@ mod tests {
             (0.29857658183127744, -2.0, 0.9999999999999999, 958.8025113570343, Begin, None, 9761381152.492899),
         ] {
             let got = rate(periods, payment, present, future, timing, guess).expect("Excel answers");
-            assert!(((got - excel) / excel).abs() < 1e-14, "{got} vs Excel {excel}");
+            assert_bits(got, excel);
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rate_flat_secant_at_neighbouring_payments() {
+        // Excel 16.0.20625.20108, gx1-RATE-2092. Adjacent payment words change
+        // which step the solver reaches before its budget expires.
+        for (payment, future, expected) in [
+            (0x4049c31df3fc025b, 0xbfe901d6d18d4f4b, Ok(0x4269e628a4e4ace9)),
+            (0x4049c31df3fc025c, 0xbfe901d6d18d4f4b, Ok(0x4269e628a4e4acd0)),
+            (0x4049c31df3fc025d, 0xbfe901d6d18d4f4b, Err(FinancialError::Num)),
+            // Moving the future value four words leaves the nudged slope flat.
+            (0x4049c31df3fc025c, 0xbfe901d6d18d4f47, Err(FinancialError::Num)),
+        ] {
+            let result = rate(
+                f64::from_bits(0xbfb6dc004793792d),
+                f64::from_bits(payment),
+                f64::from_bits(0x4081766241ff7680),
+                f64::from_bits(future),
+                PaymentTiming::BeginningOfPeriod,
+                Some(f64::from_bits(0x3fdda8bbc02b4f20)),
+            );
+            assert_eq!(result.map(f64::to_bits), expected, "payment {payment:x}, future {future:x}");
         }
     }
 
