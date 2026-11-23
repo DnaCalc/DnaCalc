@@ -61,14 +61,26 @@ typed overloads plus a value-oriented form for Excel coercion and error handling
 aliases, optional holes, repeating groups and alternate signatures according to the declaration.
 A trailing absent argument and a `Missing` marker inside the argument list need distinct encoding.
 
-dc-dfl.2.6 owns the lifting answer per parameter, formula mode and applicable input origin,
-including repeated positions. Derive it from existing declarations and evaluator rules where
-possible. Add a fact to the catalogue only when derivation needs it.
-[`eval/run.rs`](../../crates/calc-fml/src/eval/run.rs) uses both parameter class and entry
-traits such as `lift_dynamic_references`, `lift_references_from` and `lift_computed_array`,
-with blank handling from `zero_lifted_blank` and `zero_dynamic_lifted_blank`. For example,
-COUNTBLANK can consume a range whole and lift a computed array. Keep one catalogue export
-for the adapter, generators and handbook, with agreement tests against CalcFml.
+Use `calc_catalogue::parameter_lifting` for each zero-based call position, including repeated
+positions. Supply the formula mode, the evaluated argument's origin, and the enclosing call
+position for a legacy formula. The [generated table](../reference/parameter-lifting.tsv) gives
+the same policy for the bindings and handbook, with inclusive one-based position spans.
+The counts cover each position, mode and origin. Ordinary arrays, contiguous multi-cell ranges
+and arrays of references have separate columns. For example, COUNTBLANK takes a range whole
+and lifts a computed array. The table describes pre-publication call behavior. Excel build
+availability, formula entry, 3-D references, boxed arrays and callable values have separate rules.
+
+`elementwise-when-lifted` means a lazy IF or CHOOSE branch participates only when the selector
+lifts. In a legacy aggregate placement, a scalar selector can return a whole range from the
+branch. A lifted selector gives a typed fault for that range (`refused-when-lifted`). IFERROR
+and IFNA can also lift on a demanded fallback. IFS and SWITCH use the `whole-result` column to decide
+when scalar selection keeps the chosen result whole. Use CalcFml's argument preparation and
+dispatch for these value-dependent decisions.
+
+`unmeasured` records typed refusals for unclassified legacy placements and held-reference
+arrays (dc-b1l), and for deferred functions (dc-fetch-f0tp and dc-nk93). `special-form` marks
+formula constructs that have their own routes, such as LET and LAMBDA. `unavailable` records
+worksheet admission refusals. Check `availability` as well as lifting when generating an API.
 
 ## Values and reference origin
 

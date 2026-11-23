@@ -88,19 +88,12 @@ pub(super) enum Place {
 /// no `@`, 64, and `=ROWS(TYPE(A101:A103))` is 1. `=TRANSPOSE({1,2,3})` and `=TYPE((A101,A102))`
 /// (a union) take no `@` before the argument.
 #[cfg(test)]
-fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
+pub(super) fn intersects_reference(place: Place, spelling: &str, index: usize) -> bool {
     let target = calc_func::catalogue().resolve_surface(calc_func::Notation::Call, spelling);
-    match target.ok().and_then(|target| target.legacy_place(index)) {
-        Some(
-            calc_func::LegacyPlace::IntersectReferenceAlways
-            | calc_func::LegacyPlace::AggregateAlwaysIntersectReference,
-        ) => true,
-        Some(
-            calc_func::LegacyPlace::IntersectReference
-            | calc_func::LegacyPlace::AggregateIntersectReference,
-        ) => place != Place::Array,
-        _ => false,
-    }
+    target
+        .ok()
+        .and_then(|target| target.legacy_place(index))
+        .is_some_and(|legacy| legacy.intersects_reference(place == Place::Array))
 }
 
 impl Place {

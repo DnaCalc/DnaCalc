@@ -1344,8 +1344,7 @@ impl Run<'_, '_> {
         }
         // Excel 20527 database fields accept one referenced cell. A held error there is an
         // invalid field, while a formed error or a computed array keeps its value and shape.
-        if index == 1
-            && target.0.id().family() == calc_catalogue::ported::database::CODE
+        if target.0.id().is_database_field(index)
             && let CoreRef::Reference(reference) = value.core_ref()
         {
             if let [area] = reference.areas()
@@ -2595,29 +2594,15 @@ impl Run<'_, '_> {
 /// Whether argument `index` of `target`, as admitted, is lifted over: an array at a parameter
 /// that takes one value, or an array of references given to a function that lifts over one.
 fn is_lifted(target: Target, form: FormulaForm, index: usize, value: &CalcValue) -> bool {
-    ((target.0.parameter_class(index) == Some(ParameterClass::Value)
-        // COUNTBLANK consumes a reference whole but a computed array cell by cell (the
-        // W111 count-family readings and w089-axis-reference-vs-array-variant).
-        || target.0.traits().lift_computed_array
-        // Excel 20527 evaluates a database call at each value of a dynamic criteria array.
-        // The kernel then checks whether that element supplies a criteria reference.
-        || (form == FormulaForm::Dynamic
-            && index == 2
-            && target.0.id().family() == calc_catalogue::ported::database::CODE
-            && !reference_array(value)))
-        && lifted_array(value).is_some())
-        || (reference_array(value)
-            && lifts_over_references(target, form)
-            && index >= usize::from(target.0.traits().lift_references_from))
-        // AGGREGATE's ref2 and later lift over any array in a dynamic formula (dc-b1l, Excel
-        // 16.0.20527 through Touchstone, 2026-11-17, family reference-arrays:
-        // `=AGGREGATE(9,0,A1:A2,{1;2})` and `=AGGREGATE(9,0,A1:A2,A1:A2*1)` spill #VALUE!|#VALUE!,
-        // `=AGGREGATE(9,0,A1:A2,{#N/A;1})` #N/A|#VALUE!, `=AGGREGATE(14,0,A1:A6,{1;2})` 6|5,
-        // while `=AGGREGATE(9,0,{1;2})` is one #VALUE!).
-        || (form == FormulaForm::Dynamic
-            && target.0.traits().lift_references_from > 0
-            && index >= usize::from(target.0.traits().lift_references_from)
-            && lifted_array(value).is_some())
+    lifted_array(value).is_some()
+        && target.0.traits().lifts_admitted_array(
+            target.0.id(),
+            index,
+            form == FormulaForm::Dynamic,
+            target.0.parameter_class(index) == Some(ParameterClass::Value),
+            || reference_array(value),
+            || lifts_over_references(target, form),
+        )
 }
 
 /// The measured reference-origin policy of these binary functions (OxFunc-Evidence,
@@ -3000,6 +2985,275 @@ mod tests {
         }
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn catalogue_lifting_matches_argument_preparation() {
+        use super::super::legacy::Place;
+        use calc_catalogue::{Implementation, LegacyContext, Lifting, LiftingMode, LiftingOrigin};
+        use calc_func::Notation;
+
+        let anchor = observed_anchor();
+        let at = anchor.cell();
+        let next = CellKey::new(at.sheet(), at.row() + 1, at.column()).unwrap();
+        let range = ReferenceLike::from_areas(vec![GridArea::new(at, next).unwrap()]).unwrap();
+        let array = |a, b| CalcValue::array(CalcArray::from_rows(vec![vec![a], vec![b]]).unwrap());
+        let cases = [
+            (
+                LiftingOrigin::Array,
+                array(CalcValue::number(1.0), CalcValue::number(2.0)),
+            ),
+            (LiftingOrigin::Range, CalcValue::reference(range)),
+            (
+                LiftingOrigin::ReferenceArray,
+                array(
+                    CalcValue::reference(ReferenceLike::cell(at)),
+                    CalcValue::reference(ReferenceLike::cell(next)),
+                ),
+            ),
+        ];
+        let mut count = 0;
+        for (mode, form, place) in [
+            (LiftingMode::Dynamic, FormulaForm::Dynamic, Place::Value),
+            (
+                LiftingMode::Legacy(LegacyContext::Value),
+                FormulaForm::Legacy,
+                Place::Value,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Aggregate),
+                FormulaForm::Legacy,
+                Place::Aggregate,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Array),
+                FormulaForm::Legacy,
+                Place::Array,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::ArrayAggregate),
+                FormulaForm::Legacy,
+                Place::ArrayAggregate,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Unknown),
+                FormulaForm::Legacy,
+                Place::Unknown,
+            ),
+        ] {
+            let plan = crate::compile_with(
+                &parse_formula("=1"),
+                ReferenceNotation::A1,
+                anchor,
+                &NoSheets,
+                &mut PlanCache::new(),
+                form,
+            )
+            .unwrap();
+            let instance = instantiate(&plan, anchor);
+            let mut cells = Everywhere(CalcValue::number(99.0), 0);
+            let reader =
+                SharedReader::new(&mut cells, None, at, None, crate::ReadRequest::DEPENDENCY);
+            let mut scratch = EvalScratch::new();
+            let run = Run {
+                held: None,
+                current_name: None,
+                instance: &instance,
+                stack: &mut scratch.stack,
+                calls: &mut scratch.calls,
+                locals: &mut scratch.locals,
+                arguments: &mut scratch.arguments,
+                base: 0,
+                depth: 0,
+                budget: 0,
+                numeric: &NumericMode::Fast,
+                reader: &reader,
+                random: None,
+                week: None,
+                catalog: None,
+                functions: None,
+                read_policy: crate::ReadPolicy::DependencyWithinCommand,
+                invocation: None,
+                external_inputs: None,
+                rtd_connector: None,
+                user_view: None,
+                reference_handles: None,
+                observation_reader: None,
+                function_diagnostics: None,
+                user_function_effects: None,
+                observer: None,
+            };
+            let mut admitted = Vec::new();
+            for entry in calc_catalogue::declarations()
+                .filter(|entry| entry.implementation() == Implementation::Held)
+            {
+                let target = Target(calc_func::catalogue().resolve(entry.id()).unwrap());
+                let demand = target.0.argument_demand();
+                let lazy = demand.is_lazy();
+                let lifted_admission = if form == FormulaForm::Dynamic {
+                    Admission::Lift
+                } else {
+                    place.admission()
+                };
+                let admission = match (form, entry.notation()) {
+                    (FormulaForm::Legacy, Notation::Call) => place
+                        .argument(entry.spelling(), 0, Some(ParameterClass::Value), lazy)
+                        .admission(),
+                    _ => lifted_admission,
+                };
+                let selector_lifts = demand == ArgumentDemand::BranchOnCondition
+                    && run
+                        .admit(target, 0, cases[0].1.clone(), admission)
+                        .is_ok_and(|value| is_lifted(target, form, 0, &value));
+                for index in 0..entry.arity().max {
+                    run.stack.resize(index + 1, CalcValue::number(0.0));
+                    for (origin, raw) in &cases {
+                        let implicit = !lazy
+                            && form == FormulaForm::Legacy
+                            && *origin == LiftingOrigin::Range
+                            && super::super::legacy::intersects_reference(
+                                place,
+                                entry.spelling(),
+                                index,
+                            );
+                        run.stack[index] = if implicit {
+                            refops::implicit(raw, at)
+                        } else {
+                            raw.clone()
+                        };
+                        let classify = |lifted: bool, value: &CalcValue| {
+                            if lifted {
+                                let uses_reference = !lazy
+                                    && *origin == LiftingOrigin::ReferenceArray
+                                    && (target.0.parameter_class(index)
+                                        != Some(ParameterClass::Value)
+                                        || lifts_over_references(target, form));
+                                return if uses_reference {
+                                    Lifting::PerReference
+                                } else {
+                                    Lifting::Elementwise
+                                };
+                            }
+                            if implicit {
+                                return Lifting::Intersect;
+                            }
+                            match (origin, value.core_ref()) {
+                                (LiftingOrigin::Range, CoreRef::Error(_)) => Lifting::Rejected,
+                                (
+                                    LiftingOrigin::Range | LiftingOrigin::Array,
+                                    CoreRef::Number(_),
+                                ) => Lifting::Intersect,
+                                (
+                                    LiftingOrigin::ReferenceArray,
+                                    CoreRef::Reference(_) | CoreRef::Number(_),
+                                ) => Lifting::FirstReference,
+                                _ => Lifting::Whole,
+                            }
+                        };
+                        let actual = if lazy {
+                            run.admit(target, index, raw.clone(), admission)
+                                .map(|value| {
+                                    if index == 0 || demand == ArgumentDemand::FallbackOnError {
+                                        classify(is_lifted(target, form, index, &value), &value)
+                                    } else if selector_lifts {
+                                        match run.lift_operand(value, lifted_admission) {
+                                            Ok(value) if lifted_array(&value).is_some() => {
+                                                Lifting::ElementwiseWhenLifted
+                                            }
+                                            Err(EvalFault::AreaAsValue { .. }) => {
+                                                Lifting::RefusedWhenLifted
+                                            }
+                                            other => {
+                                                panic!("unexpected branch admission: {other:?}")
+                                            }
+                                        }
+                                    } else {
+                                        Lifting::Whole
+                                    }
+                                })
+                        } else {
+                            admitted.clear();
+                            run.admit_arguments(target, 0, index + 1, admission, &mut admitted)
+                                .map(|(lifted, _)| classify(lifted, &admitted[index]))
+                        };
+                        let actual = match actual {
+                            Ok(actual) => actual,
+                            Err(EvalFault::AreaAsValue { .. } | EvalFault::NotModelled { .. }) => {
+                                Lifting::Unmeasured
+                            }
+                            Err(fault) => panic!("unexpected admission fault: {fault:?}"),
+                        };
+                        assert_eq!(
+                            calc_catalogue::parameter_lifting(entry, index, mode, *origin),
+                            Some(actual),
+                            "{} argument {} at {mode:?} with {origin:?}",
+                            entry.spelling(),
+                            index + 1,
+                        );
+                        count += 1;
+                        run.stack[index] = CalcValue::number(0.0);
+                    }
+                }
+            }
+        }
+        println!("Compared {count} parameter lifting decisions.");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn catalogue_lifting_tracks_lazy_selectors() {
+        use calc_catalogue::{Lifting, LiftingMode, LiftingOrigin, named, parameter_lifting};
+
+        let cases = [
+            ("IF", 0, Lifting::Elementwise),
+            ("IF", 1, Lifting::ElementwiseWhenLifted),
+            ("IF", 2, Lifting::ElementwiseWhenLifted),
+            ("CHOOSE", 0, Lifting::Elementwise),
+            ("CHOOSE", 254, Lifting::ElementwiseWhenLifted),
+            ("IFERROR", 1, Lifting::Elementwise),
+            ("IFNA", 1, Lifting::Elementwise),
+        ];
+        for (function, index, expected) in cases {
+            for origin in [
+                LiftingOrigin::Array,
+                LiftingOrigin::Range,
+                LiftingOrigin::ReferenceArray,
+            ] {
+                assert_eq!(
+                    parameter_lifting(
+                        named(function).unwrap(),
+                        index,
+                        LiftingMode::Dynamic,
+                        origin
+                    ),
+                    Some(expected),
+                    "{function} position {index} with {origin:?}",
+                );
+            }
+        }
+
+        let value = |formula| {
+            evaluated_in_form(
+                &NumericMode::Fast,
+                formula,
+                CalcValue::empty(),
+                FormulaForm::Dynamic,
+            )
+            .unwrap()
+        };
+        let len = |formula| {
+            value(formula)
+                .as_array()
+                .unwrap_or_else(|| panic!("{formula} must spill"))
+                .cell_count()
+        };
+        assert_eq!(len("=IF(TRUE,{1;2},{4;5;6})"), 2);
+        assert_eq!(len("=IF({TRUE;FALSE},{1;2},{4;5;6})"), 3);
+        assert_eq!(len("=CHOOSE({1;2},{1;2},{4;5;6})"), 3);
+        assert_eq!(len("=IFERROR(1/0,{4;5;6})"), 3);
+        assert_eq!(len("=IFNA(NA(),{4;5;6})"), 3);
+        assert_eq!(value("=IFERROR(1,{4;5;6})"), CalcValue::number(1.0));
+    }
+
     fn evaluated(formula: &str, cells: CalcValue) -> Result<CalcValue, EvalFault> {
         evaluated_under(&NumericMode::Fast, formula, cells)
     }
@@ -3009,14 +3263,24 @@ mod tests {
         formula: &str,
         cells: CalcValue,
     ) -> Result<CalcValue, EvalFault> {
+        evaluated_in_form(mode, formula, cells, FormulaForm::Legacy)
+    }
+
+    fn evaluated_in_form(
+        mode: &NumericMode,
+        formula: &str,
+        cells: CalcValue,
+        form: FormulaForm,
+    ) -> Result<CalcValue, EvalFault> {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let anchor = FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 5, 5).unwrap());
-        let plan = compile(
+        let plan = crate::compile_with(
             &parse_formula(formula),
             ReferenceNotation::A1,
             anchor,
             &NoSheets,
             &mut PlanCache::new(),
+            form,
         )
         .unwrap();
         let instance = instantiate(&plan, anchor);

@@ -1244,17 +1244,10 @@ impl<'c> Lowering<'c> {
                     continue;
                 }
                 if self.form == FormulaForm::Legacy
-                    && match target.0.legacy_place(index) {
-                        Some(
-                            calc_func::LegacyPlace::IntersectReferenceAlways
-                            | calc_func::LegacyPlace::AggregateAlwaysIntersectReference,
-                        ) => true,
-                        Some(
-                            calc_func::LegacyPlace::IntersectReference
-                            | calc_func::LegacyPlace::AggregateIntersectReference,
-                        ) => place != Place::Array,
-                        _ => false,
-                    }
+                    && target
+                        .0
+                        .legacy_place(index)
+                        .is_some_and(|legacy| legacy.intersects_reference(place == Place::Array))
                 {
                     tasks.push(Task::Emit {
                         block,
