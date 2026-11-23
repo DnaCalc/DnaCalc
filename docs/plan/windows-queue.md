@@ -28,7 +28,7 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
 
 | Bead | Lane handoff | State | Windows evidence | Next step or prerequisite |
 | --- | --- | --- | --- | --- |
-| dc-17spk.2 | K/oop1 | Pending | Linux cross-build only | Run the desktop and external client on a Win64 user profile without Office. See the commands under [desktop Automation](#dc-17spk2-desktop-automation). |
+| dc-17spk.2 | K/oop1 | Partly done | **ww8**. Cross-built 4094ef5c COM tests passed 42/42 plus the separate revocation test. A Win64 PowerShell client reached the running Application by CLSID and the live workbook by file moniker, wrote and restored A1, and received one SheetChange. Both ROT entries disappeared after close. Evidence oop1-rot/rot.json. | ProgID, cold activation and no-Office dual-interface marshalling remain dc-17spk.2. See [desktop Automation](#dc-17spk2-desktop-automation). |
 | dc-0f1k.10 | K/om1 | Done | **ww1**. Private-desktop Formula Explorer build 2edde91f loaded X1.xll through the native picker, listed SHA-256 98565cfb43cbeb7b947bc893a2cd2901b311b8c47d1e59270cec7e0e510d1940, returned 3 for =MyAdd(1,2), unloaded and canceled a second picker with zero providers. Evidence onecalc-picker/picker.json and current10.guard.json. | — |
 | dc-0f1k.4 | K/om1 and K/ev2 | Partly done | **ww4**. Windows native Formula Explorer SaveAsUI regression passed 1/1. Excel 20527 normal and Cancel both compiled and ran. Managed Invoke and native Invoke/LegacyIAccessible exposed no usable End action on private desktop for error 5. Error arms timed out and owned PIDs exited; UIA End continuation stays dc-0f1k.4. Status rows also in ww1, ww2, ww3. | Use K/ev2 for the Formula Explorer End continuation and native replay. The earlier Excel Save control completed in ww1. Later UI Automation-only reruns left the raised Save unresolved. Full workbook edit effects belong to dc-hsa5.12. |
 | dc-1nbp.3.1 | K/px1 and K/ev2 | Partly done | **ww4**. Post-ev2 Win64 95eb0cb2 with retained page bundle matched 47/73 total; X0 20/45 in both load arms, AfterCalculate 10 vs Excel 9 and SheetCalculate 6 vs Excel 5. xlOil 15/16 and original 12/12. Private Excel showed the owned grid but gave no keyboard focus. Target/event parity remains dc-1nbp.3.1, grid entry dc-1nbp.6. Status rows also in ww1. | Continue true keyboard entry and fix Target, ordered notifications and the extra PyTargets row using K/ev2. Share the owned Excel setup with dc-1nbp.6. |
@@ -271,6 +271,22 @@ and spills, fill the expected answers and wire the formula and VBA cases into th
 corpora. Report missing captures and execution errors alongside pass/fail counts.
 
 ### dc-17spk.2 Desktop Automation
+
+The registry-free Windows arm ran on GOVERT-OMEN on 2026-11-23 with the
+hash-verified Linux handoff binaries from 4094ef5c and the existing staged
+DNA Calc page bundle. Evidence is under `ww8/oop1-rot`, `ww8/oop1-test.txt`
+and `ww8/oop1-revoked.txt`. A 64-bit Windows PowerShell 5.1 client called
+`GetActiveObject` directly with the Application CLSID, then used
+`CreateFileMoniker` and `IRunningObjectTable::GetObject` for `Automation.xlsx`.
+Both lookups returned `MK_E_UNAVAILABLE` before startup and after window close.
+During the run, Application.Version was 16.0, the Application and workbook
+routes returned the same controlling IUnknown, and A1 changed from 1.5 to
+651.125 and back. The advised sink received one SheetChange for the write.
+The missing ProgID returned `CO_E_CLASSSTRING`. The private desktop guard
+counted zero owned windows on the user desktop.
+
+The ProgID/CLSID writes and cold activation below await the owner. Run those
+controls and dedicated vtable marshalling on the requested no-Office profile.
 
 Run from the DnaCalc root in 64-bit Windows PowerShell 5.1 on a disposable, non-elevated
 profile with WebView2 and without Office. Use an owned desktop session and a fresh stage
