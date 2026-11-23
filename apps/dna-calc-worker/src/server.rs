@@ -632,6 +632,9 @@ impl Server {
         let mut out = None;
         let reply = (|| -> Result<Reply, String> {
             match request {
+                Request::AutomationBatch(_) | Request::AutomationRelease(_) => {
+                    Err("Office.js automation is not available on this transport (dc-17spk.21)".into())
+                }
                 Request::Names { query, page } => {
                     Ok(Reply::Names(crate::names::page(&self.book, query, page)))
                 }
