@@ -15,6 +15,7 @@ members = [
     "crates/calc-object-model",
     "crates/calc-com-host",
     "crates/calc-addin-host",
+    "crates/calc-js-host",
     "crates/calc-xll-fixture",
     "crates/calc-doc-model",
     "crates/calc-doc",

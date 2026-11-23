@@ -469,10 +469,11 @@ fn canvas_view(controller: Controller) -> impl IntoView {
         >
             <div class="dc-stage">
                 <div class="dc-bar" role="group" aria-label="Dependency trace depth">
-                    <button data-dnacalc="canvas-back-more" disabled=move || back.get()>
-                        = MAX_DEPTH
+                    <button
+                        data-dnacalc="canvas-back-more"
+                        disabled={move || back.get() >= MAX_DEPTH}
                         on:click=move |_| grow(back, 1)
-                        >
+                    >
                         "More inputs ["
                     </button>
                     <button
@@ -494,10 +495,11 @@ fn canvas_view(controller: Controller) -> impl IntoView {
                     >
                         "Fewer readers"
                     </button>
-                    <button data-dnacalc="canvas-forward-more" disabled=move || forward.get()>
-                        = MAX_DEPTH
+                    <button
+                        data-dnacalc="canvas-forward-more"
+                        disabled={move || forward.get() >= MAX_DEPTH}
                         on:click=move |_| grow(forward, 1)
-                        >
+                    >
                         "More readers ]"
                     </button>
                 </div>

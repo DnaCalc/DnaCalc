@@ -18,3 +18,7 @@ mod vba;
 
 #[path = "vba_corpus.rs"]
 mod vba_corpus;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "js.rs"]
+mod js;
