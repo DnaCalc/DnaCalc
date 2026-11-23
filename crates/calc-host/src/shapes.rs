@@ -1,8 +1,9 @@
-//! Drawing objects the object model and commands add to a sheet (dc-piw0.3, dc-zjsg.1): auto
-//! shapes, text boxes, lines and connectors. A command adds, changes or deletes one object of
-//! the sheet's drawing in one transaction; positions arrive in points, as VBA gives them, and
-//! are stored as the cell anchor Excel writes. Objects the file holds are never changed here
-//! (dc-zjsg.4); an edit of one is refused before anything changes.
+//! Worksheet drawing commands for auto shapes, text boxes, lines, connectors and pictures.
+//!
+//! A command applies one drawing change in a workbook transaction. Positions are given in points
+//! from the worksheet's top-left corner and persisted as DrawingML anchors. Supported edits also
+//! apply to shapes loaded from a workbook. The host preserves opaque objects such as SmartArt
+//! and refuses operations that would rewrite their contents.
 
 use crate::{CellEdit, HostState};
 use calc_doc_model::{
@@ -19,9 +20,18 @@ const DPI: f64 = crate::facts::REFERENCE_DPI;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Points(u64);
 impl Points {
+    /// Store a point-valued coordinate, size, or displacement with its exact bits.
+    ///
+    /// ```
+    /// use calc_host::Points;
+    ///
+    /// let half_inch = Points::new(36.0);
+    /// assert_eq!(half_inch.get(), 36.0);
+    /// ```
     pub fn new(points: f64) -> Points {
         Points(points.to_bits())
     }
+    /// Recover the point value with the original binary64 bits.
     pub fn get(self) -> f64 {
         f64::from_bits(self.0)
     }
@@ -33,11 +43,17 @@ pub enum ShapeChange {
     /// A new auto shape (`geometry` is the preset name, e.g. `rect`), text box (`rect`) or
     /// line or connector (`line`, `straightConnector1`), its rectangle in points.
     Add {
+        /// The drawing object kind.
         kind: ShapeKind,
+        /// The DrawingML preset geometry name.
         geometry: String,
+        /// The horizontal offset from the worksheet’s left edge, in points.
         left: Points,
+        /// The vertical offset from the worksheet’s top edge, in points.
         top: Points,
+        /// The rectangle width in points.
         width: Points,
+        /// The rectangle height in points.
         height: Points,
         /// Horizontal and vertical flip (a line drawn right to left or bottom to top).
         flips: (bool, bool),
@@ -47,83 +63,125 @@ pub enum ShapeChange {
     /// A new picture of the image `bytes` (`content_type` `image/png`, `image/jpeg`, ...), its rectangle in points
     /// (dc-zjsg.4).
     AddPicture {
+        /// The horizontal offset from the worksheet’s left edge, in points.
         left: Points,
+        /// The vertical offset from the worksheet’s top edge, in points.
         top: Points,
+        /// The rectangle width in points.
         width: Points,
+        /// The rectangle height in points.
         height: Points,
+        /// The image’s MIME type.
         content_type: String,
+        /// The encoded image data.
         bytes: std::sync::Arc<[u8]>,
         /// `cNvPr descr`: the picture's alternative text (Excel writes the file's name).
         description: Option<String>,
     },
+    /// Remove a drawing object.
     Delete {
+        /// The drawing object ID on this sheet.
         id: u32,
     },
+    /// Set the drawing object’s display name.
     Name {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The new display name.
         name: String,
     },
-    /// Any of the rectangle's sides, in points; `None` keeps it.
+    /// Set any of the rectangle’s coordinates or dimensions in points. Each `None` keeps its value.
     Place {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The horizontal offset from the worksheet’s left edge, in points.
         left: Option<Points>,
+        /// The vertical offset from the worksheet’s top edge, in points.
         top: Option<Points>,
+        /// The rectangle width in points.
         width: Option<Points>,
+        /// The rectangle height in points.
         height: Option<Points>,
     },
     /// The text, paragraphs split at `\r`, `\n` or `\r\n`.
     Text {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The replacement text.
         text: String,
     },
+    /// Replace the shape’s interior fill.
     Fill {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The replacement interior fill.
         fill: ShapeFill,
     },
+    /// Replace the shape’s line or outline formatting.
     Line {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The replacement line formatting.
         line: ShapeLine,
     },
     /// Turn a shape to `rotation` (60,000ths of a degree clockwise, 0 to 21,600,000) about its centre.
     Rotate {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The new clockwise rotation in units of 1/60,000 of a degree.
         rotation: i64,
     },
     /// A copy of a shape (Excel's Duplicate, Ctrl+D) over it, offset by `dx`, `dy` points, in front of everything.
     Duplicate {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The horizontal displacement in points, positive to the right.
         dx: Points,
+        /// The vertical displacement in points, positive downward.
         dy: Points,
     },
     /// Move a shape by `dx`, `dy` points (an arrow key's step), kept on the worksheet.
     Nudge {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The horizontal displacement in points, positive to the right.
         dx: Points,
+        /// The vertical displacement in points, positive downward.
         dy: Points,
     },
     /// Flip a shape left to right (`horizontal`) or top to bottom, as Excel's Flip Horizontal and Flip Vertical do.
     Flip {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// Whether to flip left to right. A false value flips top to bottom.
         horizontal: bool,
     },
     /// Move a shape in the drawing order (dc-zjsg.4).
     Order {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// The requested movement in the drawing order.
         order: ShapeOrder,
     },
     /// Group two or more top-level shapes into one group, in their drawing order, where the topmost was.
     Group {
+        /// The drawing IDs of the top-level shapes to group.
         ids: Vec<u32>,
     },
     /// Take a group apart: its children become top-level shapes where it was.
     Ungroup {
+        /// The drawing object ID on this sheet.
         id: u32,
     },
     /// Glue one end of a connector to a connection site (1-based as VBA counts) of a shape.
     Connect {
+        /// The drawing object ID on this sheet.
         id: u32,
+        /// Whether to attach the start of the connector. A false value attaches its end.
         begin: bool,
+        /// The drawing ID of the shape to attach to.
         shape: u32,
+        /// The one-based connection site on the target shape.
         site: u32,
     },
 }
@@ -131,9 +189,13 @@ pub enum ShapeChange {
 /// A step in the drawing order: Excel's Bring Forward, Send Backward, Bring to Front, Send to Back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShapeOrder {
+    /// Move one position toward the front.
     Forward,
+    /// Move one position toward the back.
     Backward,
+    /// Move in front of all other objects.
     Front,
+    /// Move behind all other objects.
     Back,
 }
 
@@ -462,8 +524,6 @@ impl HostState {
         }
     }
 
-    /// A shape's rectangle in points: left, top, width, height.
-    /// An anchor's rectangle in points (left, top, width, height), from the sheet's column widths and row heights.
     /// The top left of the cell at 1-based `row` and `column`, in points from the worksheet's top left.
     pub fn cell_corner(&self, sheet: SheetId, row: u32, column: u32) -> (f64, f64) {
         let x = (1..column).map(|c| self.column_points(sheet, c)).sum::<f64>();
@@ -471,6 +531,9 @@ impl HostState {
         (x, y)
     }
 
+    /// Return the anchor rectangle as left, top, width and height in points.
+    ///
+    /// Cell-based anchors use the sheet’s current column widths and row heights.
     pub fn anchor_rectangle(&self, sheet: SheetId, anchor: &ChartAnchor) -> (f64, f64, f64, f64) {
         let x = |p: &DrawingPoint| (1..=p.column).map(|c| self.column_points(sheet, c)).sum::<f64>() + p.column_offset as f64 / EMU_PER_POINT;
         let y = |p: &DrawingPoint| (1..=p.row).map(|r| self.row_points(sheet, r)).sum::<f64>() + p.row_offset as f64 / EMU_PER_POINT;
@@ -483,6 +546,9 @@ impl HostState {
         }
     }
 
+    /// Return the shape rectangle as left, top, width and height in points.
+    ///
+    /// Cell-based shapes use their stored transform. Absolute shapes use their anchor.
     pub fn shape_rectangle(&self, sheet: SheetId, shape: &Shape) -> (f64, f64, f64, f64) {
         match shape.anchor {
             ChartAnchor::TwoCell { .. } | ChartAnchor::OneCell { .. } => (
