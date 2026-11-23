@@ -1179,8 +1179,7 @@ fn remap_fields(
     // the empty pivot, a frame of 3 columns by 18 rows from its first cell (m7-names stub-clear-source,
     // stub-delete-all-columns), which takes only its first cell, holding #SPILL!, when the frame meets cells that
     // are not blank (the m5 scenarios src-clear-all, src-del-cols-all and src-del-row-header have such cells).
-    // When only the value fields lost their column the rows and columns stay, with no values: a layout of labels
-    // that is not modelled, so the refresh is refused (stub-delete-value-column, stub-rename-value-header).
+    // When only the value fields disappear, the measured single report keeps its axis labels.
     let survives = |field: i32| field >= 0 && map.get(field as usize).copied().flatten().is_some();
     let tables: Vec<&PivotTable> = before.tables().filter(|t| t.cache_id == cache.id).collect();
     let value_gone = tables
@@ -1194,10 +1193,9 @@ fn remap_fields(
             && !t.page_fields.iter().any(|p| survives(p.field as i32))
             && t.data_fields.iter().all(|d| !survives(d.field as i32))
     });
-    if value_gone && !stub {
+    if value_gone && !stub && tables.len() != 1 {
         return Err(fail(
-            "A source that keeps the pivot's row or column fields but not its value fields refreshes \
-            to a layout of labels without values in Excel; that layout is not modelled",
+            "A labels-only report sharing a cache with other reports is not modelled",
         ));
     }
     for tables in after.sheets.values_mut() {
@@ -1307,11 +1305,6 @@ fn remap_table(
             Some(data)
         })
         .collect();
-    if next.data_fields.is_empty() {
-        return Err(fail(
-            "The change removes every value field of the pivot, which is not modelled",
-        ));
-    }
     // The Values position is only on an axis while there are several value fields.
     if next.data_fields.len() < 2 {
         next.row_fields.retain(|&f| f != -2);

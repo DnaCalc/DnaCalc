@@ -26,8 +26,24 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
     {
         return Err(bad("This pivot value filter layout is not modelled"));
     }
-    if table.data_fields.is_empty() {
-        return Err(bad("This pivot axis layout is not modelled"));
+    // M7 captures a compact labels-only report with one field on each axis.
+    if table.data_fields.is_empty()
+        && (table.row_fields.len() != 1
+            || table.row_fields[0] < 0
+            || table.column_fields.len() != 1
+            || table.column_fields[0] < 0
+            || !truthy(table.attributes.get("compact"), true)
+            || !table.page_fields.is_empty()
+            || !table.formats.is_empty()
+            || !cache.calculated_items.is_empty()
+            || cache.fields.iter().any(|field| {
+                field.group.is_some() || field.attributes.contains_key("formula")
+            })
+            || table.fields.iter().any(|field| {
+                field.sort_measure.is_some() || field.items.iter().any(|item| item.hidden)
+            }))
+    {
+        return Err(bad("This labels-only pivot layout is not modelled"));
     }
     let mut layout = render_axes(table, cache, snapshot)?;
     if truthy(table.attributes.get("showError"), false) {
