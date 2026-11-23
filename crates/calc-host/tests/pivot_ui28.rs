@@ -1112,10 +1112,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     part,
                 },
             ));
-            if matches!(
-                stage.as_str(),
-                "agg-two-level-columns" | "prec-all-functions"
-            ) {
+            if stage == "prec-all-functions" {
                 assert!(
                     !receipt.accepted(),
                     "unmodelled calculations must refuse: {stage}"
@@ -1172,7 +1169,14 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
                     .unwrap_or(0)
                     .max(60);
                 let got = held(&book, sheet, width, 120);
-                let exact = matches!(stage.as_str(), "nodata-nullstring" | "subtotals-all-eleven");
+                let exact = matches!(
+                    stage.as_str(),
+                    "agg-two-level-columns"
+                        | "nodata-nullstring"
+                        | "prec-column-grand"
+                        | "prec-sum-average"
+                        | "subtotals-all-eleven"
+                );
                 let agrees = |expected, actual| {
                     if exact {
                         same_cell_bits(expected, actual)
@@ -1215,6 +1219,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "agg-all-amount",
             "agg-all-units",
             "agg-text-field",
+            "agg-two-level-columns",
             "blank-line-both",
             "blank-line-compact-columns",
             "blank-line-outer",
@@ -1251,7 +1256,9 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
             "nodata-rows",
             "nodata-rows-hidden",
             "nodata-two-row-fields",
+            "prec-column-grand",
             "prec-grand-only",
+            "prec-sum-average",
             "show-count-average",
             "show-difference-east",
             "show-difference-next",
@@ -2141,16 +2148,17 @@ fn dc_8wp_10__pivot_precision_uses_the_same_path_in_both_numeric_modes() {
         ));
         assert!(receipt.accepted(), "{receipt:?}");
         let cells = held(&book, sheet, 5, 20);
-        for address in ["B4", "C4", "B9", "C9"] {
+        for address in ["B4", "C4", "B9", "C9", "B13", "C13"] {
             let captured = include_str!("fixtures/pivot/m1-calculation/cells.tsv")
                 .lines()
                 .map(|line| line.splitn(4, '\t').collect::<Vec<_>>())
                 .find(|f| f.len() == 4 && f[0] == "prec-sum-average" && f[1] == address)
                 .unwrap();
-            assert_eq!(
-                cells.get(address),
-                Some(&Cell::Number(captured[3].parse().unwrap())),
-                "{address}"
+            let expected = Cell::Number(captured[3].parse().unwrap());
+            assert!(
+                same_cell_bits(&expected, cells.get(address)),
+                "{address}: Excel {expected:?}, DNA Calc {:?}",
+                cells.get(address)
             );
         }
         outputs.push(cells);

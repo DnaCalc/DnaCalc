@@ -20,7 +20,8 @@ impl Total {
         let value = item_value(value)?;
         match value.core_ref() {
             calc_value::CoreRef::Number(n) => {
-                self.sum += n;
+                // Pivot Sum and Average keep the adjusted result of each source addition.
+                self.sum = calc_fml::adjust_final_sum(self.sum, self.sum + n);
                 self.squares += n * n;
                 self.product = if self.numbers == 0 {
                     n
@@ -89,6 +90,9 @@ impl Total {
     }
     pub(super) fn supports_grouped_product(&self, kind: &str) -> bool {
         kind != "product" || self.error.is_some() || !self.unsafe_integer_product
+    }
+    pub(super) fn has_finite_zero_product(&self) -> bool {
+        self.has_zero && self.product == 0.0 && !self.product_overflowed
     }
     pub(super) fn result(&self, kind: &str) -> CalcValue {
         // UI28 P6 and M1 err-keys: an empty set has no displayed sum or count cell.

@@ -1122,6 +1122,23 @@ pub(super) fn render_axes(
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
     let mut row_totals: Vec<BTreeMap<Vec<usize>, Total>> =
         (0..row_fields.len()).map(|_| BTreeMap::new()).collect();
+    // M1 records Product over one row field and one column field, followed by Values.
+    let ordered_product = (!root_only
+        && !multiple_rows
+        && levels.len() == 2
+        && levels[0].field.is_some()
+        && levels[1].field.is_none()
+        && show == "normal"
+        && table.filters.is_empty()
+        && table.page_fields.is_empty()
+        && table
+            .data_fields
+            .iter()
+            .map(|data| data.subtotal.as_str())
+            .eq(["stdDev", "product"])
+        && table.data_fields[0].field == table.data_fields[1].field)
+        .then_some(1);
+    let mut product_records = BTreeMap::<(usize, usize), Vec<&PivotItem>>::new();
     let mut subtotal_records = BTreeMap::<Vec<usize>, Vec<&PivotItem>>::new();
     for record in &snapshot.records {
         if !page_allows(table, cache, record)? {
@@ -1196,6 +1213,12 @@ pub(super) fn render_axes(
             } else {
                 row_keys.push(row_path[0]);
             }
+            if ordered_product == Some(m) {
+                product_records
+                    .entry((row_keys[0], indexes[0]))
+                    .or_default()
+                    .push(value);
+            }
             for depth in 0..=indexes.len() {
                 let path = indexes[..depth].to_vec();
                 for &key in &row_keys {
@@ -1224,6 +1247,31 @@ pub(super) fn render_axes(
         if row_ids.len() > 1_000_000 || totals.len() > 1_000_000 || field_totals.len() > 1_000_000 {
             return Err(bad("The pivot has too many row and column combinations"));
         }
+    }
+    if let Some(measure) = ordered_product {
+        // Retain source order within an intersection. Row and column totals multiply their
+        // contributing intersections in the displayed order of the other axis.
+        let mut ordered = BTreeMap::<_, Total>::new();
+        for ((row, column), records) in product_records {
+            for value in records {
+                for key in [
+                    (row, Vec::new(), measure),
+                    (usize::MAX, vec![column, measure], measure),
+                    (usize::MAX, Vec::new(), measure),
+                ] {
+                    ordered.entry(key).or_default().push(value)?;
+                }
+            }
+        }
+        if ordered
+            .get(&(usize::MAX, Vec::new(), measure))
+            .is_some_and(|total| {
+                !total.supports_grouped_product("product") && !total.has_finite_zero_product()
+            })
+        {
+            return Err(bad("The two-axis grand Product order is not modelled"));
+        }
+        totals.extend(ordered);
     }
     if custom && !crossed_row_values && totals.values().any(|total| total.source_error().is_some())
     {
@@ -1333,7 +1381,8 @@ pub(super) fn render_axes(
     if totals.iter().any(|((_, _, measure), total)| {
         let kind = &table.data_fields[*measure].subtotal;
         !total.supports(kind)
-            || ((multiple_rows || levels.iter().any(|level| level.field.is_some()))
+            || (ordered_product != Some(*measure)
+                && (multiple_rows || levels.iter().any(|level| level.field.is_some()))
                 && !total.supports_grouped_product(kind))
     }) {
         return Err(bad(
@@ -1946,6 +1995,11 @@ pub(super) fn render_axes(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
+        if ordered_product == Some(entry.measure)
+            && matches!(value.core_ref(), calc_value::CoreRef::Number(0.0))
+        {
+            return CalcValue::number(0.0);
+        }
         if parent_percent {
             return CalcValue::empty();
         }

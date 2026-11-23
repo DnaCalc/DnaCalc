@@ -78,7 +78,7 @@ pub use calc_func::{
     WorkbookFacts, WorkbookFile,
 };
 pub use calc_func::{HostFacts, PivotLookup, RandomSource, SubtotalExclusions, WeekState};
-pub use calc_func::{read_number_text, text_order};
+pub use calc_func::{adjust_final_sum, read_number_text, text_order};
 // The engine uses the same model member parser as the CUBE functions for model-pivot requests.
 pub use calc_func::{
     CubeColumn, CubeFailure, CubeLookup, CubeMeasure, CubeMember, CubeModel, CubeTable,
