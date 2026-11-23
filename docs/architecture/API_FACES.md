@@ -663,32 +663,32 @@ flowchart TD
     D4 --> E2
 ```
 
-### 8.3 Bead plan and acceptance tests (new `AF-*` beads to create + existing `dc-17spk.2`..`.8`)
+### 8.3 Bead plan and acceptance tests (`AF-1`..`AF-14` as `dc-17spk.10`..`dc-17spk.23` + existing `dc-17spk.2`..`.8`)
 
 #### Wave 0 — Shared core foundations (prerequisite to all faces and UDF providers)
 
-- **AF-1 (new) — Descriptor `reach.json`, `AutoError::PolicyDenied`, and one Guarded check in `ObjectModel::invoke`** (Priority: P1; depends on: `dc-8ovd`)
+- **AF-1 (`dc-17spk.10`) — Descriptor `reach.json`, `AutoError::PolicyDenied`, and one Guarded check in `ObjectModel::invoke`** (Priority: P1; depends on: `dc-8ovd`)
   - **Scope:** Add `crates/calc-object-model/descriptor/reach.json` (keyed by `Interface.Member (InvokeKind)` plus `"xlc"` section), load into `Member::reach` in `crates/calc-object-model/src/descriptor.rs`, add `AutoError::PolicyDenied` in `model.rs`, and wire one `PolicyChecker` + audit call inside `WorkbookAutomation::invoke` (`crates/calc-host/src/automation.rs`) and `ValuesOnly::invoke`. Keep `tools/com-descriptor` regeneration lossless.
   - **Platform:** Portable (Linux, Windows, wasm32).
   - **Acceptance tests:**
     1. `descriptor_reach_overlay_resolves_every_entry` (`crates/calc-object-model/tests/descriptor.rs`, portable + wasm): every key in `reach.json` exists in `Descriptor::get()`, and `Workbooks.Open`, `Workbook.SaveAs`, `Application.ExecuteExcel4Macro`, `Application.RegisterXLL`, `Application.Run`, `Application.VBE` carry their `CODE_EXECUTION_POLICY.md` §2.2 capabilities.
     2. `guarded_policy_refuses_and_audits_reaching_members_once` (`crates/calc-host/tests/automation.rs`, portable + wasm): calling a reaching member under `Guarded` returns `AutoError::PolicyDenied` and logs one audit record; calling pure `Range.Value2` / `Calculate` succeeds with zero denials; calling under `Unguarded` succeeds and logs one allowed audit record.
 
-- **AF-2 (new) — `HostSession` observer fan-out, `WorkbookEvents`/`DocEvents`, and synchronous `ByRef Cancel`** (Priority: P1; depends on: none)
+- **AF-2 (`dc-17spk.11`) — `HostSession` observer fan-out, `WorkbookEvents`/`DocEvents`, and synchronous `ByRef Cancel`** (Priority: P1; depends on: none)
   - **Scope:** Replace single `observer` slot in `crates/calc-host/src/events.rs:93` with ordered multi-observer registration (`add_workbook_event_observer` / `remove_workbook_event_observer`), add `workbook_open`, `before_save`, and `selection_changed` callbacks to `WorkbookEventObserver`, wire `WorkbookEvents` and `DocEvents` in `AutomationObserver` (`crates/calc-host/src/automation.rs:939-1013`), and add `VT_BYREF | VT_BOOL` copyback in `crates/calc-com-host/src/events.rs:147-211`.
   - **Platform:** Portable core (Linux/Windows/wasm32) + Windows COM event test.
   - **Acceptance tests:**
     1. `multiple_observers_receive_ordered_events_under_one_enable_events_switch` (`crates/calc-host/tests/automation.rs`, portable + wasm): two registered observers (standing in for COM and Office.js) receive `WorksheetChange`, `WorksheetCalculate`, `AfterCalculate`, and `SelectionChanged` in registration order after the VBA handler, and both suppress when `EnableEvents = false`.
     2. `com_before_save_sink_cancels_save_via_byref_bool` (`crates/calc-com-host/src/tests.rs`, Windows): a COM `WorkbookEvents` sink setting `*Cancel = VARIANT_TRUE` cancels `HostSession` save before file replacement, matching E5.
 
-- **AF-3 (new) — Core workbook automation members required by all three faces** (Priority: P2; depends on: `AF-1`, `dc-1nbp.6`)
+- **AF-3 (`dc-17spk.12`) — Core workbook automation members required by all three faces** (Priority: P2; depends on: `AF-1`, `dc-1nbp.6`)
   - **Scope:** Add missing shared Tier-1 workbook members once in `crates/calc-host/src/automation/` (never in a face crate): `Application.Selection`, `Application.ActiveCell`, `Application.Calculation` (Get/Put), `Application.ScreenUpdating` (Get/Put), `Range.Select`, `Range.Formula2` (Get/Put, per E7), `Range.FormulaArray` (Get/Put), `Range.NumberFormat` (Get/Put), `Range.Insert`, `Range.Delete`, `Worksheet.UsedRange`, `Worksheet.Activate`, `Sheets.Add`, `Worksheet.Delete`, `Names.Add`, `Name.Delete`, `Workbook.Save`/`SaveAs`/`Close`, `Workbooks.Add`/`Open`, and truthful `OperationOutcome` reporting in `mutation.rs`.
   - **Platform:** Portable (Linux, Windows, wasm32).
   - **Acceptance tests:**
     1. Portable round-trip tests in `crates/calc-host/tests/automation.rs` (running natively and in wasm32) verifying each added member against `HostSession`, including `ReferenceTracker` survival across `Range.Insert`/`Delete`, `Formula` vs `Formula2` spill/intersection (E7), and `OperationOutcome` preserving committed revision on post-commit recalc failure.
     2. `workbook_descriptor_coverage_lists_own_and_inherited_members` reports the exact new total over `3,545` with zero regressions on existing 626 handlers.
 
-- **AF-4 (new) — Unified `CallableTable` provider contract across XLL, VBA, JS, and Automation UDFs** (Priority: P2; depends on: `AF-1`)
+- **AF-4 (`dc-17spk.13`) — Unified `CallableTable` provider contract across XLL, VBA, JS, and Automation UDFs** (Priority: P2; depends on: `AF-1`)
   - **Scope:** Formalize provider-tagged registration, qualified vs unqualified lookup precedence (`ProgID.Method`, `NAMESPACE.FUNC`, `Module.Func`), `CallableDescriptor` origin/metadata propagation to formula completion and signature help, async/streaming cancellation tokens tied to `(workbook_incarnation, invocation_id, eligibility_token)`, and `Off` / `Guarded` / `Unguarded` provider filtering in `crates/calc-fml/src/callable.rs` and `crates/calc-addin-host/src/host.rs`.
   - **Platform:** Portable core (`calc-fml` / `calc-host`) + native `calc-addin-host`.
   - **Acceptance tests:**
@@ -719,7 +719,7 @@ flowchart TD
     1. Committed Excel measurement trace for the sample Automation add-in (argument coercion, errors, recalc).
     2. Windows test loads the sample Automation add-in in `dna-calc-desktop` (`Unguarded`), evaluates `=ProgID.Method(...)` and `=Method(...)` in cells through `CallableTable`, matches Excel's measured answers bit for bit, refuses loading in `Guarded`, and returns a typed Windows-only refusal on Linux.
 
-- **AF-5 (new) — Linux in-process binary COM ABI projection** (Priority: P2; depends on: `AF-1`, `AF-2`)
+- **AF-5 (`dc-17spk.14`) — Linux in-process binary COM ABI projection** (Priority: P2; depends on: `AF-1`, `AF-2`)
   - **Scope:** Factor OS-independent wrapper/dispatch/event machinery out of Win32 modules in `crates/calc-com-host`, add a Linux SysV x86_64 `#[repr(C)]` `VARIANT`/`BSTR`/`SAFEARRAY`/`IUnknown`/`IDispatch`/`IConnectionPointContainer` ABI layer (no `oleaut32`, no `WM_GETOBJECT`/ROT/`LocalServer`, no Windows COM/Automation add-ins), and extend `crates/calc-com-host/generate.rs` to emit SysV-ABI-correct vtable thunks (6 GPRs + 8 XMM registers and stack-passed by-value `VARIANT`s).
   - **Platform:** Linux x86_64 (`cargo xtask check` native).
   - **Acceptance tests:**
@@ -732,33 +732,33 @@ flowchart TD
   - **Scope:** Enumerate every `xlcXXX` command from `xlcall.h` (number, name, arguments, XLM equivalent, today's status in `calc-xll-host`), group by object-model owner, and identify the Tier-1 implementation set. No code.
   - **Acceptance tests:** `docs/architecture/C_API_COMMANDS.md` lists 100% of `xlcall.h` `xlc*` constants with verified counts matching `crates/calc-xll-abi` and `crates/calc-xll-host/src/callbacks.rs`.
 
-- **AF-6 (new) — Excel C API command probes (batch C1–C4)** (Priority: P2; depends on: `dc-17spk.3`)
+- **AF-6 (`dc-17spk.15`) — Excel C API command probes (batch C1–C4)** (Priority: P2; depends on: `dc-17spk.3`)
   - **Scope:** Extend `crates/calc-xll-fixture` and `crates/calc-xll-reference` on Windows Excel 16.0.20527 to measure: (C1) `xlSet` semantics (formula strings starting with `=`, automatic vs manual calc, `Change` event firing, multi-area/shape mismatch, return code); (C2) Tier-1 `xlc*` return codes, `XL_INTL` and `XL_PROMPT` behaviour, and `#`-UDF vs command-context legality; (C3) legacy `Excel4`/`Excel4v` (`XLOPER` ANSI code page, >255-char string truncation/failure, >65,536-row/256-col ref failure); (C4) `Application.ExecuteExcel4Macro` return values, error codes, and `xlc*` reach.
   - **Platform:** Windows x64 + Excel (queued in `docs/plan/windows-queue.md`).
   - **Acceptance tests:** Trace files and JSON summaries committed under `crates/calc-xll-reference/traces/` with two agreeing fresh Excel trials per batch and zero Excel registry/Trust Center drift.
 
-- **AF-7 (new) — Split portable C API command dispatcher from Win32 XLL DLL loader** (Priority: P2; depends on: `dc-17spk.3`, `AF-1`)
+- **AF-7 (`dc-17spk.16`) — Split portable C API command dispatcher from Win32 XLL DLL loader** (Priority: P2; depends on: `dc-17spk.3`, `AF-1`)
   - **Scope:** Separate the OS-independent C API callback/command dispatcher (`XLOPER12` decoding, `SheetMap`, `Arena`, `CallbackReply`, `State::allocations`, `xlFree`, `xlCoerce`, `xlSheetId`/`xlSheetNm`, `ObjectModel` command frame, Guarded reach check) from Win32 `LoadLibraryExW`/`user32`/`dbghelp` XLL loading in `crates/calc-xll-host`. Export an in-process `Excel12`/`Excel12v` command entry usable on both Windows and Linux without loading `.xll` DLLs, while keeping `calc-xll-host`'s existing X1–X19 Windows XLL behaviour unchanged.
   - **Platform:** Linux x86_64 and Windows x64 (`native-only`, refuses `wasm32`).
   - **Acceptance tests:**
     1. Linux native tests in `crates/calc-xll-host` enter a command frame bound to `WorkbookAutomation`, invoke `xlSheetId`, `xlSheetNm`, `xlCoerce`, `xlFree`, `xlcMessage`, and `xlfSum`, and verify zero leaked `State::allocations` and exact `CallbackReply` statuses.
     2. Windows `cargo xtask app xll-accept onecalc` (350/350) and X1/x13/x14/x17/x18 traces remain unchanged.
 
-- **AF-8 (new) — Implement `xlSet` and Tier-1 `xlc*` commands over `WorkbookAutomation`** (Priority: P2; depends on: `AF-3`, `AF-6`, `AF-7`)
+- **AF-8 (`dc-17spk.17`) — Implement `xlSet` and Tier-1 `xlc*` commands over `WorkbookAutomation`** (Priority: P2; depends on: `AF-3`, `AF-6`, `AF-7`)
   - **Scope:** Bind `Rc<dyn ObjectModel>` into the C API command dispatcher (`apps/dna-calc-desktop/src/automation.rs` on Windows; in-process command host on Linux). Implement `xlSet` (16387) and Tier-1 `xlc*` commands (`xlcFormula`, `xlcFormulaArray`, `xlcSelect`, `xlcCalculateNow`, `xlcCalculateDocument`, `xlcEcho`, `xlcClear`, `xlcDefineName`, `xlcDeleteName`, `xlcWorkbookInsert`, `xlcInsert`, `xlcEditDelete`, `xlcFormatNumber`, `xlcRun`, `xlcAlert` refusal/controller bridge, `XL_INTL` / `XL_PROMPT` handling) strictly by translating to `ObjectModel::invoke` / `WorkbookAutomation`, plus wiring `xlEventRegister` firing on interactive calc end/cancel.
   - **Platform:** Linux x86_64 and Windows x64.
   - **Acceptance tests:**
     1. Linux in-process C/Rust test drives `Excel12v` with `xlSet`, `xlcSelect`, `xlcFormula`, `xlcCalculateNow`, `xlcDefineName`, and `xlcClear` against a real `HostSession`, verifying calculated values, `HostDelta` publications, `WorkbookEventObserver` events, `XL_PROMPT` refusal, and Guarded reach denial.
     2. Windows `calc-xll-fixture` C1–C2 command suite matches the AF-6 Excel captures 100% on `dna-calc-desktop --engine` and `--app`.
 
-- **AF-9 (new) — Legacy `Excel4`/`Excel4v` (`XLOPER`) ABI translation** (Priority: P3; depends on: `AF-6`, `AF-7`)
+- **AF-9 (`dc-17spk.18`) — Legacy `Excel4`/`Excel4v` (`XLOPER`) ABI translation** (Priority: P3; depends on: `AF-6`, `AF-7`)
   - **Scope:** Add `XlOper`, `XlRef`, `XlMRef`, `XlSRef`, `Fp`, and ANSI counted-string conversion to `crates/calc-xll-abi`; replace the `return 32` stubs in `platform/calc-xll-shim/src/variadic.c:17-22` with `Excel4`/`Excel4v` forwarding to the shared C API dispatcher (and expose `Excel4`/`Excel4v` on Linux in-process). Support legacy `P`/`R`/`C`/`D`/`K` type codes in `calc-xll-host/src/invoke.rs` where measured in C3.
   - **Platform:** Linux x86_64 and Windows x64 (`native-only`).
   - **Acceptance tests:**
     1. Layout/offset unit tests for `XlOper`/`XlRef`/`XlMRef`/`XlSRef`/`Fp` in `crates/calc-xll-abi` on Linux and Windows.
     2. Linux and Windows C tests invoking `Excel4` and `Excel4v` for `xlSet`, `xlcFormula`, `xlCoerce`, `xlFree`, and `xlfSum`, plus >255-byte string and >65,536-row boundary cases matching AF-6 C3 Excel captures.
 
-- **AF-10 (new) — `Application.ExecuteExcel4Macro` over the C API command table** (Priority: P3; depends on: `AF-1`, `AF-8`)
+- **AF-10 (`dc-17spk.19`) — `Application.ExecuteExcel4Macro` over the C API command table** (Priority: P3; depends on: `AF-1`, `AF-8`)
   - **Scope:** Implement `_Application.ExecuteExcel4Macro` in `crates/calc-host/src/automation/` by parsing the XLM macro expression via `calc-fml`, checking the `xlc*`/`xlf*` command's `reach` under Guarded policy, and dispatching into the same command/function core (portable, including Linux and wasm32).
   - **Platform:** Portable (Linux, Windows, wasm32).
   - **Acceptance tests:**
@@ -770,12 +770,12 @@ flowchart TD
   - **Scope:** Inventory Excel JavaScript API objects, members, events, and requirement sets (`ExcelApi 1.1..1.18`), map each to its owning `calc-object-model` descriptor member (or mark none), and record `WorkbookAutomation`'s current coverage. No code.
   - **Acceptance tests:** `docs/architecture/OFFICE_JS_MAP.md` lists every Tier-1/Tier-2 Office.js object and member with exact mapped descriptor `(Interface, Member, InvokeKind)` or explicit `none`, and live handler counts matching `WorkbookAutomation::coverage()`.
 
-- **AF-11 (new) — Excel J1–J5 Office.js measurements** (Priority: P2; depends on: `dc-1nbp.30` owner sideload approval)
+- **AF-11 (`dc-17spk.20`) — Excel J1–J5 Office.js measurements** (Priority: P2; depends on: `dc-1nbp.30` owner sideload approval)
   - **Scope:** Run experiments J1–J5 from `docs/architecture/review-2026-11/pro/14-object-model-and-js-answer.md` section 5 against real Excel 16.0.20527 via an owner-approved sideload route (zero Trust Center or prohibited registry mutation): (J1) read/write/calculate batch snapshot timing; (J2) partial-failure hydration and suffix skip; (J3) `trackedObjects` across structural edits and workbook close; (J4) ordinary `await`, final `Excel.run` sync, and concurrent `sync()`; (J5) async/streaming `CustomFunctions` eligibility and nested `Excel.run` write prohibition.
   - **Platform:** Windows x64 + Excel (queued in `docs/plan/windows-queue.md`).
   - **Acceptance tests:** Raw J1–J5 traces and verified outcome tables committed under `crates/calc-xll-reference/traces/` (or `docs/research/`) with three agreeing trials per scenario.
 
-- **AF-12 (new) — `AutomationBatch` protocol, host handle table, and `Event::AutomationEvent` in `dna-calc-protocol` / `dna-calc-worker`** (Priority: P2; depends on: `dc-17spk.4`, `AF-1`, `AF-2`, `AF-3`)
+- **AF-12 (`dc-17spk.21`) — `AutomationBatch` protocol, host handle table, and `Event::AutomationEvent` in `dna-calc-protocol` / `dna-calc-worker`** (Priority: P2; depends on: `dc-17spk.4`, `AF-1`, `AF-2`, `AF-3`)
   - **Scope:** Add `Request::AutomationBatch`, `Request::AutomationRelease`, `Reply::AutomationBatch`, `Event::AutomationEvent`, and lossless `WireAutoValue` to `apps/dna-calc-model/src/projection.rs` and `apps/dna-calc-protocol`. Bind `Rc<WorkbookAutomation>` and `AutomationHandles` (run-scoped + `trackedObjects` leases) inside `apps/dna-calc-worker/src/server.rs`, executing each batch op sequentially on `WorkbookAutomation` with Guarded reach checking, stop-on-first-failure receipts, and `HostDelta` publication.
   - **Platform:** Portable (Linux, Windows, and `wasm32-unknown-unknown`).
   - **Acceptance tests:**
@@ -800,12 +800,12 @@ flowchart TD
 
 #### Wave 4 — Cross-face parity and deferred platforms
 
-- **AF-13 (new) — Cross-face and cross-UDF differential parity harness** (Priority: P2; depends on: `dc-piw0.5`, `dc-17spk.2`, `dc-17spk.5`, `dc-17spk.6`, `dc-17spk.7`, `AF-5`, `AF-8`)
+- **AF-13 (`dc-17spk.22`) — Cross-face and cross-UDF differential parity harness** (Priority: P2; depends on: `dc-piw0.5`, `dc-17spk.2`, `dc-17spk.5`, `dc-17spk.6`, `dc-17spk.7`, `AF-5`, `AF-8`)
   - **Scope:** One shared scenario suite (cell values, formulas, `Calculate`, `ClearContents`, `Names`, `Insert`/`Delete` with held references, tables/charts/shapes where supported, `EnableEvents`, Guarded reach denials, and save/reopen) executed against the exact same starting `.xlsx` through (1) COM (Windows in-proc, out-of-proc, and COM add-in; Linux in-proc), (2) C API `Excel12`/`Excel4` (Windows & Linux), (3) Office.js Face 1 (wasm browser, Windows WebView2, Linux WebKitGTK/`dnacalc serve`), and (4) VBA (`calc-host-vba`), plus one shared UDF suite calling equivalent functions across XLL, VBA, JS (`calc-js-host`), and Automation add-ins through `CallableTable`.
   - **Platform:** Linux x86_64, Windows x64, Browser wasm.
   - **Acceptance tests:** Every face produces bit-identical calculated cell values, identical authored workbook XML/parts on save, identical `ReferenceTracker` survival/tombstone outcomes, and identical Guarded audit records; zero face-specific workbook code exists outside `calc-host`.
 
-- **AF-14 (new) — macOS in-process build and verification (deferred)** (Priority: P3; depends on: `AF-5`, `AF-7`, `dc-17spk.5`, `dc-17spk.6`)
+- **AF-14 (`dc-17spk.23`) — macOS in-process build and verification (deferred)** (Priority: P3; depends on: `AF-5`, `AF-7`, `dc-17spk.5`, `dc-17spk.6`)
   - **Scope:** Compile and test the three in-process faces and `calc-js-host` on macOS (`aarch64-apple-darwin` / `x86_64-apple-darwin`), adding AAPCS64 vtable thunk generation in `calc-com-host/generate.rs`, in-process `Excel12`/`Excel4` C API command tests, `calc-js-host` conformance tests, and Office.js via `dnacalc serve` (or `WKWebView` when a macOS shell exists).
   - **Platform:** macOS (explicitly deferred per `dc-17spk`).
   - **Acceptance tests:** `cargo xtask check` green on macOS; AF-13 cross-face parity suite passes for all three in-process faces on macOS.
