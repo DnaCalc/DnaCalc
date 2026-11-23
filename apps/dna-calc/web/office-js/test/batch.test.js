@@ -75,3 +75,47 @@ test("a rejected Excel.run callback discards unsubmitted operations", async () =
   await context.sync();
   assert.deepStrictEqual(sent, [{ AutomationRelease: { context: context._id } }]);
 });
+
+test("Excel.run reuses the context of one object, an array, or a context", async () => {
+  const sent = [];
+  const transport = async (json) => {
+    const message = JSON.parse(json);
+    const batch = message.request.AutomationBatch;
+    sent.push(batch);
+    return JSON.stringify({ Reply: { id: message.id, reply: {
+      AutomationBatch: {
+        batch_id: batch.batch_id,
+        results: batch.ops.map((op, ordinal) => ({
+          ordinal, loaded: op.op === "load" ? [["name", { t: "text", v: "Sheet1" }]] : [],
+        })),
+      },
+    } } });
+  };
+  const context = new Excel.RequestContext(transport);
+  const sheets = context.workbook.worksheets;
+  const first = sheets.getItem("Sheet1");
+  const second = sheets.getItem("Sheet1");
+  context.trackedObjects.add(first);
+  context.trackedObjects.add(second);
+
+  for (const previous of [first, [first, second], context]) {
+    assert.strictEqual(await Excel.run(previous, async (ctx) => {
+      assert.strictEqual(ctx, context);
+      first.load("name");
+      return 13;
+    }), 13);
+  }
+  assert.strictEqual(first.name, "Sheet1");
+  assert.ok(sent.every(batch => batch.context === sent[0].context && batch.final_release));
+  assert.deepStrictEqual(sent.slice(1).map(batch => batch.ops.map(op => op.op)), [["load"], ["load"]]);
+});
+
+test("Excel.run rejects objects from different contexts before invoking the batch", async () => {
+  const left = new Excel.RequestContext();
+  const right = new Excel.RequestContext();
+  let entered = false;
+  await assert.rejects(Excel.run([left.workbook, right.workbook], () => {
+    entered = true;
+  }), e => e.code === "InvalidObjectPath");
+  assert.strictEqual(entered, false);
+});

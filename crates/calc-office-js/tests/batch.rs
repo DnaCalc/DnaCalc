@@ -2,12 +2,12 @@ use calc_func::UserFunctionContext;
 use calc_host::automation::{AutomationHost, WorkbookAutomation};
 use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, blank_package};
 use calc_object_model::profile::ApplicationHost;
-use calc_object_model::{AutoError, AutoValue};
+use calc_object_model::{AutoError, AutoValue, Call, ObjectKey, ObjectModel, ObjectRef};
 use calc_office_js::{BatchReply, BatchRequest, Executor, Op, WireValue};
 use dna_calc_protocol::{
     FromServer, Reply, Request, ToServer, automation::ReleaseRequest, decode, encode,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -58,7 +58,7 @@ fn host() -> Executor<WorkbookAutomation> {
     Executor::new(model)
 }
 
-fn batch(host: &Executor<WorkbookAutomation>, id: u64, ops: Vec<Op>) -> BatchReply {
+fn batch<M: ObjectModel>(host: &Executor<M>, id: u64, ops: Vec<Op>) -> BatchReply {
     let request = BatchRequest {
         batch_id: id,
         context: 1,
@@ -73,7 +73,7 @@ fn batch(host: &Executor<WorkbookAutomation>, id: u64, ops: Vec<Op>) -> BatchRep
     reply
 }
 
-fn request_through_wire(host: &Executor<WorkbookAutomation>, id: u64, request: Request) -> Reply {
+fn request_through_wire<M: ObjectModel>(host: &Executor<M>, id: u64, request: Request) -> Reply {
     let message = decode::<ToServer>(&encode(&ToServer { id, request })).unwrap();
     let reply = host.handle(&message.request).unwrap();
     let response = encode(&FromServer::Reply {
@@ -257,4 +257,64 @@ fn loading_nullness_with_properties_skips_only_missing_objects() {
             ("isNullObject".into(), WireValue::Bool { v: false }),
         ]
     );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workbook_roots_balance_temporary_application_acquisitions() {
+    struct CountedModel<'a> {
+        inner: &'a WorkbookAutomation,
+        held: Cell<usize>,
+        fail_active_workbook: Cell<bool>,
+    }
+
+    impl ObjectModel for CountedModel<'_> {
+        fn application(&self) -> ObjectRef {
+            self.held.set(self.held.get() + 1);
+            self.inner.application()
+        }
+
+        fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Outcome {
+            if call.member.name == "ActiveWorkbook" && self.fail_active_workbook.get() {
+                return Err(AutoError::Status(0x8002_000Bu32 as i32));
+            }
+            self.inner.invoke(target, call)
+        }
+
+        fn released(&self, target: &ObjectRef) {
+            if target.key == ObjectKey::Application {
+                self.held.set(self.held.get() - 1);
+            }
+            self.inner.released(target);
+        }
+    }
+
+    let real = host();
+    let host = Executor::new(CountedModel {
+        inner: real.model(),
+        held: Cell::new(0),
+        fail_active_workbook: Cell::new(false),
+    });
+    let root = |id, name: &str| {
+        batch(
+            &host,
+            id,
+            vec![Op::Root {
+                name: name.into(),
+                out: id,
+            }],
+        )
+    };
+
+    assert_eq!(root(1, "workbook").error, None);
+    assert_eq!(host.model().held.get(), 0, "successful workbook lookup");
+    host.model().fail_active_workbook.set(true);
+    assert_eq!(root(2, "workbook").error.unwrap().code, "ItemNotFound");
+    assert_eq!(host.model().held.get(), 0, "failed workbook lookup");
+    assert_eq!(root(3, "unknown").error.unwrap().code, "ApiNotFound");
+    assert_eq!(host.model().held.get(), 0, "unknown root");
+    assert_eq!(root(4, "application").error, None);
+    assert_eq!(host.model().held.get(), 1, "bound application root");
+    host.release(1);
+    assert_eq!(host.model().held.get(), 0, "released application root");
 }

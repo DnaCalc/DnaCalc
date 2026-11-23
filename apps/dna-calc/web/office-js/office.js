@@ -131,7 +131,7 @@
   class RequestContext {
     constructor(transport) {
       this._id = nextContext++; this._queue = []; this._handle = 1; this._loads = new Map(); this._outs = new Map();
-      this._transport = transport || root.__dnaOfficeTransport; this._syncing = false;
+      this._transport = transport || root.__dnaOfficeTransport; this._syncing = false; this._running = false;
       this._push({ op: "root", name: "workbook", out: this._alloc() });
       this.workbook = new Workbook(this, this._handle);
       this.trackedObjects = new TrackedObjects(this);
@@ -181,19 +181,40 @@
   }
   const Excel = {
     RequestContext,
-    async run(batch, transport) {
-      const ctx = typeof batch === "function" ? new RequestContext(transport) : new RequestContext(batch);
-      const fn = typeof batch === "function" ? batch : arguments[1];
-      let result;
-      try {
-        result = await fn(ctx);
-      } catch (e) {
-        ctx._discard();
-        await ctx._release().catch(() => {});
-        throw e;
+    async run(previous, batch) {
+      let ctx;
+      if (typeof previous === "function") {
+        ctx = new RequestContext(batch);
+        batch = previous;
+      } else if (previous instanceof RequestContext) {
+        ctx = previous;
+      } else {
+        const objects = Array.isArray(previous) ? Array.from(previous) : [previous];
+        if (!objects.length || !objects.every(obj => obj instanceof ClientObject)) {
+          throw new OfficeError("InvalidArgument", "Expected a request context or previously created Excel objects.");
+        }
+        ctx = objects[0].context;
+        if (!objects.every(obj => obj.context === ctx)) {
+          throw new OfficeError("InvalidObjectPath", "The objects belong to different request contexts.");
+        }
       }
-      await ctx._sync(true);
-      return result;
+      if (typeof batch !== "function") throw new OfficeError("InvalidArgument", "Expected a batch function.");
+      if (ctx._running || ctx._syncing) throw new OfficeError("GeneralException", "The request context is busy.");
+      ctx._running = true;
+      try {
+        let result;
+        try {
+          result = await batch(ctx);
+        } catch (e) {
+          ctx._discard();
+          await ctx._release().catch(() => {});
+          throw e;
+        }
+        await ctx._sync(true);
+        return result;
+      } finally {
+        ctx._running = false;
+      }
     },
   };
   const actions = new Map();

@@ -145,17 +145,18 @@ impl<M: ObjectModel> Executor<M> {
         };
         match op {
             Op::Root { name, out } => {
-                let application = self.model.application();
                 let object = match name.as_str() {
-                    "application" => application,
+                    "application" => self.model.application(),
                     "workbook" => {
+                        let application = self.model.application();
                         let value = self.invoke_member(
                             &application,
                             "ActiveWorkbook",
                             &[InvokeKind::Get],
                             vec![],
-                        )?;
-                        self.as_object(value)?
+                        );
+                        self.model.released(&application);
+                        self.as_object(value?)?
                     }
                     other => {
                         return Err(error(
