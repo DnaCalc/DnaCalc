@@ -2,12 +2,12 @@
   "format": "dnacalc-site-published/1",
   "sites": {
     "calc": {
-      "build_json_sha256": "e88dc26c50a15a20563d45831ccc0549d53e5b8a106be6bcaf945b68d929150d",
-      "commit": "d4e662098ffe10d1eb9b8e47f772d48048829d49",
+      "build_json_sha256": "ca985dae1d61e36e9887cc5a679e4a9d883d8f4e766164eec91245b6a4690bae",
+      "commit": "8416340e6a61aa17c6207173c019f8d120260960",
       "host": "dnacalc.com",
-      "published_utc": "2026-11-23T12:57:47Z",
-      "release": "20261123T103245Z-d4e662098ffe",
-      "tar_sha256": "6a611cfa6b98eefc8010870ff37f6d1a22d213c7eb47dd7cf8cdd142f9070793"
+      "published_utc": "2026-11-23T18:44:47Z",
+      "release": "20261123T180206Z-8416340e6a61",
+      "tar_sha256": "2dea0bad53a628dd3ca576eb746dbe462a9c43980e929b4134690eb6f8668a99"
     },
     "onecalc": {
       "build_json_sha256": "0a9c8c0bddf6721401fa78a81aeb2b54116c66716cc8f881868986c2f4b27859",
