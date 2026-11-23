@@ -243,6 +243,7 @@ impl Module {
             reference_projects: vec![],
             conditional_constants: Default::default(),
             conditional_compilation_target: Default::default(),
+            codepage: None,
         };
         let descriptor_resolver = crate::descriptor::DescriptorTypeLibResolver {
             has_workbook: events,
