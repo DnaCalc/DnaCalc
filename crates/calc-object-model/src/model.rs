@@ -42,6 +42,12 @@ pub enum AutoError {
     /// An error Excel itself raises for this call (number and description as Excel gives them,
     /// for example 1004 "needs a workbook: open in DNA Calc" in the values-only profile).
     Excel { number: i32, description: String },
+    /// A capability request refused by the caller's execution policy.
+    PolicyDenied {
+        capability: &'static str,
+        subject: String,
+        number: i32,
+    },
     /// A COM status a projection passes through unchanged (E_INVALIDARG, DISP_E_TYPEMISMATCH, ...).
     Status(i32),
     /// The object's workbook or projection is gone (CO_E_OBJNOTCONNECTED on COM).
@@ -65,7 +71,7 @@ impl AutoError {
     pub fn number(&self) -> i32 {
         match self {
             AutoError::NotModelled { .. } => 1004,
-            AutoError::Excel { number, .. } => *number,
+            AutoError::Excel { number, .. } | AutoError::PolicyDenied { number, .. } => *number,
             AutoError::Status(status) => *status,
             AutoError::Disconnected => 0x8004_0201u32 as i32,
         }
@@ -76,6 +82,13 @@ impl AutoError {
                 format!("DNA Calc does not model {what} yet ({owner})")
             }
             AutoError::Excel { description, .. } => description.clone(),
+            AutoError::PolicyDenied {
+                capability,
+                subject,
+                ..
+            } => {
+                format!("Execution policy denied {capability} for {subject}")
+            }
             AutoError::Status(status) => format!("COM status {status:#x}"),
             AutoError::Disconnected => "the object is no longer connected".into(),
         }

@@ -2,12 +2,14 @@
 
 use super::ApplicationHost;
 use crate::geometry::{bad_count, boolean, type_mismatch};
+use crate::policy::PolicyChecker;
 use crate::{
     AutoError, AutoValue, Call, Descriptor, Handlers, InvokeKind, ObjectKey, ObjectModel, ObjectRef,
 };
 
 pub struct ValuesOnly<H: ApplicationHost> {
     host: H,
+    policy: PolicyChecker,
     handlers: Handlers<Self>,
 }
 
@@ -22,6 +24,10 @@ pub fn object(interface: &str, key: ObjectKey) -> ObjectRef {
 
 impl<H: ApplicationHost> ValuesOnly<H> {
     pub fn new(host: H) -> Self {
+        Self::with_policy(host, PolicyChecker::default())
+    }
+
+    pub fn with_policy(host: H, policy: PolicyChecker) -> Self {
         let mut handlers = Handlers::new();
         handlers.on(
             "Application",
@@ -164,7 +170,11 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             Self::application_member,
             Self::creator,
         );
-        Self { host, handlers }
+        Self {
+            host,
+            handlers,
+            policy,
+        }
     }
     pub fn host(&self) -> &H {
         &self.host
@@ -348,6 +358,7 @@ impl<H: ApplicationHost> ObjectModel for ValuesOnly<H> {
         object("Application", ObjectKey::Application)
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
+        self.policy.check(call)?;
         self.handlers.dispatch(self, target, call, "dc-1nbp.5")
     }
     fn record_refusal(&self, error: &AutoError) {

@@ -58,6 +58,9 @@ identity, the session's reference binder (`HostState::resolve_reference_text`), 
 - Names and ABI facts only, no documentation strings. These are the facts any client compiled against
   Excel's type library already carries (PIAs, Excel-DNA, xlOil); we record them for interoperability, as
   `projection.cpp` already did from the same library.
+- `descriptor/reach.json` is maintained separately from the generated libraries. The object model
+  applies it by declaring interface, member and invoke kind. The descriptor test checks that every
+  overlay key still resolves after regeneration.
 - Growth: to advertise a new interface (Font, Interior, ListObject, ...), add its name and regenerate.
 - Coverage: each profile can list what it implements against what the descriptor holds
   (`Handlers::implemented`), so "how much of the object model works" is a count, not a claim.

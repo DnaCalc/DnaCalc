@@ -372,6 +372,7 @@ name = "calc-object-model"
 version = "0.1.0"
 dependencies = [
  "calc-func",
+ "calc-macro-security",
  "calc-value",
  "serde",
  "serde_json",

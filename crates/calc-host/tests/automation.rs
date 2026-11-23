@@ -32,12 +32,17 @@ struct Host {
     session: RefCell<HostSession>,
     enabled: Cell<bool>,
     commands: Cell<u32>,
+    runs: Cell<u32>,
 }
 impl ApplicationHost for Host {
     fn hwnd(&self) -> isize {
         123
     }
-    fn run(&self, _: &str, _: &[AutoValue]) -> Reply {
+    fn run(&self, name: &str, _: &[AutoValue]) -> Reply {
+        if name == "TestCommand" {
+            self.runs.set(self.runs.get() + 1);
+            return Ok(AutoValue::Empty);
+        }
         Err(AutoError::not_modelled("Run in test host", "dc-1nbp.5"))
     }
     fn events_enabled(&self) -> bool {
@@ -88,6 +93,7 @@ fn setup_session(session: HostSession) -> (Rc<Host>, Rc<WorkbookAutomation>) {
         session: RefCell::new(session),
         enabled: Cell::new(true),
         commands: Cell::new(0),
+        runs: Cell::new(0),
     });
     let model = Rc::new(WorkbookAutomation::new(host.clone()));
     model.context_changed(&host.session.borrow());
@@ -3684,4 +3690,65 @@ q22! {
     dc_piw0_11__q22_c11h_plot_by_alone_over_dates_without_an_automatic_source => "c11h",
     dc_piw0_11__q22_m1_a_non_square_source_is_plotted_by_the_rule_after_rows => "m1",
     dc_piw0_11__q22_m2_a_non_square_source_without_an_automatic_source => "m2",
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn guarded_policy_refuses_and_audits_reaching_members_once() {
+    use calc_object_model::policy::{MacroSecurity, PolicyAudit, PolicyChecker};
+
+    let (host, _) = setup();
+    let level = Rc::new(Cell::new(MacroSecurity::Guarded));
+    let audit = Rc::new(RefCell::new(Vec::<PolicyAudit>::new()));
+    let checker = PolicyChecker::new(
+        {
+            let level = level.clone();
+            move || level.get()
+        },
+        {
+            let audit = audit.clone();
+            move |record| audit.borrow_mut().push(record)
+        },
+    );
+    let guarded = WorkbookAutomation::with_policy(host.clone(), checker.clone());
+    guarded.context_changed(&host.session.borrow());
+    let app = guarded.application();
+    let run = |model: &dyn ObjectModel| {
+        let member = Descriptor::get()
+            .member(app.interface, "Run", InvokeKind::Method)
+            .unwrap();
+        model.invoke(&app, &Call {
+            interface: app.interface,
+            member,
+            args: vec![AutoValue::text("TestCommand")],
+            lcid: 0,
+        })
+    };
+
+    assert!(matches!(run(&guarded), Err(AutoError::PolicyDenied { capability: "fs.read", number: 70, .. })));
+    assert_eq!(host.runs.get(), 0);
+    assert_eq!(audit.borrow().len(), 1);
+    assert!(!audit.borrow()[0].allowed);
+
+    let range = invoke(&guarded, &app, "Range", vec![AutoValue::text("A1")]).unwrap();
+    let AutoValue::Object(range) = range else { panic!("expected a range") };
+    invoke(&guarded, &range, "Value2", vec![]).unwrap();
+    invoke_kind(&guarded, &app, "Calculate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(audit.borrow().len(), 1);
+
+    level.set(MacroSecurity::Unguarded);
+    assert!(matches!(run(&guarded), Ok(AutoValue::Empty)));
+    assert_eq!(host.runs.get(), 1);
+    assert_eq!(audit.borrow().len(), 2);
+    assert!(audit.borrow()[1].allowed);
+    assert_eq!(audit.borrow()[1].subject, "_Application.Run");
+
+    let standalone = calc_object_model::profile::values_only::ValuesOnly::with_policy(
+        host.clone(), checker,
+    );
+    level.set(MacroSecurity::Off);
+    assert!(matches!(run(&standalone), Err(AutoError::PolicyDenied { .. })));
+    assert_eq!(host.runs.get(), 1);
+    assert_eq!(audit.borrow().len(), 3);
+    assert!(!audit.borrow()[2].allowed);
 }

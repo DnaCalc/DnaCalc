@@ -95,6 +95,7 @@ struct Snapshot {
 /// Construct once per application. `observer` attaches the session's existing event source;
 /// `context_changed` updates file identity and selection even with EnableEvents=False.
 pub struct WorkbookAutomation {
+    policy: calc_object_model::policy::PolicyChecker,
     host: Rc<dyn AutomationHost>,
     fallback: ValuesOnly<Rc<dyn AutomationHost>>,
     handlers: Handlers<Self>,
@@ -117,6 +118,13 @@ enum Access<'a> {
 
 impl WorkbookAutomation {
     pub fn new(host: Rc<dyn AutomationHost>) -> Self {
+        Self::with_policy(host, Default::default())
+    }
+
+    pub fn with_policy(
+        host: Rc<dyn AutomationHost>,
+        policy: calc_object_model::policy::PolicyChecker,
+    ) -> Self {
         let mut handlers = Handlers::new();
         handlers.on(
             "Application",
@@ -223,6 +231,7 @@ impl WorkbookAutomation {
         );
         Self {
             fallback: ValuesOnly::new(host.clone()),
+            policy,
             host,
             handlers,
             snapshot: RefCell::new(None),
@@ -676,10 +685,10 @@ impl WorkbookAutomation {
         })
     }
     fn fallback_member(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.fallback.invoke(target, call)
+        self.fallback.handlers().dispatch(&self.fallback, target, call, "dc-1nbp.5")
     }
     fn delegate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, _| self.fallback.invoke(target, call))
+        self.with_target(target, |_, _| self.fallback_member(target, call))
     }
     fn application_range(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
@@ -1096,12 +1105,12 @@ impl ObjectModel for WorkbookAutomation {
         self.fallback.application()
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let result = if let Some(handler) = self.handlers.get(call.interface, call.member) {
+        self.policy.check(call)?;
+        if let Some(handler) = self.handlers.get(call.interface, call.member) {
             handler(self, target, call)
         } else {
-            self.fallback.invoke(target, call)
-        };
-        result
+            self.fallback_member(target, call)
+        }
     }
     fn released(&self, target: &ObjectRef) {
         if let ObjectKey::Range(reference)

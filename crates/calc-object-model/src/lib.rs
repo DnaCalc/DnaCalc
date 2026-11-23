@@ -24,6 +24,7 @@ pub mod events;
 pub mod geometry;
 pub mod model;
 pub mod object;
+pub mod policy;
 pub mod profile;
 pub mod value;
 

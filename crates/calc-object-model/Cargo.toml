@@ -11,6 +11,7 @@ description = "Excel's object model described once: the interface descriptor, Au
 portability = "portable"
 
 [dependencies]
+calc-macro-security = { path = "../calc-macro-security" }
 calc-value = { path = "../calc-value" }
 calc-func = { path = "../calc-func" }
 serde = { version = "=1.0.229", features = ["derive"] }

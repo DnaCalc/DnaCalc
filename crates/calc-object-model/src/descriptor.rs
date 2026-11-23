@@ -78,11 +78,56 @@ pub enum InvokeKind {
     Method,
 }
 
+/// Outside capabilities named in the shared code execution policy.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum Capability {
+    #[serde(rename = "fs.read")]
+    FsRead,
+    #[serde(rename = "fs.write")]
+    FsWrite,
+    #[serde(rename = "process")]
+    Process,
+    #[serde(rename = "env")]
+    Env,
+    #[serde(rename = "settings")]
+    Settings,
+    #[serde(rename = "ffi")]
+    Ffi,
+    #[serde(rename = "com.activate")]
+    ComActivate,
+    #[serde(rename = "ui.keys")]
+    UiKeys,
+    #[serde(rename = "network")]
+    Network,
+    #[serde(rename = "project.write")]
+    ProjectWrite,
+}
+
+impl Capability {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::FsRead => "fs.read",
+            Self::FsWrite => "fs.write",
+            Self::Process => "process",
+            Self::Env => "env",
+            Self::Settings => "settings",
+            Self::Ffi => "ffi",
+            Self::ComActivate => "com.activate",
+            Self::UiKeys => "ui.keys",
+            Self::Network => "network",
+            Self::ProjectWrite => "project.write",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Member {
     pub name: String,
     pub dispid: i32,
     pub invoke: InvokeKind,
+    /// Outside capabilities from the committed reach overlay.
+    #[serde(skip)]
+    pub reach: Vec<Capability>,
     /// vtable slot index (x64 `oVft / 8`); `None` for a dispinterface member.
     #[serde(default)]
     pub slot: Option<u16>,
@@ -265,6 +310,7 @@ pub struct Descriptor {
     library_of: Vec<usize>,
     by_name: HashMap<String, InterfaceId>,
     by_guid: HashMap<Guid, InterfaceId>,
+    xlc_reach: HashMap<String, Vec<Capability>>,
 }
 
 // Raw bytes, not include_str!: the descriptor is data, and os-imports does not follow include_str! into a file it cannot scan.
@@ -272,6 +318,15 @@ const EXCEL: &[u8] = include_bytes!("../descriptor/excel.json");
 const OFFICE: &[u8] = include_bytes!("../descriptor/office.json");
 const ADDIN_DESIGNER: &[u8] = include_bytes!("../descriptor/addin-designer.json");
 const ACCESSIBILITY: &[u8] = include_bytes!("../descriptor/accessibility.json");
+
+const REACH: &[u8] = include_bytes!("../descriptor/reach.json");
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReachOverlay {
+    members: HashMap<String, Vec<Capability>>,
+    xlc: HashMap<String, Vec<Capability>>,
+}
 
 impl Descriptor {
     /// The committed descriptor (Excel, Office, Add-in Designer, Accessibility), parsed once.
@@ -281,13 +336,15 @@ impl Descriptor {
             let text = |bytes: &'static [u8]| {
                 std::str::from_utf8(bytes).expect("committed object-model descriptor is UTF-8")
             };
-            Descriptor::from_files(&[
+            let mut descriptor = Descriptor::from_files(&[
                 text(EXCEL),
                 text(OFFICE),
                 text(ADDIN_DESIGNER),
                 text(ACCESSIBILITY),
             ])
-            .expect("committed object-model descriptor is valid JSON")
+            .expect("committed object-model descriptor is valid JSON");
+            descriptor.load_reach(REACH).expect("committed reach overlay matches the descriptor");
+            descriptor
         })
     }
 
@@ -298,6 +355,7 @@ impl Descriptor {
             library_of: Vec::new(),
             by_name: HashMap::new(),
             by_guid: HashMap::new(),
+            xlc_reach: HashMap::new(),
         };
         for text in files {
             let file: LibraryFile = serde_json::from_str(text).map_err(|why| why.to_string())?;
@@ -314,6 +372,30 @@ impl Descriptor {
             }
         }
         Ok(descriptor)
+    }
+
+    fn load_reach(&mut self, json: &[u8]) -> Result<(), String> {
+        let mut overlay: ReachOverlay = serde_json::from_slice(json).map_err(|why| why.to_string())?;
+        for ty in &mut self.types {
+            for member in &mut ty.members {
+                let key = format!("{}.{} ({:?})", ty.name, member.name, member.invoke);
+                if let Some(reach) = overlay.members.remove(&key) {
+                    member.reach = reach;
+                }
+            }
+        }
+        if !overlay.members.is_empty() {
+            return Err(format!("unknown descriptor members in reach overlay: {:?}", overlay.members.keys()));
+        }
+        self.xlc_reach = overlay.xlc.into_iter()
+            .map(|(name, reach)| (name.to_ascii_lowercase(), reach))
+            .collect();
+        Ok(())
+    }
+
+    /// Capabilities for commands that have no object-model member to inherit from.
+    pub fn xlc_reach(&self, name: &str) -> &[Capability] {
+        self.xlc_reach.get(&name.to_ascii_lowercase()).map_or(&[], Vec::as_slice)
     }
 
     /// A type by name. A library-qualified name (`Office.CommandBars`) is looked up by its
