@@ -129,7 +129,7 @@ fn axis_position(
     Ok(found)
 }
 
-/// Resolve only the error cases measured for a single-table model pivot. Successful requests
+/// Resolve measured errors for model pivots. Successful requests
 /// still need the model-pivot walk and must not read the saved output cells as results.
 pub(crate) fn invalid_model_request(
     state: &PivotState,
@@ -139,22 +139,26 @@ pub(crate) fn invalid_model_request(
     reference: &[GridArea],
     filters: &[(String, CalcValue)],
 ) -> Option<Lookup> {
-    if data.model_connection.is_none()
-        || !data.other_connections.is_empty()
-        || model.tables.len() != 1
-    {
+    if data.model_connection.is_none() || !data.other_connections.is_empty() {
         return None;
     }
     let mut tables = state
         .tables()
         .filter(|t| reference.iter().any(|a| a.intersection(t.area).is_some()));
     let table = tables.next()?;
+    let &[row] = table.row_fields.as_slice() else {
+        return None;
+    };
+    let column = match (model.tables.len(), table.column_fields.as_slice()) {
+        (1, &[column]) if column >= 0 && column != row => Some(column),
+        // M6 has one row hierarchy over a two-table model. Only its one-member errors
+        // are resolved here. A successful lookup requires the model-pivot output.
+        (2, []) if filters.len() == 1 => None,
+        _ => return None,
+    };
     if tables.next().is_some()
         || !table.unsupported.is_empty()
-        || table.row_fields.len() != 1
-        || table.column_fields.len() != 1
-        || table.row_fields[0] < 0
-        || table.column_fields[0] < 0
+        || row < 0
         || table.data_fields.len() != 1
         || !table.page_fields.is_empty()
         || !table.filters.is_empty()
@@ -174,28 +178,20 @@ pub(crate) fn invalid_model_request(
     {
         return None;
     }
-    if table.row_fields[0] == table.column_fields[0] {
-        return None;
-    }
     let quote = |name: &str| format!("[{}]", name.replace(']', "]]"));
-    let source = &model.tables[0];
-    for index in [
-        table.row_fields[0] as usize,
-        table.column_fields[0] as usize,
-    ] {
+    for index in std::iter::once(row).chain(column).map(|field| field as usize) {
         let field = cache.fields.get(index)?;
         if table
             .fields
             .get(index)
             .is_none_or(|field| field.items.is_empty())
-            || !source.columns.iter().any(|column| {
-                let name = format!(
-                    "{}.{}.{}",
-                    quote(&source.name),
-                    quote(&column.name),
-                    quote(&column.name)
-                );
-                equal(&field.name, &name) == Some(true)
+            || !model.tables.iter().any(|source| {
+                source.columns.iter().any(|member| {
+                    let member = quote(&member.name);
+                    let hierarchy = format!("{}.{member}", quote(&source.name));
+                    equal(&field.name, &format!("{hierarchy}.{member}")) == Some(true)
+                        && (column.is_some() || equal(&hierarchy, &filters[0].0) == Some(true))
+                })
             })
         {
             return None;
@@ -229,11 +225,13 @@ pub(crate) fn invalid_model_request(
     let missing = Lookup::Error(WorksheetErrorCode::Ref);
     let requested = match model.pivot_measure(data_field) {
         Ok(measure) => measure,
-        Err(calc_fml::CubeFailure::Error(WorksheetErrorCode::Ref)) => return Some(missing),
+        Err(calc_fml::CubeFailure::Error(WorksheetErrorCode::Ref)) if column.is_some() => {
+            return Some(missing);
+        }
         Err(_) => return None,
     };
     if requested != held {
-        return Some(missing);
+        return column.is_some().then_some(missing);
     }
     for (hierarchy, value) in filters {
         // A held CUBE member, or a non-text argument, may have separate Excel rules.

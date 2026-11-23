@@ -574,6 +574,42 @@ fn dc_8wp_19__model_pivot_and_mdx_capture_report() {
     );
 }
 
+/// The M6 two-table model pivot returns #REF! for malformed row member text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_19__row_only_model_pivot_rejects_malformed_mdx_members() {
+    let mut host = open(include_bytes!("fixtures/pivot/m6-followup/model-mdx.xlsx").to_vec());
+    calculate_full(&mut host);
+    settle(&mut host);
+    let sheet = host
+        .sheets()
+        .iter()
+        .find(|sheet| sheet.name().text().to_string_lossy() == "Gpd")
+        .unwrap()
+        .id();
+    let result = project(
+        &host,
+        &ProjectionRequest {
+            cells: (1..=6).map(|row| CellKey::new(sheet, row, 2).unwrap()).collect(),
+        },
+    )
+    .unwrap();
+    assert_eq!(result.cells().len(), 6);
+    let mut matched = 0;
+    for cell in &result.cells()[4..] {
+        if matches!(cell.value(), ProjectedValue::Calculated { value, .. }
+            if matches!(value.core_ref(), CoreRef::Error(error) if error.excel_spelling() == "#REF!"))
+        {
+            matched += 1;
+        }
+    }
+    println!("M6 malformed MDX members: {matched}/2 match");
+    assert_eq!(matched, 2);
+    for cell in &result.cells()[..4] {
+        assert!(matches!(cell.value(), ProjectedValue::NotModeled { .. }));
+    }
+}
+
 /// A model pivot reads its retained snapshot, publishes through the pivot operation and refuses
 /// forged snapshot provenance. Exact arithmetic is refused until it has an implementation.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

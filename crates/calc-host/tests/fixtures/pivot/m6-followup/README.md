@@ -30,6 +30,11 @@ for numbers. The source for 1 and 2 is the M2 `Source` sheet (36 rows) with the 
    relationship and filter East 10 / West 20 with it; the Unknown rows stay in totals (35); values change only after
    RefreshAll (East 10 -> 100, total 35 -> 125). The relationship list could not be read back (0x800AC472, query busy) but the
    `[Regions]` result shows it took effect.
+   `model-mdx.xlsx` is the repository-authored synthetic M6 workbook from
+   `pivot-m6-20261109/m6c/files/m6-model/m6-model.xlsx` (SHA-256
+   `656ef26325fedc4c894782c54ae72c7b91838c1f4943c8aa43f2ade91dccfea0`).
+   The Linux replay fixture removes author and path metadata and keeps only the model's table names and original measure
+   script in its model part. The worksheets, formulas, Excel result cells and pivot definitions are preserved.
 4. `exact.tsv`: model rows (East 0.1), (East 0.2), (West 0.0000001): East SUM is 0.3 with bits 3fd3333333333333 (not the
    binary64 sum 0.30000000000000004, 3fd3333333333334), East AVERAGE 0.15 (3fc3333333333333), West 1E-07 (3e7ad7f29abcaf48), the
    grand SUM 0.3000001 (3fd333339e92fd9e); identical after RefreshAll (the edit rewrote 0.1 with 0.1).
