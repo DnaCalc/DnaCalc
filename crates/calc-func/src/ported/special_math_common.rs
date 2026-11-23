@@ -2305,9 +2305,8 @@ mod tests {
             "nobasym_bfrac: got {nobasym_actual:#018x}, expected 0x3fd8b59226eee2a7"
         );
         // bgrat_nonhalf_gt099 (z = 0.7569 < 1.1): Excel 16.0.20527 returns 0x3fd860408858b4c4;
-        // with bgrat in Ext80 and unified onto Excel's shared gratio (dc-i2wk3), the remaining
-        // +1 ULP residual in gratio(0.82, 0.7569) (dc-j9k.5) is no longer masked by f64 bgrat
-        // rounding (0x3fd860408858b4c5, +1 ULP).
+        // exact gratio go200 arithmetic (Carbon cb23 / dc-j9k.5) resolves the prior +1 ULP
+        // residual in gratio(0.82, 0.7569) to bit-exact 0 ULP.
         let gt099_actual = beta_dist_kernel(
             f64::from_bits(0x3fefd1fa4d71df13),
             f64::from_bits(0x4060ce516890686c),
@@ -2318,8 +2317,8 @@ mod tests {
         )
         .unwrap()
         .to_bits();
-        assert!(
-            gt099_actual.abs_diff(0x3fd860408858b4c4) <= 1,
+        assert_eq!(
+            gt099_actual, 0x3fd860408858b4c4,
             "bgrat_nonhalf_gt099: got {gt099_actual:#018x}, expected 0x3fd860408858b4c4"
         );
 
