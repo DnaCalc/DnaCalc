@@ -1,6 +1,9 @@
 use calc_func::UserFunctionContext;
 use calc_host::automation::{AutomationHost, WorkbookAutomation};
-use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, blank_package};
+use calc_host::{
+    HostOptions, HostSession, MemorySource, OpenPolicy, SheetChange, SkinIntent, WorkbookCommand,
+    blank_package,
+};
 use calc_object_model::profile::ApplicationHost;
 use calc_object_model::{AutoError, AutoValue, Call, ObjectKey, ObjectModel, ObjectRef};
 use calc_office_js::{BatchReply, BatchRequest, Executor, Op, WireValue};
@@ -46,12 +49,26 @@ impl AutomationHost for Headless {
 }
 
 fn host() -> Executor<WorkbookAutomation> {
-    let session = HostSession::open(
+    host_with_extra_sheet(None)
+}
+
+fn host_with_extra_sheet(name: Option<&str>) -> Executor<WorkbookAutomation> {
+    let mut session = HostSession::open(
         Arc::new(MemorySource::new(blank_package())),
         &OpenPolicy::default(),
         HostOptions::default(),
     )
     .unwrap();
+    if let Some(name) = name {
+        assert!(
+            session
+                .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                    sheet: None,
+                    change: SheetChange::Add { name: name.into() },
+                }))
+                .accepted()
+        );
+    }
     let host = Rc::new(Headless(RefCell::new(session)));
     let model = WorkbookAutomation::new(host.clone());
     model.context_changed(&host.0.borrow());
@@ -92,6 +109,10 @@ fn request_through_wire<M: ObjectModel>(host: &Executor<M>, id: u64, request: Re
 }
 
 fn range() -> Vec<Op> {
+    range_on("Sheet1", "A1")
+}
+
+fn range_on(sheet: &str, address: &str) -> Vec<Op> {
     vec![
         Op::Root {
             name: "workbook".into(),
@@ -105,13 +126,13 @@ fn range() -> Vec<Op> {
         Op::Call {
             target: 2,
             name: "getItem".into(),
-            args: vec![WireValue::text("Sheet1")],
+            args: vec![WireValue::text(sheet)],
             out: Some(3),
         },
         Op::Call {
             target: 3,
             name: "getRange".into(),
-            args: vec![WireValue::text("A1")],
+            args: vec![WireValue::text(address)],
             out: Some(4),
         },
     ]
@@ -317,4 +338,32 @@ fn workbook_roots_balance_temporary_application_acquisitions() {
     assert_eq!(host.model().held.get(), 1, "bound application root");
     host.release(1);
     assert_eq!(host.model().held.get(), 0, "released application root");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn loaded_addresses_quote_sheet_names_as_excel_references() {
+    for (name, qualifier) in [
+        ("A1", "'A1'"),
+        ("R1C1", "'R1C1'"),
+        ("TRUE", "'TRUE'"),
+        ("7 North", "'7 North'"),
+        ("Sheet_1", "Sheet_1"),
+        ("Q.Quarter", "Q.Quarter"),
+        ("L'été", "'L''été'"),
+    ] {
+        let host = host_with_extra_sheet(Some(name));
+        let mut ops = range_on(name, "D4:E5");
+        ops.push(load("address"));
+        let reply = batch(&host, 1, ops);
+        assert_eq!(reply.error, None, "{name}");
+        assert_eq!(
+            reply.results[4].loaded,
+            [(
+                "address".into(),
+                WireValue::text(&format!("{qualifier}!D4:E5"))
+            )],
+            "{name}"
+        );
+    }
 }

@@ -3,8 +3,12 @@
 
 #![cfg(all(not(target_arch = "wasm32"), feature = "engine-quickjs"))]
 
+use calc_func::UserFunctionContext;
 use calc_js_host::{ExecLimits, FunctionsMetadata, JsAddin, JsEngine, JsHostError, QuickJs};
-use calc_value::{ArrayShape, CalcArray, CalcValue as V, ExcelText, WorksheetErrorCode as W};
+use calc_value::{
+    ArrayShape, CalcArray, CalcValue as V, CellKey, ExcelText, GridArea, ReferenceLike, SheetId,
+    WorksheetErrorCode as W,
+};
 
 fn engine(limits: ExecLimits) -> Box<dyn JsEngine> {
     Box::new(QuickJs::new(limits))
@@ -340,4 +344,106 @@ fn worksheet_matrices_are_ordinary_javascript_arrays() {
         call(&addin, "Probe.RUN", &[V::number(7.)]).unwrap(),
         matrix(1, 2, vec![V::number(2.), V::number(7.)])
     );
+}
+
+#[test]
+fn metadata_admits_underscores_in_associations_names_and_namespaces() {
+    for (namespace, id, name) in [
+        ("North_Desk", "SUM_ARGS", "ADD_NUMBERS"),
+        ("Vendor.Tools_2", "ID_2", "READ_VALUE"),
+    ] {
+        let metadata = FunctionsMetadata::parse(
+            namespace,
+            &serde_json::json!({
+                "functions": [{"id": id, "name": name, "parameters": [], "result": {}}]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let addin = JsAddin::load(
+            engine(ExecLimits::default()),
+            "probe",
+            &format!("CustomFunctions.associate('{id}', () => 17);"),
+            &metadata,
+        )
+        .unwrap();
+        assert_eq!(
+            call(
+                &addin,
+                &format!("{namespace}.{name}").to_ascii_lowercase(),
+                &[]
+            ),
+            Ok(V::number(17.))
+        );
+    }
+}
+
+#[test]
+fn invocation_addresses_quote_sheet_names_as_excel_references() {
+    struct Context<'a> {
+        name: &'a str,
+        caller: CellKey,
+    }
+    impl UserFunctionContext for Context<'_> {
+        fn caller(&self) -> Option<CellKey> {
+            Some(self.caller)
+        }
+        fn sheet_name(&mut self, _: SheetId) -> Result<String, String> {
+            Ok(self.name.into())
+        }
+        fn refuse(&mut self, reason: &'static str) -> String {
+            reason.into()
+        }
+        fn values_of(&mut self, _: &ReferenceLike) -> Result<V, String> {
+            Ok(matrix(2, 2, vec![V::number(1.); 4]))
+        }
+        fn worksheet_function(&mut self, _: &str, _: &[V]) -> Result<V, String> {
+            Err("unexpected worksheet function".into())
+        }
+    }
+
+    let addin = load(
+        "CustomFunctions.associate('RUN', (_, inv) => [[inv.address, inv.parameterAddresses[0]]]);",
+        serde_json::json!([{
+            "id": "RUN", "name": "RUN",
+            "parameters": [{"name": "input", "dimensionality": "matrix"}],
+            "result": {"dimensionality": "matrix"},
+            "options": {"requiresAddress": true, "requiresParameterAddresses": true}
+        }]),
+        false,
+        ExecLimits::default(),
+    )
+    .unwrap();
+    let table = addin.callables();
+    let function = table
+        .resolve(table.bind(None, "Probe.RUN").unwrap())
+        .unwrap();
+    let sheet = SheetId::from_parts(0, 0);
+    let cell = |row, col| CellKey::new(sheet, row, col).unwrap();
+    let area = GridArea::new(cell(4, 4), cell(5, 5)).unwrap();
+    let args = [V::reference(ReferenceLike::area(area))];
+    for (name, qualifier) in [
+        ("A1", "'A1'"),
+        ("R1C1", "'R1C1'"),
+        ("false", "'false'"),
+        ("123", "'123'"),
+        ("Sheet_1", "Sheet_1"),
+        ("Q.Quarter", "Q.Quarter"),
+        ("L'été", "'L''été'"),
+    ] {
+        let mut context = Context {
+            name,
+            caller: cell(1, 8),
+        };
+        let text = |address| {
+            V::text(ExcelText::from_interop_assignment(&format!(
+                "{qualifier}!{address}"
+            )))
+        };
+        assert_eq!(
+            function.call_with_context(&args, &mut context),
+            Ok(matrix(1, 2, vec![text("H1"), text("D4:E5")])),
+            "{name}"
+        );
+    }
 }

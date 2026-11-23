@@ -76,9 +76,9 @@ impl FunctionsMetadata {
 }
 
 fn identifier(value: &str) -> bool {
-    value
-        .split('.')
-        .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_alphanumeric()))
+    value.split('.').all(|part| {
+        !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    })
 }
 
 /// Declaration of one function in the metadata file.

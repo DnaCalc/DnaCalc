@@ -386,6 +386,7 @@ dependencies = [
 name = "calc-office-js"
 version = "0.1.0"
 dependencies = [
+ "calc-fml",
  "calc-func",
  "calc-host",
  "calc-object-model",

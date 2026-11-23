@@ -12,6 +12,7 @@ portability = "portable"
 # The executor is generic over calc-object-model's ObjectModel, so it reaches calc-host only through
 # the application that owns one; the manifest loader and wire types need nothing else.
 [dependencies]
+calc-fml = { path = "../calc-fml" }
 calc-object-model = { path = "../calc-object-model" }
 calc-value = { path = "../calc-value" }
 dna-calc-protocol = { path = "../../apps/dna-calc-protocol" }

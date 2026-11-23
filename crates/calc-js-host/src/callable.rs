@@ -252,12 +252,7 @@ impl UserFunction for JsCallable {
 }
 
 fn area_address(context: &mut dyn UserFunctionContext, area: GridArea) -> Result<String, String> {
-    let sheet = context.sheet_name(area.sheet())?;
-    let sheet = if sheet.chars().all(char::is_alphanumeric) {
-        sheet
-    } else {
-        format!("'{}'", sheet.replace('\'', "''"))
-    };
+    let sheet = calc_fml::reference::format_sheet_qualifier(&context.sheet_name(area.sheet())?);
     let a1 = |cell: CellKey| {
         format!(
             "{}{}",

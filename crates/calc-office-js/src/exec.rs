@@ -280,15 +280,7 @@ impl<M: ObjectModel> Executor<M> {
         let address = value
             .as_text()
             .ok_or_else(|| error("GeneralException", "invalid range address", None, 0))?;
-        let qualifier = if name.starts_with(|c: char| c.is_alphabetic() || c == '_')
-            && name
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
-        {
-            name
-        } else {
-            format!("'{}'", name.replace('\'', "''"))
-        };
+        let qualifier = calc_fml::reference::format_sheet_qualifier(&name);
         Ok(AutoValue::text(&format!("{qualifier}!{address}")))
     }
 

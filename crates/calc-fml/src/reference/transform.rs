@@ -481,8 +481,8 @@ fn transform(
                 source_sheet: area.sheet(),
                 target: Rect::of(target_area(*area, *to)?),
                 target_sheet: to.sheet(),
-                source_qualifier: format!("{}!", quoted_if_needed(source_name)),
-                target_qualifier: format!("{}!", quoted_if_needed(target_name)),
+                source_qualifier: format!("{}!", format_sheet_qualifier(source_name)),
+                target_qualifier: format!("{}!", format_sheet_qualifier(target_name)),
                 moving,
             };
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
@@ -532,7 +532,7 @@ fn transform(
                         replacements.push((token.span(), span_text(&a, &b)));
                     }
                 } else if catalog.sheet_named(&written) == Some(*sheet) {
-                    replacements.push((token.span(), quoted_if_needed(name)));
+                    replacements.push((token.span(), format_sheet_qualifier(name)));
                 }
             });
         }
@@ -1350,7 +1350,7 @@ fn quoted_span(token: &Token) -> Option<(String, String)> {
 /// A run of sheets as a qualifier writes it: `First:Last`, quoted whole when either name needs
 /// quotes.
 fn span_text(first: &str, last: &str) -> String {
-    let plain = quoted_if_needed(first) == first && quoted_if_needed(last) == last;
+    let plain = format_sheet_qualifier(first) == first && format_sheet_qualifier(last) == last;
     if plain {
         format!("{first}:{last}")
     } else {
@@ -1436,8 +1436,8 @@ fn sheet_removal(
                                 // The run keeps its direction: the end written first stays first.
                                 let (new_first, new_last) =
                                     if i <= j { (low, high) } else { (high, low) };
-                                out.push((first.span(), quoted_if_needed(new_first)));
-                                out.push((last.span(), quoted_if_needed(new_last)));
+                                out.push((first.span(), format_sheet_qualifier(new_first)));
+                                out.push((last.span(), format_sheet_qualifier(new_last)));
                             }
                             _ => out.push((
                                 TextSpan::covering(first.span(), bang.span()),
@@ -1464,9 +1464,6 @@ fn unquoted(text: &str) -> String {
     }
 }
 
-/// A sheet name as a qualifier writes it: quoted (each quote doubled) unless it is letters,
-/// digits, `_` and `.` only, starts with a letter or `_`, and is spelled like no cell, row,
-/// column or logical.
 fn plain_qualifier_identifier(name: &str) -> bool {
     name.chars()
         .next()
@@ -1475,7 +1472,10 @@ fn plain_qualifier_identifier(name: &str) -> bool {
             .chars()
             .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
 }
-pub(crate) fn quoted_if_needed(name: &str) -> String {
+/// Formats a sheet name as an A1 reference qualifier without the trailing `!`.
+/// Names that could be parsed as a cell, row, column, or logical are quoted.
+/// When quoting is necessary, each embedded apostrophe is doubled.
+pub fn format_sheet_qualifier(name: &str) -> String {
     let plain = plain_qualifier_identifier(name)
         && notation::a1(name, 1, 1).is_none()
         && notation::r1c1(name).is_none()
@@ -1850,9 +1850,9 @@ mod tests {
             transform_formula("Sheet2!A1+SUM(Sheet2!A1:B2)+A1", at, &remove, &catalog).as_deref(),
             Some("#REF!A1+SUM(#REF!A1:B2)+A1")
         );
-        assert_eq!(quoted_if_needed("Data"), "Data");
-        assert_eq!(quoted_if_needed("A1"), "'A1'");
-        assert_eq!(quoted_if_needed("It's"), "'It''s'");
+        assert_eq!(format_sheet_qualifier("Data"), "Data");
+        assert_eq!(format_sheet_qualifier("A1"), "'A1'");
+        assert_eq!(format_sheet_qualifier("It's"), "'It''s'");
         assert_eq!(column_letters(28), "AB");
     }
 
