@@ -1,9 +1,38 @@
-//! Shared, measured Excel function file prefixes.
+//! Excel function declarations shared by formula entry, evaluation and the workbook codec.
 //!
-//! The two former tables overlap but are not identical: the codec also has entries for names
-//! outside the executable catalogue, and the executable catalogue has later measured entries.
+//! Look up a function by its [stable ID](FunctionId) or [invariant spelling](named).
+//! A [declaration](DeclarationRef) describes its parameters, result and execution route.
+//! The workbook codec uses [file prefixes](file_prefix) and [file forms](file_form),
+//! which include some names outside the executable catalogue.
 //!
-//! Crate contract: [CONTRACT.md](../CONTRACT.md).
+//! ```
+//! use calc_catalogue::{aggregate::SUM, declaration, named};
+//!
+//! let sum = named("SUM").unwrap();
+//! assert_eq!(sum.id(), SUM);
+//! assert_eq!(declaration(SUM).unwrap().notation(), sum.notation());
+//! assert_eq!(sum.signature_help().parameters[0].name, "number1");
+//! ```
+//!
+//! The same entry can have a prefixed spelling in an Excel file.
+//!
+//! ```
+//! use calc_catalogue::{CallOrigin, FileCallIdentity, FilePrefix, file_call_identity, lookup};
+//!
+//! let call = file_call_identity("_xlfn.XLOOKUP", CallOrigin::LoadedFile);
+//! assert_eq!(
+//!     call,
+//!     FileCallIdentity::BuiltIn {
+//!         id: lookup::XLOOKUP,
+//!         prefix: FilePrefix::Xlfn,
+//!         origin: CallOrigin::LoadedFile,
+//!     },
+//! );
+//! ```
+//!
+//! See the [crate contract](../CONTRACT.md) for ownership of catalogue data.
+
+#![warn(missing_docs)]
 
 // File tables refer to a declaration by ID; an add-in uses its exported name.
 const fn file_spelling(id: FunctionId) -> &'static str {
@@ -39,13 +68,18 @@ pub const FILE_NAME_PREFIXES: [&str; 6] = [
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// Prefix sequence used to write a built-in function name in an Excel package.
 pub enum FilePrefix {
+    /// The file writes the name without a prefix.
     Bare,
+    /// The file writes the `_xlfn.` prefix.
     Xlfn,
+    /// The file writes both `_xlfn.` and `_xlws.` in that order.
     XlfnXlws,
 }
 
 impl FilePrefix {
+    /// Return the exact prefix text, including trailing dots.
     pub const fn text(self) -> &'static str {
         match self {
             Self::Bare => "",
@@ -102,9 +136,14 @@ mod file_form_table;
 
 /// Measured dynamic-array file form for a named Excel function.
 pub struct FunctionFileForm {
+    /// Invariant function spelling used to look up the record.
     pub name: &'static str,
+    /// Argument count corresponding to the first entry in `bases`.
     pub first_count: usize,
+    /// Whether the base call is stored as a dynamic array at each measured argument count,
+    /// starting at `first_count`.
     pub bases: &'static [bool],
+    /// Zero-based argument positions whose shape can affect the call's file form.
     pub positions: &'static [bool],
 }
 

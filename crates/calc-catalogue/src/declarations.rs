@@ -8,20 +8,23 @@ use std::fmt;
 pub struct FunctionId(u32);
 
 impl FunctionId {
+    /// Assemble an ID from its stable family and member codes.
     pub const fn new(family: u16, member: u16) -> Self {
         FunctionId(((family as u32) << 16) | member as u32)
     }
 
     /// The ID whose raw value is `raw`, as [`FunctionId::raw`] gave it (an ID kept outside the
-    /// process). [`Catalogue::resolve`] says whether the catalogue admits it.
+    /// process). [`crate::declaration`] looks up its declaration.
     pub const fn from_raw(raw: u32) -> Self {
         FunctionId(raw)
     }
 
+    /// Encode the family in the high 16 bits and the member in the low 16 bits.
     pub const fn raw(self) -> u32 {
         self.0
     }
 
+    /// Return the ID's family code.
     pub const fn family(self) -> u16 {
         (self.0 >> 16) as u16
     }
@@ -47,20 +50,27 @@ pub enum Notation {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Binding forms whose operands introduce names in a formula.
 pub enum BindingForm {
+    /// Bind names for use in subsequent expressions and return the final expression.
     Let,
+    /// Define a callable with named parameters and a body.
     Lambda,
 }
 
 /// A deferred implementation category and its owner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Deferral {
+    /// Obtain data from an external provider.
     ExternalService,
+    /// Evaluate through Excel's Python service.
     Python,
+    /// Evaluate with compatibility-version-3 list values.
     ListsInCells,
 }
 
 impl Deferral {
+    /// Return the tracker ID for this deferred capability.
     pub const fn owner(self) -> &'static str {
         match self {
             Self::ExternalService | Self::Python => "dc-fetch-f0tp",
@@ -87,35 +97,56 @@ pub enum Availability {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// How a declared entry is implemented.
 pub enum Implementation {
+    /// The entry has an execution route.
     Held,
+    /// The formula binder handles the entry.
     Binding,
-    NotHeld { owner: &'static str },
-    Deferred { class: Deferral },
+    /// The declaration is held for admission or file handling while execution is unimplemented.
+    NotHeld {
+        /// Tracker ID for the missing execution work.
+        owner: &'static str,
+    },
+    /// Execution is deferred with a classified reason.
+    Deferred {
+        /// Category responsible for the deferral.
+        class: Deferral,
+    },
 }
 
 /// Positions of result operands whose computed blank origin is retained.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum PairedResult {
     #[default]
+    /// Preserve no special blank origin.
     None,
+    /// Preserve blank origin at odd zero-based positions.
     Odd,
+    /// Preserve blank origin at even zero-based positions after the selector.
     EvenAfterSelector,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// How IFS and SWITCH can preserve a selected result whole.
 pub enum WholeResultPolicy {
     #[default]
+    /// Use ordinary result publication.
     None,
+    /// Select a whole result through IFS's conditions.
     Conditions,
+    /// Select a whole result by comparing SWITCH values with its selector.
     Selector,
 }
 
 /// The measured treatment of a 3-D reference at an argument position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThreeDPlace {
+    /// No behavior has been recorded at this position.
     Unknown,
+    /// Supply the reference through the measured 3-D argument route.
     Take,
+    /// Spread the referenced sheets into successive arguments.
     Spread,
     /// The call is #VALUE!.
     ValueError,
@@ -187,6 +218,9 @@ impl ThreeD {
         value_argument: None,
         selector_pairs: false,
     };
+    /// Set zero-based positions for accepted references, call-level `#VALUE!` and argument `#REF!`.
+    ///
+    /// An empty slice covers all positions. A trailing `usize::MAX` marks a repeating tail.
     pub const fn new(
         take: Option<&'static [usize]>,
         value: Option<&'static [usize]>,
@@ -263,6 +297,7 @@ impl ThreeD {
 
 /// The provider keys of the host routes.
 pub const FETCH_PROVIDER: &str = "dnacalc:fetch";
+/// Provider key for worksheet calls that import file contents.
 pub const IMPORT_PROVIDER: &str = "dnacalc:import";
 
 /// The kind of fetch performed for a worksheet call.
@@ -286,25 +321,39 @@ pub enum ImportKind {
 /// The owner and syntax of a catalogue entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntryKind {
+    /// A regular named worksheet function.
     Worksheet,
+    /// An operator recognized by the formula language.
     Operator {
+        /// Optional named spelling when Excel writes the operator as a call.
         file_spelling: Option<&'static str>,
     },
+    /// A binder-owned form that introduces names.
     Binding(BindingForm),
+    /// A function exported by an add-in.
     AddIn {
+        /// The registered add-in library name.
         library: &'static str,
+        /// The exported function name.
         export: &'static str,
     },
+    /// An entry evaluated through a host service.
     HostRoute {
+        /// Key used to look up the host provider.
         provider: &'static str,
+        /// Operation requested from the provider.
         route: HostRouteKind,
     },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The operation a host-routed function requests.
 pub enum HostRouteKind {
+    /// Fetch a resource for a worksheet call.
     Fetch(FetchKind),
+    /// Import the contents of a file.
     Import(ImportKind),
+    /// Read from a real-time data server.
     Rtd,
 }
 
@@ -360,16 +409,27 @@ pub struct EntryTraits {
     /// Lift a computed array even when this entry takes a reference whole (COUNTBLANK,
     /// W111 count-family readings and w089-axis-reference-vs-array-variant).
     pub lift_computed_array: bool,
+    /// Positions whose selected results retain their blank origin.
     pub paired_result: PairedResult,
+    /// Selection rule for evaluating a result whole.
     pub whole_result_policy: WholeResultPolicy,
+    /// Publish array blanks selected by IF as zero.
     pub zero_array_blanks: bool,
+    /// Publish blanks in lifted IF results as zero.
     pub zero_lifted_blank: bool,
+    /// Publish blanks in dynamic lifted CHOOSE results as zero.
     pub zero_dynamic_lifted_blank: bool,
+    /// Recalculate the call according to the volatile-function policy.
     pub volatile: bool,
+    /// Flush subnormal numeric operands on entry.
     pub flush_subnormal_inputs: bool,
+    /// Preserve numeric overflow at the entry's output boundary.
     pub retain_overflow_number: bool,
+    /// Preserve a subnormal result at the entry's output boundary.
     pub retain_subnormal_output: bool,
+    /// Require numeric arguments under the entry's strict number policy.
     pub strict_number_arguments: bool,
+    /// Admission and error rules for 3-D references.
     pub three_d: ThreeD,
 }
 
@@ -405,6 +465,7 @@ impl EntryTraits {
         }
     }
 
+    /// Baseline traits with no special entry behavior enabled.
     pub const NONE: Self = Self {
         intersect_legacy_result: false,
         reject_multi_cell_reference: false,
@@ -429,23 +490,28 @@ impl EntryTraits {
         three_d: ThreeD::NONE,
     };
 
+    /// Enable intersection of the result at a legacy scalar position.
     pub const fn intersect_legacy_result(mut self) -> Self {
         self.intersect_legacy_result = true;
         self
     }
+    /// Reject multi-cell references at scalar positions.
     pub const fn reject_multi_cell_reference(mut self) -> Self {
         self.reject_multi_cell_reference = true;
         self
     }
+    /// Publish missing-coordinate errors before invoking the kernel.
     pub const fn padding_precedes_call(mut self) -> Self {
         self.padding_precedes_call = true;
         self
     }
+    /// Mark calls as subtotals and permit them to skip nested subtotals.
     pub const fn skip_nested_subtotals(mut self) -> Self {
         self.can_skip_nested_subtotals = true;
         self.is_subtotal = true;
         self
     }
+    /// Enable dynamic lifting once per reference in a reference array.
     pub const fn lift_dynamic_references(mut self) -> Self {
         self.lift_dynamic_references = true;
         self
@@ -463,67 +529,83 @@ impl EntryTraits {
         self.lift_references_from = 3;
         self
     }
+    /// Pass a reference array as a whole operand.
     pub const fn take_reference_array(mut self) -> Self {
         self.take_reference_array = true;
         self
     }
+    /// Have each held reference supply its first cell.
     pub const fn first_cell_references(mut self) -> Self {
         self.held_references = HeldReferences::FirstCell;
         self
     }
+    /// Have each held reference supply no number.
     pub const fn no_number_references(mut self) -> Self {
         self.held_references = HeldReferences::NoNumber;
         self
     }
+    /// Have each held reference supply `#VALUE!`.
     pub const fn value_error_references(mut self) -> Self {
         self.held_references = HeldReferences::ValueError;
         self
     }
+    /// Have each held reference supply `#NUM!`.
     pub const fn num_error_references(mut self) -> Self {
         self.held_references = HeldReferences::NumError;
         self
     }
+    /// Have each held reference supply `#N/A`.
     pub const fn na_error_references(mut self) -> Self {
         self.held_references = HeldReferences::NaError;
         self
     }
+    /// Lift computed arrays for an entry that can take a reference whole.
     pub const fn lift_computed_array(mut self) -> Self {
         self.lift_computed_array = true;
         self
     }
+    /// Enable IF's zero publication for selected array blanks and lifted blanks.
     pub const fn if_blanks(mut self) -> Self {
         self.zero_array_blanks = true;
         self.zero_lifted_blank = true;
         self
     }
+    /// Enable CHOOSE's zero publication for blanks in dynamic lifted results.
     pub const fn choose_blanks(mut self) -> Self {
         self.zero_dynamic_lifted_blank = true;
         self
     }
+    /// Set the positions whose selected results preserve their blank origin.
     pub const fn paired_result(mut self, paired: PairedResult) -> Self {
         self.paired_result = paired;
         self
     }
+    /// Set the rule for consuming the selected result whole.
     pub const fn whole_result(mut self, policy: WholeResultPolicy) -> Self {
         self.whole_result_policy = policy;
         self
     }
+    /// Declare that the entry is volatile.
     pub const fn volatile(mut self) -> Self {
         self.volatile = true;
         self
     }
+    /// Enable flushing of subnormal numeric arguments on entry.
     pub const fn flush_subnormal_inputs(mut self) -> Self {
         self.flush_subnormal_inputs = true;
         self
     }
+    /// Enable preservation of numeric overflow at the output boundary.
     pub const fn retain_overflow_number(mut self) -> Self {
         self.retain_overflow_number = true;
         self
     }
+    /// Enable preservation of subnormal outputs.
     pub const fn retain_subnormal_output(mut self) -> Self {
         self.retain_subnormal_output = true;
         self
     }
+    /// Enable the strict number policy for arguments.
     pub const fn strict_number_arguments(mut self) -> Self {
         self.strict_number_arguments = true;
         self
@@ -586,9 +668,13 @@ impl ArgumentDemand {
 /// passes it) and its entry class (what Excel's formula entry accepts there).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Parameter {
+    /// Label displayed in signature help.
     pub name: &'static str,
+    /// Operand class at the execution interface.
     pub class: ParameterClass,
+    /// Operand form required at formula entry.
     pub entry: EntryClass,
+    /// Implicit-intersection and lifting placement in legacy formulas.
     pub legacy: LegacyPlace,
 }
 
@@ -694,14 +780,17 @@ impl Parameter {
         }
     }
 
+    /// Declare a value parameter whose references are read before execution.
     pub const fn value(name: &'static str) -> Self {
         Self::of(name, ParameterClass::Value)
     }
 
+    /// Declare a parameter that receives values or intact references.
     pub const fn value_or_reference(name: &'static str) -> Self {
         Self::of(name, ParameterClass::ValueOrReference)
     }
 
+    /// Declare a parameter that receives only references.
     pub const fn reference(name: &'static str) -> Self {
         Self::of(name, ParameterClass::Reference)
     }
@@ -712,6 +801,7 @@ impl Parameter {
         self
     }
 
+    /// Set the placement used when lowering a legacy formula.
     pub const fn legacy(mut self, legacy: LegacyPlace) -> Self {
         self.legacy = legacy;
         self
@@ -723,7 +813,7 @@ impl Parameter {
 pub enum EntryClass {
     /// Every operand form.
     Any,
-    /// Only an operand that may give a reference ([`OperandForm::fills_reference_place`]).
+    /// Only an operand that formula admission classifies as possibly producing a reference.
     Reference,
 }
 
@@ -756,12 +846,16 @@ impl ResultForm {
 /// not a later group without one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ArgumentGroups {
+    /// Zero-based index where the first group starts.
     pub from: usize,
+    /// Number of parameters in each repeated group.
     pub size: usize,
+    /// Maximum number of arguments permitted after the last complete group.
     pub tail: usize,
 }
 
 impl ArgumentGroups {
+    /// Describe repeating groups with a positive size and an optional trailing suffix.
     pub const fn new(from: usize, size: usize, tail: usize) -> Self {
         ArgumentGroups { from, size, tail }
     }
@@ -785,21 +879,32 @@ impl ArgumentGroups {
 /// A translated display name with its locale identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalizedDisplayName {
+    /// Locale identifier for the translation.
     pub locale: &'static str,
+    /// Spelling displayed in that locale.
     pub spelling: &'static str,
 }
 
 /// A service a kernel may use when it evaluates a call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContextFacility {
+    /// Selection of the calculation's numeric mode.
     NumericMode,
+    /// Access to cell and reference values.
     Cells,
+    /// Access to the calculation's random stream.
     Random,
+    /// Conversion between reference text and references.
     ReferenceText,
+    /// Workbook, worksheet or application environment facts.
     Environment,
+    /// Decimal and grouping separators.
     NumberSeparators,
+    /// Dispatch to a host service.
     Host,
+    /// Invocation of a callable operand.
     Callables,
+    /// Date and week-number state.
     WeekState,
 }
 
@@ -810,39 +915,55 @@ pub struct WorksheetDeclaration {
     pub localized_names: Option<&'static [LocalizedDisplayName]>,
     /// `None` means the complete set of facilities has not been classified.
     pub context_facilities: Option<&'static [ContextFacility]>,
+    /// The entry's stable catalogue identity.
     pub id: FunctionId,
+    /// Call form and owner of execution.
     pub kind: EntryKind,
+    /// Invariant spelling used in formulas.
     pub spelling: &'static str,
+    /// Named call or operator syntax.
     pub notation: Notation,
+    /// Observed build or compatibility availability.
     pub availability: Availability,
+    /// Supported range of argument counts.
     pub arity: calc_value::CallableArityShape,
+    /// Repeating parameter groups, when declared.
     pub groups: Option<ArgumentGroups>,
+    /// Parameter declarations in call order.
     pub parameters: &'static [Parameter],
+    /// Result form seen by formula entry.
     pub result: ResultForm,
+    /// When arguments are evaluated.
     pub demand: ArgumentDemand,
+    /// Additional evaluation and publication behavior.
     pub traits: EntryTraits,
 }
 
 impl WorksheetDeclaration {
+    /// Declare the complete set of facilities the kernel may use.
     pub const fn with_context(mut self, facilities: &'static [ContextFacility]) -> Self {
         self.context_facilities = Some(facilities);
         self
     }
 
+    /// Set the result form visible to formula admission.
     pub const fn with_result(mut self, result: ResultForm) -> Self {
         self.result = result;
         self
     }
+    /// Describe repeated groups in the argument list.
     pub const fn with_groups(mut self, groups: ArgumentGroups) -> Self {
         self.groups = Some(groups);
         self
     }
+    /// Replace evaluation traits while preserving the existing 3-D reference policy.
     pub const fn with_traits(mut self, traits: EntryTraits) -> Self {
         let three_d = self.traits.three_d;
         self.traits = traits;
         self.traits.three_d = three_d;
         self
     }
+    /// Set the 3-D reference policy while preserving the other evaluation traits.
     pub const fn with_three_d(mut self, three_d: ThreeD) -> Self {
         self.traits.three_d = three_d;
         self

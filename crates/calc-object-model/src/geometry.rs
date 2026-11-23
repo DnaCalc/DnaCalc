@@ -7,25 +7,38 @@ use crate::{AutoError, AutoValue, Call};
 use calc_value::{CellKey, GridArea, ReferenceLike};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// Axis whose items a range view exposes.
 pub enum RangeAxis {
     #[default]
+    /// Count cells across all areas.
     Cells,
+    /// Count rows in the first area.
     Rows,
+    /// Count columns in the first area.
     Columns,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Reference notation used when formatting a range address.
 pub enum ReferenceStyle {
+    /// Lettered columns and numbered rows with dollar signs on absolute coordinates.
     A1,
+    /// Numbered row and column coordinates with brackets around relative offsets.
     R1C1,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Options for formatting a Range address.
 pub struct AddressOptions {
+    /// Whether row coordinates are absolute.
     pub row_absolute: bool,
+    /// Whether column coordinates are absolute.
     pub column_absolute: bool,
+    /// The notation used to represent the coordinates.
     pub style: ReferenceStyle,
+    /// Whether to include the workbook and sheet qualifier.
     pub external: bool,
+    /// Origin for relative R1C1 coordinates, when supplied by the host.
     pub relative_to: Option<CellKey>,
 }
 impl Default for AddressOptions {
@@ -40,6 +53,7 @@ impl Default for AddressOptions {
     }
 }
 
+/// Coerce an Automation value to an optional Boolean argument, or return a type mismatch.
 pub fn boolean(value: &AutoValue) -> Result<bool, AutoError> {
     match value {
         AutoValue::Bool(v) => Ok(*v),
@@ -56,9 +70,11 @@ pub fn boolean(value: &AutoValue) -> Result<bool, AutoError> {
         _ => Err(type_mismatch()),
     }
 }
+/// Return the Automation `DISP_E_TYPEMISMATCH` status.
 pub fn type_mismatch() -> AutoError {
     AutoError::Status(0x8002_0005u32 as i32)
 }
+/// Return the Automation `DISP_E_BADPARAMCOUNT` status.
 pub fn bad_count() -> AutoError {
     AutoError::Status(0x8002_000Eu32 as i32)
 }
@@ -264,12 +280,15 @@ pub fn union(references: &[ReferenceLike]) -> Result<ReferenceLike, AutoError> {
     }
     Ok(ReferenceLike::from_areas(areas).expect("nonempty areas from one sheet"))
 }
+/// Return the one-based row of the first area's top-left cell.
 pub fn row(reference: &ReferenceLike) -> u32 {
     reference.areas()[0].first().row()
 }
+/// Return the one-based column of the first area's top-left cell.
 pub fn column(reference: &ReferenceLike) -> u32 {
     reference.areas()[0].first().column()
 }
+/// Count cells across all areas or count one axis of the first area.
 pub fn count(reference: &ReferenceLike, axis: RangeAxis) -> u64 {
     match axis {
         RangeAxis::Cells => reference.areas().iter().map(|a| a.cell_count()).sum(),
@@ -277,6 +296,7 @@ pub fn count(reference: &ReferenceLike, axis: RangeAxis) -> u64 {
         RangeAxis::Columns => u64::from(reference.areas()[0].column_count()),
     }
 }
+/// Return a count as a 32-bit Automation integer when it fits, otherwise as a double.
 pub fn count_value(count: u64) -> AutoValue {
     match i32::try_from(count) {
         Ok(n) => AutoValue::I4(n),
@@ -399,6 +419,7 @@ fn transform_areas(
     ReferenceLike::from_areas(areas).map_err(|_| AutoError::excel(1004, ""))
 }
 
+/// Shift a single-area range by row and column offsets. Omitted offsets are zero.
 pub fn offset(
     reference: &ReferenceLike,
     row: &AutoValue,
@@ -426,6 +447,7 @@ pub fn offset(
     })
 }
 
+/// Set a single-area range's height and width from its top-left cell. Omitted dimensions keep their sizes.
 pub fn resize(
     reference: &ReferenceLike,
     row: &AutoValue,
@@ -456,6 +478,7 @@ pub fn resize(
     })
 }
 
+/// Expand each area to full rows using the supplied last column.
 pub fn entire_row(
     reference: &ReferenceLike,
     _: &AutoValue,
@@ -472,6 +495,7 @@ pub fn entire_row(
     })
 }
 
+/// Expand each area to full columns using the supplied last row.
 pub fn entire_column(
     reference: &ReferenceLike,
     _: &AutoValue,

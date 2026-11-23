@@ -4,14 +4,22 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 5;
 
+/// Stable ID for `IF`.
 pub const IF: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `AND`.
 pub const AND: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `OR`.
 pub const OR: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `XOR`.
 pub const XOR: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `NOT`.
 pub const NOT: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `TRUE`.
 pub const TRUE: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `FALSE`.
 pub const FALSE: FunctionId = FunctionId::new(CODE, 7);
 
 const LOGICALS: &[Parameter] = &[
@@ -59,6 +67,7 @@ const fn constant(id: FunctionId, spelling: &'static str) -> WorksheetDeclaratio
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     // A call gives one of its values, which may be a reference or a LAMBDA (dc-mx3x, Excel
     // 16.0.20527, 2026-11-07, Formula2 and Formula alike): `=COUNTBLANK(IF(TRUE,A1:A2))` is 1,

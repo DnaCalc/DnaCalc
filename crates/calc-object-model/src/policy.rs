@@ -8,13 +8,19 @@ pub use calc_macro_security::MacroSecurity;
 /// One decision per reaching call, including all of that member's declared capabilities.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PolicyAudit {
+    /// Descriptor member named as `Interface.Member`.
     pub subject: String,
+    /// All capabilities declared for the member.
     pub reach: Vec<Capability>,
+    /// Execution level used for this decision.
     pub level: MacroSecurity,
+    /// Whether the policy allowed the call.
     pub allowed: bool,
+    /// Automation error number for a denial, when present.
     pub error_number: Option<i32>,
 }
 
+/// Checks an Automation call against the execution level supplied by its host.
 #[derive(Clone)]
 pub struct PolicyChecker {
     level: Rc<dyn Fn() -> MacroSecurity>,
@@ -30,6 +36,8 @@ impl Default for PolicyChecker {
 }
 
 impl PolicyChecker {
+    /// Use the supplied execution-level lookup and audit callback for each call that declares
+    /// outside capabilities.
     pub fn new(
         level: impl Fn() -> MacroSecurity + 'static,
         audit: impl Fn(PolicyAudit) + 'static,
@@ -40,6 +48,8 @@ impl PolicyChecker {
         }
     }
 
+    /// Allow a call with no declared capabilities. For other calls, record the policy decision
+    /// and return an Automation error when the execution level denies access.
     pub fn check(&self, call: &Call<'_>) -> Result<(), AutoError> {
         let reach = &call.member.reach;
         let Some(first) = reach.first() else {

@@ -17,6 +17,7 @@ pub trait ApplicationHost {
     fn run(&self, name: &str, args: &[AutoValue]) -> Result<AutoValue, AutoError>;
     /// The application's one EnableEvents switch (the session's in DNA Calc).
     fn events_enabled(&self) -> bool;
+    /// Set the application's shared EnableEvents switch.
     fn set_events_enabled(&self, enabled: bool);
     /// Record a projected refusal on an admitted worksheet invocation, when this host has one.
     /// The COM projection calls ObjectModel::record_refusal once; the values-only profile

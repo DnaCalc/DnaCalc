@@ -19,6 +19,20 @@
 //! in `calc_host::automation` (DNA Calc only); members that are COM by nature (COMAddIns,
 //! CommandBars, ribbon) in `calc-com-host`. Projections translate; they never implement members.
 
+//! Resolve a member using the bundled descriptor before building a [call](Call).
+//!
+//! ```
+//! use calc_object_model::{Descriptor, InvokeKind};
+//!
+//! let model = Descriptor::get();
+//! let functions = model.id("WorksheetFunction").unwrap();
+//! let sum = model.member(functions, "sum", InvokeKind::Method).unwrap();
+//! assert_eq!(sum.name, "Sum");
+//! assert!(sum.arguments().count() > 0);
+//! ```
+
+#![warn(missing_docs)]
+
 pub mod descriptor;
 pub mod events;
 pub mod geometry;

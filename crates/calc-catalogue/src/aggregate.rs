@@ -4,20 +4,34 @@ use super::{
     WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 4;
 
+/// Stable ID for `SUM`.
 pub const SUM: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `PRODUCT`.
 pub const PRODUCT: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `SUMSQ`.
 pub const SUMSQ: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `SUMPRODUCT`.
 pub const SUMPRODUCT: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `COUNT`.
 pub const COUNT: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `COUNTA`.
 pub const COUNTA: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `COUNTBLANK`.
 pub const COUNTBLANK: FunctionId = FunctionId::new(CODE, 7);
+/// Stable ID for `AVERAGE`.
 pub const AVERAGE: FunctionId = FunctionId::new(CODE, 8);
+/// Stable ID for `AVERAGEA`.
 pub const AVERAGEA: FunctionId = FunctionId::new(CODE, 9);
+/// Stable ID for `MIN`.
 pub const MIN: FunctionId = FunctionId::new(CODE, 10);
+/// Stable ID for `MAX`.
 pub const MAX: FunctionId = FunctionId::new(CODE, 11);
+/// Stable ID for `MINA`.
 pub const MINA: FunctionId = FunctionId::new(CODE, 12);
+/// Stable ID for `MAXA`.
 pub const MAXA: FunctionId = FunctionId::new(CODE, 13);
 
 // dc-10y and dc-b1l, Excel 16.0.20527: SUM(A1:A3*2) intersects the range at the root;
@@ -76,6 +90,7 @@ const fn aggregate(
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     aggregate(SUM, "SUM", NUMBERS)
         .with_three_d(super::ThreeD::new(Some(&[]), None, None))

@@ -4,15 +4,24 @@ use super::{
     Parameter, ResultForm, WorksheetDeclaration,
 };
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 7;
 
+/// Stable ID for `COUNTIF`.
 pub const COUNTIF: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `COUNTIFS`.
 pub const COUNTIFS: FunctionId = FunctionId::new(CODE, 2);
+/// Stable ID for `SUMIF`.
 pub const SUMIF: FunctionId = FunctionId::new(CODE, 3);
+/// Stable ID for `SUMIFS`.
 pub const SUMIFS: FunctionId = FunctionId::new(CODE, 4);
+/// Stable ID for `AVERAGEIF`.
 pub const AVERAGEIF: FunctionId = FunctionId::new(CODE, 5);
+/// Stable ID for `AVERAGEIFS`.
 pub const AVERAGEIFS: FunctionId = FunctionId::new(CODE, 6);
+/// Stable ID for `MAXIFS`.
 pub const MAXIFS: FunctionId = FunctionId::new(CODE, 7);
+/// Stable ID for `MINIFS`.
 pub const MINIFS: FunctionId = FunctionId::new(CODE, 8);
 
 // Formula entry (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula alike): every range
@@ -120,6 +129,7 @@ const SUMIFS_RANGES: [usize; 128] = super::alternate(&[0], 1);
 const SUMIFS_CRITERIA: [usize; 127] = super::alternate(&[], 2);
 // dc-b1l (Touchstone 2026-11-16, reference-arrays): COUNTIFS, AVERAGEIFS, MAXIFS and MINIFS
 // given an array of references run once per reference, as SUMIF, COUNTIF and SUMIFS do.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     conditional(COUNTIF, "COUNTIF", (2, 2), RANGE_CRITERIA)
         .with_three_d(super::ThreeD::new(None, Some(&[0]), Some(&[1])))

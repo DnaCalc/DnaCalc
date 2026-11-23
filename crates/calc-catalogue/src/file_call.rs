@@ -17,24 +17,36 @@ pub const fn field_access_name() -> &'static str {
 /// Where the call spelling was obtained.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CallOrigin {
+    /// The spelling came from an entered formula.
     FormulaEntry,
+    /// The spelling came from a loaded Excel package.
     LoadedFile,
 }
 
 /// The identity established from a spelling and its origin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileCallIdentity<'a> {
+    /// The spelling resolves to a known catalogue entry.
     BuiltIn {
+        /// Stable identity of the resolved entry.
         id: FunctionId,
+        /// Prefix present in the supplied spelling.
         prefix: FilePrefix,
+        /// Whether the spelling came from entry or a file.
         origin: CallOrigin,
     },
+    /// The file explicitly identifies a user-defined call, even when its name collides with a built-in.
     ForcedUserDefined {
+        /// The call name after removing the user-defined prefix.
         spelling: &'a str,
+        /// Where the spelling came from.
         origin: CallOrigin,
     },
+    /// The spelling has no established built-in identity.
     Other {
+        /// Original spelling supplied by the caller.
         spelling: &'a str,
+        /// Where the spelling came from.
         origin: CallOrigin,
     },
 }

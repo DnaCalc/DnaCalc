@@ -1,12 +1,16 @@
 //! Declaration data moved from the existing CalcFunc catalogue.
 use super::{ArgumentDemand, FunctionId, Notation, Parameter, WorksheetDeclaration};
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 8;
 
+/// Stable ID for `IFERROR`.
 pub const IFERROR: FunctionId = FunctionId::new(CODE, 1);
+/// Stable ID for `IFNA`.
 pub const IFNA: FunctionId = FunctionId::new(CODE, 2);
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[
     WorksheetDeclaration {
         localized_names: None,

@@ -1,10 +1,13 @@
 //! Declaration data moved from the existing CalcFunc catalogue.
 use super::{ArgumentDemand, FunctionId, Notation, Parameter, WorksheetDeclaration};
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 320;
 
+/// Stable ID for `PERCENTOF`.
 pub const PERCENTOF: FunctionId = FunctionId::new(CODE, 1);
 
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[WorksheetDeclaration {
     localized_names: None,
     context_facilities: None,

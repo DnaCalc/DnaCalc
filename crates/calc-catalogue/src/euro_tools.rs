@@ -2,12 +2,15 @@
 use super::{ArgumentDemand, FunctionId, Notation, Parameter, WorksheetDeclaration};
 use calc_value::CallableArityShape;
 const R: super::ParameterClass = super::ParameterClass::ValueOrReference;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 322;
+/// Stable ID for `EUROCONVERT`.
 pub const EUROCONVERT: FunctionId = FunctionId::new(CODE, 1);
 
 /// The catalogue spelling of the add-in's function, which only a library-qualified call reaches.
 pub const SURFACE: &str = "_EUROTOOL.EUROCONVERT";
 
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[WorksheetDeclaration {
     localized_names: None,
     context_facilities: None,

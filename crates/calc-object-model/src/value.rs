@@ -44,14 +44,18 @@ pub enum AutoValue {
 /// A rectangular array of values in row-major order.
 #[derive(Clone, Debug)]
 pub struct AutoArray {
+    /// Number of rows.
     pub rows: u32,
+    /// Number of columns.
     pub columns: u32,
     /// Lower bounds of the two dimensions (Range.Value uses 1, 1).
     pub lower: (i32, i32),
+    /// Elements in row-major order, with columns varying fastest.
     pub values: Vec<AutoValue>,
 }
 
 impl AutoValue {
+    /// Encode a Rust string as an Automation UTF-16 text value.
     pub fn text(text: &str) -> AutoValue {
         AutoValue::Text(ExcelText::from_utf16_code_units(text.encode_utf16().collect()))
     }
@@ -59,9 +63,11 @@ impl AutoValue {
     pub fn scode(number: i32) -> i32 {
         (0x800A_0000u32 | (number as u32 & 0xFFFF)) as i32
     }
+    /// Determine whether this value represents an omitted optional argument.
     pub fn is_missing(&self) -> bool {
         matches!(self, AutoValue::Missing)
     }
+    /// Return text as a Rust string, replacing unpaired surrogates. Other value types return None.
     pub fn as_text(&self) -> Option<String> {
         match self {
             AutoValue::Text(text) => Some(String::from_utf16_lossy(text.utf16_code_units())),

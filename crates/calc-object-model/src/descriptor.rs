@@ -12,98 +12,140 @@ use std::sync::OnceLock;
 /// One library file as written by `tools/com-descriptor`.
 #[derive(Clone, Debug, Deserialize)]
 pub struct LibraryFile {
+    /// Metadata identifying the originating library.
     pub library: LibraryInfo,
+    /// Types extracted from the library in descriptor order.
     pub types: Vec<TypeInfo>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+/// Identity and provenance of an Automation type library.
 pub struct LibraryInfo {
+    /// Library display name.
     pub name: String,
+    /// Library GUID as recorded in the type library.
     pub guid: String,
+    /// Type library's major and minor version.
     pub version: String,
     #[serde(default)]
+    /// Locale ID of the type library.
     pub lcid: u32,
     #[serde(default)]
+    /// Source type library file name as recorded by the extractor.
     pub source_file: String,
     #[serde(default)]
+    /// Version of the source file, when available.
     pub file_version: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
+/// Kind of a described Automation type.
 pub enum TypeKind {
+    /// A COM interface with a vtable.
     Interface,
+    /// An Automation dispinterface.
     Dispatch,
+    /// A COM coclass.
     Coclass,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+/// An interface implemented or sourced by a coclass.
 pub struct CoclassInterface {
+    /// Name of the referenced interface.
     pub name: String,
     #[serde(default)]
+    /// Whether this is the coclass's default interface for its role.
     pub default: bool,
     #[serde(default)]
+    /// Whether this is an outgoing event interface.
     pub source: bool,
 }
 
 /// An interface, dispinterface or coclass.
 #[derive(Clone, Debug, Deserialize)]
 pub struct TypeInfo {
+    /// Name used to identify the type in the descriptor.
     pub name: String,
+    /// Interface, dispinterface or coclass category.
     pub kind: TypeKind,
+    /// Interface or class GUID in type-library form.
     pub guid: String,
     #[serde(default)]
+    /// Whether the interface is dual, supporting both vtable and dispatch calls.
     pub dual: bool,
     #[serde(default)]
+    /// Type-library flags recorded for the type.
     pub flags: Vec<String>,
     #[serde(default)]
+    /// Direct base interface name, when present.
     pub base: Option<String>,
     /// Total vtable slots including IUnknown (3) and IDispatch (4). A dispinterface has 7.
     #[serde(default)]
     pub vtable_slots: Option<u16>,
     #[serde(default)]
+    /// Whether the interface is described only for dispatch.
     pub dispatch_only: bool,
     #[serde(default)]
+    /// Interfaces implemented or sourced by the coclass.
     pub coclass_interfaces: Vec<CoclassInterface>,
     #[serde(default)]
+    /// Members declared directly by this type, in descriptor order.
     pub members: Vec<Member>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
+/// How a member is invoked through Automation.
 pub enum InvokeKind {
+    /// Read a property.
     Get,
+    /// Assign a value to a property.
     Put,
+    /// Assign an object reference to a property.
     Putref,
+    /// Call a method.
     Method,
 }
 
 /// Outside capabilities named in the shared code execution policy.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum Capability {
+    /// Read from the file system.
     #[serde(rename = "fs.read")]
     FsRead,
+    /// Write to the file system.
     #[serde(rename = "fs.write")]
     FsWrite,
+    /// Invoke an operating-system process.
     #[serde(rename = "process")]
     Process,
+    /// Access the host environment.
     #[serde(rename = "env")]
     Env,
+    /// Access host settings.
     #[serde(rename = "settings")]
     Settings,
+    /// Call into a native library through a foreign-function interface.
     #[serde(rename = "ffi")]
     Ffi,
+    /// Activate a COM object.
     #[serde(rename = "com.activate")]
     ComActivate,
+    /// Send keyboard input to the user interface.
     #[serde(rename = "ui.keys")]
     UiKeys,
+    /// Access the network.
     #[serde(rename = "network")]
     Network,
+    /// Modify a VBA project.
     #[serde(rename = "project.write")]
     ProjectWrite,
 }
 
 impl Capability {
+    /// The stable spelling shared by the descriptor overlay and execution policy.
     pub fn key(self) -> &'static str {
         match self {
             Self::FsRead => "fs.read",
@@ -121,9 +163,13 @@ impl Capability {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+/// Metadata for one method or property invocation form.
 pub struct Member {
+    /// Member name as recorded in the type library.
     pub name: String,
+    /// Dispatch identifier used by IDispatch.
     pub dispid: i32,
+    /// Method or property invocation form.
     pub invoke: InvokeKind,
     /// Outside capabilities from the committed reach overlay.
     #[serde(skip)]
@@ -132,8 +178,10 @@ pub struct Member {
     #[serde(default)]
     pub slot: Option<u16>,
     #[serde(default)]
+    /// Whether the type library marks the member hidden.
     pub hidden: bool,
     #[serde(default)]
+    /// Whether the type library marks the member restricted.
     pub restricted: bool,
     /// Every vtable parameter in order, including `[lcid]` and `[out, retval]`.
     #[serde(default)]
@@ -142,23 +190,33 @@ pub struct Member {
     #[serde(rename = "return", default)]
     pub ret: String,
     #[serde(default)]
+    /// Number of optional arguments recorded in the type library.
     pub optional_count: u16,
     #[serde(default)]
+    /// Whether the member accepts a variable argument list.
     pub vararg: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
+/// Type-library attributes of a vtable parameter.
 pub enum ParamFlag {
+    /// Supplies a value to the callee.
     In,
+    /// Receives a value from the callee.
     Out,
+    /// Supplies the locale identifier.
     Lcid,
+    /// Receives the Automation return value.
     Retval,
+    /// The caller may omit this parameter.
     Optional,
+    /// The type library supplies a default value.
     Hasdefault,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+/// Metadata for one vtable parameter.
 pub struct Param {
     /// `None` where the type library leaves a parameter unnamed (some dispinterface puts).
     #[serde(default)]
@@ -168,12 +226,15 @@ pub struct Param {
     #[serde(rename = "type")]
     pub ty: String,
     #[serde(default)]
+    /// Type-library flags that determine how the parameter is passed.
     pub flags: Vec<ParamFlag>,
     #[serde(default)]
+    /// Default literal recorded in the descriptor, if any.
     pub default: Option<serde_json::Value>,
 }
 
 impl Param {
+    /// Determine whether the parameter has the specified flag.
     pub fn has(&self, flag: ParamFlag) -> bool {
         self.flags.contains(&flag)
     }
@@ -181,6 +242,7 @@ impl Param {
     pub fn is_argument(&self) -> bool {
         !self.has(ParamFlag::Lcid) && !self.has(ParamFlag::Retval)
     }
+    /// Parse this parameter's recorded type.
     pub fn type_ref(&self) -> TypeRef {
         TypeRef::parse(&self.ty)
     }
@@ -191,9 +253,11 @@ impl Member {
     pub fn arguments(&self) -> impl Iterator<Item = &Param> {
         self.params.iter().filter(|param| param.is_argument())
     }
+    /// Find the parameter flagged as the Automation return value.
     pub fn retval(&self) -> Option<&Param> {
         self.params.iter().find(|param| param.has(ParamFlag::Retval))
     }
+    /// Determine whether the member receives a locale identifier.
     pub fn takes_lcid(&self) -> bool {
         self.params.iter().any(|param| param.has(ParamFlag::Lcid))
     }
@@ -209,9 +273,19 @@ pub enum TypeRef {
     /// An interface or coclass of a described library, or `IDispatch` / `IUnknown`.
     Named(String),
     /// `enum:XlCalculation[I4]`: the enum's name and its underlying base type.
-    Enum { name: String, base: String },
+    Enum {
+        /// Enumeration name from the type library.
+        name: String,
+        /// Underlying scalar type name.
+        base: String,
+    },
     /// `alias:Name[BASE]`.
-    Alias { name: String, base: Box<TypeRef> },
+    Alias {
+        /// Alias name from the type library.
+        name: String,
+        /// The type that the alias names.
+        base: Box<TypeRef>,
+    },
     /// `SAFEARRAY(element)`.
     SafeArray(Box<TypeRef>),
     /// `record:Name`.
@@ -224,6 +298,7 @@ const BASE_TYPES: &[&str] = &[
 ];
 
 impl TypeRef {
+    /// Parse descriptor type syntax, treating an unrecognized token as a named type.
     pub fn parse(text: &str) -> TypeRef {
         let text = text.trim();
         if let Some(inner) = text.strip_suffix('*') {
@@ -273,13 +348,18 @@ fn split_bracket(text: &str) -> (String, Option<String>) {
 /// A COM GUID, parsed from the descriptor's `{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}` text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Guid {
+    /// The leading 32-bit group of the GUID.
     pub data1: u32,
+    /// The first 16-bit group of the GUID.
     pub data2: u16,
+    /// The second 16-bit group of the GUID.
     pub data3: u16,
+    /// The final eight bytes in display order.
     pub data4: [u8; 8],
 }
 
 impl Guid {
+    /// Parse the GUID's hexadecimal fields, with optional braces and hyphens.
     pub fn parse(text: &str) -> Option<Guid> {
         let hex: String = text.chars().filter(|c| c.is_ascii_hexdigit()).collect();
         if hex.len() != 32 {
@@ -301,10 +381,14 @@ impl Guid {
 
 /// An index into [`Descriptor::types`]; stable for the life of the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InterfaceId(pub u32);
+pub struct InterfaceId(
+    /// Zero-based type index in the descriptor that supplied this ID.
+    pub u32,
+);
 
 /// All described libraries, indexed by type name (case-insensitive) and GUID.
 pub struct Descriptor {
+    /// Originating libraries in the order supplied to the descriptor.
     pub libraries: Vec<LibraryInfo>,
     types: Vec<TypeInfo>,
     library_of: Vec<usize>,
@@ -348,6 +432,9 @@ impl Descriptor {
         })
     }
 
+    /// Build a descriptor from JSON library texts in input order.
+    ///
+    /// Returns the decoding error when a document or its fields cannot be deserialized.
     pub fn from_files(files: &[&str]) -> Result<Descriptor, String> {
         let mut descriptor = Descriptor {
             libraries: Vec::new(),
@@ -404,15 +491,19 @@ impl Descriptor {
         let name = name.rsplit('.').next().unwrap_or(name);
         self.by_name.get(&name.to_ascii_lowercase()).copied()
     }
+    /// Find the first described type with this GUID.
     pub fn by_guid(&self, guid: &Guid) -> Option<InterfaceId> {
         self.by_guid.get(guid).copied()
     }
+    /// Look up a type by an ID from this descriptor. An out-of-range ID panics.
     pub fn ty(&self, id: InterfaceId) -> &TypeInfo {
         &self.types[id.0 as usize]
     }
+    /// Iterate over type IDs and declarations in descriptor order.
     pub fn types(&self) -> impl Iterator<Item = (InterfaceId, &TypeInfo)> {
         self.types.iter().enumerate().map(|(i, ty)| (InterfaceId(i as u32), ty))
     }
+    /// Return the library of an ID from this descriptor. An out-of-range ID panics.
     pub fn library(&self, id: InterfaceId) -> &LibraryInfo {
         &self.libraries[self.library_of[id.0 as usize]]
     }
@@ -443,14 +534,17 @@ impl Descriptor {
         }
         chain.iter().rev().flat_map(|at| self.ty(*at).members.iter()).collect()
     }
+    /// Find a member by case-insensitive name and invocation kind, including inherited members.
     pub fn member(&self, id: InterfaceId, name: &str, kind: InvokeKind) -> Option<&Member> {
         self.members(id)
             .into_iter()
             .find(|m| m.invoke == kind && m.name.eq_ignore_ascii_case(name))
     }
+    /// Find a member by dispatch identifier and invocation kind, including inherited members.
     pub fn member_by_dispid(&self, id: InterfaceId, dispid: i32, kind: InvokeKind) -> Option<&Member> {
         self.members(id).into_iter().find(|m| m.dispid == dispid && m.invoke == kind)
     }
+    /// Find the member occupying a vtable slot, including inherited slots.
     pub fn member_by_slot(&self, id: InterfaceId, slot: u16) -> Option<&Member> {
         self.members(id).into_iter().find(|m| m.slot == Some(slot))
     }

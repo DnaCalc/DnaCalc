@@ -7,6 +7,7 @@ use crate::{
     AutoError, AutoValue, Call, Descriptor, Handlers, InvokeKind, ObjectKey, ObjectModel, ObjectRef,
 };
 
+/// Application object model profile for calls that do not require a workbook session.
 pub struct ValuesOnly<H: ApplicationHost> {
     host: H,
     policy: PolicyChecker,
@@ -23,10 +24,12 @@ pub fn object(interface: &str, key: ObjectKey) -> ObjectRef {
 }
 
 impl<H: ApplicationHost> ValuesOnly<H> {
+    /// Register the values-only member handlers and attach their application services.
     pub fn new(host: H) -> Self {
         Self::with_policy(host, PolicyChecker::default())
     }
 
+    /// Attach application services and the execution policy used to check member calls.
     pub fn with_policy(host: H, policy: PolicyChecker) -> Self {
         let mut handlers = Handlers::new();
         handlers.on(
@@ -176,9 +179,11 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             policy,
         }
     }
+    /// Borrow the attached application services.
     pub fn host(&self) -> &H {
         &self.host
     }
+    /// Borrow the handler table for inspection or composition with another profile.
     pub fn handlers(&self) -> &Handlers<Self> {
         &self.handlers
     }
@@ -205,6 +210,7 @@ impl<H: ApplicationHost> ValuesOnly<H> {
             Err(bad_count())
         }
     }
+    /// Dispatch an Application member with access to the configured values-only services.
     pub fn application_member(
         &self,
         _: &ObjectRef,

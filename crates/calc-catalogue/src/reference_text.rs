@@ -1,11 +1,14 @@
 //! Declaration data moved from the existing CalcFunc catalogue.
 use super::{FunctionId, Notation, Parameter, WorksheetDeclaration};
 use calc_value::CallableArityShape;
+/// Stable family code used by the entries in this fragment.
 pub const CODE: u16 = 11;
 
+/// Stable ID for `INDIRECT`.
 pub const INDIRECT: FunctionId = FunctionId::new(CODE, 1);
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
+/// Worksheet declarations in this family's member order.
 pub const ENTRIES: &[WorksheetDeclaration] = &[WorksheetDeclaration {
     localized_names: None,
     context_facilities: Some(&[crate::ContextFacility::NumericMode, crate::ContextFacility::ReferenceText]),
