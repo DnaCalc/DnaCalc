@@ -99,8 +99,7 @@ def calibrate(reference, image):
 
     def edges(count, origin, values, sizes, limit, geometry=False):
         """Edge positions from gridline projections. With geometry=True an edge with no gridline near its
-        estimate (a drawing covers it) is taken from the reported row/column sizes instead; the first
-        edge is still verified in the raster."""
+        estimate (a drawing covers it) is taken from the reported row/column sizes instead."""
         found = {}
         estimate = origin
         for i in range(1, count + 2):
@@ -112,8 +111,7 @@ def calibrate(reference, image):
             if sizes[i - 2] == 0:
                 found[i] = found[i - 1]
                 continue
-            if i > 1:
-                estimate = found[i - 1] + sizes[i - 2] * factor
+            estimate += sizes[i - 2] * factor
             if estimate > limit - 2:
                 break
             possible = [p for p in values if abs(p - estimate) <= max(1.5, ref["dpi"] / 96)
@@ -126,6 +124,8 @@ def calibrate(reference, image):
                     continue
                 raise ValueError(f"Cannot calibrate grid edge {i} at {estimate}: {ref['prefix']}")
             found[i] = min(possible, key=lambda p: abs(p - estimate))
+            # Only a raster observation resets the running point-to-pixel estimate.
+            estimate = found[i]
         return found
 
     row_sizes = [cells[r, 1]["points"]["h"] for r in range(1, row_count + 1)]
@@ -1037,6 +1037,23 @@ def self_test():
             self.assertEqual(result["raster_axes"]["x"][4], 150)
             self.assertEqual(result["raster_axes"]["y"][4], 81)  # the strict path reads a gridline at its centre + 1
             self.assertIn("reported geometry", result["coordinate_method"])
+
+        def test_obscured_columns_keep_fractional_offsets_at_non_integral_zoom(self):
+            image = Image.new("RGB", (400, 300), "white")
+            draw = ImageDraw.Draw(image)
+            for y in (19, 49):
+                draw.line((300, y, 399, y), fill="#bbbbbb")
+            draw.rectangle((30, 0, 290, 299), fill="#2e75b6")
+            # At 75% and 96 DPI, each 30.4-point column spans 30.4 pixels.
+            cells = [{"row": 1, "col": c, "points": {"w": 30.4, "h": 30}, "text": ""}
+                     for c in range(1, 9)]
+            ref = {"prefix": "covered-columns", "dpi": 96, "zoom": 75,
+                   "origin": {"x": 30, "y": 20}, "cells": cells,
+                   "sheet_bounds": {"x": 0, "y": 0, "w": 400, "h": 300}}
+            result = calibrate(ref, image)
+            self.assertIn("columns taken from the reported geometry", result["coordinate_method"])
+            self.assertEqual(list(result["raster_axes"]["x"].values()),
+                             [30, 60, 91, 121, 152, 182, 212, 243, 273])
 
         def shape_pair(self, dna_offset=(0, 0), dna_size=(80, 40), rotation=0.0):
             # Excel: a 60 x 30 pt frame (80 x 40 px at 96 dpi) at 11.25 pt (A1 + 15 px), a red fill and a 3 px blue outline.
