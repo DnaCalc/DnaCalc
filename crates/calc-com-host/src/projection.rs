@@ -515,6 +515,17 @@ impl EventSource for Projection {
     ) -> Result<(), AutoError> {
         self.state.raise(source, interface, event, args)
     }
+
+    fn raise_with_cancel(
+        &self,
+        source: &ObjectRef,
+        interface: &str,
+        event: &str,
+        args: &[AutoValue],
+        cancel: &mut bool,
+    ) -> Result<(), AutoError> {
+        self.state.raise_event(source, interface, event, args, Some(cancel))
+    }
 }
 impl Drop for Projection {
     fn drop(&mut self) {

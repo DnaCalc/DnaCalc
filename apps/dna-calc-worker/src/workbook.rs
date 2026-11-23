@@ -413,6 +413,10 @@ impl Workbook {
         Ok(workbook)
     }
 
+    pub(crate) fn notify_workbook_open(&mut self) {
+        self.session.notify_workbook_open();
+    }
+
     /// How long opening recalculated the workbook, in milliseconds (0 off the browser); `None`
     /// for a file that calculates manually, whose formulas show the values the file stored, as
     /// file caches, until Calculate.

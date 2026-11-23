@@ -915,6 +915,7 @@ impl Server {
                             let calculated = book.calculated_on_open();
                             self.install(book);
                             self.run_macros_on_open();
+                            self.book.notify_workbook_open();
                             Ok(Reply::Done {
                                 outcome: self.outcome(true, None, elapsed),
                                 opened: Some((elapsed, calculated)),
@@ -4016,6 +4017,7 @@ impl Server {
                 calc_host::WorkbookEvent::AfterCalculate => "AfterCalculate",
                 calc_host::WorkbookEvent::WorksheetChange { .. } => "Worksheet_Change",
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
+                calc_host::WorkbookEvent::SelectionChanged { .. } => "Worksheet_SelectionChange",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
             };
             self.events.push(Event::WorkbookEventFailed {

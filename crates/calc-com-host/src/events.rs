@@ -15,7 +15,7 @@ use std::{
 use windows::{
     Win32::{
         Foundation::*,
-        System::{Com::*, Ole::*},
+        System::{Com::*, Ole::*, Variant::*},
     },
     core::{GUID, IUnknown, Interface, Ref, implement},
 };
@@ -158,6 +158,17 @@ impl State {
         event: &str,
         args: &[AutoValue],
     ) -> Result<(), AutoError> {
+        self.raise_event(source, interface, event, args, None)
+    }
+
+    pub(crate) fn raise_event(
+        self: &Rc<Self>,
+        source: &ObjectRef,
+        interface: &str,
+        event: &str,
+        args: &[AutoValue],
+        cancel: Option<&mut bool>,
+    ) -> Result<(), AutoError> {
         self.apartment.check()?;
         let objects = self.result_values(args);
         let mut arguments = args
@@ -177,8 +188,31 @@ impl State {
         let member = descriptor
             .member(interface, event, InvokeKind::Method)
             .ok_or(AutoError::Status(DISP_E_MEMBERNOTFOUND.0))?;
-        if args.len() != member.arguments().count() {
+        let argument_count = args.len() + usize::from(cancel.is_some());
+        if argument_count != member.arguments().count() {
             return Err(AutoError::Status(DISP_E_BADPARAMCOUNT.0));
+        }
+        let mut cancel_value = cancel.as_ref().map(|cancel| {
+            if **cancel {
+                VARIANT_TRUE
+            } else {
+                VARIANT_FALSE
+            }
+        });
+        if let Some(value) = cancel_value.as_mut() {
+            use calc_object_model::ParamFlag::{In, Out};
+            if !member
+                .arguments()
+                .last()
+                .is_some_and(|param| param.ty == "BOOL*" && param.has(In) && param.has(Out))
+            {
+                return Err(AutoError::Status(DISP_E_TYPEMISMATCH.0));
+            }
+            // The pointee lives through every synchronous Invoke and is shared by all sinks.
+            arguments.push(values::tagged(
+                VT_BYREF | VT_BOOL,
+                VARIANT_0_0_0 { pboolVal: value },
+            ));
         }
         let snapshot: Vec<Rc<IDispatch>> = self
             .connections
@@ -187,11 +221,11 @@ impl State {
             .map(|connections| connections.sinks.values().cloned().collect())
             .unwrap_or_default();
         // X0 measured Excel AppEvents: declaration order with named argument DISPIDs 0,1,...
-        let mut named: Vec<i32> = (0..args.len() as i32).collect();
+        let mut named: Vec<i32> = (0..argument_count as i32).collect();
         let params = DISPPARAMS {
             rgvarg: arguments.as_mut_ptr(),
             rgdispidNamedArgs: named.as_mut_ptr(),
-            cArgs: args.len() as u32,
+            cArgs: argument_count as u32,
             cNamedArgs: named.len() as u32,
         };
         let mut first = None;
@@ -213,6 +247,9 @@ impl State {
             if let Err(e) = result {
                 first.get_or_insert_with(|| status(e));
             }
+        }
+        if let (Some(cancel), Some(value)) = (cancel, cancel_value) {
+            *cancel = value != VARIANT_FALSE;
         }
         first.map_or(Ok(()), Err)
     }

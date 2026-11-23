@@ -29,3 +29,6 @@ windows-core = "=0.61.2"
 [build-dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+
+[target.'cfg(windows)'.dev-dependencies]
+calc-host = { path = "../calc-host" }
