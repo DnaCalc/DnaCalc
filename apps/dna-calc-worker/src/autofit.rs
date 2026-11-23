@@ -616,8 +616,8 @@ mod tests {
             assert_eq!(dark_body.fill.as_deref(), Some(body_fill), "{name}");
         }
         for (name, fill) in [
-            ("pvt_style_rows_PivotStyleMedium1", Some("#a6a6a6")),
-            ("pvt_style_rows_PivotStyleMedium2", None),
+            ("pvt_style_rows_PivotStyleMedium1", "#a6a6a6"),
+            ("pvt_style_rows_PivotStyleMedium2", "#44b3e1"),
         ] {
             let sheet = book
                 .host()
@@ -632,12 +632,8 @@ mod tests {
                 .sheet();
             let subtotal = text_style(book.host(), CellKey::new(sheet, 4, 2).unwrap(), 64.);
             assert!(!subtotal.bold, "{name}");
-            if fill.is_some() {
-                assert_eq!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}");
-            } else {
-                assert_ne!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}");
-            }
-            assert_eq!(subtotal.fill.as_deref(), fill, "{name}");
+            assert_eq!(subtotal.fill.as_deref(), Some(fill), "{name}");
+            assert_eq!(subtotal.font_color.as_deref(), Some("#ffffff"), "{name}");
         }
         let at = |row, column| CellKey::new(sheet, row, column).unwrap();
         let header = text_style(book.host(), at(3, 1), 64.);

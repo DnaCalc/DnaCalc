@@ -515,7 +515,7 @@ impl HostState {
         }
         if !light
             && font == 0
-            && (is_header || preset == Preset::Medium1 && is_subtotal || dark && is_total)
+            && (is_header || muted && is_subtotal || dark && is_total)
         {
             look.font_color = Some(theme(0, "0"));
         }
@@ -561,6 +561,8 @@ impl HostState {
                 look.fill = Some(rgb("FFA6A6A6"));
             } else if preset == Preset::Medium2 && is_header {
                 look.fill = Some(theme(4, "-0.249977111117893"));
+            } else if preset == Preset::Medium2 && is_subtotal {
+                look.fill = pivot_tint(self, 4, 40);
             } else if matches!(preset, Preset::Medium9 | Preset::Medium14) && is_header {
                 look.fill = Some(theme(if preset == Preset::Medium14 { 9 } else { 4 }, "0"));
             } else if matches!(preset, Preset::Medium9 | Preset::Medium14) && is_subtotal {
@@ -645,6 +647,14 @@ impl HostState {
                     if is_subtotal {
                         look.borders[2] =
                             pivot_tint(self, 6, 80).map(|color| edge("medium", color));
+                    }
+                }
+                Preset::Medium2 if row_layout => {
+                    if subtotal_at(row - 1) {
+                        look.borders[1] = pivot_tint(self, 4, 80).map(|color| edge("thin", color));
+                    }
+                    if is_subtotal {
+                        look.borders[2] = pivot_tint(self, 4, 80).map(|color| edge("thin", color));
                     }
                 }
                 _ => {}
