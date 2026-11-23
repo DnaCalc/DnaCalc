@@ -2,7 +2,7 @@
 //!
 //! OneCalc and DNA Calc both load add-ins, and both used to assemble the same pieces by hand: the
 //! native XLL host, the Excel object model those XLLs see (`calc-com-host`'s projection, answering
-//! `WM_GETOBJECT` on the shell's window chain), the RTD client, the VBA modules, and the one
+//! `WM_GETOBJECT` on the shell's window chain), the RTD client, VBA and JavaScript modules, and the one
 //! callable table that publishes every loaded function to CalcFml. [`AddinHost`] owns them and
 //! nothing else does.
 //!
@@ -15,11 +15,15 @@
 //! [`AddinHost::sheet_changed`] and [`AddinHost::after_calculate`] only tell add-ins it happened.
 //!
 //! The XLL and COM halves of this crate need the Windows x64 shell (`calc-platform-desktop`), and
-//! nothing here compiles on other platforms.
+//! the embedded JavaScript loader is available on native platforms.
 #[cfg(target_arch = "wasm32")]
 compile_error!("calc-addin-host is native-only");
 
+#[cfg(not(target_arch = "wasm32"))]
+mod js;
 mod settle;
+#[cfg(not(target_arch = "wasm32"))]
+pub use js::load_js_addin;
 #[cfg(windows)]
 mod host;
 #[cfg(windows)]

@@ -48,6 +48,7 @@ calc-verdict = { path = "../../tools/calc-verdict" }
 
 # The dependency case reads cargo metadata's JSON. Test-only, native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+calc-addin-host = { path = "../../crates/calc-addin-host" }
 cfb = "=0.10.0"
 miniz_oxide = "=0.8.9"
 serde_json = "=1.0.154"

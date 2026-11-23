@@ -30,6 +30,7 @@ pub struct AddinHost {
     /// registration belongs to the last XLL whose floor is below its id.
     floors: Vec<u64>,
     vba: Vec<(String, CallableTable)>,
+    js: Vec<(String, calc_js_host::JsAddin)>,
     /// VBA add-ins (.xlam): each file's project, compiled with its references (dc-0f1k.4).
     vba_addins: Vec<(PathBuf, calc_vba::events::OfficeLoad)>,
     workbook: String,
@@ -96,6 +97,7 @@ impl AddinHost {
             xlls: Vec::new(),
             floors: Vec::new(),
             vba: Vec::new(),
+            js: Vec::new(),
             vba_addins: Vec::new(),
             workbook: document.workbook.to_owned(),
             profile,
@@ -347,7 +349,38 @@ impl AddinHost {
             .collect()
     }
 
-    /// The one table of every loaded function (XLL registrations and VBA functions), to hand to
+    /// Load an embedded Office.js script supplied by the add-in owner. Publish the new
+    /// [`Self::callables`] after success.
+    pub fn load_js_addin(
+        &mut self,
+        policy: calc_macro_security::MacroSecurity,
+        id: &str,
+        namespace: &str,
+        source: &str,
+        metadata_json: &str,
+    ) -> Result<(), String> {
+        if self.js.iter().any(|(loaded, _)| loaded == id) {
+            return Err(format!("JavaScript add-in already loaded: {id}"));
+        }
+        let addin = crate::load_js_addin(policy, id, namespace, source, metadata_json)?;
+        self.callables()?.add_from(addin.callables())?;
+        self.js.push((id.to_owned(), addin));
+        Ok(())
+    }
+
+    /// Remove a script and revoke its callable leases. Publish the new [`Self::callables`].
+    pub fn unload_js_addin(&mut self, id: &str) -> bool {
+        let before = self.js.len();
+        self.js.retain(|(loaded, _)| loaded != id);
+        self.js.len() != before
+    }
+
+    /// Revoke all JavaScript add-ins when the owner switches execution policy to Off.
+    pub fn unload_js_addins(&mut self) {
+        self.js.clear();
+    }
+
+    /// The one table of every loaded function, to hand to
     /// the application's owner of formulas. A new table each call: one published after a load or
     /// unload replaces the one before it, and a handle bound to the old one stays unable to run.
     pub fn callables(&self) -> Result<CallableTable, String> {
@@ -370,6 +403,9 @@ impl AddinHost {
             .collect();
         for module in self.vba.iter().map(|(_, module)| module).chain(&addins) {
             table.add_from(module)?;
+        }
+        for (_, addin) in &self.js {
+            table.add_from(addin.callables())?;
         }
         Ok(table)
     }

@@ -408,6 +408,9 @@ Office.js Face 1 reuses the existing worker transport (`apps/dna-calc-protocol/s
 
 ### 5.5 Interaction 2: Embedded JS custom functions behind a swappable engine (`crates/calc-js-host`, `dc-17spk.6`)
 
+The native synchronous implementation is defined in the [calc-js-host contract](../../crates/calc-js-host/CONTRACT.md).
+The interface sketch below includes the async and streaming work owned by dc-26wtr.6 and dc-26wtr.7.
+
 Cell-callable Excel JavaScript custom functions (`functions.json` metadata + JS implementation) must evaluate next to the calc engine — including in desktop/CLI/headless runs where no task-pane webview is open, and in Formula Explorer (OneCalc).
 
 - **New crate placement & dependency ceiling:** `crates/calc-js-host` depends only on `calc-value`, `calc-func`, and `calc-fml` (plus optional JS engine crates behind Cargo features). It **never** depends on `calc-host`, `calc-engine`, `calc-doc`, or `calc-platform-desktop`, so both DNA Calc (`AddinHost` / `Server`) and Formula Explorer (`OneCalc`) can load JS custom functions without breaking `tools/xtask/architecture.json:266-288`.
