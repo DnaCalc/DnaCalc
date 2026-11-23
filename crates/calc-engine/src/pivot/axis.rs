@@ -1111,23 +1111,23 @@ pub(super) fn render_axes(
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
     let mut row_totals: Vec<BTreeMap<Vec<usize>, Total>> =
         (0..row_fields.len()).map(|_| BTreeMap::new()).collect();
-    // M1 records Product over one row field and one column field, followed by Values.
-    let ordered_product = (!root_only
-        && !multiple_rows
-        && levels.len() == 2
-        && levels[0].field.is_some()
-        && levels[1].field.is_none()
-        && show == "normal"
-        && table.filters.is_empty()
-        && table.page_fields.is_empty()
-        && table
-            .data_fields
-            .iter()
-            .map(|data| data.subtotal.as_str())
-            .eq(["stdDev", "product"])
-        && table.data_fields[0].field == table.data_fields[1].field)
-        .then_some(1);
-    let mut product_records = BTreeMap::<(usize, usize), Vec<&PivotItem>>::new();
+    // With one source field on each axis, Product totals visit the intersections
+    // in display order. The position of Values and the other measures do not order the factors.
+    let product_column = levels
+        .iter()
+        .position(|level| level.field.is_some())
+        .filter(|_| {
+            !root_only
+                && !multiple_rows
+                && levels.len() == value_level + 1
+                && show == "normal"
+                && table.filters.is_empty()
+                && table.page_fields.is_empty()
+        });
+    let ordered_product = |measure: usize| {
+        product_column.is_some() && table.data_fields[measure].subtotal == "product"
+    };
+    let mut product_records = BTreeMap::<(usize, usize, usize), Vec<&PivotItem>>::new();
     let mut subtotal_records = BTreeMap::<Vec<usize>, Vec<&PivotItem>>::new();
     for record in &snapshot.records {
         if !page_allows(table, cache, record)? {
@@ -1210,9 +1210,9 @@ pub(super) fn render_axes(
             } else {
                 row_keys.push(row_path[0]);
             }
-            if ordered_product == Some(m) {
+            if let Some(column) = product_column.filter(|_| ordered_product(m)) {
                 product_records
-                    .entry((row_keys[0], indexes[0]))
+                    .entry((m, row_keys[0], indexes[column]))
                     .or_default()
                     .push(value);
             }
@@ -1245,27 +1245,29 @@ pub(super) fn render_axes(
             return Err(bad("The pivot has too many row and column combinations"));
         }
     }
-    if let Some(measure) = ordered_product {
-        // Retain source order within an intersection. Row and column totals multiply their
-        // contributing intersections in the displayed order of the other axis.
+    if let Some(depth) = product_column {
+        // Replay individual factors in source order inside each intersection.
         let mut ordered = BTreeMap::<_, Total>::new();
-        for ((row, column), records) in product_records {
+        for ((measure, row, column), records) in product_records {
+            let mut column_path = vec![measure; levels.len()];
+            column_path[depth] = column;
+            let column_total = (usize::MAX, column_path, measure);
             for value in records {
                 for key in [
                     (row, Vec::new(), measure),
-                    (usize::MAX, vec![column, measure], measure),
+                    column_total.clone(),
                     (usize::MAX, Vec::new(), measure),
                 ] {
                     ordered.entry(key).or_default().push(value)?;
                 }
             }
         }
-        if ordered
-            .get(&(usize::MAX, Vec::new(), measure))
-            .is_some_and(|total| {
-                !total.supports_grouped_product("product") && !total.has_finite_zero_product()
-            })
-        {
+        if ordered.iter().any(|((row, column, _), total)| {
+            *row == usize::MAX
+                && column.is_empty()
+                && !total.supports_grouped_product("product")
+                && !total.has_finite_zero_product()
+        }) {
             return Err(bad("The two-axis grand Product order is not modelled"));
         }
         totals.extend(ordered);
@@ -1379,7 +1381,7 @@ pub(super) fn render_axes(
     if totals.iter().any(|((_, _, measure), total)| {
         let kind = &table.data_fields[*measure].subtotal;
         !total.supports(kind)
-            || (ordered_product != Some(*measure)
+            || (!ordered_product(*measure)
                 && (multiple_rows || levels.iter().any(|level| level.field.is_some()))
                 && !total.supports_grouped_product(kind))
     }) {
@@ -1515,7 +1517,11 @@ pub(super) fn render_axes(
                 if compact {
                     "Column Labels"
                 } else {
-                    &cache.fields[levels[0].field.unwrap()].name
+                    let field = levels
+                        .iter()
+                        .find_map(|level| level.field)
+                        .expect("column axis has a source field");
+                    &cache.fields[field].name
                 }
             });
         cells.insert((0, label_width), plain_text(column_caption));
@@ -1993,7 +1999,7 @@ pub(super) fn render_axes(
     }
     let displayed = |total: &Total, row: usize, entry: &ColumnEntry| -> CalcValue {
         let value = total.result(&table.data_fields[entry.measure].subtotal);
-        if ordered_product == Some(entry.measure)
+        if ordered_product(entry.measure)
             && matches!(value.core_ref(), calc_value::CoreRef::Number(0.0))
         {
             return CalcValue::number(0.0);

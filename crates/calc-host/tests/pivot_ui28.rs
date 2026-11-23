@@ -661,6 +661,45 @@ fn dc_8wp__value_filters_survive_save_and_refresh() {
     }
 }
 
+// The M1 package contains the final retention edit. Replay the earlier Product labels from UI28.
+fn m1_original_source_cells() -> BTreeMap<String, Cell> {
+    let original_source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(WORKBOOK.to_vec()));
+    let original = HostSession::open(
+        original_source,
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let original_sheet = original
+        .host()
+        .sheets()
+        .iter()
+        .find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source")
+        .unwrap()
+        .id();
+    held(&original, original_sheet, 5, 37)
+}
+
+fn restore_m1_product_labels(
+    book: &mut HostSession,
+    source_sheet: SheetId,
+    cells: &BTreeMap<String, Cell>,
+) {
+    for row in 2..=37 {
+        let address = format!("B{row}");
+        let Cell::Text(text) = &cells[&address] else {
+            panic!("non-text original Product at {address}")
+        };
+        assert!(
+            book.dispatch(SkinIntent::EnterCell {
+                at: at(source_sheet, &address),
+                text: text.clone().into(),
+            })
+            .accepted()
+        );
+    }
+}
+
 /// M1's saved source was edited by the final missing-items sequence. Restore the original
 /// Product column before refreshing the independent captured cases.
 #[test]
@@ -711,34 +750,8 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         })
         .collect();
     let source_sheet = sheets.iter().find(|(_, name)| name == "Source").unwrap().0;
-    let original_source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(WORKBOOK.to_vec()));
-    let original = HostSession::open(
-        original_source,
-        &OpenPolicy::default(),
-        HostOptions::default(),
-    )
-    .unwrap();
-    let original_sheet = original
-        .host()
-        .sheets()
-        .iter()
-        .find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source")
-        .unwrap()
-        .id();
-    let original_cells = held(&original, original_sheet, 5, 37);
-    for row in 2..=37 {
-        let address = format!("B{row}");
-        let Cell::Text(text) = &original_cells[&address] else {
-            panic!("non-text original Product at {address}")
-        };
-        assert!(
-            book.dispatch(SkinIntent::EnterCell {
-                at: at(source_sheet, &address),
-                text: text.clone().into(),
-            })
-            .accepted()
-        );
-    }
+    let original_cells = m1_original_source_cells();
+    restore_m1_product_labels(&mut book, source_sheet, &original_cells);
     assert!(book.dispatch(SkinIntent::Recalculate).accepted());
     // Replay the original source, a removal, and the captured zero-retention sequence.
     let (missing_sheet, missing_part) = sheets
@@ -929,19 +942,7 @@ fn dc_8wp__m1_calculation_stages_against_excel() {
         }
         missing_verdicts.insert(stage.to_owned(), verdict);
     }
-    for row in 2..=37 {
-        let address = format!("B{row}");
-        let Cell::Text(text) = &original_cells[&address] else {
-            unreachable!()
-        };
-        assert!(
-            book.dispatch(SkinIntent::EnterCell {
-                at: at(source_sheet, &address),
-                text: text.clone().into(),
-            })
-            .accepted()
-        );
-    }
+    restore_m1_product_labels(&mut book, source_sheet, &original_cells);
     let mut matched = Vec::new();
     for (stage, want) in &expected {
         if let Some(verdict) = missing_verdicts.get(stage) {
@@ -4033,4 +4034,98 @@ fn dc_8wp_23__crossed_rows_use_layout_and_each_measure_source() {
     }
     println!("Varied crossed row layouts: {passed}/3 passed");
     assert_eq!(passed, 3, "{failures:?}");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_8wp_24__product_order_is_independent_of_other_measures() {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
+        include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),
+    ));
+    let mut book =
+        HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let source_sheet = book
+        .host()
+        .sheets()
+        .iter()
+        .find(|s| String::from_utf16_lossy(s.name().text().utf16_code_units()) == "Source")
+        .unwrap()
+        .id();
+    restore_m1_product_labels(&mut book, source_sheet, &m1_original_source_cells());
+    let get_table = |book: &HostSession| {
+        book.host()
+            .model()
+            .definitions()
+            .pivots()
+            .tables()
+            .find(|table| table.name == "pvt_agg_two_level_columns")
+            .unwrap()
+            .clone()
+    };
+    let saved = get_table(&book);
+    let sheet = saved.area.first().sheet();
+    let receipt = book.dispatch(SkinIntent::Command(
+        calc_host::WorkbookCommand::PivotRefresh {
+            sheet,
+            revision: book.host().revision().get(),
+            part: saved.part,
+        },
+    ));
+    assert!(receipt.accepted(), "{receipt:?}");
+    let table = get_table(&book);
+    let cache = &book.host().model().definitions().pivots().caches.caches[&table.cache_id];
+
+    // Change the companion measures and the location of Values, leaving the Product inputs
+    // and the source field order within each axis intact.
+    let deviation = table.data_fields[0].clone();
+    let product = table.data_fields[1].clone();
+    let mut units = deviation.clone();
+    units.name = Some("Sum Units".into());
+    units.field = 4;
+    units.subtotal = "sum".into();
+    let mut matched = 0;
+    let mut compared = 0;
+    let mut failures = Vec::new();
+    for (measures, columns, product_columns) in [
+        (vec![product.clone()], vec![1], [2, 3, 4, 5]),
+        (vec![units, product.clone()], vec![1, -2], [3, 5, 7, 9]),
+        (vec![product, deviation], vec![-2, 1], [2, 3, 4, 8]),
+    ] {
+        let row_offset = u32::from(measures.len() == 1);
+        let mut candidate = table.clone();
+        candidate.data_fields = measures;
+        candidate.column_fields = columns;
+        let result = calc_engine::pivot::layout(&candidate, cache);
+        if let Err(issue) = &result {
+            failures.push(format!("{:?}: {}", candidate.column_fields, issue.detail));
+        }
+        for line in include_str!("fixtures/pivot/m1-calculation/cells.tsv").lines() {
+            let fields: Vec<_> = line.splitn(4, '\t').collect();
+            if fields[0] != "agg-two-level-columns" || fields[2] != "n" {
+                continue;
+            }
+            let address = at(sheet, fields[1]);
+            let Some(column) = [3, 5, 7, 9].iter().position(|&col| col == address.column()) else {
+                continue;
+            };
+            let destination =
+                CellKey::new(sheet, address.row() - row_offset, product_columns[column]).unwrap();
+            let want: f64 = fields[3].parse().unwrap();
+            compared += 1;
+            if let Ok(layout) = &result {
+                let got = layout.cells[&destination].core_ref();
+                if matches!(got, CoreRef::Number(n) if n.to_bits() == want.to_bits()) {
+                    matched += 1;
+                } else {
+                    failures.push(format!(
+                        "{:?} {}: Excel {want:?}, DNA Calc {got:?}",
+                        candidate.column_fields, fields[1]
+                    ));
+                }
+            }
+        }
+    }
+    println!("Product with varied measures: {matched}/{compared} words matched");
+    assert_eq!(compared, 66);
+    assert_eq!(matched, compared, "{failures:?}");
 }
