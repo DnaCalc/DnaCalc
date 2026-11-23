@@ -24,6 +24,17 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww10 numerical replay, 2026-11-23
+
+- **dc-j9k.75**. Win64 at `189d5f9d9` passed 566 CalcFunc unit tests with three ignored. The new
+  direct and shifted `T.DIST.RT` cases matched the exact Excel words. Student t arithmetic remains
+  open here. Shared beta tails are tracked under dc-j9k.45 and dc-j9k.55.
+- **dc-j9k.70**. The Win64 tiny-shape beta regression passed. On GOVERT-OMEN (Ryzen 7 4800H),
+  Touchstone Excel build 20625 answered 256 frozen cases. The restricted rule raised `BETA.DIST`
+  from 0 to 38 of 128 and `BETADIST` from 1 to 37 of 128, preserving every prior match. Both
+  `BETADIST` spot checks matched. Exact inputs and differences are in `ww10/as1` and
+  `ww10/bank-rows`. Beta inverse arithmetic remains open here.
+
 ## Workbook calculation, VBA, COM and add-ins
 
 | Bead | Lane handoff | State | Windows evidence | Next step or prerequisite |
