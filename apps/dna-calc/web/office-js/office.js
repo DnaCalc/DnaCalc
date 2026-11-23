@@ -3,7 +3,7 @@
    one message per context.sync(). Transport: globalThis.__dnaOfficeTransport(requestJson) -> Promise<replyJson>. */
 (function (root) {
   "use strict";
-  let nextBatch = 1, nextContext = 1;
+  let nextMessage = 1, nextContext = 1;
 
   class OfficeError extends Error {
     constructor(code, message, extra) {
@@ -18,14 +18,26 @@
   function r8Bits(v) { f64[0] = v; return u64[0].toString(16).padStart(16, "0"); }
   function r8From(bits) { u64[0] = BigInt("0x" + bits); return f64[0]; }
   function toWire(v, ctx) {
-    if (v === null || v === undefined) return { t: "null" };
+    if (v === undefined) return { t: "missing" };
+    if (v === null) return { t: "null" };
     if (typeof v === "number") return { t: "r8", bits: r8Bits(v) };
     if (typeof v === "boolean") return { t: "bool", v };
-    if (typeof v === "string") return { t: "text", v };
-    if (v instanceof ClientObject) return { t: "object", h: v._handle };
+    if (typeof v === "string") {
+      if (/[\ud800-\udfff]/u.test(v)) {
+        return { t: "text16", units: Array.from({ length: v.length }, (_, i) => v.charCodeAt(i)) };
+      }
+      return { t: "text", v };
+    }
+    if (v instanceof ClientObject) {
+      if (v.context !== ctx) throw new OfficeError("InvalidObjectPath", "The object belongs to another request context.");
+      return { t: "object", h: v._handle };
+    }
     if (Array.isArray(v)) {
-      const rows = v.length, cols = rows ? v[0].length : 0;
-      return { t: "array", rows, cols, v: v.flat().map((x) => toWire(x, ctx)) };
+      const rows = v.length, cols = Array.isArray(v[0]) ? v[0].length : 0;
+      if (Array.from(v).some(row => !Array.isArray(row) || row.length !== cols)) {
+        throw new OfficeError("InvalidArgument", "Expected a rectangular two-dimensional array.");
+      }
+      return { t: "array", rows, cols, v: v.flatMap(row => Array.from(row, x => toWire(x, ctx))) };
     }
     throw new OfficeError("InvalidArgument", "unsupported argument type " + typeof v);
   }
@@ -36,7 +48,7 @@
       case "bool": case "i4": return w.v;
       case "r8": return r8From(w.bits);
       case "text": return w.v;
-      case "text16": return String.fromCharCode(...w.units);
+      case "text16": return w.units.map(unit => String.fromCharCode(unit)).join("");
       case "error": return ERRORS[w.v] || "#VALUE!";
       case "array": {
         const out = [];
@@ -51,14 +63,17 @@
 
   class ClientObject {
     constructor(context, handle) {
-      this.context = context; this._handle = handle; this._loaded = {}; this.isNullObject = false;
+      this.context = context; this._handle = handle; this._loaded = Object.create(null); this.isNullObject = false;
     }
     _step(name, args, Cls) {
       const out = this.context._alloc();
-      this.context._push({ op: "call", target: this._handle, name, args: (args || []).map((a) => toWire(a)), out });
+      this.context._push({ op: "call", target: this._handle, name, args: args.map((a) => toWire(a, this.context)), out });
       const o = new (Cls || ClientObject)(this.context, out);
       this.context._outs.set(out, o);
       return o;
+    }
+    _invoke(name) {
+      this.context._push({ op: "call", target: this._handle, name });
     }
     load(props) {
       const list = (Array.isArray(props) ? props : String(props || "").split(",")).map((s) => s.trim()).filter(Boolean);
@@ -71,7 +86,7 @@
         "The property '" + name + "' is not available. Before reading the property's value, call the load method on the containing object and call \"context.sync()\" on the associated request context.");
       return this._loaded[name];
     }
-    _set(name, v) { this.context._push({ op: "set", target: this._handle, name, value: toWire(v) }); }
+    _set(name, v) { this.context._push({ op: "set", target: this._handle, name, value: toWire(v, this.context) }); }
     toJSON() { return Object.assign({}, this._loaded); }
   }
   function props(Cls, names, writable) {
@@ -81,13 +96,13 @@
     });
   }
 
-  class Range extends ClientObject { calculate() { this._step("calculate"); } clear() { this._step("clear"); } }
+  class Range extends ClientObject { calculate() { this._invoke("calculate"); } clear() { this._invoke("clear"); } }
   props(Range, ["values", "formulas", "numberFormat", "text", "address", "rowIndex", "columnIndex"], ["values", "formulas", "numberFormat"]);
   class Worksheet extends ClientObject {
-    getRange(a) { return this._step("getRange", [a], Range); }
+    getRange(a) { return this._step("getRange", a === undefined ? [] : [a], Range); }
     getUsedRangeOrNullObject() { return this._step("getUsedRangeOrNullObject", [], Range); }
-    calculate() { this._step("calculate"); }
-    activate() { this._step("activate"); }
+    calculate() { this._invoke("calculate"); }
+    activate() { this._invoke("activate"); }
   }
   props(Worksheet, ["name"], ["name"]);
   class WorksheetCollection extends ClientObject {
@@ -99,12 +114,18 @@
   class Workbook extends ClientObject {
     get worksheets() { const out = this.context._alloc(); this.context._push({ op: "get", target: this._handle, name: "worksheets", out }); const o = new WorksheetCollection(this.context, out); this.context._outs.set(out, o); return o; }
   }
-  class Application extends ClientObject { calculate() { this._step("calculate"); } }
+  class Application extends ClientObject { calculate() { this._invoke("calculate"); } }
 
   class TrackedObjects {
     constructor(ctx) { this.ctx = ctx; }
-    add(o) { this.ctx._push({ op: "track", target: o._handle }); }
-    remove(o) { this.ctx._push({ op: "untrack", target: o._handle }); }
+    add(o) { this._queue("track", o); }
+    remove(o) { this._queue("untrack", o); }
+    _queue(op, object) {
+      if (!(object instanceof ClientObject) || object.context !== this.ctx) {
+        throw new OfficeError("InvalidObjectPath", "The object belongs to another request context.");
+      }
+      this.ctx._push({ op, target: object._handle });
+    }
   }
 
   class RequestContext {
@@ -117,17 +138,37 @@
     }
     _alloc() { return ++this._handle; }
     _push(op) { this._queue.push(op); return this._queue.length - 1; }
-    async sync(final) {
+    _discard() {
+      this._queue = [];
+      this._loads = new Map();
+      this._outs = new Map();
+    }
+    async _send(id, request) {
+      const response = JSON.parse(await this._transport(JSON.stringify({ id, request })));
+      if (response.Failed) throw new OfficeError("GeneralException", response.Failed.message);
+      if (response.Reply?.id !== id) throw new OfficeError("GeneralException", "Mismatched transport reply.");
+      return response.Reply.reply;
+    }
+    async _release() {
+      await this._send(nextMessage++, { AutomationRelease: { context: this._id } });
+    }
+    async sync() { return this._sync(false); }
+    async _sync(final) {
       if (this._syncing) throw new OfficeError("GeneralException", "A sync is already in progress.");
       const ops = this._queue, loads = this._loads, outs = this._outs;
-      this._queue = []; this._loads = new Map(); this._outs = new Map();
-      if (!ops.length && !final) return;
+      this._discard();
+      if (!ops.length) return final ? this._release() : undefined;
       this._syncing = true;
       try {
-        const reply = JSON.parse(await this._transport(JSON.stringify({ batch_id: nextBatch++, context: this._id, ops, final_release: !!final })));
+        const id = nextMessage++;
+        const envelope = await this._send(id, {
+          AutomationBatch: { batch_id: id, context: this._id, ops, final_release: final },
+        });
+        const reply = envelope?.AutomationBatch;
+        if (reply?.batch_id !== id) throw new OfficeError("GeneralException", "Mismatched batch reply.");
         for (const r of reply.results) {
           const obj = loads.get(r.ordinal);
-          if (obj) for (const [k, w] of r.loaded) {
+          if (obj) for (const [k, w] of (r.loaded || [])) {
             const v = fromWire(w);
             obj._loaded[k] = TWO_D.has(k) && !Array.isArray(v) ? [[v]] : v;
           }
@@ -144,8 +185,14 @@
       const ctx = typeof batch === "function" ? new RequestContext(transport) : new RequestContext(batch);
       const fn = typeof batch === "function" ? batch : arguments[1];
       let result;
-      try { result = await fn(ctx); } catch (e) { ctx._queue = []; await ctx.sync(true).catch(() => {}); throw e; }
-      await ctx.sync(true);
+      try {
+        result = await fn(ctx);
+      } catch (e) {
+        ctx._discard();
+        await ctx._release().catch(() => {});
+        throw e;
+      }
+      await ctx._sync(true);
       return result;
     },
   };

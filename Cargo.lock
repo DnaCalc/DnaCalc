@@ -365,6 +365,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-office-js"
+version = "0.1.0"
+dependencies = [
+ "calc-func",
+ "calc-host",
+ "calc-object-model",
+ "calc-value",
+ "dna-calc-protocol",
+ "quick-xml",
+ "serde_json",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "calc-oracle-excel"
 version = "0.1.0"
 dependencies = [

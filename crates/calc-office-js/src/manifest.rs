@@ -2,6 +2,8 @@
 //! `manifest.json`, reduced to what the host needs: the task pane page, the function file,
 //! ribbon commands and the shared-runtime declaration.
 
+use quick_xml::events::{BytesStart, Event};
+use quick_xml::{Reader, encoding::Decoder};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -14,8 +16,12 @@ pub enum Kind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandAction {
     /// Runs a function the page registered with `Office.actions.associate(name, ...)`.
-    ExecuteFunction { name: String },
-    ShowTaskpane { url: String },
+    ExecuteFunction {
+        name: String,
+    },
+    ShowTaskpane {
+        url: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,13 +46,18 @@ pub struct AddinManifest {
 
 impl AddinManifest {
     pub fn runs_in_excel(&self) -> bool {
-        self.hosts.is_empty() || self.hosts.iter().any(|h| h.eq_ignore_ascii_case("workbook") || h.eq_ignore_ascii_case("excel"))
+        self.hosts.is_empty() || self.hosts.iter().any(|host| excel_host(host))
     }
+}
+
+fn excel_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("workbook") || host.eq_ignore_ascii_case("excel")
 }
 
 /// Load by content: a document starting with `{` is unified JSON, otherwise XML.
 pub fn load(text: &str) -> Result<AddinManifest, String> {
-    if text.trim_start().starts_with('{') {
+    let text = text.trim_start_matches('\u{feff}').trim_start();
+    if text.starts_with('{') {
         load_json(text)
     } else {
         load_xml(text)
@@ -72,53 +83,67 @@ pub fn load_json(text: &str) -> Result<AddinManifest, String> {
     if manifest.id.is_empty() {
         return Err("manifest.json has no id".into());
     }
-    let mut runtime_pages: HashMap<String, String> = HashMap::new();
     for ext in doc["extensions"].as_array().into_iter().flatten() {
-        for rt in ext["runtimes"].as_array().into_iter().flatten() {
-            let page = s(&rt["code"]["page"]);
-            let id = s(&rt["id"]);
-            if !page.is_empty() {
-                if manifest.task_pane_url.is_none() {
-                    manifest.task_pane_url = Some(page.clone());
-                }
-                runtime_pages.insert(id, page);
-            }
-            let script = s(&rt["code"]["script"]);
-            if !script.is_empty() && manifest.function_file_url.is_none() {
-                manifest.function_file_url = Some(script);
-            }
-            if rt["actions"].as_array().is_some_and(|a| !a.is_empty()) && rt["requirements"]["capabilities"].is_null() {
-                // a runtime that hosts both pages and actions is shared
-            }
-            if rt["lifetime"].as_str() == Some("long") || rt["code"]["page"].is_string() && rt["actions"].is_array() {
-                manifest.shared_runtime = true;
-            }
+        let scopes = ext["requirements"]["scopes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        manifest
+            .hosts
+            .extend(scopes.iter().map(|scope| (*scope).to_owned()));
+        if !scopes.is_empty() && !scopes.iter().any(|scope| excel_host(scope)) {
+            continue;
         }
-        for h in ext["requirements"]["scopes"].as_array().into_iter().flatten() {
-            manifest.hosts.push(s(h));
-        }
-        let mut actions: HashMap<String, CommandAction> = HashMap::new();
-        for rt in ext["runtimes"].as_array().into_iter().flatten() {
-            for a in rt["actions"].as_array().into_iter().flatten() {
-                let id = s(&a["id"]);
-                match a["type"].as_str() {
+        let mut actions = HashMap::new();
+        for runtime in ext["runtimes"].as_array().into_iter().flatten() {
+            let page = runtime["code"]["page"]
+                .as_str()
+                .filter(|url| !url.is_empty());
+            let script = runtime["code"]["script"]
+                .as_str()
+                .filter(|url| !url.is_empty());
+            manifest.shared_runtime |=
+                page.is_some() && runtime["lifetime"].as_str() == Some("long");
+            for action in runtime["actions"].as_array().into_iter().flatten() {
+                let Some(id) = action["id"].as_str().filter(|id| !id.is_empty()) else {
+                    continue;
+                };
+                let command = match action["type"].as_str() {
                     Some("executeFunction") => {
-                        actions.insert(id, CommandAction::ExecuteFunction { name: s(&a["displayName"]).max(s(&a["id"])) });
+                        if let Some(url) = script.or(page) {
+                            manifest
+                                .function_file_url
+                                .get_or_insert_with(|| url.to_owned());
+                        }
+                        CommandAction::ExecuteFunction {
+                            name: id.to_owned(),
+                        }
                     }
                     Some("openPage") => {
-                        let url = runtime_pages.get(&s(&a["view"])).cloned().unwrap_or_else(|| s(&a["pageUrl"]));
-                        actions.insert(id, CommandAction::ShowTaskpane { url });
+                        let Some(url) = page else { continue };
+                        if action["view"].as_str() == Some("Office.AutoShowTaskpaneWithDocument") {
+                            manifest.task_pane_url = Some(url.to_owned());
+                        } else {
+                            manifest.task_pane_url.get_or_insert_with(|| url.to_owned());
+                        }
+                        CommandAction::ShowTaskpane {
+                            url: url.to_owned(),
+                        }
                     }
-                    _ => {}
-                }
+                    _ => continue,
+                };
+                actions.insert(id, command);
             }
         }
         for ribbon in ext["ribbons"].as_array().into_iter().flatten() {
             for tab in ribbon["tabs"].as_array().into_iter().flatten() {
                 for group in tab["groups"].as_array().into_iter().flatten() {
                     for control in group["controls"].as_array().into_iter().flatten() {
-                        let action_id = s(&control["actionId"]);
-                        if let Some(action) = actions.get(&action_id) {
+                        if let Some(action) =
+                            control["actionId"].as_str().and_then(|id| actions.get(id))
+                        {
                             manifest.commands.push(Command {
                                 id: s(&control["id"]),
                                 label: s(&control["label"]),
@@ -145,7 +170,10 @@ struct Node {
 
 impl Node {
     fn attr(&self, name: &str) -> Option<&str> {
-        self.attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+        self.attrs
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
     }
     fn child(&self, name: &str) -> Option<&Node> {
         self.children.iter().find(|c| c.name == name)
@@ -164,119 +192,71 @@ impl Node {
     }
 }
 
-fn local(name: &str) -> &str {
-    name.rsplit(':').next().unwrap_or(name)
-}
-
-fn unescape(text: &str) -> String {
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some(at) = rest.find('&') {
-        out.push_str(&rest[..at]);
-        let tail = &rest[at..];
-        let Some(end) = tail.find(';') else {
-            out.push_str(tail);
-            return out;
-        };
-        let entity = &tail[1..end];
-        match entity {
-            "amp" => out.push('&'),
-            "lt" => out.push('<'),
-            "gt" => out.push('>'),
-            "quot" => out.push('"'),
-            "apos" => out.push('\''),
-            e if e.starts_with("#x") => out.extend(u32::from_str_radix(&e[2..], 16).ok().and_then(char::from_u32)),
-            e if e.starts_with('#') => out.extend(e[1..].parse::<u32>().ok().and_then(char::from_u32)),
-            _ => out.push_str(&tail[..=end]),
-        }
-        rest = &tail[end + 1..];
-    }
-    out.push_str(rest);
-    out
+fn node(start: BytesStart<'_>, decoder: Decoder) -> Result<Node, String> {
+    let attr = |attribute: quick_xml::events::attributes::Attribute<'_>| {
+        let key = String::from_utf8_lossy(attribute.key.local_name().as_ref()).into_owned();
+        let value = attribute
+            .decode_and_unescape_value(decoder)
+            .map_err(|e| e.to_string())?;
+        Ok((key, value.into_owned()))
+    };
+    let attrs = start
+        .attributes()
+        .map(|a| attr(a.map_err(|e| e.to_string())?))
+        .collect::<Result<_, String>>()?;
+    Ok(Node {
+        name: String::from_utf8_lossy(start.local_name().as_ref()).into_owned(),
+        attrs,
+        ..Default::default()
+    })
 }
 
 fn parse_xml(text: &str) -> Result<Node, String> {
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    let mut stack: Vec<Node> = vec![Node::default()];
-    while i < bytes.len() {
-        if bytes[i] != b'<' {
-            let end = text[i..].find('<').map_or(text.len(), |p| i + p);
-            let top = stack.last_mut().unwrap();
-            top.text.push_str(&unescape(&text[i..end]));
-            i = end;
-            continue;
-        }
-        let rest = &text[i..];
-        if rest.starts_with("<!--") {
-            i += rest.find("-->").ok_or("unterminated comment")? + 3;
-        } else if rest.starts_with("<![CDATA[") {
-            let end = rest.find("]]>").ok_or("unterminated CDATA")?;
-            stack.last_mut().unwrap().text.push_str(&rest[9..end]);
-            i += end + 3;
-        } else if rest.starts_with("<?") {
-            i += rest.find("?>").ok_or("unterminated declaration")? + 2;
-        } else if rest.starts_with("<!") {
-            i += rest.find('>').ok_or("unterminated DOCTYPE")? + 1;
-        } else if rest.starts_with("</") {
-            let end = rest.find('>').ok_or("unterminated end tag")?;
-            let name = local(rest[2..end].trim()).to_string();
-            let node = stack.pop().ok_or("unbalanced end tag")?;
-            if node.name != name || stack.is_empty() {
-                return Err(format!("mismatched end tag </{name}>"));
-            }
-            stack.last_mut().unwrap().children.push(node);
-            i += end + 1;
-        } else {
-            let mut j = i + 1;
-            let mut quote = None;
-            while j < bytes.len() {
-                match (bytes[j], quote) {
-                    (b'"' | b'\'', None) => quote = Some(bytes[j]),
-                    (q, Some(open)) if q == open => quote = None,
-                    (b'>', None) => break,
-                    _ => {}
+    let mut reader = Reader::from_str(text);
+    let mut stack = vec![Node::default()];
+    loop {
+        match reader.read_event().map_err(|error| error.to_string())? {
+            Event::Start(start) => {
+                if stack.len() >= 64 {
+                    return Err("manifest XML nesting exceeds 63 elements".into());
                 }
-                j += 1;
+                stack.push(node(start, reader.decoder())?);
             }
-            if j >= bytes.len() {
-                return Err("unterminated tag".into());
+            Event::Empty(start) => {
+                stack
+                    .last_mut()
+                    .unwrap()
+                    .children
+                    .push(node(start, reader.decoder())?);
             }
-            let inner = &text[i + 1..j];
-            let empty = inner.ends_with('/');
-            let inner = inner.trim_end_matches('/');
-            let (name, attrs) = parse_tag(inner)?;
-            let node = Node { name, attrs, ..Default::default() };
-            if empty {
-                stack.last_mut().unwrap().children.push(node);
-            } else {
-                stack.push(node);
+            Event::End(_) => {
+                if stack.len() < 2 {
+                    return Err("unexpected closing element".into());
+                }
+                let closed = stack.pop().unwrap();
+                stack.last_mut().unwrap().children.push(closed);
             }
-            i = j + 1;
+            Event::Text(text) => {
+                let text = text.unescape().map_err(|error| error.to_string())?;
+                stack.last_mut().unwrap().text.push_str(&text);
+            }
+            Event::CData(text) => {
+                let text = text.decode().map_err(|error| error.to_string())?;
+                stack.last_mut().unwrap().text.push_str(&text);
+            }
+            Event::DocType(_) => return Err("office manifests do not support a DTD".into()),
+            Event::Eof => break,
+            _ => {}
         }
     }
     if stack.len() != 1 {
         return Err("unclosed element".into());
     }
-    stack.pop().unwrap().children.into_iter().next().ok_or_else(|| "no root element".into())
-}
-
-fn parse_tag(inner: &str) -> Result<(String, Vec<(String, String)>), String> {
-    let inner = inner.trim();
-    let name_end = inner.find(|c: char| c.is_whitespace()).unwrap_or(inner.len());
-    let name = local(&inner[..name_end]).to_string();
-    let mut attrs = Vec::new();
-    let mut rest = inner[name_end..].trim_start();
-    while !rest.is_empty() {
-        let eq = rest.find('=').ok_or_else(|| format!("attribute without value in <{name}>"))?;
-        let key = local(rest[..eq].trim()).to_string();
-        let after = rest[eq + 1..].trim_start();
-        let quote = after.chars().next().filter(|c| *c == '"' || *c == '\'').ok_or("unquoted attribute")?;
-        let close = after[1..].find(quote).ok_or("unterminated attribute")?;
-        attrs.push((key, unescape(&after[1..1 + close])));
-        rest = after[close + 2..].trim_start();
+    let mut outside = stack.pop().unwrap();
+    if outside.children.len() != 1 || !outside.text.trim().is_empty() {
+        return Err("manifest must contain one root element".into());
     }
-    Ok((name, attrs))
+    Ok(outside.children.pop().unwrap())
 }
 
 pub fn load_xml(text: &str) -> Result<AddinManifest, String> {
@@ -286,23 +266,24 @@ pub fn load_xml(text: &str) -> Result<AddinManifest, String> {
     }
     let default = |n: &Node| n.attr("DefaultValue").unwrap_or_default().to_string();
     let text_of = |n: Option<&Node>| n.map(|n| n.text.trim().to_string()).unwrap_or_default();
-    // Resources: Url / ShortString / LongString ids to their default text.
-    let mut resources: HashMap<String, String> = HashMap::new();
-    for kind in ["Url", "String"] {
-        for n in root.all(kind) {
-            if let Some(id) = n.attr("id") {
-                resources.insert(id.to_string(), default(n));
-            }
-        }
-    }
-    let resolve = |resid: Option<&str>| resid.and_then(|r| resources.get(r).cloned());
     let mut manifest = AddinManifest {
         kind: Kind::Xml,
         id: text_of(root.child("Id")),
         version: text_of(root.child("Version")),
         name: root.child("DisplayName").map(default).unwrap_or_default(),
-        hosts: root.child("Hosts").map(|h| h.children.iter().filter_map(|c| c.attr("Name").map(String::from)).collect()).unwrap_or_default(),
-        task_pane_url: root.child("DefaultSettings").and_then(|d| d.child("SourceLocation")).map(default),
+        hosts: root
+            .child("Hosts")
+            .map(|h| {
+                h.children
+                    .iter()
+                    .filter_map(|c| c.attr("Name").map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        task_pane_url: root
+            .child("DefaultSettings")
+            .and_then(|d| d.child("SourceLocation"))
+            .map(default),
         function_file_url: None,
         commands: Vec::new(),
         shared_runtime: false,
@@ -310,25 +291,79 @@ pub fn load_xml(text: &str) -> Result<AddinManifest, String> {
     if manifest.id.is_empty() {
         return Err("manifest has no Id".into());
     }
-    for ff in root.all("FunctionFile") {
-        manifest.function_file_url = resolve(ff.attr("resid"));
+    manifest.shared_runtime = root.child("Requirements").is_some_and(|requirements| {
+        requirements
+            .all("Set")
+            .iter()
+            .any(|set| set.attr("Name") == Some("SharedRuntime"))
+    });
+    let excel_override =
+        root.all("VersionOverrides")
+            .into_iter()
+            .rev()
+            .find_map(|overrides| {
+                let workbook_host = overrides.child("Hosts")?.children.iter().find(|host| {
+                    host.name == "Host" && host.attr("type").is_some_and(excel_host)
+                })?;
+                Some((overrides, workbook_host))
+            });
+    let Some((overrides, host)) = excel_override else {
+        return Ok(manifest);
+    };
+
+    let mut resources = HashMap::new();
+    if let Some(resource_root) = overrides.child("Resources") {
+        for kind in ["Url", "String"] {
+            for resource in resource_root.all(kind) {
+                if let Some(id) = resource.attr("id") {
+                    resources.insert(id, default(resource));
+                }
+            }
+        }
     }
-    manifest.shared_runtime = root.all("Runtime").iter().any(|r| r.attr("lifetime") == Some("long"))
-        || root.all("Requirement").iter().any(|r| r.attr("name") == Some("SharedRuntime"));
-    for control in root.all("Control") {
-        let Some(action) = control.child("Action") else { continue };
-        let action_type = action.attr("type").unwrap_or_default();
-        let command = match action_type {
-            "ExecuteFunction" => CommandAction::ExecuteFunction { name: text_of(action.child("FunctionName")) },
-            "ShowTaskpane" => CommandAction::ShowTaskpane {
-                url: resolve(action.child("SourceLocation").and_then(|s| s.attr("resid")))
-                    .or_else(|| manifest.task_pane_url.clone())
-                    .unwrap_or_default(),
+    let resolve = |id: Option<&str>| id.and_then(|id| resources.get(id).cloned());
+    let runtime = host
+        .all("Runtime")
+        .into_iter()
+        .find(|r| r.attr("lifetime") == Some("long"));
+    manifest.shared_runtime |= runtime.is_some();
+    let mut pane = runtime.and_then(|r| resolve(r.attr("resid")));
+    let Some(desktop) = host.child("DesktopFormFactor") else {
+        return Ok(manifest);
+    };
+    manifest.function_file_url = desktop
+        .child("FunctionFile")
+        .and_then(|file| resolve(file.attr("resid")));
+    for control in desktop.all("Control") {
+        let Some(action) = control.child("Action") else {
+            continue;
+        };
+        let command = match action.attr("type") {
+            Some("ExecuteFunction") => CommandAction::ExecuteFunction {
+                name: text_of(action.child("FunctionName")),
             },
+            Some("ShowTaskpane") => {
+                let source = action
+                    .child("SourceLocation")
+                    .and_then(|source| resolve(source.attr("resid")));
+                if let Some(url) = &source {
+                    pane.get_or_insert_with(|| url.clone());
+                }
+                let Some(url) = source.or_else(|| manifest.task_pane_url.clone()) else {
+                    continue;
+                };
+                CommandAction::ShowTaskpane { url }
+            }
             _ => continue,
         };
-        let label = resolve(control.child("Label").and_then(|l| l.attr("resid"))).unwrap_or_default();
-        manifest.commands.push(Command { id: control.attr("id").unwrap_or_default().to_string(), label, action: command });
+        let label =
+            resolve(control.child("Label").and_then(|l| l.attr("resid"))).unwrap_or_default();
+        manifest.commands.push(Command {
+            id: control.attr("id").unwrap_or_default().to_string(),
+            label,
+            action: command,
+        });
     }
+    manifest.task_pane_url = pane.or(manifest.task_pane_url);
     Ok(manifest)
 }

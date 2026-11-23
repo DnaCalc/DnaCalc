@@ -962,6 +962,8 @@ pub struct CellImage {
 /// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
+    AutomationBatch(crate::automation::BatchRequest),
+    AutomationRelease(crate::automation::ReleaseRequest),
     /// The picture a cell holds: [`Reply::CellImage`], with its bytes beside the reply.
     CellImage {
         at: Key,
@@ -1715,6 +1717,8 @@ pub struct PastePreview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
+    AutomationBatch(crate::automation::BatchReply),
+    AutomationReleased,
     /// The native Open dialog was cancelled; the workbook is unchanged.
     OpenCancelled,
     CellImage(Option<CellImage>),

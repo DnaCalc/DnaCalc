@@ -1,6 +1,7 @@
 //! The skinnable application model: state, commands and keyboard grammar, without a DOM,
 //! reactive toolkit, evaluator or host implementation. Browser adapters execute its effects.
 pub mod address;
+pub mod automation;
 mod editor;
 pub mod format;
 pub mod names;

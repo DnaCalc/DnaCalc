@@ -1,15 +1,20 @@
 const assert = require("assert");
 const { Excel } = require("../office.js");
-(async () => {
+const { test } = require("node:test");
+
+test("proxies queue a single batch and hydrate range values", async () => {
   const sent = [];
   const transport = async (json) => {
-    const req = JSON.parse(json); sent.push(req);
+    const message = JSON.parse(json);
+    sent.push(message.request);
+    const req = message.request.AutomationBatch;
+    if (!req) return JSON.stringify({ Reply: { id: message.id, reply: "AutomationReleased" } });
     const results = [];
     req.ops.forEach((op, ordinal) => {
       if (op.op === "load") results.push({ ordinal, loaded: [["values", { t: "array", rows: 1, cols: 2, v: [{ t: "r8", bits: "8000000000000000" }, { t: "empty" }] }], ["address", { t: "text", v: "Sheet1!A1:B1" }]] });
       if (op.op === "call" && op.name === "getItemOrNullObject") results.push({ ordinal, null_object: true });
     });
-    return JSON.stringify({ batch_id: req.batch_id, results });
+    return JSON.stringify({ Reply: { id: message.id, reply: { AutomationBatch: { batch_id: req.batch_id, results } } } });
   };
   let r;
   await Excel.run(async (ctx) => {
@@ -26,8 +31,47 @@ const { Excel } = require("../office.js");
     assert.strictEqual(r.address, "Sheet1!A1:B1");
     assert.strictEqual(nul.isNullObject, true);
   }, transport);
-  // Excel.run's final sync is a second batch only when ops remain or release is needed.
-  assert.strictEqual(sent.length, 2); assert.strictEqual(sent[1].final_release, true);
-  assert.strictEqual(sent[0].ops[0].op, "root");
-  console.log("ok", sent[0].ops.map(o => o.op).join(","));
-})().catch((e) => { console.error(e); process.exit(1); });
+  assert.strictEqual(sent[0].AutomationBatch.ops[0].op, "root");
+  assert.deepStrictEqual(sent[1].AutomationRelease, { context: sent[0].AutomationBatch.context });
+});
+
+test("worker envelopes carry one sync, void calls, and explicit release", async () => {
+  const sent = [];
+  const transport = async (json) => {
+    const message = JSON.parse(json);
+    sent.push(message);
+    const batch = message.request.AutomationBatch;
+    const reply = batch ? {
+      AutomationBatch: { batch_id: batch.batch_id, results: batch.ops.map((_, ordinal) => ({ ordinal })) },
+    } : "AutomationReleased";
+    return JSON.stringify({ Reply: { id: message.id, reply } });
+  };
+  await Excel.run(async (ctx) => {
+    ctx.workbook.worksheets.getItem("Sheet1").getRange("A1").clear();
+    await ctx.sync();
+  }, transport);
+  assert.strictEqual(sent.length, 2);
+  assert.strictEqual(sent[0].request.AutomationBatch.ops.at(-1).out, undefined);
+  assert.deepStrictEqual(sent[1].request.AutomationRelease, { context: sent[0].request.AutomationBatch.context });
+});
+
+test("a rejected Excel.run callback discards unsubmitted operations", async () => {
+  const sent = [];
+  const transport = async (json) => {
+    const message = JSON.parse(json);
+    sent.push(message.request);
+    const batch = message.request.AutomationBatch;
+    const reply = batch
+      ? { AutomationBatch: { batch_id: batch.batch_id, results: [] } }
+      : "AutomationReleased";
+    return JSON.stringify({ Reply: { id: message.id, reply } });
+  };
+  let context;
+  await assert.rejects(Excel.run(async (ctx) => {
+    context = ctx;
+    ctx.workbook.worksheets.getItem("Sheet1").getRange("A1").values = [[4]];
+    throw new Error("callback failed");
+  }, transport), /callback failed/);
+  await context.sync();
+  assert.deepStrictEqual(sent, [{ AutomationRelease: { context: context._id } }]);
+});

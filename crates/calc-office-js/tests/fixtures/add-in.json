@@ -1,0 +1,36 @@
+{
+  "id": "90000000-0000-0000-0000-000000000002",
+  "version": "1.0.0",
+  "name": { "short": "Survey & Review" },
+  "extensions": [
+    {
+      "requirements": { "scopes": ["word"] },
+      "runtimes": [
+        {
+          "id": "WordPane", "type": "general", "lifetime": "long",
+          "code": { "page": "https://addin.example/word" },
+          "actions": [{ "id": "word", "type": "openPage" }]
+        }
+      ]
+    },
+    {
+      "requirements": { "scopes": ["workbook"] },
+      "runtimes": [
+        {
+          "id": "Commands", "type": "general",
+          "code": { "page": "https://addin.example/commands", "script": "https://addin.example/commands.js" },
+          "actions": [{ "id": "refresh", "type": "executeFunction", "displayName": "Update workbook" }]
+        },
+        {
+          "id": "Pane", "type": "general", "lifetime": "short",
+          "code": { "page": "https://addin.example/pane" },
+          "actions": [{ "id": "openReview", "type": "openPage", "view": "ReviewView" }]
+        }
+      ],
+      "ribbons": [{ "tabs": [{ "groups": [{ "controls": [
+        { "id": "Review.Open", "label": "Review & Edit", "actionId": "openReview" },
+        { "id": "Review.Refresh", "label": "Update workbook", "actionId": "refresh" }
+      ] }] }] }]
+    }
+  ]
+}

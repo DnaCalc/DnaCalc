@@ -14,8 +14,13 @@ portability = "portable"
 [dependencies]
 calc-object-model = { path = "../calc-object-model" }
 calc-value = { path = "../calc-value" }
-serde = { version = "=1.0.229", features = ["derive"] }
+dna-calc-protocol = { path = "../../apps/dna-calc-protocol" }
+quick-xml = "=0.37.5"
 serde_json = "=1.0.154"
+
+[dev-dependencies]
+calc-host = { path = "../calc-host" }
+calc-func = { path = "../calc-func" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.67"

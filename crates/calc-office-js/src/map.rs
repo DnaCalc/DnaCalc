@@ -1,6 +1,5 @@
 //! Office.js camelCase members to descriptor members (docs/architecture/OFFICE_JS_MAP.md).
-//! A name with no entry falls back to the case-insensitive descriptor name; a name that matches
-//! nothing is refused as not modelled, never guessed.
+//! The client can invoke only the members mapped here.
 
 use calc_object_model::{AutoValue, InvokeKind};
 
@@ -17,11 +16,19 @@ fn none() -> Vec<AutoValue> {
 }
 /// `Range.address`: sheet-qualified, relative, A1 style.
 fn address() -> Vec<AutoValue> {
-    vec![AutoValue::Bool(false), AutoValue::Bool(false), AutoValue::I4(1), AutoValue::Bool(true)]
+    vec![
+        AutoValue::Bool(false),
+        AutoValue::Bool(false),
+        AutoValue::I4(1),
+    ]
 }
 
 const fn m(com: &'static str) -> Mapped {
-    Mapped { com, preset: none, offset: 0 }
+    Mapped {
+        com,
+        preset: none,
+        offset: 0,
+    }
 }
 
 pub fn lookup(office: &str) -> Option<Mapped> {
@@ -35,9 +42,21 @@ pub fn lookup(office: &str) -> Option<Mapped> {
         "formulas" => m("Formula"),
         "numberFormat" => m("NumberFormat"),
         "text" => m("Text"),
-        "address" => Mapped { com: "Address", preset: address, offset: 0 },
-        "rowIndex" => Mapped { com: "Row", preset: none, offset: -1 },
-        "columnIndex" => Mapped { com: "Column", preset: none, offset: -1 },
+        "address" => Mapped {
+            com: "Address",
+            preset: address,
+            offset: 0,
+        },
+        "rowIndex" => Mapped {
+            com: "Row",
+            preset: none,
+            offset: -1,
+        },
+        "columnIndex" => Mapped {
+            com: "Column",
+            preset: none,
+            offset: -1,
+        },
         "calculate" => m("Calculate"),
         "clear" => m("Clear"),
         "activate" => m("Activate"),
@@ -51,10 +70,11 @@ pub fn lookup(office: &str) -> Option<Mapped> {
 
 /// The kinds to try, in order, for an operation on a COM member (COM collections expose `Item` as
 /// a parameterised property, so a method call may be a Get).
-pub fn kinds(operation: Operation) -> &'static [InvokeKind] {
+pub fn kinds(operation: Operation, name: &str) -> &'static [InvokeKind] {
     match operation {
-        Operation::Get => &[InvokeKind::Get, InvokeKind::Method],
-        Operation::Call => &[InvokeKind::Method, InvokeKind::Get],
+        Operation::Get => &[InvokeKind::Get],
+        Operation::Call if matches!(name, "Item" | "Range" | "UsedRange") => &[InvokeKind::Get],
+        Operation::Call => &[InvokeKind::Method],
         Operation::Set => &[InvokeKind::Put],
     }
 }

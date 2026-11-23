@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+    xsi:type="TaskPaneApp">
+  <Id>90000000-0000-0000-0000-000000000001</Id>
+  <Version>1.0.0.0</Version>
+  <DisplayName DefaultValue="Survey &amp; Review"/>
+  <Hosts><Host Name="Workbook"/></Hosts>
+  <Requirements><Sets><Set Name="SharedRuntime" MinVersion="1.1"/></Sets></Requirements>
+  <DefaultSettings><SourceLocation DefaultValue="https://addin.example/fallback"/></DefaultSettings>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <Runtimes><Runtime resid="Pane" lifetime="long"/></Runtimes>
+        <DesktopFormFactor>
+          <FunctionFile resid="Pane"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome"><Group id="ReviewGroup">
+              <Control xsi:type="Button" id="Review.Open">
+                <Label resid="Open.Label"/>
+                <Action xsi:type="ShowTaskpane"><SourceLocation resid="Pane"/></Action>
+              </Control>
+              <Control xsi:type="Button" id="Review.Refresh">
+                <Action xsi:type="ExecuteFunction"><FunctionName>refresh</FunctionName></Action>
+              </Control>
+            </Group></OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+      <Host xsi:type="Document">
+        <DesktopFormFactor><FunctionFile resid="Word"/></DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Urls>
+        <bt:Url id="Pane" DefaultValue="https://addin.example/pane?view=a&amp;mode=b"/>
+        <bt:Url id="Word" DefaultValue="https://addin.example/word"/>
+      </bt:Urls>
+      <bt:ShortStrings><bt:String id="Open.Label" DefaultValue="Review &#x26; Edit"/></bt:ShortStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

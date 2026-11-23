@@ -1,1 +1,22 @@
-{"package":"calc-office-js","beads":["dc-17spk.5"]}
+{
+  "package": "calc-office-js",
+  "beads": [
+    {
+      "id": "dc-17spk.5",
+      "test": "batch",
+      "commands": [
+        ["cargo", "xtask", "accept", "--id", "dc-17spk.5", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-17spk.5", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-17spk.5", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_17spk_5__ordered_snapshots_and_failure_keep_the_prefix",
+        "dc_17spk_5__only_item_not_found_becomes_a_null_object"
+      ],
+      "platforms": {
+        "dc_17spk_5__ordered_snapshots_and_failure_keep_the_prefix": ["linux", "windows", "wasm"],
+        "dc_17spk_5__only_item_not_found_becomes_a_null_object": ["linux", "windows", "wasm"]
+      }
+    }
+  ]
+}
