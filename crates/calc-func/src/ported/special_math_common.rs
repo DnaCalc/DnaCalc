@@ -583,7 +583,17 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             );
             let j = excel_x87_mul(excel_x87_mul(a, x), inner);
             let h = gratio_gam1(a);
-            let g = excel_x87_add(1.0, h);
+            let mut g = excel_x87_add(1.0, h);
+            // When 1 + a rounds to one, Excel's GAMMALN recurrence gives
+            // -LN(a). Rounding that logarithm can move exp(-GAMMALN(a))/a
+            // away from one. Use the cb21 normalizer only when the change
+            // exceeds the existing accuracy of the st200 series.
+            if 1.0 + a == 1.0 {
+                let candidate = crate::ported::excel_numeric::excel_exp_div(excel_log(a), a);
+                if (candidate - g).abs() > acc && (0.5..2.0).contains(&candidate) {
+                    g = candidate;
+                }
+            }
             let l = excel_expm1_internal(z);
             let w = excel_x87_add(0.5, excel_x87_add(0.5, l));
             let qans = excel_x87_sub(

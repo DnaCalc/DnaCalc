@@ -70,6 +70,15 @@ pub(crate) fn excel_exp(x: f64) -> f64 {
     exp_with::<Native>(x, CW)
 }
 
+/// Keep the exponential in extended precision until the quotient is stored.
+pub(crate) fn excel_exp_div(x: f64, divisor: f64) -> f64 {
+    exp_div::<Native>(x, divisor)
+}
+
+fn exp_div<F: Fpu>(x: f64, divisor: f64) -> f64 {
+    F::store(&F::div(&exp_ext::<F>(&load(x)), &load(divisor), CW), CW)
+}
+
 /// Excel's `EXP` with the final rounding toward zero.
 pub(crate) fn excel_exp_rz(x: f64) -> f64 {
     exp_with::<Native>(x, CW_RZ)
@@ -485,6 +494,9 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chains_run_on_the_software_x87() {
+        let a = f64::from_bits(0x2746_cc43_efa1_3925);
+        let x = -crate::ported::excel_numeric::gammaln_excel(a);
+        assert_eq!(exp_div::<Soft>(x, a).to_bits(), excel_exp_div(x, a).to_bits());
         assert_eq!(exp_with::<Soft>(1.0, CW), core::f64::consts::E);
         assert_eq!(exp_with::<Soft>(0.0, CW), 1.0);
         assert_eq!(log_with::<Soft>(core::f64::consts::E, &ext_ln2()), 1.0);
