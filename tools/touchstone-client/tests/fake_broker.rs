@@ -70,7 +70,7 @@ fn serve(listener: TcpListener) {
                 write_frame(
                     &mut stream,
                     b'A',
-                    &json!({"id": id, "seq": body["seq"], "env": "e1", "g": answers}),
+                    &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w1", "g": answers}),
                 );
                 if body["last"] == json!(true) {
                     write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
@@ -188,6 +188,10 @@ fn ask_returns_answers_in_request_order_across_frames_and_shapes() {
     }
     assert_eq!(reply.env_id.as_deref(), Some("e1"));
     assert_eq!(reply.env.as_ref().unwrap()["build"], json!("7"));
+    assert_eq!(reply.env_by_row.len(), rows.len());
+    assert!(reply.env_by_row.iter().all(|e| e.as_deref() == Some("e1")));
+    assert_eq!(reply.worker_calls.get("w1"), Some(&rows.len()));
+    assert_eq!(reply.envs.get("e1").unwrap()["build"], json!("7"));
 }
 
 #[test]

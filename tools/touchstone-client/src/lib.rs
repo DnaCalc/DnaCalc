@@ -22,7 +22,7 @@
 compile_error!("touchstone-client is native-only and must not be built for wasm32");
 
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, TcpStream};
@@ -108,6 +108,16 @@ pub enum Answer {
     Boolean(bool),
     Error(String),
     Blank,
+    /// A rectangular matrix of typed cells (array input echo or spilled array answer).
+    Array {
+        rows: usize,
+        cols: usize,
+        cells: Vec<Answer>,
+    },
+    /// Excel crashed on this call when run alone; recorded, never retried.
+    Crashed {
+        detail: String,
+    },
     /// Excel changed this input on entry, so its reading is not of the input asked for.
     Unread {
         reason: String,
@@ -158,8 +168,16 @@ pub struct Reply {
     pub rows: Vec<Answer>,
     /// The inputs Excel read back, when `echo_inputs` asked for them.
     pub inputs: Option<Vec<Vec<Answer>>>,
+    /// A representative `env_id` for the request (for single-worker compatibility).
     pub env_id: Option<String>,
+    /// Representative environment entry for `env_id`.
     pub env: Option<Value>,
+    /// The exact `env_id` of the worker that answered each call, in request order.
+    pub env_by_row: Vec<Option<String>>,
+    /// Every distinct worker environment seen in this reply, keyed by `env_id`.
+    pub envs: BTreeMap<String, Value>,
+    /// Calls answered per worker name (e.g. `w1`, `w2`, `w3`).
+    pub worker_calls: BTreeMap<String, usize>,
     pub seconds: f64,
 }
 
@@ -360,7 +378,7 @@ fn group_json(group: &Group, start: usize, n: usize) -> Value {
     g
 }
 
-/// Cuts a request into submit frames of about 40 KB.
+/// Cuts a request into submit frames under `FRAME_BUDGET` bytes.
 fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
     let groups = group_rows(request);
     let mut frames: Vec<Vec<Value>> = Vec::new();
@@ -368,13 +386,30 @@ fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
     let mut size = 0usize;
     for group in &groups {
         let per_call = (group.width * 20).max(8);
-        let step = (FRAME_BUDGET / per_call).max(1);
+        let initial_step = (FRAME_BUDGET / per_call).max(1);
+        let mut pending: std::collections::VecDeque<(usize, usize)> =
+            std::collections::VecDeque::new();
         let mut start = 0;
         while start < group.n {
-            let n = step.min(group.n - start);
-            current.push(group_json(group, start, n));
-            size += n * per_call;
+            let n = initial_step.min(group.n - start);
+            pending.push_back((start, n));
             start += n;
+        }
+        while let Some((off, n)) = pending.pop_front() {
+            let part = group_json(group, off, n);
+            let encoded = serde_json::to_vec(&part).map_or(0, |v| v.len());
+            if encoded > FRAME_BUDGET && n > 1 {
+                let half = (n / 2).max(1);
+                pending.push_front((off + half, n - half));
+                pending.push_front((off, half));
+                continue;
+            }
+            if !current.is_empty() && size + encoded > FRAME_BUDGET {
+                frames.push(std::mem::take(&mut current));
+                size = 0;
+            }
+            current.push(part);
+            size += encoded;
             if size >= FRAME_BUDGET {
                 frames.push(std::mem::take(&mut current));
                 size = 0;
@@ -389,7 +424,8 @@ fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
         .into_iter()
         .enumerate()
         .map(|(seq, groups)| {
-            let mut frame = json!({"id": id, "seq": seq, "last": seq + 1 == count, "groups": groups});
+            let mut frame =
+                json!({"id": id, "seq": seq, "last": seq + 1 == count, "groups": groups});
             if seq == 0 {
                 let mut opts = json!({"echo": request.echo_inputs, "order": "any", "calls": request.rows.len()});
                 match request.priority {
@@ -411,6 +447,25 @@ fn answer_from(letter: char, value: &Value) -> Answer {
         'b' => Answer::Boolean(value.as_bool().unwrap_or(false)),
         'e' => Answer::Error(value.as_str().unwrap_or("").to_string()),
         'z' => Answer::Blank,
+        'm' => {
+            let rows = value["r"].as_u64().unwrap_or(0) as usize;
+            let cols = value["c"].as_u64().unwrap_or(0) as usize;
+            let ty: Vec<char> = value["ty"].as_str().unwrap_or("").chars().collect();
+            let vals = value["v"].as_array().cloned().unwrap_or_default();
+            let cells = ty
+                .into_iter()
+                .zip(vals.iter())
+                .map(|(l, v)| answer_from(l, v))
+                .collect();
+            Answer::Array { rows, cols, cells }
+        }
+        'x' => Answer::Crashed {
+            detail: value
+                .get("detail")
+                .and_then(Value::as_str)
+                .unwrap_or("excel-crashed")
+                .to_string(),
+        },
         _ => Answer::Unread {
             reason: value
                 .get("reason")
@@ -421,6 +476,23 @@ fn answer_from(letter: char, value: &Value) -> Answer {
     }
 }
 
+fn client_lane() -> Option<String> {
+    if let Ok(lane) = std::env::var("DNACALC_LANE")
+        && !lane.is_empty()
+    {
+        return Some(lane);
+    }
+    let log = std::env::var("DNACALC_AGENT_LOG").ok()?;
+    let (_, path) = log.split_once(':')?;
+    let normalized = path.replace('\\', "/");
+    let parts: Vec<&str> = normalized.split('/').collect();
+    if parts.len() >= 3 && parts[parts.len() - 3] == "codex-runs" {
+        Some(parts[parts.len() - 2].to_string())
+    } else {
+        None
+    }
+}
+
 // ---- connection -------------------------------------------------------------------------------
 
 struct Slot {
@@ -428,6 +500,8 @@ struct Slot {
     answers: Vec<Option<Answer>>,
     inputs: Option<Vec<Option<Vec<Answer>>>>,
     env_id: Option<String>,
+    env_by_row: Vec<Option<String>>,
+    worker_calls: BTreeMap<String, usize>,
     sender: Sender<Result<Reply, Error>>,
     started: std::time::Instant,
     echo: bool,
@@ -474,10 +548,11 @@ impl Connector {
             }
         };
         stream.set_timeouts(Some(SOCKET_TIMEOUT), Some(SOCKET_TIMEOUT))?;
-        stream.write_all(&pack(
-            b'H',
-            &json!({"v": VERSION, "name": name, "token": token}),
-        ))?;
+        let mut hello = json!({"v": VERSION, "name": name, "token": token});
+        if let Some(lane) = client_lane() {
+            hello["lane"] = json!(lane);
+        }
+        stream.write_all(&pack(b'H', &hello))?;
         loop {
             let mut header = [0; 4];
             stream.read_exact(&mut header)?;
@@ -533,6 +608,8 @@ impl Shared {
                     inputs.fill(None);
                 }
                 slot.env_id = None;
+                slot.env_by_row.fill(None);
+                slot.worker_calls.clear();
                 Arc::clone(&slot.frames)
             })
             .collect();
@@ -735,6 +812,8 @@ impl Client {
                     None
                 },
                 env_id: None,
+                env_by_row: vec![None; calls],
+                worker_calls: BTreeMap::new(),
                 sender,
                 started: Instant::now(),
                 echo: request.echo_inputs,
@@ -793,9 +872,11 @@ fn route(shared: &Shared, kind: u8, body: Value) {
             let Some(slot) = slots.get_mut(&id) else {
                 return;
             };
-            if let Some(env) = body["env"].as_str() {
-                slot.env_id = Some(env.to_string());
+            let frame_env = body["env"].as_str().map(str::to_string);
+            if let Some(env) = &frame_env {
+                slot.env_id = Some(env.clone());
             }
+            let worker_name = body["w"].as_str().map(str::to_string);
             for g in body["g"].as_array().into_iter().flatten() {
                 let ty: Vec<char> = g["ty"].as_str().unwrap_or("").chars().collect();
                 let values = g["v"].as_array().cloned().unwrap_or_default();
@@ -807,10 +888,16 @@ fn route(shared: &Shared, kind: u8, body: Value) {
                         .collect(),
                     _ => Vec::new(),
                 };
+                if let Some(worker) = &worker_name {
+                    *slot.worker_calls.entry(worker.clone()).or_insert(0) += positions.len();
+                }
                 for (k, position) in positions.iter().enumerate() {
                     if let (Some(&letter), Some(value)) = (ty.get(k), values.get(k)) {
                         if *position < slot.answers.len() {
                             slot.answers[*position] = Some(answer_from(letter, value));
+                            if let Some(env) = &frame_env {
+                                slot.env_by_row[*position] = Some(env.clone());
+                            }
                         }
                     }
                 }
@@ -847,10 +934,26 @@ fn route(shared: &Shared, kind: u8, body: Value) {
                 return;
             };
             let seconds = slot.started.elapsed().as_secs_f64();
+            let known_envs = shared.envs.lock().unwrap();
             let env = slot
                 .env_id
                 .as_ref()
-                .and_then(|e| shared.envs.lock().unwrap().get(e).cloned());
+                .and_then(|e| known_envs.get(e).cloned());
+            let mut envs = BTreeMap::new();
+            for row_env in slot.env_by_row.iter().flatten() {
+                if !envs.contains_key(row_env)
+                    && let Some(entry) = known_envs.get(row_env)
+                {
+                    envs.insert(row_env.clone(), entry.clone());
+                }
+            }
+            if let Some(id) = &slot.env_id
+                && !envs.contains_key(id)
+                && let Some(entry) = known_envs.get(id)
+            {
+                envs.insert(id.clone(), entry.clone());
+            }
+            drop(known_envs);
             let missing = slot.answers.iter().any(Option::is_none);
             let result = if missing {
                 Err(Error::Protocol(
@@ -864,6 +967,9 @@ fn route(shared: &Shared, kind: u8, body: Value) {
                         .map(|v| v.into_iter().map(|c| c.unwrap_or_default()).collect()),
                     env_id: slot.env_id,
                     env,
+                    env_by_row: slot.env_by_row,
+                    envs,
+                    worker_calls: slot.worker_calls,
                     seconds,
                 })
             };
@@ -959,5 +1065,31 @@ mod tests {
             );
         }
         assert_eq!(seen, [b'A', b'D']);
+    }
+
+    #[test]
+    fn matrix_and_crashed_answers_decode_cleanly() {
+        let matrix = answer_from(
+            'm',
+            &json!({"r": 2, "c": 1, "ty": "nn", "v": ["c059000000000000", "404e000000000000"]}),
+        );
+        assert_eq!(
+            matrix,
+            Answer::Array {
+                rows: 2,
+                cols: 1,
+                cells: vec![
+                    Answer::Number(0xc059000000000000),
+                    Answer::Number(0x404e000000000000),
+                ],
+            }
+        );
+        let crashed = answer_from('x', &json!({"detail": "worker exited"}));
+        assert_eq!(
+            crashed,
+            Answer::Crashed {
+                detail: "worker exited".into()
+            }
+        );
     }
 }
