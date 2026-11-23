@@ -20,6 +20,7 @@ pub struct FuzzCase {
     pub args: Vec<Value>,
     pub prediction: String,
     pub trace: RouteTrace,
+    #[allow(dead_code)]
     pub outcome_class: String,
 }
 
@@ -95,6 +96,7 @@ pub fn evaluate_traced(
 /// boundary-proximity exemplars across rounds.
 #[derive(Clone, Debug)]
 pub struct CoverageTracker {
+    #[allow(dead_code)]
     pub function: String,
     pub kernel_route_names: Vec<&'static str>,
     pub kernel_route_hits: Vec<usize>,

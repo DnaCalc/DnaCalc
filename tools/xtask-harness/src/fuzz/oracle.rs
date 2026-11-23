@@ -1,0 +1,1657 @@
+//! Live Excel comparison via Touchstone (`touchstone-client`), adaptive densification loop,
+//! multi-worker bulk + interactive pipelining, and parallel 64-point Excel frontier bisection
+//! (`dc-ztvv.21`).
+//!
+//! Predictions are ALWAYS written and SHA-256-hashed BEFORE any Touchstone request is submitted.
+//! Only rows where Excel's answer genuinely differed (and input readback matched bit-for-bit)
+//! are recorded as discrepancies and exported to `bank-rows`.
+
+use super::boundary::{
+    Frontier, discover_local_frontiers, expand_frontier_windows, predicate_tag,
+    record_excel_window_flips,
+};
+use super::cluster::{
+    DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, judge_pair,
+};
+use super::domain::DomainSpec;
+use super::rng::{
+    Rng, StreamCaseHasher, canonical_case_key, f64_to_ordered, hex_f64, ordered_to_f64,
+    parse_hex_bits, step_ulps,
+};
+use super::steer::{
+    CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
+};
+use super::{FuzzConfig, FuzzSummary, freeze_predictions, write_outputs};
+use calc_verdict::Severity;
+use serde_json::Value;
+use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::path::Path;
+use std::time::{Duration, Instant};
+use touchstone_client::{Answer, Arg, Client, Handle, Priority, Request};
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+const INTERACTIVE_CHUNK_SIZE: usize = 96;
+const MAX_FRONTIER_SEEDS: usize = 8_000;
+const MAX_DISCREPANCY_PARENTS: usize = 2_048;
+
+fn error_variant_to_excel(name: &str) -> Result<&'static str, String> {
+    match name {
+        "Null" | "#NULL!" => Ok("#NULL!"),
+        "Div0" | "#DIV/0!" => Ok("#DIV/0!"),
+        "Value" | "#VALUE!" => Ok("#VALUE!"),
+        "Ref" | "#REF!" => Ok("#REF!"),
+        "Name" | "#NAME?" => Ok("#NAME?"),
+        "Num" | "#NUM!" => Ok("#NUM!"),
+        "NA" | "#N/A" => Ok("#N/A"),
+        other => Err(format!("unknown Excel error variant {other:?}")),
+    }
+}
+
+fn excel_error_to_encoded(code: &str) -> String {
+    let variant = match code {
+        "#NULL!" => "Null",
+        "#DIV/0!" => "Div0",
+        "#VALUE!" => "Value",
+        "#REF!" => "Ref",
+        "#NAME?" => "Name",
+        "#NUM!" => "Num",
+        "#N/A" => "NA",
+        other => other.trim_start_matches('#'),
+    };
+    format!("error:{variant}")
+}
+
+/// Convert one WitnessSet-encoded JSON argument to a Touchstone `Arg`.
+pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
+    match value {
+        Value::Null => Ok(Arg::Blank),
+        Value::Bool(b) => Ok(Arg::Boolean(*b)),
+        Value::String(s) => {
+            if let Some(bits) = parse_hex_bits(value) {
+                Ok(Arg::Number(bits))
+            } else {
+                Ok(Arg::Text(s.clone()))
+            }
+        }
+        Value::Object(map) => {
+            if let Some(code) = map.get("error").and_then(Value::as_str) {
+                Ok(Arg::Error(error_variant_to_excel(code)?.to_owned()))
+            } else {
+                Err(format!("unsupported object argument: {value}"))
+            }
+        }
+        Value::Array(items) => {
+            if items.is_empty() {
+                return Err("empty array argument".into());
+            }
+            if items[0].is_array() {
+                let rows = items.len();
+                let cols = items[0]
+                    .as_array()
+                    .map_or(0, Vec::len);
+                if cols == 0 {
+                    return Err("zero-column array argument".into());
+                }
+                let mut bits = Vec::with_capacity(rows * cols);
+                for row in items {
+                    let cells = row
+                        .as_array()
+                        .ok_or_else(|| "ragged array argument".to_owned())?;
+                    if cells.len() != cols {
+                        return Err("ragged array argument".into());
+                    }
+                    for cell in cells {
+                        let b = parse_hex_bits(cell)
+                            .ok_or_else(|| format!("non-numeric cell in numeric array: {cell}"))?;
+                        bits.push(b);
+                    }
+                }
+                Ok(Arg::Array { rows, cols, bits })
+            } else {
+                let mut bits = Vec::with_capacity(items.len());
+                for cell in items {
+                    let b = parse_hex_bits(cell)
+                        .ok_or_else(|| format!("non-numeric cell in 1D array: {cell}"))?;
+                    bits.push(b);
+                }
+                Ok(Arg::Array {
+                    rows: items.len(),
+                    cols: 1,
+                    bits,
+                })
+            }
+        }
+        other => Err(format!("unsupported JSON argument: {other}")),
+    }
+}
+
+/// Convert a Touchstone `Answer` into WitnessSet encoded form, or a terminal Unread/Crashed outcome.
+pub fn answer_to_encoded(answer: &Answer) -> Result<String, RowOutcome> {
+    match answer {
+        Answer::Number(bits) => Ok(format!("0x{bits:016x}")),
+        Answer::Boolean(b) => Ok(if *b { "logical:True" } else { "logical:False" }.to_owned()),
+        Answer::Text(s) => Ok(format!("text:{s}")),
+        Answer::Error(code) => Ok(excel_error_to_encoded(code)),
+        Answer::Blank => Ok("empty".to_owned()),
+        Answer::Unread { reason } => Err(RowOutcome::Unread {
+            reason: reason.clone(),
+        }),
+        Answer::Crashed { detail } => Err(RowOutcome::Crashed {
+            detail: detail.clone(),
+        }),
+        Answer::Array { .. } => Err(RowOutcome::Unread {
+            reason: "unexpected spilled array output".to_owned(),
+        }),
+    }
+}
+
+/// Verify that Excel's echoed input matches the argument we asked for bit-for-bit.
+pub fn echo_matches_arg(sent: &Arg, echoed: &Answer) -> bool {
+    match (sent, echoed) {
+        (Arg::Number(a), Answer::Number(b)) => a == b,
+        (Arg::Boolean(a), Answer::Boolean(b)) => a == b,
+        (Arg::Text(a) | Arg::TextLiteral(a), Answer::Text(b)) => a == b,
+        (Arg::Error(a), Answer::Error(b)) => a.eq_ignore_ascii_case(b),
+        (Arg::Blank, Answer::Blank) => true,
+        (
+            Arg::Array { rows, cols, bits },
+            Answer::Array {
+                rows: er,
+                cols: ec,
+                cells,
+            },
+        ) => {
+            rows == er
+                && cols == ec
+                && cells.len() == bits.len()
+                && bits
+                    .iter()
+                    .zip(cells)
+                    .all(|(b, c)| matches!(c, Answer::Number(got) if got == b))
+        }
+        _ => false,
+    }
+}
+
+fn connect_client(endpoint: Option<&Path>) -> Result<Client, String> {
+    let client = match endpoint {
+        None => Client::connect(),
+        Some(path) => {
+            let is_json = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("json"));
+            if is_json {
+                Client::connect_endpoint(path)
+            } else {
+                #[cfg(unix)]
+                {
+                    Client::connect_unix(path)
+                }
+                #[cfg(not(unix))]
+                {
+                    Client::connect_endpoint(path)
+                }
+            }
+        }
+    };
+    client.map_err(|e| format!("touchstone connect failed: {e}"))
+}
+
+#[derive(Clone, Debug)]
+struct JudgedRow {
+    outcome: RowOutcome,
+    excel_encoded: Option<String>,
+    env_id: String,
+}
+
+struct BatchReplyAggregate {
+    rows: Vec<JudgedRow>,
+    envs: BTreeMap<String, Value>,
+    worker_calls: BTreeMap<String, usize>,
+    excel_seconds: f64,
+}
+
+struct PendingChunk {
+    lane_tag: usize, // 0 = primary/bulk cases, 1 = secondary/interactive cases
+    indices: Vec<usize>,
+    sent_rows: Vec<Vec<Arg>>,
+    handle: Handle,
+}
+
+fn prepare_sendable(cases: &[FuzzCase]) -> (Vec<(usize, Vec<Arg>)>, Vec<JudgedRow>) {
+    let mut judged = vec![
+        JudgedRow {
+            outcome: RowOutcome::Unread {
+                reason: "not sent".to_owned(),
+            },
+            excel_encoded: None,
+            env_id: "unknown".to_owned(),
+        };
+        cases.len()
+    ];
+    let mut sendable = Vec::with_capacity(cases.len());
+    for (idx, c) in cases.iter().enumerate() {
+        let mut converted = Vec::with_capacity(c.args.len());
+        let mut bad = None;
+        for a in &c.args {
+            match json_arg_to_touchstone(a) {
+                Ok(arg) => converted.push(arg),
+                Err(e) => {
+                    bad = Some(e);
+                    break;
+                }
+            }
+        }
+        if let Some(reason) = bad {
+            judged[idx].outcome = RowOutcome::Unread { reason };
+        } else {
+            sendable.push((idx, converted));
+        }
+    }
+    (sendable, judged)
+}
+
+fn drain_one_chunk(
+    chunk: PendingChunk,
+    primary_cases: &[FuzzCase],
+    secondary_cases: &[FuzzCase],
+    primary_judged: &mut [JudgedRow],
+    secondary_judged: &mut [JudgedRow],
+    envs: &mut BTreeMap<String, Value>,
+    worker_calls: &mut BTreeMap<String, usize>,
+) -> Result<(), String> {
+    let reply = chunk
+        .handle
+        .wait_timeout(REQUEST_TIMEOUT)
+        .map_err(|e| format!("touchstone request failed: {e}"))?;
+    for (k, v) in reply.envs {
+        envs.entry(k).or_insert(v);
+    }
+    for (w, count) in reply.worker_calls {
+        *worker_calls.entry(w).or_insert(0) += count;
+    }
+    let fallback_env = reply.env_id.unwrap_or_else(|| "unknown".to_owned());
+    let (cases, judged) = if chunk.lane_tag == 0 {
+        (primary_cases, primary_judged)
+    } else {
+        (secondary_cases, secondary_judged)
+    };
+    let inputs = reply.inputs.as_deref();
+    for (pos, &case_idx) in chunk.indices.iter().enumerate() {
+        let env_id = reply
+            .env_by_row
+            .get(pos)
+            .and_then(Option::as_ref)
+            .cloned()
+            .unwrap_or_else(|| fallback_env.clone());
+        let Some(answer) = reply.rows.get(pos) else {
+            judged[case_idx] = JudgedRow {
+                outcome: RowOutcome::Unread {
+                    reason: "missing answer row in Touchstone reply".to_owned(),
+                },
+                excel_encoded: None,
+                env_id,
+            };
+            continue;
+        };
+        let encoded = match answer_to_encoded(answer) {
+            Ok(enc) => enc,
+            Err(terminal) => {
+                judged[case_idx] = JudgedRow {
+                    outcome: terminal,
+                    excel_encoded: None,
+                    env_id,
+                };
+                continue;
+            }
+        };
+        // Verify echoed inputs bit-for-bit whenever Touchstone sent them.
+        if let Some(in_rows) = inputs
+            && let Some(echo_row) = in_rows.get(pos)
+        {
+            let sent = &chunk.sent_rows[pos];
+            if echo_row.len() != sent.len()
+                || !sent
+                    .iter()
+                    .zip(echo_row.iter())
+                    .all(|(s, e)| echo_matches_arg(s, e))
+            {
+                judged[case_idx] = JudgedRow {
+                    outcome: RowOutcome::Unread {
+                        reason: format!(
+                            "echo input readback differed (sent {} args, got {})",
+                            sent.len(),
+                            echo_row.len()
+                        ),
+                    },
+                    excel_encoded: None,
+                    env_id,
+                };
+                continue;
+            }
+        }
+        let pred = &cases[case_idx].prediction;
+        let (severity, ulp) = judge_pair(&encoded, pred);
+        let outcome = if severity == Severity::Exact {
+            RowOutcome::Matched
+        } else {
+            RowOutcome::Discrepancy {
+                expected: encoded.clone(),
+                severity,
+                ulp,
+            }
+        };
+        judged[case_idx] = JudgedRow {
+            outcome,
+            excel_encoded: Some(encoded),
+            env_id,
+        };
+    }
+    Ok(())
+}
+
+/// Submit a primary `Bulk` round AND optional secondary `Interactive` boundary probes concurrently
+/// on the same Touchstone client so bulk workers (`w1`, `w2`) and the interactive reserve (`w3`)
+/// run simultaneously.
+fn ask_bulk_and_interactive(
+    client: &Client,
+    function: &str,
+    bulk_cases: &[FuzzCase],
+    interactive_cases: &[FuzzCase],
+    bulk_batch_size: usize,
+    in_flight: usize,
+) -> Result<(BatchReplyAggregate, BatchReplyAggregate), String> {
+    let started = Instant::now();
+    let (bulk_sendable, mut bulk_judged) = prepare_sendable(bulk_cases);
+    let (inter_sendable, mut inter_judged) = prepare_sendable(interactive_cases);
+
+    let mut work_queue: VecDeque<(usize, Priority, Vec<usize>, Vec<Vec<Arg>>)> = VecDeque::new();
+    // Interleave interactive chunks (<= 96 rows each) right after the first two bulk chunks
+    // so w1 and w2 grab bulk work while w3 picks up interactive work in parallel.
+    let bulk_chunks: Vec<(Vec<usize>, Vec<Vec<Arg>>)> = bulk_sendable
+        .chunks(bulk_batch_size.max(1))
+        .map(|slice| {
+            let mut idxs = Vec::with_capacity(slice.len());
+            let mut rows = Vec::with_capacity(slice.len());
+            for (i, r) in slice {
+                idxs.push(*i);
+                rows.push(r.clone());
+            }
+            (idxs, rows)
+        })
+        .collect();
+    let inter_chunks: Vec<(Vec<usize>, Vec<Vec<Arg>>)> = inter_sendable
+        .chunks(INTERACTIVE_CHUNK_SIZE)
+        .map(|slice| {
+            let mut idxs = Vec::with_capacity(slice.len());
+            let mut rows = Vec::with_capacity(slice.len());
+            for (i, r) in slice {
+                idxs.push(*i);
+                rows.push(r.clone());
+            }
+            (idxs, rows)
+        })
+        .collect();
+
+    let mut b_it = bulk_chunks.into_iter();
+    let mut i_it = inter_chunks.into_iter();
+    for _ in 0..2 {
+        if let Some((idxs, rows)) = b_it.next() {
+            work_queue.push_back((0, Priority::Bulk, idxs, rows));
+        }
+    }
+    loop {
+        let mut pushed = false;
+        if let Some((idxs, rows)) = i_it.next() {
+            work_queue.push_back((1, Priority::Interactive, idxs, rows));
+            pushed = true;
+        }
+        if let Some((idxs, rows)) = b_it.next() {
+            work_queue.push_back((0, Priority::Bulk, idxs, rows));
+            pushed = true;
+        }
+        if !pushed {
+            break;
+        }
+    }
+
+    let max_pending = in_flight.max(1) + usize::from(!interactive_cases.is_empty());
+    let mut pending: VecDeque<PendingChunk> = VecDeque::with_capacity(max_pending);
+    let mut envs = BTreeMap::new();
+    let mut worker_calls = BTreeMap::new();
+
+    while !work_queue.is_empty() || !pending.is_empty() {
+        while pending.len() < max_pending {
+            let Some((lane_tag, priority, indices, sent_rows)) = work_queue.pop_front() else {
+                break;
+            };
+            let mut req = Request::new(function, sent_rows.clone());
+            req.priority = Some(priority);
+            req.echo_inputs = true;
+            let handle = client
+                .submit(req)
+                .map_err(|e| format!("touchstone submit failed: {e}"))?;
+            pending.push_back(PendingChunk {
+                lane_tag,
+                indices,
+                sent_rows,
+                handle,
+            });
+        }
+        if let Some(chunk) = pending.pop_front() {
+            drain_one_chunk(
+                chunk,
+                bulk_cases,
+                interactive_cases,
+                &mut bulk_judged,
+                &mut inter_judged,
+                &mut envs,
+                &mut worker_calls,
+            )?;
+        }
+    }
+
+    let elapsed = started.elapsed().as_secs_f64();
+    let bulk_agg = BatchReplyAggregate {
+        rows: bulk_judged,
+        envs: envs.clone(),
+        worker_calls: worker_calls.clone(),
+        excel_seconds: elapsed,
+    };
+    let inter_agg = BatchReplyAggregate {
+        rows: inter_judged,
+        envs,
+        worker_calls,
+        excel_seconds: 0.0,
+    };
+    Ok((bulk_agg, inter_agg))
+}
+
+/// Ask a single slice of cases with one priority (e.g. interactive boundary bisection).
+fn ask_single_priority(
+    client: &Client,
+    function: &str,
+    cases: &[FuzzCase],
+    batch_size: usize,
+    in_flight: usize,
+    priority: Priority,
+) -> Result<BatchReplyAggregate, String> {
+    if cases.is_empty() {
+        return Ok(BatchReplyAggregate {
+            rows: Vec::new(),
+            envs: BTreeMap::new(),
+            worker_calls: BTreeMap::new(),
+            excel_seconds: 0.0,
+        });
+    }
+    let started = Instant::now();
+    let (sendable, mut judged) = prepare_sendable(cases);
+    let mut chunks: VecDeque<(Vec<usize>, Vec<Vec<Arg>>)> = sendable
+        .chunks(batch_size.max(1))
+        .map(|slice| {
+            let mut idxs = Vec::with_capacity(slice.len());
+            let mut rows = Vec::with_capacity(slice.len());
+            for (i, r) in slice {
+                idxs.push(*i);
+                rows.push(r.clone());
+            }
+            (idxs, rows)
+        })
+        .collect();
+    let mut pending: VecDeque<PendingChunk> = VecDeque::with_capacity(in_flight.max(1));
+    let mut envs = BTreeMap::new();
+    let mut worker_calls = BTreeMap::new();
+    let empty: [FuzzCase; 0] = [];
+    let mut empty_j: Vec<JudgedRow> = Vec::new();
+
+    while !chunks.is_empty() || !pending.is_empty() {
+        while pending.len() < in_flight.max(1) {
+            let Some((indices, sent_rows)) = chunks.pop_front() else {
+                break;
+            };
+            let mut req = Request::new(function, sent_rows.clone());
+            req.priority = Some(match priority {
+                Priority::Interactive => Priority::Interactive,
+                Priority::Bulk => Priority::Bulk,
+            });
+            req.echo_inputs = true;
+            let handle = client
+                .submit(req)
+                .map_err(|e| format!("touchstone submit failed: {e}"))?;
+            pending.push_back(PendingChunk {
+                lane_tag: 0,
+                indices,
+                sent_rows,
+                handle,
+            });
+        }
+        if let Some(chunk) = pending.pop_front() {
+            drain_one_chunk(
+                chunk,
+                cases,
+                &empty,
+                &mut judged,
+                &mut empty_j,
+                &mut envs,
+                &mut worker_calls,
+            )?;
+        }
+    }
+
+    Ok(BatchReplyAggregate {
+        rows: judged,
+        envs,
+        worker_calls,
+        excel_seconds: started.elapsed().as_secs_f64(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ingest_judged_cases(
+    function: &str,
+    cases: &[FuzzCase],
+    judged: &[JudgedRow],
+    region_stats: &mut BTreeMap<String, RegionStats>,
+    known_clusters: &mut HashSet<String>,
+    discrepancies: &mut Vec<DiscrepancyRow>,
+    discrepancy_parents: &mut Vec<(String, Vec<Value>)>,
+    frontier_seeds: &mut Vec<FuzzCase>,
+    total_asked: &mut usize,
+    total_matched: &mut usize,
+    total_mismatched: &mut usize,
+    total_unread: &mut usize,
+    total_crashed: &mut usize,
+) -> (usize, HashSet<String>) {
+    let mut new_clusters = 0usize;
+    let mut discrepant_regions: HashSet<String> = HashSet::new();
+    for (case, row) in cases.iter().zip(judged.iter()) {
+        *total_asked += 1;
+        let st = region_stats.entry(case.region.clone()).or_default();
+        st.asked += 1;
+        match &row.outcome {
+            RowOutcome::Matched => {
+                *total_matched += 1;
+                st.matched += 1;
+            }
+            RowOutcome::Discrepancy {
+                expected,
+                severity,
+                ulp,
+            } => {
+                *total_mismatched += 1;
+                st.mismatched += 1;
+                if let Some(u) = *ulp {
+                    st.worst_ulp = Some(st.worst_ulp.map_or(u, |prev| prev.max(u)));
+                }
+                let ckey = cluster_key_for(function, case, expected, *severity, *ulp);
+                if known_clusters.insert(ckey.clone()) {
+                    new_clusters += 1;
+                    st.clusters_seen += 1;
+                }
+                let base_region = case
+                    .region
+                    .strip_prefix("densify:")
+                    .unwrap_or(&case.region)
+                    .to_owned();
+                discrepant_regions.insert(base_region.clone());
+                if discrepancy_parents.len() < MAX_DISCREPANCY_PARENTS {
+                    discrepancy_parents.push((base_region, case.args.clone()));
+                }
+                if frontier_seeds.len() < MAX_FRONTIER_SEEDS {
+                    frontier_seeds.push(case.clone());
+                }
+                discrepancies.push(DiscrepancyRow {
+                    case: case.clone(),
+                    expected: expected.clone(),
+                    severity: *severity,
+                    ulp: *ulp,
+                    env_id: row.env_id.clone(),
+                    cluster_key: ckey,
+                });
+            }
+            RowOutcome::Unread { .. } => {
+                *total_unread += 1;
+                st.unread += 1;
+            }
+            RowOutcome::Crashed { .. } => {
+                *total_crashed += 1;
+                st.crashed += 1;
+            }
+        }
+    }
+    (new_clusters, discrepant_regions)
+}
+
+/// For any non-route frontier whose consecutive window around DNA Calc's flip did NOT contain
+/// Excel's flip, bracket Excel's flip with an exponential probe and then pinpoint it with
+/// batched 64-point ordered-bit bisection (freezing predictions before every Touchstone probe).
+#[allow(clippy::too_many_arguments)]
+fn bisect_shifted_frontiers_excel(
+    cfg: &FuzzConfig,
+    client: &Client,
+    frontiers: &mut [Frontier],
+    seen_keys: &mut HashSet<String>,
+    case_hasher: &mut StreamCaseHasher,
+    pred_hashes: &mut Vec<String>,
+    all_envs: &mut BTreeMap<String, Value>,
+    all_worker_calls: &mut BTreeMap<String, usize>,
+    region_stats: &mut BTreeMap<String, RegionStats>,
+    known_clusters: &mut HashSet<String>,
+    discrepancies: &mut Vec<DiscrepancyRow>,
+    discrepancy_parents: &mut Vec<(String, Vec<Value>)>,
+    frontier_seeds: &mut Vec<FuzzCase>,
+    next_id: &mut usize,
+    total_generated: &mut usize,
+    total_asked: &mut usize,
+    total_matched: &mut usize,
+    total_mismatched: &mut usize,
+    total_unread: &mut usize,
+    total_crashed: &mut usize,
+    excel_seconds: &mut f64,
+    round: usize,
+) -> Result<(), String> {
+    let ctx = touchstone_bulk_context();
+    let shifted_indices: Vec<usize> = frontiers
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.kind != "route_flip" && f.excel_lo_bits.is_none())
+        .map(|(i, _)| i)
+        .take(16)
+        .collect();
+    if shifted_indices.is_empty() {
+        return Ok(());
+    }
+
+    // Step 1: Exponential bracket expansion around DNA Calc's flip in one batched probe.
+    let offsets: &[i64] = &[
+        -1_099_511_627_776,
+        -16_777_216,
+        -65_536,
+        -1_024,
+        -256,
+        -64,
+        0,
+        64,
+        256,
+        1_024,
+        65_536,
+        16_777_216,
+        1_099_511_627_776,
+    ];
+    let mut bracket_cases: Vec<FuzzCase> = Vec::new();
+    let mut bracket_meta: Vec<(usize, u64)> = Vec::new();
+    for &fidx in &shifted_indices {
+        let f = &frontiers[fidx];
+        let anchor = f64::from_bits(f.dna_lo_bits);
+        let mut pts = Vec::new();
+        for &d in offsets {
+            if let Some(v) = step_ulps(anchor, d, true) {
+                pts.push(v);
+            }
+        }
+        // Also try geometric probes around the anchor so wide shifts (e.g. -1.0 -> -0.99) bracket cleanly.
+        for &k in &[-2.0_f64, -1.0, -0.5, 0.5, 0.9, 0.99, 1.01, 1.1, 2.0] {
+            let v = anchor * k;
+            if v.is_finite() && !v.is_subnormal() {
+                pts.push(v);
+            }
+        }
+        for &a in &[-1.0_f64, -0.1, -0.01, -0.001, 0.001, 0.01, 0.1, 1.0] {
+            let v = anchor + a;
+            if v.is_finite() && !v.is_subnormal() {
+                pts.push(v);
+            }
+        }
+        let mut local_bits = HashSet::new();
+        for v in pts {
+            let b = if v == 0.0 { 0u64 } else { v.to_bits() };
+            if !local_bits.insert(b) {
+                continue;
+            }
+            let mut args = f.base_args.clone();
+            args[f.axis] = hex_f64(v);
+            let _ = seen_keys.insert(canonical_case_key(&f.function, &args));
+            let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
+            *next_id += 1;
+            let region = format!("boundary_bisect:{}", f.axis_name);
+            case_hasher.update_case(&region, &args);
+            bracket_cases.push(FuzzCase {
+                id: format!("fuzz-{}-b{round:02}-{:06}", f.function, *next_id),
+                region,
+                round,
+                args,
+                prediction: pred,
+                trace,
+                outcome_class,
+            });
+            bracket_meta.push((fidx, b));
+        }
+    }
+    if bracket_cases.is_empty() {
+        return Ok(());
+    }
+    *total_generated += bracket_cases.len();
+    let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-bracket-predictions.jsonl"));
+    pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &bracket_cases)?);
+    let agg = ask_single_priority(
+        client,
+        &cfg.function,
+        &bracket_cases,
+        INTERACTIVE_CHUNK_SIZE,
+        2,
+        Priority::Interactive,
+    )?;
+    *excel_seconds += agg.excel_seconds;
+    for (k, v) in agg.envs {
+        all_envs.entry(k).or_insert(v);
+    }
+    for (w, c) in agg.worker_calls {
+        *all_worker_calls.entry(w).or_insert(0) += c;
+    }
+    let _ = ingest_judged_cases(
+        &cfg.function,
+        &bracket_cases,
+        &agg.rows,
+        region_stats,
+        known_clusters,
+        discrepancies,
+        discrepancy_parents,
+        frontier_seeds,
+        total_asked,
+        total_matched,
+        total_mismatched,
+        total_unread,
+        total_crashed,
+    );
+
+    // Find tightest opposite-predicate brackets [lo_bits, hi_bits] per shifted frontier.
+    let mut by_f: BTreeMap<usize, Vec<(u64, String)>> = BTreeMap::new();
+    for ((fidx, bits), j) in bracket_meta.into_iter().zip(agg.rows.iter()) {
+        if let Some(enc) = &j.excel_encoded {
+            by_f.entry(fidx).or_default().push((bits, enc.clone()));
+        }
+    }
+    let mut active_brackets: Vec<(usize, u64, String, u64, String)> = Vec::new();
+    for (fidx, mut pts) in by_f {
+        pts.sort_by_key(|(b, _)| f64_to_ordered(f64::from_bits(*b)));
+        pts.dedup_by_key(|(b, _)| *b);
+        for w in pts.windows(2) {
+            if predicate_tag(&w[0].1) != predicate_tag(&w[1].1) {
+                active_brackets.push((fidx, w[0].0, w[0].1.clone(), w[1].0, w[1].1.clone()));
+                break;
+            }
+        }
+    }
+
+    // Step 2: Up to 11 rounds of 64-point parallel ordered-bit bisection (64^11 = 2^66 > 2^64,
+    // guaranteeing exact adjacent-double pinpointing across the full IEEE-754 double space).
+    for step in 0..11 {
+        if active_brackets.is_empty() {
+            break;
+        }
+        let mut step_cases: Vec<FuzzCase> = Vec::new();
+        let mut step_meta: Vec<(usize, u64)> = Vec::new();
+        let mut still_open = Vec::new();
+        for (bi, (fidx, lo_b, lo_o, hi_b, hi_o)) in active_brackets.iter().enumerate() {
+            let oa = f64_to_ordered(f64::from_bits(*lo_b));
+            let ob = f64_to_ordered(f64::from_bits(*hi_b));
+            if ob <= oa + 1 {
+                let f = &mut frontiers[*fidx];
+                f.excel_lo_bits = Some(*lo_b);
+                f.excel_hi_bits = Some(*hi_b);
+                f.excel_lo_outcome = Some(lo_o.clone());
+                f.excel_hi_outcome = Some(hi_o.clone());
+                let shift = oa as i128 - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+                f.shifted_ulps = i64::try_from(shift).ok();
+                continue;
+            }
+            still_open.push(bi);
+            let f = &frontiers[*fidx];
+            let span = ob - oa;
+            let k_pts = span.saturating_sub(1).min(63) as usize;
+            let mut local_bits = HashSet::new();
+            for j in 1..=k_pts {
+                let ord = oa + ((span as u128 * j as u128) / ((k_pts + 1) as u128)) as u64;
+                let mut val = ordered_to_f64(ord);
+                if val.is_subnormal() || (val == 0.0 && val.is_sign_negative()) {
+                    val = 0.0;
+                }
+                let b = if val == 0.0 { 0u64 } else { val.to_bits() };
+                if b == *lo_b || b == *hi_b || !local_bits.insert(b) {
+                    continue;
+                }
+                let mut args = f.base_args.clone();
+                args[f.axis] = hex_f64(val);
+                let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
+                *next_id += 1;
+                let region = format!("boundary_bisect:{}", f.axis_name);
+                case_hasher.update_case(&region, &args);
+                step_cases.push(FuzzCase {
+                    id: format!("fuzz-{}-bs{step}-{:06}", f.function, *next_id),
+                    region,
+                    round,
+                    args,
+                    prediction: pred,
+                    trace,
+                    outcome_class,
+                });
+                step_meta.push((bi, b));
+            }
+        }
+        if step_cases.is_empty() {
+            // Remaining brackets may span only the subnormal gap; record them cleanly.
+            for bi in still_open {
+                let (fidx, lo_b, lo_o, hi_b, hi_o) = &active_brackets[bi];
+                let f = &mut frontiers[*fidx];
+                f.excel_lo_bits = Some(*lo_b);
+                f.excel_hi_bits = Some(*hi_b);
+                f.excel_lo_outcome = Some(lo_o.clone());
+                f.excel_hi_outcome = Some(hi_o.clone());
+                let shift = f64_to_ordered(f64::from_bits(*lo_b)) as i128
+                    - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+                f.shifted_ulps = i64::try_from(shift).ok();
+            }
+            break;
+        }
+        *total_generated += step_cases.len();
+        let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-step{step}-predictions.jsonl"));
+        pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &step_cases)?);
+        let agg = ask_single_priority(
+            client,
+            &cfg.function,
+            &step_cases,
+            INTERACTIVE_CHUNK_SIZE,
+            2,
+            Priority::Interactive,
+        )?;
+        *excel_seconds += agg.excel_seconds;
+        for (k, v) in agg.envs {
+            all_envs.entry(k).or_insert(v);
+        }
+        for (w, c) in agg.worker_calls {
+            *all_worker_calls.entry(w).or_insert(0) += c;
+        }
+        let _ = ingest_judged_cases(
+            &cfg.function,
+            &step_cases,
+            &agg.rows,
+            region_stats,
+            known_clusters,
+            discrepancies,
+            discrepancy_parents,
+            frontier_seeds,
+            total_asked,
+            total_matched,
+            total_mismatched,
+            total_unread,
+            total_crashed,
+        );
+
+        let mut pts_by_bi: BTreeMap<usize, Vec<(u64, String)>> = BTreeMap::new();
+        for &bi in &still_open {
+            let (_, lo_b, lo_o, hi_b, hi_o) = &active_brackets[bi];
+            pts_by_bi.insert(bi, vec![(*lo_b, lo_o.clone()), (*hi_b, hi_o.clone())]);
+        }
+        for ((bi, bits), j) in step_meta.into_iter().zip(agg.rows.iter()) {
+            if let Some(enc) = &j.excel_encoded {
+                pts_by_bi.entry(bi).or_default().push((bits, enc.clone()));
+            }
+        }
+        let mut next_active = Vec::new();
+        for (bi, mut pts) in pts_by_bi {
+            let fidx = active_brackets[bi].0;
+            pts.sort_by_key(|(b, _)| f64_to_ordered(f64::from_bits(*b)));
+            pts.dedup_by_key(|(b, _)| *b);
+            for w in pts.windows(2) {
+                if predicate_tag(&w[0].1) != predicate_tag(&w[1].1) {
+                    next_active.push((fidx, w[0].0, w[0].1.clone(), w[1].0, w[1].1.clone()));
+                    break;
+                }
+            }
+        }
+        active_brackets = next_active;
+    }
+
+    // Record best bracket for any frontier still active after max rounds.
+    for (fidx, lo_b, lo_o, hi_b, hi_o) in active_brackets {
+        let f = &mut frontiers[fidx];
+        if f.excel_lo_bits.is_none() {
+            f.excel_lo_bits = Some(lo_b);
+            f.excel_hi_bits = Some(hi_b);
+            f.excel_lo_outcome = Some(lo_o);
+            f.excel_hi_outcome = Some(hi_o);
+            let shift = f64_to_ordered(f64::from_bits(lo_b)) as i128
+                - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+            f.shifted_ulps = i64::try_from(shift).ok();
+        }
+    }
+    Ok(())
+}
+
+/// Run a live Excel-compared adaptive smart fuzzing sweep via Touchstone.
+pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
+    let started = Instant::now();
+    let spec = DomainSpec::for_function(&cfg.function)?;
+    let ctx = touchstone_bulk_context();
+    std::fs::create_dir_all(&cfg.out_dir)
+        .map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
+    let client = connect_client(cfg.endpoint.as_deref())?;
+
+    let mut rng = Rng::from_seed_and_tag(cfg.seed, &cfg.function);
+    let mut tracker = CoverageTracker::new(&cfg.function);
+    let mut seen_keys: HashSet<String> = HashSet::with_capacity(cfg.budget);
+    let mut region_weights: Vec<f64> = spec.regions.iter().map(|r| r.base_weight).collect();
+    let mut region_stats: BTreeMap<String, RegionStats> = BTreeMap::new();
+    let mut known_clusters: HashSet<String> = HashSet::new();
+    let mut discrepancies: Vec<DiscrepancyRow> = Vec::new();
+    let mut discrepancy_parents: Vec<(String, Vec<Value>)> = Vec::new();
+    let mut frontier_seeds: Vec<FuzzCase> = Vec::new();
+    let mut frontiers: Vec<Frontier> = Vec::new();
+    let mut probed_frontier_count = 0usize;
+    let mut all_envs: BTreeMap<String, Value> = BTreeMap::new();
+    let mut all_worker_calls: BTreeMap<String, usize> = BTreeMap::new();
+    let mut pred_hashes: Vec<String> = Vec::new();
+    let mut case_hasher = StreamCaseHasher::new(&cfg.function);
+
+    let mut next_id = 0usize;
+    let mut round = 0usize;
+    let mut dry_streak = 0usize;
+    let mut total_generated = 0usize;
+    let mut total_asked = 0usize;
+    let mut total_matched = 0usize;
+    let mut total_mismatched = 0usize;
+    let mut total_unread = 0usize;
+    let mut total_crashed = 0usize;
+    let mut excel_seconds = 0.0f64;
+
+    // Reserve a slice of budget for boundary windows & Excel bisection.
+    let boundary_reserve = (cfg.budget / 12)
+        .min(cfg.max_frontiers.saturating_mul((cfg.frontier_window as usize * 2) + 8));
+    let main_budget = cfg.budget.saturating_sub(boundary_reserve).max(1);
+    let mut stop_reason = "budget-reached".to_owned();
+
+    while total_asked < main_budget {
+        let want = cfg.round_size.min(main_budget - total_asked);
+        let bulk_batch = generate_steered_round(
+            &spec,
+            &region_weights,
+            &discrepancy_parents,
+            &mut tracker,
+            &mut seen_keys,
+            &ctx,
+            round,
+            want,
+            &mut next_id,
+            &mut rng,
+        );
+        if bulk_batch.is_empty() {
+            stop_reason = "generator-exhausted".to_owned();
+            break;
+        }
+        for c in &bulk_batch {
+            case_hasher.update_case(&c.region, &c.args);
+            if frontier_seeds.len() < MAX_FRONTIER_SEEDS {
+                frontier_seeds.push(c.clone());
+            }
+        }
+        total_generated += bulk_batch.len();
+
+        // Freeze bulk predictions BEFORE sending to Touchstone.
+        let pred_path = cfg.out_dir.join(format!("round-{round:02}-predictions.jsonl"));
+        pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &bulk_batch)?);
+
+        // Prepare interactive boundary window probes for any frontiers discovered after earlier rounds
+        // so w3 executes them concurrently while w1/w2 process the bulk batch.
+        let mut inter_cases: Vec<FuzzCase> = Vec::new();
+        let mut inter_meta: Vec<(usize, u64)> = Vec::new();
+        if probed_frontier_count < frontiers.len() {
+            let expanded = expand_frontier_windows(
+                &frontiers[probed_frontier_count..],
+                cfg.frontier_window,
+                &ctx,
+                &mut seen_keys,
+                round,
+                &mut next_id,
+            );
+            for (rel_idx, c) in expanded {
+                let fidx = probed_frontier_count + rel_idx;
+                let axis = frontiers[fidx].axis;
+                let bits = parse_hex_bits(&c.args[axis]).unwrap_or(0);
+                case_hasher.update_case(&c.region, &c.args);
+                inter_meta.push((fidx, bits));
+                inter_cases.push(c);
+            }
+            probed_frontier_count = frontiers.len();
+            if !inter_cases.is_empty() {
+                total_generated += inter_cases.len();
+                let bpath = cfg
+                    .out_dir
+                    .join(format!("round-{round:02}-boundary-predictions.jsonl"));
+                pred_hashes.push(freeze_predictions(&bpath, &cfg.function, &inter_cases)?);
+            }
+        }
+
+        let (bulk_agg, inter_agg) = ask_bulk_and_interactive(
+            &client,
+            &cfg.function,
+            &bulk_batch,
+            &inter_cases,
+            cfg.batch_size,
+            cfg.in_flight,
+        )?;
+        excel_seconds += bulk_agg.excel_seconds;
+        for (k, v) in bulk_agg.envs {
+            all_envs.entry(k).or_insert(v);
+        }
+        for (w, c) in bulk_agg.worker_calls {
+            *all_worker_calls.entry(w).or_insert(0) += c;
+        }
+
+        let (new_c1, disc_reg1) = ingest_judged_cases(
+            &cfg.function,
+            &bulk_batch,
+            &bulk_agg.rows,
+            &mut region_stats,
+            &mut known_clusters,
+            &mut discrepancies,
+            &mut discrepancy_parents,
+            &mut frontier_seeds,
+            &mut total_asked,
+            &mut total_matched,
+            &mut total_mismatched,
+            &mut total_unread,
+            &mut total_crashed,
+        );
+        let (new_c2, disc_reg2) = ingest_judged_cases(
+            &cfg.function,
+            &inter_cases,
+            &inter_agg.rows,
+            &mut region_stats,
+            &mut known_clusters,
+            &mut discrepancies,
+            &mut discrepancy_parents,
+            &mut frontier_seeds,
+            &mut total_asked,
+            &mut total_matched,
+            &mut total_mismatched,
+            &mut total_unread,
+            &mut total_crashed,
+        );
+        if !inter_meta.is_empty() {
+            let probed: Vec<(usize, u64, String)> = inter_meta
+                .into_iter()
+                .zip(inter_agg.rows.iter())
+                .filter_map(|((fidx, bits), j)| {
+                    j.excel_encoded.as_ref().map(|enc| (fidx, bits, enc.clone()))
+                })
+                .collect();
+            record_excel_window_flips(&mut frontiers, &probed);
+        }
+
+        // Adapt per-region weights: densify discrepant regions, taper clean ones.
+        for (idx, reg) in spec.regions.iter().enumerate() {
+            let hit = disc_reg1.contains(reg.name) || disc_reg2.contains(reg.name);
+            if hit {
+                region_weights[idx] = (region_weights[idx] * 1.5).min(reg.base_weight * 6.0);
+            } else {
+                region_weights[idx] = (region_weights[idx] * 0.8).max(reg.base_weight * 0.25);
+            }
+        }
+
+        // Discover initial frontiers after Round 0 so Round 1 overlaps them onto w3!
+        if round == 0 && cfg.max_frontiers > 0 && frontiers.is_empty() {
+            let initial_cap = (cfg.max_frontiers / 2).max(1);
+            frontiers = discover_local_frontiers(&spec, &frontier_seeds, &ctx, initial_cap, &mut rng);
+        }
+
+        let new_total = new_c1 + new_c2;
+        if new_total == 0 {
+            dry_streak += 1;
+        } else {
+            dry_streak = 0;
+        }
+        eprintln!(
+            "[fuzz {} r{round:02}] asked={total_asked} matched={total_matched} mismatched={total_mismatched} unread={total_unread} crashed={total_crashed} clusters={} (+{new_total}) workers={:?}",
+            cfg.function,
+            known_clusters.len(),
+            all_worker_calls,
+        );
+        round += 1;
+        if total_asked >= cfg.min_budget && dry_streak >= cfg.dry_rounds && round >= 2 {
+            stop_reason = format!("dry-for-{}-rounds", cfg.dry_rounds);
+            break;
+        }
+    }
+
+    // Final frontier discovery (including discrepancy seeds!) + interactive consecutive windows.
+    if frontiers.len() < cfg.max_frontiers {
+        let more = discover_local_frontiers(
+            &spec,
+            &frontier_seeds,
+            &ctx,
+            cfg.max_frontiers,
+            &mut rng,
+        );
+        let existing: HashSet<String> = frontiers
+            .iter()
+            .map(|f| format!("{}|{:016x}|{:016x}|{}", f.axis, f.dna_lo_bits, f.dna_hi_bits, f.kind))
+            .collect();
+        for mut f in more {
+            if frontiers.len() >= cfg.max_frontiers {
+                break;
+            }
+            let k = format!("{}|{:016x}|{:016x}|{}", f.axis, f.dna_lo_bits, f.dna_hi_bits, f.kind);
+            if !existing.contains(&k) {
+                f.id = format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1);
+                frontiers.push(f);
+            }
+        }
+    }
+    if probed_frontier_count < frontiers.len() {
+        let expanded = expand_frontier_windows(
+            &frontiers[probed_frontier_count..],
+            cfg.frontier_window,
+            &ctx,
+            &mut seen_keys,
+            round,
+            &mut next_id,
+        );
+        let mut final_cases = Vec::new();
+        let mut final_meta = Vec::new();
+        for (rel_idx, c) in expanded {
+            let fidx = probed_frontier_count + rel_idx;
+            let axis = frontiers[fidx].axis;
+            let bits = parse_hex_bits(&c.args[axis]).unwrap_or(0);
+            case_hasher.update_case(&c.region, &c.args);
+            final_meta.push((fidx, bits));
+            final_cases.push(c);
+        }
+        if !final_cases.is_empty() {
+            total_generated += final_cases.len();
+            let bpath = cfg
+                .out_dir
+                .join(format!("round-{round:02}-boundary-predictions.jsonl"));
+            pred_hashes.push(freeze_predictions(&bpath, &cfg.function, &final_cases)?);
+            let agg = ask_single_priority(
+                &client,
+                &cfg.function,
+                &final_cases,
+                INTERACTIVE_CHUNK_SIZE,
+                2,
+                Priority::Interactive,
+            )?;
+            excel_seconds += agg.excel_seconds;
+            for (k, v) in agg.envs {
+                all_envs.entry(k).or_insert(v);
+            }
+            for (w, c) in agg.worker_calls {
+                *all_worker_calls.entry(w).or_insert(0) += c;
+            }
+            let _ = ingest_judged_cases(
+                &cfg.function,
+                &final_cases,
+                &agg.rows,
+                &mut region_stats,
+                &mut known_clusters,
+                &mut discrepancies,
+                &mut discrepancy_parents,
+                &mut frontier_seeds,
+                &mut total_asked,
+                &mut total_matched,
+                &mut total_mismatched,
+                &mut total_unread,
+                &mut total_crashed,
+            );
+            let probed: Vec<(usize, u64, String)> = final_meta
+                .into_iter()
+                .zip(agg.rows.iter())
+                .filter_map(|((fidx, bits), j)| {
+                    j.excel_encoded.as_ref().map(|enc| (fidx, bits, enc.clone()))
+                })
+                .collect();
+            record_excel_window_flips(&mut frontiers, &probed);
+            round += 1;
+        }
+    }
+
+    // Pinpoint Excel's flip via batched 64-point bisection for any shifted non-route frontier.
+    bisect_shifted_frontiers_excel(
+        cfg,
+        &client,
+        &mut frontiers,
+        &mut seen_keys,
+        &mut case_hasher,
+        &mut pred_hashes,
+        &mut all_envs,
+        &mut all_worker_calls,
+        &mut region_stats,
+        &mut known_clusters,
+        &mut discrepancies,
+        &mut discrepancy_parents,
+        &mut frontier_seeds,
+        &mut next_id,
+        &mut total_generated,
+        &mut total_asked,
+        &mut total_matched,
+        &mut total_mismatched,
+        &mut total_unread,
+        &mut total_crashed,
+        &mut excel_seconds,
+        round,
+    )?;
+
+    let clusters = build_clusters(&cfg.function, &discrepancies);
+    let summary = FuzzSummary {
+        function: cfg.function.clone(),
+        seed: cfg.seed,
+        budget: cfg.budget,
+        dry_run: false,
+        total_generated,
+        total_asked,
+        total_matched,
+        total_mismatched,
+        total_unread,
+        total_crashed,
+        rounds_run: round,
+        stop_reason,
+        case_list_sha256: case_hasher.finish_hex(),
+        predictions_sha256: pred_hashes,
+        elapsed_seconds: started.elapsed().as_secs_f64(),
+        excel_seconds,
+        worker_calls: all_worker_calls,
+        region_stats,
+        clusters,
+        frontiers,
+        tracker,
+    };
+    write_outputs(cfg, &spec, &summary, &discrepancies, &all_envs)?;
+    Ok(summary)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calc_verdict::WitnessSet;
+    use serde_json::json;
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    fn read_frame(stream: &mut TcpStream) -> Option<(u8, Value)> {
+        let mut size = [0u8; 4];
+        stream.read_exact(&mut size).ok()?;
+        let size = u32::from_be_bytes(size) as usize;
+        let mut body = vec![0u8; size];
+        stream.read_exact(&mut body).ok()?;
+        Some((body[0], serde_json::from_slice(&body[1..]).unwrap()))
+    }
+
+    fn write_frame(stream: &mut TcpStream, kind: u8, body: &Value) {
+        let text = serde_json::to_vec(body).unwrap();
+        stream
+            .write_all(&((text.len() + 1) as u32).to_be_bytes())
+            .unwrap();
+        stream.write_all(&[kind]).unwrap();
+        stream.write_all(&text).unwrap();
+    }
+
+    /// Stand-in broker that delegates to DNA Calc for RATE except for one controlled mismatch:
+    /// when `timing != 0.0` (arg 4 nonzero) and DNA Calc returns a finite number, it adds 2 ULPs
+    /// so we can test clustering, adaptive densification, worker attribution, and bank export.
+    fn serve_fake_rate_broker(listener: TcpListener) {
+        let ctx = touchstone_bulk_context();
+        let (mut stream, _) = listener.accept().unwrap();
+        while let Some((kind, body)) = read_frame(&mut stream) {
+            match kind {
+                b'H' => {
+                    write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({
+                            "v": "touchstone/1",
+                            "server": "fake-fuzzer-broker",
+                            "envs": {
+                                "e-bulk": {
+                                    "excel_build": "20625",
+                                    "cpu": "Fake AMD Ryzen",
+                                    "platform": "Windows",
+                                    "bitness": 64,
+                                    "mt_calc": "manual:4"
+                                },
+                                "e-inter": {
+                                    "excel_build": "20625",
+                                    "cpu": "Fake AMD Ryzen",
+                                    "platform": "Windows",
+                                    "bitness": 64,
+                                    "mt_calc": "off"
+                                }
+                            }
+                        }),
+                    );
+                }
+                b'S' => {
+                    let id = body["id"].as_str().unwrap().to_string();
+                    let prio = body["opts"]["priority"].as_str().unwrap_or("bulk");
+                    let (worker, env_id) = if prio == "interactive" {
+                        ("w3", "e-inter")
+                    } else {
+                        ("w1", "e-bulk")
+                    };
+                    let mut answers = Vec::new();
+                    for g in body["groups"].as_array().unwrap() {
+                        let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                        let width = tokens.len();
+                        let n = g["n"].as_u64().unwrap() as usize;
+                        let flat = g["v"].as_array().unwrap();
+                        let mut ty = String::with_capacity(n);
+                        let mut out_v = Vec::with_capacity(n);
+                        let mut ity = String::with_capacity(n * width);
+                        let mut iv = Vec::with_capacity(n * width);
+                        for row_i in 0..n {
+                            let mut args_json = Vec::with_capacity(width);
+                            for col_i in 0..width {
+                                let tok = tokens[col_i];
+                                let cell = &flat[row_i * width + col_i];
+                                match tok {
+                                    "n" => {
+                                        let h = cell.as_str().unwrap();
+                                        args_json.push(Value::String(format!("0x{h}")));
+                                        ity.push('n');
+                                        iv.push(Value::String(h.to_owned()));
+                                    }
+                                    "s" | "S" => {
+                                        args_json.push(cell.clone());
+                                        ity.push('t');
+                                        iv.push(cell.clone());
+                                    }
+                                    "b" | "B" => {
+                                        args_json.push(cell.clone());
+                                        ity.push('b');
+                                        iv.push(cell.clone());
+                                    }
+                                    "e" => {
+                                        let code = cell.as_str().unwrap();
+                                        let var = excel_error_to_encoded(code)
+                                            .strip_prefix("error:")
+                                            .unwrap_or("Value")
+                                            .to_owned();
+                                        args_json.push(json!({"error": var}));
+                                        ity.push('e');
+                                        iv.push(cell.clone());
+                                    }
+                                    "z" => {
+                                        args_json.push(Value::Null);
+                                        ity.push('z');
+                                        iv.push(Value::Null);
+                                    }
+                                    _ => {
+                                        args_json.push(Value::Null);
+                                        ity.push('z');
+                                        iv.push(Value::Null);
+                                    }
+                                }
+                            }
+                            let (dna, _, _) = evaluate_traced("RATE", &args_json, &ctx);
+                            let timing_beg = args_json
+                                .get(4)
+                                .and_then(parse_hex_bits)
+                                .map(f64::from_bits)
+                                .is_some_and(|t| t != 0.0);
+                            if let Some(hex) = dna.strip_prefix("0x") {
+                                let mut bits = u64::from_str_radix(hex, 16).unwrap();
+                                if timing_beg {
+                                    let bumped =
+                                        step_ulps(f64::from_bits(bits), 2, true).unwrap_or(f64::from_bits(bits));
+                                    bits = bumped.to_bits();
+                                }
+                                ty.push('n');
+                                out_v.push(Value::String(format!("{bits:016x}")));
+                            } else if let Some(err) = dna.strip_prefix("error:") {
+                                ty.push('e');
+                                out_v.push(Value::String(
+                                    error_variant_to_excel(err).unwrap_or("#VALUE!").to_owned(),
+                                ));
+                            } else {
+                                ty.push('e');
+                                out_v.push(Value::String("#VALUE!".to_owned()));
+                            }
+                        }
+                        let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                        if let Some(o) = g.get("o") {
+                            g_out["o"] = o.clone();
+                        } else {
+                            g_out["i"] = g["i"].clone();
+                        }
+                        answers.push(g_out);
+                    }
+                    write_frame(
+                        &mut stream,
+                        b'A',
+                        &json!({"id": id, "seq": body["seq"], "env": env_id, "w": worker, "g": answers}),
+                    );
+                    if body["last"] == json!(true) {
+                        write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn live_run_against_fake_touchstone_broker_freezes_clusters_and_exports_discrepancies_only() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-live-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let _server = thread::spawn(move || serve_fake_rate_broker(listener));
+
+        let bank_path = tmp.join("bank-rows-RATE.json");
+        let pin_path = tmp.join("pinned-RATE.json");
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.seed = 20261123;
+        cfg.budget = 350;
+        cfg.min_budget = 250;
+        cfg.round_size = 120;
+        cfg.batch_size = 60;
+        cfg.in_flight = 2;
+        cfg.max_frontiers = 4;
+        cfg.frontier_window = 3;
+        cfg.dry_rounds = 2;
+        cfg.lane = "sf1".to_owned();
+        cfg.out_dir = tmp.join("out");
+        cfg.bank_rows_out = Some(bank_path.clone());
+        cfg.pin_out = Some(pin_path.clone());
+        cfg.endpoint = Some(endpoint);
+
+        let summary = execute_live_run(&cfg).expect("live fuzz run succeeded");
+        assert!(summary.total_asked >= 250, "asked={}", summary.total_asked);
+        assert_eq!(summary.total_unread, 0);
+        assert_eq!(summary.total_crashed, 0);
+        assert!(summary.total_mismatched > 0, "expected injected 2-ULP mismatches");
+        assert!(summary.total_matched > 0, "expected matched end-of-period rows");
+        assert!(!summary.clusters.is_empty(), "expected non-empty clusters");
+        assert!(summary.worker_calls.contains_key("w1"), "expected bulk worker w1");
+        assert!(summary.worker_calls.contains_key("w3"), "expected interactive worker w3");
+        assert!(!summary.predictions_sha256.is_empty());
+
+        // Bank rows must decode via WitnessSet and contain ONLY discrepancies!
+        let bank_bytes = std::fs::read(&bank_path).expect("bank-rows written");
+        let bank = WitnessSet::decode(&bank_bytes).expect("valid WitnessSet");
+        assert_eq!(bank.witnesses.len(), summary.total_mismatched);
+        for w in &bank.witnesses {
+            assert_ne!(
+                w.calc_func.as_deref(),
+                Some(w.expected.as_str()),
+                "matching row leaked into bank-rows!"
+            );
+        }
+        let pin_bytes = std::fs::read(&pin_path).expect("pin-out written");
+        let pinned = WitnessSet::decode(&pin_bytes).expect("valid pinned WitnessSet");
+        assert!(!pinned.witnesses.is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn shifted_frontier_bisection_pinpoints_excel_boundary_in_batched_64_point_steps() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-bisect-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        // Fake broker shifts the RATE guess <= -1.0 #VALUE! boundary to guess <= -0.999.
+        let shifted_cut = -0.999_f64;
+        let _server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-bisect", "envs": {"e1": {"excel_build": "20625", "cpu": "Fake"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                for c in 0..width {
+                                    ity.push('n');
+                                    iv.push(flat[r * width + c].clone());
+                                }
+                                let g_hex = flat[r * width + 5].as_str().unwrap();
+                                let g_val = f64::from_bits(u64::from_str_radix(g_hex, 16).unwrap());
+                                if g_val <= shifted_cut {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#VALUE!".to_owned()));
+                                } else {
+                                    ty.push('n');
+                                    out_v.push(Value::String(format!("{:016x}", 0.05_f64.to_bits())));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.out_dir = tmp.join("out");
+        let base_args = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        let mut frontiers = vec![Frontier {
+            id: "frontier-RATE-001".to_owned(),
+            function: "RATE".to_owned(),
+            axis: 5,
+            axis_name: "guess".to_owned(),
+            kind: "error:Value<->number".to_owned(),
+            base_args,
+            dna_lo_bits: (-1.0_f64).to_bits(),
+            dna_hi_bits: step_ulps(-1.0, 1, true).unwrap().to_bits(),
+            dna_lo_outcome: "error:Value".to_owned(),
+            dna_hi_outcome: "0x3fa999999999999a".to_owned(),
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        }];
+        let mut seen = HashSet::new();
+        let mut hasher = StreamCaseHasher::new("RATE");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut discs = Vec::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0, 0);
+        let mut excel_s = 0.0;
+
+        bisect_shifted_frontiers_excel(
+            &cfg,
+            &client,
+            &mut frontiers,
+            &mut seen,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discs,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            0,
+        )
+        .expect("bisect succeeded");
+
+        let f = &frontiers[0];
+        assert_eq!(f.excel_lo_bits, Some(shifted_cut.to_bits()));
+        assert_eq!(
+            f.excel_hi_bits,
+            Some(step_ulps(shifted_cut, 1, true).unwrap().to_bits())
+        );
+        assert!(f.shifted_ulps.unwrap() > 0);
+        assert!(!pred_hashes.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}

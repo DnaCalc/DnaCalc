@@ -19,9 +19,11 @@ pub enum RowOutcome {
         ulp: Option<u64>,
     },
     Unread {
+        #[allow(dead_code)]
         reason: String,
     },
     Crashed {
+        #[allow(dead_code)]
         detail: String,
     },
 }

@@ -30,6 +30,7 @@ pub enum ParamKind {
 #[derive(Clone, Debug)]
 pub struct ParamSpec {
     pub name: String,
+    #[allow(dead_code)]
     pub class: ParameterClass,
     pub kind: ParamKind,
     pub optional: bool,

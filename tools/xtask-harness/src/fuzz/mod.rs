@@ -7,6 +7,7 @@
 pub mod boundary;
 pub mod cluster;
 pub mod domain;
+pub mod oracle;
 pub mod rng;
 pub mod steer;
 
@@ -23,13 +24,14 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz --func <F> [--seed <N>] [--budget <N>] [--out <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--window <W>] [--lane <name>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz --func <F> [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
     pub function: String,
     pub seed: u64,
     pub budget: usize,
+    pub min_budget: usize,
     pub out_dir: PathBuf,
     pub round_size: usize,
     pub dry_rounds: usize,
@@ -38,6 +40,7 @@ pub struct FuzzConfig {
     pub max_frontiers: usize,
     pub frontier_window: i64,
     pub lane: String,
+    pub endpoint: Option<PathBuf>,
     pub bank_rows_out: Option<PathBuf>,
     pub pin_out: Option<PathBuf>,
     pub dry_run: bool,
@@ -61,6 +64,7 @@ impl FuzzConfig {
             function: function.to_ascii_uppercase(),
             seed: 20261123,
             budget: 10_000,
+            min_budget: 0,
             out_dir: PathBuf::from(format!("target/fuzz/{}", function.to_ascii_lowercase())),
             round_size: 20_000,
             dry_rounds: 3,
@@ -69,6 +73,7 @@ impl FuzzConfig {
             max_frontiers: 40,
             frontier_window: 8,
             lane,
+            endpoint: None,
             bank_rows_out: None,
             pin_out: None,
             dry_run: false,
@@ -80,6 +85,7 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut function: Option<String> = None;
     let mut seed: Option<u64> = None;
     let mut budget: Option<usize> = None;
+    let mut min_budget: Option<usize> = None;
     let mut out_dir: Option<PathBuf> = None;
     let mut round_size: Option<usize> = None;
     let mut dry_rounds: Option<usize> = None;
@@ -88,6 +94,7 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut max_frontiers: Option<usize> = None;
     let mut frontier_window: Option<i64> = None;
     let mut lane: Option<String> = None;
+    let mut endpoint: Option<PathBuf> = None;
     let mut bank_rows_out: Option<PathBuf> = None;
     let mut pin_out: Option<PathBuf> = None;
     let mut dry_run = false;
@@ -109,6 +116,13 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
                     next_val()?
                         .parse()
                         .map_err(|_| "--budget needs a positive integer")?,
+                );
+            }
+            "--min-budget" => {
+                min_budget = Some(
+                    next_val()?
+                        .parse()
+                        .map_err(|_| "--min-budget needs an integer")?,
                 );
             }
             "--out" => out_dir = Some(PathBuf::from(next_val()?)),
@@ -155,6 +169,7 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
                 );
             }
             "--lane" => lane = Some(next_val()?),
+            "--endpoint" => endpoint = Some(PathBuf::from(next_val()?)),
             "--bank-rows-out" => bank_rows_out = Some(PathBuf::from(next_val()?)),
             "--pin-out" => pin_out = Some(PathBuf::from(next_val()?)),
             "--dry-run" => dry_run = true,
@@ -171,6 +186,9 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
             return Err("--budget must be > 0".into());
         }
         cfg.budget = v;
+    }
+    if let Some(v) = min_budget {
+        cfg.min_budget = v.min(cfg.budget);
     }
     if let Some(v) = out_dir {
         cfg.out_dir = v;
@@ -202,6 +220,7 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     if let Some(v) = lane {
         cfg.lane = v;
     }
+    cfg.endpoint = endpoint;
     cfg.bank_rows_out = bank_rows_out;
     cfg.pin_out = pin_out;
     cfg.dry_run = dry_run;
@@ -687,21 +706,53 @@ pub fn run(raw: &[String]) -> ExitCode {
     let res = if cfg.dry_run {
         execute_dry_run(&cfg)
     } else {
-        Err("live Excel Touchstone execution is wired in the next step; pass --dry-run for local mode".into())
+        oracle::execute_live_run(&cfg)
     };
     match res {
         Ok(summary) => {
             let (hit, total) = summary.tracker.exercised_kernel_routes();
-            println!(
-                "xtask fuzz {}: generated {} cases (sha256 {}), routes {}/{}, frontiers {}, out {}",
-                summary.function,
-                summary.total_generated,
-                &summary.case_list_sha256[..16],
-                hit,
-                total,
-                summary.frontiers.len(),
-                cfg.out_dir.display()
-            );
+            if summary.dry_run {
+                println!(
+                    "xtask fuzz {} (dry-run): generated {} cases (sha256 {}), routes {}/{}, frontiers {}, out {}",
+                    summary.function,
+                    summary.total_generated,
+                    &summary.case_list_sha256[..16],
+                    hit,
+                    total,
+                    summary.frontiers.len(),
+                    cfg.out_dir.display()
+                );
+            } else {
+                let fail = summary.total_mismatched + summary.total_unread + summary.total_crashed;
+                let pct = if summary.total_asked == 0 {
+                    0.0
+                } else {
+                    (summary.total_matched as f64) * 100.0 / (summary.total_asked as f64)
+                };
+                let cps = if summary.excel_seconds > 0.0 {
+                    summary.total_asked as f64 / summary.excel_seconds
+                } else {
+                    0.0
+                };
+                println!(
+                    "xtask fuzz {}: {}/{} matched ({:.4}%), {} failed ({} mismatched, {} unread, {} crashed), {} clusters, routes {}/{}, frontiers {}, {:.1} calls/s, workers {:?}, out {}",
+                    summary.function,
+                    summary.total_matched,
+                    summary.total_asked,
+                    pct,
+                    fail,
+                    summary.total_mismatched,
+                    summary.total_unread,
+                    summary.total_crashed,
+                    summary.clusters.len(),
+                    hit,
+                    total,
+                    summary.frontiers.len(),
+                    cps,
+                    summary.worker_calls,
+                    cfg.out_dir.display()
+                );
+            }
             ExitCode::SUCCESS
         }
         Err(e) => {

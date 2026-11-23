@@ -138,6 +138,7 @@ pub fn hex_f64(value: f64) -> Value {
 }
 
 /// Raw bit encoding (preserves `-0.0` or subnormals when explicitly desired).
+#[allow(dead_code)]
 pub fn hex_bits_raw(bits: u64) -> Value {
     Value::String(format!("0x{bits:016x}"))
 }
@@ -247,24 +248,45 @@ pub fn canonical_case_key(function: &str, args: &[Value]) -> String {
     format!("{function}|{}", Value::Array(args.to_vec()))
 }
 
+/// Incremental SHA-256 hasher over a stream of `(region, args)` pairs (identical digest to
+/// [`hash_case_stream`], without holding all cases in memory).
+pub struct StreamCaseHasher {
+    sha: Sha256,
+}
+
+impl StreamCaseHasher {
+    pub fn new(function: &str) -> Self {
+        let mut sha = Sha256::new();
+        sha.update(GENERATOR_VERSION.as_bytes());
+        sha.update(b"\n");
+        sha.update(function.as_bytes());
+        sha.update(b"\n");
+        Self { sha }
+    }
+
+    pub fn update_case(&mut self, region: &str, args: &[Value]) {
+        self.sha.update(region.as_bytes());
+        self.sha.update(b"\t");
+        let text = serde_json::to_string(&Value::Array(args.to_vec())).unwrap_or_default();
+        self.sha.update(text.as_bytes());
+        self.sha.update(b"\n");
+    }
+
+    pub fn finish_hex(self) -> String {
+        self.sha.finish_hex()
+    }
+}
+
 /// Canonical SHA-256 over a sequence of `(region, args)` pairs.
 pub fn hash_case_stream<'a>(
     function: &str,
     items: impl IntoIterator<Item = (&'a str, &'a [Value])>,
 ) -> String {
-    let mut sha = Sha256::new();
-    sha.update(GENERATOR_VERSION.as_bytes());
-    sha.update(b"\n");
-    sha.update(function.as_bytes());
-    sha.update(b"\n");
+    let mut hasher = StreamCaseHasher::new(function);
     for (region, args) in items {
-        sha.update(region.as_bytes());
-        sha.update(b"\t");
-        let text = serde_json::to_string(&Value::Array(args.to_vec())).unwrap_or_default();
-        sha.update(text.as_bytes());
-        sha.update(b"\n");
+        hasher.update_case(region, args);
     }
-    sha.finish_hex()
+    hasher.finish_hex()
 }
 
 #[cfg(test)]
