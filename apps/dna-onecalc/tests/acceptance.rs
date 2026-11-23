@@ -1270,9 +1270,10 @@ fn regexextract_retains_the_captured_lifted_results() {
 
 /// Fn5 establishes horizontal all-match results and one outer capture. The authored
 /// workbook capture also checks the row of groups and the unmatched optional group.
+/// Touchstone dc-zmk.12 checks capture mode when the pattern has no match.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
+fn regexextract_publishes_all_matches_and_capture_results() {
     let mut session = Session::new("Sheet1").unwrap();
     session.set_form(calc_fml::FormulaForm::Dynamic);
     let text = |s| CalcValue::text(calc_func::value::ExcelText::from_interop_assignment(s));
@@ -1318,6 +1319,10 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
         ),
         ("=REGEXEXTRACT(\"a12b\",\"([0-9]+)\",2)", text("12")),
         (
+            "=REGEXEXTRACT(\"abc\",\"([0-9]+)\",2)",
+            CalcValue::error(WorksheetErrorCode::NA),
+        ),
+        (
             r#"=REGEXEXTRACT("id-132","([a-z]+)-(\d+)(?:\.([a-z]+))?",2)"#,
             expected_groups,
         ),
@@ -1332,7 +1337,6 @@ fn regexextract_publishes_all_matches_and_keeps_unmeasured_modes_refused() {
         }
     }
     for formula in [
-        "=REGEXEXTRACT(\"abc\",\"([0-9]+)\",2)",
         "=REGEXEXTRACT(\"a12b\",\"([0-9]+|b)\",2)",
         "=REGEXEXTRACT(\"a12b\",\"([0-9]+){1}\",2)",
     ] {

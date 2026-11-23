@@ -1,0 +1,14 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "REGEXREPLACE",
+  "selection": "dc-zmk.12; 34 Touchstone v2 calls; frozen predictions SHA-256 b93240cfd7f867ec52cb1f3aaa908a8a30f190a893ad722e11e5693393caac2c",
+  "readings": [
+    {"id":"r0","source":"Touchstone v2 request 683da63ee6af4e1aab52dd7c0d2db50e (2026-11-23; env 218a399794f8)","excel_build":"16.0.20527.20196","platform":"Windows","invocation":{"input_transport":"cell_value2_bulk","date_system":"1900","compatibility_version":"2","decimal_separator":".","thousands_separator":" "}}
+  ],
+  "witnesses": [
+    {"id":"dc-zmk.12-alt-replace","args":["cat dog bat","cat|dog","X"],"expected_bits":"text:X X bat","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-numbered-backref-replace","args":["aa bb ab","([a-z])\\1","<$1>"],"expected_bits":"text:<a> <b> ab","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-lookbehind-replace","args":["aaa","(?<=a)","X"],"expected_bits":"text:aXaXaX","reading":"r0","calc_func":"fault:NotImplemented"},
+    {"id":"dc-zmk.12-zero-optional-replace","args":["ba","(a)?","X"],"expected_bits":"text:XbXX","reading":"r0","calc_func":"fault:NotImplemented"}
+  ]
+}
