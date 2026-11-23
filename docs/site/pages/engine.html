@@ -8,8 +8,10 @@
   <h2>Runner preview contract</h2>
   <p>The Linux x86-64 runner and its JSON output are experimental. Use the 0.1.0 runner built at <a href="https://github.com/DnaCalc/DnaCalc/blob/539c4234acb51e77f4ce3eb9b0a376b5508a694a/apps/dnacalc/src/lib.rs">commit <code>539c4234</code></a> for these examples. Download the <a href="/sample.xlsx">site sample</a> as <code>book.xlsx</code>.</p>
   <pre><code>dnacalc recalc book.xlsx --out checked.xlsx --json
+dnacalc get checked.xlsx 'Calc!A1' 'Calc!H1' --json
 dnacalc diff checked.xlsx --json</code></pre>
-  <p>The second command compares fresh results with the caches saved in <code>checked.xlsx</code>. To compare with the original workbook's caches, run <code>diff book.xlsx</code>. A cache has the provenance of the file that supplied it.</p>
+  <p>On the site sample, <code>recalc</code> reports 19 calculated formulas and exits 0. <code>get</code> reports calculated provenance for both cells, with a number (1) at <code>Calc!A1</code> and a worksheet error (<code>Spill</code>) at <code>Calc!H1</code>.</p>
+  <p><code>diff</code> compares fresh results with the input file's caches. This sample has no saved formula values, and its recalculated copy still has none. Expect <code>missing: 19</code>, <code>pass: 0</code> and exit 1. To check against Excel's saved values, give <code>diff</code> a workbook that Excel saved with formula caches.</p>
   <p>On workbook commands, <code>--json</code> writes one JSON object to stdout. Use the command and exit status to interpret it. Fields may change with the pinned build.</p>
   <ul>
     <li><code>recalc</code> reports <code>book</code>, <code>macros</code>, and counts for <code>formula_cells</code>, <code>calculated</code>, <code>refused</code> and <code>not_current</code>. With <code>--out</code>, it also reports <code>saved</code> with <code>path</code> and <code>bytes</code>. Exit 1 indicates a refusal or a result that is still non-current.</li>
