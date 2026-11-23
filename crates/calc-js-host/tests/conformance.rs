@@ -182,6 +182,48 @@ fn handles_nonfinite_numbers_error_values_and_script_exceptions() {
 }
 
 #[test]
+fn preserves_all_office_error_codes_from_returns_and_throws() {
+    let addin = load(
+        "CustomFunctions.associate('RUN', (code, throws) => {
+            const error = new CustomFunctions.Error(CustomFunctions.ErrorCode[code]);
+            if (throws) throw error;
+            return error;
+        });",
+        serde_json::json!([{"id":"RUN","name":"RUN","parameters":[
+            {"name":"code","type":"string"},{"name":"throws","type":"boolean"}
+        ],"result":{}}]),
+        false,
+        ExecLimits::default(),
+    )
+    .unwrap();
+    let codes = [
+        ("divisionByZero", W::Div0),
+        ("invalidName", W::Name),
+        ("invalidNumber", W::Num),
+        ("invalidReference", W::Ref),
+        ("invalidValue", W::Value),
+        ("notAvailable", W::NA),
+        ("nullReference", W::Null),
+    ];
+    for (code, expected) in codes {
+        for throws in [false, true] {
+            assert_eq!(
+                call(
+                    &addin,
+                    "Probe.RUN",
+                    &[
+                        V::text(ExcelText::from_interop_assignment(code)),
+                        V::logical(throws)
+                    ]
+                ),
+                Ok(V::error(expected)),
+                "{code}, throws={throws}"
+            );
+        }
+    }
+}
+
+#[test]
 fn limits_module_and_function_execution_and_recovers() {
     use std::time::Duration;
     let limits = ExecLimits {

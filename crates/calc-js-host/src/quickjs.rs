@@ -417,6 +417,8 @@ impl<'js> Bridge<'_, 'js> {
             "#NULL!" => Some(W::Null),
             "#DIV/0!" => Some(W::Div0),
             "#VALUE!" => Some(W::Value),
+            "#REF!" => Some(W::Ref),
+            "#NAME?" => Some(W::Name),
             "#NUM!" => Some(W::Num),
             "#N/A" => Some(W::NA),
             _ => None,
