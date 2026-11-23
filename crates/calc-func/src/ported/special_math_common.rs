@@ -2990,4 +2990,55 @@ mod tests {
             "cb23 BETA.INV C1_020"
         );
     }
+
+    /// rw1 / dc-j9k.95: `gratio` `go200` divides by `denom_g = a * excel_exp(gammaln_excel(a))`
+    /// uniformly for all `a < 1` with no fitted `5e-15` tiny-`a` switch and no `excel_exp_div`.
+    /// Verifies five Excel 16.0.20625.20108 `1 + b == 1` controls where the old fitted switch
+    /// missed by 15..64 ULP, plus monotone continuity across adjacent tiny `a` values.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_95_gratio_tiny_shape_normalizer_has_no_fitted_threshold() {
+        use crate::ported::beta_gamma_stats_family::beta_dist_kernel;
+
+        for &(label, xb, ab, bb, expected) in &[
+            ("S2_tiny_b_001", 0x3fef_fff1_75aa_14ca_u64, 0x4031_6e12_01b8_83c0_u64, 0x25cc_edac_ce90_d709_u64, 0x25fe_a360_baba_4d27_u64),
+            ("S2_tiny_b_004", 0x3fef_d4c9_2678_38fb, 0x4060_15b6_da2c_aa3c, 0x0695_673d_5a53_5196, 0x0680_afff_63f3_3541),
+            ("S2_tiny_b_007", 0x3fef_ffe9_eee6_bf7b, 0x4071_8543_c15d_ec28, 0x2b41_75d4_60c4_752d, 0x2b66_eea0_d8c4_380b),
+            ("S2_tiny_b_012", 0x3fef_fe39_2740_d868, 0x4053_3350_1da3_1d0b, 0x18d2_1a9e_f37a_a878, 0x18f0_0651_6688_02d8),
+            ("S2_tiny_b_019", 0x3fef_d14c_fecf_51fe, 0x4053_59b2_abd3_d88c, 0x30d4_bded_573a_97ee, 0x30ca_8f6c_6cb6_87c2),
+        ] {
+            let b = f64::from_bits(bb);
+            assert_eq!(1.0 + b, 1.0, "{label} expects 1 + b == 1");
+            let got = beta_dist_kernel(
+                f64::from_bits(xb),
+                f64::from_bits(ab),
+                b,
+                true,
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(
+                got, expected,
+                "dc-j9k.95 {label}: got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+
+        // Continuity across neighbouring tiny `a` around 0x2746_cc43_efa1_3925 (1 + a == 1):
+        // bounded solely by Excel's single-ULP `gammaln_excel(a)` step (~5.7e-14 at |ln a| ~ 277),
+        // with no fitted `5e-15` normalizer switch.
+        let base_bits = 0x2746_cc43_efa1_3925_u64;
+        let mut prev_q = gratio(f64::from_bits(base_bits - 8), 0.5).1;
+        for delta in -7_i64..=8 {
+            let a = f64::from_bits(base_bits.wrapping_add_signed(delta));
+            assert_eq!(1.0 + a, 1.0);
+            let q = gratio(a, 0.5).1;
+            assert!(
+                q.is_finite() && (q - prev_q).abs() <= 1e-13 * q,
+                "discontinuity at delta={delta}: prev={prev_q:e}, q={q:e}"
+            );
+            prev_q = q;
+        }
+    }
 }
