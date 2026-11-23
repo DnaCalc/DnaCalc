@@ -963,6 +963,23 @@ fn ets_seasonality_accepts_a_spectral_outlier() {
     exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 0.0);
 }
 
+/// Excel 20625 reports period 11 for the sx1 outlier row at batches[15][29].
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_validates_the_longer_period_of_a_spectral_outlier() {
+    let history = [
+        0x3fe4e697a74d9098, 0x3ff0ec6ac35068de, 0xbff155313cb79346, 0x3fecaf93708a529f,
+        0x3ff8c9bcf401a0d8, 0xbfe35ffc226d5b7c, 0xbff3d1eb3e0bb67a, 0xbffc78b7967c3a1c,
+        0xbfd3701b13a7f976, 0x3ff550f4f7bcea32, 0x40035035f929cdd2, 0xbfe4e0e3ed62828d,
+        0xbf949bfe7f58a2c0, 0xbfe0b091ce12544e, 0x3fffcdc3f00c4d27, 0x3fd216f8b750cb9c,
+        0xbff32c08ba4ae7a8, 0xbfe83e60e676b30c, 0xbff78953e3b99fbe, 0xbff952cd9415f8d4,
+        0x400768d8afd3f304, 0x40027f36537c24ae, 0xbff68cd1a323bbb4, 0xbfd6296bc2ce2630,
+        0xc0001e16a6a2234e, 0x3fe454522b89033c, 0x3ffff299ca8c1c13, 0x3fa50c8778861a10,
+    ].map(f64::from_bits);
+    let timeline: Vec<f64> = (1..=history.len()).map(|value| value as f64).collect();
+    exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), 11.0);
+}
+
 /// Excel 20527 AUTOPERIOD seasonality detector (dc-iuwct.56): two-segment
 /// piecewise-linear ACF hills compared against flanking slope, short-period tail
 /// slope checks (p = 3, 4, 5), and raw-series fundamental tie-breaking across
