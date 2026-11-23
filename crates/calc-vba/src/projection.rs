@@ -589,6 +589,47 @@ impl ModelObject {
         self.invoke_member(member, &values, &names)
     }
 
+    fn invoke_late(
+        &self,
+        name: Option<&str>,
+        kind: InvokeKind,
+        values: &[Variant],
+        names: &[Option<&str>],
+    ) -> Result<Variant, api::TypedFault> {
+        if let Some(member) = lookup_member_by_name(self.object.interface, name, kind) {
+            // In OLE Automation / VBA, indexing a 0-arg object-valued property on a late-bound
+            // receiver (e.g. `Worksheets("S").Range("A1:B2").Cells(2, 2)` or `wb.Worksheets("S")`)
+            // evaluates the 0-arg getter and forwards the arguments to the returned object's
+            // default member (DISPID 0).
+            if name.is_some()
+                && !values.is_empty()
+                && matches!(member.invoke, InvokeKind::Get | InvokeKind::Method)
+                && member.arguments().next().is_none()
+            {
+                let inner = self.invoke_member(member, &[], &[])?;
+                if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
+                    return target.invoke_late(None, kind, values, names);
+                }
+            }
+            return self.invoke_member(member, values, names);
+        }
+        // Late-bound indexed property assignment (`ws.Cells(2, 2) = 9`): evaluate the 0-arg
+        // getter and forward the indexed assignment to the returned object's default setter.
+        if name.is_some()
+            && !values.is_empty()
+            && matches!(kind, InvokeKind::Put | InvokeKind::Putref)
+            && let Some(getter) =
+                lookup_member_by_name(self.object.interface, name, InvokeKind::Get)
+            && getter.arguments().next().is_none()
+        {
+            let inner = self.invoke_member(getter, &[], &[])?;
+            if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
+                return target.invoke_late(None, kind, values, names);
+            }
+        }
+        Err(fault(438, format!("unknown member {name:?}")))
+    }
+
     pub(crate) fn invoke_dynamic_hal(
         &self,
         member: &DynamicMemberSelector,
@@ -601,24 +642,26 @@ impl ModelObject {
             Some(DynamicCallKind::Method) => InvokeKind::Method,
             Some(DynamicCallKind::PropertyGet) | None => InvokeKind::Get,
         };
-        let resolved = match member {
-            DynamicMemberSelector::DefaultMember => {
-                lookup_member_by_dispid(self.object.interface, 0, kind)
+        let (values, names) = unpack_dynamic_args(args);
+        match member {
+            DynamicMemberSelector::DefaultMember => self.invoke_late(None, kind, &values, &names),
+            DynamicMemberSelector::Name(name) => {
+                self.invoke_late(Some(name.as_str()), kind, &values, &names)
             }
             DynamicMemberSelector::Token(dispid) => {
-                lookup_member_by_dispid(self.object.interface, *dispid, kind)
-            }
-            DynamicMemberSelector::Name(name) => {
-                lookup_member_by_name(self.object.interface, Some(name.as_str()), kind)
+                let resolved = lookup_member_by_dispid(self.object.interface, *dispid, kind)
+                    .ok_or_else(|| fault(438, format!("unknown member {member:?}")))?;
+                self.invoke_member(resolved, &values, &names)
             }
             DynamicMemberSelector::TokenNamed { token, name } => {
-                lookup_member_by_dispid(self.object.interface, *token, kind)
-                    .or_else(|| lookup_member_by_name(self.object.interface, Some(name.as_str()), kind))
+                if let Some(resolved) = lookup_member_by_dispid(self.object.interface, *token, kind)
+                {
+                    self.invoke_member(resolved, &values, &names)
+                } else {
+                    self.invoke_late(Some(name.as_str()), kind, &values, &names)
+                }
             }
         }
-        .ok_or_else(|| fault(438, format!("unknown member {member:?}")))?;
-        let (values, names) = unpack_dynamic_args(args);
-        self.invoke_member(resolved, &values, &names)
     }
 
     pub(crate) fn default_value(&self) -> Result<Option<Variant>, api::TypedFault> {
@@ -794,10 +837,10 @@ impl HostObjectServices for ModelObject {
         context: &mut api::TypedContext,
     ) -> Result<Variant, api::TypedFault> {
         let kind = to_invoke_kind(call.kind);
-        let member = lookup_member_by_name(self.object.interface, call.name.as_deref(), kind)
-            .ok_or_else(|| fault(438, format!("unknown member {:?}", call.name)))?;
         let names = names_from_specs(&call.arguments);
-        api::with_native_call(context, || self.invoke_member(member, arguments, &names))
+        api::with_native_call(context, || {
+            self.invoke_late(call.name.as_deref(), kind, arguments, &names)
+        })
     }
 
     fn enumerator(&self, context: &mut api::TypedContext) -> Result<HostEnumerator, i32> {

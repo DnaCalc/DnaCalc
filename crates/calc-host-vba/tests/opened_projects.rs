@@ -2550,3 +2550,255 @@ End Sub
         );
     }
 }
+
+/// dc-1nbp.7: Worksheet and Workbook objects (`Me.Range`, `Worksheets("S").Range`,
+/// `ThisWorkbook.Worksheets("S").Range`, `Range.Cells`, `Range.Value2` reads/writes,
+/// including late-bound `Worksheets("S").Range(...).Cells(r, c)`) run over the existing
+/// event session loan in both Automatic and Manual modes with exact values and handler order.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_7_worksheet_and_workbook_event_objects_over_session_loan_in_both_modes() {
+    use calc_host::{SheetEdit, SheetKey, SheetName};
+    use calc_host_vba::{ModuleSource, ModuleTarget};
+
+    let sheet_source = "\
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ History = History & \"Chg:\" & Target.Address(False, False) & \";\"
+ If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub
+ Dim v As Double
+ v = CDbl(Target.Value2)
+ Me.Range(\"C1\").Value2 = v * 10
+ Worksheets(\"S\").Range(\"D1\").Value2 = CDbl(Me.Range(\"C1\").Value2) + 1
+ ThisWorkbook.Worksheets(\"S\").Range(\"E1\").Value2 = CDbl(Worksheets(\"S\").Range(\"D1\").Value2) + 2
+ Me.Range(\"A1:B2\").Cells(2, 2).Value2 = v + 5
+ Worksheets(\"S\").Range(\"A1:B2\").Cells(2, 2).Value2 = CDbl(Me.Range(\"A1:B2\").Cells(2, 2).Value2) + 100
+ Worksheets(\"S\").Cells(3, 1) = 77
+ Dim wb As Object
+ Set wb = ThisWorkbook
+ wb.Worksheets(\"S\").Cells(3, 2).Value2 = 88
+End Sub
+Private Sub Worksheet_Calculate()
+ History = History & \"Calc;\"
+End Sub
+";
+    for backend in backends() {
+        for include_this_workbook in [false, true] {
+            for manual in [false, true] {
+                let mut session = opened(&calc_host::blank_package(), "p22.xlsm");
+                assert!(
+                    session
+                        .dispatch(SkinIntent::Edit {
+                            edits: vec![calc_host::CellEdit::Sheet(SheetEdit::Insert {
+                                key: SheetKey::new(2),
+                                name: SheetName::new(
+                                    calc_value::ExcelText::from_interop_assignment("S")
+                                )
+                                .unwrap(),
+                                position: std::num::NonZeroU32::new(2).unwrap(),
+                            })],
+                        })
+                        .accepted()
+                );
+                let sheet1 = session.host().sheets()[0].id();
+                let sheet_s = session.host().sheets()[1].id();
+                // Install formulas before attaching event handlers, then calculate baseline.
+                session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+                assert!(
+                    session
+                        .dispatch(SkinIntent::EnterCell {
+                            at: calc_value::CellKey::new(sheet1, 1, 6).unwrap(),
+                            text: "=C1+S!D1+S!E1+B2+S!B2".into(),
+                        })
+                        .accepted()
+                );
+                assert!(
+                    session
+                        .dispatch(SkinIntent::EnterCell {
+                            at: calc_value::CellKey::new(sheet_s, 1, 6).unwrap(),
+                            text: "=D1+E1+B2".into(),
+                        })
+                        .accepted()
+                );
+                session.dispatch(SkinIntent::Recalculate);
+                drain(&mut session);
+                if !manual {
+                    session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Automatic));
+                    drain(&mut session);
+                }
+
+                let mut modules = vec![
+                    ModuleSource {
+                        name: "Api".into(),
+                        source: OWNER_STATE.into(),
+                        target: ModuleTarget::Standard,
+                    },
+                    ModuleSource {
+                        name: "Sheet1".into(),
+                        source: sheet_source.into(),
+                        target: ModuleTarget::Worksheet(sheet1),
+                    },
+                ];
+                if include_this_workbook {
+                    modules.push(ModuleSource {
+                        name: "ThisWorkbook".into(),
+                        source: String::new(),
+                        target: ModuleTarget::Workbook,
+                    });
+                }
+                let project = calc_host_vba::prepare(
+                    session.host(),
+                    "p22.xlsm",
+                    &modules,
+                    50_000,
+                    Some(backend),
+                )
+                .unwrap();
+                project.clone().install(&mut session);
+
+                enter(&mut session, 1, 1, "3");
+                assert!(
+                    session.workbook_event_failures().failures.is_empty(),
+                    "{backend:?} wb={include_this_workbook} manual={manual}: {:?}",
+                    session.workbook_event_failures()
+                );
+
+                let cell_num = |session: &HostSession, sheet: calc_value::SheetId, r, c| {
+                    let at = calc_value::CellKey::new(sheet, r, c).unwrap();
+                    let page = calc_host::project(
+                        session.host(),
+                        &calc_host::ProjectionRequest { cells: vec![at] },
+                    )
+                    .unwrap();
+                    match page.cells()[0].value() {
+                        calc_host::ProjectedValue::Literal(v)
+                        | calc_host::ProjectedValue::Calculated { value: v, .. } => {
+                            v.as_number().unwrap()
+                        }
+                        other => panic!("unexpected value at ({r},{c}): {other:?}"),
+                    }
+                };
+                assert_eq!(cell_num(&session, sheet1, 1, 3), 30.0);
+                assert_eq!(cell_num(&session, sheet_s, 1, 4), 31.0);
+                assert_eq!(cell_num(&session, sheet_s, 1, 5), 33.0);
+                assert_eq!(cell_num(&session, sheet1, 2, 2), 8.0);
+                assert_eq!(cell_num(&session, sheet_s, 2, 2), 108.0);
+                assert_eq!(cell_num(&session, sheet_s, 3, 1), 77.0);
+                assert_eq!(cell_num(&session, sheet_s, 3, 2), 88.0);
+
+                let stale_zero = |session: &HostSession, sheet: calc_value::SheetId, r, c| {
+                    let at = calc_value::CellKey::new(sheet, r, c).unwrap();
+                    let page = calc_host::project(
+                        session.host(),
+                        &calc_host::ProjectionRequest { cells: vec![at] },
+                    )
+                    .unwrap();
+                    matches!(
+                        page.cells()[0].value(),
+                        calc_host::ProjectedValue::Stale(stale)
+                            if stale.last_value().and_then(|v| v.as_number()) == Some(0.0)
+                    )
+                };
+                let trace = || {
+                    project
+                        .functions()
+                        .call("Trace", &[])
+                        .unwrap()
+                        .as_text()
+                        .unwrap()
+                        .to_string_lossy()
+                };
+                if manual {
+                    assert_eq!(
+                        trace(),
+                        "Chg:A1;Chg:C1;Chg:B2;",
+                        "{backend:?} wb={include_this_workbook} manual pre-recalc"
+                    );
+                    assert!(stale_zero(&session, sheet1, 1, 6));
+                    assert!(stale_zero(&session, sheet_s, 1, 6));
+                    session.dispatch(SkinIntent::Recalculate);
+                    drain(&mut session);
+                    assert_eq!(
+                        trace(),
+                        "Chg:A1;Chg:C1;Chg:B2;Calc;",
+                        "{backend:?} wb={include_this_workbook} manual post-recalc"
+                    );
+                } else {
+                    assert_eq!(
+                        trace(),
+                        "Chg:A1;Calc;Chg:C1;Calc;Calc;Calc;Chg:B2;Calc;",
+                        "{backend:?} wb={include_this_workbook} automatic"
+                    );
+                }
+                assert_eq!(cell_num(&session, sheet1, 1, 6), 210.0);
+                assert_eq!(cell_num(&session, sheet_s, 1, 6), 172.0);
+            }
+        }
+    }
+}
+
+/// dc-1nbp.7: multi-area writes through Worksheet/Workbook objects keep the same typed
+/// refusals (unmaskable by `On Error Resume Next`, atomic on the sheet) as Application.Range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1nbp_7_multi_area_writes_keep_typed_refusals_through_error_handling() {
+    use calc_host::{SheetEdit, SheetKey, SheetName};
+    for backend in backends() {
+        for (label, stmt) in [
+            (
+                "shape_mismatch",
+                "Me.Range(\"A1:B1,D1\").Value2 = Array(1, 2)",
+            ),
+            (
+                "multi_area_formula",
+                "Worksheets(\"S\").Range(\"D1,E1\").Formula = \"=1+1\"",
+            ),
+        ] {
+            let mut session = opened(&calc_host::blank_package(), "multi.xlsm");
+            session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+            assert!(
+                session
+                    .dispatch(SkinIntent::Edit {
+                        edits: vec![calc_host::CellEdit::Sheet(SheetEdit::Insert {
+                            key: SheetKey::new(2),
+                            name: SheetName::new(calc_value::ExcelText::from_interop_assignment(
+                                "S"
+                            ))
+                            .unwrap(),
+                            position: std::num::NonZeroU32::new(2).unwrap(),
+                        })],
+                    })
+                    .accepted()
+            );
+            let source = format!(
+                "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n \
+                 If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub\n \
+                 On Error Resume Next\n \
+                 {stmt}\n \
+                 History = \"after:\" & CStr(Err.Number)\n\
+                 End Sub\n"
+            );
+            let _project = mutable_owner(&mut session, &source, OWNER_STATE, 20_000, backend);
+            enter(&mut session, 1, 1, "7");
+            let failures = session.take_workbook_event_failures();
+            assert_eq!(
+                failures.failures.len(),
+                1,
+                "{backend:?} {label}: {failures:?}"
+            );
+            assert!(
+                failures.failures[0].reason.contains("dc-1nbp.6"),
+                "{backend:?} {label}: {:?}",
+                failures.failures[0]
+            );
+            let sheet_s = session.host().sheets()[1].id();
+            assert!(
+                session
+                    .host()
+                    .model()
+                    .cell(calc_value::CellKey::new(sheet_s, 1, 4).unwrap())
+                    .is_none(),
+                "{backend:?} {label}: S!D1 stayed clean"
+            );
+        }
+    }
+}
