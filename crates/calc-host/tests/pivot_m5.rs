@@ -1137,11 +1137,7 @@ fn dc_8wp_16__a_blank_source_header_is_the_field_named_by_its_position_as_excel_
 
 #[test]
 /// Native-only: opens the Excel-saved workbook files of the fixture set.
-fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refused_not_guessed() {
-    // Excel keeps the row and column fields and draws labels without values (m7-names stub-delete-value-column,
-    // stub-rename-value-header, stub-table-delete-value-column, hdr-blank-used-amount, hdr-blank-two). That layout is
-    // not modelled, so the refresh is refused with its reason and changes nothing; it used to give the one-cell
-    // stub, which Excel does not.
+fn dc_8wp_16__a_source_that_loses_its_value_fields_keeps_the_captured_labels() {
     type Act = fn(&mut HostSession);
     let cases: [(&str, bool, Act); 5] = [
         ("stub-delete-value-column", false, |b| {
@@ -1173,19 +1169,61 @@ fn dc_8wp_16__a_source_that_keeps_row_fields_but_loses_its_value_fields_is_refus
             enter(b, "Src", "E2", "");
         }),
     ];
+    let mut matched = 0;
+    let mut failures = Vec::new();
     for (id, table, act) in cases {
         let want = excel_in(M7_NAMES, id);
-        assert!(
-            want.pivots[2].contains("@Region|") || want.pivots[2].contains("@Region"),
-            "{id}: Excel kept the Region field"
-        );
         let mut book = open(if table { BASE_TABLE } else { BASE_RANGE });
         act(&mut book);
-        let before = book.host().revision();
-        let why = refresh(&mut book).expect_err(id);
-        assert!(why.contains("labels without values"), "{id}: {why}");
-        assert_eq!(book.host().revision(), before, "{id}");
+        if let Err(why) = refresh(&mut book) {
+            failures.push(format!("{id}: {why}"));
+            continue;
+        }
+        let check = |book: &HostSession, stage: usize| {
+            let out = sheet(book, "Out");
+            let area = GridArea::new(at(out, "C4"), at(out, "H9")).unwrap();
+            assert_eq!(
+                format!("{}@{}", pivot_now(book), cache_field_names(book)),
+                want.pivots[stage],
+                "{id} stage {stage}"
+            );
+            assert_eq!(
+                dna_cells(book, area),
+                excel_cells_in(M7_CELLS, id, "2", area),
+                "{id} stage {stage}"
+            );
+            // The five Excel saves in pivot-m7-20261109 use the same field and axis layout.
+            let pivot = book.host().model().definitions().pivots().tables().next().unwrap();
+            assert!(pivot.data_fields.is_empty(), "{id} stage {stage}");
+            assert_eq!(pivot.row_fields, [0]);
+            assert_eq!(pivot.column_fields, [1]);
+            for (name, offset) in [("firstHeaderRow", "1"), ("firstDataRow", "2"), ("firstDataCol", "1")] {
+                assert_eq!(pivot.location[name], offset, "{id} stage {stage}");
+            }
+            for (items, labels) in [(&pivot.row_items, 3), (&pivot.col_items, 4)] {
+                assert_eq!(items.len(), labels + 1);
+                for (index, item) in items[..labels].iter().enumerate() {
+                    assert_eq!((item.kind.as_str(), item.repeat), ("data", 0));
+                    assert_eq!(item.indexes, [index as u32]);
+                }
+                assert_eq!(items[labels].kind, "grand");
+            }
+        };
+        check(&book, 2);
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        if let Some(folder) = std::env::var_os("DNACALC_PIVOT_SAVES").map(std::path::PathBuf::from) {
+            std::fs::create_dir_all(&folder).unwrap();
+            std::fs::write(folder.join(format!("m7-{id}.xlsx")), &saved).unwrap();
+        }
+        let mut reopened = open(&saved);
+        check(&reopened, 3);
+        refresh(&mut reopened).unwrap();
+        check(&reopened, 4);
+        matched += 1;
     }
+    println!("M7 labels-only scenarios: {matched}/5 match");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]

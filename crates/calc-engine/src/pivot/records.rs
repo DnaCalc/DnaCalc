@@ -232,16 +232,16 @@ pub(super) fn field_groups(
     cache: &PivotCache,
     snapshot: &PivotSnapshot,
     row: usize,
-    measure: usize,
+    measure: Option<usize>,
 ) -> Result<Vec<Group>, PivotIssue> {
     let bad = |why: &str| refusal(&table.part, why);
     let field = &table.fields[row];
     let measure = if let Some(index) = field.sort_measure {
-        table
+        let data = table
             .data_fields
             .get(index as usize)
-            .ok_or_else(|| bad("Invalid value-sort measure"))?
-            .field as usize
+            .ok_or_else(|| bad("Invalid value-sort measure"))?;
+        Some(data.field as usize)
     } else {
         measure
     };
@@ -266,7 +266,9 @@ pub(super) fn field_groups(
         if compare(key, key).is_none() {
             return Err(bad("The shared comparator cannot order this pivot label"));
         }
-        resolve(cache, r, measure)?;
+        if let Some(measure) = measure {
+            resolve(cache, r, measure)?;
+        }
     }
     order.sort_by(|&a, &b| {
         compare(
@@ -300,7 +302,9 @@ pub(super) fn field_groups(
             });
         }
         let group = groups.last_mut().unwrap();
-        if page_allows(table, cache, record)? {
+        if let Some(measure) = measure
+            && page_allows(table, cache, record)?
+        {
             group.total.push(resolve(cache, record, measure)?)?;
         }
     }
@@ -542,7 +546,7 @@ pub(super) fn page_field_items(
                 "A filtered or invalid page field is not modelled",
             ));
         }
-        let groups = field_groups(table, cache, snapshot, page, measure)?;
+        let groups = field_groups(table, cache, snapshot, page, Some(measure))?;
         let mut items = groups
             .iter()
             .filter(|g| !g.hidden)

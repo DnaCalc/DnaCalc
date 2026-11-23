@@ -644,7 +644,6 @@ pub(super) fn render_axes(
                 || table.data_fields.iter().any(|d| d.subtotal != "sum")))
         || row >= cache.fields.len()
         || table.fields.len() != cache.fields.len()
-        || table.data_fields.is_empty()
         || value_level + usize::from(row_values.is_some()) > 1
         || (table.data_fields.len() > 1) != (value_level + usize::from(row_values.is_some()) == 1)
         || table.data_fields.iter().any(|d| {
@@ -959,7 +958,7 @@ pub(super) fn render_axes(
     {
         return Err(bad("Blank rows at this field depth are not modelled"));
     }
-    let measure = table.data_fields[0].field as usize;
+    let measure = table.data_fields.first().map(|data| data.field as usize);
     let value_captions: Vec<String> = table
         .data_fields
         .iter()
@@ -1117,6 +1116,7 @@ pub(super) fn render_axes(
             .map_err(|_| bad("A source label is missing from its field"))
     };
     let mut paths = BTreeSet::new();
+    let mut label_rows = BTreeSet::new();
     let mut totals = BTreeMap::<(usize, Vec<usize>, usize), Total>::new();
     let mut field_totals = BTreeMap::<(usize, Vec<usize>, usize), Total>::new();
     let mut row_ids = BTreeMap::<Vec<usize>, usize>::new();
@@ -1179,6 +1179,14 @@ pub(super) fn render_axes(
             }
         }
         if hidden {
+            continue;
+        }
+        if measure.is_none() {
+            label_rows.insert(row_path[0]);
+            paths.insert(indexes);
+            if paths.len() > 16_384 {
+                return Err(bad("The pivot has too many column combinations"));
+            }
             continue;
         }
         for (m, data) in table.data_fields.iter().enumerate() {
@@ -1409,7 +1417,7 @@ pub(super) fn render_axes(
     }
     let row_grand = !root_only && truthy(table.attributes.get("colGrandTotals"), true);
     if !values_only && !rows_only && truthy(table.attributes.get("rowGrandTotals"), true) {
-        let column_measures = if row_values.is_some() {
+        let column_measures = if row_values.is_some() || measure.is_none() {
             1
         } else {
             table.data_fields.len()
@@ -1547,7 +1555,7 @@ pub(super) fn render_axes(
         if values_only {
             cells.insert((0, column), plain_text(&caption(entry.measure)));
         } else if entry.kind == "grand" {
-            let label = if table.data_fields.len() == 1 || row_values.is_some() {
+            let label = if table.data_fields.len() <= 1 || row_values.is_some() {
                 grand_caption.to_owned()
             } else {
                 format!("Total {}", caption(entry.measure))
@@ -2298,6 +2306,7 @@ pub(super) fn render_axes(
         for (i, group) in rows.iter().enumerate().filter(|(_, g)| !g.hidden) {
             if !totals.contains_key(&(i, Vec::new(), 0))
                 && !show_all
+                && !label_rows.contains(&i)
                 && calculated_item.is_none_or(|item| group.shared != item.item)
             {
                 continue;
@@ -2543,6 +2552,13 @@ pub(super) fn render_axes(
         })
         .collect();
     let mut number_formats = BTreeMap::new();
+    let Some(measure) = measure else {
+        return Ok(PivotLayout {
+            table: next,
+            cells,
+            number_formats,
+        });
+    };
     let mut row_path = Vec::new();
     for (row, item) in next.row_items.iter().enumerate() {
         if item.kind == "blank" {
