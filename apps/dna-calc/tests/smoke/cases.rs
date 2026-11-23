@@ -2190,6 +2190,12 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Click("settings-toggle"),
             Action::Choose("theme", ""),
             Action::Click("settings-toggle"),
+            // The later Save calculates the dirty workbook. Remove the intentionally refused
+            // sources from the earlier recovery cases before creating that workbook.
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Keys("grid", DELETE),
+            Action::Into("name-box", "F1\u{E007}"),
+            Action::Keys("grid", DELETE),
             Action::ClearDownloads,
             Action::Click("save"),
             Action::Wait(Check::Starts("status", "Download started: Book1.xlsx.")),
@@ -2249,6 +2255,10 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "123",
             ),
             Check::Value(BAR, "123"),
+            Check::Text(
+                "[data-dnacalc=block][data-cell=D1] [data-dnacalc=block-value]",
+                "246",
+            ),
         ],
     },
     Case {
@@ -5406,10 +5416,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
             Action::Keys("canvas-zoom-in", "\u{E007}"),
             Action::Keys("canvas-pan-right", "\u{E007}"),
             Action::Keys("canvas-back-more", "\u{E007}"),
+            Action::Keys("canvas-forward-more", "\u{E007}"),
         ],
         checks: &[
             Check::Text("canvas-zoom", "110%"),
-            Check::Text("canvas-depth", "2 back, 1 forward"),
+            Check::Text("canvas-depth", "2 back, 2 forward"),
             Check::Name("canvas-center", "Center active cell"),
             Check::Role("canvas-viewport", "region"),
         ],
@@ -5435,6 +5446,11 @@ pub(crate) const CALC_CASES: &[Case] = &[
                 "[data-dnacalc=canvas-node][data-center=true]",
                 "[data-dnacalc=canvas] .dc-stage",
             ),
+            Check::Contained(
+                "[data-dnacalc=canvas-node][data-center=true]",
+                "canvas-viewport",
+            ),
+            Check::HitTarget("[data-dnacalc=canvas-node][data-center=true]"),
         ],
     },
     Case {
@@ -6079,17 +6095,36 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "Notebook: open array details refresh when another cell blocks the spill again",
+        name: "Notebook: open array details refresh when a resized spill hits a new blocker",
         actions: &[
+            // Shrink the spill first so D2 can be edited as an ordinary worksheet cell.
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(1,2)\u{E007}"),
+            Action::Wait(Check::TextContains(
+                "[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-detail]",
+                "actual range Sheet1!C1:D1",
+            )),
             Action::Into("name-box", "D2\u{E007}"),
             Action::Into(BAR, "99\u{E007}"),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Into(BAR, "=SEQUENCE(3,2)\u{E007}"),
         ],
-        checks: &[Check::Text("block-spill-blocker", "Open blocker D2:D2")],
+        checks: &[
+            Check::Text(
+                "[data-dnacalc=block][data-cell=C1] [data-dnacalc=block-value]",
+                "#SPILL!",
+            ),
+            Check::Text("block-spill-blocker", "Open blocker D2:D2"),
+        ],
     },
     Case {
         name: "Notebook: opening a blocker navigates to the actual source",
         actions: &[Action::Click("block-spill-blocker")],
-        checks: &[Check::Value("name-box", "D2"), Check::Value(BAR, "99")],
+        checks: &[
+            Check::Focused("grid"),
+            Check::Value("name-box", "D2"),
+            Check::Value(BAR, "99"),
+        ],
     },
     Case {
         name: "Notebook: clearing the blocker shows canonical array values and a read-only child",
