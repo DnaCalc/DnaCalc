@@ -1,7 +1,7 @@
 //! Native RTD transport, ported from rtd.cpp at ef34ca50. It owns no evaluator state.
 use crate::{
+    addins::native::registry_string,
     interfaces::{IRTDUpdateEvent, IRTDUpdateEvent_Impl, IRtdServer},
-    office::registry_string,
     values::{self, status},
 };
 use calc_object_model::{AutoError, AutoValue};

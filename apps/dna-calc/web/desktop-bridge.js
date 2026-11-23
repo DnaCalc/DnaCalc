@@ -70,6 +70,7 @@
     this._listeners = [];
     this._receive = function (event) {
       var data = event.data;
+      if (!socketCarrier && data.startsWith("ribbon:")) { return; }
       var mark = data.charAt(0) === "@" ? data.indexOf(CHANNEL_MARK) : -1;
       var from = mark < 0 ? 0 : parseInt(data.slice(1, mark), 10);
       if (from !== channel) { return; }

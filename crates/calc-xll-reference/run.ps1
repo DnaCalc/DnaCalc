@@ -110,7 +110,10 @@ if ($HostExecutable) {
         if ($Engine) { $arguments += '--engine' }
         if ($Rtd) { $arguments += '--rtd' }
         if ($WorkbookName) { $arguments += @('--workbook-name',$WorkbookName) }
-        if ($RibbonUI) { $arguments += '--ribbon-ui' }
+        if ($RibbonUI) {
+            $arguments += '--ribbon-ui'
+            if ($Engine) { $arguments += @('--macros','unguarded') }
+        }
         if ($ExcelDnaDirectory -or $AddInDirectory) {
             $arguments += @('--cases',$Cases,'--sheet','X0')
             if ($XllFileName -ieq 'xlOil.xll' -and (Get-Content -LiteralPath $Cases -Raw) -match 'X[45]\.(Py|Rtd)') {

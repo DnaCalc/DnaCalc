@@ -16,6 +16,7 @@ calc-object-model = { path = "../calc-object-model" }
 
 [target.'cfg(windows)'.dependencies]
 calc-xll-host = { path = "../calc-xll-host" }
+roxmltree = "=0.21.2"
 windows = { version = "=0.61.3", features = [
     "Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage",
     "Win32_System_Com_Marshal",

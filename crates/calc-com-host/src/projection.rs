@@ -2,7 +2,7 @@
 use crate::{
     application::ApplicationServices,
     events::Connections,
-    office::Office,
+    office::{AddinMode, Office},
     runtime,
     values::{self, Objects},
 };
@@ -451,11 +451,55 @@ impl Projection {
         values::to_calc(&values::from_variant(&self.state, &output).map_err(message)?)
             .map_err(message)
     }
+    /// Set admission for registered COM add-ins in the desktop application.
+    pub fn set_registered_com_addins(&self, allowed: bool) -> Result<(), String> {
+        self.state.apartment.check().map_err(message)?;
+        let mode = if allowed {
+            AddinMode::Registered
+        } else {
+            AddinMode::Disabled
+        };
+        self.state.office.set_addin_mode(mode).map_err(message)
+    }
+
+    /// Connect startup add-ins and deliver startup completion once the workbook is live.
+    pub fn start_registered_com_addins(&self) -> Result<Vec<(String, String)>, String> {
+        self.state.apartment.check().map_err(message)?;
+        self.state
+            .office
+            .start_registered_addins()
+            .map(|failures| {
+                failures
+                    .into_iter()
+                    .map(|(progid, error)| (progid, message(error)))
+                    .collect()
+            })
+            .map_err(message)
+    }
+
     pub fn close_addins(&self) -> Result<(), String> {
         self.state.apartment.check().map_err(message)?;
-        self.state.host.close()?;
-        self.state.office.close().map_err(message)
+        let xll = self.state.host.close();
+        let office = self.state.office.close().map_err(message);
+        xll.and(office)
     }
+    /// Changes when ribbon providers connect, disconnect or invalidate a control.
+    pub fn ribbon_revision(&self) -> u64 {
+        self.state.office.ribbon_revision.get()
+    }
+
+    /// The custom ribbon buttons currently available in the desktop shell.
+    pub fn ribbon_buttons(&self) -> Result<Vec<crate::RibbonButton>, String> {
+        self.state.apartment.check().map_err(message)?;
+        self.state.office.ribbon_buttons().map_err(message)
+    }
+
+    /// Dispatch a button press to the provider that contributed the control.
+    pub fn click_ribbon(&self, token: u64) -> Result<(), String> {
+        self.state.apartment.check().map_err(message)?;
+        self.state.office.click_ribbon(token).map_err(message)
+    }
+
     pub fn ribbons(&self) -> Result<Vec<(String, String)>, String> {
         self.state.apartment.check().map_err(message)?;
         self.state.office.ribbons().map_err(message)

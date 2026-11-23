@@ -162,6 +162,11 @@ const WORKBOOK: &str = "Book1";
 struct App {
     automation_server: RefCell<Option<calc_com_host::LocalAutomation>>,
     publish_automation: Cell<bool>,
+    start_com_addins: Cell<bool>,
+    ribbon_busy: Cell<bool>,
+    ribbon_revision: Cell<Option<u64>>,
+    ribbon_view: RefCell<Vec<calc_com_host::RibbonButton>>,
+    ribbon_error: RefCell<Option<String>>,
     startup_error: RefCell<Option<String>>,
     server: Rc<RefCell<Server>>,
     automation: Rc<calc_host::automation::WorkbookAutomation>,
@@ -328,7 +333,14 @@ impl App {
         if channel != 0 {
             return self.extra_request(channel, message);
         }
+        if let Some(token) = message.strip_prefix("ribbon:") {
+            if let Ok(token) = token.parse() {
+                self.update_ribbon(Some(token));
+            }
+            return;
+        }
         if message == "hello" {
+            self.ribbon_revision.set(None);
             // A page that loads starts its own worker, as in a browser: a new server. Workers the
             // previous page started are gone with it.
             self.extras.borrow_mut().clear();
@@ -358,7 +370,9 @@ impl App {
                 }
             }
             self.publish_workbook();
+            self.start_com_addins_when_workbook_ready();
             self.post(&message::started(), None);
+            self.update_ribbon(None);
             return;
         }
         if let Some(json) = message.strip_prefix("probe:") {
@@ -414,23 +428,25 @@ impl App {
                 page.open_selected(opened.name, opened.bytes);
             }
         }
-        let (reply, out, events) = {
+        let (reply, out, events, macro_policy) = {
             let mut server = self.server.borrow_mut();
             server.set_open_file_location(open_location);
             let (reply, out) = match open_origin {
-                Some(origin) => server
-                    .with_open_origin(origin, |server| message::answer(server, request)),
+                Some(origin) => {
+                    server.with_open_origin(origin, |server| message::answer(server, request))
+                }
                 None => message::answer(&mut server, request),
             };
-            self.store_macro_policy(server.macro_policy());
-            (reply, out, server.take_events())
+            (reply, out, server.take_events(), server.macro_policy())
         };
+        self.store_macro_policy(macro_policy);
         for event in events {
             self.post_event(event);
         }
         self.post(&reply, out.as_deref());
         self.rebind_after_open();
         self.publish_workbook();
+        self.start_com_addins_when_workbook_ready();
     }
 
     fn publish_workbook(&self) {
@@ -588,6 +604,13 @@ impl App {
     /// Stores the macro security level the person chose in the page, per user (dc-15dk).
     fn store_macro_policy(&self, now: calc_macro_security::MacroPolicy) {
         let previous = self.macro_policy.replace(now);
+        if previous.level() != now.level() {
+            let projection = self.addins.borrow().projection_handle();
+            let allowed = now.level() == calc_macro_security::MacroSecurity::Unguarded;
+            if let Err(why) = projection.set_registered_com_addins(allowed) {
+                eprintln!("dna-calc-desktop: cannot change COM add-in admission: {why}");
+            }
+        }
         if let Err(why) = persist_macro_policy(&self.settings, previous, now) {
             eprintln!("dna-calc-desktop: the macro security level is not stored: {why}");
         }
@@ -634,7 +657,81 @@ impl App {
     }
 
     /// Native returns, RTD, calculation and the window's size, once per tick.
+    fn start_com_addins_when_workbook_ready(&self) {
+        if self.opening.borrow().is_some() || !self.start_com_addins.replace(false) {
+            return;
+        }
+        self.ribbon_busy.set(true);
+        let projection = self.addins.borrow().projection_handle();
+        match projection.start_registered_com_addins() {
+            Ok(failures) => {
+                for (progid, why) in failures {
+                    eprintln!("dna-calc-desktop: COM add-in {progid}: {why}");
+                }
+            }
+            Err(why) => eprintln!("dna-calc-desktop: COM add-in discovery: {why}"),
+        }
+        self.ribbon_busy.set(false);
+    }
+
+    fn update_ribbon(&self, action: Option<u64>) {
+        if self.start_com_addins.get() || self.ribbon_busy.replace(true) {
+            return;
+        }
+        let Ok(addins) = self.addins.try_borrow() else {
+            self.ribbon_busy.set(false);
+            return;
+        };
+        let projection = addins.projection_handle();
+        drop(addins);
+        let previous_revision = self.ribbon_revision.get();
+        if action.is_none() && previous_revision == Some(projection.ribbon_revision()) {
+            self.ribbon_busy.set(false);
+            return;
+        }
+        if let Some(token) = action
+            && let Err(why) = projection.click_ribbon(token)
+        {
+            eprintln!("dna-calc-desktop: COM ribbon action: {why}");
+        }
+        self.ribbon_revision.set(Some(projection.ribbon_revision()));
+        match projection.ribbon_buttons() {
+            Ok(buttons) => {
+                self.ribbon_error.take();
+                let buttons: Vec<_> = buttons
+                    .into_iter()
+                    .filter(|button| button.visible)
+                    .collect();
+                if previous_revision.is_none()
+                    || self.ribbon_view.borrow().as_slice() != buttons.as_slice()
+                {
+                    let wire: Vec<_> = buttons
+                        .iter()
+                        .map(|button| {
+                            serde_json::json!({
+                                "token": button.token.to_string(),
+                                "tab": button.tab,
+                                "group": button.group,
+                                "label": button.label,
+                                "enabled": button.enabled,
+                            })
+                        })
+                        .collect();
+                    self.ribbon_view.replace(buttons);
+                    self.post(&format!("ribbon:{}", serde_json::Value::Array(wire)), None);
+                }
+            }
+            Err(why) if self.ribbon_error.borrow().as_ref() != Some(&why) => {
+                eprintln!("dna-calc-desktop: COM ribbon: {why}");
+                self.ribbon_error.replace(Some(why));
+            }
+            Err(_) => {}
+        }
+        self.ribbon_busy.set(false);
+    }
+
     fn tick(&self) {
+        self.update_ribbon(None);
         self.web.sync_parent();
         if let Ok(addins) = self.addins.try_borrow() {
             for returned in addins.take_async_returns() {
@@ -729,6 +826,7 @@ Open the download page now?"
         web.add_script("window.__dnacalcNoPrintUi = true;")?;
     }
     web.add_script(include_str!("../../dna-calc/web/desktop-bridge.js"))?;
+    web.add_script(include_str!("ribbon.js"))?;
     if let Some(folder) = &o.save_dir {
         std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
         web.save_downloads_to(folder)?;
@@ -778,6 +876,9 @@ Open the download page now?"
             },
         )?;
         (automation, automation_observer) = bind_automation(&set, &server)?;
+        set.projection_handle().set_registered_com_addins(
+            macro_policy.level() == calc_macro_security::MacroSecurity::Unguarded,
+        )?;
         for xll in &o.xlls {
             for note in crate::load_addin(&mut set, xll)? {
                 eprintln!("dna-calc-desktop: {}: {note}", xll.display());
@@ -797,6 +898,11 @@ Open the download page now?"
     let app = Rc::new(App {
         automation_server: RefCell::default(),
         publish_automation: Cell::new(o.automation),
+        start_com_addins: Cell::new(true),
+        ribbon_busy: Cell::new(false),
+        ribbon_revision: Cell::new(None),
+        ribbon_view: RefCell::default(),
+        ribbon_error: RefCell::default(),
         startup_error: RefCell::default(),
         book: Cell::new(server.borrow().workbook_id()),
         server: server.clone(),
@@ -894,9 +1000,12 @@ Open the download page now?"
     );
     drop(timer);
     let startup_error = app.startup_error.take();
+    let projection = app.addins.borrow().projection_handle();
+    let shutdown = projection.close_addins();
+    drop(projection);
     drop(app);
     drop(shell);
-    startup_error.map_or(Ok(()), Err)
+    startup_error.map_or(shutdown, Err)
 }
 
 #[cfg(test)]

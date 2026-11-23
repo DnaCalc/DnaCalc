@@ -5,8 +5,10 @@ compile_error!("calc-com-host is native-only");
 #[cfg(all(windows, not(target_arch = "x86_64")))]
 compile_error!("calc-com-host supports Windows x64 only");
 
+mod addins;
 #[cfg(any(windows, test))]
 mod arguments;
+pub use addins::{DiscoveryError, Registration, registered_addins};
 
 #[cfg(test)]
 mod layout_tests {
@@ -93,6 +95,10 @@ mod interfaces;
 mod office;
 #[cfg(windows)]
 mod projection;
+#[cfg(windows)]
+mod ribbon;
+#[cfg(windows)]
+pub use ribbon::RibbonButton;
 #[cfg(windows)]
 mod rtd_native;
 #[cfg(windows)]

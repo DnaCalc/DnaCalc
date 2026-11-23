@@ -229,6 +229,7 @@ dependencies = [
  "calc-object-model",
  "calc-value",
  "calc-xll-host",
+ "roxmltree",
  "serde",
  "serde_json",
  "windows",

@@ -219,8 +219,7 @@ pub fn open(
     workbook_name: &str,
     workbook: Option<&std::path::Path>,
     enable_macros: bool,
-    trust_macros: bool,
-    macros_level: Option<calc_macro_security::MacroSecurity>,
+    policy: calc_macro_security::MacroPolicy,
     automatic: bool,
 ) -> Result<(HostSession, Opened), String> {
     // A named workbook (`--workbook`) opens as the page's worker opens one: its VBA project is
@@ -240,11 +239,6 @@ pub fn open(
         HostOptions::default(),
     )
     .map_err(|e| format!("{e:?}"))?;
-    let policy = calc_platform_desktop::macro_security::policy(
-        &calc_platform_desktop::macro_security::default_folder(),
-        trust_macros,
-        macros_level,
-    );
     let grant: Result<Option<calc_host_vba::ProjectGrant>, String> = match workbook {
         Some(_) if policy.runs_on_open().is_some() => {
             Ok(Some(calc_host_vba::ProjectGrant::trust_all(

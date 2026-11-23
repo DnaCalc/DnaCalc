@@ -195,14 +195,21 @@ fn run() -> Result<(), String> {
             sheets: &[],
         },
     )?;
+    let policy = calc_platform_desktop::macro_security::policy(
+        &calc_platform_desktop::macro_security::default_folder(),
+        trust_macros,
+        macros_level,
+    );
+    addins.projection_handle().set_registered_com_addins(
+        policy.level() == calc_macro_security::MacroSecurity::Unguarded,
+    )?;
     // The workbook and its object model exist before the add-ins load, as in Excel.
     let (book, opened) = engine::open(
         &sheet_name,
         &workbook_name,
         workbook.as_deref(),
         enable_macros,
-        trust_macros,
-        macros_level,
+        policy,
         engine::automatic_cases(cases_file.as_deref())?,
     )?;
     let session = std::rc::Rc::new(std::cell::RefCell::new(book));

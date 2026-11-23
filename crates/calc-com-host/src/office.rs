@@ -1,6 +1,11 @@
 //! COM-owned Office members composed with the supplied object model.
 //! State transitions and native leases preserve projection-office.h at ef34ca50.
 use crate::{
+    addins::{
+        DiscoveryError,
+        native::{self, Server},
+        registered_addins,
+    },
     interfaces::{IDTExtensibility2, IRibbonExtensibility},
     projection::State,
     runtime::id,
@@ -11,17 +16,19 @@ use calc_value::ExcelText;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     ptr,
     rc::{Rc, Weak},
 };
 use windows::{
     Win32::{
         Foundation::*,
-        System::{Com::*, LibraryLoader::*, Ole::*, Registry::*, Variant::*},
+        System::{Com::*, LibraryLoader::*, Ole::*, Variant::*},
     },
-    core::{BSTR, GUID, HRESULT, Interface, PCWSTR, PWSTR},
+    core::{BSTR, GUID, HRESULT, Interface, PCWSTR},
 };
+
+mod ribbon;
 
 type Result<T> = std::result::Result<T, AutoError>;
 fn failure<T>(code: HRESULT) -> Result<T> {
@@ -30,9 +37,6 @@ fn failure<T>(code: HRESULT) -> Result<T> {
 fn text(value: &str) -> ExcelText {
     ExcelText::from_utf16_code_units(value.encode_utf16().collect())
 }
-fn wide(value: &str) -> Vec<u16> {
-    value.encode_utf16().chain(Some(0)).collect()
-}
 pub(crate) struct ModuleLease(pub HMODULE);
 impl Drop for ModuleLease {
     fn drop(&mut self) {
@@ -40,19 +44,6 @@ impl Drop for ModuleLease {
     }
 }
 impl ModuleLease {
-    fn load(path: &Path) -> Result<Self> {
-        use std::os::windows::ffi::OsStrExt;
-        let path: Vec<_> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-        unsafe {
-            LoadLibraryExW(
-                PCWSTR(path.as_ptr()),
-                None,
-                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-            )
-        }
-        .map(Self)
-        .map_err(status)
-    }
     fn retain(path: &Path) -> Result<Self> {
         use std::os::windows::ffi::OsStrExt;
         let path: Vec<_> = path.as_os_str().encode_wide().chain(Some(0)).collect();
@@ -71,6 +62,8 @@ enum Role {
     Controls,
     Popup,
     Button,
+    RibbonUi,
+    RibbonControl,
 }
 impl Role {
     fn interface(self) -> &'static str {
@@ -82,6 +75,8 @@ impl Role {
             Self::Controls => "CommandBarControls",
             Self::Popup => "CommandBarPopup",
             Self::Button => "_CommandBarButton",
+            Self::RibbonUi => "IRibbonUI",
+            Self::RibbonControl => "IRibbonControl",
         }
     }
 }
@@ -98,11 +93,13 @@ struct Node {
 struct Addin {
     clsid: GUID,
     progid: String,
-    module: PathBuf,
+    server: Server,
+    startup: bool,
+    startup_pending: Cell<bool>,
     description: ExcelText,
     extension: RefCell<Option<IDTExtensibility2>>,
     public: RefCell<Option<IDispatch>>,
-    lease: RefCell<Option<ModuleLease>>,
+    lease: RefCell<Option<Rc<ModuleLease>>>,
     connected: Cell<bool>,
     transition: Cell<bool>,
     disconnecting: Cell<bool>,
@@ -112,6 +109,8 @@ struct Addin {
     failure: Cell<Option<i32>>,
     ui_requested: Cell<bool>,
     xml: RefCell<String>,
+    ribbon_initialized: Cell<bool>,
+    ribbon: RefCell<Option<Rc<ribbon::LiveRibbon>>>,
 }
 impl Drop for Addin {
     fn drop(&mut self) {
@@ -146,12 +145,44 @@ pub(crate) struct CallLease {
     _setting: Option<Setting>,
 }
 
+/// Which COM add-ins the current application policy permits.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum AddinMode {
+    Disabled,
+    Xll,
+    Registered,
+}
+
+#[derive(Clone, Copy)]
+enum Connection {
+    AfterStartup,
+    Startup,
+    UserClosed,
+    HostShutdown,
+}
+
+impl Connection {
+    fn connecting(self) -> bool {
+        matches!(self, Self::AfterStartup | Self::Startup)
+    }
+
+    fn startup(self) -> bool {
+        matches!(self, Self::Startup)
+    }
+
+    fn shutdown(self) -> bool {
+        matches!(self, Self::HostShutdown)
+    }
+}
+
 pub(crate) struct Office {
     state: Weak<State>,
     handlers: Handlers<Office>,
     nodes: RefCell<HashMap<u64, Rc<Node>>>,
     next: Cell<u64>,
     addins: Cell<Option<u64>>,
+    addin_mode: Cell<AddinMode>,
+    pub ribbon_revision: Cell<u64>,
     bars: Cell<Option<u64>>,
     closing: Cell<bool>,
     failure: Cell<Option<i32>>,
@@ -343,12 +374,15 @@ impl Office {
             InvokeKind::Method,
             Self::control_delete,
         );
+        Self::ribbon_handlers(&mut handlers);
         Self {
             state,
             handlers,
             nodes: RefCell::default(),
             next: Cell::new(1),
             addins: Cell::new(None),
+            addin_mode: Cell::new(AddinMode::Xll),
+            ribbon_revision: Cell::new(0),
             bars: Cell::new(None),
             closing: Cell::new(false),
             failure: Cell::new(None),
@@ -437,7 +471,7 @@ impl Office {
         let _ = (target, call);
 
         let addins = self.addins()?;
-        self.refresh(&addins)?;
+        self.refresh(&addins, false)?;
         Ok(AutoValue::Object(addins.target.clone()))
     }
     fn application_bars(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
@@ -473,7 +507,7 @@ impl Office {
     }
     fn collection_update(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
         let _ = (target, call);
-        self.refresh(&self.node(target)?)?;
+        self.refresh(&self.node(target)?, false)?;
         Ok(AutoValue::Empty)
     }
     fn collection_item(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
@@ -620,7 +654,12 @@ impl Office {
         let _ = (target, call);
         let node = self.node(target)?;
 
-        self.connect(&node, values::number(call.arg(0))? != 0.0, false)?;
+        let change = if values::number(call.arg(0))? != 0.0 {
+            Connection::AfterStartup
+        } else {
+            Connection::UserClosed
+        };
+        self.connect(&node, change)?;
         Ok(AutoValue::Empty)
     }
     fn addin_object(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue> {
@@ -698,10 +737,15 @@ impl Office {
         drop(values::ArrayOwner(array));
         result.ok().map_err(status)
     }
-    fn connect(&self, node: &Rc<Node>, connect: bool, shutdown: bool) -> Result<()> {
+    fn connect(&self, node: &Rc<Node>, change: Connection) -> Result<()> {
+        let connect = change.connecting();
+        let shutdown = change.shutdown();
         let data = node.addin.borrow().clone().ok_or(AutoError::Disconnected)?;
         if connect && self.closing.get() {
             return Err(AutoError::Disconnected);
+        }
+        if connect && self.addin_mode.get() == AddinMode::Disabled {
+            return failure(E_ACCESSDENIED);
         }
         if let Some(code) = data.failure.get() {
             return Err(AutoError::Status(code));
@@ -736,8 +780,11 @@ impl Office {
                 return Err(e);
             }
             data.connected.set(false);
+            data.startup_pending.set(false);
             data.ui_requested.set(false);
             data.xml.borrow_mut().clear();
+            self.forget_ribbon(&data);
+            self.mark_ribbon_changed();
             let object = data.public.take();
             let owned = data.extension.take();
             let lease = data.lease.take();
@@ -748,32 +795,49 @@ impl Office {
             return Ok(());
         }
         let state = self.state()?;
-        if !state.host.contains_loaded_module(&data.module) {
+        if self.addin_mode.get() == AddinMode::Xll && !Self::is_xll(&state, &data.server) {
             return failure(E_ACCESSDENIED);
         }
-        let lease = ModuleLease::load(&data.module)?;
-        let extension = unsafe {
-            CoCreateInstance::<_, IDTExtensibility2>(&data.clsid, None, CLSCTX_INPROC_SERVER)
+        let application = state.wrap(&state.application())?;
+        let item = state.wrap(&node.target)?;
+        let context = match data.server {
+            Server::InProcess(_) => CLSCTX_INPROC_SERVER,
+            Server::Local => CLSCTX_LOCAL_SERVER,
+        };
+        let lease;
+        let extension =
+            unsafe { CoCreateInstance::<_, IDTExtensibility2>(&data.clsid, None, context) }
+                .map_err(status)?;
+        lease = match &data.server {
+            Server::InProcess(path) => Some(Rc::new(ModuleLease::retain(path)?)),
+            Server::Local => None,
+        };
+        // Activation can reenter the STA before the connection is visible.
+        if self.closing.get() || self.addin_mode.get() == AddinMode::Disabled {
+            return failure(E_ABORT);
         }
-        .map_err(status)?;
         let mut custom = unsafe { SafeArrayCreateVector(VT_VARIANT, 1, 1) };
         let initial = values::ArrayOwner::new(custom)?;
         let startup = VARIANT::from(3i32);
         unsafe { SafeArrayPutElement(custom, &1, (&startup as *const VARIANT).cast()) }
             .map_err(status)?;
         // Publish all live ownership before OnConnection can set COMAddIn.Object or reenter.
-        *data.lease.borrow_mut() = Some(lease);
+        *data.lease.borrow_mut() = lease;
         *data.extension.borrow_mut() = Some(extension);
         data.connected.set(true);
         let generation = data.generation.get();
-        let application = state.wrap(&state.application())?;
-        let item = state.wrap(&node.target)?;
         let extension = Self::extension(&data)?;
         let _ = initial.take();
-        let connected =
-            unsafe { extension.OnConnection(application.as_raw(), 0, item.as_raw(), &mut custom) }
-                .ok()
-                .map_err(status);
+        let connected = unsafe {
+            extension.OnConnection(
+                application.as_raw(),
+                i32::from(change.startup()),
+                item.as_raw(),
+                &mut custom,
+            )
+        }
+        .ok()
+        .map_err(status);
         drop(values::ArrayOwner(custom));
         let result = connected
             .and_then(|_| Self::custom(|array| unsafe { extension.OnAddInsUpdate(array) }));
@@ -784,53 +848,28 @@ impl Office {
         if generation != data.generation.get() || !data.connected.get() {
             return failure(E_ABORT);
         }
+        if self.addin_mode.get() == AddinMode::Disabled {
+            drop(_transition);
+            self.connect(node, Connection::UserClosed)?;
+            return failure(E_ABORT);
+        }
+        data.startup_pending.set(change.startup());
+        self.mark_ribbon_changed();
         Ok(())
     }
-    fn refresh(&self, collection: &Rc<Node>) -> Result<()> {
+    fn refresh(&self, collection: &Rc<Node>, at_startup: bool) -> Result<()> {
         if self.closing.get() {
             return Err(AutoError::Disconnected);
         }
-        let mut key = HKEY::default();
-        let code = unsafe {
-            RegOpenKeyExW(
-                HKEY_CURRENT_USER,
-                windows::core::w!("Software\\Microsoft\\Office\\Excel\\Addins"),
-                None,
-                KEY_READ,
-                &mut key,
-            )
-        };
-        if code == ERROR_FILE_NOT_FOUND {
-            return Ok(());
-        }
-        code.ok().map_err(status)?;
-        struct Key(HKEY);
-        impl Drop for Key {
-            fn drop(&mut self) {
-                let _ = unsafe { RegCloseKey(self.0) };
-            }
-        }
-        let _key = Key(key);
-        for index in 0.. {
-            let mut buffer = [0u16; 256];
-            let mut length = buffer.len() as u32;
-            let result = unsafe {
-                RegEnumKeyExW(
-                    key,
-                    index,
-                    Some(PWSTR(buffer.as_mut_ptr())),
-                    &mut length,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-            };
-            if result == ERROR_NO_MORE_ITEMS {
-                break;
-            }
-            result.ok().map_err(status)?;
-            let progid = String::from_utf16_lossy(&buffer[..length as usize]);
+        let mode = self.addin_mode.get();
+        let state = self.state()?;
+        let registrations =
+            registered_addins(mode != AddinMode::Disabled).map_err(|error| match error {
+                DiscoveryError::Registry(code) => AutoError::Status(code),
+                DiscoveryError::WindowsOnly => AutoError::Status(E_NOTIMPL.0),
+            })?;
+        for registration in registrations {
+            let progid = registration.progid.clone();
             if self.children(collection).iter().any(|node| {
                 node.addin
                     .borrow()
@@ -839,40 +878,22 @@ impl Office {
             }) {
                 continue;
             }
-            let Some(clsid) = registry_string(
-                HKEY_CURRENT_USER,
-                &format!("Software\\Classes\\{progid}\\CLSID"),
-                None,
-            ) else {
+            let Some((clsid, server)) = native::server(&progid) else {
                 continue;
             };
-            let clsid_wide = wide(&clsid);
-            let Ok(id) = (unsafe { CLSIDFromString(PCWSTR(clsid_wide.as_ptr())) }) else {
-                continue;
-            };
-            let Some(module) = registry_string(
-                HKEY_CURRENT_USER,
-                &format!("Software\\Classes\\CLSID\\{clsid}\\InprocServer32"),
-                None,
-            ) else {
-                continue;
-            };
-            let module = PathBuf::from(module);
-            if !self.state()?.host.contains_loaded_module(&module) {
+            let is_xll = Self::is_xll(&state, &server);
+            if mode == AddinMode::Xll && !is_xll {
                 continue;
             }
-            let description = registry_string(
-                HKEY_CURRENT_USER,
-                &format!("Software\\Microsoft\\Office\\Excel\\Addins\\{progid}"),
-                Some("Description"),
-            )
-            .unwrap_or_default();
+            let startup = registration.starts_with_application();
             let node = self.make(collection.target.clone(), Role::Addin)?;
             *node.addin.borrow_mut() = Some(Rc::new(Addin {
-                clsid: id,
+                clsid,
                 progid,
-                module,
-                description: text(&description),
+                server,
+                startup,
+                startup_pending: Cell::new(false),
+                description: text(&registration.description),
                 extension: RefCell::default(),
                 public: RefCell::default(),
                 lease: RefCell::default(),
@@ -885,12 +906,82 @@ impl Office {
                 failure: Cell::new(None),
                 ui_requested: Cell::new(false),
                 xml: RefCell::default(),
+                ribbon_initialized: Cell::new(false),
+                ribbon: RefCell::default(),
             }));
             collection.children.borrow_mut().push(Self::key(&node));
-            self.connect(&node, true, false)?;
+            if is_xll && !at_startup {
+                self.connect(&node, Connection::AfterStartup)?;
+            }
         }
         Ok(())
     }
+
+    fn is_xll(state: &State, server: &Server) -> bool {
+        matches!(server, Server::InProcess(path) if state.host.contains_loaded_module(path))
+    }
+
+    pub fn set_addin_mode(&self, mode: AddinMode) -> Result<()> {
+        if self.addin_mode.replace(mode) != mode {
+            self.mark_ribbon_changed();
+        }
+        if mode == AddinMode::Disabled
+            && let Some(key) = self.addins.get()
+        {
+            let collection = self.nodes.borrow()[&key].clone();
+            let mut first = None;
+            for node in self.children(&collection) {
+                if let Err(error) = self.connect(&node, Connection::UserClosed) {
+                    first.get_or_insert(error);
+                }
+            }
+            if let Some(error) = first {
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn start_registered_addins(&self) -> Result<Vec<(String, AutoError)>> {
+        if self.addin_mode.get() != AddinMode::Registered {
+            return Ok(Vec::new());
+        }
+        let collection = self.addins()?;
+        self.refresh(&collection, true)?;
+        Ok(self.connect_startup(&collection))
+    }
+
+    fn connect_startup(&self, collection: &Node) -> Vec<(String, AutoError)> {
+        let snapshot = self.children(collection);
+        let mut failures = Vec::new();
+        for node in &snapshot {
+            let Some(data) = node.addin.borrow().clone() else {
+                continue;
+            };
+            if data.startup
+                && let Err(error) = self.connect(node, Connection::Startup)
+            {
+                failures.push((data.progid.clone(), error));
+            }
+        }
+        for node in &snapshot {
+            let Some(data) = node.addin.borrow().clone() else {
+                continue;
+            };
+            if !data.startup_pending.replace(false) {
+                continue;
+            }
+            let _lease = data.lease.borrow().clone();
+            let result = Self::extension(&data).and_then(|extension| {
+                Self::custom(|array| unsafe { extension.OnStartupComplete(array) })
+            });
+            if let Err(error) = result {
+                failures.push((data.progid.clone(), error));
+            }
+        }
+        failures
+    }
+
     pub fn close(&self) -> Result<()> {
         self.closing.set(true);
         if let Some(code) = self.failure.get() {
@@ -900,7 +991,7 @@ impl Office {
         if let Some(key) = self.addins.get() {
             let collection = self.nodes.borrow()[&key].clone();
             for node in self.children(&collection) {
-                if let Err(error) = self.connect(&node, false, true) {
+                if let Err(error) = self.connect(&node, Connection::HostShutdown) {
                     first.get_or_insert(error);
                 }
             }
@@ -932,7 +1023,7 @@ impl Office {
                 continue;
             }
             let generation = data.generation.get();
-            let _lease = ModuleLease::retain(&data.module)?;
+            let _lease = data.lease.borrow().clone();
             let extension = Self::extension(&data)?;
             if generation != data.generation.get() || !data.connected.get() {
                 return failure(E_ABORT);
@@ -980,57 +1071,11 @@ impl Office {
     }
 }
 
-pub(crate) fn registry_string(root: HKEY, key: &str, name: Option<&str>) -> Option<String> {
-    let key = wide(key);
-    let name = name.map(wide);
-    let name = name.as_ref().map_or(PCWSTR::null(), |n| PCWSTR(n.as_ptr()));
-    let mut bytes = 0;
-    if unsafe {
-        RegGetValueW(
-            root,
-            PCWSTR(key.as_ptr()),
-            name,
-            RRF_RT_REG_SZ,
-            None,
-            None,
-            Some(&mut bytes),
-        )
-    } != ERROR_SUCCESS
-        || bytes < 2
-        || bytes > 65536
-        || bytes % 2 != 0
-    {
-        return None;
-    }
-    let mut buffer = vec![0u16; bytes as usize / 2];
-    if unsafe {
-        RegGetValueW(
-            root,
-            PCWSTR(key.as_ptr()),
-            name,
-            RRF_RT_REG_SZ,
-            None,
-            Some(buffer.as_mut_ptr().cast()),
-            Some(&mut bytes),
-        )
-    } != ERROR_SUCCESS
-        || bytes % 2 != 0
-        || bytes as usize > buffer.len() * 2
-    {
-        return None;
-    }
-    let buffer = &buffer[..bytes as usize / 2];
-    let end = buffer.iter().position(|c| *c == 0)?;
-    if buffer[end..].iter().any(|c| *c != 0) {
-        return None;
-    }
-    String::from_utf16(&buffer[..end]).ok()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::interfaces::{IDTExtensibility2_Impl, IRibbonExtensibility_Impl};
+    use std::path::PathBuf;
     use windows::core::{IUnknownImpl, implement};
 
     #[implement(IDTExtensibility2, IRibbonExtensibility, Agile = false)]
@@ -1039,6 +1084,13 @@ mod tests {
         node: Rc<Node>,
         mode: i32,
         live: Rc<Cell<u32>>,
+        trace: Option<Rc<Trace>>,
+    }
+    #[derive(Default)]
+    struct Trace {
+        calls: RefCell<Vec<(&'static str, i32)>>,
+        application: Cell<usize>,
+        ribbon: RefCell<Option<IDispatch>>,
     }
     impl Drop for Provider {
         fn drop(&mut self) {
@@ -1048,11 +1100,15 @@ mod tests {
     impl IDTExtensibility2_Impl for Provider_Impl {
         unsafe fn OnConnection(
             &self,
-            _: *mut std::ffi::c_void,
-            _: i32,
+            application: *mut std::ffi::c_void,
+            mode: i32,
             _: *mut std::ffi::c_void,
             _: *mut *mut SAFEARRAY,
         ) -> HRESULT {
+            if let Some(trace) = &self.trace {
+                trace.calls.borrow_mut().push(("connection", mode));
+                trace.application.set(application as usize);
+            }
             if self.mode != 5 {
                 return S_OK;
             }
@@ -1082,33 +1138,58 @@ mod tests {
             }
             .map_or_else(|e| e.code(), |_| S_OK)
         }
-        unsafe fn OnDisconnection(&self, _: i32, _: *mut *mut SAFEARRAY) -> HRESULT {
+        unsafe fn OnDisconnection(&self, mode: i32, _: *mut *mut SAFEARRAY) -> HRESULT {
+            if let Some(trace) = &self.trace {
+                trace.calls.borrow_mut().push(("disconnection", mode));
+                trace.ribbon.take();
+            }
             if self.mode == 4 {
                 let state = self.state.upgrade().unwrap();
                 let collection = state.office.node(&self.node.parent).unwrap();
-                if state.office.refresh(&collection) != Err(AutoError::Disconnected) {
+                if state.office.refresh(&collection, false) != Err(AutoError::Disconnected) {
                     return E_FAIL;
                 }
             }
             if self.mode == 6 { E_FAIL } else { S_OK }
         }
         unsafe fn OnAddInsUpdate(&self, _: *mut *mut SAFEARRAY) -> HRESULT {
+            if let Some(trace) = &self.trace {
+                trace.calls.borrow_mut().push(("update", 0));
+            }
             S_OK
         }
         unsafe fn OnStartupComplete(&self, _: *mut *mut SAFEARRAY) -> HRESULT {
+            if let Some(trace) = &self.trace {
+                trace.calls.borrow_mut().push(("startup", 0));
+            }
             S_OK
         }
         unsafe fn OnBeginShutdown(&self, _: *mut *mut SAFEARRAY) -> HRESULT {
+            if let Some(trace) = &self.trace {
+                trace.calls.borrow_mut().push(("shutdown", 0));
+            }
             S_OK
         }
     }
     impl IRibbonExtensibility_Impl for Provider_Impl {
-        unsafe fn GetCustomUI(&self, _: *const u16, result: *mut *const u16) -> HRESULT {
+        unsafe fn GetCustomUI(&self, ribbon_id: *const u16, result: *mut *const u16) -> HRESULT {
             if result.is_null() {
                 return E_POINTER;
             }
             unsafe {
                 *result = ptr::null();
+            }
+            if let Some(trace) = &self.trace {
+                if unsafe { PCWSTR(ribbon_id).to_string() }.ok().as_deref()
+                    != Some("Microsoft.Excel.Workbook")
+                {
+                    return E_INVALIDARG;
+                }
+                trace.calls.borrow_mut().push(("customUI", 0));
+                unsafe {
+                    *result = BSTR::from(r#"<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="Load"><ribbon><tabs><tab id="t"><group id="g"><button id="run" onAction="Run" getLabel="Label" getEnabled="Enabled" getVisible="Visible"/></group></tab></tabs></ribbon></customUI>"#).into_raw();
+                }
+                return S_OK;
             }
             let state = self.state.upgrade().unwrap();
             if self.mode == 1 {
@@ -1123,7 +1204,7 @@ mod tests {
                 }
             }
             if self.mode == 2 {
-                if let Err(error) = state.office.connect(&self.node, false, false) {
+                if let Err(error) = state.office.connect(&self.node, Connection::UserClosed) {
                     return crate::runtime::error(&error, ptr::null_mut());
                 }
             }
@@ -1143,32 +1224,82 @@ mod tests {
         fn GetIDsOfNames(
             &self,
             _: *const GUID,
-            _: *const PCWSTR,
+            names: *const PCWSTR,
+            count: u32,
             _: u32,
-            _: u32,
-            _: *mut i32,
+            dispid: *mut i32,
         ) -> windows::core::Result<()> {
-            Err(windows::core::Error::from_hresult(E_NOTIMPL))
+            if self.trace.is_none() || count != 1 {
+                return Err(windows::core::Error::from_hresult(E_NOTIMPL));
+            }
+            let name = unsafe { (*names).to_string() }?;
+            let id = match name.as_str() {
+                "Load" => 1,
+                "Run" => 2,
+                "Label" => 3,
+                "Enabled" => 4,
+                "Visible" => 5,
+                _ => return Err(windows::core::Error::from_hresult(DISP_E_UNKNOWNNAME)),
+            };
+            unsafe { *dispid = id };
+            Ok(())
         }
         fn Invoke(
             &self,
-            _: i32,
+            id: i32,
             _: *const GUID,
             _: u32,
             _: DISPATCH_FLAGS,
-            _: *const DISPPARAMS,
-            _: *mut VARIANT,
+            params: *const DISPPARAMS,
+            result: *mut VARIANT,
             _: *mut EXCEPINFO,
             _: *mut u32,
         ) -> windows::core::Result<()> {
-            Err(windows::core::Error::from_hresult(E_NOTIMPL))
+            let Some(trace) = &self.trace else {
+                return Err(windows::core::Error::from_hresult(E_NOTIMPL));
+            };
+            let params = unsafe { &*params };
+            assert_eq!(params.cArgs, 1);
+            let argument = IDispatch::try_from(unsafe { &*params.rgvarg })?;
+            match id {
+                1 => {
+                    trace.calls.borrow_mut().push(("onLoad", 0));
+                    trace.ribbon.replace(Some(argument));
+                }
+                2 => {
+                    trace.calls.borrow_mut().push(("onAction", 0));
+                    let mut control_id = VARIANT::default();
+                    unsafe {
+                        argument.Invoke(
+                            1,
+                            &GUID::zeroed(),
+                            0,
+                            DISPATCH_PROPERTYGET,
+                            &DISPPARAMS::default(),
+                            Some(&mut control_id),
+                            None,
+                            None,
+                        )
+                    }?;
+                    assert_eq!(BSTR::try_from(&control_id)?.to_string(), "run");
+                }
+                3 => {
+                    trace.calls.borrow_mut().push(("getLabel", 0));
+                    unsafe { *result = VARIANT::from("Run test") };
+                }
+                4 | 5 => unsafe { *result = VARIANT::from(true) },
+                _ => return Err(windows::core::Error::from_hresult(DISP_E_MEMBERNOTFOUND)),
+            }
+            Ok(())
         }
     }
-    fn data(module: PathBuf) -> Addin {
+    fn data(module: std::path::PathBuf) -> Addin {
         Addin {
             clsid: GUID::zeroed(),
             progid: "fixture".into(),
-            module,
+            server: Server::InProcess(module),
+            startup: false,
+            startup_pending: Cell::new(false),
             description: text(""),
             extension: RefCell::default(),
             public: RefCell::default(),
@@ -1182,7 +1313,126 @@ mod tests {
             failure: Cell::new(None),
             ui_requested: Cell::new(false),
             xml: RefCell::default(),
+            ribbon_initialized: Cell::new(false),
+            ribbon: RefCell::default(),
         }
+    }
+
+    #[implement(IClassFactory, Agile = false)]
+    struct FixtureFactory(IDTExtensibility2);
+
+    impl IClassFactory_Impl for FixtureFactory_Impl {
+        fn CreateInstance(
+            &self,
+            _: windows::core::Ref<'_, windows::core::IUnknown>,
+            iid: *const GUID,
+            result: *mut *mut std::ffi::c_void,
+        ) -> windows::core::Result<()> {
+            unsafe { self.0.query(iid, result) }.ok()
+        }
+
+        fn LockServer(&self, _: windows::core::BOOL) -> windows::core::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Native-only: uses COM activation and the descriptor-backed Application and ribbon wrappers.
+    #[test]
+    fn standalone_provider_uses_startup_ribbon_and_shutdown_lifecycle() {
+        let _apartment = crate::tests::Apartment::new();
+        let projection =
+            crate::Projection::new(1, Rc::new(calc_xll_host::XllHost::new(1))).unwrap();
+        let application = projection.application().unwrap();
+        let office = &projection.state.office;
+        let collection = office.addins().unwrap();
+        let node = office.make(collection.target.clone(), Role::Addin).unwrap();
+        collection.children.borrow_mut().push(Office::key(&node));
+        let trace = Rc::new(Trace::default());
+        let live = Rc::new(Cell::new(1));
+        let provider: IDTExtensibility2 = Provider {
+            state: Rc::downgrade(&projection.state),
+            node: node.clone(),
+            mode: 0,
+            live: live.clone(),
+            trace: Some(trace.clone()),
+        }
+        .into();
+        let clsid = unsafe { CoCreateGuid() }.unwrap();
+        let factory: IClassFactory = FixtureFactory(provider).into();
+        let cookie = unsafe {
+            CoRegisterClassObject(&clsid, &factory, CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE)
+        }
+        .unwrap();
+        struct Registered(u32);
+        impl Drop for Registered {
+            fn drop(&mut self) {
+                let _ = unsafe { CoRevokeClassObject(self.0) };
+            }
+        }
+        let registered = Registered(cookie);
+        let mut registration = data(PathBuf::new());
+        registration.clsid = clsid;
+        registration.server = Server::Local;
+        registration.startup = true;
+        node.addin.replace(Some(Rc::new(registration)));
+
+        projection.set_registered_com_addins(false).unwrap();
+        assert_eq!(office.connect_startup(&collection).len(), 1);
+        assert!(trace.calls.borrow().is_empty());
+        projection.set_registered_com_addins(true).unwrap();
+        assert!(office.connect_startup(&collection).is_empty());
+        assert_eq!(trace.application.get(), application.as_raw() as usize);
+        assert_eq!(
+            *trace.calls.borrow(),
+            [("connection", 1), ("update", 0), ("startup", 0)]
+        );
+
+        let buttons = projection.ribbon_buttons().unwrap();
+        assert_eq!(buttons.len(), 1);
+        assert_eq!(buttons[0].label, "Run test");
+        assert!(buttons[0].enabled && buttons[0].visible);
+        projection.click_ribbon(buttons[0].token).unwrap();
+        let ui = trace.ribbon.borrow().clone().unwrap();
+        let mut arg = VARIANT::from("run");
+        let params = DISPPARAMS {
+            rgvarg: &mut arg,
+            cArgs: 1,
+            ..Default::default()
+        };
+        unsafe {
+            ui.Invoke(
+                2,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                None,
+                None,
+                None,
+            )
+        }
+        .unwrap();
+        assert_eq!(projection.ribbon_buttons().unwrap(), buttons);
+        projection.close_addins().unwrap();
+        assert!(projection.click_ribbon(buttons[0].token).is_err());
+        assert_eq!(
+            *trace.calls.borrow(),
+            [
+                ("connection", 1),
+                ("update", 0),
+                ("startup", 0),
+                ("customUI", 0),
+                ("onLoad", 0),
+                ("getLabel", 0),
+                ("onAction", 0),
+                ("getLabel", 0),
+                ("shutdown", 0),
+                ("disconnection", 0),
+            ]
+        );
+        drop(registered);
+        drop(factory);
+        assert_eq!(live.get(), 0);
     }
 
     type Query = unsafe extern "system" fn(
@@ -1208,7 +1458,7 @@ mod tests {
         });
         if !iid.is_null() && unsafe { *iid } == IRibbonExtensibility::IID {
             let state = state.upgrade().unwrap();
-            if let Err(error) = state.office.connect(&node, false, false) {
+            if let Err(error) = state.office.connect(&node, Connection::UserClosed) {
                 return crate::runtime::error(&error, ptr::null_mut());
             }
         }
@@ -1232,6 +1482,7 @@ mod tests {
                 node: node.clone(),
                 mode,
                 live: live.clone(),
+                trace: None,
             }
             .into();
             // This controlled provider substitutes only its own QueryInterface slot. The
@@ -1335,6 +1586,7 @@ mod tests {
             node: node.clone(),
             mode: 6,
             live: live.clone(),
+            trace: None,
         }
         .into();
         let data = Rc::new(data(std::env::current_exe().unwrap()));
