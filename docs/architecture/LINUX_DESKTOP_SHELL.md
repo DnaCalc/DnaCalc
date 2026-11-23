@@ -1,7 +1,6 @@
 # DNA Calc desktop on Linux: shell options (dc-icq4.3)
 
-Design note, 2026-11-13. Option B is implemented by dc-icq4.4; options A and C remain proposals.
-WebKitGTK and WebGPU on WebKitGTK have not been measured on this host (see below).
+Design note, 2026-11-13. Option B is implemented by dc-icq4.4. Options A and C remain proposals.
 
 ## What the Windows shell is today
 
@@ -57,7 +56,7 @@ the Windows modules), a Linux `app` in `dna-calc-desktop`, and a second carrier 
 - Against: a dynamically linked desktop executable that needs `libwebkit2gtk-4.1` (Ubuntu 25.10
   offers 2.52.3 by `apt-cache policy`); engine versions differ per distribution, so page behaviour
   varies where WebView2 is one evergreen runtime; Wayland and X11 differences; the static runner
-  tarball cannot carry it. WebGPU in WebKitGTK is **not verified**: the probe is the test.
+  tarball cannot carry it. See the WebKitGTK measurement below for the capabilities observed on dna-koderbot.
 - Not in `Cargo.lock` today (`grep wry Cargo.lock` finds nothing): a new dependency set to vet.
 
 ### B. Browser-served local app (`dnacalc serve`)
@@ -139,13 +138,24 @@ the existing verdict path. These are Fast comparisons, not exact-target certific
 inputs use the Excel differential-fill convention established by dc-qgth; all existing colour,
 sorting and saved-file assertions remain in place.
 
+## WebKitGTK measurement (dc-icq4.5)
+
+On dna-koderbot on 2026-11-23, Ubuntu's `webkitgtk-webdriver` package drove the WebKitGTK
+4.1 MiniBrowser, version 2.52.6. The session ran on X11 under Xvfb with a private D-Bus
+session and software GL. The existing WebGPU probe ran on a secure loopback origin.
+Canvas 2D and WebGL 2.0 contexts opened. `navigator.gpu` was absent, so adapter/device
+acquisition and the GPU compute and render readbacks were unavailable in this session.
+
+The local content preview built at `7079811a9e96` mounted the grid and reached worker
+readiness in 1.258 s. The file input opened the authored `pictures-paint.xlsx` fixture
+to the Shapes sheet in 0.222 s. The page recorded zero uncaught errors or promise
+rejections. The six existing workbook basics smoke cases passed in 3.334 s, including
+formula entry and dependent recalculation. A temporary WebDriver adapter translated
+session setup and desktop window sizing. The complete suite still needs WebKit support
+for browser-specific viewport, download and print controls.
+
 ## Open questions (to measure before building)
 
-- Does the page run, and does `navigator.gpu` exist, in WebKitGTK 2.52? **Not measured on
-  dna-firehorse, 2026-11-13:** pkg-config, the dynamic linker cache and Python's library lookup
-  found no WebKitGTK 4.1, 4.0 or 6.0 library; WebKitWebDriver is absent too. Neither the page nor
-  `apps/dna-calc-desktop/probe/webgpu.html` could be run there without installing the system
-  runtime. No system packages were installed. A host with WebKitGTK is still needed (dc-icq4.5).
 - What should `Shell`, `Environ`, `CurDir` and path separators mean in `unguarded` on Linux?
 - Does File System Access matter, or is download-and-open enough for the browser route?
 - aarch64 Linux: the runner build is x86-64 only so far (dc-icq4.2).
