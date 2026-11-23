@@ -144,10 +144,10 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
     use crate::ported::beta_gamma_stats_family::{
         flush_subnormal, goldstein_initial_unit, large_shape_inverse_unit,
     };
-    // At large degrees Excel publishes Goldstein's starting value. The right
-    // tail negates the normal deviate of p itself, preserving small tails that
-    // would round away in 1 - p. The cubic uses the truncated degree.
-    if n >= 2.0_f64.powi(40) && p >= f64::MIN_POSITIVE {
+    // At large degrees (n >= 5e10) Excel publishes 7-term Goldstein's starting value
+    // (Carbon cb20 / dc-j9k.71). The right tail negates the normal deviate of p itself,
+    // preserving small tails that would round away in 1 - p. The cubic uses the truncated degree.
+    if n >= 5e10 && p >= f64::MIN_POSITIVE {
         if n >= 2.0_f64.powi(1000) {
             use crate::ported::excel_numeric::excel_x87_mul;
             let result = large_shape_inverse_unit(n);
@@ -162,14 +162,8 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
             return Ok(result);
         }
         let z = -crate::ported::normal_log_family::norm_s_inv_kernel(p)?;
-        return goldstein_initial_unit(z, n * 0.5)
-            .map(|unit| unit * 2.0)
-            .ok_or(WorksheetErrorCode::Num);
-    }
-    if let Some(factor) =
-        crate::ported::beta_gamma_stats_family::goldstein_large_degree_factor(1.0 - p, n)
-    {
-        let res = crate::ported::excel_numeric::excel_x87_mul(n, factor);
+        let unit = goldstein_initial_unit(z, n * 0.5).ok_or(WorksheetErrorCode::Num)?;
+        let res = crate::ported::excel_numeric::excel_x87_mul(2.0, unit);
         return if res.is_finite() {
             Ok(flush_subnormal(res))
         } else {

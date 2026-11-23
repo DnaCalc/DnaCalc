@@ -394,44 +394,6 @@ pub(super) fn goldstein_initial_unit(z: f64, a: f64) -> Option<f64> {
     Some(excel_x87_mul(a, excel_x87_mul(excel_x87_mul(c, c), c)))
 }
 
-fn goldstein_cube_from_z(z: f64, n: f64) -> f64 {
-    use crate::ported::excel_numeric::{
-        excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
-    };
-    let f = excel_x87_div(1.0, n);
-    let f1 = excel_sqrt_staged(f);
-    let a0 = excel_x87_add(1.0000886, excel_x87_mul(-0.2237368, f));
-    let a1 = excel_x87_mul(0.4713941, f1);
-    let a2 = excel_x87_mul(1.348028e-4, f);
-    let c = excel_x87_add(excel_x87_mul(excel_x87_add(excel_x87_mul(a2, z), a1), z), a0);
-    excel_x87_mul(excel_x87_mul(c, c), c)
-}
-
-/// Stored cube from Goldstein's chi-square approximation (Algorithm 451, 1973).
-/// At large n the cubic's base is Horner in the normal deviate, with coefficients in 1/n.
-/// Goldstein's published coefficients and the stored PC64 stages were identified on
-/// chi-square (dc-6332.18), including the separately rounded constant term. ax2's
-/// 1,410 gamma controls per alias use n = 2*shape, retaining fractional degrees.
-/// The higher powers can still shift a few low bits near the lower limit of this arm.
-pub(super) fn goldstein_large_degree_factor(probability: f64, n: f64) -> Option<f64> {
-    if !(5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&n) {
-        // [5e10, 2^1000)
-        return None;
-    }
-    let z = crate::ported::normal_log_family::norm_s_inv_kernel(probability).ok()?;
-    // Goldstein's terms in z^3 f^(3/2) and beyond reach the last place for larger |z| at the
-    // smaller degrees (fresh Excel answers: misses only at |z| >= 2.98 with n <= 2.6e11).
-    let z_bound = if n >= f64::from_bits(0x4270_0000_0000_0000) {
-        4.0
-    } else {
-        2.75
-    }; // 2^40
-    if !(z.abs() <= z_bound) {
-        return None;
-    }
-    Some(goldstein_cube_from_z(z, n))
-}
-
 /// Excel 20527's stored unit result in the measured very-large-shape region.
 pub(crate) fn large_shape_inverse_unit(shape: f64) -> f64 {
     crate::ported::excel_numeric::excel_x87_mul(shape, f64::from_bits(0x3ff0_0116_bc77_4cb6))
@@ -632,7 +594,10 @@ pub(super) fn gamma_halley_unit(
         let p_comp = excel_x87_add(0.5, excel_x87_sub(0.5, prob));
         if p_comp < 1.0 && 2.0 * a < excel_x87_mul(-1.24, excel_log(p_comp)) {
             let log_seed = excel_x87_div(
-                excel_x87_add(excel_log(p_comp), gammaln_excel(1.0 + a)),
+                excel_x87_add(
+                    excel_x87_add(excel_log(p_comp), gammaln_excel(a)),
+                    excel_log(a),
+                ),
                 a,
             );
             let seed = excel_exp(log_seed);
@@ -771,8 +736,12 @@ pub fn gamma_inv_kernel(
         return Ok(0.0);
     }
     use crate::ported::excel_numeric::excel_x87_mul;
-    if let Some(factor) = goldstein_large_degree_factor(probability, 2.0 * alpha) {
-        let unit = excel_x87_mul(alpha, factor);
+    // Unified 7-term Goldstein (Algorithm 451) across all large shapes 2*alpha in [5e10, 2^1000)
+    // (Carbon cb20 / dc-j9k.71).
+    if (5e10..f64::from_bits(0x7e70_0000_0000_0000)).contains(&(2.0 * alpha))
+        && let Ok(z) = crate::ported::normal_log_family::norm_s_inv_kernel(probability)
+        && let Some(unit) = goldstein_initial_unit(z, alpha)
+    {
         let result = excel_x87_mul(beta, unit);
         return if result.is_finite() {
             Ok(flush_subnormal(result))
@@ -827,20 +796,6 @@ pub fn gamma_inv_kernel(
         } else {
             -excel_log(1.0 - probability)
         };
-        let result = excel_x87_mul(beta, unit);
-        return if result.is_finite() {
-            Ok(flush_subnormal(result))
-        } else {
-            Err(WorksheetErrorCode::Num)
-        };
-    }
-    // High-shape [2.5e10, 2^95) fallback where |z| exceeded z_bound in
-    // goldstein_large_degree_factor: evaluate the same stored Goldstein cube.
-    if (2.5e10..2.0_f64.powi(95)).contains(&alpha)
-        && let Ok(z) = crate::ported::normal_log_family::norm_s_inv_kernel(probability)
-    {
-        let factor = goldstein_cube_from_z(z, 2.0 * alpha);
-        let unit = excel_x87_mul(alpha, factor);
         let result = excel_x87_mul(beta, unit);
         return if result.is_finite() {
             Ok(flush_subnormal(result))
@@ -1469,6 +1424,55 @@ mod tests {
                 expected,
                 "GAMMA.INV({p_bits:#x}, {a_bits:#x}, 1)",
             );
+        }
+    }
+
+    /// Excel 16.0.20527.20196 (Carbon cb20 / dc-j9k.71):
+    /// - Unified 7-term Goldstein (`goldstein_initial_unit`) across `2 * alpha in [5e10, 2^1000)`
+    ///   in `gamma_inv_kernel` and `n >= 5e10` (`z = -norm_s_inv_kernel(p)`) in `chisq_inv_rt_kernel`
+    ///   (removing the truncated 3-term `goldstein_cube_from_z` and `|z| <= 2.75` `#NUM!` cliff).
+    /// - Unified AS 91 right-tail `power_seed` `((ln(p_comp) + gammaln_excel(a)) + ln(a)) / a`
+    ///   in `gamma_halley_unit` (`is_upper_q == true`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb20_goldstein_7term_and_chi_rt_as91_power_seed_match_excel() {
+        use crate::ported::chi_f_t_family::chisq_inv_rt_kernel;
+
+        // P9: 7-term Goldstein on GAMMA.INV (2*alpha >= 5e10, large |z|).
+        for &(label, p_bits, a_bits, b_bits, expected) in &[
+            ("P9_gamma_161", 0x3139_9e31_2db4_bb33_u64, 0x4248_4e65_ce72_cef6_u64, 0x4134_2775_bc67_eeb0_u64, 0x438e_9fb8_31b2_1a07_u64),
+            ("P9_gamma_162", 0x300f_c3b1_8a88_ebb4, 0x422c_af07_78fb_9a7b, 0x3eb5_4fea_e050_f03e, 0x40f3_1b6e_b632_eb80),
+        ] {
+            let got = gamma_inv_kernel(
+                f64::from_bits(p_bits),
+                f64::from_bits(a_bits),
+                f64::from_bits(b_bits),
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
+        }
+
+        // P9: 7-term Goldstein on CHIINV / CHISQ.INV.RT (5e10 <= df < 2^40, |z| > 2.75).
+        // P10 & H8: AS 91 right-tail power_seed `((ln(p_comp) + gammaln(a)) + ln(a)) / a`.
+        for &(label, q_bits, df_bits, expected) in &[
+            ("P9_chi_171", 0x3aa8_d644_1dcc_75b9_u64, 0x4241_4c13_edaa_8000_u64, 0x4241_4d6c_f7e4_b6c8_u64),
+            ("P9_chi_172", 0x3ce3_14cb_c7a5_ee91, 0x4261_2e28_4344_a800, 0x4261_2f63_d3e1_7ae4),
+            ("P9_chi_176", 0x3ee7_8576_429f_5b17, 0x4258_cb13_548e_0000, 0x4258_ccd2_2ea0_a272),
+            ("P9_chi_177", 0x3ab4_e2a3_75fd_5047, 0x4229_8b8d_dd26_8000, 0x4229_8db4_9dd0_a576),
+            ("P10_chi_181", 0x3fef_ff57_d35c_3415, 0x4018_0000_0000_0000, 0x3fc4_76d7_f4f4_27ea),
+            ("P10_chi_182", 0x3fef_ffff_ff92_b092, 0x4010_0000_0000_0000, 0x3f14_e91c_5558_28a4),
+            ("P10_chi_191", 0x3fef_ffff_ffff_f545, 0x4028_0000_0000_0000, 0x3fa9_3d89_20d2_4712),
+            ("P10_chi_192", 0x3fef_ffff_eea7_1b96, 0x4008_0000_0000_0000, 0x3ef9_b8b4_c933_e888),
+            ("H8_chi_199", 0x3fef_ffff_ff1d_b45b, 0x4008_0000_0000_0000, 0x3ecc_4862_8a6e_35b4),
+            ("H8_chi_202", 0x3fef_ffff_fffe_c35b, 0x4014_0000_0000_0000, 0x3f20_2d04_148d_fb15),
+            ("H8_chi_223", 0x3fef_9e51_58c4_84e1, 0x4014_0000_0000_0000, 0x3fe3_262d_fc34_5476),
+            ("H8_chi_224", 0x3fef_ffff_ffff_c4b2, 0x4014_0000_0000_0000, 0x3f10_8dcb_962a_79ef),
+        ] {
+            let got = chisq_inv_rt_kernel(f64::from_bits(q_bits), f64::from_bits(df_bits))
+                .unwrap()
+                .to_bits();
+            assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
         }
     }
 }
