@@ -6,6 +6,7 @@ use calc_doc_model::{AxisEdit, StyleTable};
 use calc_func::locale::FormatProfile;
 use std::collections::BTreeMap;
 
+#[derive(Clone)]
 pub(super) struct Formats {
     sheets: Arc<[calc_doc::LoadedSheet]>,
     axis_edits: Vec<AxisEdit>,

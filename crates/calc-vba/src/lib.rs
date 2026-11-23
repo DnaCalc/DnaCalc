@@ -6,9 +6,12 @@ use calc_func::value::{ArrayShape, CalcArray, CalcValue, CoreRef, ExcelText, Wor
 use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
 pub use calcvba_host::Backend;
+mod descriptor;
 pub mod events;
+mod invocation_model;
 pub mod office;
 pub mod policy;
+mod projection;
 mod runtime;
 pub use office::{
     OfficeModule, OfficeModuleKind, OfficeProject, OfficeReadLimits, OfficeReference,
@@ -29,14 +32,34 @@ pub fn code_cache_stats() -> calcvba_host::CacheStats {
 pub fn clear_code_cache() {
     CODE_CACHE.with(|cache| cache.borrow_mut().clear());
 }
-fn prepare_module(module: Module, backend: Backend) -> Result<OwnedSession, runtime::Error> {
+/// Borrow the active worksheet-function invocation context, if any. Workbook hosts use this
+/// inside [`calc_object_model::ObjectModel`] to route UDF `Caller`, `Range.Value2`,
+/// `WorksheetFunction` and `Volatile` through the engine's live invocation.
+pub fn with_active_invocation<R>(
+    call: impl FnOnce(&mut dyn UserFunctionContext) -> R,
+) -> Option<R> {
+    let mut call = Some(call);
+    let mut result = None;
+    runtime::spreadsheet::with_user_context(&mut |ctx| {
+        if let Some(f) = call.take() {
+            result = Some(f(ctx));
+        }
+    });
+    result
+}
+fn prepare_module(
+    module: Module,
+    backend: Backend,
+    model: Option<Rc<dyn calc_object_model::ObjectModel>>,
+    values_only: bool,
+) -> Result<OwnedSession, runtime::Error> {
     CODE_CACHE.with(|cache| {
         cache
             .try_borrow_mut()
             .map_err(|_| {
                 runtime::Error::Backend("code cache is already preparing a module".into())
             })?
-            .prepare(module, backend)
+            .prepare(module, backend, model, values_only)
     })
 }
 
@@ -103,7 +126,7 @@ fn load_module_selected(
     profile: Profile,
 ) -> Result<UserFunctions, String> {
     let module = Module::load_spreadsheet(name, source).map_err(|e| e.to_string())?;
-    Ok(prepare_project(module, max_steps, backend, profile)?.functions)
+    Ok(prepare_project(module, max_steps, backend, profile, None)?.functions)
 }
 
 fn prepare_project(
@@ -111,6 +134,7 @@ fn prepare_project(
     max_steps: u64,
     backend: Option<Backend>,
     profile: Profile,
+    model: Option<Rc<dyn calc_object_model::ObjectModel>>,
 ) -> Result<events::LoadedProject, String> {
     let metadata = module.functions().cloned().collect::<Vec<_>>();
     let mut refusals = module
@@ -129,24 +153,27 @@ fn prepare_project(
             .filter(|f| needs_workbook(f))
             .map(|f| (f.name.clone(), f.qualified_name.clone(), NEEDS_A_WORKBOOK)),
     );
+    let values_only = profile == Profile::ValuesOnly;
     let session = if let Some(backend) = backend {
-        prepare_module(module, backend).map_err(|e| e.to_string())?
+        prepare_module(module, backend, model, values_only).map_err(|e| e.to_string())?
     } else {
         #[cfg(not(target_arch = "wasm32"))]
         {
             // Admission happens before any VBA code executes. A declined image is compiled
             // afresh for the interpreter; runtime errors and exhausted budgets never retry.
-            match prepare_module(module.clone(), Backend::Jit) {
+            match prepare_module(module.clone(), Backend::Jit, model.clone(), values_only) {
                 Ok(session) => session,
                 Err(runtime::Error::UnsupportedBackend(_) | runtime::Error::BackendUnavailable) => {
-                    prepare_module(module, Backend::Interpreter).map_err(|e| e.to_string())?
+                    prepare_module(module, Backend::Interpreter, model, values_only)
+                        .map_err(|e| e.to_string())?
                 }
                 Err(error) => return Err(error.to_string()),
             }
         }
         #[cfg(target_arch = "wasm32")]
         {
-            prepare_module(module, Backend::Interpreter).map_err(|e| e.to_string())?
+            prepare_module(module, Backend::Interpreter, model, values_only)
+                .map_err(|e| e.to_string())?
         }
     };
     let session = Rc::new(session);
@@ -535,7 +562,9 @@ mod tests {
         #[cfg(not(target_arch = "wasm32"))]
         backends.push(Backend::Jit);
         for backend in backends {
-            let many_globals = (0..130)
+            // Exceeds CalcVBA's MAX_TYPED_SLOTS (1024) so owning_typed declines and
+            // begin_call falls back to call_with_context.
+            let many_globals = (0..1030)
                 .map(|n| format!("Private unused{n} As Long\n"))
                 .collect::<String>()
                 + "Public Function Scalar() As Double\n Scalar=42#\nEnd Function\n";
@@ -1146,8 +1175,24 @@ impl ContextBridge<'_> {
     }
 }
 impl SpreadsheetContext for ContextBridge<'_> {
+    fn with_user_context(&self, call: &mut dyn FnMut(&mut dyn UserFunctionContext)) -> bool {
+        let Ok(mut guard) = self.context.try_borrow_mut() else {
+            return false;
+        };
+        call(&mut **guard);
+        true
+    }
+    fn stored_reference(&self, range: Range) -> Option<calc_func::StoredReference> {
+        self.sheets.borrow().get(range).ok()
+    }
     fn refuse(&self, reason: &'static str) -> String {
         ContextBridge::refuse(self, reason)
+    }
+    fn refuse_by(&self, reason: &'static str, owner: &'static str) -> String {
+        self.context
+            .try_borrow_mut()
+            .map(|mut context| context.refuse_by(reason, owner))
+            .unwrap_or_else(|_| format!("reentrant worksheet capability refusal ({owner})"))
     }
     fn caller(&self) -> Option<Range> {
         if self.sheets.borrow().1 {

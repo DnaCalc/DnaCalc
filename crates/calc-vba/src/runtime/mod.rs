@@ -93,7 +93,7 @@ pub struct Module {
     engine: calcvba_host::Module,
     functions: Vec<(Function, calcvba_host::Procedure)>,
     worksheet_refusals: Vec<worksheet::Refusal>,
-    spreadsheet: Option<Arc<spreadsheet::SpreadsheetHost>>,
+    spreadsheet_objects: bool,
     event_project: bool,
     /// Whether the project reaches platform COM objects through its references.
     com: bool,
@@ -121,8 +121,7 @@ impl Module {
             false,
             // Excel calls a Private function of the workbook from a cell (dc-wti6).
             true,
-            true,
-            false,
+            crate::events::DocumentEvents::None,
         )
     }
     pub(crate) fn load_event_project(
@@ -131,8 +130,6 @@ impl Module {
         private_worksheet_lookup: bool,
         events: crate::events::DocumentEvents,
     ) -> Result<Self, Error> {
-        let automatic_events = events == crate::events::DocumentEvents::All;
-        let workbook_events = events == crate::events::DocumentEvents::Workbook;
         let modules = modules
             .iter()
             .map(|module| {
@@ -165,8 +162,7 @@ impl Module {
             true,
             true,
             private_worksheet_lookup,
-            automatic_events,
-            workbook_events,
+            events,
         )
     }
     #[allow(clippy::too_many_arguments)]
@@ -176,9 +172,9 @@ impl Module {
         spreadsheet_objects: bool,
         events: bool,
         private_worksheet_lookup: bool,
-        automatic_events: bool,
-        workbook_events: bool,
+        document_events: crate::events::DocumentEvents,
     ) -> Result<Self, Error> {
+        let automatic_events = document_events == crate::events::DocumentEvents::All;
         let _policy = crate::policy::compilation_scope(&references.compiler);
         let mut member_metadata = BTreeMap::new();
         if events {
@@ -193,50 +189,54 @@ impl Module {
             .filter(|m| m.module_kind == sym::ModuleKind::Procedural)
             .map(|m| m.module_name.to_ascii_lowercase())
             .collect();
+        let uses_dnacalc_objects = modules
+            .iter()
+            .any(|m| m.source.to_ascii_lowercase().contains("dnacalcobjects"));
         let mut manifest = sym::SymbolProjectManifest {
             project_name: "VBAProject".into(),
             project_kind: sym::ProjectKind::Library,
             modules,
             references: if spreadsheet_objects {
-                vec![
-                    sym::ProjectReference::HostInjected {
-                        referenced_project_name: "DnaCalc.Application".into(),
-                    },
-                    sym::ProjectReference::HostInjected {
-                        referenced_project_name: "DnaCalc.ActiveSheet".into(),
-                    },
-                    sym::ProjectReference::HostInjected {
-                        referenced_project_name: "DnaCalc.ActiveWorkbook".into(),
-                    },
-                    sym::ProjectReference::HostInjected {
-                        referenced_project_name: "DnaCalc.ActiveWindow".into(),
-                    },
-                    sym::ProjectReference::HostInjected {
-                        referenced_project_name: "DnaCalc.Selection".into(),
-                    },
+                let mut refs = vec![
                     sym::ProjectReference::TypeLibrary {
-                        // VBA resolves unqualified types in reference order. The source-compatible
-                        // Range must retain Variant Value2, including Empty; the numeric-only
-                        // host interface remains available as DnaCalcObjects.Range.
+                        // VBA resolves unqualified types in reference order. DNA Calc supplies
+                        // Excel and Office from its committed object-model descriptor (dc-piw0.5);
+                        // the numeric-only benchmark interface stays available as DnaCalcObjects.Range.
                         name: "Excel".into(),
-                        guid: None,
+                        guid: Some(format!("{{{}}}", crate::office::EXCEL_LIBRARY)),
                         version_major: None,
                         version_minor: None,
                         lcid: None,
                         import_lib: None,
                     },
                     sym::ProjectReference::TypeLibrary {
+                        name: "Office".into(),
+                        guid: Some(format!("{{{}}}", crate::office::OFFICE_LIBRARY)),
+                        version_major: None,
+                        version_minor: None,
+                        lcid: None,
+                        import_lib: None,
+                    },
+                ];
+                if uses_dnacalc_objects {
+                    refs.push(sym::ProjectReference::TypeLibrary {
                         name: "DnaCalcObjects".into(),
                         guid: None,
                         version_major: None,
                         version_minor: None,
                         lcid: None,
                         import_lib: None,
-                    },
-                ]
-                .into_iter()
-                .chain(references.compiler.iter().cloned())
-                .collect()
+                    });
+                }
+                refs.into_iter()
+                    .chain(
+                        references
+                            .compiler
+                            .iter()
+                            .filter(|r| !is_descriptor_reference(r))
+                            .cloned(),
+                    )
+                    .collect()
             } else {
                 references.compiler.clone()
             },
@@ -244,18 +244,16 @@ impl Module {
             conditional_constants: Default::default(),
             conditional_compilation_target: Default::default(),
         };
-        let event_types = crate::events::types::EventTypes {
-            automatic_events,
-            workbook_events,
+        let descriptor_resolver = crate::descriptor::DescriptorTypeLibResolver {
+            has_workbook: events,
+            events: document_events,
         };
-        let own: &dyn calcvba_symbol::TypeLibResolver = if events {
-            &event_types
-        } else if spreadsheet_objects {
-            &spreadsheet::SpreadsheetTypes
+        let own: &dyn calcvba_symbol::TypeLibResolver = if spreadsheet_objects {
+            &descriptor_resolver
         } else {
             &calcvba_symbol::CatalogTypeLibResolver
         };
-        let chained = crate::events::types::WithReferences {
+        let chained = crate::descriptor::WithReferences {
             own,
             libraries: &references.libraries,
         };
@@ -351,23 +349,11 @@ impl Module {
         // module's worksheet function does (OwnedSession::dynamic, dc-hsa5.12).
         let late =
             late_binding::LateBinding::of(manifest.modules.iter().map(|m| m.source.as_str()));
-        let spreadsheet = spreadsheet_objects.then(|| {
-            Arc::new(spreadsheet::SpreadsheetHost::new(
-                events && automatic_events,
-                references.com,
-                late.clone(),
-            ))
-        });
-        let engine = if let Some(host) = &spreadsheet {
-            engine.with_host(crate::policy::wrap(host.clone()))
-        } else {
-            engine
-        };
         Ok(Self {
             engine,
             functions,
             worksheet_refusals: entries.refusals,
-            spreadsheet,
+            spreadsheet_objects,
             event_project: events && automatic_events,
             com: references.com,
             late,
@@ -387,6 +373,21 @@ impl Module {
                 entry.reason,
             )
         })
+    }
+}
+
+fn is_descriptor_reference(reference: &sym::ProjectReference) -> bool {
+    match reference {
+        sym::ProjectReference::TypeLibrary { name, guid, .. } => {
+            name.eq_ignore_ascii_case("Excel")
+                || name.eq_ignore_ascii_case("Office")
+                || guid.as_deref().is_some_and(|g| {
+                    let upper = g.to_ascii_uppercase();
+                    upper.contains(crate::office::EXCEL_LIBRARY)
+                        || upper.contains(crate::office::OFFICE_LIBRARY)
+                })
+        }
+        _ => false,
     }
 }
 
@@ -429,7 +430,6 @@ fn validate_project_modules(
                 Error::UnsupportedSignature("document host type is unavailable (dc-hsa5.12)".into())
             })?;
         let prefix = format!("{}_", source.rsplit('.').next().expect("host type name"));
-        let events = env.com_source_event_metadata(source).unwrap_or_default();
         for id in env
             .symbols
             .symbols_in_scope(module.module_scope)
@@ -446,9 +446,7 @@ fn validate_project_modules(
                 .first_spelling;
             if name.len() >= prefix.len()
                 && name.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
-                && !events
-                    .iter()
-                    .any(|event| name[prefix.len()..].eq_ignore_ascii_case(&event.name))
+                && !crate::descriptor::is_delivered_document_event(source, &name[prefix.len()..])
             {
                 return Err(Error::UnsupportedSignature(format!(
                     "document procedure {name} has an unsupported automatic-event prefix (dc-hsa5.12)"

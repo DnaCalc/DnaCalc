@@ -1227,11 +1227,8 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
     );
     let expressions = [
-        "Application.Version",
         "Application.ExecuteExcel4Macro(\"1+1\")",
         "ThisWorkbook.Date1904",
-        "Sheet1.Range(\"A1\")",
-        "ActiveWorkbook.Name",
         "UnsupportedSave()",
     ];
     let mut module = "Private instance As ProbeEvents\nPublic Function NextCount() As Long\n If instance Is Nothing Then Set instance = New ProbeEvents\n NextCount = instance.NextCount()\nEnd Function\n".to_owned();
@@ -1239,9 +1236,12 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         module.push_str(&format!("Public Function Unsupported{index}() As Variant\n On Error Resume Next\n Unsupported{index} = {expression}\n Unsupported{index} = 999\nEnd Function\n"));
     }
     module.push_str("Public Function UnsupportedSave() As Long\n On Error Resume Next\n ThisWorkbook.Save\n UnsupportedSave = 999\nEnd Function\n");
-    // The workbook document's Name is honoured (dc-0f1k.4): the file's own name, as in Excel.
+    // Descriptor-backed workbook members routed to WorkbookAutomation (dc-piw0.5).
     module.push_str(
-        "Public Function BookName() As Variant\n BookName = ThisWorkbook.Name\nEnd Function\n",
+        "Public Function BookName() As Variant\n BookName = ThisWorkbook.Name\nEnd Function\n\
+         Public Function ActiveBookName() As Variant\n ActiveBookName = ActiveWorkbook.Name\nEnd Function\n\
+         Public Function AppVersion() As Variant\n AppVersion = Application.Version\nEnd Function\n\
+         Public Function SheetRangeAddr() As Variant\n SheetRangeAddr = Sheet1.Range(\"A1\").Address\nEnd Function\n",
     );
     let bytes = vba_project::replace_sources(
         original,
@@ -1273,10 +1273,25 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
         full(&mut session);
         assert_eq!(value(&session, 1, 4).as_number(), Some(2.));
         enter(&mut session, 1, 6, "=BookName()");
+        enter(&mut session, 2, 6, "=ActiveBookName()");
+        enter(&mut session, 3, 6, "=AppVersion()");
+        enter(&mut session, 4, 6, "=SheetRangeAddr()");
         full(&mut session);
         assert_eq!(
             value(&session, 1, 6).as_text().map(|t| t.to_string_lossy()),
             Some("class.xlsm".to_owned())
+        );
+        assert_eq!(
+            value(&session, 2, 6).as_text().map(|t| t.to_string_lossy()),
+            Some("class.xlsm".to_owned())
+        );
+        assert_eq!(
+            value(&session, 3, 6).as_text().map(|t| t.to_string_lossy()),
+            Some("16.0".to_owned())
+        );
+        assert_eq!(
+            value(&session, 4, 6).as_text().map(|t| t.to_string_lossy()),
+            Some("$A$1".to_owned())
         );
         for index in 0..expressions.len() {
             enter(
@@ -2283,15 +2298,15 @@ End Function
 Public Function LocalAddress() As String
  LocalAddress = Application.Caller.Address(External:=False)
 End Function
-Public Function UnsupportedAddress(ByVal kind As Long) As String
+Public Function RelativeRowAddress() As String
+ RelativeRowAddress = Application.Caller.Address(RowAbsolute:=False)
+End Function
+Public Function R1C1Address() As String
+ R1C1Address = Application.Caller.Address(ReferenceStyle:=-4150)
+End Function
+Public Function UnsupportedAddress() As String
  On Error Resume Next
- If kind = 1 Then
-  UnsupportedAddress = Application.Caller.Address(RowAbsolute:=False)
- ElseIf kind = 2 Then
-  UnsupportedAddress = Application.Caller.Address(ReferenceStyle:=-4150)
- Else
-  UnsupportedAddress = Application.Caller.Address(RelativeTo:="A1")
- End If
+ UnsupportedAddress = Application.Caller.Address(ReferenceStyle:=99)
  UnsupportedAddress = "caught"
 End Function
 "#;
@@ -2377,33 +2392,32 @@ End Function
         session.dispatch(SkinIntent::Recalculate);
         drain(&mut session);
         assert_eq!(text(&session, 1), "[Budget.xltm]Cases!$D$1:4");
-        for kind in 1..=3 {
-            let row = 10 + kind;
-            enter(
-                &mut session,
-                row,
-                4,
-                &format!("=IFERROR(UnsupportedAddress({kind}),999)"),
-            );
-            let at = calc_value::CellKey::new(sheet, row, 4).unwrap();
-            session.dispatch(SkinIntent::CalculateRange {
-                areas: vec![calc_value::GridArea::cell(at)],
-            });
-            drain(&mut session);
-            let page = calc_host::project(
-                session.host(),
-                &calc_host::ProjectionRequest { cells: vec![at] },
-            )
-            .unwrap();
-            assert!(
-                matches!(
-                    page.cells()[0].value(),
-                    calc_host::ProjectedValue::NotModeled { .. }
-                ),
-                "{backend:?} kind{kind}: {:?}",
-                page.cells()[0].value()
-            );
-        }
+        enter(&mut session, 11, 4, "=RelativeRowAddress()");
+        enter(&mut session, 12, 4, "=R1C1Address()");
+        enter(&mut session, 13, 4, "=IFERROR(UnsupportedAddress(),999)");
+        let area = calc_value::GridArea::new(
+            calc_value::CellKey::new(sheet, 11, 4).unwrap(),
+            calc_value::CellKey::new(sheet, 13, 4).unwrap(),
+        )
+        .unwrap();
+        session.dispatch(SkinIntent::CalculateRange { areas: vec![area] });
+        drain(&mut session);
+        assert_eq!(text(&session, 11), "$D11", "{backend:?}");
+        assert_eq!(text(&session, 12), "R12C4", "{backend:?}");
+        let at = calc_value::CellKey::new(sheet, 13, 4).unwrap();
+        let page = calc_host::project(
+            session.host(),
+            &calc_host::ProjectionRequest { cells: vec![at] },
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                page.cells()[0].value(),
+                calc_host::ProjectedValue::NotModeled { .. }
+            ),
+            "{backend:?} ReferenceStyle:=99: {:?}",
+            page.cells()[0].value()
+        );
     }
 }
 
@@ -2448,5 +2462,91 @@ fn a_guarded_grant_denies_native_com_under_an_ambient_full_policy() {
                 .contains(Capability::ComActivate)
         );
         policy::set_thread_policy(None);
+    }
+}
+
+/// dc-piw0.5: VBA binds Excel and Office references from calc-object-model's descriptor
+/// (real IIDs, DISPIDs, cross-library Shape -> Office.TextFrame2 -> TextRange2,
+/// ListObjects, ChartObjects, Range.Formula, For Each, TypeOf Me Is Excel.Worksheet,
+/// and Me.Calculate alongside Worksheet_Calculate) and routes every call to WorkbookAutomation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_piw0_5_excel_and_office_descriptor_binding_routes_tables_charts_shapes_and_iteration() {
+    let sheet_source = "\
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ If Target.Column <> 1 Or Target.Row <> 1 Then Exit Sub
+ Application.EnableEvents = False
+ Me.Range(\"A1\").Value2 = \"Item\"
+ Me.Range(\"B1\").Value2 = \"Amount\"
+ Me.Range(\"A2\").Value2 = \"Alpha\"
+ Me.Range(\"B2\").Value2 = 10
+ Me.Range(\"A3\").Value2 = \"Beta\"
+ Me.Range(\"B3\").Value2 = 25
+ Me.Range(\"C2\").Formula = \"=B2*2\"
+ Dim lo As Excel.ListObject
+ Set lo = Me.ListObjects.Add(xlSrcRange, Me.Range(\"A1:B3\"), , xlYes)
+ lo.Name = \"SalesTbl\"
+ Dim shp As Excel.Shape
+ Dim tf As Office.TextFrame2
+ Set shp = Me.Shapes.AddShape(msoShapeRectangle, 10, 20, 120, 40)
+ Set tf = shp.TextFrame2
+ tf.TextRange.Text = \"Report Title\"
+ Dim co As Excel.ChartObject
+ Set co = Me.ChartObjects.Add(10, 80, 200, 120)
+ co.Chart.HasTitle = True
+ co.Chart.ChartTitle.Text = \"Sales Chart\"
+ co.Chart.SetSourceData Me.Range(\"A1:B3\")
+ Dim total As Double
+ Dim cell As Excel.Range
+ For Each cell In Me.Range(\"B2:B3\")
+  total = total + CDbl(cell.Value2)
+ Next cell
+ Dim isSheet As Boolean
+ isSheet = (TypeOf Me Is Excel.Worksheet)
+ Application.EnableEvents = True
+ Me.Calculate
+ History = lo.Name & \":\" & CStr(lo.ListColumns.Count) & \":\" & shp.TextFrame2.TextRange.Text & \":\" & co.Chart.ChartTitle.Text & \":\" & CStr(total) & \":\" & CStr(Me.Range(\"C2\").Value2) & \":\" & CStr(isSheet) & \":\" & CStr(Entries)
+End Sub
+Private Sub Worksheet_Calculate()
+ Entries = Entries + 1
+End Sub
+";
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "report.xlsm");
+        session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual));
+        let project = mutable_owner(&mut session, sheet_source, OWNER_STATE, 50_000, backend);
+        enter(&mut session, 1, 1, "go");
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?}: {:?}",
+            session.workbook_event_failures()
+        );
+        let trace = project
+            .functions()
+            .call("Trace", &[])
+            .unwrap()
+            .as_text()
+            .unwrap()
+            .to_string_lossy();
+        assert_eq!(
+            trace, "SalesTbl:2:Report Title:Sales Chart:35:20:True:1",
+            "{backend:?}"
+        );
+        let sheet = session.host().sheets()[0].id();
+        assert_eq!(
+            session.host().model().definitions().tables().len(),
+            1,
+            "{backend:?}: table committed"
+        );
+        assert_eq!(
+            session.host().model().definitions().shapes(sheet).len(),
+            1,
+            "{backend:?}: shape committed"
+        );
+        assert_eq!(
+            session.host().model().definitions().charts(sheet).len(),
+            1,
+            "{backend:?}: chart committed"
+        );
     }
 }

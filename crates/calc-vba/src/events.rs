@@ -5,9 +5,8 @@ use std::rc::Rc;
 mod source;
 #[cfg(test)]
 mod tests;
-pub(crate) mod types;
 pub use source::{EventReadContext, EventSource};
-pub(crate) use source::{application_object, callback_active, object_type};
+pub(crate) use source::{callback_active, lease_is_active, record_event_refusal, with_event_read};
 
 /// Commands admitted by a mutable document-event owner. Ordinary worksheet UDFs
 /// have no authority to execute these operations.
@@ -100,8 +99,14 @@ impl ProjectReferences {
             .references()
             .iter()
             .filter(|reference| {
-                reference.guid().as_deref() != Some(crate::office::VBA_LIBRARY)
-                    && reference.guid().as_deref() != Some(crate::office::EXCEL_LIBRARY)
+                !matches!(
+                    reference.guid().as_deref(),
+                    Some(
+                        crate::office::VBA_LIBRARY
+                            | crate::office::EXCEL_LIBRARY
+                            | crate::office::OFFICE_LIBRARY
+                    )
+                )
             })
             .map(|reference| reference.name().to_owned())
             .collect();
@@ -176,6 +181,27 @@ pub fn load_project_with_references(
         false,
         DocumentEvents::All,
         crate::Profile::Full,
+        None,
+    )
+}
+
+/// [`load_project`] backed by a host-supplied `ObjectModel` (`WorkbookAutomation`).
+pub fn load_project_with_model(
+    modules: &[ProjectModule],
+    references: &ProjectReferences,
+    max_steps: u64,
+    backend: Option<Backend>,
+    model: Rc<dyn calc_object_model::ObjectModel>,
+) -> Result<LoadedProject, String> {
+    load_project_impl(
+        modules,
+        references,
+        max_steps,
+        backend,
+        false,
+        DocumentEvents::All,
+        crate::Profile::Full,
+        Some(model),
     )
 }
 
@@ -225,9 +251,32 @@ pub fn load_file_project_with(
         true,
         events,
         crate::Profile::Full,
+        None,
     )
 }
 
+/// [`load_file_project_with`] backed by a host-supplied `ObjectModel` (`WorkbookAutomation`).
+pub fn load_file_project_with_model(
+    modules: &[ProjectModule],
+    references: &ProjectReferences,
+    max_steps: u64,
+    backend: Option<Backend>,
+    events: DocumentEvents,
+    model: Rc<dyn calc_object_model::ObjectModel>,
+) -> Result<LoadedProject, String> {
+    load_project_impl(
+        modules,
+        references,
+        max_steps,
+        backend,
+        true,
+        events,
+        crate::Profile::Full,
+        Some(model),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 fn load_project_impl(
     modules: &[ProjectModule],
     references: &ProjectReferences,
@@ -236,6 +285,7 @@ fn load_project_impl(
     private_worksheet_lookup: bool,
     events: DocumentEvents,
     profile: crate::Profile,
+    model: Option<Rc<dyn calc_object_model::ObjectModel>>,
 ) -> Result<LoadedProject, String> {
     if modules.is_empty()
         || modules.len() > 1024
@@ -252,7 +302,7 @@ fn load_project_impl(
                 format!("document project (dc-hsa5.12): {e}; VBA references {} cannot be resolved on this platform (dc-0f1k.4)", references.unavailable.join(", "))
             }
         })?;
-    crate::prepare_project(module, max_steps, backend, profile)
+    crate::prepare_project(module, max_steps, backend, profile, model)
         .map_err(|e| format!("document project (dc-hsa5.12): {e}"))
 }
 
@@ -334,6 +384,7 @@ pub fn load_office_project(
         true,
         DocumentEvents::Workbook,
         profile,
+        None,
     )?;
     let workbook = match workbook_module {
         Some(module) => {

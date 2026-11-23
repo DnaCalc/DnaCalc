@@ -1,9 +1,16 @@
-//! Read-only spreadsheet objects. Values are always read through the current host call.
+//! Spreadsheet host adapter over `calc_object_model::ObjectModel` (dc-piw0.5).
+//!
+//! Excel and Office type information comes from `crate::descriptor` (backed by
+//! `crates/calc-object-model/descriptor/{excel,office}.json`), and member calls
+//! route through `crate::projection` to the session's `ObjectModel` (`WorkbookAutomation`
+//! in DNA Calc, or `InvocationModel` in Formula Explorer / standalone callers).
 use super::{Error, Value, from_variant, to_variant};
+use crate::{descriptor, invocation_model, projection};
+use calc_object_model::{AutoError, ObjectKey, ObjectModel, ObjectRef as ModelObjectRef, geometry::RangeAxis};
 use calcvba_com::{
     ComCallbackPayload, ComCallbackToken, ComMemberToken, ComObjectDescriptor,
-    ComObjectTransportKind, ComSubscriptionToken, DynamicCallKind, DynamicCallRequest,
-    DynamicMemberSelector, TypeLibCacheScope, TypeLibMetadataBlob, TypeLibResolveRequest,
+    ComObjectTransportKind, ComSubscriptionToken, DynamicCallRequest, TypeLibCacheScope,
+    TypeLibMemberInvokeKind, TypeLibMemberMetadata, TypeLibMetadataBlob, TypeLibResolveRequest,
     TypeLibResolvedIdentity,
 };
 use calcvba_hal::{
@@ -14,11 +21,7 @@ use calcvba_hal::{
     traits::*,
 };
 use calcvba_runtime::{ObjectRef, ObjectRefExt, Variant};
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 /// Opaque DNA-owned Range identity, never sheet coordinates from a previous call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -60,6 +63,17 @@ pub trait SpreadsheetContext {
     fn event_view(&self) -> bool {
         false
     }
+    /// Lend the live `UserFunctionContext` when running a worksheet UDF (`WorkbookAutomation`).
+    fn with_user_context(
+        &self,
+        _call: &mut dyn FnMut(&mut dyn calc_func::UserFunctionContext),
+    ) -> bool {
+        false
+    }
+    /// The retained `StoredReference` backing `range` when invoked via `ContextBridge`.
+    fn stored_reference(&self, _range: Range) -> Option<calc_func::StoredReference> {
+        None
+    }
     fn caller(&self) -> Option<Range>;
     /// The name of the sheet the person has active (`ActiveSheet.Name`), or why the host does not
     /// model one.
@@ -83,6 +97,10 @@ pub trait SpreadsheetContext {
     /// Record a capability refusal in the owning evaluator, independently of VBA On Error.
     fn refuse(&self, reason: &'static str) -> String {
         reason.into()
+    }
+    /// Record a capability refusal with its owning work-package id.
+    fn refuse_by(&self, reason: &'static str, _owner: &'static str) -> String {
+        self.refuse(reason)
     }
     fn metadata(&self, range: Range) -> Result<RangeInfo, ContextError>;
     fn external_address(&self, _range: Range) -> Result<String, ContextError> {
@@ -162,39 +180,97 @@ pub(crate) fn record_capability_refusal(reason: &'static str) {
     }
 }
 
+pub(crate) fn record_not_modelled(owner: &'static str, description: String) {
+    if CONTEXT.is_set() {
+        CONTEXT.with(|(context, refused, available)| {
+            let mut slot = refused.borrow_mut();
+            if slot.is_none() {
+                if available && !context.event_view() {
+                    let reason = if description.contains(crate::NEEDS_A_WORKBOOK) {
+                        crate::NEEDS_A_WORKBOOK
+                    } else {
+                        "an unmodelled spreadsheet object-model operation"
+                    };
+                    let _ = context.refuse_by(reason, owner);
+                }
+                *slot = Some(description);
+            }
+        });
+    }
+}
+
+pub(crate) fn record_refusal_message(message: String) {
+    if CONTEXT.is_set() {
+        CONTEXT.with(|(_, refused, _)| {
+            refused.borrow_mut().get_or_insert(message);
+        });
+    }
+}
+
+pub(crate) fn with_user_context(call: &mut dyn FnMut(&mut dyn calc_func::UserFunctionContext)) {
+    if CONTEXT.is_set() {
+        CONTEXT.with(|(context, _, available)| {
+            if available {
+                context.with_user_context(call);
+            }
+        });
+    }
+}
+
+fn active_stored_reference(range: Range) -> Option<calc_func::StoredReference> {
+    if !CONTEXT.is_set() {
+        return None;
+    }
+    CONTEXT.with(|(context, _, available)| available.then(|| context.stored_reference(range)).flatten())
+}
+
+pub(crate) fn with_active_context<T>(
+    call: impl FnOnce(&dyn SpreadsheetContext) -> Result<T, ContextError>,
+) -> Result<T, AutoError> {
+    if !CONTEXT.is_set() {
+        return Err(AutoError::not_modelled(
+            "spreadsheet call context is not available",
+            "dc-piw0.5",
+        ));
+    }
+    CONTEXT.with(|(context, refused, available)| {
+        let outcome = if available {
+            call(context)
+        } else {
+            Err(ContextError::Refused(
+                "spreadsheet call context is not available".into(),
+            ))
+        };
+        match outcome {
+            Ok(value) => Ok(value),
+            Err(ContextError::Vba(number, message)) => Err(AutoError::excel(number, message)),
+            Err(ContextError::Refused(message)) => {
+                refused.borrow_mut().get_or_insert_with(|| message.clone());
+                Err(AutoError::not_modelled(message, "dc-piw0.5"))
+            }
+        }
+    })
+}
+
 pub(crate) fn event_view_active() -> bool {
     CONTEXT.is_set() && CONTEXT.with(|(context, _, available)| available && context.event_view())
 }
 
 /// Whether the running code was called as a worksheet function (a context with a calling cell),
 /// not from a document event or outside a calculation.
-fn worksheet_function_call_active() -> bool {
+pub(crate) fn worksheet_function_call_active() -> bool {
     CONTEXT.is_set() && CONTEXT.with(|(context, _, available)| available && !context.event_view())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Axis {
-    Cells,
-    Rows,
-    Columns,
-    Areas,
-}
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Object {
-    Application,
-    Functions,
-    Range(Range, Axis),
-    /// `ActiveSheet`: the sheet the person has active (read through the context).
-    Sheet,
-    /// `Selection`: the range the person has selected, a Range for `TypeName` and `Address`.
-    Selection(Range),
-}
-
-/// Owns only object identities and range coordinates, never a borrowed reader or cell cache.
+/// Owns the session's `ObjectModel` registration (via thread-local id so `HostServices` stays
+/// `Send + Sync`) and forwards non-DNA COM references to Windows COM when enabled.
 pub(crate) struct SpreadsheetHost {
     base: Arc<dyn HostServices>,
-    objects: Mutex<ObjectTable>,
-    native_events: bool,
+    /// Thread-local handle to this session's `Rc<dyn ObjectModel>` (`projection::SESSION_MODELS`).
+    model_id: u64,
+    /// `true` when the caller supplied an external `ObjectModel` (`WorkbookAutomation`); `false`
+    /// for the portable `InvocationModel`.
+    external_model: bool,
     /// Platform COM for the objects of the project's type-library references (early-bound
     /// through their registered type libraries). DNA's own objects never reach it.
     com: Option<Arc<dyn HostServices>>,
@@ -202,30 +278,13 @@ pub(crate) struct SpreadsheetHost {
     late: super::late_binding::LateBinding,
 }
 
-#[derive(Default)]
-struct ObjectTable {
-    /// Each entry keeps one anchor reference to its compatibility object. The entry is live while
-    /// any other reference exists (a VBA variable, a module global, a collection); when only the
-    /// anchor is left the entry is reclaimed (dc-1nbp.2).
-    by_id: std::collections::BTreeMap<i32, (Object, ObjectRef)>,
-    by_object: std::collections::BTreeMap<Object, i32>,
-    selections: std::collections::BTreeMap<Range, calcvba_host_api::HostObject>,
+impl Drop for SpreadsheetHost {
+    fn drop(&mut self) {
+        projection::unregister_model(self.model_id);
+    }
 }
 
-const SELECTION_IID: calcvba_host_api::InterfaceId = *b"DnaCalcSelect001";
-struct SelectionProjection {
-    range: Range,
-    // Retains the original projection's canonical identity for the native view.
-    _object: ObjectRef,
-}
-const FIRST_OBJECT: i32 = 0x1000_0000;
-const MAX_OBJECTS: usize = 4096;
 const MAX_VALUE_CELLS: u64 = 1_048_576;
-
-/// Range members the projection declares so that real add-in code compiles; reading them is a
-/// typed refusal (their date and currency forms need the cell's number format), writing them is
-/// what Excel forbids a worksheet function.
-const RANGE_VALUE: i32 = 100;
 
 /// The reason an explicit `CreateObject` or `GetObject` is refused.
 const CREATE_OBJECT_REFUSAL: &str = "CreateObject or GetObject (late-bound COM activation; DNA Calc - Formula Explorer binds COM early, through imported type libraries)";
@@ -234,21 +293,6 @@ const CREATE_OBJECT_REFUSAL: &str = "CreateObject or GetObject (late-bound COM a
 /// imported type libraries first, never late binding as a start).
 const LATE_BOUND_REFUSAL: &str =
     "a late-bound COM call (DNA Calc - Formula Explorer binds COM early, through imported type libraries)";
-const RANGE_FORMULA: i32 = 101;
-
-/// What Excel answers when a worksheet function writes a cell: VBA error 1004, which `On Error`
-/// traps; unhandled, the cell shows #VALUE! (both measured with DnaExamples.xlam, dc-0f1k.4).
-/// That is the answer only inside a worksheet-function call. From a document event (DNA Calc's
-/// `Worksheet_Change`, whose handlers may write cells in Excel) the write is the typed refusal
-/// that spreadsheet objects are read-only here, until events can write.
-fn excel_forbids_cell_write(host: &SpreadsheetHost) -> HalError {
-    if worksheet_function_call_active() {
-        fault(1004, "Application-defined or object-defined error")
-    } else {
-        host.unsupported::<()>("spreadsheet objects are read-only")
-            .expect_err("a refusal")
-    }
-}
 
 fn fault(code: i32, message: impl Into<String>) -> HalError {
     HalError::adapter_fault(
@@ -260,25 +304,12 @@ fn fault(code: i32, message: impl Into<String>) -> HalError {
     .with_host_error_code(code)
 }
 
-pub(crate) const TYPED_RANGE_IID: calcvba_host_api::InterfaceId = *b"DnaCalcRange0001";
-pub(crate) fn typed_iid() -> calcvba_com::ComInterfaceIid {
-    dna_iid(TYPED_RANGE_IID)
+fn typed_fault_to_hal(err: calcvba_host_api::TypedFault) -> HalError {
+    fault(err.number, err.description)
 }
 
-// Nominal identity for the Variant-valued projection, distinct from the numeric slot ABI.
-// This is DNA's own descriptor identity, not Excel's COM interface identity.
-fn projected_range_iid() -> calcvba_com::ComInterfaceIid {
-    dna_iid(*b"DnaCalcRange0002")
-}
+pub(crate) const TYPED_RANGE_IID: calcvba_host_api::InterfaceId = descriptor::TYPED_RANGE_IID;
 
-fn dna_iid(bytes: [u8; 16]) -> calcvba_com::ComInterfaceIid {
-    calcvba_com::ComInterfaceIid {
-        data1: u32::from_le_bytes(bytes[..4].try_into().unwrap()),
-        data2: u16::from_le_bytes(bytes[4..6].try_into().unwrap()),
-        data3: u16::from_le_bytes(bytes[6..8].try_into().unwrap()),
-        data4: bytes[8..].try_into().unwrap(),
-    }
-}
 impl SpreadsheetHost {
     pub(crate) fn typed_range(self: &Arc<Self>, range: Range) -> calcvba_host_api::HostObject {
         let host = self.clone();
@@ -295,63 +326,33 @@ impl SpreadsheetHost {
             })],
         )
     }
-    /// `native_events`: the automatic document-event objects; `com`: platform COM for the
-    /// project's references, which only a native Windows build has.
+
     pub(crate) fn new(
-        native_events: bool,
         com: bool,
         late: super::late_binding::LateBinding,
+        model: Rc<dyn ObjectModel>,
+        external_model: bool,
     ) -> Self {
+        let model_id = projection::register_model(model);
         Self {
             late,
             base: HostBuilder::new().build(),
-            objects: Mutex::new(ObjectTable::default()),
-            native_events,
+            model_id,
+            external_model,
             com: if com { platform_com() } else { None },
         }
     }
 
+    fn model(&self) -> HalResult<Rc<dyn ObjectModel>> {
+        projection::get_model(self.model_id)
+            .ok_or_else(|| fault(429, "spreadsheet object model is unavailable on this thread"))
+    }
+
     /// Whether `object` is one of DNA's own spreadsheet or document objects.
     fn owns(&self, object: &ObjectRef) -> bool {
-        self.native_range(object).is_some()
-            || self.selection_range(object).is_some()
-            || crate::events::object_type(object).is_some()
-            || calcvba_host_api::HostObject::from_object_ref(object).is_some_and(|object| {
-                crate::events::types::is_document_interface(&object.header().iid)
-            })
-            || (object.is_compat_object()
-                && self
-                    .objects
-                    .lock()
-                    .is_ok_and(|objects| objects.by_id.contains_key(&object.raw())))
+        self.native_range(object).is_some() || projection::is_model_object(object)
     }
-    /// A member of a document object (the workbook or a sheet): its `Name` is read through the
-    /// document's own services; anything else is a typed refusal. `None` for other objects.
-    fn document_member(
-        &self,
-        object: &ObjectRef,
-        name: &str,
-        arguments: usize,
-    ) -> Option<HalResult<Variant>> {
-        let document = calcvba_host_api::HostObject::from_object_ref(object)
-            .filter(|object| crate::events::types::is_document_interface(&object.header().iid))?;
-        if arguments != 0 || !name.eq_ignore_ascii_case("Name") {
-            return Some(self.unsupported("a workbook or worksheet member other than Name"));
-        }
-        let call = calcvba_host_api::object::DynamicMemberCall {
-            name: Some("Name".into()),
-            kind: calcvba_host_api::object::DynamicMemberKind::Get,
-            arguments: vec![],
-        };
-        let mut context = calcvba_host_api::TypedContext {
-            remaining_blocks: 0,
-        };
-        Some(
-            document
-                .invoke_dynamic(&call, &mut [], &mut context)
-                .map_err(|f| fault(f.number, f.description.to_string())),
-        )
-    }
+
     /// The platform COM host for an object DNA does not own.
     fn foreign(&self, object: &ObjectRef) -> Option<&dyn ComHal> {
         match &self.com {
@@ -360,109 +361,11 @@ impl SpreadsheetHost {
         }
     }
 
-    fn object(&self, object: Object) -> HalResult<Variant> {
-        let mut objects = self
-            .objects
-            .lock()
-            .map_err(|_| fault(5, "object table is unavailable"))?;
-        if let Some(id) = objects.by_object.get(&object).copied() {
-            if let Some((_, anchor)) = objects.by_id.get(&id) {
-                return Ok(Variant::from_object_ref(anchor.clone()));
-            }
-        }
-        if objects.by_id.len() >= MAX_OBJECTS {
-            // Only live objects count against the limit: reclaim entries whose last VBA
-            // reference is gone (the anchor is the only holder left).
-            let dead: Vec<i32> = objects
-                .by_id
-                .iter()
-                .filter(|(_, (_, anchor))| anchor.strong_count() <= 1)
-                .map(|(id, _)| *id)
-                .collect();
-            for id in dead {
-                if let Some((object, _)) = objects.by_id.remove(&id) {
-                    objects.by_object.remove(&object);
-                }
-            }
-            if objects.by_id.len() >= MAX_OBJECTS {
-                return self.unsupported("spreadsheet object limit exceeded");
-            }
-        }
-        static NEXT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(FIRST_OBJECT);
-        let id = NEXT
-            .fetch_update(
-                std::sync::atomic::Ordering::Relaxed,
-                std::sync::atomic::Ordering::Relaxed,
-                |id| id.checked_add(1),
-            )
-            .map_err(|_| fault(5, "spreadsheet object identities exhausted (dc-hsa5.4)"))?;
-        let anchor = ObjectRef::from_compat_identity(id);
-        objects.by_id.insert(id, (object, anchor.clone()));
-        objects.by_object.insert(object, id);
-        Ok(Variant::from_object_ref(anchor))
-    }
-    fn lookup(&self, object: &ObjectRef) -> HalResult<Object> {
-        if let Some(range) = self.selection_range(object) {
-            return Ok(Object::Selection(range));
-        }
-        // raw() is only defined for compatibility carriers, never a native IUnknown.
-        if !object.is_compat_object() {
-            return self
-                .unsupported("a native spreadsheet object outside the supported projection");
-        }
-        self.objects
-            .lock()
-            .map_err(|_| fault(5, "object table is unavailable"))?
-            .by_id
-            .get(&object.raw())
-            .map(|(object, _)| *object)
-            .ok_or_else(|| fault(438, "foreign or expired spreadsheet object"))
-    }
-
     fn native_range(&self, object: &ObjectRef) -> Option<calcvba_host_api::HostObject> {
         let object = calcvba_host_api::HostObject::from_object_ref(object)?;
         (object.header().iid == TYPED_RANGE_IID).then_some(object)
     }
-    fn selection_range(&self, object: &ObjectRef) -> Option<Range> {
-        let object = calcvba_host_api::HostObject::from_object_ref(object)?;
-        if object.header().iid != SELECTION_IID {
-            return None;
-        }
-        let projection = object.payload()?.downcast_ref::<SelectionProjection>()?;
-        matches!(self.lookup(&projection._object), Ok(Object::Selection(range)) if range == projection.range)
-            .then_some(projection.range)
-    }
-    fn prepare_selection(
-        &self,
-        object: ObjectRef,
-        range: Range,
-    ) -> HalResult<calcvba_host_api::HostObject> {
-        let mut objects = self
-            .objects
-            .lock()
-            .map_err(|_| fault(5, "object table is unavailable"))?;
-        Ok(objects
-            .selections
-            .entry(range)
-            .or_insert_with(|| {
-                let identity = object.raw_iunknown().cast();
-                let projection = Rc::new(SelectionProjection {
-                    range,
-                    _object: object,
-                });
-                // SAFETY: the payload retains this exact projection's canonical IUnknown;
-                // the cached view and all its clones keep that identity alive.
-                unsafe {
-                    calcvba_host_api::HostObject::new_with_payload_and_identity(
-                        SELECTION_IID,
-                        vec![],
-                        projection,
-                        identity,
-                    )
-                }
-            })
-            .clone())
-    }
+
     fn native_value(&self, object: &calcvba_host_api::HostObject) -> HalResult<Variant> {
         // Result/default materialization admits no further VM work. This callback reads
         // through the current invocation's already-authorized DNA context.
@@ -483,9 +386,28 @@ impl SpreadsheetHost {
         .map_err(|number| fault(number, "numeric Range callback failed"))?;
         Ok(Variant::from_f64(value.as_double()))
     }
+
     pub(crate) fn range_variant(&self, range: Range) -> Result<Variant, Error> {
-        self.object(Object::Range(range, Axis::Cells))
-            .map_err(|e| Error::Backend(e.to_string()))
+        let model = self
+            .model()
+            .map_err(|e| Error::Backend(e.to_string()))?;
+        let range_iface = descriptor::interface_id_by_name("Range")
+            .ok_or_else(|| Error::Backend("Range missing from object-model descriptor".into()))?;
+        let key = if self.external_model {
+            let stored = active_stored_reference(range).ok_or_else(|| {
+                Error::ValueConversion("Range requires a live stored reference".into())
+            })?;
+            ObjectKey::Range(stored)
+        } else {
+            ObjectKey::Host(invocation_model::encode_range(range, RangeAxis::Cells))
+        };
+        let host_obj = projection::wrap_object(
+            model,
+            ModelObjectRef::new(range_iface, key),
+            None,
+            None,
+        );
+        Ok(Variant::from_object_ref(host_obj.object_ref()))
     }
 
     fn context<T>(
@@ -515,18 +437,15 @@ impl SpreadsheetHost {
         self.context(|context| Err(context.refuse(reason).into()))
     }
 
-    pub(crate) fn read_range(&self, range: Range) -> Result<Value, Error> {
-        self.read(range)
-            .map_err(|e| Error::ValueConversion(e.to_string()))
-    }
-
     pub(crate) fn read_argument_range(&self, range: Range) -> Result<Value, Error> {
         self.read_for(range, true)
             .map_err(|e| Error::ValueConversion(e.to_string()))
     }
+
     fn read(&self, range: Range) -> HalResult<Value> {
         self.read_for(range, false)
     }
+
     fn read_for(&self, range: Range, argument: bool) -> HalResult<Value> {
         let info = self.context(|context| context.metadata(range))?;
         if info.cells > MAX_VALUE_CELLS {
@@ -566,283 +485,23 @@ impl SpreadsheetHost {
                 .map_err(|error| Error::Backend(error.to_string()))
                 .and_then(|value| from_variant(&value, false));
         }
-        if let Some(object) = value.as_object_ref()
-            && let Object::Range(range, _) = self
-                .lookup(&object)
-                .map_err(|e| Error::ValueConversion(e.to_string()))?
+        if let Some(inner) = value
+            .as_object_ref()
+            .and_then(|object| projection::unwrap_model_object(&object))
+            && let Some(materialized) = inner
+                .materialize_udf_range()
+                .map_err(|err| Error::ValueConversion(err.description))?
         {
             // Excel materializes an object-valued UDF result through its Range value.
-            let value = self.read_range(range)?;
-            return from_variant(&to_variant(&value)?, false);
+            return from_variant(&materialized, false);
         }
         from_variant(value, false)
-    }
-
-    fn argument(&self, value: &Variant) -> HalResult<Value> {
-        if let Some(object) = value.as_object_ref() {
-            if let Some(native) = self.native_range(&object) {
-                return from_variant(&self.native_value(&native)?, false)
-                    .map_err(|error| fault(13, error.to_string()));
-            }
-            return match self.lookup(&object)? {
-                Object::Range(range, _) => Ok(Value::Range(range)),
-                _ => Err(fault(13, "expected a worksheet value or Range")),
-            };
-        }
-        from_variant(value, false).map_err(|e| fault(13, e.to_string()))
-    }
-
-    fn range_member(
-        &self,
-        range: Range,
-        axis: Axis,
-        name: &str,
-        args: &[Variant],
-    ) -> HalResult<Variant> {
-        let info = self.context(|context| context.metadata(range))?;
-        match name {
-            "VALUE2" if args.is_empty() => {
-                to_variant(&self.read(range)?).map_err(|e| fault(13, e.to_string()))
-            }
-            "COUNT" if args.is_empty() => {
-                let count = match axis {
-                    Axis::Rows => u64::from(info.rows),
-                    Axis::Columns => u64::from(info.columns),
-                    Axis::Cells => info.cells,
-                    Axis::Areas => u64::from(info.areas),
-                };
-                Ok(Variant::from_i32(
-                    i32::try_from(count).map_err(|_| fault(6, "Overflow"))?,
-                ))
-            }
-            "ROW" if args.is_empty() => Ok(Variant::from_i32(info.row as i32)),
-            "COLUMN" if args.is_empty() => Ok(Variant::from_i32(info.column as i32)),
-            "ADDRESS" => {
-                let supplied = |index: usize| {
-                    args.get(index)
-                        .filter(|v| v.as_error_code() != Some(-2147352572))
-                };
-                let boolean = |index: usize, default: bool| -> HalResult<bool> {
-                    supplied(index).map_or(Ok(default), |value| {
-                        calcvba_eval::arith::coerce_numeric(
-                            value,
-                            calcvba_bundle::NumericCoerceTarget::Boolean,
-                        )
-                        .map_err(|e| fault(e.code, e.message))
-                        .map(|v| v.as_bool().expect("Boolean coercion"))
-                    })
-                };
-                if !boolean(0, true)? || !boolean(1, true)? {
-                    return self.unsupported("relative Range.Address coordinates");
-                }
-                if let Some(style) = supplied(2) {
-                    let style = calcvba_eval::arith::coerce_numeric(
-                        style,
-                        calcvba_bundle::NumericCoerceTarget::Long,
-                    )
-                    .map_err(|e| fault(e.code, e.message))?;
-                    if style.as_i32() != Some(1) {
-                        return self.unsupported("a non-A1 Range.Address reference style");
-                    }
-                }
-                if supplied(4).is_some() {
-                    return self.unsupported("Range.Address RelativeTo");
-                }
-                let address = if boolean(3, false)? {
-                    self.context(|context| context.external_address(range))?
-                } else {
-                    info.address
-                };
-                Ok(Variant::from_string(address))
-            }
-            "AREAS" if args.is_empty() => self.object(Object::Range(range, Axis::Areas)),
-            "ROWS" if args.is_empty() => self.object(Object::Range(range, Axis::Rows)),
-            "COLUMNS" if args.is_empty() => self.object(Object::Range(range, Axis::Columns)),
-            "CELLS" | "ITEM" if args.is_empty() => {
-                if name == "ITEM" {
-                    to_variant(&self.read(range)?).map_err(|e| fault(13, e.to_string()))
-                } else {
-                    self.object(Object::Range(range, Axis::Cells))
-                }
-            }
-            "ITEM" if axis == Axis::Areas => {
-                let [index] = args else {
-                    return Err(fault(450, "wrong Areas index count"));
-                };
-                let index = calcvba_eval::arith::coerce_numeric(
-                    index,
-                    calcvba_bundle::NumericCoerceTarget::Long,
-                )
-                .map_err(|e| fault(e.code, e.message))?
-                .as_i32()
-                .unwrap();
-                let index = u32::try_from(index)
-                    .ok()
-                    .filter(|n| *n > 0)
-                    .ok_or_else(|| fault(1004, "Areas index out of bounds"))?;
-                let selected = self.context(|context| context.area(range, index))?;
-                self.object(Object::Range(selected, Axis::Cells))
-            }
-            "ITEM" if axis != Axis::Cells => {
-                self.unsupported("indexed Rows/Columns are not supported")
-            }
-            "CELLS" | "ITEM" => {
-                fn index(value: &Variant) -> HalResult<u32> {
-                    let n = calcvba_eval::arith::coerce_numeric(
-                        value,
-                        calcvba_bundle::NumericCoerceTarget::Long,
-                    )
-                    .map_err(|e| fault(e.code, e.message))?
-                    .as_i32()
-                    .expect("Long coercion");
-                    u32::try_from(n)
-                        .ok()
-                        .filter(|n| *n > 0)
-                        .ok_or_else(|| fault(1004, "Range index is outside this read-only host"))
-                }
-                let (row, column) = match args {
-                    [one] => {
-                        let n = index(one)? - 1;
-                        (n / info.columns + 1, n % info.columns + 1)
-                    }
-                    [row, column] => (index(row)?, index(column)?),
-                    _ => return Err(fault(450, "wrong number of Range indices")),
-                };
-                let selected = self.context(|context| context.cell(range, row, column))?;
-                self.object(Object::Range(selected, Axis::Cells))
-            }
-            _ => self.unsupported("a read-only Range member outside the supported host surface"),
-        }
-    }
-
-    fn projected_arguments(
-        &self,
-        object: Object,
-        name: &str,
-        args: &[calcvba_com::DynamicCallArg],
-    ) -> HalResult<Vec<Variant>> {
-        let missing = || Variant::from_error_code(-2147352572);
-        if name == "ADDRESS" && matches!(object, Object::Range(..)) {
-            let names = [
-                "RowAbsolute",
-                "ColumnAbsolute",
-                "ReferenceStyle",
-                "External",
-                "RelativeTo",
-            ];
-            let mut values = vec![missing(); names.len()];
-            let mut supplied = [false; 5];
-            for (position, arg) in args.iter().enumerate() {
-                let index = match arg.name.as_deref() {
-                    Some(name) => match names.iter().position(|n| n.eq_ignore_ascii_case(name)) {
-                        Some(index) => index,
-                        None => return self.unsupported("an unknown Range.Address argument"),
-                    },
-                    None => position,
-                };
-                if index >= values.len() || supplied[index] {
-                    return Err(fault(450, "duplicate or excess Range.Address arguments"));
-                }
-                supplied[index] = true;
-                values[index] = arg
-                    .value
-                    .as_ref()
-                    .map(|v| v.variant().clone())
-                    .unwrap_or_else(missing);
-            }
-            return Ok(values);
-        }
-        if args.iter().any(|arg| arg.name.is_some()) {
-            return self.unsupported("named host arguments are not supported");
-        }
-        Ok(args
-            .iter()
-            .map(|arg| {
-                arg.value
-                    .as_ref()
-                    .map(|v| v.variant().clone())
-                    .unwrap_or_else(missing)
-            })
-            .collect())
-    }
-
-    /// Shared legacy projection execution; member selection happens at the caller.
-    fn invoke_projected_member(
-        &self,
-        object: Object,
-        name: &str,
-        args: &[Variant],
-    ) -> HalResult<Variant> {
-        match object {
-            Object::Application => match name {
-                "CALLER" if args.is_empty() => {
-                    match self.context(|context| Ok(context.caller()))? {
-                        Some(range) => self.object(Object::Range(range, Axis::Cells)),
-                        None => Ok(Variant::from_error_code(2023)),
-                    }
-                }
-                "WORKSHEETFUNCTION" if args.is_empty() => self.object(Object::Functions),
-                "VOLATILE" => {
-                    let enabled = match args {
-                        [] => true,
-                        [one] if one.as_error_code() == Some(-2147352572) => true,
-                        [one] => calcvba_eval::arith::coerce_numeric(
-                            one,
-                            calcvba_bundle::NumericCoerceTarget::Boolean,
-                        )
-                        .map_err(|e| fault(e.code, e.message))?
-                        .as_bool()
-                        .expect("Boolean coercion"),
-                        _ => return Err(fault(450, "wrong Volatile argument count")),
-                    };
-                    self.context(|context| context.set_volatile(enabled))?;
-                    Ok(Variant::empty())
-                }
-                _ => self.unsupported("an Application member outside the supported host surface"),
-            },
-            Object::Functions => {
-                let args = args
-                    .iter()
-                    .map(|arg| self.argument(arg))
-                    .collect::<HalResult<Vec<_>>>()?;
-                let value = self.context(|context| context.worksheet_function(name, &args))?;
-                if matches!(value, Value::Error(_)) {
-                    return Err(fault(
-                        1004,
-                        format!("WorksheetFunction.{name} could not calculate"),
-                    ));
-                }
-                to_variant(&value).map_err(|e| fault(13, e.to_string()))
-            }
-            Object::Range(range, axis) => self.range_member(range, axis, name, args),
-            Object::Sheet => match name {
-                "NAME" if args.is_empty() => {
-                    let name = self.context(|context| context.active_sheet_name())?;
-                    Ok(Variant::from_string(name))
-                }
-                "RANGE" if matches!(args.len(), 1) => {
-                    let Some(address) = args[0].as_bstr().map(|s| s.as_str()) else {
-                        return Err(fault(13, "Range needs an address text"));
-                    };
-                    let range = self.context(|context| context.active_range(&address))?;
-                    self.object(Object::Range(range, Axis::Cells))
-                }
-                _ => self.unsupported("an ActiveSheet member outside the supported host surface"),
-            },
-            Object::Selection(range) => self.range_member(range, Axis::Cells, name, args),
-        }
     }
 }
 
 impl HostServices for SpreadsheetHost {
     fn is_host_class(&self, target: &str) -> bool {
-        [
-            "DnaCalc.Application",
-            "DnaCalc.ActiveSheet",
-            "DnaCalc.Selection",
-        ]
-        .iter()
-        .any(|class| target.eq_ignore_ascii_case(class))
+        target.eq_ignore_ascii_case(descriptor::GLOBAL_GUID_TEXT)
     }
     fn profile(&self) -> HalProfileId {
         HalProfileId::Null
@@ -972,7 +631,7 @@ impl ComHal for SpreadsheetHost {
         match self.foreign(&object) {
             // SAFETY: the compiler-retained metadata contract is forwarded unchanged.
             Some(com) => unsafe { com.prepare_typed_object(object, members) },
-            None => self.unsupported("a typed native member of a DNA object"),
+            None => self.prepare_dynamic_object(object),
         }
     }
     fn release_object_variant(&self, object: ObjectRef) -> HalResult<Variant> {
@@ -992,7 +651,7 @@ impl ComHal for SpreadsheetHost {
             Some(com) => unsafe {
                 com.prepare_typed_object_with_interfaces(object, members, interfaces)
             },
-            None => self.unsupported("a typed native member of a DNA object"),
+            None => self.prepare_dynamic_object(object),
         }
     }
     unsafe fn prepare_typed_object_with_locale(
@@ -1007,14 +666,17 @@ impl ComHal for SpreadsheetHost {
             Some(com) => unsafe {
                 com.prepare_typed_object_with_locale(object, members, interfaces, locale_id)
             },
-            None => self.unsupported("a typed native member of a DNA object"),
+            None => self.prepare_dynamic_object(object),
         }
     }
     fn enumerate_object(&self, object: ObjectRef) -> HalResult<Vec<Variant>> {
-        match self.foreign(&object) {
-            Some(com) => com.enumerate_object(object),
-            None => self.unsupported("For Each over a DNA object"),
+        if let Some(com) = self.foreign(&object) {
+            return com.enumerate_object(object);
         }
+        if let Some(inner) = projection::unwrap_model_object(&object) {
+            return inner.enumerate_items().map_err(typed_fault_to_hal);
+        }
+        self.unsupported("For Each over a DNA object")
     }
     fn dispatch_invoke_variant(&self, request: &calcvba_com::ComInvokeRequest) -> HalResult<Variant> {
         let _ = request;
@@ -1057,23 +719,22 @@ impl ComHal for SpreadsheetHost {
         if let Some(com) = self.foreign(&object) {
             return com.prepare_dynamic_object(object);
         }
-        if object.is_compat_object()
-            && let Ok(Object::Selection(range)) = self.lookup(&object)
+        if let Some(host_obj) = calcvba_host_api::HostObject::from_object_ref(&object)
+            && (host_obj.header().iid == TYPED_RANGE_IID || projection::is_model_object(&object))
         {
-            return self.prepare_selection(object, range);
+            return Ok(host_obj);
         }
-        calcvba_host_api::HostObject::from_object_ref(&object)
-            .filter(|object| {
-                object.header().iid == TYPED_RANGE_IID
-                    || object.header().iid == SELECTION_IID
-                    || crate::events::object_type(&object.object_ref()).is_some()
-            })
-            .ok_or_else(|| {
-                fault(
-                    429,
-                    "only an admitted DNA factory object can enter a typed activation",
-                )
-            })
+        if let Some(native) = object.project_field_get(calcvba_bundle::HOST_DOCUMENT_FIELD)
+            && let Some(doc_ref) = native.as_object_ref()
+            && let Some(host_obj) = calcvba_host_api::HostObject::from_object_ref(&doc_ref)
+            && projection::is_model_object(&doc_ref)
+        {
+            return Ok(host_obj);
+        }
+        Err(fault(
+            429,
+            "only an admitted DNA object can enter a typed activation",
+        ))
     }
     fn invoke_early_bound(
         &self,
@@ -1084,32 +745,6 @@ impl ComHal for SpreadsheetHost {
         if let Some(com) = self.foreign(&object) {
             return com.invoke_early_bound(object, member, args);
         }
-        if member.invoke_kind == TypeLibMemberInvokeKind::PropertyGet
-            && let Some(result) = self.document_member(&object, &member.name, args.len())
-        {
-            return result.map(calcvba_runtime::RuntimeCallResult::value);
-        }
-        // A document project's worksheet function (it runs outside any event) reaches the
-        // automatic-event Application for what a worksheet function asks of it: its
-        // WorksheetFunction object and its Caller, as the add-in and module routes answer them.
-        if crate::events::object_type(&object) == Some("Application")
-            && member.invoke_kind == TypeLibMemberInvokeKind::PropertyGet
-            && args.is_empty()
-            && !crate::events::callback_active()
-        {
-            let name = member.name.to_ascii_uppercase();
-            if matches!(name.as_str(), "WORKSHEETFUNCTION" | "CALLER") {
-                return self
-                    .invoke_projected_member(Object::Application, &name, &[])
-                    .map(calcvba_runtime::RuntimeCallResult::value);
-            }
-        }
-        if crate::events::object_type(&object).is_some() {
-            return self.unsupported("a document member without its admitted typed slot");
-        }
-        // Preserve only the existing portable projection until extraction to host
-        // glue. Compiler-bound calls use its fixed tokens, never dynamic names.
-        // This is not native COM/vtable compatibility evidence.
         if let Some(native) = self.native_range(&object) {
             if member.token == 1
                 && member.invoke_kind == TypeLibMemberInvokeKind::PropertyGet
@@ -1121,125 +756,30 @@ impl ComHal for SpreadsheetHost {
             }
             return Err(fault(438, "unknown numeric Range member"));
         }
-        let object = self.lookup(&object)?;
-        // A document project types a worksheet function's Range with the automatic-event Range,
-        // whose members are numbered on their own: map them onto the projection by name. A cell
-        // write from a worksheet function raises Excel's trappable error 1004.
-        if let Object::Range(..) = object {
-            let name = member.name.to_ascii_uppercase();
-            let event_range = member
-                .interface_iid
-                .as_ref()
-                .and_then(crate::events::types::event_interface)
-                == Some("Range");
-            match member.invoke_kind {
-                TypeLibMemberInvokeKind::PropertyGet
-                    if event_range
-                        && matches!(
-                            name.as_str(),
-                            "VALUE2" | "COUNT" | "ROW" | "COLUMN" | "ADDRESS"
-                        ) =>
-                {
-                    let args = self.projected_arguments(object, &name, args)?;
-                    return self
-                        .invoke_projected_member(object, &name, &args)
-                        .map(calcvba_runtime::RuntimeCallResult::value);
-                }
-                TypeLibMemberInvokeKind::PropertyPut | TypeLibMemberInvokeKind::PropertyPutRef
-                    if (event_range || member.token >= 100)
-                        && matches!(
-                            name.as_str(),
-                            "VALUE"
-                                | "VALUE2"
-                                | "FORMULA"
-                                | "FORMULA2"
-                                | "FORMULAR1C1"
-                                | "FORMULA2R1C1"
-                        ) =>
-                {
-                    return Err(excel_forbids_cell_write(self));
-                }
-                _ => {}
-            }
+        if let Some(inner) = projection::unwrap_model_object(&object) {
+            return inner
+                .invoke_early_hal(member.token, member.invoke_kind, args)
+                .map(calcvba_runtime::RuntimeCallResult::value)
+                .map_err(typed_fault_to_hal);
         }
-        let name = match (object, member.token, member.invoke_kind) {
-            (Object::Application, 1, TypeLibMemberInvokeKind::PropertyGet) => "CALLER",
-            (Object::Application, 2, TypeLibMemberInvokeKind::PropertyGet) => "WORKSHEETFUNCTION",
-            (Object::Application, 3, TypeLibMemberInvokeKind::Method) => "VOLATILE",
-            (Object::Sheet, 1, TypeLibMemberInvokeKind::PropertyGet) => "NAME",
-            (Object::Sheet, 2, TypeLibMemberInvokeKind::PropertyGet) => "RANGE",
-            (Object::Selection(_), 1, TypeLibMemberInvokeKind::PropertyGet) => "ADDRESS",
-            // Excel forbids a worksheet function to change a cell: the write raises the
-            // trappable VBA error 1004 (measured, DnaExamples.xlam, dc-0f1k.4).
-            (
-                Object::Range(..),
-                1 | RANGE_VALUE | RANGE_FORMULA,
-                TypeLibMemberInvokeKind::PropertyPut | TypeLibMemberInvokeKind::PropertyPutRef,
-            ) => return Err(excel_forbids_cell_write(self)),
-            (Object::Range(..), token, TypeLibMemberInvokeKind::PropertyGet) => match token {
-                1 => "VALUE2",
-                2 => "COUNT",
-                3 => "ROW",
-                4 => "COLUMN",
-                5 => "ADDRESS",
-                6 => "ROWS",
-                7 => "COLUMNS",
-                8 => "CELLS",
-                9 => "AREAS",
-                100..=299 => {
-                    return self
-                        .unsupported("a declared Range member outside the supported host surface");
-                }
-                _ => return Err(fault(438, "unknown typed projection member")),
-            },
-            (_, 100..=399, _) => {
-                return self.unsupported(
-                    "a declared member or accessor outside the supported host surface",
-                );
-            }
-            _ => return Err(fault(438, "unsupported typed projection member/accessor")),
-        };
-        let args = self.projected_arguments(object, name, args)?;
-        self.invoke_projected_member(object, name, &args)
-            .map(calcvba_runtime::RuntimeCallResult::value)
+        Err(fault(438, "foreign or expired spreadsheet object"))
     }
 
     fn app_object_variant(&self, name: Variant) -> HalResult<Variant> {
+        if name
+            .as_bstr()
+            .is_some_and(|s| s.as_str().eq_ignore_ascii_case(descriptor::GLOBAL_GUID_TEXT))
+        {
+            let model = self.model()?;
+            let app = model.application();
+            let host_obj = projection::wrap_object(model, app, None, None);
+            return Ok(Variant::from_object_ref(host_obj.object_ref()));
+        }
         self.create_object_variant(name)
     }
 
     fn create_object_variant(&self, name: Variant) -> HalResult<Variant> {
-        if name
-            .as_bstr()
-            .is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.Application"))
-        {
-            if self.native_events {
-                let object = crate::events::application_object().map_err(|e| fault(5, e))?;
-                return Ok(Variant::from_object_ref(object.object_ref()));
-            }
-            self.object(Object::Application)
-        } else if name
-            .as_bstr()
-            .is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.ActiveSheet"))
-        {
-            // The user's active sheet, from the host's view; a host with none refuses here.
-            self.context(|context| context.active_sheet_name())?;
-            self.object(Object::Sheet)
-        } else if name
-            .as_bstr()
-            .is_some_and(|s| s.as_str().eq_ignore_ascii_case("DnaCalc.Selection"))
-        {
-            let range = self.context(|context| context.selection())?;
-            self.object(Object::Selection(range))
-        } else if let Some(com) = self.com.as_ref().filter(|_| {
-            // DNA's own injected objects (ActiveSheet, Selection, ...) are never platform COM
-            // classes: what DNA does not model stays a typed refusal, not a trappable error 429.
-            !name.as_bstr().is_some_and(|s| {
-                s.as_str()
-                    .get(..7)
-                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("DnaCalc"))
-            })
-        }) {
+        if let Some(com) = self.com.as_ref() {
             // Owner rule: early-bound COM through imported type libraries first, never late
             // binding as a start. `New X` of an imported class compiles to this activation with the
             // class's ProgID; an explicit CreateObject or GetObject in the project's source is late
@@ -1259,18 +799,18 @@ impl ComHal for SpreadsheetHost {
         if let Some(com) = self.foreign(&object) {
             return com.describe_object(object);
         }
-        if self.native_range(&object).is_none() && crate::events::object_type(&object).is_none() {
-            self.lookup(&object)?;
+        if !self.owns(&object) {
+            return Err(fault(438, "foreign or expired spreadsheet object"));
         }
         Ok(Some(ComObjectDescriptor {
             object,
-            prog_id_name: "DnaCalc.ReadOnly".into(),
+            prog_id_name: "Excel.Object".into(),
             transport: ComObjectTransportKind::Projection,
             supports_events: false,
             known_member_tokens: vec![],
             known_event_tokens: vec![],
-            default_member_token: None,
-            default_member_name: Some("Item".into()),
+            default_member_token: Some(0.into()),
+            default_member_name: Some("_Default".into()),
             typelib_cache_key: None,
         }))
     }
@@ -1278,92 +818,51 @@ impl ComHal for SpreadsheetHost {
         if let Some(com) = self.foreign(&object) {
             return com.object_default_value(object);
         }
-        if crate::events::object_type(&object).is_some() {
-            return self
-                .unsupported("an implicit document-object value outside its typed interface");
-        }
         if let Some(native) = self.native_range(&object) {
             return self.native_value(&native).map(Some);
         }
-        match self.lookup(&object)? {
-            Object::Range(range, axis) => self.range_member(range, axis, "VALUE2", &[]).map(Some),
-            _ => Ok(None),
+        if let Some(inner) = projection::unwrap_model_object(&object) {
+            return inner.default_value().map_err(typed_fault_to_hal);
         }
+        Ok(None)
     }
     fn object_type_name(&self, object: ObjectRef) -> HalResult<Option<String>> {
         if let Some(com) = self.foreign(&object) {
             return com.object_type_name(object);
         }
-        if let Some(name) = crate::events::object_type(&object) {
-            return Ok(Some(name.into()));
-        }
         if self.native_range(&object).is_some() {
             return Ok(Some("Range".into()));
         }
-        Ok(Some(
-            match self.lookup(&object)? {
-                Object::Application => "Application",
-                Object::Functions => "WorksheetFunction",
-                Object::Range(..) | Object::Selection(_) => "Range",
-                Object::Sheet => "Worksheet",
-            }
-            .into(),
-        ))
+        if let Some(name) = projection::object_type_name(&object) {
+            return Ok(Some(name));
+        }
+        Err(fault(438, "foreign or expired spreadsheet object"))
     }
     fn dispatch_invoke_dynamic_variant(&self, request: &DynamicCallRequest) -> HalResult<Variant> {
         if self.foreign(&request.object).is_some() {
             return self.unsupported(LATE_BOUND_REFUSAL);
         }
-        if !matches!(
-            request.call_kind_hint,
-            Some(DynamicCallKind::PropertyLet | DynamicCallKind::PropertySet)
-        ) && let DynamicMemberSelector::Name(name)
-        | DynamicMemberSelector::TokenNamed { name, .. } = &request.member
-            && let Some(result) =
-                self.document_member(&request.object, name.as_str(), request.args.len())
-        {
-            return result;
-        }
-        if crate::events::object_type(&request.object).is_some() {
-            return self.unsupported("a late-bound document object outside its typed interface");
-        }
-        if matches!(
-            request.call_kind_hint,
-            Some(DynamicCallKind::PropertyLet | DynamicCallKind::PropertySet)
-        ) {
-            let cell_write = matches!(self.lookup(&request.object), Ok(Object::Range(..)))
-                && match &request.member {
-                    DynamicMemberSelector::Name(n)
-                    | DynamicMemberSelector::TokenNamed { name: n, .. } => {
-                        ["Value", "Value2", "Formula", "Formula2", "FormulaR1C1"]
-                            .iter()
-                            .any(|member| n.as_str().eq_ignore_ascii_case(member))
-                    }
-                    DynamicMemberSelector::DefaultMember => true,
-                    _ => false,
-                };
-            if cell_write {
-                return Err(excel_forbids_cell_write(self));
-            }
-            return self.unsupported("spreadsheet objects are read-only");
-        }
-        let name = match &request.member {
-            DynamicMemberSelector::Name(n) | DynamicMemberSelector::TokenNamed { name: n, .. } => {
-                n.as_str()
-            }
-            DynamicMemberSelector::DefaultMember => "Item",
-            _ => return Err(fault(438, "member name is required")),
-        }
-        .to_ascii_uppercase();
         if let Some(native) = self.native_range(&request.object) {
-            if request.args.is_empty() && matches!(name.as_str(), "NUMERICVALUE" | "ITEM") {
+            let is_value = match &request.member {
+                calcvba_com::DynamicMemberSelector::Name(n)
+                | calcvba_com::DynamicMemberSelector::TokenNamed { name: n, .. } => {
+                    n.as_str().eq_ignore_ascii_case("NumericValue")
+                        || n.as_str().eq_ignore_ascii_case("Item")
+                }
+                calcvba_com::DynamicMemberSelector::DefaultMember => true,
+                _ => false,
+            };
+            if request.args.is_empty() && is_value {
                 return self.native_value(&native);
             }
             return self.unsupported("a numeric Range member outside its typed interface");
         }
-        let object = self.lookup(&request.object)?;
-        let args = self.projected_arguments(object, &name, &request.args)?;
-        self.invoke_projected_member(object, &name, &args)
+        if let Some(inner) = projection::unwrap_model_object(&request.object) {
+            return inner
+                .invoke_dynamic_hal(&request.member, request.call_kind_hint, &request.args)
+                .map_err(typed_fault_to_hal);
+        }
+        Err(fault(438, "foreign or expired spreadsheet object"))
     }
     fn advise_events(
         &self,
@@ -1438,358 +937,25 @@ impl ComHal for SpreadsheetHost {
     }
 }
 
-/// XlCVError, the values `CVErr` takes in a worksheet function (Excel's type library).
-pub(crate) const XL_CV_ERROR: [(&str, i64); 7] = [
-    ("xlErrNull", 2000),
-    ("xlErrDiv0", 2007),
-    ("xlErrValue", 2015),
-    ("xlErrRef", 2023),
-    ("xlErrName", 2029),
-    ("xlErrNum", 2036),
-    ("xlErrNA", 2042),
-];
-
-fn xl_cv_error_constants() -> Vec<calcvba_com::TypeLibConstantMetadata> {
-    XL_CV_ERROR
-        .into_iter()
-        .map(|(name, value)| calcvba_com::TypeLibConstantMetadata {
-            owner: "Excel".into(),
-            name: name.into(),
-            value: calcvba_com::ComDefaultValue::Int(value),
-        })
-        .collect()
-}
-
-pub(crate) struct SpreadsheetTypes;
-impl calcvba_symbol::TypeLibResolver for SpreadsheetTypes {
-    fn interface_iid(
-        &self,
-        request: &TypeLibResolveRequest,
-        _: &TypeLibMetadataBlob,
-    ) -> Option<calcvba_com::ComInterfaceIid> {
-        if request
-            .reference_name
-            .eq_ignore_ascii_case("DnaCalcObjects")
-        {
-            Some(typed_iid())
-        } else if request.reference_name.eq_ignore_ascii_case("Excel") {
-            // Without a nominal identity, declaration lowering continues to the next
-            // library and can attach the numeric-only Range to an Excel.Value2 call.
-            Some(projected_range_iid())
-        } else {
-            None
-        }
-    }
-    fn resolve(&self, request: &TypeLibResolveRequest) -> Option<TypeLibMetadataBlob> {
-        use calcvba_com::{
-            TypeLibMemberInvokeKind as Kind, TypeLibMemberMetadata, TypeLibParamType as Ty,
-        };
-        fn member(
-            name: &str,
-            token: i32,
-            kind: Kind,
-            parameters: usize,
-            return_type: Ty,
-        ) -> TypeLibMemberMetadata {
-            TypeLibMemberMetadata {
-                name: name.into(),
-                token,
-                vtable_slot: None,
-                requires_argument: false,
-                invoke_kind: kind,
-                parameter_names: (0..parameters).map(|i| format!("arg{i}")).collect(),
-                parameter_optional: vec![true; parameters],
-                parameter_optional_defaults: vec![],
-                is_default_member: false,
-                parameter_types: vec![Ty::Variant; parameters],
-                parameter_wire_types: vec![],
-                parameter_iids: vec![],
-                return_type: Some(return_type),
-                return_wire_type: None,
-                callconv_is_stdcall: false,
-                is_dual: false,
-                interface_iid: None,
-                source_typekind: None,
-                vtable_slot_bound: None,
-            }
-        }
-        if request.reference_name.eq_ignore_ascii_case("DnaCalc")
-            && let Some(global) = request.requested_coclass.as_deref().filter(|name| {
-                ["ActiveSheet", "ActiveWorkbook", "ActiveWindow", "Selection"]
-                    .iter()
-                    .any(|s| name.eq_ignore_ascii_case(s))
-            })
-        {
-            let declarations = match global.to_ascii_lowercase().as_str() {
-                "activesheet" => vec![
-                    member("Name", 1, Kind::PropertyGet, 0, Ty::Variant),
-                    member("Range", 2, Kind::PropertyGet, 2, Ty::Variant),
-                ],
-                "activeworkbook" => vec![member("Name", 1, Kind::PropertyGet, 0, Ty::Variant)],
-                "activewindow" => vec![
-                    member("ScrollRow", 1, Kind::PropertyGet, 0, Ty::Variant),
-                    member("ScrollRow", 1, Kind::PropertyPut, 1, Ty::Variant),
-                ],
-                "selection" => vec![member("Address", 1, Kind::PropertyGet, 5, Ty::Variant)],
-                _ => unreachable!("validated global"),
-            };
-            return Some(TypeLibMetadataBlob {
-                constants: Vec::new(),
-                identity: TypeLibResolvedIdentity {
-                    reference_name: request.reference_name.clone(),
-                    requested_coclass: Some(global.into()),
-                    importlib: "host:dnacalc-readonly-v1".into(),
-                    libid: None,
-                    major_version: 1,
-                    minor_version: 0,
-                    lcid: None,
-                    cache_key: format!("dnacalc-readonly-v1:{global}"),
-                },
-                activation_prog_id: Some(format!("DnaCalc.{global}")),
-                member_name_to_token: declarations
-                    .iter()
-                    .map(|m| (m.name.clone(), m.token))
-                    .collect(),
-                members: declarations,
-                events: vec![],
-                coclass_names: vec![global.into()],
-                coclass_prog_ids: vec![],
-                app_objects: vec![],
-                extensible: false,
-            });
-        }
-        if request
-            .reference_name
-            .eq_ignore_ascii_case("DnaCalcObjects")
-        {
-            if request
-                .requested_coclass
-                .as_deref()
-                .is_some_and(|name| !name.eq_ignore_ascii_case("Range"))
-            {
-                return None;
-            }
-            let mut numeric = member("NumericValue", 1, Kind::PropertyGet, 0, Ty::Double);
-            numeric.vtable_slot = Some(0);
-            numeric.interface_iid = Some(typed_iid());
-            numeric.vtable_slot_bound = Some(1);
-            numeric.is_default_member = true;
-            return Some(TypeLibMetadataBlob {
-                constants: Vec::new(),
-                identity: TypeLibResolvedIdentity {
-                    reference_name: request.reference_name.clone(),
-                    requested_coclass: Some("Range".into()),
-                    importlib: "calcvba-host-slots-v1".into(),
-                    libid: None,
-                    major_version: 1,
-                    minor_version: 0,
-                    lcid: None,
-                    cache_key: "dnacalc-numeric-range-v1".into(),
-                },
-                activation_prog_id: None,
-                member_name_to_token: vec![(numeric.name.clone(), numeric.token)],
-                members: vec![numeric],
-                events: vec![],
-                coclass_names: vec!["Range".into()],
-                coclass_prog_ids: vec![],
-                app_objects: vec![],
-                extensible: false,
-            });
-        }
-        let application = request.reference_name.eq_ignore_ascii_case("DnaCalc");
-        if !application && !request.reference_name.eq_ignore_ascii_case("Excel") {
-            return None;
-        }
-        let class = if application { "Application" } else { "Range" };
-        let mut members = if application {
-            vec![
-                member("Caller", 1, Kind::PropertyGet, 0, Ty::Object),
-                member("WorksheetFunction", 2, Kind::PropertyGet, 0, Ty::Object),
-                member("Volatile", 3, Kind::Method, 1, Ty::Variant),
-            ]
-        } else {
-            vec![
-                member("Value2", 1, Kind::PropertyGet, 0, Ty::Variant),
-                member("Count", 2, Kind::PropertyGet, 0, Ty::Long),
-                member("Row", 3, Kind::PropertyGet, 0, Ty::Long),
-                member("Column", 4, Kind::PropertyGet, 0, Ty::Long),
-                member("Address", 5, Kind::PropertyGet, 5, Ty::String),
-                member("Rows", 6, Kind::PropertyGet, 0, Ty::Object),
-                member("Columns", 7, Kind::PropertyGet, 0, Ty::Object),
-                member("Cells", 8, Kind::PropertyGet, 2, Ty::Object),
-                member("Areas", 9, Kind::PropertyGet, 0, Ty::Object),
-                member("Value2", 1, Kind::PropertyPut, 1, Ty::Variant),
-                member("Value", RANGE_VALUE, Kind::PropertyGet, 1, Ty::Variant),
-                member("Value", RANGE_VALUE, Kind::PropertyPut, 2, Ty::Variant),
-                member("Formula", RANGE_FORMULA, Kind::PropertyGet, 0, Ty::Variant),
-                member("Formula", RANGE_FORMULA, Kind::PropertyPut, 1, Ty::Variant),
-            ]
-        };
-        if !application {
-            let address = members
-                .iter_mut()
-                .find(|m| m.name == "Address")
-                .expect("Range Address metadata");
-            address.parameter_names = [
-                "RowAbsolute",
-                "ColumnAbsolute",
-                "ReferenceStyle",
-                "External",
-                "RelativeTo",
-            ]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        }
-        if application {
-            for name in [
-                "Version",
-                "Build",
-                "CalculationVersion",
-                "OperatingSystem",
-                "Calculation",
-                "Iteration",
-                "MaxIterations",
-                "MaxChange",
-                "CalculateBeforeSave",
-                "EnableEvents",
-                "MultiThreadedCalculation",
-                "AutomationSecurity",
-                "AddIns",
-                "COMAddIns",
-                "Workbooks",
-                "CutCopyMode",
-            ] {
-                let token = 100 + members.len() as i32;
-                members.push(member(name, token, Kind::PropertyGet, 0, Ty::Variant));
-                if [
-                    "Calculation",
-                    "Iteration",
-                    "MaxIterations",
-                    "MaxChange",
-                    "CalculateBeforeSave",
-                    "EnableEvents",
-                    "AutomationSecurity",
-                    "CutCopyMode",
-                ]
-                .contains(&name)
-                {
-                    members.push(member(name, token, Kind::PropertyPut, 1, Ty::Variant));
-                }
-            }
-            for (name, args) in [
-                ("Calculate", 0),
-                ("CalculateFull", 0),
-                ("CalculateFullRebuild", 0),
-                ("ExecuteExcel4Macro", 1),
-                ("Run", 31),
-                // Declared so a project that schedules a macro (VBA-Web's async timeout) compiles;
-                // calling it refuses at run time as an unsupported Application member (dc-tey4.4).
-                ("OnTime", 4),
-                ("MacroOptions", 11),
-                ("RegisterXLL", 1),
-                ("Union", 30),
-            ] {
-                members.push(member(
-                    name,
-                    200 + members.len() as i32,
-                    Kind::Method,
-                    args,
-                    Ty::Variant,
-                ));
-            }
-            let metadata = members
-                .iter_mut()
-                .find(|m| m.name == "MacroOptions")
-                .expect("declared member");
-            metadata.parameter_names = [
-                "Macro",
-                "Description",
-                "HasMenu",
-                "MenuText",
-                "HasShortcutKey",
-                "ShortcutKey",
-                "Category",
-                "StatusBar",
-                "HelpContextID",
-                "HelpFile",
-                "ArgumentDescriptions",
-            ]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        }
-        Some(TypeLibMetadataBlob {
-            // The module route has no document, but a worksheet function still returns
-            // `CVErr(xlErrDiv0)`: the Excel library supplies XlCVError, as in a file project.
-            constants: if application {
-                Vec::new()
-            } else {
-                xl_cv_error_constants()
-            },
-            identity: TypeLibResolvedIdentity {
-                reference_name: request.reference_name.clone(),
-                requested_coclass: Some(class.into()),
-                importlib: "host:dnacalc-readonly-v1".into(),
-                libid: None,
-                major_version: 1,
-                minor_version: 0,
-                lcid: None,
-                cache_key: format!("dnacalc-readonly-v1:{class}"),
-            },
-            activation_prog_id: application.then(|| "DnaCalc.Application".into()),
-            member_name_to_token: members.iter().map(|m| (m.name.clone(), m.token)).collect(),
-            members,
-            events: vec![],
-            coclass_names: vec![class.into()],
-            coclass_prog_ids: vec![],
-            app_objects: vec![],
-            extensible: false,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::descriptor::DescriptorTypeLibResolver;
     use calcvba_symbol::TypeLibResolver;
 
-    /// dc-1nbp.2: the object limit counts live objects. Released Range objects are reclaimed, a
-    /// Range still held (a module global) stays valid, and live objects still hit the limit.
-    /// Whether two Range objects for the same cells are `Is`-equal waits on dc-1nbp.6 (E1); the
-    /// table still returns one identity per range value.
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn range_objects_are_released_and_only_live_ones_count() {
-        let host = SpreadsheetHost::new(false, false, Default::default());
-        let held = host.range_variant(Range { id: 7 }).unwrap();
-        let held_ref = held.as_object_ref().unwrap();
-        for id in 100..10_100u64 {
-            let v = host.range_variant(Range { id }).unwrap();
-            drop(v);
-        }
-        assert!(host.lookup(&held_ref).is_ok(), "a held Range stays valid");
-        assert_eq!(
-            host.range_variant(Range { id: 7 })
-                .unwrap()
-                .as_object_ref()
-                .unwrap()
-                .raw(),
-            held_ref.raw()
-        );
-        assert!(host.objects.lock().unwrap().by_id.len() <= MAX_OBJECTS);
-        let live: Vec<Variant> = (0..MAX_OBJECTS as u64 - 1)
-            .map(|i| host.range_variant(Range { id: 20_000 + i }).unwrap())
-            .collect();
-        assert!(host.range_variant(Range { id: 99_999 }).is_err());
-        drop(live);
-        assert!(host.range_variant(Range { id: 99_999 }).is_ok());
+    fn test_host() -> SpreadsheetHost {
+        SpreadsheetHost::new(
+            false,
+            Default::default(),
+            Rc::new(invocation_model::InvocationModel::new(false)),
+            false,
+        )
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn legacy_typed_projection_uses_fixed_token_and_refuses_unknown_token() {
-        let host = SpreadsheetHost::new(false, false, Default::default());
+    fn descriptor_projection_uses_real_dispids_and_refuses_unknown_dispid() {
+        let host = test_host();
         struct Fixture;
         impl SpreadsheetContext for Fixture {
             fn caller(&self) -> Option<Range> {
@@ -1827,7 +993,11 @@ mod tests {
         }
         let value = host.range_variant(Range { id: 0 }).unwrap();
         let object = value.as_object_ref().unwrap();
-        let metadata = SpreadsheetTypes
+        let resolver = DescriptorTypeLibResolver {
+            has_workbook: true,
+            events: crate::events::DocumentEvents::All,
+        };
+        let metadata = resolver
             .resolve(&TypeLibResolveRequest {
                 reference_name: "Excel".into(),
                 requested_coclass: Some("Range".into()),
@@ -1838,33 +1008,67 @@ mod tests {
                 lcid_hint: None,
             })
             .unwrap();
-        let mut member = metadata.members.into_iter().find(|m| m.token == 2).unwrap();
-        member.name = "not-a-host-member".into();
+        // Real Excel Range.Count DISPID is 118 from excel.json.
+        let mut count_member = metadata
+            .members
+            .iter()
+            .find(|m| m.name == "Count" && m.invoke_kind == TypeLibMemberInvokeKind::PropertyGet)
+            .cloned()
+            .unwrap();
+        assert_eq!(count_member.token, 118);
+        count_member.name = "not-a-host-member".into();
         let result = with_context(&Fixture, || {
-            host.invoke_early_bound(object.clone(), &member, &[])
+            host.invoke_early_bound(object.clone(), &count_member, &[])
                 .map_err(|e| Error::Backend(e.to_string()))
         })
         .unwrap();
         assert_eq!(result.value, Some(Variant::from_i32(6)));
-        member.name = "Count".into();
-        member.token = 999;
+        count_member.name = "Count".into();
+        count_member.token = 999_999;
         assert_eq!(
-            host.invoke_early_bound(object, &member, &[])
+            host.invoke_early_bound(object, &count_member, &[])
                 .unwrap_err()
                 .host_error_code,
             Some(438),
-            "a recognizable name cannot recover an unbound typed member"
+            "a recognizable name cannot recover an unknown descriptor DISPID"
         );
-        // dc-hsa5.22: a Selection created through the typed entry keeps the same
-        // projection and identity. TypeName and Address still use the existing host route.
-        let refused = with_context(&Fixture, || {
-            let selection = host
-                .create_object_variant(Variant::from_string("DnaCalc.Selection"))
+        // Excel.Global appobject returns Application, whose Selection returns a Range with
+        // real Range IID and TypeName "Range".
+        with_context(&Fixture, || {
+            let app = host
+                .app_object_variant(Variant::from_string(descriptor::GLOBAL_GUID_TEXT))
                 .unwrap()
                 .as_object_ref()
                 .unwrap();
-            let native = host.prepare_dynamic_object(selection.clone()).unwrap();
-            let again = host.prepare_dynamic_object(selection).unwrap();
+            assert_eq!(
+                host.object_type_name(app.clone()).unwrap().as_deref(),
+                Some("Application")
+            );
+            let app_meta = resolver
+                .resolve(&TypeLibResolveRequest {
+                    reference_name: "Excel".into(),
+                    requested_coclass: Some("Application".into()),
+                    importlib_hint: None,
+                    libid_hint: None,
+                    major_version_hint: None,
+                    minor_version_hint: None,
+                    lcid_hint: None,
+                })
+                .unwrap();
+            let sel_member = app_meta
+                .members
+                .iter()
+                .find(|m| m.name == "Selection")
+                .unwrap();
+            let sel = host
+                .invoke_early_bound(app, sel_member, &[])
+                .unwrap()
+                .value
+                .unwrap()
+                .as_object_ref()
+                .unwrap();
+            let native = host.prepare_dynamic_object(sel.clone()).unwrap();
+            let again = host.prepare_dynamic_object(sel).unwrap();
             assert!(native.same_identity(&again));
             assert_eq!(
                 host.object_type_name(native.object_ref())
@@ -1872,95 +1076,138 @@ mod tests {
                     .as_deref(),
                 Some("Range")
             );
-            let member = SpreadsheetTypes
-                .resolve(&TypeLibResolveRequest {
-                    reference_name: "DnaCalc".into(),
-                    requested_coclass: Some("Selection".into()),
-                    importlib_hint: None,
-                    libid_hint: None,
-                    major_version_hint: None,
-                    minor_version_hint: None,
-                    lcid_hint: None,
-                })
-                .unwrap()
+            let addr_member = metadata
                 .members
-                .remove(0);
+                .iter()
+                .find(|m| m.name == "Address")
+                .unwrap();
             let result = host
-                .invoke_early_bound(native.object_ref(), &member, &[])
+                .invoke_early_bound(native.object_ref(), addr_member, &[])
                 .unwrap();
             assert_eq!(result.value, Some(Variant::from_string("$A$1:$C$2")));
-            let foreign = SpreadsheetHost::new(false, false, Default::default());
-            assert!(foreign.object_type_name(native.object_ref()).is_err());
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cell_write_is_error_1004_in_udf_and_refusal_outside_udf() {
+        struct Bare {
+            event: bool,
+        }
+        impl SpreadsheetContext for Bare {
+            fn event_view(&self) -> bool {
+                self.event
+            }
+            fn caller(&self) -> Option<Range> {
+                None
+            }
+            fn metadata(&self, _: Range) -> Result<RangeInfo, ContextError> {
+                unreachable!()
+            }
+            fn cell(&self, _: Range, _: u32, _: u32) -> Result<Range, ContextError> {
+                unreachable!()
+            }
+            fn area(&self, _: Range, _: u32) -> Result<Range, ContextError> {
+                unreachable!()
+            }
+            fn read_range(&self, _: Range) -> Result<Value, ContextError> {
+                unreachable!()
+            }
+            fn worksheet_function(&self, _: &str, _: &[Value]) -> Result<Value, ContextError> {
+                unreachable!()
+            }
+            fn set_volatile(&self, _: bool) -> Result<(), ContextError> {
+                unreachable!()
+            }
+        }
+        let host = test_host();
+        let range = host.range_variant(Range { id: 0 }).unwrap().as_object_ref().unwrap();
+        let resolver = DescriptorTypeLibResolver {
+            has_workbook: true,
+            events: crate::events::DocumentEvents::All,
+        };
+        let put_v2 = resolver
+            .resolve(&TypeLibResolveRequest {
+                reference_name: "Excel".into(),
+                requested_coclass: Some("Range".into()),
+                importlib_hint: None,
+                libid_hint: None,
+                major_version_hint: None,
+                minor_version_hint: None,
+                lcid_hint: None,
+            })
+            .unwrap()
+            .members
+            .into_iter()
+            .find(|m| m.name == "Value2" && m.invoke_kind == TypeLibMemberInvokeKind::PropertyPut)
+            .unwrap();
+        let arg = [calcvba_com::DynamicCallArg {
+            value: Some(Variant::from_i32(7).into()),
+            name: None,
+            by_ref: None,
+        }];
+        let udf_err = with_context(&Bare { event: false }, || {
+            let err = host.invoke_early_bound(range.clone(), &put_v2, &arg).unwrap_err();
+            assert_eq!(err.host_error_code, Some(1004));
+            Ok(())
+        });
+        assert!(udf_err.is_ok(), "UDF write raises trappable 1004, not a host refusal");
+
+        let event_err = with_context(&Bare { event: true }, || {
+            let _ = host.invoke_early_bound(range.clone(), &put_v2, &arg);
             Ok(())
         })
         .unwrap_err();
         assert!(
-            matches!(refused, Error::HostRefused(why) if why == "a native spreadsheet object outside the supported projection")
+            matches!(event_err, Error::HostRefused(ref why) if why.contains("read-only")),
+            "unexpected: {event_err:?}"
         );
     }
 
-    /// A context that only says whether it is a document event's.
-    struct Bare {
-        event: bool,
-    }
-    impl SpreadsheetContext for Bare {
-        fn event_view(&self) -> bool {
-            self.event
-        }
-        fn caller(&self) -> Option<Range> {
-            None
-        }
-        fn metadata(&self, _: Range) -> Result<RangeInfo, ContextError> {
-            unreachable!()
-        }
-        fn cell(&self, _: Range, _: u32, _: u32) -> Result<Range, ContextError> {
-            unreachable!()
-        }
-        fn area(&self, _: Range, _: u32) -> Result<Range, ContextError> {
-            unreachable!()
-        }
-        fn read_range(&self, _: Range) -> Result<Value, ContextError> {
-            unreachable!()
-        }
-        fn worksheet_function(&self, _: &str, _: &[Value]) -> Result<Value, ContextError> {
-            unreachable!()
-        }
-        fn set_volatile(&self, _: bool) -> Result<(), ContextError> {
-            unreachable!()
-        }
-    }
-
-    /// Excel's 1004 for a cell write is the answer inside a worksheet-function call only.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn a_cell_write_is_error_1004_in_a_worksheet_function() {
-        let host = SpreadsheetHost::new(false, false, Default::default());
-        let error = with_context(&Bare { event: false }, || {
-            Err::<(), _>(Error::Backend(format!(
-                "{:?}",
-                excel_forbids_cell_write(&host).host_error_code
-            )))
-        })
-        .unwrap_err();
-        assert_eq!(error.to_string().contains("1004"), true, "{error}");
-    }
-
-    /// From a document event the write is the earlier typed refusal, never error 1004.
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn a_cell_write_in_a_document_event_is_the_typed_refusal() {
-        let host = SpreadsheetHost::new(false, false, Default::default());
-        let mut shown = None;
-        let _ = with_context(&Bare { event: true }, || {
-            let error = excel_forbids_cell_write(&host);
-            shown = Some((error.host_error_code, error.to_string()));
-            Ok(())
-        });
-        let (code, text) = shown.expect("the context ran");
-        assert_ne!(code, Some(1004), "{text}");
-        assert!(text.contains("read-only"), "{text}");
-        // Outside any context (a call that is neither) it is the same refusal.
-        let error = excel_forbids_cell_write(&host);
-        assert_ne!(error.host_error_code, Some(1004));
+    fn office_descriptor_resolves_textframe2_and_cross_library_shape_return() {
+        let resolver = DescriptorTypeLibResolver {
+            has_workbook: true,
+            events: crate::events::DocumentEvents::All,
+        };
+        let shape_meta = resolver
+            .resolve(&TypeLibResolveRequest {
+                reference_name: "Excel".into(),
+                requested_coclass: Some("Shape".into()),
+                importlib_hint: None,
+                libid_hint: None,
+                major_version_hint: None,
+                minor_version_hint: None,
+                lcid_hint: None,
+            })
+            .unwrap();
+        let tf2 = shape_meta
+            .members
+            .iter()
+            .find(|m| m.name == "TextFrame2")
+            .expect("Shape.TextFrame2 in descriptor");
+        assert!(matches!(
+            tf2.return_wire_type,
+            Some(calcvba_com::TypeLibWireType::InterfacePointer { ref name })
+                if name.eq_ignore_ascii_case("Office.TextFrame2")
+        ));
+        let office_tf2 = resolver
+            .resolve(&TypeLibResolveRequest {
+                reference_name: "Office".into(),
+                requested_coclass: Some("TextFrame2".into()),
+                importlib_hint: None,
+                libid_hint: None,
+                major_version_hint: None,
+                minor_version_hint: None,
+                lcid_hint: None,
+            })
+            .unwrap();
+        assert!(
+            office_tf2.members.iter().any(|m| m.name == "TextRange"),
+            "Office.TextFrame2 must expose TextRange from office.json"
+        );
     }
 }

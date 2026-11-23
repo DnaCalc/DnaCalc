@@ -20,6 +20,8 @@ impl WorkbookAutomation {
     pub(super) fn register_mutation(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Value", InvokeKind::Put, Self::put_value);
         handlers.on("Range", "Value2", InvokeKind::Put, Self::put_value2);
+        handlers.on("Range", "_Default", InvokeKind::Put, Self::put_default);
+        handlers.on("Range", "Item", InvokeKind::Put, Self::put_item);
         handlers.on(
             "Range",
             "ClearContents",
@@ -108,6 +110,51 @@ impl WorkbookAutomation {
             }
             self.write_range(session, range, call.args.last())
         })
+    }
+    fn put_default(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.put_indexed(target, call, true)
+    }
+    fn put_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.put_indexed(target, call, false)
+    }
+    fn put_indexed(&self, target: &ObjectRef, call: &Call<'_>, allow_bare: bool) -> Reply {
+        let axis = match &target.key {
+            ObjectKey::RangeView { axis, .. } => *axis,
+            _ => RangeAxis::Cells,
+        };
+        let resolve_target = |range: &ReferenceLike| -> Result<ReferenceLike, AutoError> {
+            match call.args.as_slice() {
+                [_] if allow_bare => Ok(range.clone()),
+                [row, _] if allow_bare && row.is_missing() => Ok(range.clone()),
+                [row, _] if !row.is_missing() => {
+                    geometry::item(range, axis, row, &AutoValue::Missing)
+                }
+                [row, col, _] if allow_bare && row.is_missing() && col.is_missing() => {
+                    Ok(range.clone())
+                }
+                [row, col, _] if !row.is_missing() => geometry::item(range, axis, row, col),
+                _ => Err(geometry::bad_count()),
+            }
+        };
+        self.mutate_pre(
+            target,
+            call,
+            |session, reference| {
+                let reference = reference.ok_or_else(geometry::type_mismatch)?;
+                let indexed = resolve_target(reference)?;
+                match Self::table_pre_step(session, &indexed, call.args.last())? {
+                    PreWrite::Same => Ok(PreWrite::Replace(indexed)),
+                    other => Ok(other),
+                }
+            },
+            |session, reference| {
+                self.write_range(
+                    session,
+                    reference.ok_or_else(geometry::type_mismatch)?,
+                    call.args.last(),
+                )
+            },
+        )
     }
     /// A value write: a table the target touches is first brought to what Excel does (dc-piw0.10 Q13):
     /// a write over a whole table range deletes the table, a write over header cells renames the columns
@@ -457,7 +504,7 @@ impl WorkbookAutomation {
                 ObjectKey::Range(held)
                 | ObjectKey::RangeView {
                     reference: held, ..
-                } => Some(self.resolve(&mut Access::Session(session), held)?),
+                } => Some(self.resolve(&mut Access::Session(session, false), held)?),
                 _ => None,
             };
             let (reference, done) = match pre(session, reference.as_ref())? {
@@ -521,6 +568,12 @@ fn input(
             calc_doc_model::FiniteNumber::new(v).ok_or_else(geometry::type_mismatch)?,
         )),
         CoreRef::Text(v) => {
+            if v.utf16_code_units().len() > 32_767 {
+                return Err(AutoError::not_modelled(
+                    "Range.Value2 text exceeds the cell text limit",
+                    OWNER,
+                ));
+            }
             // Value assignment's entry/format coercions have not been measured by E11.
             // Use the existing entry parser only to detect that ambiguity, never to invent
             // Automation's conversion. Admit a string only when it remains identical text.

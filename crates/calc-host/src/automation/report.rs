@@ -240,9 +240,15 @@ impl WorkbookAutomation {
     ) -> Result<T, AutoError> {
         let (_, sheet, item) = Self::report_key(target)?;
         let mut out = None;
-        let reply = self.host.with_session(&mut |session| {
-            out = Some(read(session, sheet, &item)?);
-            Ok(AutoValue::Empty)
+        let reply = self.with_target(target, |access, _| match access {
+            Access::Session(session, _) => {
+                out = Some(read(session, sheet, &item)?);
+                Ok(AutoValue::Empty)
+            }
+            Access::Invocation(_) => Err(AutoError::excel(
+                1004,
+                "Application-defined or object-defined error",
+            )),
         });
         match (reply, out) {
             (Ok(_), Some(value)) => Ok(value),

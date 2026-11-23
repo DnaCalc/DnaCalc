@@ -148,7 +148,7 @@ impl api::Session for OwnedSession {
         }
         let module = Module::load_spreadsheet(&module.name, &module.source)
             .map_err(|e| api::Error::Compile(e.to_string()))?;
-        let (image, functions, spreadsheet, event_project) = split_module(module);
+        let (image, functions, spreadsheet, event_project) = split_module(module, None, false);
         self.inner.reload(image).map_err(error)?;
         self.catalogue = catalogue(&self.inner);
         self.bound = bind_functions(&functions, |p| self.inner.bind(&p.module, &p.name, p.kind))
