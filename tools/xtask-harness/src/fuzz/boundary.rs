@@ -1,0 +1,445 @@
+//! Boundary mapping via IEEE-754 ordered-bit bisection and consecutive-double windows (`dc-ztvv.21`).
+//!
+//! 1. Locates flips in DNA Calc's own predicate (`number <-> error`, `error_A <-> error_B`, or
+//!    distinct kernel route signatures) along a single numeric axis in ~52 local calls.
+//! 2. Emits dense consecutive-double windows (`[lo - W ..= hi + W]`) around every frontier so
+//!    Excel can confirm whether the frontier sits at the exact same binary64 word.
+//! 3. When Excel disagrees on a boundary window, supports parallel batched 64-point bisection
+//!    (matching `tools/excel-service/client.py:bisect_edge`) to pinpoint Excel's exact flip.
+
+use super::domain::DomainSpec;
+use super::rng::{
+    Rng, canonical_case_key, f64_to_ordered, hex_f64, ordered_to_f64, parse_hex_bits, step_ulps,
+};
+use super::steer::{FuzzCase, evaluate_traced};
+use calc_verdict::WitnessInvocation;
+use serde_json::{Value, json};
+use std::collections::HashSet;
+
+/// Coarse predicate tag for number-vs-error and error-vs-error frontier discovery.
+pub fn predicate_tag(encoded: &str) -> String {
+    if encoded.starts_with("0x") {
+        "number".to_owned()
+    } else if encoded.starts_with("error:") {
+        encoded.to_owned()
+    } else if encoded.starts_with("logical:") {
+        "logical".to_owned()
+    } else if encoded.starts_with("text:") {
+        "text".to_owned()
+    } else {
+        encoded.to_owned()
+    }
+}
+
+/// One discovered frontier along a single numeric argument axis (holding other args fixed).
+#[derive(Clone, Debug)]
+pub struct Frontier {
+    pub id: String,
+    pub function: String,
+    pub axis: usize,
+    pub axis_name: String,
+    pub kind: String,
+    pub base_args: Vec<Value>,
+    pub dna_lo_bits: u64,
+    pub dna_hi_bits: u64,
+    pub dna_lo_outcome: String,
+    pub dna_hi_outcome: String,
+    /// Optional Excel-confirmed frontier after probing the consecutive window / Excel bisection.
+    pub excel_lo_bits: Option<u64>,
+    pub excel_hi_bits: Option<u64>,
+    pub excel_lo_outcome: Option<String>,
+    pub excel_hi_outcome: Option<String>,
+    pub shifted_ulps: Option<i64>,
+}
+
+impl Frontier {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "id": self.id,
+            "function": self.function,
+            "axis": self.axis,
+            "axis_name": self.axis_name,
+            "kind": self.kind,
+            "base_args": self.base_args,
+            "dna_lo_bits": format!("0x{:016x}", self.dna_lo_bits),
+            "dna_hi_bits": format!("0x{:016x}", self.dna_hi_bits),
+            "dna_lo_outcome": self.dna_lo_outcome,
+            "dna_hi_outcome": self.dna_hi_outcome,
+            "excel_lo_bits": self.excel_lo_bits.map(|b| format!("0x{b:016x}")),
+            "excel_hi_bits": self.excel_hi_bits.map(|b| format!("0x{b:016x}")),
+            "excel_lo_outcome": self.excel_lo_outcome,
+            "excel_hi_outcome": self.excel_hi_outcome,
+            "shifted_ulps": self.shifted_ulps,
+        })
+    }
+}
+
+/// Bisect locally on DNA Calc along scalar numeric argument `axis` between `lo_val` and `hi_val`
+/// where `predicate(lo) != predicate(hi)`, returning exact adjacent Value2-safe doubles
+/// `(lo_bits, lo_result, hi_bits, hi_result)`.
+pub fn bisect_local_axis(
+    function: &str,
+    base_args: &[Value],
+    axis: usize,
+    lo_val: f64,
+    hi_val: f64,
+    context: &WitnessInvocation,
+    route_mode: bool,
+) -> Option<(u64, String, u64, String)> {
+    if !lo_val.is_finite() || !hi_val.is_finite() || lo_val == hi_val || axis >= base_args.len() {
+        return None;
+    }
+    let (mut a, mut b) = if f64_to_ordered(lo_val) < f64_to_ordered(hi_val) {
+        (lo_val, hi_val)
+    } else {
+        (hi_val, lo_val)
+    };
+    let eval_at = |x: f64| -> (String, u64) {
+        let mut args = base_args.to_vec();
+        args[axis] = hex_f64(x);
+        let (res, trace, _) = evaluate_traced(function, &args, context);
+        (res, trace.route_mask)
+    };
+    let key_of = |(res, mask): &(String, u64)| -> String {
+        if route_mode {
+            format!("{}|{:x}", predicate_tag(res), mask)
+        } else {
+            predicate_tag(res)
+        }
+    };
+    let mut ea = eval_at(a);
+    let mut eb = eval_at(b);
+    let ka = key_of(&ea);
+    if ka == key_of(&eb) {
+        return None;
+    }
+
+    for _ in 0..64 {
+        let oa = f64_to_ordered(a);
+        let ob = f64_to_ordered(b);
+        if ob <= oa + 1 {
+            break;
+        }
+        let mid_ord = oa + (ob - oa) / 2;
+        let mut mid = ordered_to_f64(mid_ord);
+        if mid.is_subnormal() || (mid == 0.0 && mid.is_sign_negative()) {
+            mid = 0.0;
+            let oz = f64_to_ordered(0.0);
+            if oz <= oa || oz >= ob {
+                // Collapsed across the subnormal band: snap to ±MIN_POSITIVE boundary.
+                let next_a = step_ulps(a, 1, true)?;
+                if f64_to_ordered(next_a) >= ob {
+                    break;
+                }
+                mid = next_a;
+            }
+        }
+        let em = eval_at(mid);
+        if key_of(&em) == ka {
+            a = mid;
+            ea = em;
+        } else {
+            b = mid;
+            eb = em;
+        }
+    }
+    let a_bits = if a == 0.0 { 0u64 } else { a.to_bits() };
+    let b_bits = if b == 0.0 { 0u64 } else { b.to_bits() };
+    Some((a_bits, ea.0, b_bits, eb.0))
+}
+
+/// Discover DNA Calc number-vs-error and route-change frontiers by probing axis sweeps from
+/// interesting seed cases, then bisecting every detected flip to adjacent doubles.
+pub fn discover_local_frontiers(
+    spec: &DomainSpec,
+    seeds: &[FuzzCase],
+    context: &WitnessInvocation,
+    max_frontiers: usize,
+    rng: &mut Rng,
+) -> Vec<Frontier> {
+    if seeds.is_empty() || max_frontiers == 0 {
+        return Vec::new();
+    }
+    let mut frontiers = Vec::new();
+    let mut seen_frontiers: HashSet<String> = HashSet::new();
+
+    // Candidate scalar numeric axes
+    let scalar_axes: Vec<usize> = spec
+        .params
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.kind != super::domain::ParamKind::ArrayNumeric)
+        .map(|(i, _)| i)
+        .collect();
+    if scalar_axes.is_empty() {
+        return frontiers;
+    }
+
+    // Prioritize high-iteration, small-margin, or error-adjacent seeds.
+    let mut order: Vec<usize> = (0..seeds.len()).collect();
+    order.sort_by(|&i, &j| {
+        let sa = &seeds[i];
+        let sb = &seeds[j];
+        let key_a = (
+            sa.trace.min_boundary_margin.is_finite(),
+            sa.trace.iterations,
+        );
+        let key_b = (
+            sb.trace.min_boundary_margin.is_finite(),
+            sb.trace.iterations,
+        );
+        key_b
+            .0
+            .cmp(&key_a.0)
+            .then_with(|| key_b.1.cmp(&key_a.1))
+            .then_with(|| {
+                sa.trace
+                    .min_boundary_margin
+                    .total_cmp(&sb.trace.min_boundary_margin)
+            })
+    });
+
+    let probe_limit = order.len().min(max_frontiers * 12);
+    let factors: &[f64] = &[
+        -10.0, -2.0, -1.0, -0.5, -0.1, 0.0, 0.5, 0.9, 0.99, 1.01, 1.1, 2.0, 10.0, 100.0,
+    ];
+    let additive: &[f64] = &[-1.0, -0.1, -0.01, -1e-4, -1e-7, 1e-7, 1e-4, 0.01, 0.1, 1.0];
+
+    for &seed_idx in order.iter().take(probe_limit) {
+        if frontiers.len() >= max_frontiers {
+            break;
+        }
+        let seed = &seeds[seed_idx];
+        let axis = *rng.pick(&scalar_axes);
+        if axis >= seed.args.len() {
+            continue;
+        }
+        let Some(base_bits) = parse_hex_bits(&seed.args[axis]) else {
+            continue;
+        };
+        let base_val = f64::from_bits(base_bits);
+        if !base_val.is_finite() {
+            continue;
+        }
+        let base_pred = predicate_tag(&seed.prediction);
+        let base_mask = seed.trace.route_mask;
+
+        // Probe offsets around base_val to find an opposite-side bracket
+        let mut bracket: Option<(f64, bool)> = None;
+        for &f in factors {
+            let cand = base_val * f;
+            if !cand.is_finite() || cand.is_subnormal() || cand == base_val {
+                continue;
+            }
+            let mut args = seed.args.clone();
+            args[axis] = hex_f64(cand);
+            let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
+            if predicate_tag(&res) != base_pred {
+                bracket = Some((cand, false));
+                break;
+            }
+            if bracket.is_none() && trace.route_mask != base_mask {
+                bracket = Some((cand, true));
+            }
+        }
+        if bracket.is_none() {
+            for &d in additive {
+                let cand = base_val + d;
+                if !cand.is_finite() || cand.is_subnormal() || cand == base_val {
+                    continue;
+                }
+                let mut args = seed.args.clone();
+                args[axis] = hex_f64(cand);
+                let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
+                if predicate_tag(&res) != base_pred {
+                    bracket = Some((cand, false));
+                    break;
+                }
+                if bracket.is_none() && trace.route_mask != base_mask {
+                    bracket = Some((cand, true));
+                }
+            }
+        }
+        let Some((other_val, route_only)) = bracket else {
+            continue;
+        };
+        let Some((lo_bits, lo_out, hi_bits, hi_out)) = bisect_local_axis(
+            &spec.function,
+            &seed.args,
+            axis,
+            base_val,
+            other_val,
+            context,
+            route_only,
+        ) else {
+            continue;
+        };
+        let kind = if predicate_tag(&lo_out) != predicate_tag(&hi_out) {
+            format!("{}<->{}", predicate_tag(&lo_out), predicate_tag(&hi_out))
+        } else {
+            "route_flip".to_owned()
+        };
+        let dedup_key = format!("{axis}|{lo_bits:016x}|{hi_bits:016x}|{kind}");
+        if !seen_frontiers.insert(dedup_key) {
+            continue;
+        }
+        let axis_name = spec
+            .params
+            .get(axis)
+            .map_or_else(|| format!("arg{axis}"), |p| p.name.clone());
+        frontiers.push(Frontier {
+            id: format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1),
+            function: spec.function.clone(),
+            axis,
+            axis_name,
+            kind,
+            base_args: seed.args.clone(),
+            dna_lo_bits: lo_bits,
+            dna_hi_bits: hi_bits,
+            dna_lo_outcome: lo_out,
+            dna_hi_outcome: hi_out,
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        });
+    }
+
+    frontiers
+}
+
+/// Expand every frontier into a dense window of consecutive Value2-safe doubles
+/// `[lo - half_window ..= lo]` and `[hi ..= hi + half_window]` for Excel comparison.
+pub fn expand_frontier_windows(
+    frontiers: &[Frontier],
+    half_window: i64,
+    context: &WitnessInvocation,
+    seen_keys: &mut HashSet<String>,
+    round: usize,
+    next_id: &mut usize,
+) -> Vec<(usize, FuzzCase)> {
+    let mut out = Vec::new();
+    for (fidx, frontier) in frontiers.iter().enumerate() {
+        let lo = f64::from_bits(frontier.dna_lo_bits);
+        let hi = f64::from_bits(frontier.dna_hi_bits);
+        let mut pts = Vec::new();
+        for d in -half_window..=0 {
+            if let Some(v) = step_ulps(lo, d, true) {
+                pts.push(v);
+            }
+        }
+        for d in 0..=half_window {
+            if let Some(v) = step_ulps(hi, d, true) {
+                pts.push(v);
+            }
+        }
+        for v in pts {
+            let mut args = frontier.base_args.clone();
+            args[frontier.axis] = hex_f64(v);
+            let key = canonical_case_key(&frontier.function, &args);
+            if !seen_keys.insert(key) {
+                continue;
+            }
+            let (prediction, trace, outcome_class) = evaluate_traced(&frontier.function, &args, context);
+            *next_id += 1;
+            out.push((
+                fidx,
+                FuzzCase {
+                    id: format!("fuzz-{}-r{round:02}-{:06}", frontier.function, *next_id),
+                    region: format!("boundary:{}", frontier.axis_name),
+                    round,
+                    args,
+                    prediction,
+                    trace,
+                    outcome_class,
+                },
+            ));
+        }
+    }
+    out
+}
+
+/// Update each frontier with Excel's observed flip inside its probed consecutive window.
+pub fn record_excel_window_flips(
+    frontiers: &mut [Frontier],
+    probed: &[(usize, u64, String)], // (frontier_idx, axis_bits, excel_outcome)
+) {
+    let mut by_frontier: std::collections::BTreeMap<usize, Vec<(u64, String)>> =
+        std::collections::BTreeMap::new();
+    for (idx, bits, outcome) in probed {
+        by_frontier
+            .entry(*idx)
+            .or_default()
+            .push((*bits, outcome.clone()));
+    }
+    for (idx, mut pts) in by_frontier {
+        let Some(frontier) = frontiers.get_mut(idx) else {
+            continue;
+        };
+        pts.sort_by_key(|(bits, _)| f64_to_ordered(f64::from_bits(*bits)));
+        pts.dedup_by_key(|(bits, _)| *bits);
+        for pair in pts.windows(2) {
+            if predicate_tag(&pair[0].1) != predicate_tag(&pair[1].1) {
+                frontier.excel_lo_bits = Some(pair[0].0);
+                frontier.excel_hi_bits = Some(pair[1].0);
+                frontier.excel_lo_outcome = Some(pair[0].1.clone());
+                frontier.excel_hi_outcome = Some(pair[1].1.clone());
+                let shift = f64_to_ordered(f64::from_bits(pair[0].0)) as i128
+                    - f64_to_ordered(f64::from_bits(frontier.dna_lo_bits)) as i128;
+                frontier.shifted_ulps = i64::try_from(shift).ok();
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fuzz::steer::touchstone_bulk_context;
+
+    #[test]
+    fn local_bisection_pinpoints_rate_guess_neg_one_boundary() {
+        let ctx = touchstone_bulk_context();
+        let base = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        // At guess = -1.0 RATE returns #VALUE!; one ULP above -1.0 it enters the secant solver
+        // (returning #NUM! for nper=10 because -1+eps diverges), so bisection hits the exact
+        // #VALUE! <-> #NUM! double boundary at -1.0.
+        let (lo, lo_out, hi, hi_out) =
+            bisect_local_axis("RATE", &base, 5, -2.0, 0.1, &ctx, false).expect("flip found");
+        assert_eq!(lo, (-1.0_f64).to_bits(), "expected -1.0 as last #VALUE! word");
+        assert_eq!(lo_out, "error:Value");
+        assert_eq!(
+            hi,
+            step_ulps(-1.0, 1, true).unwrap().to_bits(),
+            "expected nextafter(-1, 0) as first non-#VALUE! word"
+        );
+        assert_ne!(hi_out, "error:Value", "expected non-#VALUE!, got {hi_out}");
+
+        // And bisecting from nextafter(-1, 0) to +0.1 pinpoints the #NUM! <-> number convergence frontier.
+        let (lo2, lo2_out, hi2, hi2_out) = bisect_local_axis(
+            "RATE",
+            &base,
+            5,
+            f64::from_bits(hi),
+            0.1,
+            &ctx,
+            false,
+        )
+        .expect("number<->#NUM! flip found");
+        assert_eq!(lo2_out, "error:Num");
+        assert!(hi2_out.starts_with("0x"), "expected number, got {hi2_out}");
+        assert_eq!(
+            f64_to_ordered(f64::from_bits(lo2)) + 1,
+            f64_to_ordered(f64::from_bits(hi2))
+        );
+    }
+}

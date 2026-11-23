@@ -2421,7 +2421,7 @@ impl calc_func::ReferenceText for NamelessReferenceText {
     }
 }
 
-fn calculate_with_context(
+pub(crate) fn calculate_with_context(
     function: &str,
     args: &[Value],
     index: Option<(usize, usize)>,

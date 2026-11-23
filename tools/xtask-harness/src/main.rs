@@ -180,6 +180,9 @@ mod witness;
 // Cell-context witnesses: layouts judged in a real sheet (dc-483v).
 #[cfg(not(target_arch = "wasm32"))]
 mod cell_context;
+// Smart fuzzer: deterministic, code-steered, Excel-compared sweeps (dc-ztvv.21).
+#[cfg(not(target_arch = "wasm32"))]
+mod fuzz;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::process::ExitCode;
@@ -207,6 +210,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "release" => site::downloads::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "witness" => witness::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "fuzz" => fuzz::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "cells" => cell_context::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -259,6 +264,8 @@ fn main() -> ExitCode {
             usages.push(collation::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(witness::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(fuzz::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")
