@@ -92,6 +92,14 @@ pub struct Frontier {
     pub excel_lo_outcome: Option<String>,
     pub excel_hi_outcome: Option<String>,
     pub shifted_ulps: Option<i64>,
+    /// Fractal refinement depth (`0` = primary boundary, `>= 1` = recursive edge-of-edge child).
+    pub depth: usize,
+    /// Scale at which this boundary was resolved (`decade`, `binade`, `ulp`, `coarse_discrepancy`).
+    pub scale: String,
+    /// Signal transition kind (`predicate_flip`, `route_switch`, `iteration_regime`, `outcome_regime`).
+    pub transition_kind: String,
+    /// Parent frontier ID when discovered via recursive cross-axis edge-of-edge refinement.
+    pub parent_id: Option<String>,
 }
 
 impl Frontier {
@@ -103,6 +111,10 @@ impl Frontier {
             "axis_cell": self.axis_cell.map(|(r, c)| [r, c]),
             "axis_name": self.axis_name,
             "kind": self.kind,
+            "depth": self.depth,
+            "scale": self.scale,
+            "transition_kind": self.transition_kind,
+            "parent_id": self.parent_id,
             "base_args": self.base_args,
             "dna_lo_bits": format!("0x{:016x}", self.dna_lo_bits),
             "dna_hi_bits": format!("0x{:016x}", self.dna_hi_bits),
@@ -197,6 +209,7 @@ pub fn bisect_local_axis(
 
 /// Discover DNA Calc number-vs-error and route-change frontiers by probing axis sweeps from
 /// interesting seed cases, then bisecting every detected flip to adjacent doubles.
+#[allow(dead_code)]
 pub fn discover_local_frontiers(
     spec: &DomainSpec,
     seeds: &[FuzzCase],
@@ -400,6 +413,11 @@ pub fn discover_local_frontiers(
                 Some((r, c)) => format!("{base_name}[{r},{c}]"),
             };
             *per_axis_count.entry((axis, cell)).or_insert(0) += 1;
+            let transition_kind = if kind == "route_flip" {
+                "route_switch".to_owned()
+            } else {
+                "predicate_flip".to_owned()
+            };
             frontiers.push(Frontier {
                 id: format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1),
                 function: spec.function.clone(),
@@ -417,6 +435,10 @@ pub fn discover_local_frontiers(
                 excel_lo_outcome: None,
                 excel_hi_outcome: None,
                 shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind,
+                parent_id: None,
             });
         }
     }
@@ -684,6 +706,10 @@ mod tests {
             excel_lo_outcome: None,
             excel_hi_outcome: None,
             shifted_ulps: None,
+            depth: 0,
+            scale: "ulp".into(),
+            transition_kind: "predicate_flip".into(),
+            parent_id: None,
         }];
         let probed = vec![
             (0, 0xc1e3_b4f2_ebf9_c62a, "error:Num".to_owned()),
@@ -725,6 +751,10 @@ mod tests {
             excel_lo_outcome: None,
             excel_hi_outcome: None,
             shifted_ulps: None,
+            depth: 0,
+            scale: "ulp".into(),
+            transition_kind: "predicate_flip".into(),
+            parent_id: None,
         }];
         let probed_with_hole = vec![
             (0, lo_minus_1, "error:Value".to_owned()),
@@ -760,6 +790,10 @@ mod tests {
             excel_lo_outcome: None,
             excel_hi_outcome: None,
             shifted_ulps: None,
+            depth: 0,
+            scale: "ulp".into(),
+            transition_kind: "predicate_flip".into(),
+            parent_id: None,
         }];
         let probed_zero_hole = vec![
             (0, neg_min, "error:Num".to_owned()),

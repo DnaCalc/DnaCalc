@@ -7,6 +7,7 @@
 pub mod boundary;
 pub mod cluster;
 pub mod domain;
+pub mod fractal;
 pub mod hints;
 pub mod oracle;
 pub mod rng;
@@ -14,9 +15,10 @@ pub mod spec_gen;
 pub mod steer;
 mod sweep;
 
-use boundary::{Frontier, discover_local_frontiers, expand_frontier_windows};
+use boundary::{Frontier, expand_frontier_windows};
 use cluster::{DiscrepancyCluster, DiscrepancyRow, RegionStats};
 use domain::DomainSpec;
+use fractal::{FractalConfig, FractalDiscoveryStats, fractal_discover_local};
 use rng::{GENERATOR_VERSION, Rng, hash_case_stream};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
@@ -27,7 +29,7 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
@@ -43,6 +45,7 @@ pub struct FuzzConfig {
     pub batch_size: usize,
     pub in_flight: usize,
     pub max_frontiers: usize,
+    pub fractal_depth: usize,
     pub frontier_window: i64,
     pub lane: String,
     pub endpoint: Option<PathBuf>,
@@ -79,6 +82,7 @@ impl FuzzConfig {
             batch_size: 5_000,
             in_flight: 4,
             max_frontiers: 40,
+            fractal_depth: 2,
             frontier_window: 8,
             lane,
             endpoint: None,
@@ -103,6 +107,7 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut batch_size: Option<usize> = None;
     let mut in_flight: Option<usize> = None;
     let mut max_frontiers: Option<usize> = None;
+    let mut fractal_depth: Option<usize> = None;
     let mut frontier_window: Option<i64> = None;
     let mut lane: Option<String> = None;
     let mut endpoint: Option<PathBuf> = None;
@@ -174,6 +179,13 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
                         .map_err(|_| "--frontiers needs an integer")?,
                 );
             }
+            "--fractal-depth" => {
+                fractal_depth = Some(
+                    next_val()?
+                        .parse()
+                        .map_err(|_| "--fractal-depth needs an integer")?,
+                );
+            }
             "--window" => {
                 frontier_window = Some(
                     next_val()?
@@ -239,6 +251,9 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     }
     if let Some(v) = max_frontiers {
         cfg.max_frontiers = v;
+    }
+    if let Some(v) = fractal_depth {
+        cfg.fractal_depth = v.min(4);
     }
     if let Some(v) = frontier_window {
         cfg.frontier_window = v.clamp(1, 64);
@@ -333,6 +348,7 @@ pub struct FuzzSummary {
     pub region_stats: BTreeMap<String, RegionStats>,
     pub clusters: Vec<DiscrepancyCluster>,
     pub frontiers: Vec<Frontier>,
+    pub fractal_stats: FractalDiscoveryStats,
     pub tracker: CoverageTracker,
 }
 
@@ -376,10 +392,13 @@ pub fn render_markdown_report(summary: &FuzzSummary) -> String {
         ));
     }
     let (rhit, rtot) = summary.tracker.exercised_kernel_routes();
+    let edge_of_edge_count = summary.frontiers.iter().filter(|f| f.depth > 0).count();
     md.push_str(&format!(
-        "- Code route coverage: `{rhit}/{rtot}` kernel routes exercised; `{}` outcome classes; `{}` frontiers mapped\n\n",
+        "- Code route coverage: `{rhit}/{rtot}` kernel routes exercised; `{}` outcome classes; `{}` frontiers mapped (`{}` depth>=1 edge-of-edge; `{}` local fractal evals)\n\n",
         summary.tracker.outcome_hits.len(),
-        summary.frontiers.len()
+        summary.frontiers.len(),
+        edge_of_edge_count,
+        summary.fractal_stats.local_evals,
     ));
 
     md.push_str("## Per-Region Coverage\n\n");
@@ -491,7 +510,14 @@ pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         round += 1;
     }
 
-    let frontiers = discover_local_frontiers(&spec, &all_cases, &ctx, cfg.max_frontiers, &mut rng);
+    let fractal_res = fractal_discover_local(
+        &spec,
+        &all_cases,
+        &ctx,
+        &FractalConfig::new(cfg.max_frontiers, cfg.fractal_depth),
+    );
+    let frontiers = fractal_res.frontiers;
+    let fractal_stats = fractal_res.stats;
     if !frontiers.is_empty() && all_cases.len() < cfg.budget {
         let expanded = expand_frontier_windows(
             &frontiers,
@@ -567,6 +593,7 @@ pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         region_stats,
         clusters: Vec::new(),
         frontiers,
+        fractal_stats,
         tracker,
     };
     write_outputs(cfg, &spec, &summary, &[], &BTreeMap::new())?;
@@ -595,6 +622,7 @@ pub fn write_outputs(
         "dry_rounds": cfg.dry_rounds,
         "batch_size": cfg.batch_size,
         "max_frontiers": cfg.max_frontiers,
+        "fractal_depth": cfg.fractal_depth,
         "frontier_window": cfg.frontier_window,
         "has_custom_hints": spec.has_custom_hints,
         "has_hint_file": spec.has_hint_file,
@@ -656,6 +684,7 @@ pub fn write_outputs(
         "cluster_count": summary.clusters.len(),
         "clusters": summary.clusters.iter().map(DiscrepancyCluster::to_json).collect::<Vec<_>>(),
         "frontier_count": summary.frontiers.len(),
+        "fractal": summary.fractal_stats.to_json(),
     });
     fs::write(
         cfg.out_dir.join("summary.json"),
@@ -666,6 +695,7 @@ pub fn write_outputs(
     let frontiers_doc = json!({
         "function": summary.function,
         "seed": summary.seed,
+        "fractal": summary.fractal_stats.to_json(),
         "frontiers": summary.frontiers.iter().map(Frontier::to_json).collect::<Vec<_>>(),
     });
     fs::write(
