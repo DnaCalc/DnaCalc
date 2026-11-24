@@ -2,6 +2,8 @@
 use crate::{CellEdit, HostState};
 use calc_doc_model::{HEADER_FIELDS, PageBreak};
 use calc_value::{CellKey, ExcelText, GridArea, NameScope, SheetId};
+/// The refusal text of a Page Setup command that changes nothing.
+pub(crate) const NO_CHANGES: &str = "Page Setup has no changes";
 /// Patch to a worksheet’s print settings and built-in print names.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PageSetupChange {
@@ -174,7 +176,7 @@ pub(crate) fn prepare(
         }
     }
     if edits.is_empty() {
-        return Err("Page Setup has no changes".into());
+        return Err(NO_CHANGES.into());
     }
     Ok(edits)
 }

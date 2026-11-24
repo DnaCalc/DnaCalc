@@ -37,6 +37,7 @@ mod formatting;
 mod formula;
 mod mutation;
 mod navigation;
+mod print;
 mod report;
 mod report_draw;
 mod structure;
@@ -241,6 +242,8 @@ impl WorkbookAutomation {
         Self::register_formatting(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
+        // Printing registers likewise (dc-oxh8w.8).
+        let _ = Self::register_print(&mut handlers);
         handlers.on(
             "Application",
             "EnableEvents",
