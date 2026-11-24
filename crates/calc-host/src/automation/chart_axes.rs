@@ -2,7 +2,7 @@
 //! (`MinimumScale`, `MaximumScale`, `MajorUnit`, their `...IsAuto` switches and `ReversePlotOrder`).
 //! Writes go through `WorkbookCommand::ChartAxis`, the chart axis dialog's command, so the retained
 //! chart writer saves them. Reading a scale that is automatic returns the renderer's computed scale (dc-oxh8w.13); the rest
-//! refuses naming dc-oxh8w.21 (secondary groups, the Axes collection); titles and formats are in dc-oxh8w.12.
+//! refuses naming dc-oxh8w.23 (secondary groups, the Axes collection); titles and formats are in dc-oxh8w.12.
 
 use super::report::report;
 use super::report_draw::number;
@@ -10,7 +10,7 @@ use super::*;
 use crate::WorkbookCommand;
 use calc_object_model::ReportItem;
 
-const AXES: &str = "dc-oxh8w.21";
+const AXES: &str = "dc-oxh8w.23";
 
 
 #[derive(Clone, Copy)]
@@ -107,7 +107,7 @@ impl WorkbookAutomation {
         }
     }
 
-    /// The renderer's scale for the axis: what Excel reads while a setting is automatic (dc-oxh8w.21).
+    /// The renderer's scale for the axis: what Excel reads while a setting is automatic (dc-oxh8w.23).
     fn computed_scale(&self, target: &ObjectRef, scale: Scale) -> Result<f64, AutoError> {
         let (_, sheet, _) = Self::report_key(target)?;
         let part = Self::chart_token(target)?;
