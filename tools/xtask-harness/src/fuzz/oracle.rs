@@ -7,13 +7,17 @@
 //! are recorded as discrepancies and exported to `bank-rows`.
 
 use super::boundary::{
-    Frontier, discover_local_frontiers, expand_frontier_windows_with_refs, predicate_tag,
+    Frontier, expand_frontier_windows_with_refs, get_axis_bits, predicate_tag,
     record_excel_window_flips, set_axis_f64,
 };
 use super::cluster::{
     DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, judge_pair,
 };
-use super::domain::DomainSpec;
+use super::domain::{DomainSpec, ParamKind};
+use super::fractal::{
+    FractalConfig, FractalDiscoveryStats, coarse_discrepancy_probe_points, fractal_discover_local,
+};
+use super::hints;
 use super::rng::{
     Rng, StreamCaseHasher, canonical_case_key, compact_to_f64, f64_to_compact, parse_hex_bits,
     step_ulps,
@@ -1022,6 +1026,451 @@ fn bisect_shifted_frontiers_excel(
     Ok(())
 }
 
+/// Select the bracket `(lo_bits, lo_out, hi_bits, hi_out)` closest to `anchor_bits` where
+/// either Excel's predicate flips OR Excel's agreement with DNA Calc flips (`matched <-> discrepant`).
+fn select_closest_discrepancy_bracket(
+    anchor_bits: u64,
+    pts: &mut Vec<(u64, String, String)>, // (axis_bits, excel_out, dna_pred)
+) -> Option<(u64, String, u64, String, bool)> {
+    pts.sort_by_key(|(b, _, _)| f64_to_compact(f64::from_bits(*b)));
+    pts.dedup_by_key(|(b, _, _)| *b);
+    let anchor_c = f64_to_compact(f64::from_bits(anchor_bits));
+    let mut best: Option<(u8, u128, u128, usize, bool)> = None;
+    for (idx, w) in pts.windows(2).enumerate() {
+        let pred_flip = predicate_tag(&w[0].1) != predicate_tag(&w[1].1);
+        let disc_flip = (w[0].1 == w[0].2) != (w[1].1 == w[1].2);
+        if !pred_flip && !disc_flip {
+            continue;
+        }
+        let c0 = f64_to_compact(f64::from_bits(w[0].0));
+        let c1 = f64_to_compact(f64::from_bits(w[1].0));
+        if c1 <= c0 {
+            continue;
+        }
+        let hi_k = c1 - 1;
+        let min_dist: u128 = if anchor_c < c0 {
+            (c0 - anchor_c) as u128
+        } else if anchor_c > hi_k {
+            (anchor_c - hi_k) as u128
+        } else {
+            0
+        };
+        // Prefer predicate flip over pure numeric discrepancy onset when distances tie.
+        let kind_pen = u8::from(!pred_flip);
+        let mid_dist = ((c0 + hi_k) - 2 * anchor_c).unsigned_abs();
+        let key = (kind_pen, min_dist, mid_dist);
+        if best.is_none_or(|(bk, bd, bm, _, _)| key < (bk, bd, bm)) {
+            best = Some((kind_pen, min_dist, mid_dist, idx, pred_flip));
+        }
+    }
+    best.map(|(_, _, _, idx, pred_flip)| {
+        (
+            pts[idx].0,
+            pts[idx].1.clone(),
+            pts[idx + 1].0,
+            pts[idx + 1].1.clone(),
+            pred_flip,
+        )
+    })
+}
+
+/// Fractal coarse-difference escalation (`dc-ztvv.26.5`): when a coarse sweep found Excel
+/// discrepancies (including in regions where DNA Calc predicted no local flip), probe Decade +
+/// Binade stencils along numeric axes around distinct discrepant exemplars, select the closest
+/// Excel flip bracket, and pinpoint exact adjacent binary64 doubles via batched 64-point bisection.
+#[allow(clippy::too_many_arguments)]
+pub fn fractal_refine_coarse_discrepancies_excel(
+    cfg: &FuzzConfig,
+    spec: &DomainSpec,
+    client: &Client,
+    frontiers: &mut Vec<Frontier>,
+    fractal_stats: &mut FractalDiscoveryStats,
+    seen_keys: &mut HashSet<String>,
+    excel_answers: &mut HashMap<String, String>,
+    case_hasher: &mut StreamCaseHasher,
+    pred_hashes: &mut Vec<String>,
+    all_envs: &mut BTreeMap<String, Value>,
+    all_worker_calls: &mut BTreeMap<String, usize>,
+    region_stats: &mut BTreeMap<String, RegionStats>,
+    known_clusters: &mut HashSet<String>,
+    discrepancies: &mut Vec<DiscrepancyRow>,
+    discrepancy_parents: &mut Vec<(String, Vec<Value>)>,
+    frontier_seeds: &mut Vec<FuzzCase>,
+    next_id: &mut usize,
+    total_generated: &mut usize,
+    total_asked: &mut usize,
+    total_matched: &mut usize,
+    total_mismatched: &mut usize,
+    total_unread: &mut usize,
+    total_crashed: &mut usize,
+    excel_seconds: &mut f64,
+    round: usize,
+    max_targets: usize,
+) -> Result<usize, String> {
+    if discrepancies.is_empty() || max_targets == 0 {
+        return Ok(0);
+    }
+    let ctx = touchstone_bulk_context();
+    // Pick up to `max_targets` distinct discrepancy exemplars (one per cluster, deterministic order).
+    let mut seen_ckeys: HashSet<String> = HashSet::new();
+    let mut exemplars: Vec<DiscrepancyRow> = Vec::new();
+    for row in discrepancies.iter() {
+        if seen_ckeys.insert(row.cluster_key.clone()) {
+            exemplars.push(row.clone());
+            if exemplars.len() >= max_targets {
+                break;
+            }
+        }
+    }
+    if exemplars.is_empty() {
+        return Ok(0);
+    }
+
+    // Collect numeric axes for each exemplar (up to 2 axes per exemplar to keep probe budget tight).
+    #[derive(Clone)]
+    struct TargetAxis {
+        base_args: Vec<Value>,
+        axis: usize,
+        cell: Option<(usize, usize)>,
+        axis_name: String,
+        anchor_bits: u64,
+    }
+    let mut targets: Vec<TargetAxis> = Vec::new();
+    for ex in &exemplars {
+        let mut added = 0usize;
+        for (i, p) in spec.params.iter().enumerate() {
+            if added >= 2 {
+                break;
+            }
+            let cell = if p.kind == ParamKind::ArrayNumeric {
+                Some((0, 0))
+            } else {
+                None
+            };
+            if let Some(bits) = get_axis_bits(&ex.case.args, i, cell) {
+                let axis_name = match cell {
+                    None => p.name.clone(),
+                    Some((r, 0)) => format!("{}[{r}]", p.name),
+                    Some((r, c)) => format!("{}[{r},{c}]", p.name),
+                };
+                targets.push(TargetAxis {
+                    base_args: ex.case.args.clone(),
+                    axis: i,
+                    cell,
+                    axis_name,
+                    anchor_bits: bits,
+                });
+                added += 1;
+            }
+        }
+    }
+    if targets.is_empty() {
+        return Ok(0);
+    }
+
+    // Step 1: Decade + Binade Excel probe stencil around each discrepant coordinate.
+    let mut probe_cases: Vec<FuzzCase> = Vec::new();
+    let mut probe_refs: Vec<(usize, u64, String, String)> = Vec::new(); // (target_idx, bits, key, dna_pred)
+    for (tidx, tgt) in targets.iter().enumerate() {
+        let anchor = f64::from_bits(tgt.anchor_bits);
+        let pts = coarse_discrepancy_probe_points(anchor);
+        let mut local_bits = HashSet::new();
+        for v in pts {
+            let b = if v == 0.0 { 0u64 } else { v.to_bits() };
+            if !local_bits.insert(b) {
+                continue;
+            }
+            let mut args = tgt.base_args.clone();
+            if !set_axis_f64(&mut args, tgt.axis, tgt.cell, v) {
+                continue;
+            }
+            let key = canonical_case_key(&cfg.function, &args);
+            let (pred, trace, outcome_class) = evaluate_traced(&cfg.function, &args, &ctx);
+            probe_refs.push((tidx, b, key.clone(), pred.clone()));
+            if !seen_keys.insert(key) {
+                continue;
+            }
+            *next_id += 1;
+            let region = format!("fractal_coarse:{}", tgt.axis_name);
+            case_hasher.update_case(&region, &args);
+            probe_cases.push(FuzzCase {
+                id: format!("fuzz-{}-fc{round:02}-{:06}", cfg.function, *next_id),
+                region,
+                round,
+                args,
+                prediction: pred,
+                trace,
+                outcome_class,
+            });
+        }
+    }
+    if !probe_cases.is_empty() {
+        *total_generated += probe_cases.len();
+        let pred_path = cfg
+            .out_dir
+            .join(format!("fractal-coarse-{round:02}-bracket-predictions.jsonl"));
+        pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &probe_cases)?);
+        let agg = ask_single_priority(
+            client,
+            &cfg.function,
+            &probe_cases,
+            INTERACTIVE_CHUNK_SIZE,
+            2,
+            Priority::Interactive,
+        )?;
+        *excel_seconds += agg.excel_seconds;
+        for (k, v) in agg.envs {
+            all_envs.entry(k).or_insert(v);
+        }
+        for (w, c) in agg.worker_calls {
+            *all_worker_calls.entry(w).or_insert(0) += c;
+        }
+        let _ = ingest_judged_cases(
+            &cfg.function,
+            &probe_cases,
+            &agg.rows,
+            excel_answers,
+            region_stats,
+            known_clusters,
+            discrepancies,
+            discrepancy_parents,
+            frontier_seeds,
+            total_asked,
+            total_matched,
+            total_mismatched,
+            total_unread,
+            total_crashed,
+        );
+    }
+
+    // Collect closest Excel flip bracket per target.
+    let mut by_t: BTreeMap<usize, Vec<(u64, String, String)>> = BTreeMap::new();
+    for (tidx, bits, key, dna_pred) in probe_refs {
+        if let Some(excel_enc) = excel_answers.get(&key) {
+            by_t.entry(tidx)
+                .or_default()
+                .push((bits, excel_enc.clone(), dna_pred));
+        }
+    }
+    let mut active: Vec<(usize, u64, String, u64, String, bool)> = Vec::new();
+    for (tidx, mut pts) in by_t {
+        if let Some((lo_b, lo_o, hi_b, hi_o, pred_flip)) =
+            select_closest_discrepancy_bracket(targets[tidx].anchor_bits, &mut pts)
+        {
+            active.push((tidx, lo_b, lo_o, hi_b, hi_o, pred_flip));
+        }
+    }
+
+    // Step 2: Batched 64-point parallel ordered-bit bisection (up to 11 steps -> 64^11 > 2^64).
+    let mut resolved: Vec<(usize, u64, String, u64, String, bool)> = Vec::new();
+    for step in 0..11 {
+        if active.is_empty() {
+            break;
+        }
+        let mut step_cases: Vec<FuzzCase> = Vec::new();
+        let mut step_refs: Vec<(usize, u64, String, String)> = Vec::new();
+        let mut still_open = Vec::new();
+        for (ai, (tidx, lo_b, lo_o, hi_b, hi_o, pred_flip)) in active.iter().enumerate() {
+            let ca = f64_to_compact(f64::from_bits(*lo_b));
+            let cb = f64_to_compact(f64::from_bits(*hi_b));
+            if cb == ca + 1 {
+                resolved.push((*tidx, *lo_b, lo_o.clone(), *hi_b, hi_o.clone(), *pred_flip));
+                continue;
+            }
+            if cb <= ca {
+                continue;
+            }
+            still_open.push(ai);
+            let tgt = &targets[*tidx];
+            let span = (cb - ca) as u128;
+            let k_pts = span.saturating_sub(1).min(63) as usize;
+            let mut local_bits = HashSet::new();
+            for j in 1..=k_pts {
+                let c = ca + ((span * j as u128) / ((k_pts + 1) as u128)) as i128;
+                let Some(val) = compact_to_f64(c) else {
+                    continue;
+                };
+                let b = if val == 0.0 { 0u64 } else { val.to_bits() };
+                if b == *lo_b || b == *hi_b || !local_bits.insert(b) {
+                    continue;
+                }
+                let mut args = tgt.base_args.clone();
+                if !set_axis_f64(&mut args, tgt.axis, tgt.cell, val) {
+                    continue;
+                }
+                let key = canonical_case_key(&cfg.function, &args);
+                let (pred, trace, outcome_class) = evaluate_traced(&cfg.function, &args, &ctx);
+                step_refs.push((ai, b, key.clone(), pred.clone()));
+                if !seen_keys.insert(key) {
+                    continue;
+                }
+                *next_id += 1;
+                let region = format!("fractal_coarse:{}", tgt.axis_name);
+                case_hasher.update_case(&region, &args);
+                step_cases.push(FuzzCase {
+                    id: format!("fuzz-{}-fcs{step}-{:06}", cfg.function, *next_id),
+                    region,
+                    round,
+                    args,
+                    prediction: pred,
+                    trace,
+                    outcome_class,
+                });
+            }
+        }
+        if still_open.is_empty() {
+            break;
+        }
+        if !step_cases.is_empty() {
+            *total_generated += step_cases.len();
+            let pred_path = cfg
+                .out_dir
+                .join(format!("fractal-coarse-{round:02}-step{step}-predictions.jsonl"));
+            pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &step_cases)?);
+            let agg = ask_single_priority(
+                client,
+                &cfg.function,
+                &step_cases,
+                INTERACTIVE_CHUNK_SIZE,
+                2,
+                Priority::Interactive,
+            )?;
+            *excel_seconds += agg.excel_seconds;
+            for (k, v) in agg.envs {
+                all_envs.entry(k).or_insert(v);
+            }
+            for (w, c) in agg.worker_calls {
+                *all_worker_calls.entry(w).or_insert(0) += c;
+            }
+            let _ = ingest_judged_cases(
+                &cfg.function,
+                &step_cases,
+                &agg.rows,
+                excel_answers,
+                region_stats,
+                known_clusters,
+                discrepancies,
+                discrepancy_parents,
+                frontier_seeds,
+                total_asked,
+                total_matched,
+                total_mismatched,
+                total_unread,
+                total_crashed,
+            );
+        }
+
+        let mut pts_by_ai: BTreeMap<usize, Vec<(u64, String, String)>> = BTreeMap::new();
+        for &ai in &still_open {
+            let (tidx, lo_b, lo_o, hi_b, hi_o, _) = &active[ai];
+            let tgt = &targets[*tidx];
+            let mut args_lo = tgt.base_args.clone();
+            set_axis_f64(&mut args_lo, tgt.axis, tgt.cell, f64::from_bits(*lo_b));
+            let (dna_lo, _, _) = evaluate_traced(&cfg.function, &args_lo, &ctx);
+            let mut args_hi = tgt.base_args.clone();
+            set_axis_f64(&mut args_hi, tgt.axis, tgt.cell, f64::from_bits(*hi_b));
+            let (dna_hi, _, _) = evaluate_traced(&cfg.function, &args_hi, &ctx);
+            pts_by_ai.insert(
+                ai,
+                vec![
+                    (*lo_b, lo_o.clone(), dna_lo),
+                    (*hi_b, hi_o.clone(), dna_hi),
+                ],
+            );
+        }
+        for (ai, bits, key, dna_pred) in step_refs {
+            if let Some(excel_enc) = excel_answers.get(&key) {
+                pts_by_ai
+                    .entry(ai)
+                    .or_default()
+                    .push((bits, excel_enc.clone(), dna_pred));
+            }
+        }
+        let mut next_active = Vec::new();
+        for (ai, mut pts) in pts_by_ai {
+            let (tidx, prev_lo, _, prev_hi, _, _) = active[ai];
+            if let Some((lo_b, lo_o, hi_b, hi_o, pred_flip)) =
+                select_closest_discrepancy_bracket(targets[tidx].anchor_bits, &mut pts)
+                && (lo_b != prev_lo || hi_b != prev_hi)
+            {
+                next_active.push((tidx, lo_b, lo_o, hi_b, hi_o, pred_flip));
+            }
+        }
+        active = next_active;
+    }
+
+    for (tidx, lo_b, lo_o, hi_b, hi_o, pred_flip) in active {
+        let ca = f64_to_compact(f64::from_bits(lo_b));
+        let cb = f64_to_compact(f64::from_bits(hi_b));
+        if cb == ca + 1 {
+            resolved.push((tidx, lo_b, lo_o, hi_b, hi_o, pred_flip));
+        }
+    }
+
+    let mut existing: HashSet<String> = frontiers
+        .iter()
+        .map(|f| {
+            format!(
+                "{}|{:?}|{:016x}|{:016x}",
+                f.axis,
+                f.axis_cell,
+                f.excel_lo_bits.unwrap_or(f.dna_lo_bits),
+                f.excel_hi_bits.unwrap_or(f.dna_hi_bits)
+            )
+        })
+        .collect();
+    let mut added = 0usize;
+    for (tidx, lo_b, lo_o, hi_b, hi_o, pred_flip) in resolved {
+        let tgt = &targets[tidx];
+        let dedup_key = format!("{}|{:?}|{:016x}|{:016x}", tgt.axis, tgt.cell, lo_b, hi_b);
+        if !existing.insert(dedup_key) {
+            continue;
+        }
+        let mut args_lo = tgt.base_args.clone();
+        set_axis_f64(&mut args_lo, tgt.axis, tgt.cell, f64::from_bits(lo_b));
+        let (dna_lo, _, _) = evaluate_traced(&cfg.function, &args_lo, &ctx);
+        let mut args_hi = tgt.base_args.clone();
+        set_axis_f64(&mut args_hi, tgt.axis, tgt.cell, f64::from_bits(hi_b));
+        let (dna_hi, _, _) = evaluate_traced(&cfg.function, &args_hi, &ctx);
+        let kind = if pred_flip {
+            format!("{}<->{}", predicate_tag(&lo_o), predicate_tag(&hi_o))
+        } else {
+            "discrepancy_onset".to_owned()
+        };
+        let transition_kind = if pred_flip {
+            "predicate_flip".to_owned()
+        } else {
+            "discrepancy_onset".to_owned()
+        };
+        let f = Frontier {
+            id: format!("frontier-{}-{:03}", cfg.function, frontiers.len() + 1),
+            function: cfg.function.clone(),
+            axis: tgt.axis,
+            axis_cell: tgt.cell,
+            axis_name: tgt.axis_name.clone(),
+            kind,
+            base_args: tgt.base_args.clone(),
+            dna_lo_bits: lo_b,
+            dna_hi_bits: hi_b,
+            dna_lo_outcome: dna_lo,
+            dna_hi_outcome: dna_hi,
+            excel_lo_bits: Some(lo_b),
+            excel_hi_bits: Some(hi_b),
+            excel_lo_outcome: Some(lo_o),
+            excel_hi_outcome: Some(hi_o),
+            shifted_ulps: Some(0),
+            depth: 0,
+            scale: super::fractal::FractalScale::CoarseDiscrepancy.as_str().to_owned(),
+            transition_kind,
+            parent_id: None,
+        };
+        fractal_stats.record_frontier(&f);
+        frontiers.push(f);
+        added += 1;
+    }
+    Ok(added)
+}
+
 fn record_window_flips_from_cache(
     frontiers: &mut [Frontier],
     window_refs: &[(usize, u64, String)],
@@ -1044,7 +1493,11 @@ fn record_window_flips_from_cache(
 /// Run a live Excel-compared adaptive smart fuzzing sweep via Touchstone.
 pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let started = Instant::now();
-    let spec = DomainSpec::for_function(&cfg.function)?;
+    let hints_bank = match &cfg.hints_dir {
+        Some(dir) => hints::HintBank::load_dir(dir)?,
+        None => hints::load_default_hints()?,
+    };
+    let spec = DomainSpec::for_function_with_hints(&cfg.function, &hints_bank)?;
     let ctx = touchstone_bulk_context();
     std::fs::create_dir_all(&cfg.out_dir)
         .map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
@@ -1061,6 +1514,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let mut discrepancy_parents: Vec<(String, Vec<Value>)> = Vec::new();
     let mut frontier_seeds: Vec<FuzzCase> = Vec::new();
     let mut frontiers: Vec<Frontier> = Vec::new();
+    let mut fractal_stats = FractalDiscoveryStats::default();
     let mut probed_frontier_count = 0usize;
     let mut all_envs: BTreeMap<String, Value> = BTreeMap::new();
     let mut all_worker_calls: BTreeMap<String, usize> = BTreeMap::new();
@@ -1202,10 +1656,17 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             }
         }
 
-        // Discover initial frontiers after Round 0 so Round 1 overlaps them onto w3!
+        // Discover initial fractal frontiers after Round 0 so Round 1 overlaps them onto w3!
         if round == 0 && cfg.max_frontiers > 0 && frontiers.is_empty() {
             let initial_cap = (cfg.max_frontiers / 2).max(1);
-            frontiers = discover_local_frontiers(&spec, &frontier_seeds, &ctx, initial_cap, &mut rng);
+            let fres = fractal_discover_local(
+                &spec,
+                &frontier_seeds,
+                &ctx,
+                &FractalConfig::new(initial_cap, cfg.fractal_depth),
+            );
+            frontiers = fres.frontiers;
+            fractal_stats = fres.stats;
         }
 
         let new_total = new_c1 + new_c2;
@@ -1227,15 +1688,18 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         }
     }
 
-    // Final frontier discovery (including discrepancy seeds!) + interactive consecutive windows.
+    // Final fractal frontier discovery (including discrepancy seeds!) + interactive consecutive windows.
     if frontiers.len() < cfg.max_frontiers {
-        let more = discover_local_frontiers(
+        let fres = fractal_discover_local(
             &spec,
             &frontier_seeds,
             &ctx,
-            cfg.max_frontiers,
-            &mut rng,
+            &FractalConfig::new(cfg.max_frontiers, cfg.fractal_depth),
         );
+        fractal_stats.local_evals += fres.stats.local_evals;
+        fractal_stats.decade_brackets_found += fres.stats.decade_brackets_found;
+        fractal_stats.binade_brackets_found += fres.stats.binade_brackets_found;
+        let more = fres.frontiers;
         let existing: HashSet<String> = frontiers
             .iter()
             .map(|f| {
@@ -1255,6 +1719,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             );
             if !existing.contains(&k) {
                 f.id = format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1);
+                fractal_stats.ulp_frontiers_pinpointed += 1;
+                fractal_stats.record_frontier(&f);
                 frontiers.push(f);
             }
         }
@@ -1346,6 +1812,40 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         round,
     )?;
 
+    // Escalate coarse discrepancies via Decade+Binade Excel probing + 64-point bisection when
+    // discrepancies were found in regions not already covered by a predicted DNA Calc frontier.
+    if cfg.max_frontiers > 0 && !discrepancies.is_empty() {
+        let coarse_cap = (cfg.max_frontiers / 4).clamp(1, 4);
+        let _ = fractal_refine_coarse_discrepancies_excel(
+            cfg,
+            &spec,
+            &client,
+            &mut frontiers,
+            &mut fractal_stats,
+            &mut seen_keys,
+            &mut excel_answers,
+            &mut case_hasher,
+            &mut pred_hashes,
+            &mut all_envs,
+            &mut all_worker_calls,
+            &mut region_stats,
+            &mut known_clusters,
+            &mut discrepancies,
+            &mut discrepancy_parents,
+            &mut frontier_seeds,
+            &mut next_id,
+            &mut total_generated,
+            &mut total_asked,
+            &mut total_matched,
+            &mut total_mismatched,
+            &mut total_unread,
+            &mut total_crashed,
+            &mut excel_seconds,
+            round,
+            coarse_cap,
+        )?;
+    }
+
     let clusters = build_clusters(&cfg.function, &discrepancies);
     let summary = FuzzSummary {
         function: cfg.function.clone(),
@@ -1368,6 +1868,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         region_stats,
         clusters,
         frontiers,
+        fractal_stats,
         tracker,
     };
     write_outputs(cfg, &spec, &summary, &discrepancies, &all_envs)?;
@@ -1766,6 +2267,10 @@ mod tests {
                 excel_lo_outcome: None,
                 excel_hi_outcome: None,
                 shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "predicate_flip".to_owned(),
+                parent_id: None,
             },
             Frontier {
                 id: "frontier-unread-hole".to_owned(),
@@ -1784,6 +2289,10 @@ mod tests {
                 excel_lo_outcome: None,
                 excel_hi_outcome: None,
                 shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "predicate_flip".to_owned(),
+                parent_id: None,
             },
         ];
 
@@ -2015,6 +2524,10 @@ mod tests {
             excel_lo_outcome: None,
             excel_hi_outcome: None,
             shifted_ulps: None,
+            depth: 0,
+            scale: "ulp".to_owned(),
+            transition_kind: "predicate_flip".to_owned(),
+            parent_id: None,
         }];
         let mut seen = HashSet::new();
         let mut excel_answers = HashMap::new();
@@ -2187,6 +2700,10 @@ mod tests {
             excel_lo_outcome: None,
             excel_hi_outcome: None,
             shifted_ulps: None,
+            depth: 0,
+            scale: "ulp".to_owned(),
+            transition_kind: "predicate_flip".to_owned(),
+            parent_id: None,
         }];
         // Pre-seed seen_keys + excel_answers with dna_lo_bits (already probed in
         // expand_frontier_windows) and an exact Step 2 interior sample point so bisection must
@@ -2333,5 +2850,188 @@ mod tests {
             Answer::Number(g),
         ];
         assert!(echo_row_matches_sent(&sent, &matrix_echo));
+    }
+
+    #[test]
+    fn coarse_discrepancy_fractal_refinement_pinpoints_excel_only_boundary() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-fractal-coarse-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        // Synthetic Excel-only boundary inside a smooth PV region (DNA Calc has NO flip around rate = 0.05..0.5):
+        // Excel matches DNA Calc for rate <= secret_cut, and returns #NUM! for rate > secret_cut.
+        let secret_cut = 0.125_f64;
+        let _server = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-fractal-coarse", "envs": {"e1": {"file_version": "16.0.20625.20108", "cpu": "Fake", "machine": "x86-64"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                let mut args_json = Vec::with_capacity(width);
+                                for c in 0..width {
+                                    let h = flat[r * width + c].as_str().unwrap();
+                                    args_json.push(Value::String(format!("0x{h}")));
+                                    ity.push('n');
+                                    iv.push(Value::String(h.to_owned()));
+                                }
+                                let rate = f64::from_bits(
+                                    u64::from_str_radix(flat[r * width].as_str().unwrap(), 16).unwrap(),
+                                );
+                                if rate > secret_cut {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#NUM!".to_owned()));
+                                } else {
+                                    let (dna, _, _) = evaluate_traced("PV", &args_json, &ctx);
+                                    if let Some(hex) = dna.strip_prefix("0x") {
+                                        ty.push('n');
+                                        out_v.push(Value::String(hex.to_owned()));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#NUM!".to_owned()));
+                                    }
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let spec = DomainSpec::for_function("PV").unwrap();
+        let ctx = touchstone_bulk_context();
+        let mut cfg = FuzzConfig::default_for("PV");
+        cfg.out_dir = tmp.join("out");
+
+        // Start from a single coarse discrepancy at rate = 0.25 (above secret_cut = 0.125).
+        let disc_args = vec![
+            hex_f64(0.25),
+            hex_f64(10.0),
+            hex_f64(-100.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+        ];
+        let (pred, trace, oc) = evaluate_traced("PV", &disc_args, &ctx);
+        let disc_case = FuzzCase {
+            id: "fuzz-PV-r00-000001".to_owned(),
+            region: "special_values".to_owned(),
+            round: 0,
+            args: disc_args.clone(),
+            prediction: pred,
+            trace,
+            outcome_class: oc,
+        };
+        let mut discrepancies = vec![DiscrepancyRow {
+            case: disc_case,
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|coarse".to_owned(),
+        }];
+        let mut frontiers = Vec::new();
+        let mut fractal_stats = FractalDiscoveryStats::default();
+        let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let disc_key = canonical_case_key("PV", &disc_args);
+        seen.insert(disc_key.clone());
+        excel_answers.insert(disc_key, "error:Num".to_owned());
+        let mut hasher = StreamCaseHasher::new("PV");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
+            (1, 0, 0, 0, 0, 0, 0);
+        let mut excel_s = 0.0;
+
+        let added = fractal_refine_coarse_discrepancies_excel(
+            &cfg,
+            &spec,
+            &client,
+            &mut frontiers,
+            &mut fractal_stats,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discrepancies,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            1,
+            2,
+        )
+        .expect("coarse fractal refinement succeeded");
+
+        assert!(added >= 1, "expected Excel-only coarse discrepancy boundary to be pinpointed");
+        let f = frontiers
+            .iter()
+            .find(|f| f.axis == 0 && f.scale == "coarse_discrepancy")
+            .expect("rate axis coarse_discrepancy frontier");
+        assert_eq!(f.excel_lo_bits, Some(secret_cut.to_bits()));
+        assert_eq!(
+            f.excel_hi_bits,
+            Some(step_ulps(secret_cut, 1, true).unwrap().to_bits())
+        );
+        assert!(f.excel_lo_outcome.as_deref().unwrap().starts_with("0x"));
+        assert_eq!(f.excel_hi_outcome.as_deref(), Some("error:Num"));
+        assert!(!pred_hashes.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
