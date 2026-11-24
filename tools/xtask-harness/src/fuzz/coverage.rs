@@ -1535,7 +1535,7 @@ mod tests {
     }
 
     #[test]
-    fn statically_skipped_zero_case_functions_are_excluded_from_coverage() {
+    fn statically_skipped_zero_case_functions_record_the_reason_without_a_sweep() {
         let base = std::env::temp_dir().join(format!(
             "dnacalc-fuzz-cov-skip-zero-{}",
             std::process::id()
@@ -1546,7 +1546,7 @@ mod tests {
         fs::create_dir_all(&rand_dir).unwrap();
         fs::create_dir_all(&off_dir).unwrap();
 
-        // Statically skipped volatile function (0 cases asked): must NOT appear in fuzz-status.tsv.
+        // A static skip records its reason with zero sweeps and zero cases.
         fs::write(
             rand_dir.join("summary.json"),
             serde_json::to_string_pretty(&json!({
