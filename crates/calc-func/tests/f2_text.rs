@@ -1577,3 +1577,117 @@ fn tagged_japanese_eras_before_heisei() {
         }
     }
 }
+
+/// dc-ztvv.26.14 (cb28 S1f/S2d/S3c): TEXT, FIXED, and DOLLAR reject formatted
+/// outputs exceeding 255 UTF-16 code units with `#VALUE!`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ztvv_26_14_text_fixed_dollar_enforce_255_utf16_output_cap() {
+    use calc_func::locale::{CalcEnvironment, DateSystem, LocaleId, format_profile};
+    let env = CalcEnvironment {
+        profile: Some(format_profile(LocaleId::EnZa)),
+        ..CalcEnvironment::dates(DateSystem::System1900)
+    };
+    let run = |func: &str, args: Vec<calc_func::value::CalcValue>| {
+        call_in(&env, None, None, func, args)
+    };
+
+    // fuzz-TEXT-r03-000409 (267-char formatted output -> #VALUE!)
+    error(
+        run(
+            "TEXT",
+            vec![
+                n(f64::from_bits(0xf65c_22ac_63b0_6eb5)),
+                n(f64::from_bits(0xc178_527e_c801_4541)),
+            ],
+        ),
+        Value,
+    );
+    // cb28 numeric TEXT 255 ok vs 256 #VALUE!
+    let ok255 = run(
+        "TEXT",
+        vec![
+            n(f64::from_bits(0x7441_7571_ddf6_c814)),
+            n(f64::from_bits(0xc024_0000_0000_0000)),
+        ],
+    )
+    .expect("255-char TEXT output succeeds");
+    assert_eq!(ok255.as_text().unwrap().utf16_code_units().len(), 255);
+    error(
+        run("TEXT", vec![n(f64::from_bits(0x74e1_0cb1_32c2_ff63)), t("0")]),
+        Value,
+    );
+    error(
+        run(
+            "TEXT",
+            vec![
+                n(f64::from_bits(0x7475_d2ce_5574_7a18)),
+                n(f64::from_bits(0xc024_0000_0000_0000)),
+            ],
+        ),
+        Value,
+    );
+
+    // UTF-16 code unit boundary across ASCII, BMP ('é'), and surrogate pairs ('😀'):
+    let ascii250 = "a".repeat(250);
+    assert_eq!(
+        run("TEXT", vec![t(&ascii250), t("@\"12345\"")])
+            .unwrap()
+            .as_text()
+            .unwrap()
+            .utf16_code_units()
+            .len(),
+        255
+    );
+    error(run("TEXT", vec![t(&ascii250), t("@\"123456\"")]), Value);
+    error(run("TEXT", vec![t(&"a".repeat(128)), t("@@")]), Value);
+
+    let bmp250 = "é".repeat(250);
+    assert_eq!(
+        run("TEXT", vec![t(&bmp250), t("@\"12345\"")])
+            .unwrap()
+            .as_text()
+            .unwrap()
+            .utf16_code_units()
+            .len(),
+        255
+    );
+    error(run("TEXT", vec![t(&bmp250), t("@\"123456\"")]), Value);
+
+    let emoji127 = "😀".repeat(127);
+    assert_eq!(
+        run("TEXT", vec![t(&emoji127), t("@\"a\"")])
+            .unwrap()
+            .as_text()
+            .unwrap()
+            .utf16_code_units()
+            .len(),
+        255
+    );
+    error(run("TEXT", vec![t(&emoji127), t("@\"ab\"")]), Value);
+
+    // Siblings FIXED and DOLLAR share the same 255 UTF-16 code unit cap:
+    assert_eq!(
+        run("FIXED", vec![n(1e254), n(0.0), b(true)])
+            .unwrap()
+            .as_text()
+            .unwrap()
+            .utf16_code_units()
+            .len(),
+        255
+    );
+    error(
+        run(
+            "FIXED",
+            vec![n(f64::from_bits(0x75ea_03fd_e214_caf1)), n(0.0), b(true)],
+        ),
+        Value,
+    );
+    error(
+        run(
+            "DOLLAR",
+            vec![n(f64::from_bits(0x6796_71b2_5aec_1d89)), n(0.0)],
+        ),
+        Value,
+    );
+}

@@ -106,7 +106,14 @@ fn profile<'a>(site: &'a Site<'_>) -> Step<(&'a CalcEnvironment, &'a FormatProfi
 
 fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue> {
     match result {
-        Ok(text) => Ok(crate::catalogue::kit::text_value(&text)),
+        Ok(text) => {
+            // Excel TEXT, FIXED, and DOLLAR reject formatted outputs exceeding
+            // 255 UTF-16 code units with `#VALUE!` (dc-ztvv.26.14 / cb28 S1f/S2d/S3c).
+            if text.encode_utf16().count() > 255 {
+                return fail(WorksheetErrorCode::Value);
+            }
+            Ok(crate::catalogue::kit::text_value(&text))
+        }
         Err(Failure::Value) => fail(WorksheetErrorCode::Value),
         Err(Failure::NotModelled) => Err(site.not_modelled(None)),
     }
