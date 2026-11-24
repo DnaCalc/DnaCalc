@@ -24,6 +24,54 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww16 Windows replay, 2026-11-24
+
+- **dc-j9k.98–.101.** At `c8b6ccaa5`, the Win64 workspace cross-check passed
+  for all targets. Windows passed 587 CalcFunc unit and 491 integration tests.
+  Chrome and Firefox each passed 573 unit and 491 integration tests. The
+  Win64 full bank at CalcFunc-Evidence `76258ccade` matched YIELD 3,586/3,586
+  and PRICE 9,153/9,153. Dev and perf returned the same result for every
+  YIELD bank row and identical counts for all 156 oracle workbooks.
+  Both profiles matched 78,344/78,390 formula cells. The 46 failures were
+  27 mismatches, five missing results and 14 circular held results.
+  See `ww16/win`, `ww16/wasm`, `ww16/judges` and `ww16/oracle-parity.json`.
+- **dc-j9k.102–.105 / dc-j9k.97.** The same Win64 build matched IRR
+  3,211/3,211 and RATE 4,785/4,787. Fresh Excel 16.0.20625.20108 accepted both
+  exact inputs and repeated both archived RATE values, two and seven ULP
+  from Win64. See `ww16/bank-rows/rate-live.json`. The RATE differences stay
+  with dc-j9k.97.
+- **dc-6332.10.** Excel 20625 returned different raw registration IDs for all
+  6,898 registrations shared between the ww12 partial trace and the ww14
+  complete trace of the same XLL. Their signs agreed. In two partial 20527
+  captures, all 1,226 and 1,225 common registrations had the opposite sign
+  from the complete 20625 trace. Excel and Win64 still matched all 10,005
+  startup frees by the call that produced the operand. See
+  `ww16/x2pool-id-comparison.json`. Wider framework comparisons stay open.
+- **dc-snz.23.** The fixed HKCU managed RTD fixture ran in private Excel
+  16.0.20625.20108. One RefreshData returned both topics, changing 1 to 42
+  and starting to settled. Dependents changed from 2 to 43 and 8 to 7.
+  Excel disconnected both topics and terminated the server. Directly launched
+  Win64 at `92feb6b24` matched both initial topics, both updates and both final
+  dependent values. When the host held both topics in one workbook, it also
+  issued one RefreshData for both topics and matched both settled values.
+  The initial Python-launched host could not read the fixture keys. Direct
+  launch restored registry access. All six keys were removed and checked.
+  See `ww16/managed-rtd/comparison.json`. Wider managed timing and native
+  async remain dc-snz.23.
+- **dc-971p.16.** Paired all 108 retained AutoFit readings by Normal font,
+  zoom, text and italic setting. For the same Calibri 11 cell font, one
+  indentation level added 8–10 px with Calibri Normal, 12 px in all 18
+  Arial Normal pairs and 27–28 px with Courier New Normal. See
+  `ww16/autofit-indent-pairs.json`. Exact product sizing stays dc-971p.16.
+- **dc-ymjf.3.** Rechecked all four archived DATE packet hashes and joined
+  exact Value2 input words to the historical source in
+  `migration/evidence/dc-ymjf3-20527-date-differences.jsonl.gz`. All 5,042
+  distinct input triples agree between Excel 20625, the 20527 recapture and
+  the ww14 Win64 judge. The set contains 5,067 discordant 20430 observations.
+  This comparison covers the historical disagreements. The earlier 22
+  examples remain the repros for Handbook FN-DATE-002. See
+  `ww16/date-reconciliation.json` and `dnacalc-evidence/excel/ww14-windows-20261124T074918Z/`.
+
 ### ww15 Windows replay, 2026-11-24
 
 - **dc-26wtr.1.3–.1.5.** Three private Excel sessions opened copies of the
