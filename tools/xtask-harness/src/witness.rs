@@ -76,7 +76,8 @@
 //! creates a blank workbook and preserves AutomationSecurity rather than writing macro settings.
 
 use crate::cargo::Workspace;
-use crate::legacy::legacy_root;
+use crate::evidence::{CHECKOUT, real_dir};
+use crate::legacy::{Legacy, legacy_root};
 use calc_func::value::CalcValue;
 use calc_verdict::{
     ReadingSource, Severity, WitnessRow, WitnessSet, decode_argument, decode_result, encode_result,
@@ -91,7 +92,6 @@ use std::process::{Command, ExitCode};
 
 pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--release | --profile dev|release|perf] [--report <json>] [--trace <path>] [--values-only] [--study-cpu intel] | cargo xtask witness compare --before <trace> --after <trace> | cargo xtask witness refresh [--func <F>] [--context] [--classified-losses <tsv>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>] [--inputs <json> [--new-only] [--repeat-calls]] | cargo xtask witness export --report <jsonl> [--func <F>] | cargo xtask witness discrepancies --report <jsonl> [--inputs <study-bank.json[.gz]>] [--func <F>] [--study-cpu intel]";
 
-use crate::evidence::CHECKOUT;
 const STUDIES: &str = "studies-manifest.tsv";
 const STUDIES_DIR: &str = "readings/excel-20527/studies/";
 const DISCREPANCIES: &str = "discrepancies-manifest.tsv";
@@ -3960,6 +3960,171 @@ fn run_trace_comparison(request: &Request) -> Result<ExitCode, String> {
     })
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct EvidenceCheckoutReport {
+    head: Option<String>,
+    behind_reason: Option<String>,
+    warnings: Vec<String>,
+}
+
+fn short_rev(rev: &str) -> &str {
+    &rev[..rev.len().min(10)]
+}
+
+fn is_ignored_evidence_status(entry: &str) -> bool {
+    let path = entry.get(3..).unwrap_or(entry);
+    entry.starts_with("?? ")
+        && (path == "__pycache__"
+            || path == "__pycache__/"
+            || path.starts_with("__pycache__/")
+            || path.contains("/__pycache__/"))
+}
+
+fn check_evidence_checkout(
+    checkout: &Path,
+    refuse_behind: bool,
+) -> Result<EvidenceCheckoutReport, String> {
+    let real = real_dir(checkout);
+    if !real.join(".git").exists() {
+        return Ok(EvidenceCheckoutReport {
+            head: None,
+            behind_reason: None,
+            warnings: vec![format!(
+                "evidence checkout {} is not a git repository; cannot verify freshness against origin",
+                checkout.display()
+            )],
+        });
+    }
+    let git = Legacy::new(real);
+    let head = git
+        .text(&["rev-parse", "HEAD"])
+        .map_err(|e| format!("cannot read {CHECKOUT} HEAD: {e}"))?;
+    let mut report = EvidenceCheckoutReport {
+        head: Some(head.clone()),
+        behind_reason: None,
+        warnings: Vec::new(),
+    };
+
+    let branch = git
+        .text(&["symbolic-ref", "-q", "--short", "HEAD"])
+        .ok()
+        .filter(|s| !s.is_empty());
+    let upstream = git
+        .text(&["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            git.succeeds(&["rev-parse", "--verify", "--quiet", "refs/remotes/origin/master"])
+                .then(|| "origin/master".to_owned())
+        });
+
+    if let Some(upstream_ref) = upstream.as_deref()
+        && let Ok(count_text) = git.text(&["rev-list", "--count", &format!("HEAD..{upstream_ref}")])
+        && let Ok(behind) = count_text.parse::<usize>()
+        && behind > 0
+    {
+        let upstream_sha = git
+            .text(&["rev-parse", "--verify", upstream_ref])
+            .unwrap_or_else(|_| upstream_ref.to_owned());
+        report.behind_reason = Some(format!(
+            "evidence checkout {CHECKOUT} at {} is {behind} commit(s) behind origin ({upstream_ref} is at {}); pull {CHECKOUT} first (or pass --report <json> for a read-only run)",
+            short_rev(&head),
+            short_rev(&upstream_sha),
+        ));
+    }
+
+    if report.behind_reason.is_none() {
+        let remote_name = branch
+            .as_deref()
+            .and_then(|b| git.text(&["config", &format!("branch.{b}.remote")]).ok())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "origin".to_owned());
+        let remote_ref = branch
+            .as_deref()
+            .and_then(|b| git.text(&["config", &format!("branch.{b}.merge")]).ok())
+            .filter(|s| !s.is_empty())
+            .or_else(|| branch.as_deref().map(|b| format!("refs/heads/{b}")))
+            .unwrap_or_else(|| "HEAD".to_owned());
+        if git.succeeds(&["remote", "get-url", &remote_name]) {
+            let args: Vec<&str> = if remote_ref.starts_with("refs/") {
+                vec!["ls-remote", "--refs", &remote_name, &remote_ref]
+            } else {
+                vec!["ls-remote", &remote_name, &remote_ref]
+            };
+            match git.read_with_env(
+                &["http.lowSpeedLimit=1", "http.lowSpeedTime=5"],
+                &[("GIT_TERMINAL_PROMPT", "0")],
+                &args,
+            ) {
+                Ok(out) => {
+                    let text = String::from_utf8_lossy(&out);
+                    if let Some(remote_sha) = text
+                        .lines()
+                        .find_map(|line| line.split_whitespace().next())
+                        .filter(|sha| sha.len() >= 7)
+                        && remote_sha != head
+                        && !git.succeeds(&["merge-base", "--is-ancestor", remote_sha, "HEAD"])
+                    {
+                        report.behind_reason = Some(format!(
+                            "evidence checkout {CHECKOUT} at {} is behind origin ({remote_name} {remote_ref} is at {}); pull {CHECKOUT} first (or pass --report <json> for a read-only run)",
+                            short_rev(&head),
+                            short_rev(remote_sha),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    report.warnings.push(format!(
+                        "cannot reach {remote_name} to check {CHECKOUT} freshness (checked local tracking ref only): {e}"
+                    ));
+                }
+            }
+        }
+    }
+
+    match git.status() {
+        Ok(entries) => {
+            let dirty: Vec<String> = entries
+                .into_iter()
+                .filter(|entry| !is_ignored_evidence_status(entry))
+                .collect();
+            if !dirty.is_empty() {
+                report.warnings.push(format!(
+                    "evidence checkout {CHECKOUT} has {} uncommitted change(s), first {:?}; committed witness-status.tsv should come from a clean canonical checkout",
+                    dirty.len(),
+                    dirty.iter().take(5).collect::<Vec<_>>(),
+                ));
+            }
+        }
+        Err(e) => {
+            report
+                .warnings
+                .push(format!("cannot read {CHECKOUT} git status: {e}"));
+        }
+    }
+
+    if let Some(reason) = &report.behind_reason {
+        if refuse_behind {
+            return Err(reason.clone());
+        }
+        report.warnings.push(reason.clone());
+    }
+    Ok(report)
+}
+
+fn report_evidence_checkout(checkout: &Path, refuse_behind: bool) -> Result<(), String> {
+    let report = check_evidence_checkout(checkout, refuse_behind)?;
+    if let Some(head) = &report.head {
+        println!(
+            "xtask witness: evidence checkout {CHECKOUT} HEAD {}",
+            short_rev(head)
+        );
+    }
+    for warning in &report.warnings {
+        eprintln!("xtask witness: WARNING: {warning}");
+    }
+    Ok(())
+}
+
 fn run_request(request: &Request) -> Result<ExitCode, String> {
     if request.verb == Verb::Compare {
         return run_trace_comparison(request);
@@ -3981,8 +4146,12 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         return run_read(&ws.root, &checkout, request);
     }
     if request.verb == Verb::Discrepancies {
+        report_evidence_checkout(&checkout, false)?;
         return study_discrepancies(&checkout, request);
     }
+
+    let refuse_stale_evidence =
+        request.report.is_none() && matches!(request.verb, Verb::Judge | Verb::Pin);
 
     // The readings of the bank asked for.
     let mut original_pins = None;
@@ -3991,6 +4160,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             if native_study_cpu() != Some(true) {
                 return Err("Intel study judgment requires a native Intel x86-64 host".into());
             }
+            report_evidence_checkout(&checkout, refuse_stale_evidence)?;
             let mut banks = Banks::default();
             load_discrepancies(&checkout, only, true, &mut banks)?;
             if banks.readings.is_empty() {
@@ -4005,6 +4175,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
                     checkout.display()
                 ));
             }
+            report_evidence_checkout(&checkout, refuse_stale_evidence)?;
             load_full(&checkout, only)?
         }
         Bank::Pinned => {
@@ -4018,6 +4189,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             };
             let mut sets = pinned_sets(&ws.root, only)?;
             if request.refresh_context {
+                report_evidence_checkout(&checkout, false)?;
                 let (full, _) = load_full(&checkout, only)?;
                 let restored = restore_pinned_context(&mut sets, &full)?;
                 println!(
@@ -6246,5 +6418,136 @@ mod tests {
     #[test]
     fn csv_fields_keep_quoted_commas() {
         assert_eq!(csv_fields("a,\"b,c\",\"d\"\"e\""), vec!["a", "b,c", "d\"e"]);
+    }
+
+    #[test]
+    fn evidence_checkout_guard_detects_stale_and_dirty_checkouts() {
+        let base = std::env::temp_dir().join(format!(
+            "xtask-witness-evidence-guard-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        let origin = base.join("origin.git");
+        let work_a = base.join("work-a");
+        let work_b = base.join("work-b");
+        fs::create_dir_all(&base).unwrap();
+
+        let git = |dir: &Path, args: &[&str]| {
+            let out = Command::new("git")
+                .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "git {args:?} in {} failed: {}",
+                dir.display(),
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8_lossy(&out.stdout).trim().to_owned()
+        };
+
+        assert!(
+            Command::new("git")
+                .args(["init", "--bare", "-b", "master"])
+                .arg(&origin)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .args(["clone"])
+                .arg(&origin)
+                .arg(&work_a)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(work_a.join("discrepancies-manifest.tsv"), "path\n").unwrap();
+        git(&work_a, &["add", "discrepancies-manifest.tsv"]);
+        git(&work_a, &["commit", "-m", "initial"]);
+        git(&work_a, &["push", "-u", "origin", "master"]);
+
+        assert!(
+            Command::new("git")
+                .args(["clone"])
+                .arg(&origin)
+                .arg(&work_b)
+                .status()
+                .unwrap()
+                .success()
+        );
+
+        // 1. Clean and up to date with origin -> Ok, no behind_reason, no warnings.
+        let clean = check_evidence_checkout(&work_b, true).unwrap();
+        assert!(clean.head.is_some());
+        assert_eq!(clean.behind_reason, None);
+        assert!(clean.warnings.is_empty(), "{:?}", clean.warnings);
+
+        // 2. Advance origin via work_a WITHOUT fetching in work_b -> live ls-remote catches it.
+        fs::write(
+            work_a.join("discrepancies-manifest.tsv"),
+            "path\nreadings/excel-20527/discrepancies/cb21.json\n",
+        )
+        .unwrap();
+        git(&work_a, &["commit", "-am", "add cb21"]);
+        git(&work_a, &["push", "origin", "master"]);
+
+        let err = check_evidence_checkout(&work_b, true).unwrap_err();
+        assert!(
+            err.contains("behind origin"),
+            "expected behind-origin refusal, got: {err}"
+        );
+        let warned = check_evidence_checkout(&work_b, false).unwrap();
+        assert!(warned.behind_reason.is_some());
+        assert!(
+            warned.warnings.iter().any(|w| w.contains("behind origin")),
+            "{:?}",
+            warned.warnings
+        );
+
+        // 3. Fetch in work_b and break the remote URL (offline simulation): local origin/master
+        //    still catches behind-origin even when ls-remote cannot reach origin.
+        git(&work_b, &["fetch", "origin"]);
+        git(
+            &work_b,
+            &["remote", "set-url", "origin", "/nonexistent/offline-origin.git"],
+        );
+        let offline_err = check_evidence_checkout(&work_b, true).unwrap_err();
+        assert!(
+            offline_err.contains("behind"),
+            "expected offline behind refusal, got: {offline_err}"
+        );
+
+        // 4. Restore origin URL, pull work_b to tip, make a local commit ahead of origin -> Ok!
+        git(&work_b, &["remote", "set-url", "origin", origin.to_str().unwrap()]);
+        git(&work_b, &["pull", "--no-rebase"]);
+        fs::write(work_b.join("local.txt"), "ahead\n").unwrap();
+        git(&work_b, &["add", "local.txt"]);
+        git(&work_b, &["commit", "-m", "local ahead"]);
+        let ahead = check_evidence_checkout(&work_b, true).unwrap();
+        assert_eq!(ahead.behind_reason, None);
+
+        // 5. Dirty tracked file warns; __pycache__ alone does not warn.
+        fs::create_dir_all(work_b.join("__pycache__")).unwrap();
+        fs::write(work_b.join("__pycache__/x.pyc"), b"pyc").unwrap();
+        let pycache_only = check_evidence_checkout(&work_b, true).unwrap();
+        assert!(
+            !pycache_only.warnings.iter().any(|w| w.contains("uncommitted")),
+            "{:?}",
+            pycache_only.warnings
+        );
+        fs::write(work_b.join("discrepancies-manifest.tsv"), "dirty\n").unwrap();
+        let dirty = check_evidence_checkout(&work_b, true).unwrap();
+        assert!(
+            dirty.warnings.iter().any(|w| w.contains("uncommitted")),
+            "{:?}",
+            dirty.warnings
+        );
+
+        let _ = fs::remove_dir_all(&base);
     }
 }

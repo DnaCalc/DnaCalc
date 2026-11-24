@@ -113,9 +113,18 @@ impl Legacy {
         self.read_with(&[], args)
     }
 
-    fn read_with(&self, config: &[&str], args: &[&str]) -> Result<Vec<u8>, String> {
-        let out = self
-            .command(config, args)
+    /// The standard output of a git call with extra `-c` config and environment overrides.
+    pub fn read_with_env(
+        &self,
+        config: &[&str],
+        env: &[(&str, &str)],
+        args: &[&str],
+    ) -> Result<Vec<u8>, String> {
+        let mut command = self.command(config, args);
+        for (key, value) in env {
+            command.env(key, value);
+        }
+        let out = command
             .output()
             .map_err(|e| format!("cannot run git {args:?} in {}: {e}", self.dir.display()))?;
         if out.status.success() {
@@ -128,6 +137,17 @@ impl Legacy {
                 String::from_utf8_lossy(&out.stderr).trim()
             ))
         }
+    }
+
+    /// Whether a read-only git call exits with status 0.
+    pub fn succeeds(&self, args: &[&str]) -> bool {
+        self.command(&[], args)
+            .output()
+            .is_ok_and(|out| out.status.success())
+    }
+
+    fn read_with(&self, config: &[&str], args: &[&str]) -> Result<Vec<u8>, String> {
+        self.read_with_env(config, &[], args)
     }
 
     pub fn text(&self, args: &[&str]) -> Result<String, String> {
