@@ -262,10 +262,10 @@ pub fn pmt(
     // `nper < 0` without overflow), and timing multiplies by `due_coefficient(r)` or `r`.
     let neg_log = -excel_x87_mul(periods, alnrel(periodic_rate));
     let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log);
-    // Preserve the growth-reciprocal overflow refusal before the balance
-    // fold can turn pv/Inf + fv into a finite payment. R31 paired parts keep
-    // first-period beginning IPMT zero ahead of this shared PMT check.
-    if em == 0.0 || !em.is_finite() {
+    // The stored denominator must be normal. Excel reports #NUM! for a
+    // subnormal even when the balances cancel or the quotient could be finite.
+    // First-period beginning IPMT returns zero before this shared check.
+    if em.abs() < f64::MIN_POSITIVE || !em.is_finite() {
         return Err(FinancialError::Num);
     }
     let quotient = excel_x87_add(
