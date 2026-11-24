@@ -1,0 +1,145 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "YIELD",
+  "selection": "dc-ztvv.21 sf2 live smart-fuzzer cluster representatives (27,953 cases, seed 20261123): Y1 (dc-j9k.98), Y2 (dc-j9k.99), Y3 (dc-j9k.100), Y4 (dc-j9k.101)",
+  "readings": [
+    {
+      "bitness": "64-bit",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "env_id": "b9d22089d2f5",
+      "excel_build": "16.0.20625.20108",
+      "id": "r0",
+      "invocation": {
+        "cell_layout": "touchstone/1-bulk",
+        "compatibility_version": "2",
+        "date_system": "1900",
+        "decimal_separator": ".",
+        "input_transport": "cell_value2_bulk",
+        "thousands_separator": "\u00a0"
+      },
+      "lane": "sf2",
+      "platform": "Windows",
+      "source": "sf2/yield-fuzz-seed-20261123/spec.json",
+      "timestamp": "2026-11-24T01:30:20Z"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Y1-dc-j9k-98-huge-maturity",
+      "reading": "r0",
+      "args": [
+        "0x404e000000000000",
+        "0x4146924080000000",
+        "0x3fbbc7c725bc7504",
+        "0x4062b485c75e100d",
+        "0x4059000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x3fb28fdfe8fac848"
+    },
+    {
+      "id": "Y2-dc-j9k-99-extreme-price-neg",
+      "reading": "r0",
+      "args": [
+        "0x40e50b4000000000",
+        "0x40eb710000000000",
+        "0x0000000000000000",
+        "0x40d9204834ac4d58",
+        "0x4059000000000000",
+        "0x3ff0000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0xbfc25982cc0dca64"
+    },
+    {
+      "id": "Y2-dc-j9k-99-extreme-coupon-pos",
+      "reading": "r0",
+      "args": [
+        "0x40e64b4000000000",
+        "0x40e9dc6000000000",
+        "0x3fc688297f102109",
+        "0x3f464c0f1d42f5bd",
+        "0x4059000000000000",
+        "0x4010000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x40d943638bdcd80e"
+    },
+    {
+      "id": "Y3-dc-j9k-100-zero-coupon-negbase",
+      "reading": "r0",
+      "args": [
+        "0x40e5efe000000000",
+        "0x40e89cc000000000",
+        "0x0000000000000000",
+        "0x41f1c0fe0114d10b",
+        "0x4059000000000000",
+        "0x4010000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0xc11a3d4e5b669882",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "Y3-dc-j9k-100-tiny-coupon-negbase",
+      "reading": "r0",
+      "args": [
+        "0x40e61d8000000000",
+        "0x40e75d2000000000",
+        "0x0010000000000005",
+        "0x41cc388161846e66",
+        "0x3f1fef0875adf64f",
+        "0x4010000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0xc2417b5a123fae6d",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "Y4-dc-j9k-101-newton-1ulp",
+      "reading": "r0",
+      "args": [
+        "0x40e5564000000000",
+        "0x40e6088000000000",
+        "0x0000000000000000",
+        "0x40628c434b115350",
+        "0x4059000000000000",
+        "0x4010000000000000"
+      ],
+      "expected_bits": "0xbfb98affd89195c8",
+      "calc_func": "0xbfb98affd89195c9"
+    },
+    {
+      "id": "Y4-dc-j9k-101-newton-numeric",
+      "reading": "r0",
+      "args": [
+        "0x407a900000000000",
+        "0x4146924080000000",
+        "0x3fbbc7c725bc7504",
+        "0x4062b485c75e100d",
+        "0x4059000000000000",
+        "0x4000000000000000"
+      ],
+      "expected_bits": "0x3fb28fe171e72a83",
+      "calc_func": "0x3fb28fe171e72a98"
+    },
+    {
+      "id": "Y4-dc-j9k-101-newton-gross",
+      "reading": "r0",
+      "args": [
+        "0x404e000000000000",
+        "0x40e1dd2000000000",
+        "0x3fbe6bebee76e9bf",
+        "0x4060c1ad60248e3a",
+        "0x4059000000000000",
+        "0x4010000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3fb6b1653afc012a",
+      "calc_func": "0x3fb6b15d334a3727"
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "RATE",
+  "selection": "dc-ztvv.21 sf2 live smart-fuzzer cluster representatives (106,412 cases, seeds 20261123..20261125): R1/R3 exact after 3766bca80; R2 (dc-j9k.97) and R4 (dc-j9k.79) pinned with calc_func",
+  "readings": [
+    {
+      "bitness": "64-bit",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "env_id": "b9d22089d2f5",
+      "excel_build": "16.0.20625.20108",
+      "id": "r0",
+      "invocation": {
+        "cell_layout": "touchstone/1-bulk",
+        "compatibility_version": "2",
+        "date_system": "1900",
+        "decimal_separator": ".",
+        "input_transport": "cell_value2_bulk",
+        "thousands_separator": "\u00a0"
+      },
+      "lane": "sf2",
+      "platform": "Windows",
+      "source": "sf2/rate-fuzz-seed-20261123/spec.json",
+      "timestamp": "2026-11-24T01:47:19Z"
+    },
+    {
+      "bitness": "64-bit",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "env_id": "b9d22089d2f5",
+      "excel_build": "16.0.20625.20108",
+      "id": "r1",
+      "invocation": {
+        "cell_layout": "touchstone/1-bulk",
+        "compatibility_version": "2",
+        "date_system": "1900",
+        "decimal_separator": ".",
+        "input_transport": "cell_value2_bulk",
+        "thousands_separator": "\u00a0"
+      },
+      "lane": "sf2",
+      "platform": "Windows",
+      "source": "sf2/rate-fuzz-seed-20261124/spec.json",
+      "timestamp": "2026-11-24T01:58:51Z"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "R1-fixed-3766bca80-num",
+      "reading": "r0",
+      "args": [
+        "0x4000000000000000",
+        "0x405be84cf8ab8ed1",
+        "0xc06e2fd8de670869",
+        "0x405920e635785045",
+        "0x0000000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0x3fc925968f7bd84b"
+    },
+    {
+      "id": "R1-fixed-3766bca80-err",
+      "reading": "r0",
+      "args": [
+        "0xc000000000000000",
+        "0x40de60c27577ea46",
+        "0xc114442b5b496cff",
+        "0x41181043a9de3363",
+        "0x0000000000000000",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "R1-fixed-3766bca80-tinyg",
+      "reading": "r0",
+      "args": [
+        "0x3ff0000000000000",
+        "0xbeb005151cf3ef70",
+        "0x3f9dd5ac8017ddd1",
+        "0xbf9dd5ac8017ddd1",
+        "0x0000000000000000",
+        "0x8010000000000283"
+      ],
+      "expected_bits": "0x3f012ebaf7b7ab8d"
+    },
+    {
+      "id": "R3-fixed-3766bca80-ovf",
+      "reading": "r0",
+      "args": [
+        "0xc07d6458666ccaa4",
+        "0xc0567bf2a65f3603",
+        "0x407f5b862e2a57fd",
+        "0x0000000000000000",
+        "0x0000000000000000",
+        "0xbfe8df81c443d4f7"
+      ],
+      "expected_bits": "error:Num"
+    },
+    {
+      "id": "R2-dc-j9k-97-num-vs-div0",
+      "reading": "r0",
+      "args": [
+        "0xffefffffffffffff",
+        "0x8010000000000001",
+        "0xc076800000000000"
+      ],
+      "expected_bits": "0x3fb95810624dd2f2",
+      "calc_func": "error:Div0"
+    },
+    {
+      "id": "R2-dc-j9k-97-div0-vs-num",
+      "reading": "r1",
+      "args": [
+        "0x3d719799812dea11",
+        "0x0990000000000000",
+        "0x8010000000000001"
+      ],
+      "expected_bits": "error:Div0",
+      "calc_func": "0x4748a1cfc08869ae"
+    },
+    {
+      "id": "R2-dc-j9k-97-div0-vs-err",
+      "reading": "r0",
+      "args": [
+        "0xc00d3a1821fc925c",
+        "0x80e5b4a48c877f35",
+        "0x82386cc7aa944a29",
+        "0x8010000000000112",
+        "0x0000000000000000",
+        "0xbfe997d02f738d25"
+      ],
+      "expected_bits": "error:Div0",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "R4-dc-j9k-79-frac-nper",
+      "reading": "r0",
+      "args": [
+        "0x3fe0000000000000",
+        "0xbf9d1fffa33fe21e",
+        "0x4150390e4da4116e",
+        "0xc150390e4cbb1173",
+        "0x0000000000000000"
+      ],
+      "expected_bits": "0xbd5ac864290601f4",
+      "calc_func": "0x3d59b79d91470141"
+    }
+  ]
+}

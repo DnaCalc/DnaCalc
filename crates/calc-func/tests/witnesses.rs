@@ -151,3 +151,64 @@ fn recorded_compatibility_version_reaches_the_witness_call() {
         "0x4010000000000000"
     );
 }
+
+/// Pinned minimal representatives for every discrepancy cluster discovered by `cargo xtask fuzz`
+/// on live Excel 16.0.20625.20108 (AMD Ryzen 7 4800H, lane sf2, bead dc-ztvv.21). Fixed clusters
+/// (`RATE` R1/R3 after 3766bca80) omit `calc_func` and must match Excel bit-for-bit; open Carbon
+/// clusters (`dc-j9k.79`, `dc-j9k.97`..`dc-j9k.105`) carry `calc_func` so both regressions and
+/// future gains fail here and prompt re-pinning.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn fuzz_cluster_representatives_calculate_as_pinned() {
+    const SETS: &[(&str, &str)] = &[
+        (
+            "RATE.json",
+            include_str!("witnesses/fuzz_representatives/RATE.json"),
+        ),
+        (
+            "YIELD.json",
+            include_str!("witnesses/fuzz_representatives/YIELD.json"),
+        ),
+        (
+            "IRR.json",
+            include_str!("witnesses/fuzz_representatives/IRR.json"),
+        ),
+    ];
+    let mut rows = 0;
+    let mut failures = Vec::new();
+    for (file, text) in SETS {
+        let set = WitnessSet::decode(text.as_bytes()).unwrap_or_else(|e| panic!("{file}: {e}"));
+        assert_eq!(*file, format!("{}.json", set.function));
+        for row in &set.witnesses {
+            rows += 1;
+            let context = set
+                .readings
+                .iter()
+                .find(|source| source.id == row.reading)
+                .and_then(|source| source.invocation.as_ref());
+            let actual =
+                witness_call::calculate(&set.function, &row.args, row.result_index, context, true);
+            let want = row.calc_func.as_deref().unwrap_or(&row.expected);
+            if actual != want {
+                let what = if actual == row.expected {
+                    "now matches Excel (a gain: drop calc_func from this representative)"
+                } else if row.calc_func.is_none() {
+                    "no longer matches Excel (a regression)"
+                } else {
+                    "changed and still differs from Excel"
+                };
+                failures.push(format!(
+                    "{} {} {:?}: Excel {}, pinned {want}, calculated {actual}: {what}",
+                    set.function, row.id, row.args, row.expected
+                ));
+            }
+        }
+    }
+    assert!(rows >= 25, "expected pinned cluster representatives");
+    assert!(
+        failures.is_empty(),
+        "{} of {rows} fuzz cluster representatives changed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}

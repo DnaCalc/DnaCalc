@@ -1,0 +1,323 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "IRR",
+  "selection": "dc-ztvv.21 sf2 live smart-fuzzer cluster representatives (22,749 cases, seed 20261123): I1 (dc-j9k.102), I2 (dc-j9k.103), I3 (dc-j9k.104), I4 (dc-j9k.105)",
+  "readings": [
+    {
+      "bitness": "64-bit",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "env_id": "b9d22089d2f5",
+      "excel_build": "16.0.20625.20108",
+      "id": "r0",
+      "invocation": {
+        "cell_layout": "touchstone/1-bulk",
+        "compatibility_version": "2",
+        "date_system": "1900",
+        "decimal_separator": ".",
+        "input_transport": "cell_value2_bulk",
+        "thousands_separator": "\u00a0"
+      },
+      "lane": "sf2",
+      "platform": "Windows",
+      "source": "sf2/irr-fuzz-seed-20261123/spec.json",
+      "timestamp": "2026-11-24T01:32:03Z"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "I1-dc-j9k-102-leading-zero-gross",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0x0000000000000000"
+          ],
+          [
+            "0xc0a79bc50cf035b4"
+          ],
+          [
+            "0x400b4f5a771262fa"
+          ],
+          [
+            "0x0000000000000000"
+          ]
+        ],
+        "0xbfd54b4b6ca9f5bc"
+      ],
+      "expected_bits": "0xbfeff6bee6887bc9",
+      "calc_func": "0x42e11111111110f1"
+    },
+    {
+      "id": "I1-dc-j9k-102-leading-zero-num-err",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0x0000000000000000"
+          ],
+          [
+            "0xc05e19197dba11b4"
+          ],
+          [
+            "0x4008a772835ab2dc"
+          ],
+          [
+            "0x0000000000000000"
+          ]
+        ],
+        "0xbfd02ad0a38fffb1"
+      ],
+      "expected_bits": "0xbfef2e4dc255d8a0",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "I1-dc-j9k-102-leading-zero-err-num",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0x0000000000000000"
+          ],
+          [
+            "0x3fb999999999999a"
+          ],
+          [
+            "0x4076800000000000"
+          ],
+          [
+            "0xbf50624dd2f1a9fc"
+          ]
+        ]
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x41f2db160039a7ce"
+    },
+    {
+      "id": "I2-dc-j9k-103-div0-vs-finite",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xbff0000000000000"
+          ],
+          [
+            "0x4340000000000002"
+          ]
+        ]
+      ],
+      "expected_bits": "error:Div0",
+      "calc_func": "0x433fffffffffffff"
+    },
+    {
+      "id": "I2-dc-j9k-103-div0-vs-num",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xab2bff2ee48e0530"
+          ],
+          [
+            "0x4000000000000000"
+          ]
+        ]
+      ],
+      "expected_bits": "error:Div0",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "I3-dc-j9k-104-huge-root-vs-num",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xbe7ad7f29abcaf48"
+          ],
+          [
+            "0x408f400000000000"
+          ]
+        ]
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x4202a05f061cc558"
+    },
+    {
+      "id": "I3-dc-j9k-104-near-neg1-vs-num",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0x41ffadf9355c8248"
+          ],
+          [
+            "0xbedc89cd5f474471"
+          ]
+        ],
+        "0x433fffffffffffff"
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0xbfeffffffffffff9"
+    },
+    {
+      "id": "I3-dc-j9k-104-huge-vs-moderate-root",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xbe810a4cb3aa9e03"
+          ],
+          [
+            "0x411c2034d4f46c5e"
+          ],
+          [
+            "0x3ed4c7455ccc98f4"
+          ],
+          [
+            "0x40985d09dc90d26b"
+          ],
+          [
+            "0xc102873257e856a4"
+          ]
+        ]
+      ],
+      "expected_bits": "0xbfd3e7d32e6d11fa",
+      "calc_func": "0x428a678e216b07e2"
+    },
+    {
+      "id": "I3-dc-j9k-104-finite-vs-num",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0x2b2bff2ee48e0530"
+          ],
+          [
+            "0x3d719799812dea11"
+          ],
+          [
+            "0x4000000000000000"
+          ],
+          [
+            "0x2b2bff2ee48e0530"
+          ]
+        ],
+        "0xbfefffffffffffff"
+      ],
+      "expected_bits": "0x4157e9ff1e0aa91b",
+      "calc_func": "error:Num"
+    },
+    {
+      "id": "I4-dc-j9k-105-dblmax-overflow",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xffefffffffffffff"
+          ],
+          [
+            "0x7fefffffffffffff"
+          ]
+        ]
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x0000000000000000"
+    },
+    {
+      "id": "I4-dc-j9k-105-long-chain-retry",
+      "reading": "r0",
+      "args": [
+        [
+          [
+            "0xc059000000000000"
+          ],
+          [
+            "0x400af200ac8724c4"
+          ],
+          [
+            "0x402d8edfce37bcce"
+          ],
+          [
+            "0x401866e68fca9d33"
+          ],
+          [
+            "0x401832a4ad149aef"
+          ],
+          [
+            "0x402ccca9337c986a"
+          ],
+          [
+            "0x40275bab8575a39c"
+          ],
+          [
+            "0x40264d1545c68247"
+          ],
+          [
+            "0x40264c073a3c7a56"
+          ],
+          [
+            "0x402b75449ce57a21"
+          ],
+          [
+            "0x402a90886ae40b34"
+          ],
+          [
+            "0x402cfa99c7468dd5"
+          ],
+          [
+            "0x4023f10e7cdebda3"
+          ],
+          [
+            "0x40302a4656857d55"
+          ],
+          [
+            "0x4009f3809258bca8"
+          ],
+          [
+            "0x4018c8a975e8035e"
+          ],
+          [
+            "0x4030610340c02580"
+          ],
+          [
+            "0x4017cfd081e37fde"
+          ],
+          [
+            "0x403392b04fccc997"
+          ],
+          [
+            "0x402f28bfc44da26e"
+          ],
+          [
+            "0x403116a9fd942f9f"
+          ],
+          [
+            "0x401d5b18cf790812"
+          ],
+          [
+            "0x40233fa7716b93bf"
+          ],
+          [
+            "0x402768ff2fe6d9de"
+          ],
+          [
+            "0x3ff7959ea0c65c42"
+          ],
+          [
+            "0x401e137e9d8d8557"
+          ],
+          [
+            "0x401570eb9ea3d556"
+          ],
+          [
+            "0x400d9c414579d845"
+          ],
+          [
+            "0x4018d6605f75e2ba"
+          ]
+        ],
+        "0xbfeffffffffe2c99"
+      ],
+      "expected_bits": "error:Num",
+      "calc_func": "0x3fb8386eb7b058e0"
+    }
+  ]
+}
