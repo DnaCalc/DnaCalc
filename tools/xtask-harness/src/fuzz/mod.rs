@@ -7,8 +7,10 @@
 pub mod boundary;
 pub mod cluster;
 pub mod domain;
+pub mod hints;
 pub mod oracle;
 pub mod rng;
+pub mod spec_gen;
 pub mod steer;
 
 use boundary::{Frontier, discover_local_frontiers, expand_frontier_windows};
@@ -24,11 +26,13 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz --func <F> [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
     pub function: String,
+    pub all_catalogue: bool,
+    pub hints_dir: Option<PathBuf>,
     pub seed: u64,
     pub budget: usize,
     pub min_budget: usize,
@@ -62,6 +66,8 @@ impl FuzzConfig {
             .unwrap_or_else(|| "local".to_owned());
         Self {
             function: function.to_ascii_uppercase(),
+            all_catalogue: false,
+            hints_dir: None,
             seed: 20261123,
             budget: 10_000,
             min_budget: 0,
@@ -83,6 +89,8 @@ impl FuzzConfig {
 
 pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut function: Option<String> = None;
+    let mut all_catalogue = false;
+    let mut hints_dir: Option<PathBuf> = None;
     let mut seed: Option<u64> = None;
     let mut budget: Option<usize> = None;
     let mut min_budget: Option<usize> = None;
@@ -104,6 +112,8 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
         let mut next_val = || it.next().cloned().ok_or_else(|| format!("{arg} needs a value"));
         match arg.as_str() {
             "--func" => function = Some(next_val()?.to_ascii_uppercase()),
+            "--all-catalogue" => all_catalogue = true,
+            "--hints-dir" => hints_dir = Some(PathBuf::from(next_val()?)),
             "--seed" => {
                 seed = Some(
                     next_val()?
@@ -176,8 +186,21 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    let function = function.ok_or("--func is required")?;
+    let function = match (function, all_catalogue) {
+        (Some(f), false) => f,
+        (None, true) => "ALL".to_owned(),
+        (Some(_), true) => return Err("cannot combine --func with --all-catalogue".into()),
+        (None, false) => return Err("--func or --all-catalogue is required".into()),
+    };
     let mut cfg = FuzzConfig::default_for(&function);
+    cfg.all_catalogue = all_catalogue;
+    cfg.hints_dir = hints_dir;
+    if all_catalogue && out_dir.is_none() {
+        cfg.out_dir = PathBuf::from("target/fuzz/all-catalogue");
+    }
+    if all_catalogue && budget.is_none() {
+        cfg.budget = 1_000;
+    }
     if let Some(v) = seed {
         cfg.seed = v;
     }
@@ -423,7 +446,11 @@ pub fn main_round_budget(cfg: &FuzzConfig) -> usize {
 /// maps DNA Calc frontiers, freezes predictions + SHA-256, and writes spec/report without Excel).
 pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let started = Instant::now();
-    let spec = DomainSpec::for_function(&cfg.function)?;
+    let hints = match &cfg.hints_dir {
+        Some(dir) => hints::HintBank::load_dir(dir)?,
+        None => hints::load_default_hints()?,
+    };
+    let spec = DomainSpec::for_function_with_hints(&cfg.function, &hints)?;
     let ctx = touchstone_bulk_context();
     fs::create_dir_all(&cfg.out_dir).map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
 
@@ -565,6 +592,9 @@ pub fn write_outputs(
         "max_frontiers": cfg.max_frontiers,
         "frontier_window": cfg.frontier_window,
         "has_custom_hints": spec.has_custom_hints,
+        "has_hint_file": spec.has_hint_file,
+        "hint_family": spec.merged.hint_family,
+        "merged_spec": spec.merged.to_json(),
         "regions": spec.regions.iter().map(|r| json!({"name": r.name, "weight": r.base_weight, "description": r.description})).collect::<Vec<_>>(),
         "case_list_sha256": summary.case_list_sha256,
         "predictions_sha256": summary.predictions_sha256,
@@ -713,6 +743,56 @@ pub fn run(raw: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if cfg.all_catalogue {
+        if !cfg.dry_run {
+            eprintln!("xtask fuzz: --all-catalogue requires --dry-run\n{USAGE}");
+            return ExitCode::from(2);
+        }
+        let hints = match &cfg.hints_dir {
+            Some(dir) => hints::HintBank::load_dir(dir),
+            None => hints::load_default_hints(),
+        };
+        let hints = match hints {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("xtask fuzz: {e}");
+                return ExitCode::from(1);
+            }
+        };
+        match spec_gen::run_all_catalogue_dry_run(&hints, cfg.budget, cfg.seed) {
+            Ok(report) => {
+                if let Err(e) = fs::create_dir_all(&cfg.out_dir) {
+                    eprintln!("xtask fuzz: {}: {e}", cfg.out_dir.display());
+                    return ExitCode::from(1);
+                }
+                let summary_path = cfg.out_dir.join("summary.json");
+                let encoded = match serde_json::to_string_pretty(&report.to_json()) {
+                    Ok(s) => s + "\n",
+                    Err(e) => {
+                        eprintln!("xtask fuzz: serialize summary: {e}");
+                        return ExitCode::from(1);
+                    }
+                };
+                if let Err(e) = fs::write(&summary_path, encoded) {
+                    eprintln!("xtask fuzz: write {}: {e}", summary_path.display());
+                    return ExitCode::from(1);
+                }
+                println!(
+                    "xtask fuzz --all-catalogue (dry-run): {} functions ({} with hint files), {} cases/func, {} total cases validated, out {}",
+                    report.functions_total,
+                    report.functions_with_hints,
+                    report.cases_per_function,
+                    report.total_cases_generated,
+                    summary_path.display()
+                );
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("xtask fuzz: {e}");
+                return ExitCode::from(1);
+            }
+        }
+    }
     let res = if cfg.dry_run {
         execute_dry_run(&cfg)
     } else {

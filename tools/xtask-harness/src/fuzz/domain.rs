@@ -55,6 +55,12 @@ pub enum RegionKind {
     GenericNearIntegers,
     GenericArityAndOptional,
     GenericTypeCoercionEdges,
+    // Catalogue-generated & hint-file regions (dc-ztvv.26.1)
+    SpecGenericDomain,
+    SpecLiftingAndShapes,
+    SpecHintAnchorsAndEdges,
+    SpecHintRangesAndRelations,
+    SpecHintErrorEdges,
     // RATE pilot regions
     RateOrdinaryLoans,
     RateFractionalAndNegNper,
@@ -86,6 +92,8 @@ pub struct DomainSpec {
     pub params: Vec<ParamSpec>,
     pub regions: Vec<RegionSpec>,
     pub has_custom_hints: bool,
+    pub has_hint_file: bool,
+    pub merged: super::spec_gen::MergedSpec,
 }
 
 /// Special numeric anchors shared across all functions (all Value2-exact: finite, non-subnormal,
@@ -367,21 +375,26 @@ fn custom_regions(function: &str) -> Vec<RegionSpec> {
 }
 
 impl DomainSpec {
-    /// Build a domain spec for `function` from `calc-catalogue` metadata plus optional hints.
+    /// Build a domain spec for `function` from `calc-catalogue` metadata plus default hint files.
     pub fn for_function(function: &str) -> Result<Self, String> {
+        let hints = super::hints::load_default_hints()?;
+        Self::for_function_with_hints(function, &hints)
+    }
+
+    /// Build a domain spec for `function` merged with an explicit [`super::hints::HintBank`].
+    pub fn for_function_with_hints(
+        function: &str,
+        hints: &super::hints::HintBank,
+    ) -> Result<Self, String> {
         let name = function.to_ascii_uppercase();
         let decl: DeclarationRef = calc_catalogue::named(&name)
             .ok_or_else(|| format!("function {name} is not in calc-catalogue"))?;
-        let arity = decl.arity();
-        let min_arity = arity.min;
-        let max_arity = arity.max.min(12);
-        let declared = decl.parameters();
-        let mut params = Vec::new();
+        let merged = super::spec_gen::build_merged_spec(&name, hints)?;
+        let min_arity = merged.min_arity;
+        let max_arity = merged.max_arity;
+        let mut params = Vec::with_capacity(max_arity);
         for i in 0..max_arity {
-            let p = declared
-                .get(i)
-                .or_else(|| declared.last());
-            let (pname, pclass) = match p {
+            let (pname, pclass) = match decl.parameter(i) {
                 Some(param) => (param.name.to_owned(), param.class),
                 None => (format!("arg{i}"), ParameterClass::Value),
             };
@@ -394,7 +407,47 @@ impl DomainSpec {
         }
         let custom = custom_regions(&name);
         let has_custom_hints = !custom.is_empty();
+        let has_hint_file = merged.has_hint_file;
+        let scale = if has_custom_hints { 0.45 } else { 1.0 };
         let mut regions = universal_regions(has_custom_hints);
+        regions.push(RegionSpec {
+            name: "spec_generic_domain",
+            description: "Catalogue-derived domain kinds, valid ranges, repeating groups, and lifting",
+            base_weight: 1.1 * scale,
+            kind: RegionKind::SpecGenericDomain,
+        });
+        if merged.has_whole_array_params() {
+            regions.push(RegionSpec {
+                name: "spec_lifting_and_shapes",
+                description: "dc-dfl.2.6 per-parameter lifting and whole-array shape variations",
+                base_weight: 0.65 * scale,
+                kind: RegionKind::SpecLiftingAndShapes,
+            });
+        }
+        if merged.has_hint_anchors() {
+            regions.push(RegionSpec {
+                name: "hint_anchors_and_edges",
+                description: "Hint-file specials and documented edges with +-ULP perturbations",
+                base_weight: 1.5,
+                kind: RegionKind::SpecHintAnchorsAndEdges,
+            });
+        }
+        if merged.has_hint_ranges_or_relations() {
+            regions.push(RegionSpec {
+                name: "hint_ranges_and_relations",
+                description: "Hint-file intervals (inside + just outside) and relations (honoured + broken)",
+                base_weight: 1.6,
+                kind: RegionKind::SpecHintRangesAndRelations,
+            });
+        }
+        if merged.has_hint_error_edges() {
+            regions.push(RegionSpec {
+                name: "hint_error_edges",
+                description: "Hint-file error_edges triggers targeting Excel error boundaries",
+                base_weight: 1.0,
+                kind: RegionKind::SpecHintErrorEdges,
+            });
+        }
         regions.extend(custom);
         Ok(Self {
             function: name,
@@ -403,11 +456,14 @@ impl DomainSpec {
             params,
             regions,
             has_custom_hints,
+            has_hint_file,
+            merged,
         })
     }
 
     /// Generate one deterministic argument vector for `region`.
     pub fn generate(&self, region: RegionKind, rng: &mut Rng) -> Vec<Value> {
+        use super::spec_gen::{SpecRegionKind, generate_spec_region};
         match region {
             RegionKind::GenericSpecialValues => self.gen_special_values(rng),
             RegionKind::GenericSignPatterns => self.gen_sign_patterns(rng),
@@ -415,6 +471,21 @@ impl DomainSpec {
             RegionKind::GenericNearIntegers => self.gen_near_integers(rng),
             RegionKind::GenericArityAndOptional => self.gen_arity_and_optional(rng),
             RegionKind::GenericTypeCoercionEdges => self.gen_type_coercion_edges(rng),
+            RegionKind::SpecGenericDomain => {
+                generate_spec_region(&self.merged, SpecRegionKind::GenericDomain, rng)
+            }
+            RegionKind::SpecLiftingAndShapes => {
+                generate_spec_region(&self.merged, SpecRegionKind::LiftingAndShapes, rng)
+            }
+            RegionKind::SpecHintAnchorsAndEdges => {
+                generate_spec_region(&self.merged, SpecRegionKind::HintAnchorsAndEdges, rng)
+            }
+            RegionKind::SpecHintRangesAndRelations => {
+                generate_spec_region(&self.merged, SpecRegionKind::HintRangesAndRelations, rng)
+            }
+            RegionKind::SpecHintErrorEdges => {
+                generate_spec_region(&self.merged, SpecRegionKind::HintErrorEdges, rng)
+            }
             RegionKind::RateOrdinaryLoans => gen_rate_ordinary_loans(rng),
             RegionKind::RateFractionalAndNegNper => gen_rate_fractional_and_neg_nper(rng),
             RegionKind::RateFvNegPvAndZeroTerms => gen_rate_fv_neg_pv_and_zero_terms(rng),
