@@ -7,7 +7,7 @@
 //!
 //! The collections list the manual breaks. Excel's lists also hold the automatic breaks the
 //! printer's pagination produces; that route lives in `apps/dna-calc-model` and is not reachable
-//! from here (owned by dc-oxh8w.8's follow-up bead, see the close note).
+//! from here (dc-oxh8w.11).
 
 use super::report::report;
 use super::*;
@@ -131,7 +131,7 @@ impl WorkbookAutomation {
             if let Some(e) = receipt.error {
                 let text = format!("{e:?}");
                 if !text.contains(crate::page_setup::NO_CHANGES) {
-                    return Err(AutoError::not_modelled(format!("{label}: {text}"), "dc-oxh8w.8"));
+                    return Err(AutoError::not_modelled(format!("{label}: {text}"), "dc-oxh8w.11"));
                 }
             }
             self.context_changed(session);
@@ -150,9 +150,12 @@ impl WorkbookAutomation {
     }
 
     fn page_setup_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
         let (_, sheet, _) = Self::report_key(target)?;
         let member = call.member.name.clone();
-        let value = from_auto(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let value = from_auto(call.arg(0))?;
         self.print_change(sheet, call.label(), |s| {
             print_members::write(s.host(), sheet, &member, &value).map_err(error)
         })
@@ -202,6 +205,9 @@ impl WorkbookAutomation {
     /// `HPageBreaks.Add(Before)` / `VPageBreaks.Add(Before)`: a manual break before the row (or
     /// column) of the cell. A break already there stays one.
     fn breaks_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
         let horizontal = Self::breaks_direction(target)?;
         let (workbook, sheet, _) = Self::report_key(target)?;
         let range = self.source_range(target, call.arg(0), sheet)?;
@@ -299,7 +305,10 @@ impl WorkbookAutomation {
     /// `HPageBreak.Type = xlPageBreakAutomatic` removes the manual break; `xlPageBreakManual`
     /// keeps it.
     fn break_put_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let kind = geometry::integer(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        let kind = geometry::integer(call.arg(0))?;
         match kind {
             XL_PAGE_BREAK_MANUAL => {
                 let (horizontal, line) = Self::break_of(target)?;
