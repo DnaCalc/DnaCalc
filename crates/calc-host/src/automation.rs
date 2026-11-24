@@ -33,6 +33,7 @@ type Reply = Result<AutoValue, AutoError>;
 mod application;
 
 mod cells;
+mod clipboard;
 mod formatting;
 mod find;
 mod formula;
@@ -121,6 +122,8 @@ pub struct WorkbookAutomation {
     ranges: RefCell<HashMap<StoredReference, RangeLeases>>,
     /// The settings `Range.Find` saves for the next call and for FindNext / FindPrevious.
     find: RefCell<find::FindState>,
+    /// What the last Range.Copy or Range.Cut without a Destination left (dc-oxh8w.15).
+    clipboard: RefCell<Option<clipboard::Clip>>,
 }
 
 struct RangeLeases {
@@ -243,6 +246,7 @@ impl WorkbookAutomation {
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
+        Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
         Self::register_formatting(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
@@ -266,6 +270,7 @@ impl WorkbookAutomation {
             status_bar: RefCell::new(None),
             ranges: RefCell::default(),
             find: RefCell::default(),
+            clipboard: RefCell::new(None),
         }
     }
     /// Read the workbook profile's registered member handlers.

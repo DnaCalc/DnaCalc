@@ -482,7 +482,7 @@ impl WorkbookAutomation {
             })
         })
     }
-    fn mutate(
+    pub(super) fn mutate(
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
