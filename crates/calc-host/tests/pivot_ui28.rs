@@ -3114,10 +3114,19 @@ fn dc_8wp_12__subtotal_styles_use_the_workbook_accents() {
     let mut matched = 0;
     let mut cases = 0;
     let mut medium2_fonts = 0;
+    let mut dark11_body_fills = 0;
     for (stage, accent1, accent3, preset, fill_tint, expected_cases) in [
         (
             "office/dark11",
             "156082",
+            "196B24",
+            "Dark11",
+            "0.5999938962981048",
+            30,
+        ),
+        (
+            "accent1-changed/dark11",
+            "C00000",
             "196B24",
             "Dark11",
             "0.5999938962981048",
@@ -3179,11 +3188,25 @@ fn dc_8wp_12__subtotal_styles_use_the_workbook_accents() {
         let sheet = table.area.first().sheet();
         for line in capture.lines() {
             let fields: Vec<_> = line.split('\t').collect();
-            if fields[0] != stage || fields[5] != fill_tint {
+            let dark11_body = preset == "Dark11" && fields[5] == "0.7999816888943144";
+            if fields[0] != stage || (fields[5] != fill_tint && !dark11_body) {
                 continue;
             }
             let look = host.pivot_style_look(at(sheet, fields[1]));
             let fill = look.as_ref().and_then(|look| look.fill.as_ref());
+            if dark11_body {
+                let actual = fill.and_then(|color| host.resolved_style_color(color));
+                assert!(
+                    actual.as_deref().is_some_and(|rgb| {
+                        rgb.trim_start_matches('#').eq_ignore_ascii_case(fields[3])
+                    }),
+                    "{stage} {}: Excel {}, DNA Calc {actual:?}",
+                    fields[1],
+                    fields[3]
+                );
+                dark11_body_fills += 1;
+                continue;
+            }
             let bottom = look.as_ref().and_then(|look| look.borders[2].as_ref());
             if preset == "Medium2" {
                 let font = look
@@ -3213,10 +3236,12 @@ fn dc_8wp_12__subtotal_styles_use_the_workbook_accents() {
         assert_eq!(cases - stage_start, expected_cases, "{stage}");
     }
     println!("M6 subtotal fill and bottom color: {matched}/{cases} match");
-    assert_eq!(cases, 150);
+    assert_eq!(cases, 180);
     assert_eq!(matched, cases);
     println!("M6 Medium2 subtotal font color: {medium2_fonts}/45 match");
     assert_eq!(medium2_fonts, 45);
+    println!("M6 Dark11 body fill: {dark11_body_fills}/117 match");
+    assert_eq!(dark11_body_fills, 117, "Dark11 body cells checked");
 }
 
 /// A changed neutral theme cannot silently reuse the captured Office grayscale palette.
