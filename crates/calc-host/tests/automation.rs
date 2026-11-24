@@ -4142,3 +4142,73 @@ fn enable_events_is_rechecked_between_automation_event_levels() {
 
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
+
+/// dc-oxh8w.8: the printing members register where the committed descriptor describes them. With
+/// the descriptor regenerated on Windows (RUN-ON-WINDOWS, lane cl3) none is pending.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8__print_members_register_where_the_descriptor_describes_them() {
+    let (_, model) = setup();
+    let pending = model.print_members_pending();
+    let implemented = model.handlers().implemented();
+    for name in &pending {
+        assert!(!implemented.contains(name), "{name} is pending and also registered");
+    }
+    eprintln!("print members: {} pending the descriptor regeneration", pending.len());
+    if pending.is_empty() {
+        assert!(implemented.contains(&"PageSetup.Orientation (Put)".to_owned()));
+        assert!(implemented.contains(&"HPageBreaks.Add (Method)".to_owned()));
+    }
+}
+
+/// dc-oxh8w.8: a macro sets up a sheet for printing through the members and reads it back, and the
+/// same state is what the file saves. Runs once the descriptor holds `PageSetup` and the breaks.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8__a_macro_sets_up_printing_through_members() {
+    let (host, model) = setup();
+    if !model.print_members_pending().is_empty() {
+        eprintln!("dc-oxh8w.8: descriptor lacks PageSetup/HPageBreaks; member round trip not run");
+        return;
+    }
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+    let put = |name: &str, value: AutoValue| {
+        invoke_kind(&model, &setup, name, InvokeKind::Put, vec![value]).unwrap();
+    };
+    put("Orientation", AutoValue::I4(2));
+    put("Zoom", AutoValue::Bool(false));
+    put("FitToPagesWide", AutoValue::I4(1));
+    put("FitToPagesTall", AutoValue::Bool(false));
+    put("LeftMargin", AutoValue::R8(36.0));
+    put("CenterHorizontally", AutoValue::Bool(true));
+    put("PrintArea", AutoValue::text("$A$1:$C$20"));
+    put("PrintTitleRows", AutoValue::text("$1:$1"));
+    put("CenterFooter", AutoValue::text("Page &P"));
+    assert!(matches!(invoke(&model, &setup, "Orientation", vec![]).unwrap(), AutoValue::I4(2)));
+    assert!(matches!(invoke(&model, &setup, "Zoom", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &setup, "FitToPagesTall", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &setup, "LeftMargin", vec![]).unwrap(), AutoValue::R8(v) if v == 36.0));
+    assert_eq!(text(&model, &setup, "PrintArea"), "$A$1:$C$20");
+    assert_eq!(text(&model, &setup, "PrintTitleRows"), "$1:$1");
+    assert_eq!(text(&model, &setup, "CenterFooter"), "Page &P");
+    // The same state is what the Page Setup UI reads.
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let stored = host.session.borrow().host().model().definitions().page_setup(sheet_id);
+    assert_eq!(stored.get("pageSetup", "orientation"), Some("landscape"));
+    // Breaks.
+    let h = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
+    let before = range(&model, "A21");
+    let one = obj(invoke_kind(&model, &h, "Add", InvokeKind::Method, vec![AutoValue::Object(before)]).unwrap());
+    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(1)));
+    assert!(matches!(invoke(&model, &one, "Type", vec![]).unwrap(), AutoValue::I4(-4135)));
+    let location = obj(invoke(&model, &one, "Location", vec![]).unwrap());
+    assert_eq!(text(&model, &location, "Address"), "$A$21");
+    invoke_kind(&model, &one, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
+    // Bad values are Excel's 1004 / 13.
+    let bad = invoke_kind(&model, &setup, "Orientation", InvokeKind::Put, vec![AutoValue::I4(7)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+}

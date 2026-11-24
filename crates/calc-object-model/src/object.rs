@@ -125,4 +125,10 @@ pub enum ReportItem {
     ConnectorFormat(u32),
     /// A `ColorFormat` of a shape's fill (`false`) or line (`true`).
     ColorFormat(u32, bool),
+    /// The worksheet's `PageSetup` (dc-oxh8w.8).
+    PageSetup,
+    /// The worksheet's `HPageBreaks` (`true`) or `VPageBreaks` (`false`) collection.
+    PageBreaks(bool),
+    /// One page break: horizontal (`true`) or vertical, and the row or column after the break.
+    PageBreak(bool, u32),
 }

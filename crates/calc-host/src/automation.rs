@@ -33,6 +33,7 @@ type Reply = Result<AutoValue, AutoError>;
 mod formula;
 mod mutation;
 mod navigation;
+mod print;
 mod report;
 mod report_draw;
 mod value;
@@ -228,6 +229,8 @@ impl WorkbookAutomation {
         Self::register_formula(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
+        // Printing registers likewise (dc-oxh8w.8).
+        let _ = Self::register_print(&mut handlers);
         handlers.on(
             "Application",
             "EnableEvents",

@@ -61,6 +61,9 @@ mod pivot_ui28;
 #[path = "pivot_ui28_refresh.rs"]
 mod pivot_ui28_refresh;
 
+#[path = "print_members.rs"]
+mod print_members;
+
 #[path = "reference_arrays.rs"]
 mod reference_arrays;
 
