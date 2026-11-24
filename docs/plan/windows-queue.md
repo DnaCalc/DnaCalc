@@ -47,6 +47,16 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   The B3 SheetChange still preceded calculation, carried the old value, and was followed
   by an extra calculation pair. The event differences are in ww11/bank-rows.
 
+- **dc-8wp.12.** The Win64 Medium2 grid replay matched 405 of 405 subtotal font, fill
+  and bottom-border colors across all three workbook themes on open, after refresh and
+  after reopen. The worker control also kept an authored fill through refresh and reopen.
+  Source and counts are in ww11/pt3/medium2-grid.
+- **dc-tey4.5.** Windows Excel again reported a syntax error on all five direct Riff calls.
+  Excel and guarded DNA Calc agreed on all five worksheet wrapper values. The CalcVBA ByVal regression
+  passed. With the new CalcVBA pin and Windows native Declare available in Full mode,
+  both Wasabi project routes rose from 41 to 53 matched of 53. The complete Windows VBA
+  corpus passed with only the two Wasabi counts changed. Wrapper-only loads remain open.
+
 ### ww10 numerical replay, 2026-11-23
 
 - **dc-j9k.75**. Win64 at `189d5f9d9` passed 566 CalcFunc unit tests with three ignored. The new

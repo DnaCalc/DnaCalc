@@ -274,6 +274,8 @@ pub(crate) struct SpreadsheetHost {
     /// Platform COM for the objects of the project's type-library references (early-bound
     /// through their registered type libraries). DNA's own objects never reach it.
     com: Option<Arc<dyn HostServices>>,
+    /// Native Declare is available only while loading a Windows project in Full mode.
+    native_dynlink: Option<Arc<dyn HostServices>>,
     /// What the project's own source activates late-bound (refused).
     late: super::late_binding::LateBinding,
 }
@@ -334,12 +336,28 @@ impl SpreadsheetHost {
         external_model: bool,
     ) -> Self {
         let model_id = projection::register_model(model);
+        let native_dynlink = if crate::policy::thread_policy() == Some(crate::policy::PolicyMode::Full) {
+            platform_services(false, true)
+        } else {
+            None
+        };
+        let base = HostBuilder::new()
+            .policy(HostPolicy {
+                allow_dynamic_link: native_dynlink.is_some(),
+                ..HostPolicy::default()
+            })
+            .build();
         Self {
             late,
-            base: HostBuilder::new().build(),
+            base,
             model_id,
             external_model,
-            com: if com { platform_com() } else { None },
+            com: if com {
+                platform_services(true, false)
+            } else {
+                None
+            },
+            native_dynlink,
         }
     }
 
@@ -509,8 +527,12 @@ impl HostServices for SpreadsheetHost {
     fn descriptor(&self) -> HalDescriptor {
         let mut descriptor = self.base.descriptor();
         for capability in &mut descriptor.capabilities {
-            if capability.id == CapabilityId::ComActivationDispatch {
-                capability.supported = true;
+            match capability.id {
+                CapabilityId::ComActivationDispatch => capability.supported = true,
+                CapabilityId::DynamicLinking if self.native_dynlink.is_some() => {
+                    capability.supported = true;
+                }
+                _ => {}
             }
         }
         descriptor
@@ -540,25 +562,26 @@ impl HostServices for SpreadsheetHost {
         self.base.time_locale()
     }
     fn dynlink(&self) -> &dyn DynamicLinkHal {
-        self.base.dynlink()
+        self.native_dynlink
+            .as_deref()
+            .unwrap_or(self.base.as_ref())
+            .dynlink()
     }
     fn diag(&self) -> &dyn DiagnosticsHal {
         self.base.diag()
     }
 }
 
-/// The platform's COM host (registry type libraries, native activation and early-bound vtable
-/// calls), on Windows only. Only its COM services are reached: the spreadsheet host keeps the
-/// file system, processes, dynamic linking and interaction of its null base.
-fn platform_com() -> Option<Arc<dyn HostServices>> {
+/// Windows supplies COM for referenced libraries and native Declare for Full projects.
+fn platform_services(allow_com: bool, allow_dynamic_link: bool) -> Option<Arc<dyn HostServices>> {
     #[cfg(all(windows, not(target_arch = "wasm32")))]
     {
         let policy = HostPolicy {
             allow_interaction: false,
             allow_process_spawn: false,
             allow_filesystem_mutation: false,
-            allow_dynamic_link: false,
-            allow_com_activation: true,
+            allow_dynamic_link,
+            allow_com_activation: allow_com,
             deterministic_mode: false,
             com_invocation_strategy: calcvba_hal::model::ComInvocationStrategy::PreferVtable,
             ..HostPolicy::default()
@@ -572,6 +595,7 @@ fn platform_com() -> Option<Arc<dyn HostServices>> {
     }
     #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
     {
+        let _ = (allow_com, allow_dynamic_link);
         None
     }
 }

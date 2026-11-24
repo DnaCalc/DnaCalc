@@ -1860,16 +1860,16 @@
   "windows": {
     "wasabi/project/interpreter": {
       "loaded": true,
-      "matched": 41,
-      "mismatched": 12,
+      "matched": 53,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "project/interpreter"
     },
     "wasabi/project/jit": {
       "loaded": true,
-      "matched": 41,
-      "mismatched": 12,
+      "matched": 53,
+      "mismatched": 0,
       "missing": 0,
       "refused": 0,
       "route": "project/jit"
