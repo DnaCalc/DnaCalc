@@ -156,6 +156,7 @@ impl FunctionSweepCounts {
 
 /// Deterministic infestation suite built around one patient-zero case.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct PatientZeroSuite {
     pub seed: PatientZeroSeed,
     pub seed_case: FuzzCase,
@@ -723,6 +724,7 @@ pub fn build_patient_zero_suite(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn eval_cases_on_touchstone(
     client: &touchstone_client::Client,
     function: &str,
@@ -730,10 +732,19 @@ fn eval_cases_on_touchstone(
     pred_path: &Path,
     batch_size: usize,
     in_flight: usize,
+    cfg: &FuzzConfig,
     all_envs: &mut BTreeMap<String, Value>,
 ) -> Result<(FunctionSweepCounts, Vec<DiscrepancyRow>, HashMap<String, String>), String> {
     let pred_sha = freeze_predictions(pred_path, function, cases)?;
-    let agg = ask_single_priority(client, function, cases, batch_size, in_flight, Priority::Bulk)?;
+    let agg = ask_single_priority(
+        client,
+        function,
+        cases,
+        batch_size,
+        in_flight,
+        Priority::Bulk,
+        Some(cfg),
+    )?;
     for (k, v) in agg.envs {
         all_envs.entry(k).or_insert(v);
     }
@@ -884,6 +895,7 @@ pub fn execute_patient_zero(
             &cfg.out_dir.join("pz-primary-predictions.jsonl"),
             cfg.batch_size,
             cfg.in_flight,
+            cfg,
             &mut all_envs,
         )?;
         // Escalate primary discrepancies via coarse fractal Excel bisection.
@@ -977,6 +989,7 @@ pub fn execute_patient_zero(
                     .join(format!("pz-sibling-{}-predictions.jsonl", sfunc.to_ascii_lowercase())),
                 cfg.batch_size,
                 cfg.in_flight,
+                cfg,
                 &mut all_envs,
             )?;
             sibling_disc_counts.insert(sfunc.clone(), s_discs.len());
@@ -1193,6 +1206,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             &cfg.out_dir.join("resweep-primary-predictions.jsonl"),
             cfg.batch_size,
             cfg.in_flight,
+            cfg,
             &mut all_envs,
         )?;
         let pz_key = canonical_case_key(&recipe.function, &recipe.patient_zero.args);
@@ -1236,6 +1250,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
                 )),
                 cfg.batch_size,
                 cfg.in_flight,
+                cfg,
                 &mut all_envs,
             )?;
             if let Some(bank_path) = &cfg.bank_rows_out

@@ -28,15 +28,88 @@ use super::steer::{
 use super::{FuzzConfig, FuzzSummary, freeze_predictions, main_round_budget, write_outputs};
 use calc_verdict::Severity;
 use serde_json::Value;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use touchstone_client::{Answer, Arg, Client, Handle, Priority, Request};
+use touchstone_client::{Answer, Arg, Client, Error, Handle, Priority, Request};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 const INTERACTIVE_CHUNK_SIZE: usize = 96;
 const MAX_FRONTIER_SEEDS: usize = 8_000;
 const MAX_DISCREPANCY_PARENTS: usize = 2_048;
+
+const SWEEP_WAIT: Duration = Duration::from_secs(15);
+
+#[derive(Clone, Debug)]
+pub(super) struct SweepPolicy {
+    pause: PathBuf,
+    bank_prefix: PathBuf,
+    next_chunk: Cell<usize>,
+    envs: RefCell<BTreeMap<String, Value>>,
+}
+
+impl SweepPolicy {
+    pub fn new(pause: PathBuf, bank_prefix: PathBuf) -> Self {
+        Self {
+            pause,
+            bank_prefix,
+            next_chunk: Cell::new(0),
+            envs: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    fn record(
+        &self,
+        cfg: &FuzzConfig,
+        envs: &BTreeMap<String, Value>,
+        differences: &[DiscrepancyRow],
+    ) -> Result<(), String> {
+        let mut all = self.envs.borrow_mut();
+        let count = all.len();
+        all.extend(envs.clone());
+        if all.len() != count {
+            super::sweep::write_json(&cfg.out_dir.join("excel-environments.json"), &*all)?;
+        }
+        if differences.is_empty() {
+            return Ok(());
+        }
+        let index = self.next_chunk.get();
+        self.next_chunk.set(index + 1);
+        let name = self
+            .bank_prefix
+            .file_name()
+            .ok_or("missing sweep bank prefix")?
+            .to_string_lossy();
+        let path = self
+            .bank_prefix
+            .with_file_name(format!("{name}-{index:04}.json"));
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let refs: Vec<_> = differences.iter().collect();
+        let encoded = super::cluster::encode_witness_set_json(
+            &cfg.function,
+            &cfg.lane,
+            &cfg.out_dir.join("attempt.json").display().to_string(),
+            "Touchstone sweep discrepancies",
+            &super::utc_timestamp_now(),
+            &all,
+            &touchstone_bulk_context(),
+            &refs,
+        )?;
+        let temp = path.with_extension("tmp");
+        std::fs::write(&temp, encoded)
+            .and_then(|_| std::fs::rename(temp, &path))
+            .map_err(|e| format!("{}: {e}", path.display()))
+    }
+}
+
+fn sweep_paused(config: Option<&FuzzConfig>) -> bool {
+    config
+        .and_then(|cfg| cfg.sweep.as_ref())
+        .is_some_and(|policy| policy.pause.exists())
+}
 
 fn error_variant_to_excel(name: &str) -> Result<&'static str, String> {
     match name {
@@ -258,6 +331,7 @@ pub(crate) struct BatchReplyAggregate {
 }
 
 struct PendingChunk {
+    submitted: Instant,
     lane_tag: usize, // 0 = primary/bulk cases, 1 = secondary/interactive cases
     indices: Vec<usize>,
     sent_rows: Vec<Vec<Arg>>,
@@ -305,64 +379,90 @@ fn drain_one_chunk(
     secondary_judged: &mut [JudgedRow],
     envs: &mut BTreeMap<String, Value>,
     worker_calls: &mut BTreeMap<String, usize>,
+    config: Option<&FuzzConfig>,
 ) -> Result<(), String> {
-    let reply = chunk
-        .handle
-        .wait_timeout(REQUEST_TIMEOUT)
-        .map_err(|e| format!("touchstone request failed: {e}"))?;
-    for (k, v) in reply.envs {
-        envs.entry(k).or_insert(v);
-    }
-    for (w, count) in reply.worker_calls {
-        *worker_calls.entry(w).or_insert(0) += count;
-    }
-    let fallback_env = reply.env_id.unwrap_or_else(|| "unknown".to_owned());
+    let sweep = config.and_then(|cfg| cfg.sweep.as_ref().map(|policy| (cfg, policy)));
+    let timeout = if sweep.is_some() {
+        SWEEP_WAIT.saturating_sub(chunk.submitted.elapsed())
+    } else {
+        REQUEST_TIMEOUT
+    };
+    let (reply, error) = match chunk.handle.wait_timeout_with_partial(timeout) {
+        Ok(reply) => (Some(Box::new(reply)), None),
+        Err((error, partial)) => (partial, Some(error)),
+    };
+    let terminal = match &error {
+        Some(Error::Service { code, detail }) if sweep.is_some() => match code.as_str() {
+            "refused" => Some(RowOutcome::Unread {
+                reason: detail.clone(),
+            }),
+            "excel-crashed" | "excel-crash-budget" => Some(RowOutcome::Crashed {
+                detail: detail.clone(),
+            }),
+            _ => None,
+        },
+        _ => None,
+    };
     let (cases, judged) = if chunk.lane_tag == 0 {
         (primary_cases, primary_judged)
     } else {
         (secondary_cases, secondary_judged)
     };
-    let inputs = reply.inputs.as_deref();
-    for (pos, &case_idx) in chunk.indices.iter().enumerate() {
-        let env_id = reply
-            .env_by_row
-            .get(pos)
-            .and_then(Option::as_ref)
-            .cloned()
-            .unwrap_or_else(|| fallback_env.clone());
-        let Some(answer) = reply.rows.get(pos) else {
-            judged[case_idx] = JudgedRow {
-                outcome: RowOutcome::Unread {
-                    reason: "missing answer row in Touchstone reply".to_owned(),
-                },
-                excel_encoded: None,
-                env_id,
-            };
-            continue;
-        };
-        let encoded = match answer_to_encoded(answer) {
-            Ok(enc) => enc,
-            Err(terminal) => {
+    if let Some(terminal) = &terminal {
+        for &index in &chunk.indices {
+            judged[index].outcome = terminal.clone();
+        }
+    }
+    if let Some(reply) = reply {
+        for (k, v) in reply.envs {
+            envs.entry(k).or_insert(v);
+        }
+        for (w, count) in reply.worker_calls {
+            *worker_calls.entry(w).or_insert(0) += count;
+        }
+        let fallback_env = reply.env_id.unwrap_or_else(|| "unknown".to_owned());
+        let inputs = reply.inputs.as_deref();
+        for (pos, &case_idx) in chunk.indices.iter().enumerate() {
+            let env_id = reply
+                .env_by_row
+                .get(pos)
+                .and_then(Option::as_ref)
+                .cloned()
+                .unwrap_or_else(|| fallback_env.clone());
+            let Some(answer) = reply.rows.get(pos) else {
                 judged[case_idx] = JudgedRow {
-                    outcome: terminal,
+                    outcome: RowOutcome::Unread {
+                        reason: "missing answer row in Touchstone reply".to_owned(),
+                    },
                     excel_encoded: None,
                     env_id,
                 };
                 continue;
-            }
-        };
-        // Verify echoed inputs bit-for-bit whenever Touchstone sent them.
-        if let Some(in_rows) = inputs
-            && let Some(echo_row) = in_rows.get(pos)
-        {
-            let sent = &chunk.sent_rows[pos];
-            if !echo_row_matches_sent(sent, echo_row) {
+            };
+            let encoded = match answer_to_encoded(answer) {
+                Ok(enc) => enc,
+                Err(outcome) => {
+                    judged[case_idx] = JudgedRow {
+                        outcome: terminal.clone().unwrap_or(outcome),
+                        excel_encoded: None,
+                        env_id,
+                    };
+                    continue;
+                }
+            };
+            // A sweep only banks verified answers, including replies recovered after an interruption.
+            let echo = inputs.and_then(|rows| rows.get(pos));
+            if echo.is_some_and(|row| !echo_row_matches_sent(&chunk.sent_rows[pos], row))
+                || (sweep.is_some() && echo.is_none())
+            {
+                let sent = &chunk.sent_rows[pos];
+                let echoed = echo.map_or(0, Vec::len);
                 judged[case_idx] = JudgedRow {
                     outcome: RowOutcome::Unread {
                         reason: format!(
                             "echo input readback differed (sent {} args, got {} echo cells)",
                             sent.len(),
-                            echo_row.len()
+                            echoed
                         ),
                     },
                     excel_encoded: None,
@@ -370,23 +470,61 @@ fn drain_one_chunk(
                 };
                 continue;
             }
+            let pred = &cases[case_idx].prediction;
+            let (severity, ulp) = judge_pair(&encoded, pred);
+            let outcome = if severity == Severity::Exact {
+                RowOutcome::Matched
+            } else {
+                RowOutcome::Discrepancy {
+                    expected: encoded.clone(),
+                    severity,
+                    ulp,
+                }
+            };
+            judged[case_idx] = JudgedRow {
+                outcome,
+                excel_encoded: Some(encoded),
+                env_id,
+            };
         }
-        let pred = &cases[case_idx].prediction;
-        let (severity, ulp) = judge_pair(&encoded, pred);
-        let outcome = if severity == Severity::Exact {
-            RowOutcome::Matched
-        } else {
-            RowOutcome::Discrepancy {
-                expected: encoded.clone(),
-                severity,
-                ulp,
-            }
-        };
-        judged[case_idx] = JudgedRow {
-            outcome,
-            excel_encoded: Some(encoded),
-            env_id,
-        };
+        if let Some((cfg, policy)) = sweep {
+            let differences: Vec<_> = chunk
+                .indices
+                .iter()
+                .filter_map(|&idx| {
+                    let row = &judged[idx];
+                    let RowOutcome::Discrepancy {
+                        expected,
+                        severity,
+                        ulp,
+                    } = &row.outcome
+                    else {
+                        return None;
+                    };
+                    let case = &cases[idx];
+                    Some(DiscrepancyRow {
+                        case: case.clone(),
+                        expected: expected.clone(),
+                        severity: *severity,
+                        ulp: *ulp,
+                        env_id: row.env_id.clone(),
+                        cluster_key: cluster_key_for(
+                            &cfg.function,
+                            case,
+                            expected,
+                            *severity,
+                            *ulp,
+                        ),
+                    })
+                })
+                .collect();
+            policy.record(cfg, envs, &differences)?;
+        }
+    }
+    if let Some(error) = error
+        && terminal.is_none()
+    {
+        return Err(format!("touchstone request failed: {error}"));
     }
     Ok(())
 }
@@ -401,12 +539,13 @@ fn ask_bulk_and_interactive(
     interactive_cases: &[FuzzCase],
     bulk_batch_size: usize,
     in_flight: usize,
+    config: Option<&FuzzConfig>,
 ) -> Result<(BatchReplyAggregate, BatchReplyAggregate), String> {
     let started = Instant::now();
     let (bulk_sendable, mut bulk_judged) = prepare_sendable(bulk_cases);
     let (inter_sendable, mut inter_judged) = prepare_sendable(interactive_cases);
 
-    let mut work_queue: VecDeque<(usize, Priority, Vec<usize>, Vec<Vec<Arg>>)> = VecDeque::new();
+    let mut work_queue = VecDeque::new();
     // Interleave interactive chunks (<= 96 rows each) right after the first two bulk chunks
     // so w1 and w2 grab bulk work while w3 picks up interactive work in parallel.
     let bulk_chunks: Vec<(Vec<usize>, Vec<Vec<Arg>>)> = bulk_sendable
@@ -422,7 +561,11 @@ fn ask_bulk_and_interactive(
         })
         .collect();
     let inter_chunks: Vec<(Vec<usize>, Vec<Vec<Arg>>)> = inter_sendable
-        .chunks(INTERACTIVE_CHUNK_SIZE)
+        .chunks(
+            config
+                .filter(|cfg| cfg.sweep.is_some())
+                .map_or(INTERACTIVE_CHUNK_SIZE, |cfg| cfg.batch_size),
+        )
         .map(|slice| {
             let mut idxs = Vec::with_capacity(slice.len());
             let mut rows = Vec::with_capacity(slice.len());
@@ -456,41 +599,17 @@ fn ask_bulk_and_interactive(
         }
     }
 
-    let max_pending = in_flight.max(1) + usize::from(!interactive_cases.is_empty());
-    let mut pending: VecDeque<PendingChunk> = VecDeque::with_capacity(max_pending);
-    let mut envs = BTreeMap::new();
-    let mut worker_calls = BTreeMap::new();
-
-    while !work_queue.is_empty() || !pending.is_empty() {
-        while pending.len() < max_pending {
-            let Some((lane_tag, priority, indices, sent_rows)) = work_queue.pop_front() else {
-                break;
-            };
-            let mut req = Request::new(function, sent_rows.clone());
-            req.priority = Some(priority);
-            req.echo_inputs = true;
-            let handle = client
-                .submit(req)
-                .map_err(|e| format!("touchstone submit failed: {e}"))?;
-            pending.push_back(PendingChunk {
-                lane_tag,
-                indices,
-                sent_rows,
-                handle,
-            });
-        }
-        if let Some(chunk) = pending.pop_front() {
-            drain_one_chunk(
-                chunk,
-                bulk_cases,
-                interactive_cases,
-                &mut bulk_judged,
-                &mut inter_judged,
-                &mut envs,
-                &mut worker_calls,
-            )?;
-        }
-    }
+    let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
+    let max_pending = in_flight.max(1) + usize::from(!sweep && !interactive_cases.is_empty());
+    let (envs, worker_calls) = dispatch_chunks(
+        client,
+        function,
+        work_queue,
+        [bulk_cases, interactive_cases],
+        [&mut bulk_judged, &mut inter_judged],
+        max_pending,
+        config,
+    )?;
 
     let elapsed = started.elapsed().as_secs_f64();
     let bulk_agg = BatchReplyAggregate {
@@ -516,6 +635,7 @@ pub(crate) fn ask_single_priority(
     batch_size: usize,
     in_flight: usize,
     priority: Priority,
+    config: Option<&FuzzConfig>,
 ) -> Result<BatchReplyAggregate, String> {
     if cases.is_empty() {
         return Ok(BatchReplyAggregate {
@@ -527,64 +647,99 @@ pub(crate) fn ask_single_priority(
     }
     let started = Instant::now();
     let (sendable, mut judged) = prepare_sendable(cases);
-    let mut chunks: VecDeque<(Vec<usize>, Vec<Vec<Arg>>)> = sendable
+    let (batch_size, in_flight) = config
+        .filter(|cfg| cfg.sweep.is_some())
+        .map_or((batch_size, in_flight), |cfg| {
+            (cfg.batch_size, cfg.in_flight)
+        });
+    let chunks = sendable
         .chunks(batch_size.max(1))
         .map(|slice| {
-            let mut idxs = Vec::with_capacity(slice.len());
-            let mut rows = Vec::with_capacity(slice.len());
-            for (i, r) in slice {
-                idxs.push(*i);
-                rows.push(r.clone());
-            }
-            (idxs, rows)
+            let (indices, rows) = slice.iter().cloned().unzip();
+            (0, priority, indices, rows)
         })
         .collect();
-    let mut pending: VecDeque<PendingChunk> = VecDeque::with_capacity(in_flight.max(1));
-    let mut envs = BTreeMap::new();
-    let mut worker_calls = BTreeMap::new();
-    let empty: [FuzzCase; 0] = [];
-    let mut empty_j: Vec<JudgedRow> = Vec::new();
-
-    while !chunks.is_empty() || !pending.is_empty() {
-        while pending.len() < in_flight.max(1) {
-            let Some((indices, sent_rows)) = chunks.pop_front() else {
-                break;
-            };
-            let mut req = Request::new(function, sent_rows.clone());
-            req.priority = Some(match priority {
-                Priority::Interactive => Priority::Interactive,
-                Priority::Bulk => Priority::Bulk,
-            });
-            req.echo_inputs = true;
-            let handle = client
-                .submit(req)
-                .map_err(|e| format!("touchstone submit failed: {e}"))?;
-            pending.push_back(PendingChunk {
-                lane_tag: 0,
-                indices,
-                sent_rows,
-                handle,
-            });
-        }
-        if let Some(chunk) = pending.pop_front() {
-            drain_one_chunk(
-                chunk,
-                cases,
-                &empty,
-                &mut judged,
-                &mut empty_j,
-                &mut envs,
-                &mut worker_calls,
-            )?;
-        }
-    }
-
+    let (envs, worker_calls) = dispatch_chunks(
+        client,
+        function,
+        chunks,
+        [cases, &[]],
+        [&mut judged, &mut []],
+        in_flight.max(1),
+        config,
+    )?;
     Ok(BatchReplyAggregate {
         rows: judged,
         envs,
         worker_calls,
         excel_seconds: started.elapsed().as_secs_f64(),
     })
+}
+
+type RequestChunk = (usize, Priority, Vec<usize>, Vec<Vec<Arg>>);
+type BatchProvenance = (BTreeMap<String, Value>, BTreeMap<String, usize>);
+
+fn dispatch_chunks(
+    client: &Client,
+    function: &str,
+    mut chunks: VecDeque<RequestChunk>,
+    [primary_cases, secondary_cases]: [&[FuzzCase]; 2],
+    [primary_judged, secondary_judged]: [&mut [JudgedRow]; 2],
+    max_pending: usize,
+    config: Option<&FuzzConfig>,
+) -> Result<BatchProvenance, String> {
+    let mut pending = VecDeque::with_capacity(max_pending);
+    let mut envs = BTreeMap::new();
+    let mut worker_calls = BTreeMap::new();
+    let mut failure = None;
+    let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
+    loop {
+        while failure.is_none() && !sweep_paused(config) && pending.len() < max_pending {
+            let Some((lane_tag, priority, indices, sent_rows)) = chunks.pop_front() else {
+                break;
+            };
+            let mut request = Request::new(function, sent_rows.clone());
+            request.priority = Some(if sweep { Priority::Sweep } else { priority });
+            request.echo_inputs = true;
+            let submitted = Instant::now();
+            match client.submit(request) {
+                Ok(handle) => pending.push_back(PendingChunk {
+                    submitted,
+                    lane_tag,
+                    indices,
+                    sent_rows,
+                    handle,
+                }),
+                Err(error) => failure = Some(format!("touchstone submit failed: {error}")),
+            }
+        }
+        // Let already submitted work finish when pausing, so any observed differences are banked.
+        let Some(chunk) = pending.pop_front() else {
+            break;
+        };
+        if let Err(error) = drain_one_chunk(
+            chunk,
+            primary_cases,
+            secondary_cases,
+            primary_judged,
+            secondary_judged,
+            &mut envs,
+            &mut worker_calls,
+            config,
+        ) {
+            failure.get_or_insert(error);
+            if !sweep {
+                break;
+            }
+        }
+    }
+    if let Some(error) = failure {
+        return Err(error);
+    }
+    if !chunks.is_empty() {
+        return Err("sweep paused".into());
+    }
+    Ok((envs, worker_calls))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -841,6 +996,7 @@ fn bisect_shifted_frontiers_excel(
             INTERACTIVE_CHUNK_SIZE,
             2,
             Priority::Interactive,
+            Some(cfg),
         )?;
         *excel_seconds += agg.excel_seconds;
         for (k, v) in agg.envs {
@@ -960,6 +1116,7 @@ fn bisect_shifted_frontiers_excel(
                 INTERACTIVE_CHUNK_SIZE,
                 2,
                 Priority::Interactive,
+                Some(cfg),
             )?;
             *excel_seconds += agg.excel_seconds;
             for (k, v) in agg.envs {
@@ -1217,6 +1374,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
             INTERACTIVE_CHUNK_SIZE,
             2,
             Priority::Interactive,
+            Some(cfg),
         )?;
         *excel_seconds += agg.excel_seconds;
         for (k, v) in agg.envs {
@@ -1334,6 +1492,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
                 INTERACTIVE_CHUNK_SIZE,
                 2,
                 Priority::Interactive,
+                Some(cfg),
             )?;
             *excel_seconds += agg.excel_seconds;
             for (k, v) in agg.envs {
@@ -1502,6 +1661,9 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     std::fs::create_dir_all(&cfg.out_dir)
         .map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
     let client = connect_client(cfg.endpoint.as_deref())?;
+    if cfg.sweep.is_some() {
+        client.require_sweep().map_err(|e| e.to_string())?;
+    }
 
     let mut rng = Rng::from_seed_and_tag(cfg.seed, &cfg.function);
     let mut tracker = CoverageTracker::new(&cfg.function);
@@ -1603,6 +1765,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &inter_cases,
             cfg.batch_size,
             cfg.in_flight,
+            Some(cfg),
         )?;
         excel_seconds += bulk_agg.excel_seconds;
         for (k, v) in bulk_agg.envs {
@@ -1756,6 +1919,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
                 INTERACTIVE_CHUNK_SIZE,
                 2,
                 Priority::Interactive,
+                Some(cfg),
             )?;
             excel_seconds += agg.excel_seconds;
             for (k, v) in agg.envs {
@@ -1907,6 +2071,10 @@ mod tests {
     /// when `timing != 0.0` (arg 4 nonzero) and DNA Calc returns a finite number, it adds 2 ULPs
     /// so we can test clustering, adaptive densification, worker attribution, and bank export.
     fn serve_fake_rate_broker(listener: TcpListener) {
+        serve_fake_fuzz_broker(&listener, false, None);
+    }
+
+    fn serve_fake_fuzz_broker(listener: &TcpListener, sweep: bool, interrupt: Option<&Path>) {
         let ctx = touchstone_bulk_context();
         let (mut stream, _) = listener.accept().unwrap();
         while let Some((kind, body)) = read_frame(&mut stream) {
@@ -1918,6 +2086,7 @@ mod tests {
                         &json!({
                             "v": "touchstone/1",
                             "server": "fake-fuzzer-broker",
+                            "sweep": sweep,
                             "envs": {
                                 "e-bulk": {
                                     "engine": "excel",
@@ -1946,6 +2115,10 @@ mod tests {
                 b'S' => {
                     let id = body["id"].as_str().unwrap().to_string();
                     let prio = body["opts"]["priority"].as_str().unwrap_or("bulk");
+                    if sweep && body["seq"] == json!(0) {
+                        assert_eq!(prio, "sweep");
+                        assert!(body["opts"]["calls"].as_u64().unwrap() <= 32);
+                    }
                     let (worker, env_id) = if prio == "interactive" {
                         ("w3", "e-inter")
                     } else {
@@ -2005,7 +2178,8 @@ mod tests {
                                     }
                                 }
                             }
-                            let (dna, _, _) = evaluate_traced("RATE", &args_json, &ctx);
+                            let function = g["f"].as_str().unwrap();
+                            let (dna, _, _) = evaluate_traced(function, &args_json, &ctx);
                             let timing_beg = args_json
                                 .get(4)
                                 .and_then(parse_hex_bits)
@@ -2013,9 +2187,9 @@ mod tests {
                                 .is_some_and(|t| t != 0.0);
                             if let Some(hex) = dna.strip_prefix("0x") {
                                 let mut bits = u64::from_str_radix(hex, 16).unwrap();
-                                if timing_beg {
-                                    let bumped =
-                                        step_ulps(f64::from_bits(bits), 2, true).unwrap_or(f64::from_bits(bits));
+                                if sweep || timing_beg {
+                                    let bumped = step_ulps(f64::from_bits(bits), 2, true)
+                                        .unwrap_or(f64::from_bits(bits));
                                     bits = bumped.to_bits();
                                 }
                                 ty.push('n');
@@ -2043,6 +2217,16 @@ mod tests {
                         b'A',
                         &json!({"id": id, "seq": body["seq"], "env": env_id, "w": worker, "g": answers}),
                     );
+                    if let Some(pause) = interrupt {
+                        std::fs::write(pause, "").unwrap();
+                        // Half-close so queued requests from the client do not reset the answer stream.
+                        stream.shutdown(std::net::Shutdown::Write).unwrap();
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(3)))
+                            .unwrap();
+                        while read_frame(&mut stream).is_some() {}
+                        return;
+                    }
                     if body["last"] == json!(true) {
                         write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
                     }
@@ -2050,6 +2234,89 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn sweep_pauses_and_resumes_recipe_after_partial_fake_broker_reply() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-sweep-test-{port}"));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let pause = out.join("PAUSE");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port}).to_string(),
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n2\tINT\t5.0\tgross\n",
+        )
+        .unwrap();
+        let worker_pause = pause.clone();
+        let broker = std::thread::spawn(move || {
+            serve_fake_fuzz_broker(&listener, true, Some(&worker_pause));
+            serve_fake_fuzz_broker(&listener, true, None);
+        });
+        let command = [
+            "sweep",
+            "--runs",
+            "1",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        let run = out.join("00000001");
+        let read_json = |path: &Path| -> Value {
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+        };
+        assert_eq!(super::super::run(&command), std::process::ExitCode::FAILURE);
+        let bank = out.join("bank-rows");
+        let partial: Vec<_> = std::fs::read_dir(&bank)
+            .unwrap()
+            .map(|file| file.unwrap().path())
+            .collect();
+        assert!(!partial.is_empty());
+        for file in &partial {
+            WitnessSet::decode(&std::fs::read(file).unwrap()).unwrap();
+        }
+        assert!(run.join("00000001/interrupted.json").is_file());
+        assert!(!run.join("done.json").exists());
+        assert_eq!(super::super::run(&command), std::process::ExitCode::SUCCESS);
+        assert!(
+            !run.join("00000002").exists(),
+            "pause submits no new attempt"
+        );
+        std::fs::remove_file(pause).unwrap();
+        assert_eq!(super::super::run(&command), std::process::ExitCode::SUCCESS);
+        let first = read_json(&run.join("00000001/attempt.json"));
+        let second = read_json(&run.join("00000002/attempt.json"));
+        assert_eq!(first["recipe"], second["recipe"]);
+        assert_eq!(second["recipe"]["function"], "ABS");
+        assert_eq!(read_json(&run.join("done.json"))["attempt"], 2);
+        let summary = read_json(&run.join("00000002/summary.json"));
+        assert!(summary["total_mismatched"].as_u64().unwrap() > 0);
+        assert!(summary["total_matched"].as_u64().unwrap() > 0);
+        assert_eq!(
+            summary["excel_environments"]["e-bulk"]["cpu"],
+            "Fake AMD Ryzen"
+        );
+        let prediction_hashes = read_json(&run.join("00000001/prediction-hashes.json"));
+        assert_eq!(
+            summary["predictions_sha256"][0],
+            prediction_hashes["round-00-predictions.jsonl"]
+        );
+        assert!(partial.iter().all(|file| file.is_file()));
+        assert!(!run.join("00000002/round-00-predictions.jsonl").exists());
+        broker.join().unwrap();
+        std::fs::remove_dir_all(tmp).unwrap();
     }
 
     #[test]
@@ -2323,6 +2590,7 @@ mod tests {
             INTERACTIVE_CHUNK_SIZE,
             2,
             Priority::Interactive,
+            None,
         )
         .unwrap();
         let mut rstats = BTreeMap::new();

@@ -14,6 +14,7 @@ pub mod patient_zero;
 pub mod rng;
 pub mod spec_gen;
 pub mod steer;
+mod sweep;
 
 use boundary::{Frontier, expand_frontier_windows};
 use cluster::{DiscrepancyCluster, DiscrepancyRow, RegionStats};
@@ -56,6 +57,7 @@ pub struct FuzzConfig {
     pub pz_siblings: Vec<String>,
     pub max_siblings: usize,
     pub dry_run: bool,
+    sweep: Option<oracle::SweepPolicy>,
 }
 
 impl FuzzConfig {
@@ -96,6 +98,7 @@ impl FuzzConfig {
             pz_siblings: Vec::new(),
             max_siblings: 6,
             dry_run: false,
+            sweep: None,
         }
     }
 }
@@ -663,6 +666,8 @@ pub fn write_outputs(
         "function": cfg.function,
         "seed": cfg.seed,
         "budget": cfg.budget,
+        "min_budget": cfg.min_budget,
+        "in_flight": cfg.in_flight,
         "round_size": cfg.round_size,
         "dry_rounds": cfg.dry_rounds,
         "batch_size": cfg.batch_size,
@@ -723,6 +728,7 @@ pub fn write_outputs(
         "excel_seconds": summary.excel_seconds,
         "calls_per_second": if summary.excel_seconds > 0.0 { summary.total_asked as f64 / summary.excel_seconds } else { 0.0 },
         "worker_calls": summary.worker_calls,
+        "excel_environments": envs,
         "regions": region_json,
         "route_coverage": summary.tracker.to_json(),
         "cluster_count": summary.clusters.len(),
@@ -816,6 +822,11 @@ pub fn write_outputs(
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
+    if let Some((mode, args)) = raw.split_first()
+        && mode == "sweep"
+    {
+        return sweep::run(args);
+    }
     let cfg = match parse_args(raw) {
         Ok(c) => c,
         Err(e) => {
@@ -1024,5 +1035,22 @@ mod tests {
             let _ = fs::remove_dir_all(&d1);
             let _ = fs::remove_dir_all(&d2);
         }
+    }
+}
+
+#[cfg(test)]
+mod sweep_command_tests {
+    use super::*;
+
+    #[test]
+    fn sweep_plans_queue_without_touchstone() {
+        let args = [
+            "sweep",
+            "--plan",
+            "--order",
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/fuzz/order.tsv"),
+        ]
+        .map(str::to_owned);
+        assert_eq!(run(&args), ExitCode::SUCCESS);
     }
 }

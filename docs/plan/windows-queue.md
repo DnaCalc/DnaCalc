@@ -24,6 +24,26 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww14 Windows replay, 2026-11-24
+
+- **dc-j9k.68.** The nl25 changes (1a834c367 and 66e0ed8b3) passed 573 Win64
+  CalcFunc unit tests and 490 integration tests, including the x87 coverage.
+  Headless Chrome and Firefox each passed 559 unit and 490 integration tests.
+  The workspace cross-check passed for all Win64 targets. This used Linux
+  cross-builds and direct Windows test execution under the limited-build rule.
+- Dev and perf agreed on every decoded ETS bank row from CalcFunc-Evidence
+  4ef2c244. SEASONALITY matched 5,637/5,639, ETS 3,216/3,354, CONFINT
+  4,525/4,600 and STAT 3,084/3,111. Both oracle corpus runs matched
+  78,344/78,390, with identical counts for all 156 workbooks. The 46 failures
+  comprise 27 mismatches, five missing results and 14 circular held results.
+- Win64 matched 37 of the 39 former nl25 discrepancies from Excel
+  16.0.20625.20108 on AMD Ryzen 7 4800H. It returned 3 where Excel returned 0
+  on nl25-s1-027 and -028. The two fresh-source residuals and two archived
+  SEASONALITY residuals stay with dc-j9k.68. Preparation cases remain
+  dc-j9k.96, sibling precision dc-j9k.61 and full workspace sweep dc-ztvv.
+  The lane's evidence is in ww14/ets-parity.tsv, ww14/oracle-*-data,
+  ww14/nl25-intake and ww14/bank-rows.
+
 ### ww13 Windows replay, 2026-11-24
 
 - **dc-b1l.** Excel 16.0.20625.20108 recorded Formula, Formula2 and Value2 for 156
