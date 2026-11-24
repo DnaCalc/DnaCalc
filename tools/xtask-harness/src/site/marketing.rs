@@ -14,6 +14,16 @@ use std::path::Path;
 
 const FUN: &str = "docs/fun";
 const NUMBER_TEXT_ROUTE: &str = "/articles/last-bit-number-text/";
+const IRR_TRANSCRIPT_DIR: &str = "docs/articles/last-bit-irr-transcript";
+const IRR_TRANSCRIPT_ROUTE: &str = "/articles/last-bit-irr-transcript/";
+const IRR_TRANSCRIPT_TITLE: &str = "The last bit: cb25 IRR research transcript";
+const IRR_TRANSCRIPT_ASSETS: &[&str] = &[
+    "viewer.css",
+    "viewer.js",
+    "overlay.js",
+    "data.json",
+    "review.json",
+];
 const ARTICLES: &[(&str, &str, Section, &str)] = &[
     (
         "last-bit-normsinv.md",
@@ -501,6 +511,12 @@ fn build_guides(
         let path = format!("docs/articles/{filename}");
         let (title, content) = markdown_doc(root, &path)?;
         let mut content = resolve_markdown(&content, |link| {
+            if matches!(
+                link,
+                "last-bit-irr-transcript/" | "last-bit-irr-transcript/index.html"
+            ) {
+                return Some(IRR_TRANSCRIPT_ROUTE.to_owned());
+            }
             ARTICLES
                 .iter()
                 .find(|&&(name, _, _, _)| name == link)
@@ -516,11 +532,37 @@ fn build_guides(
             r#"<li><a href="{route}">{}</a></li>"#,
             escape(&title)
         );
+        if route == NUMBER_TEXT_ROUTE {
+            let _ = write!(
+                articles,
+                r#"<li><a href="{IRR_TRANSCRIPT_ROUTE}">{}</a></li>"#,
+                escape(IRR_TRANSCRIPT_TITLE)
+            );
+        }
         let body = format!(r#"<p><a href="/articles/">All technical articles</a></p>{html}"#);
         let edition = format!("{route}index.md");
         write_doc(route, &title, &body, Some((&edition, &content)))?;
         index.add(section, &title, &edition, description);
     }
+    let transcript_out = output.join(IRR_TRANSCRIPT_ROUTE.trim_start_matches('/'));
+    let transcript_src = root.join(IRR_TRANSCRIPT_DIR);
+    let transcript_page = source(root, &format!("{IRR_TRANSCRIPT_DIR}/index.html"))?;
+    write_nested(
+        &transcript_out.join("index.html"),
+        with_site_metadata(transcript_page, layout.prefix).as_bytes(),
+    )?;
+    for asset in IRR_TRANSCRIPT_ASSETS {
+        write_nested(
+            &transcript_out.join(asset),
+            &read(&transcript_src.join(asset))?,
+        )?;
+    }
+    index.add(
+        Section::Evidence,
+        IRR_TRANSCRIPT_TITLE,
+        IRR_TRANSCRIPT_ROUTE,
+        "Navigable transcript of the cb25 research session that found Excel's IRR exact solver, with phases, key moments, argument and review.",
+    );
     articles.push_str("</ul>");
     write_doc("/articles/", "Technical articles", &articles, None)?;
 
@@ -1139,5 +1181,94 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Native-only: builds the cb25 IRR transcript viewer from the checkout into a temporary directory.
+    #[test]
+    fn irr_transcript_viewer_is_packed_csp_clean_and_linked() {
+        let ws = Workspace {
+            root: Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+            members: Vec::new(),
+        };
+        let dir = std::env::temp_dir().join(format!(
+            "site-irr-transcript-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        let result = (|| {
+            build(
+                &ws,
+                &dir,
+                "/assets/test",
+                r#"<title>App</title><link href="app.css"><script src="boot.js"></script>"#,
+                r#"<div id="onecalc"></div>"#,
+                "0123456789012345678901234567890123456789",
+                "0.2.0",
+                "2026-11-24",
+                false,
+            )?;
+            let page = source(&dir, "articles/last-bit-irr-transcript/index.html")?;
+            assert!(page.starts_with("<!doctype html>"));
+            assert!(page.contains("<html ") && page.contains("</html>"));
+            assert!(page.contains(r#"rel="describedby" href="/llms.txt""#));
+            assert!(page.contains(r#"href="/articles/""#));
+            assert!(page.contains(r#"href="viewer.css""#));
+            assert!(page.contains(r#"src="overlay.js""#));
+            assert!(page.contains(r#"src="viewer.js""#));
+            // Site CSP: no inline styles, no inline scripts, no external font links.
+            assert!(!page.contains("<style"));
+            assert!(!page.contains("style="));
+            assert!(!page.contains("<script>"));
+            assert!(!page.contains("fonts.googleapis.com"));
+
+            let css = source(&dir, "articles/last-bit-irr-transcript/viewer.css")?;
+            assert!(css.contains("--irr:"));
+            assert!(!css.contains("fonts.googleapis.com"));
+
+            let js = source(&dir, "articles/last-bit-irr-transcript/viewer.js")?;
+            assert!(js.contains("fetch('data.json')"));
+            assert!(js.contains("fetch('review.json')"));
+            assert!(!js.contains("style=\""));
+
+            let overlay = source(&dir, "articles/last-bit-irr-transcript/overlay.js")?;
+            assert!(overlay.contains("window.OVERLAY"));
+
+            let data: Value = serde_json::from_str(&source(
+                &dir,
+                "articles/last-bit-irr-transcript/data.json",
+            )?)
+            .map_err(|e| format!("data.json: {e}"))?;
+            assert!(data["steps"].as_array().is_some_and(|s| !s.is_empty()));
+
+            let review: Value = serde_json::from_str(&source(
+                &dir,
+                "articles/last-bit-irr-transcript/review.json",
+            )?)
+            .map_err(|e| format!("review.json: {e}"))?;
+            assert!(review["review"].as_str().is_some_and(|s| !s.is_empty()));
+
+            let articles = source(&dir, "articles/index.html")?;
+            let transcript_pos = articles
+                .find(r#"href="/articles/last-bit-irr-transcript/""#)
+                .ok_or("articles/index.html missing IRR transcript link")?;
+            let vba_pos = articles
+                .find(r#"href="/articles/calcvba-variant/""#)
+                .ok_or("articles/index.html missing calcvba-variant link")?;
+            assert!(
+                transcript_pos < vba_pos,
+                "IRR transcript link should appear with the other last-bit articles"
+            );
+
+            let status = source(&dir, "articles/last-bit-status/index.html")?;
+            assert!(status.contains(r#"href="/articles/last-bit-irr-transcript/""#));
+            let status_md = source(&dir, "articles/last-bit-status/index.md")?;
+            assert!(status_md.contains("](/articles/last-bit-irr-transcript/)"));
+
+            let index = source(&dir, "llms.txt")?;
+            assert!(index.contains("https://dnacalc.com/articles/last-bit-irr-transcript/"));
+            Ok::<_, String>(())
+        })();
+        let _ = fs::remove_dir_all(&dir);
+        result.unwrap();
     }
 }

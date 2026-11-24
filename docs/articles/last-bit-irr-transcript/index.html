@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>cb25 IRR Transcript | DNA Calc</title>
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <a class="back" href="/articles/">← Technical articles</a>
+    <h1>cb25 <small>· the IRR exact solver, as it was found</small></h1>
+    <span class="meta" id="meta">Loading the transcript…</span>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-v="transcript" aria-selected="true">Transcript</button>
+      <button role="tab" data-v="argument" aria-selected="false">The IRR argument</button>
+      <button role="tab" data-v="review" aria-selected="false">Review</button>
+    </nav>
+  </div>
+  <svg id="strip" role="img" aria-label="Timeline of all steps, coloured by phase and thread; click to jump"></svg>
+</header>
+
+<section class="view on" id="v-transcript">
+  <div class="wrap">
+    <aside>
+      <h3>Phases</h3><div id="phases"></div>
+      <h3>Key moments</h3><div id="moments"></div>
+    </aside>
+    <main>
+      <div class="filters">
+        <label><input type="checkbox" id="f-think" checked> Reasoning</label>
+        <label><input type="checkbox" id="f-calls" checked> Tool calls</label>
+        <label><input type="checkbox" id="f-out"> Tool output</label>
+        <label><input type="checkbox" id="f-sys"> System notes</label>
+        <label><input type="checkbox" id="f-key"> Key moments only</label>
+        <label>Thread <select id="f-thread"><option value="">All</option><option>IRR</option><option>RATE</option><option>Excel</option></select></label>
+        <input type="search" id="f-q" placeholder="Search reasoning, commands, output" aria-label="Search">
+        <span id="count"></span>
+      </div>
+      <div id="stream"><p class="empty">Loading the transcript…</p></div>
+    </main>
+  </div>
+</section>
+
+<section class="view" id="v-argument"><div class="arg" id="arg"></div></section>
+<section class="view" id="v-review"><div class="md" id="review"><p class="empty">Loading the review…</p></div></section>
+
+<script src="overlay.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>

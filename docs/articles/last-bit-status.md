@@ -18,6 +18,10 @@ The large-argument seeds and backward recurrence now round from extended precisi
 
 Staged x87 arithmetic in the QR fit, statistics and prediction loops took LINEST from 3,224 to 3,445 of 3,445 exact and GROWTH from 1,254 to 1,260 of 1,260. Together with LOGEST, TREND, FORECAST and FORECAST.LINEAR, the full witness banks matched all 15,716 rows. The frozen holdout rose from 16 to 250 of 250 exact. [Regression change and tests](https://github.com/DnaCalc/DnaCalc/commit/43853e35) · [LINEST family article](last-bit-linest.md)
 
+## IRR
+
+Five solver rules identified in the `cb25` research session—leading-zero cashflow stripping ([dc-j9k.102](https://github.com/DnaCalc/DnaCalc/commit/0e9242c7)), immediate `#DIV/0!` propagation ([dc-j9k.103](https://github.com/DnaCalc/DnaCalc/commit/6f5134eb)), symmetric pole checks (`v >= 1e-7` in-loop, `>= 1e-4` post-budget), high-word flat-slope check with strict comparison and single-sign entry ([dc-j9k.104](https://github.com/DnaCalc/DnaCalc/commit/2b6ba64b)), and post-loop nonfinite `#NUM!` handling ([dc-j9k.105](https://github.com/DnaCalc/DnaCalc/commit/69e97401))—matched all 22,749 `sf2` sweep rows and 96 of 96 pre-frozen unseen probes on live Excel (against 35 of 96 before). Explore the full session in the [cb25 IRR research transcript](last-bit-irr-transcript/index.html).
+
 ## Circular trigonometry and gamma
 
 SIN, COS, SEC and CSC share the measured x87 FPTAN reduction and reconstruction. Across 54,834 bank rows for 24 functions and callers, exact matches rose from 54,646 to 54,668. SIN reached 2,141 of 2,141 and COS 3,685 of 3,685. GAMMA rose from 12,602 to 12,610 of 12,707, with differences remaining outside the trig path. [Trigonometry change and tests](https://github.com/DnaCalc/DnaCalc/commit/b9b8750c)
