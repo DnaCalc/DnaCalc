@@ -196,12 +196,19 @@ pub(crate) fn overflow_decimal(x: f64) -> ExactDecimal {
 #[derive(Clone, Copy)]
 pub enum RoundingPath {
     /// The integer part was split off exactly before rounding.
-    IntegerSplit { whole: u32 },
+    IntegerSplit {
+        /// Integer part separated before rounding.
+        whole: u32,
+    },
     /// The x87 PC=64 scale was followed by a truncating binary shift.
     Scaled {
+        /// Decimal power used to scale the magnitude.
         decimal_shift: i32,
+        /// Significand after scaling.
         significand: u64,
+        /// Binary shift used to truncate the scaled magnitude.
         right_shift: i32,
+        /// Whether the scaled result needed a correction.
         corrected: bool,
     },
 }
@@ -217,26 +224,41 @@ struct FixedPointStep {
 
 /// The first-precision rounding observed during a number-to-text conversion.
 pub struct NumberTextRounding {
+    /// Route used to obtain the fixed-point fraction.
     pub path: RoundingPath,
+    /// Binary exponent of the input magnitude.
     pub binary_exponent: i32,
+    /// Fraction before rounding in Q0.64 units.
     pub fraction: u64,
+    /// Number of decimal places handled by this rounding step.
     pub places: usize,
+    /// Half-increment used for the fixed-point rounding addition.
     pub half: u64,
+    /// Low 64 bits of the rounding sum.
     pub sum: u64,
+    /// Whether the fixed-point sum overflowed into its integer part.
     pub carry: bool,
+    /// Input magnitude digits after truncation to first precision.
     pub truncated_digits: String,
+    /// Base-ten exponent of the input's leading digit.
     pub input_exponent: i32,
+    /// First discarded decimal digit.
     pub next_digit: u8,
+    /// Whether the discarded tail is exactly halfway.
     pub exact_tie: bool,
     /// The rounded magnitude compared with the input truncated to 15 digits.
     pub decision: Ordering,
+    /// Magnitude digits produced by first-precision rounding.
     pub rounded_digits: String,
+    /// Base-ten exponent of the rounded leading digit.
     pub rounded_exponent: i32,
 }
 
 /// General number-to-text output and its rounding trace. Zero and subnormals skip rounding.
 pub struct NumberTextInspection {
+    /// Text returned by the worksheet number-to-text conversion.
     pub text: String,
+    /// First-precision rounding details, when the conversion reaches that step.
     pub rounding: Option<NumberTextRounding>,
 }
 

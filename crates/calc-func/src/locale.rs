@@ -9,36 +9,67 @@
 //! as not modelled.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Supported locale identities for parsing and formatting worksheet values.
 pub enum LocaleId {
+    /// English (United States).
     EnUs,
+    /// English (United Kingdom).
     EnGb,
+    /// English (Ireland).
     EnIe,
+    /// English (Australia).
     EnAu,
+    /// English (New Zealand).
     EnNz,
+    /// English (South Africa).
     EnZa,
+    /// English (India).
     EnIn,
+    /// English (Canada).
     EnCa,
+    /// English (Philippines).
     EnPh,
+    /// German (Germany).
     DeDe,
+    /// Russian (Russia).
     RuRu,
+    /// Finnish (Finland).
     FiFi,
+    /// Estonian (Estonia).
     EtEe,
+    /// Latvian (Latvia).
     LvLv,
+    /// Lithuanian (Lithuania).
     LtLt,
+    /// Slovak (Slovakia).
     SkSk,
+    /// Czech (Czechia).
     CsCz,
+    /// Norwegian Bokmål (Norway).
     NbNo,
+    /// Norwegian Nynorsk (Norway).
     NnNo,
+    /// French (France).
     FrFr,
+    /// Spanish (Spain).
     EsEs,
+    /// Portuguese (Portugal).
     PtPt,
+    /// Italian (Italy).
     ItIt,
+    /// Dutch (Netherlands).
     NlNl,
+    /// Polish (Poland).
     PlPl,
+    /// Portuguese (Brazil).
     PtBr,
+    /// Japanese (Japan).
     JaJp,
+    /// Korean (South Korea).
     KoKr,
+    /// Chinese (China).
     ZhCn,
+    /// Hungarian (Hungary).
     HuHu,
     /// Host-regional-settings placeholder. This is not a stable locale identity;
     /// callers that need reproducible locale-keyed behavior should use an
@@ -47,6 +78,7 @@ pub enum LocaleId {
 }
 
 impl LocaleId {
+    /// Return the stable language tag or host-profile identifier.
     pub const fn stable_name(self) -> &'static str {
         match self {
             LocaleId::EnUs => "en-US",
@@ -83,6 +115,7 @@ impl LocaleId {
         }
     }
 
+    /// Resolve a language tag using the supported language and region mappings.
     pub fn from_bcp47_language_tag(tag: &str) -> Option<Self> {
         let normalized = tag.trim().replace('_', "-").to_ascii_lowercase();
         let mut parts = normalized.split('-').filter(|part| !part.is_empty());
@@ -124,6 +157,7 @@ impl LocaleId {
         }
     }
 
+    /// Map a supported Excel locale identifier to its profile identity.
     pub const fn from_excel_lcid(lcid: u16) -> Option<Self> {
         match lcid {
             0x0409 => Some(LocaleId::EnUs),
@@ -161,6 +195,7 @@ impl LocaleId {
     }
 }
 
+/// Built-in locale identities with canonical profiles.
 pub const CANONICAL_LOCALE_IDS: [LocaleId; 30] = [
     LocaleId::EnUs,
     LocaleId::EnGb,
@@ -194,6 +229,7 @@ pub const CANONICAL_LOCALE_IDS: [LocaleId; 30] = [
     LocaleId::HuHu,
 ];
 
+/// Every locale identity, including the current Excel host.
 pub const ALL_LOCALE_IDS: [LocaleId; 31] = [
     LocaleId::EnUs,
     LocaleId::EnGb,
@@ -229,75 +265,121 @@ pub const ALL_LOCALE_IDS: [LocaleId; 31] = [
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Workbook calendar used to interpret date serials.
 pub enum DateSystem {
+    /// Excel's 1900 date system, including its fictitious leap day.
     System1900,
+    /// Excel's 1904 date system with 1904-01-01 as day zero.
     System1904,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Order of calendar components in numeric dates.
 pub enum DateComponentOrder {
+    /// Month, day, then year.
     Mdy,
+    /// Day, month, then year.
     Dmy,
+    /// Year, month, then day.
     Ymd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Position of the currency symbol relative to the amount.
 pub enum CurrencyPlacement {
+    /// Place the symbol before the amount.
     Before,
+    /// Place the symbol after the amount.
     After,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whitespace between the currency symbol and the amount.
 pub enum CurrencySpacing {
+    /// Use no intervening whitespace.
     None,
+    /// Use a regular space.
     Space,
+    /// Use a narrow no-break space.
     NarrowNoBreakSpace,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Presentation of a negative currency amount.
 pub enum CurrencyNegativePattern {
+    /// Place a minus sign before the formatted amount and its currency symbol, if leading.
     LeadingMinus,
+    /// Place a minus sign after the formatted currency amount.
     TrailingMinus,
+    /// Enclose the currency amount in parentheses.
     Parentheses,
+    /// Place the minus sign immediately before the currency symbol.
     MinusBeforeSymbol,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How format code tokens are interpreted.
 pub enum FormatCodeTokenPolicy {
+    /// Use Excel's invariant decimal and grouping tokens.
     InvariantExcel,
+    /// Use the locale's format code tokens.
     LocalizedExcel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Locale settings used to parse and display worksheet values.
 pub struct FormatProfile {
+    /// Identity of the locale supplying these settings.
     pub id: LocaleId,
+    /// Decimal separator used in values.
     pub decimal_separator: &'static str,
+    /// Digit grouping separator used in values.
     pub thousands_separator: &'static str,
+    /// Separator used between list items.
     pub list_separator: &'static str,
+    /// Symbol used to display currency.
     pub currency_symbol: &'static str,
+    /// Separator used between date components.
     pub date_separator: &'static str,
+    /// Separator used between time components.
     pub time_separator: &'static str,
+    /// Default number of decimal places for currency amounts.
     pub currency_decimals: i32,
+    /// Component order for numeric short dates.
     pub short_date_order: DateComponentOrder,
+    /// Pattern used to display short dates.
     pub short_date_pattern: &'static str,
+    /// Cutoff year for expanding two-digit years, if specified.
     pub two_digit_year_pivot: Option<u16>,
+    /// Position of the currency symbol.
     pub currency_placement: CurrencyPlacement,
+    /// Whitespace between the amount and currency symbol.
     pub currency_spacing: CurrencySpacing,
+    /// Presentation rule for negative currency amounts.
     pub currency_negative_pattern: CurrencyNegativePattern,
+    /// Decimal token recognized in a format code.
     pub format_code_decimal_token: &'static str,
+    /// Grouping token recognized in a format code.
     pub format_code_group_token: &'static str,
+    /// Policy selecting invariant or localized format syntax.
     pub format_code_token_policy: FormatCodeTokenPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Reason worksheet input text cannot be parsed.
 pub enum ParseFailure {
+    /// Input text outside the supported syntax.
     UnsupportedText(String),
+    /// Input text whose interpretation requires unsupported profile behavior.
     UnsupportedByProfile(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Reason a value cannot be formatted.
 pub enum FormatFailure {
+    /// Format code outside the supported syntax.
     UnsupportedCode(String),
+    /// Date serial outside the supported calendar range.
     InvalidDateSerial,
 }
 const fn short_date_order(id: LocaleId) -> DateComponentOrder {
@@ -408,6 +490,7 @@ const fn currency_negative_pattern(id: LocaleId) -> CurrencyNegativePattern {
     }
 }
 
+/// Return the built-in format settings for the locale identity.
 pub const fn format_profile(id: LocaleId) -> FormatProfile {
     match id {
         LocaleId::EnUs => FormatProfile {
@@ -1007,6 +1090,7 @@ fn civil_from_days(z: i64) -> (i64, i64, i64) {
     (year, m, d)
 }
 
+/// Convert calendar components to a serial in the selected Excel date system.
 pub fn excel_serial_from_ymd(
     date_system: DateSystem,
     year: i64,
@@ -1037,6 +1121,7 @@ pub fn excel_serial_from_ymd(
     }
 }
 
+/// Decode the calendar date of a serial in the selected Excel date system.
 pub fn ymd_from_excel_serial(date_system: DateSystem, serial: f64) -> Option<(i64, i64, i64)> {
     let whole = serial.trunc() as i64;
     match date_system {
@@ -1100,11 +1185,14 @@ impl FormatProfile {
 /// A part the caller leaves out refuses the calls that need it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalcEnvironment {
+    /// Workbook calendar used to interpret date serials.
     pub date_system: DateSystem,
     /// Workbook CompatibilityVersion, independent of locale and numeric mode. Workbooks
     /// without the setting use 1. Unsupported explicit versions remain observable to functions.
     pub compatibility_version: u32,
+    /// Host locale settings, when supplied for this calculation.
     pub profile: Option<FormatProfile>,
+    /// Clock value for this calculation as a serial in the workbook's date system.
     pub now: Option<f64>,
 }
 

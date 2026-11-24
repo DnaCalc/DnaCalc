@@ -73,6 +73,7 @@ pub const IMPORT_FUNCTIONS: [&str; 2] = [
 /// A host's way to read a file: the whole file as bytes, for an absolute path (the `file:///`
 /// form already turned into one), or `None` when it cannot (missing, a folder, no access).
 pub trait ImportRoute: fmt::Debug {
+    /// Read the file bytes for a path, if the provider makes them available.
     fn read(&self, path: &str) -> Option<Vec<u8>>;
 }
 

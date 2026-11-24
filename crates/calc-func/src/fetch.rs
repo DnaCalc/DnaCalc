@@ -90,7 +90,9 @@ const TEXT_LIMIT: usize = 32767;
 /// One GET of one URL, as it goes on the wire.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FetchRequest {
+    /// Kind of fetch requested by the worksheet function.
     pub kind: FetchKind,
+    /// URL to pass to the host transport.
     pub url: String,
 }
 
@@ -135,6 +137,7 @@ impl FetchReply {
 /// [`FetchKind::Text`] it does not follow a redirect from `https` to `http`, replying with that
 /// response's empty body; for [`FetchKind::Picture`] it does.
 pub trait FetchRoute: fmt::Debug {
+    /// Begin the host fetch and return its request identity.
     fn begin(&self, request: FetchRequest) -> u64;
 }
 
@@ -232,9 +235,11 @@ pub const REDIRECT_LIMIT: usize = 25;
 /// `Accept-Encoding` sent and nothing decompressed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RawResponse {
+    /// HTTP response status code.
     pub status: u16,
     /// The `Location` header, when the response carries one.
     pub location: Option<String>,
+    /// Raw response payload bytes.
     pub body: Vec<u8>,
 }
 

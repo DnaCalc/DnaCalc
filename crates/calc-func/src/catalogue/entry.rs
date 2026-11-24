@@ -99,7 +99,10 @@ pub enum EntryRule {
     IncompleteGroup,
     /// Argument `index` (from 0) fills a reference place with an operand that cannot give a
     /// reference: `=COUNTBLANK(2)`, `=COUNTBLANK({"",1})`.
-    ReferenceRequired { index: usize },
+    ReferenceRequired {
+        /// Zero-based position of the parameter that requires a reference.
+        index: usize,
+    },
     /// The call's result is called, and the entry gives a value: `=IFERROR(#N/A,LAMBDA(x,x))(3)`.
     ResultNotCallable,
     /// The entry runs only on a macro sheet ([`crate::Availability::MacroSheetOnly`]): any call of

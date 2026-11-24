@@ -46,6 +46,8 @@
 //!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-func/CONTRACT.md).
 
+#![warn(missing_docs)]
+
 pub use calc_value as value;
 
 mod call;

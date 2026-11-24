@@ -124,8 +124,11 @@ pub enum TextReference {
 /// The host identifies a visible pivot output; its value is read through the normal cell reader.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PivotLookup {
+    /// Worksheet cell that contains the pivot result.
     Cell(CellKey),
+    /// Worksheet error to return for the requested pivot lookup.
     Error(WorksheetErrorCode),
+    /// The host cannot model the requested pivot lookup.
     NotModelled,
 }
 
@@ -133,6 +136,7 @@ pub enum PivotLookup {
 /// FORMULATEXT, SHEET and SHEETS read (ported from OxFunc's `host_info.rs` HostInfoProvider, at
 /// 6fca3518). Every question is required. An explicit `None` refuses a fact the host cannot supply.
 pub trait HostFacts {
+    /// Locate a visible pivot result for a data field and its field-item filters.
     fn pivot_data_cell(
         &mut self,
         data_field: &str,
@@ -234,6 +238,7 @@ pub struct CellFormatFacts {
     /// The built-in number format ID the cell's format names, when the workbook does not declare
     /// that ID itself: the locale-dependent ones (14, 22) class by the locale's own code.
     pub builtin: Option<u32>,
+    /// Horizontal alignment recorded in the cell format.
     pub horizontal: HorizontalAlignment,
     /// Whether the cell is locked (protection's `locked`, which is true unless a format clears
     /// it).
@@ -243,13 +248,21 @@ pub struct CellFormatFacts {
 /// A cell format's horizontal alignment (`<alignment horizontal>`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HorizontalAlignment {
+    /// Excel chooses alignment according to the value type.
     General,
+    /// Align to the left edge.
     Left,
+    /// Center within the cell.
     Center,
+    /// Align to the right edge.
     Right,
+    /// Repeat the content to fill the cell.
     Fill,
+    /// Justify the content within the cell.
     Justify,
+    /// Center across the selected cells.
     CenterContinuous,
+    /// Distribute the content evenly within the cell.
     Distributed,
 }
 
@@ -277,8 +290,11 @@ pub struct WorkbookFile {
 /// The calculation mode INFO("recalc") reports.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CalculationMode {
+    /// Recalculate automatically when inputs change.
     Automatic,
+    /// Recalculate automatically, with data tables calculated on demand.
     AutomaticExceptTables,
+    /// Recalculate on explicit request.
     Manual,
 }
 
@@ -452,6 +468,7 @@ impl<'s> EvalServices<'s> {
         self.host.as_deref_mut()
     }
 
+    /// Return the arithmetic policy selected by the caller.
     pub fn numeric_mode(&self) -> &'s NumericMode {
         self.numeric
     }
@@ -497,6 +514,7 @@ pub struct FunctionCallScratch {
 }
 
 impl FunctionCallScratch {
+    /// Create empty scratch for the first call.
     pub fn new() -> Self {
         Self::default()
     }
@@ -507,41 +525,81 @@ impl FunctionCallScratch {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FunctionFault {
     /// Excel knows this entry, but its implementation belongs to another work package.
-    NotHeld { id: FunctionId, owner: &'static str },
+    NotHeld {
+        /// Catalogue entry that the caller requested.
+        id: FunctionId,
+        /// Work package that owns the implementation.
+        owner: &'static str,
+    },
     /// The owner has deferred this class of entry.
     Deferred {
+        /// Catalogue entry that the caller requested.
         id: FunctionId,
+        /// Deferral category attached to the catalogue entry.
         class: crate::Deferral,
     },
     /// Binding forms are evaluated by the formula language.
-    Binding { id: FunctionId },
+    Binding {
+        /// Catalogue entry for the language binding form.
+        id: FunctionId,
+    },
     /// Scratch still owns an activation of another catalogue entry. It is preserved for the
     /// original caller rather than silently replaced or executed twice.
     ContinuationTarget {
+        /// Catalogue entry that owns the suspended task.
         expected: FunctionId,
+        /// Catalogue entry passed to this invocation.
         received: FunctionId,
     },
     /// The call supplies a number of arguments that the entry's arity does not admit.
-    ArityMismatch { id: FunctionId, supplied: usize },
+    ArityMismatch {
+        /// Catalogue entry that rejected the call.
+        id: FunctionId,
+        /// Number of arguments the caller supplied.
+        supplied: usize,
+    },
     /// A value parameter received a reference; the caller dereferences before the call.
-    ReferenceArgument { id: FunctionId, index: usize },
+    ReferenceArgument {
+        /// Catalogue entry that rejected the call.
+        id: FunctionId,
+        /// Zero-based index of the argument requiring dereferencing.
+        index: usize,
+    },
     /// A reference-only parameter received something other than a reference.
-    ReferenceRequired { id: FunctionId, index: usize },
+    ReferenceRequired {
+        /// Catalogue entry that rejected the call.
+        id: FunctionId,
+        /// Zero-based index of the reference-only argument.
+        index: usize,
+    },
     /// The kernel must read the reference at argument `index`, and the services have no
     /// [`CellReader`] or the reader refused an area of it.
-    ReferenceUnreadable { id: FunctionId, index: usize },
+    ReferenceUnreadable {
+        /// Catalogue entry whose read failed.
+        id: FunctionId,
+        /// Zero-based index of the unreadable argument.
+        index: usize,
+    },
     /// The kernel does not model Excel's result for this call; `argument` names the argument
     /// responsible when one is.
     NotImplemented {
+        /// Catalogue entry that reached the unsupported case.
         id: FunctionId,
+        /// Zero-based argument index when the unsupported case can be attributed to one argument.
         argument: Option<usize>,
     },
     /// The call reaches an arithmetic site under [`NumericMode::Exact`], for which no
     /// implementation exists.
-    ExactUnavailable { id: FunctionId },
+    ExactUnavailable {
+        /// Catalogue entry that reached the unavailable arithmetic site.
+        id: FunctionId,
+    },
     /// The kernel returned [`CoreRef::Missing`], which marks an omitted argument and is never a
     /// function's result ([`CoreRef::Empty`] is).
-    MissingReturned { id: FunctionId },
+    MissingReturned {
+        /// Catalogue entry that returned the omitted-argument marker.
+        id: FunctionId,
+    },
 }
 
 /// The kernel of an eager entry: its arguments, all evaluated and admitted, and the services.
@@ -578,6 +636,7 @@ impl KernelTask for ReadyTask {
 }
 
 impl FunctionCallScratch {
+    /// Return the active kernel's completed element count, or zero with no active kernel.
     pub fn completed_elements(&self) -> usize {
         self.task
             .as_ref()

@@ -421,7 +421,9 @@ pub enum RegistrationError {
     UnknownId(FunctionId),
     /// No entry has this notation and spelling.
     UnknownSurface {
+        /// Notation of the conflicting registration.
         notation: Notation,
+        /// Spelling of the conflicting registration.
         spelling: String,
     },
 }
@@ -592,25 +594,31 @@ impl Eq for FunctionCallTarget<'_> {}
 pub use calc_catalogue::{HelpParameter, SignatureHelp};
 
 impl<'c> FunctionCallTarget<'c> {
+    /// Whether this target has a cooperative kernel entry point.
     pub fn is_resumable(self) -> bool {
         matches!(self.entry.kernel, Kernel::Resumable(_))
     }
+    /// Stable catalogue identity of the callable.
     pub fn id(self) -> FunctionId {
         self.entry.id
     }
 
+    /// Spelling associated with the resolved target.
     pub fn spelling(self) -> &'c str {
         self.entry.spelling
     }
 
+    /// Notation associated with the resolved target.
     pub fn notation(self) -> Notation {
         self.entry.notation
     }
 
+    /// How the target participates in formula evaluation.
     pub fn kind(self) -> EntryKind {
         self.entry.kind
     }
 
+    /// Availability of this entry in the active catalogue.
     pub fn availability(self) -> Availability {
         self.entry.availability
     }
@@ -625,6 +633,7 @@ impl<'c> FunctionCallTarget<'c> {
         }
     }
 
+    /// Argument counts accepted by the target.
     pub fn arity(self) -> CallableArityShape {
         self.entry.arity
     }
@@ -662,6 +671,7 @@ impl<'c> FunctionCallTarget<'c> {
             .any(|parameter| parameter.legacy.lifts_references())
     }
 
+    /// How the target selects the arguments it evaluates.
     pub fn argument_demand(self) -> ArgumentDemand {
         self.entry.demand
     }
@@ -704,6 +714,7 @@ impl<'c> FunctionCallTarget<'c> {
             )
     }
 
+    /// Signature and parameter descriptions for callers and editors.
     pub fn signature_help(self) -> SignatureHelp {
         calc_catalogue::declaration(self.id())
             .expect("attached function has a declaration")

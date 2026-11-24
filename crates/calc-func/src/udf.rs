@@ -9,8 +9,11 @@ pub use calc_catalogue::unheld::RTD_PROVIDER;
 /// Neutral callable identity; CalcFml alone allocates tables, slots and generations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UserCallableIdentity {
+    /// Callable registration table identity.
     pub table: u64,
+    /// Slot in the registration table.
     pub slot: u32,
+    /// Generation that distinguishes successive occupants of the slot.
     pub generation: u64,
 }
 /// Excel's identity of one real-time-data topic: the server's ProgID, the (local) server name and
@@ -23,11 +26,15 @@ pub struct UserCallableIdentity {
 /// is folded for ASCII only; the measurement did not reach other letters.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TopicKey {
+    /// ASCII-lowercase programmatic identifier of the RTD server.
     pub progid: String,
+    /// Server string, with an empty string for an omitted server.
     pub server: String,
+    /// Ordered topic strings, compared exactly.
     pub strings: Vec<String>,
 }
 impl TopicKey {
+    /// Create a topic key, folding only the ProgID's ASCII case.
     pub fn new(progid: &str, server: &str, strings: &[String]) -> Self {
         TopicKey {
             progid: progid.to_ascii_lowercase(),
@@ -44,7 +51,9 @@ pub const MAX_TOPIC_STRINGS: usize = 253;
 /// the connection it read (`None` when it read none: an error argument).
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtdCallRead {
+    /// Worksheet value observed by the caller.
     pub value: CalcValue,
+    /// Connection read by the call, if it reached a topic.
     pub lease: Option<RtdLease>,
 }
 
@@ -119,16 +128,22 @@ pub struct RtdLease(pub u64);
 /// The admitted state of one topic: its lease, the sequence of its latest value and the value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtdEntry {
+    /// Connection incarnation associated with this entry.
     pub lease: RtdLease,
+    /// Sequence number of the admitted value.
     pub sequence: u64,
+    /// Latest admitted worksheet value.
     pub value: CalcValue,
 }
 /// What a result read of a topic: the lease the reader asked for and the sequence it saw in its
 /// cut (0 when the cut held nothing for that lease).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RtdRead {
+    /// Topic whose value was requested.
     pub topic: TopicKey,
+    /// Connection incarnation requested by the reader.
     pub lease: RtdLease,
+    /// Sequence observed in the cut, or zero if no value was present for the lease.
     pub sequence: u64,
 }
 /// The prefix of the error text when the owner's connector could not connect a topic (no server
@@ -140,7 +155,9 @@ pub const RTD_CONNECT_FAILED: &str = "dc-snz.23: RTD connect failed: ";
 /// certified: the owner admits it as that sequence before the result is published.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtdConnection {
+    /// Lease of the joined or newly started connection.
     pub lease: RtdLease,
+    /// Sequence and value returned by ConnectData and awaiting admission, when present.
     pub provisional: Option<(u64, CalcValue)>,
 }
 /// The owner's capability to join or start a topic's connection, supplied for one evaluation as
@@ -152,6 +169,7 @@ pub struct RtdConnection {
 /// built-in `RTD`) declares it for as long as the formula stays; an add-in's `xlfRtd` call does
 /// not, since the native call's own record of what it asked for each time decides.
 pub trait RtdConnector: fmt::Debug {
+    /// Join or start a connection and record the caller's interest in its topic.
     fn connect(
         &self,
         topic: &TopicKey,
@@ -169,21 +187,28 @@ pub trait RtdConnector: fmt::Debug {
 /// sequence it was admitted (or provisionally observed) at, if there is one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RtdTopicRead {
+    /// Connection incarnation used for the read.
     pub lease: RtdLease,
+    /// Sequence and value observed by the caller, if available.
     pub value: Option<(u64, CalcValue)>,
 }
 /// One immutable external input cut, fixed at command admission, keyed by topic identity. RTD
 /// never completes a call. The cut is readable from any thread.
 pub trait RtdCut: fmt::Debug + Send + Sync {
+    /// Return the version of this command's immutable cut.
     fn version(&self) -> u64;
+    /// Find an admitted value by topic key.
     fn get(&self, topic: &TopicKey) -> Option<RtdEntry>;
 }
 
 /// Host-owned identity and immutable read-view lease; no borrowed evaluator pointers.
 #[derive(Clone)]
 pub struct UserInvocationFrame {
+    /// Identity allocated for this invocation.
     pub id: u64,
+    /// Parent invocation identity for a nested call, if present.
     pub parent: Option<u64>,
+    /// Host-owned snapshot used for reads during this activation.
     pub read_view: Rc<dyn Any>,
     /// Formula assignment evaluates on its owner, including thread-safe native UDFs.
     pub formula_entry: bool,
@@ -193,6 +218,7 @@ pub struct UserInvocationFrame {
     pub single_threaded: bool,
 }
 impl UserInvocationFrame {
+    /// Allocate an invocation identity with its parent and read snapshot.
     pub fn new(parent: Option<u64>, read_view: Rc<dyn Any>) -> Self {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let id = NEXT
@@ -210,10 +236,12 @@ impl UserInvocationFrame {
             single_threaded: false,
         }
     }
+    /// Set whether the activation runs during formula assignment.
     pub fn with_formula_entry(mut self, entry: bool) -> Self {
         self.formula_entry = entry;
         self
     }
+    /// Set whether the activation belongs to a single-threaded calculation.
     pub fn with_single_threaded(mut self, single: bool) -> Self {
         self.single_threaded = single;
         self
@@ -235,16 +263,21 @@ impl fmt::Debug for UserInvocationFrame {
 }
 
 #[derive(Debug)]
+/// Progress reported after advancing an owned user-function activation.
 pub enum UserFunctionStep {
+    /// The activation yielded and can be resumed.
     Suspended,
     /// Park this activation until the owner delivers this request through its checked token.
     Awaiting {
+        /// Request identity used by the owner to match completion.
         request: u64,
     },
+    /// The activation returned its worksheet value.
     Complete(CalcValue),
 }
 /// Owning activation. Resume never re-enters the procedure or repeats a completed effect.
 pub trait UserFunctionInvocation: fmt::Debug {
+    /// Advance the activation with the supplied evaluation context and work quantum.
     fn resume(
         &mut self,
         context: &mut dyn UserFunctionContext,
@@ -255,15 +288,28 @@ pub trait UserFunctionInvocation: fmt::Debug {
 /// An owned reference identity. Tracked handles never identify a workbook by name.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StoredReference {
+    /// Reference stored directly as a value.
     Inline(ReferenceLike),
-    Tracked { owner: u64, slot: u64 },
+    /// Reference whose location is maintained by its owning workbook.
+    Tracked {
+        /// Identity of the workbook instance that owns the slot.
+        owner: u64,
+        /// Identity of the retained entry in that workbook.
+        slot: u64,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Reason a retained reference could not be created or resolved.
 pub enum ReferenceHandleError {
+    /// The reference belongs to another workbook instance.
     ForeignWorkbook,
+    /// The workbook that owns the reference has closed.
     ClosedWorkbook,
+    /// The referenced location was deleted.
     Deleted,
+    /// The reference's read snapshot has expired.
     ExpiredView,
+    /// An edit affecting the reference has no supported remapping.
     NotModelledEdit,
 }
 impl fmt::Display for ReferenceHandleError {
@@ -271,8 +317,11 @@ impl fmt::Display for ReferenceHandleError {
         write!(f, "{self:?}")
     }
 }
+/// Host service for retaining references across evaluator activations.
 pub trait ReferenceHandles {
+    /// Acquire an owned handle for the reference.
     fn retain(&self, reference: &ReferenceLike) -> Result<StoredReference, ReferenceHandleError>;
+    /// Resolve a retained handle against the service's current view.
     fn resolve(&self, reference: &StoredReference) -> Result<ReferenceLike, ReferenceHandleError>;
     /// Release one retain. Inline/adapters without owned tracker slots need no action.
     fn release(&self, _reference: &StoredReference) {}
@@ -281,7 +330,9 @@ pub trait ReferenceHandles {
 /// A registration's permission to end one semantic evaluation and request a new one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UserReevaluationReason {
+    /// Allow reevaluation after an XLL returns from an uncalculated reference read.
     XllUncalcedUnwind,
+    /// Allow reevaluation when provisionally observed arguments become final.
     ProvisionalArguments,
 }
 
@@ -293,7 +344,9 @@ pub enum UserReevaluationReason {
 /// evaluates the formula again after the producer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReferenceRead {
+    /// The value returned by the read.
     Value(CalcValue),
+    /// The producer still needs to calculate the requested value.
     Pending,
 }
 
@@ -313,6 +366,7 @@ pub trait UserFunction: fmt::Debug {
     fn max_parallel_calls(&self) -> usize {
         1
     }
+    /// Return the registration's explicit permission to reevaluate a completed attempt.
     fn reevaluation_policy(&self) -> Option<UserReevaluationReason> {
         None
     }
@@ -320,12 +374,15 @@ pub trait UserFunction: fmt::Debug {
     fn state_lane(&self) -> Option<u64> {
         None
     }
+    /// Whether the adapter allows nested entry while an activation is running.
     fn permits_reentry(&self) -> bool {
         false
     }
+    /// Whether the adapter reads cached workbook values.
     fn cached_reads(&self) -> bool {
         false
     }
+    /// Invoke the synchronous entry with the supplied worksheet arguments.
     fn call(&self, arguments: &[CalcValue]) -> Result<CalcValue, String>;
 
     /// Prepare a cooperative activation when this exact signature/body supports it. None is
@@ -359,6 +416,7 @@ pub trait UserFunction: fmt::Debug {
 /// The sheet and the selection a person has active in the host.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UserView {
+    /// Sheet selected in the caller's captured workbook view.
     pub active_sheet: crate::value::SheetId,
     /// The selected cell (a host with a one-cell selection; a larger one is not modelled).
     pub selection: CellKey,
@@ -367,6 +425,7 @@ pub struct UserView {
 /// Services borrowed only for one synchronous call. The evaluator owns the reader and caller;
 /// adapters can retain reference identities, and must read their values through this context.
 pub trait UserFunctionContext {
+    /// Return the formula cell responsible for the call, if available.
     fn caller(&self) -> Option<CellKey>;
     /// What the person looking at the application has active: the host's answer for VBA's
     /// `ActiveSheet` and `Selection`. In Excel a worksheet function sees the user's sheet and
@@ -423,12 +482,14 @@ pub trait UserFunctionContext {
     fn take_async_result(&mut self, _request: u64) -> Option<CalcValue> {
         None
     }
+    /// Retain a reference using the host's reference service.
     fn retain_reference(
         &mut self,
         reference: &ReferenceLike,
     ) -> Result<StoredReference, ReferenceHandleError> {
         Ok(StoredReference::Inline(reference.clone()))
     }
+    /// Resolve a retained reference through the host's read view.
     fn resolve_reference(
         &mut self,
         reference: &StoredReference,
@@ -438,6 +499,7 @@ pub trait UserFunctionContext {
             _ => Err(ReferenceHandleError::ForeignWorkbook),
         }
     }
+    /// Return the frame for the current activation, if supplied by the host.
     fn invocation(&self) -> Option<&UserInvocationFrame> {
         None
     }
@@ -451,6 +513,7 @@ pub trait UserFunctionContext {
     fn refuse_by(&mut self, reason: &'static str, _owner: &'static str) -> String {
         self.refuse(reason)
     }
+    /// Read worksheet values addressed by the reference.
     fn values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String>;
     /// Explicit scalar-argument readiness is a dependency, distinct from a VBA Range read.
     fn argument_values_of(&mut self, reference: &ReferenceLike) -> Result<CalcValue, String> {

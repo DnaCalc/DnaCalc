@@ -51,28 +51,38 @@ use std::cmp::Ordering;
 /// One column of a model table, its cells in row order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CubeColumn {
+    /// Column name used in model expressions.
     pub name: String,
+    /// Cell values in model row order.
     pub cells: Vec<CalcValue>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Named model table containing ordered columns.
 pub struct CubeTable {
+    /// Table name used in model expressions.
     pub name: String,
+    /// Columns available to expressions on this table.
     pub columns: Vec<CubeColumn>,
 }
 
 /// A measure as the model defines it: `SUM(Table1[Amount])`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CubeMeasure {
+    /// Measure name used in cube member lookups.
     pub name: String,
+    /// DAX expression defining the measure.
     pub expression: String,
 }
 
 /// A workbook's data model, read when a CUBE function asks for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CubeModel {
+    /// Workbook connection name for this model.
     pub connection: String,
+    /// Tables available to the model.
     pub tables: Vec<CubeTable>,
+    /// Measures supplied by the workbook.
     pub measures: Vec<CubeMeasure>,
 }
 
@@ -85,12 +95,14 @@ pub enum CubeLookup {
     NotReadable,
     /// A server OLAP connection (dc-8wp.21).
     ServerOlap,
+    /// Readable snapshot of the workbook data model.
     Model(std::sync::Arc<CubeModel>),
 }
 
 /// Why a cube expression has no value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CubeFailure {
+    /// Worksheet error to return for the expression.
     Error(WorksheetErrorCode),
     /// Beyond what is modelled; the caller refuses.
     NotModelled,
@@ -104,14 +116,22 @@ const VALUE: CubeFailure = CubeFailure::Error(WorksheetErrorCode::Value);
 /// A member of the model: a measure, or a key of a column, or a column's All member.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CubeMember {
+    /// Index into the model's measures.
     Measure(usize),
+    /// All member of a single column.
     All {
+        /// Index into the model's tables.
         table: usize,
+        /// Index into the selected table's columns.
         column: usize,
     },
+    /// Member selected by one key value.
     Key {
+        /// Index into the model's tables.
         table: usize,
+        /// Index into the selected table's columns.
         column: usize,
+        /// Worksheet value identifying the member.
         key: CalcValue,
     },
 }

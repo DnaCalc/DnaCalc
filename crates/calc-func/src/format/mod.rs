@@ -1822,13 +1822,21 @@ fn render_cell_text(
 /// (`[Red]`), or an entry of the workbook's 56-color palette (`[Color10]`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FormatColor {
+    /// Excel's named black format color.
     Black,
+    /// Excel's named blue format color.
     Blue,
+    /// Excel's named cyan format color.
     Cyan,
+    /// Excel's named green format color.
     Green,
+    /// Excel's named magenta format color.
     Magenta,
+    /// Excel's named red format color.
     Red,
+    /// Excel's named white format color.
     White,
+    /// Excel's named yellow format color.
     Yellow,
     /// `[ColorN]`, N from 1 to 56: the palette entry a workbook may redefine
     /// (`<indexedColors>`, its entry N + 7).
