@@ -44,8 +44,7 @@
         ],
         "0xbfd54b4b6ca9f5bc"
       ],
-      "expected_bits": "0xbfeff6bee6887bc9",
-      "calc_func": "0x42e11111111110f1"
+      "expected_bits": "0xbfeff6bee6887bc9"
     },
     {
       "id": "I1-dc-j9k-102-leading-zero-num-err",
@@ -67,8 +66,7 @@
         ],
         "0xbfd02ad0a38fffb1"
       ],
-      "expected_bits": "0xbfef2e4dc255d8a0",
-      "calc_func": "error:Num"
+      "expected_bits": "0xbfef2e4dc255d8a0"
     },
     {
       "id": "I1-dc-j9k-102-leading-zero-err-num",
@@ -89,8 +87,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x41f2db160039a7ce"
+      "expected_bits": "error:Num"
     },
     {
       "id": "I2-dc-j9k-103-div0-vs-finite",
