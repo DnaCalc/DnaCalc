@@ -224,20 +224,28 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     },
     // dc-xib: Strand's themes and a narrow screen.
     Case {
-        name: "the theme switch shows the dark theme, and the system's again",
+        name: "the theme switch shows the dark theme on the workbench",
         actions: &[Action::Choose("theme", "cockpit-dark")],
-        checks: &[
-            Check::Computed("[data-onecalc=\"surface\"]", "color:#E2ECEF"),
-            Check::Computed("body", "background-color:#1A262B"),
-        ],
+        checks: &[Check::Computed(
+            "surface",
+            "background-color:#1A262B;color:#E2ECEF",
+        )],
     },
     Case {
         name: "high contrast, then the system's theme",
         actions: &[
             Action::Choose("theme", "high-contrast"),
+            Action::Wait(Check::Computed("surface", "background-color:#FFFFFF")),
+            Action::Wait(Check::Computed(
+                "[class~=\"oc-head\"]",
+                "background-color:#0A171C",
+            )),
             Action::Choose("theme", ""),
         ],
-        checks: &[Check::Computed("body", "background-color:#FFFFFF")],
+        checks: &[
+            Check::Absent("[data-dna-theme]"),
+            Check::Computed("surface", "background-color:var(--dna-paper)"),
+        ],
     },
     Case {
         name: "on a 500-pixel screen (the narrowest a desktop Firefox window goes) the page fits its width",
@@ -679,7 +687,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
             Action::Click("[data-onecalc=\"vba-load\"]"),
             Action::Formula("=Module1.Ad"),
         ],
-        checks: &[Check::Contains("completions", "MODULE1.ADD2")],
+        checks: &[Check::Text("completion-label", "Module1.Add2")],
     },
     Case {
         name: "function status: a held function says so with its availability",
