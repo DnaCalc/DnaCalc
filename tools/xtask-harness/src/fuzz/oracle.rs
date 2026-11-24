@@ -997,9 +997,12 @@ fn select_closest_flip_bracket(
     })
 }
 
-/// For any non-route frontier whose consecutive window around DNA Calc's flip did NOT contain
-/// Excel's flip, bracket Excel's flip with an exponential probe and then pinpoint it with
+/// For any `predicate_flip` frontier whose consecutive window around DNA Calc's flip did NOT
+/// contain Excel's flip, bracket Excel's flip with an exponential probe and then pinpoint it with
 /// batched 64-point ordered-bit bisection (freezing predictions before every Touchstone probe).
+/// Non-predicate frontiers (`route_switch`, `iteration_regime`, `outcome_regime`) never trigger
+/// shifted-flip bisection: Excel is probed only where DNA Calc predicts a predicate flip or where
+/// a coarse discrepancy was already observed.
 #[allow(clippy::too_many_arguments)]
 fn bisect_shifted_frontiers_excel(
     cfg: &FuzzConfig,
@@ -1032,7 +1035,7 @@ fn bisect_shifted_frontiers_excel(
     let shifted_indices: Vec<usize> = frontiers
         .iter()
         .enumerate()
-        .filter(|(_, f)| f.kind != "route_flip" && f.excel_lo_bits.is_none())
+        .filter(|(_, f)| f.transition_kind == "predicate_flip" && f.excel_lo_bits.is_none())
         .map(|(i, _)| i)
         .take(16)
         .collect();
@@ -2147,7 +2150,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         record_window_flips_from_cache(&mut frontiers, &final_window_refs, &excel_answers);
     }
 
-    // Pinpoint Excel's flip via batched 64-point bisection for any shifted non-route frontier.
+    // Pinpoint Excel's flip via batched 64-point bisection for any shifted predicate_flip frontier.
     bisect_shifted_frontiers_excel(
         cfg,
         &client,
@@ -3733,10 +3736,12 @@ mod tests {
         assert!(val.clusters.is_empty());
         assert!(!tmp.join("value-bank.json").exists());
 
-        // 3. OFFSET: every generated call faults with WitnessReferencePosition -> skipped cleanly
-        // after Round 0 with 0 Excel calls, 0 bank rows, and 0 clusters.
+        // 3. OFFSET (without error-edge hints): every generated call faults with
+        // WitnessReferencePosition -> skipped cleanly after Round 0 with 0 Excel calls,
+        // 0 bank rows, and 0 clusters.
         let mut off_cfg = cfg.clone();
         off_cfg.function = "OFFSET".to_owned();
+        off_cfg.hints_dir = Some(tmp.join("no-hints"));
         off_cfg.out_dir = tmp.join("offset");
         off_cfg.bank_rows_out = Some(tmp.join("offset-bank.json"));
         off_cfg.sweep = Some(SweepPolicy::new(tmp.join("PAUSE"), tmp.join("bank/OFFSET")));
@@ -3755,5 +3760,227 @@ mod tests {
 
         broker.join().unwrap();
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn bisect_shifted_frontiers_skips_iteration_and_outcome_regime_frontiers() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-bisect-regime-skip-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let query_count = Arc::new(AtomicUsize::new(0));
+        let query_count_srv = Arc::clone(&query_count);
+        let broker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-regime-broker", "envs": {"e1": {"file_version": "16.0.20625.20108", "build": "20625", "cpu": "Fake", "machine": "x86-64"}}}),
+                    ),
+                    b'S' => {
+                        query_count_srv.fetch_add(1, Ordering::SeqCst);
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                for c in 0..width {
+                                    ity.push('n');
+                                    iv.push(flat[r * width + c].clone());
+                                }
+                                let g_hex = flat[r * width + 5].as_str().unwrap();
+                                let g_val = f64::from_bits(u64::from_str_radix(g_hex, 16).unwrap());
+                                if g_val < -1.0 {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#VALUE!".to_owned()));
+                                } else {
+                                    ty.push('n');
+                                    out_v.push(Value::String(format!("{:016x}", 0.05_f64.to_bits())));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.out_dir = tmp.join("out");
+        let base_args = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        let lo = 0.1_f64.to_bits();
+        let hi = step_ulps(0.1, 1, true).unwrap().to_bits();
+        let mut frontiers = vec![
+            Frontier {
+                id: "frontier-RATE-001".to_owned(),
+                function: "RATE".to_owned(),
+                axis: 5,
+                axis_cell: None,
+                axis_name: "guess".to_owned(),
+                kind: "iter:2<->3".to_owned(),
+                base_args: base_args.clone(),
+                dna_lo_bits: lo,
+                dna_hi_bits: hi,
+                dna_lo_outcome: "0x3fa999999999999a".to_owned(),
+                dna_hi_outcome: "0x3fa999999999999a".to_owned(),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "iteration_regime".to_owned(),
+                parent_id: None,
+            },
+            Frontier {
+                id: "frontier-RATE-002".to_owned(),
+                function: "RATE".to_owned(),
+                axis: 5,
+                axis_cell: None,
+                axis_name: "guess".to_owned(),
+                kind: "regime:number<->zero".to_owned(),
+                base_args: base_args.clone(),
+                dna_lo_bits: lo,
+                dna_hi_bits: hi,
+                dna_lo_outcome: "0x3fa999999999999a".to_owned(),
+                dna_hi_outcome: "0x0000000000000000".to_owned(),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "outcome_regime".to_owned(),
+                parent_id: None,
+            },
+            Frontier {
+                id: "frontier-RATE-003".to_owned(),
+                function: "RATE".to_owned(),
+                axis: 5,
+                axis_cell: None,
+                axis_name: "guess".to_owned(),
+                kind: "route_flip".to_owned(),
+                base_args,
+                dna_lo_bits: lo,
+                dna_hi_bits: hi,
+                dna_lo_outcome: "0x3fa999999999999a".to_owned(),
+                dna_hi_outcome: "0x3fa999999999999a".to_owned(),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "route_switch".to_owned(),
+                parent_id: None,
+            },
+        ];
+
+        let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let mut hasher = StreamCaseHasher::new("RATE");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut discs = Vec::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
+        let mut excel_s = 0.0;
+
+        bisect_shifted_frontiers_excel(
+            &cfg,
+            &client,
+            &mut frontiers,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discs,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            0,
+        )
+        .expect("bisect succeeded");
+
+        drop(client);
+        broker.join().unwrap();
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        assert_eq!(
+            query_count.load(Ordering::SeqCst),
+            0,
+            "non-predicate frontiers (iteration_regime, outcome_regime, route_switch) must not probe Excel"
+        );
+        assert_eq!(asked, 0);
+        assert_eq!(generated, 0);
+        for f in &frontiers {
+            assert_eq!(f.excel_lo_bits, None, "frontier {} must remain unshifted", f.id);
+            assert_eq!(f.shifted_ulps, None, "frontier {} must not log bogus shift", f.id);
+        }
     }
 }
