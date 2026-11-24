@@ -138,6 +138,12 @@ start with the least recently completed function. The score scales the budget fr
 frontier mapping to follow-up runs. `--runs <N>` limits completions for a smoke run.
 `--endpoint <path>` selects a specific broker or relay endpoint.
 
+On `dna-firehorse`, the standing sweep runs in `tmux` session `sweep` via
+`~/codex-runs/sweep/run.sh`: each pass pulls `master` in its dedicated `DnaCalc-sweep` clone,
+executes `cargo xtask fuzz sweep --out ~/codex-runs/sweep/state --bank-rows-out ~/codex-runs/sweep/bank-rows --tracker ~/projects/DnaCalc/DnaCalc-sweep --runs 20`,
+logs to `~/codex-runs/sweep/sweep.log`, and sleeps 60 seconds before the next pass (pause with
+`touch ~/codex-runs/sweep/state/PAUSE`, stop with `touch ~/codex-runs/sweep/STOP`).
+
 Create `PAUSE` in the state directory to stop submissions. Submitted chunks may finish
 so their results can be recorded. Remove the file to resume. The scheduler retries an
 interrupted function with its original recipe and seed in a new attempt directory. A
@@ -157,10 +163,95 @@ environments include the build and CPU. Completed runs keep coverage, cluster
 representatives, and prediction hashes. The bank receives verified discrepancies as
 replies arrive, including observations from an interrupted attempt. With `--tracker`,
 the scheduler files clusters in a dedicated master clone with `br`, using the function
-and cluster key as a stable external reference across sweeps. It checks and pushes
-tracker updates using the clone's configured Git access and `DNACALC_AGENT_LOG`. Without
-`--tracker`, the completed reports remain available for filing from a later invocation.
-The dedicated clone should have no independent unpublished work.
+and cluster key as a stable external reference across sweeps (`dnacalc-fuzz:<sha256>`).
+It checks and pushes tracker updates using the clone's configured Git access and
+`DNACALC_AGENT_LOG`. Without `--tracker`, the completed reports remain available for
+filing from a later invocation. The dedicated clone should have no independent
+unpublished work.
+
+## Fractal refinement, patient-zero re-sweep, storage, and textures
+
+- **Fractal boundary refinement (`dc-ztvv.26.5`, `tools/xtask-harness/src/fuzz/fractal.rs`):**
+  `--fractal-depth <D>` (default `2` for standalone runs, `0` for standing discovery sweeps) refines
+  DNA Calc's local `predicate_flip`, `route_switch`, `iteration_regime`, and `outcome_regime`
+  transitions through `Decade -> Binade -> ULP` stencils, recursing onto secondary axes while
+  holding the primary edge pinned ("edges of edges"), and escalating coarse Excel discrepancies to
+  `Decade`/`Binade` + 64-point parallel bisection.
+- **Patient-zero infestation protocol (`dc-ztvv.26.6`, `tools/xtask-harness/src/fuzz/patient_zero.rs`):**
+  `cargo xtask fuzz --patient-zero <json> [--pz-siblings F1,F2] [--max-siblings 6]` expands a
+  failing case across its fractal neighbourhood, the same kernel route under varied arguments, and
+  sibling functions sharing `kernel_file` in `docs/fuzz/order.tsv`, writing a reproducible
+  `resweep-recipe.json`. After fixing, `cargo xtask fuzz --resweep <resweep-recipe.json>` returns
+  `can_close == true` only when live Excel confirms `0` failures (`0` mismatched, `0` unread, `0`
+  crashed) on patient zero, the primary region, and every sibling.
+- **Storage policy (`dc-ztvv.26.7`, `tools/xtask-harness/src/fuzz/storage.rs`):** every sweep writes
+  `recipe.json` (`dnacalc-fuzz-recipe/1`) with seed, generator version, `calc_func_commit`,
+  `hint_files_sha256`, `reproduce_command`, observed Excel builds/CPUs, counts, and a
+  discrepancies-only attestation (matching readings are never stored). `--verify-storage <dir>`
+  enforces this policy; `--audit-bank <witness.json>` produces a read-only retention plan for
+  `dc-jkf7s`.
+- **Interesting texture catalogue (`dc-ztvv.26.8`, `tools/xtask-harness/src/fuzz/texture.rs`):**
+  every sweep emits `textures.json` (`dnacalc-texture-catalogue/1`, `--texture-out <json>`,
+  `--validate-textures <json>`) keeping up to `--max-textures` passing or failing boundary,
+  `error_vs_number_neighbour`, `route_switch`, `near_tie`, `regime_change`, and `extreme_magnitude`
+  cases with hex-bit args and recipe provenance.
+
+## Cluster triage cadence
+
+Standing workflow (`dc-ztvv.26.4`; practical lessons and cycle log in
+[docs/research/fuzz-playbook.md](../research/fuzz-playbook.md)):
+
+1. **Automatic filing and pre-triage filter:** `cargo xtask fuzz sweep --tracker` files each new
+   `(function, cluster_key)` once under `dc-ztvv.26` with label `fuzz-sweep-cluster` and external
+   ref `dnacalc-fuzz:<sha256>` (`P1` for `gross`/`structural`, `P2` for `numeric`/`last_bit`).
+   Before assigning a bead to a Carbon round, separate harness/transport faults
+   (`fault:ReferenceRequired`, `error:SPILL!_vs_fault:ResultShape`, `fault:NotImplemented`) from
+   genuine Excel-vs-CalcFunc discrepancies; route harness faults to fuzzer/hint maintenance
+   (`dc-ztvv.26.11` / `dc-ztvv.26.10`) instead of spending Carbon cycles on them.
+2. **Ranking order:** rank genuine open cluster beads by:
+   1. **Kind / severity:** `number <-> error` first, then `error_A <-> error_B`, then `gross`
+      (`> 1,024` ULP), then `numeric` (`5..1,024` ULP), then `last_bit` (`1..4` ULP).
+   2. **Size:** discrepancy row count in the sweep, plus number of shifted frontiers when mapped.
+   3. **Corpus reach and kernel grouping:** `priority_score` rank in `docs/fuzz/order.tsv` and
+      shared `kernel_file` so related clusters in one solver or family are triaged in one batch.
+3. **Starting a Carbon round:** start a read-only Carbon batch when the top of the ranked queue
+   contains `>= 1` non-harness `number <-> error` / `error <-> error` cluster (or a coherent batch
+   of `1–3` related functions needing root-cause analysis). For clusters discovered by a low-intensity
+   (`64–512`-case) standing sweep, first run `--patient-zero <rep.json>` (or a targeted `5k–25k`
+   sweep with `--frontiers --fractal-depth 2`) so Carbon receives the full neighbourhood, shifted
+   frontiers, and affected kernel siblings. Straightforward single-cause bugs already isolated by a
+   shifted frontier may land directly without Carbon, still following steps 4–6. Each Carbon round
+   produces `review.md` separating checked facts from speculation, validates rival hypotheses with
+   pre-frozen live Excel discriminators (`12–20` probes per question, differing rows banked), and
+   delivers a portable (`Hard == Soft`) candidate with full-bank before/after counts.
+4. **Landing with the no-losses rule and pinned regressions:** a Neon or Astra lane claims the
+   beads in ranked order and lands one root cause per commit, starting with a failing-first test:
+   - Pin each cluster's minimal representative in
+     `crates/calc-func/tests/witnesses/fuzz_representatives/<FUNC>.json` (verified natively and on
+     `wasm32` by `witnesses::fuzz_cluster_representatives_calculate_as_pinned`). Open clusters carry
+     `"calc_func"`; fixing a cluster removes `"calc_func"` so the exact Excel `expected_bits` joins
+     the permanent portable regression set.
+   - Verify `+0/-0` (zero regressions) via `cargo xtask witness judge --bank full` on the function
+     and its kernel siblings, plus `cargo xtask check` (`--dependents` when shared helpers change).
+     Never weaken or override an existing live-Excel test; if a Carbon proposal contradicts one,
+     land only the clean part, probe the contradiction live, bank differing rows, and record a
+     `visited:` note naming the owning bead.
+5. **Independent Neon review before the next batch:** every landing (and every fuzzer or harness
+   change) receives a read-only Neon review (`rw4`/`rw5` cadence) before the next Carbon or landing
+   batch builds on that kernel or tooling. Reviewers check generality (no fixture-keyed rules),
+   honesty (frozen predictions, no weakened tests, discrepancies-only banking), `Hard == Soft`
+   portability, and runtime/table/provenance alignment; `P0`/`P1` findings are reworked before the
+   next batch starts.
+6. **Closure on a clean live re-sweep:** a cluster closes only after live Excel verifies `0`
+   failures (`0` mismatched, `0` unread, `0` crashed):
+   - via `cargo xtask fuzz --resweep <resweep-recipe.json>` yielding `can_close == true` across
+     patient zero, the primary region, and every kernel sibling; or
+   - via clean live re-sweeps on both the original failing seed and a fresh unseen holdout seed with
+     frontiers mapped (all frontiers at `0` ULP for the closed cluster's root cause, with any
+     separate remaining clusters explicitly owned by their own open beads).
+   Record exact tool-output before -> after counts in `br close`, refresh
+   `crates/calc-func/fuzz-status.tsv` via `cargo xtask fuzz coverage` (which resolves open vs closed
+   beads via `dnacalc-fuzz:<sha256>`), and log the cycle in `docs/research/fuzz-playbook.md`.
 
 ## Per-function fuzz coverage (`crates/calc-func/fuzz-status.tsv`)
 

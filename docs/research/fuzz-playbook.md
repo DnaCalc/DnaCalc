@@ -182,6 +182,60 @@ no-losses rule; review every landing with Neon; close only on a clean live re-sw
 | Discrepancy harvester | `CalcFunc-Evidence/harvest-bank-rows.py:lane_discrepancies` | Validates `dnacalc-witness-set/1` `bank-rows/*.json` (rejects matching rows) |
 | Pinned cluster reps | `crates/calc-func/tests/witnesses/fuzz_representatives/*.json` (`witnesses.rs`) | Portable native + wasm32 regression lock on fixed and open cluster representatives |
 
+## Cluster triage cadence (`dc-ztvv.26.4`)
+
+The standing loop turns continuous low-intensity sweep output into closed, reviewed fixes (full
+operational specification in [smart-fuzzer.md](../design/smart-fuzzer.md#cluster-triage-cadence)):
+
+1. **Intake and pre-triage filter (`sweep` -> `fuzz-sweep-cluster`).** On `dna-firehorse`, `tmux`
+   session `sweep` (`~/codex-runs/sweep/run.sh`) runs `cargo xtask fuzz sweep --runs 20` in a loop,
+   banking discrepancies only and filing deduplicated `fuzz-sweep-cluster` beads keyed by
+   `dnacalc-fuzz:<sha256(function + "\n" + cluster_key)>` (`P1` for `gross`/`structural`, `P2` for
+   `numeric`/`last_bit`). Before queuing a bead for Carbon, separate harness/transport faults
+   (`fault:ReferenceRequired`, `error:SPILL!_vs_fault:ResultShape`, `fault:NotImplemented`, as seen
+   in Pass 1 on `COUNTIF`/`SUMIF`/`OFFSET`/`SUBTOTAL`/`CELL`/`INDEX`/`VLOOKUP`) from genuine
+   Excel-vs-CalcFunc discrepancies; route harness faults to `dc-ztvv.26.11` / `dc-ztvv.26.10`.
+2. **Rank open clusters by kind, size, and reach.** Sort genuine open cluster beads in strict order
+   (the `cb25` ranking of `dc-j9k.97`–`.105`):
+   - **Kind first:** (1) `number <-> error` (`structural`), (2) `error_A <-> error_B` (`structural`),
+     (3) `gross` (`> 1,024` ULP), (4) `numeric` (`5..1,024` ULP), (5) `last_bit` (`1..4` ULP).
+   - **Size second:** discrepancy row count plus shifted-frontier count.
+   - **Reach third:** `priority_score` rank in `docs/fuzz/order.tsv` and shared `kernel_file`
+     (batch clusters sharing a solver/kernel into one Carbon round, as `cb25` grouped `IRR` `I1`–`I4`
+     plus `RATE` `R2`).
+3. **When a Carbon round starts.** Launch a read-only Carbon round whenever a function or shared
+   kernel has `>= 1` non-harness `number <-> error` or `error <-> error` cluster (or a ranked batch
+   of `1–3` related functions with non-obvious rules). First expand low-intensity (`64–512`-case)
+   hits with `--patient-zero <rep.json>` (or a `5k–25k` sweep with `--frontiers --fractal-depth 2`)
+   so Carbon sees the neighbourhood, same route, and kernel siblings (`dc-ztvv.26.6`). Obvious
+   single-cause fixes already pinned by a shifted frontier (like `sf2`'s `RATE` `R1`/`R3` in
+   `3766bca80`) can land directly without waiting for Carbon. Carbon delivers `review.md` with
+   checked-vs-speculation labels, pre-frozen live discriminators (`12–20` probes per rival, differing
+   rows banked), portable drop-in Rust (`Hard == Soft`), and offline bank/sweep deltas.
+4. **Land with the no-losses rule and grow pinned regressions.** Neon or Astra (`as2`, `nl26`) lands
+   one root cause / bead per commit with failing-first tests:
+   - Pin each cluster's minimal representative in
+     `crates/calc-func/tests/witnesses/fuzz_representatives/<FUNC>.json` (tested natively and on
+     `wasm32` by `witnesses::fuzz_cluster_representatives_calculate_as_pinned`). Open clusters pin
+     `"calc_func"`; once fixed, remove `"calc_func"` so exact `expected_bits` stays locked forever.
+   - Verify `0` full-bank regressions on the function and its kernel siblings (`cargo xtask witness
+     judge --bank full`) and pass `cargo xtask check` (`--dependents` for shared crates). If a Carbon
+     candidate contradicts an existing live-Excel test (`nl26` on `dc-j9k.97`), refuse that piece,
+     probe the contradiction live, bank the differing rows, and leave a `visited:` note naming the
+     owning bead.
+5. **Independent Neon review before the next batch builds on it.** After each landing (and any
+   fuzzer/harness change), run a bounded read-only Neon review (`rw4`/`rw5` pattern) checking
+   generality (no fixture-keyed hacks), honesty (frozen predictions, no weakened tests), `Hard ==
+   Soft` portability, and runtime/table/provenance consistency. Rework any `P0`/`P1` review findings
+   (`rk4`/`rk5`) before the next batch builds on that kernel or tool.
+6. **Close only on a clean live re-sweep.** A cluster bead closes only when live Excel confirms `0`
+   failures (`0` mismatched, `0` unread, `0` crashed) via `--resweep <resweep-recipe.json>`
+   (`can_close == true` across patient zero, primary region, and kernel siblings) or via re-sweeping
+   both the original failing seed and an unseen holdout seed with frontiers mapped (`nl26` closed
+   `dc-j9k.102`–`.105` on `19,862/19,862` + `19,845/19,845` = `39,707/39,707`, `20/20` frontiers at
+   `0` ULP). Record exact before -> after counts in the close reason, refresh `fuzz-status.tsv`
+   (`cargo xtask fuzz coverage`), and append a cycle-log entry below.
+
 ## Reflection cadence and weekly review
 
 - **After every sweep-and-fix cycle:** the closing lane appends a short dated entry to the cycle log
