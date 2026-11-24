@@ -35,8 +35,7 @@
         "0x4059000000000000",
         "0x4000000000000000"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x3fb28fdfe8fac848"
+      "expected_bits": "error:Num"
     },
     {
       "id": "Y2-dc-j9k-99-extreme-price-neg",
@@ -65,8 +64,7 @@
         "0x4010000000000000",
         "0x4010000000000000"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x40d943638bdcd80e"
+      "expected_bits": "error:Num"
     },
     {
       "id": "Y3-dc-j9k-100-zero-coupon-negbase",

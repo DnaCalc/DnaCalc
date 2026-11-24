@@ -139,7 +139,9 @@ fn addm(s: i64, m: i64) -> Option<i64> {
     let tm = idx.rem_euclid(12) + 1;
     let end = d == dim(y, mo);
     let td = if end { dim(ty, tm) } else { d.min(dim(ty, tm)) };
-    excel_serial_from_ymd(WorkbookDateSystem::System1900, ty, tm, td).map(|v| v as i64)
+    excel_serial_from_ymd(WorkbookDateSystem::System1900, ty, tm, td)
+        .filter(|&v| v >= 1.0)
+        .map(|v| v as i64)
 }
 fn d360us(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
     crate::ported::day_count_common::us_30_360(s, e).map_err(derr)
@@ -352,9 +354,16 @@ fn pcomp_disc(
         let off = dsc / e;
         let mut pv = 0.0;
         for k in 0..p.n {
-            pv += coup / excel_bond_pow(base, off + k as f64);
+            let disc = excel_bond_pow(base, off + k as f64);
+            if !disc.is_finite() {
+                return Err(derr(WorksheetErrorCode::Num));
+            }
+            pv += coup / disc;
         }
         let redemption_discount = excel_bond_pow(base, off + (p.n - 1) as f64);
+        if !redemption_discount.is_finite() {
+            return Err(derr(WorksheetErrorCode::Num));
+        }
         let redemption_value = excel_x87_div(red, redemption_discount);
         pv + redemption_value
     };
@@ -685,12 +694,30 @@ pub fn yield_kernel(
         let (mut pv, mut slope) = (0.0_f64, 0.0_f64);
         for k in 0..p.n {
             let ex = off + k as f64;
-            pv += cp / excel_bond_pow(base, ex);
-            slope += (ex * cp) / excel_bond_pow(base, ex + 1.0);
+            let disc = excel_bond_pow(base, ex);
+            let disc1 = excel_bond_pow(base, ex + 1.0);
+            if !disc.is_finite() || !disc1.is_finite() {
+                if tracing {
+                    crate::trace::hit(9);
+                    crate::trace::record_iterations(iter + 1);
+                }
+                return Err(derr(WorksheetErrorCode::Num));
+            }
+            pv += cp / disc;
+            slope += (ex * cp) / disc1;
         }
         let rex = off + (p.n - 1) as f64;
-        pv += excel_x87_div(red, excel_bond_pow(base, rex));
-        slope += (rex * red) / excel_bond_pow(base, rex + 1.0);
+        let r_disc = excel_bond_pow(base, rex);
+        let r_disc1 = excel_bond_pow(base, rex + 1.0);
+        if !r_disc.is_finite() || !r_disc1.is_finite() {
+            if tracing {
+                crate::trace::hit(9);
+                crate::trace::record_iterations(iter + 1);
+            }
+            return Err(derr(WorksheetErrorCode::Num));
+        }
+        pv += excel_x87_div(red, r_disc);
+        slope += (rex * red) / r_disc1;
         slope = -slope / f;
         // Excel keeps the finite iterate on the negative-base zero-coupon curve
         // when the price slope reaches the subnormal range (sx1 bond-term row 110).
@@ -794,6 +821,9 @@ pub fn duration_kernel(
     for k in 0..p.n {
         let diff = off + k as f64;
         let disc = excel_bond_pow(base, diff);
+        if !disc.is_finite() {
+            return Err(derr(WorksheetErrorCode::Num));
+        }
         let coupon_pv = excel_x87_div(coup, disc);
         num = excel_x87_add(num, diff * coupon_pv);
         den = excel_x87_add(den, coupon_pv);
@@ -1946,5 +1976,119 @@ mod tests {
         );
         assert!(accrintm_kernel(40001.0, 40000.0, 0.05, Some(1000.0), Some(0.0)).is_err());
         assert!(accrintm_kernel(40000.0, 40100.0, 0.0, Some(1000.0), Some(0.0)).is_err());
+    }
+
+    /// dc-j9k.98 (cb26 live Excel 16.0.20625.20108, Y1 & patient-zero siblings):
+    /// Stepping back to serial 0 (1899-12-31) or overflowing a discount factor to +inf
+    /// returns #NUM! in YIELD, PRICE, DURATION, and MDURATION, while year-9999 bonds
+    /// with prev >= 1 and finite discount factors stay finite.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_price_duration_year_9999_prev_zero_and_pow_overflow_return_num() {
+        let num_err = Err(BondCoreEvalError::Domain(WorksheetErrorCode::Num));
+        // YIELD prev == 0 (Y1A-01..04) and sf2 representative Y1-dc-j9k-98-huge-maturity
+        assert_eq!(
+            yield_kernel(
+                f64::from_bits(0x404e000000000000),
+                f64::from_bits(0x4146924080000000),
+                f64::from_bits(0x3fbbc7c725bc7504),
+                f64::from_bits(0x4062b485c75e100d),
+                100.0,
+                2.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        for &(s, f, b) in &[(60.0, 2.0, 0.0), (25.0, 2.0, 1.0), (60.0, 1.0, 2.0), (80.0, 4.0, 3.0)] {
+            assert_eq!(
+                yield_kernel(
+                    s,
+                    2958465.0,
+                    0.0,
+                    f64::from_bits(0x4058ffef9db22d0e),
+                    100.0,
+                    f,
+                    Some(b),
+                ),
+                num_err,
+                "YIELD prev==0 ({s}, 2958465, f={f}, b={b})"
+            );
+        }
+        // YIELD pow overflow (Y1A-12, Y1A-13)
+        assert_eq!(
+            yield_kernel(
+                45000.0,
+                2958465.0,
+                f64::from_bits(0x3fb78d4fdf3b645a),
+                100.0,
+                100.0,
+                2.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        assert_eq!(
+            yield_kernel(
+                45000.0,
+                2958465.0,
+                f64::from_bits(0x3fc851eb851eb852),
+                100.0,
+                100.0,
+                4.0,
+                Some(1.0),
+            ),
+            num_err
+        );
+        // YIELD finite controls at/near year 9999 with prev >= 1 and finite pow (Y1A-06, Y1A-07)
+        assert!(
+            yield_kernel(
+                60.0,
+                f64::from_bits(0x414691f480000000),
+                0.0,
+                f64::from_bits(0x4058ffef9db22d0e),
+                100.0,
+                2.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        assert!(
+            yield_kernel(
+                425.0,
+                2958465.0,
+                0.0,
+                f64::from_bits(0x4058ffef9db22d0e),
+                100.0,
+                2.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        // PRICE prev == 0 (PZP-01..04) and pow overflow (PZP-07..09)
+        for &(s, m, r, y, f, b) in &[
+            (60.0, 2958465.0, 0.05, 0.0, 2.0, 0.0),
+            (60.0, 2958465.0, 0.0, f64::from_bits(0x3ee4f8b588e368f1), 2.0, 1.0),
+            (45.0, 2958465.0, 0.0, f64::from_bits(0x3ee4f8b588e368f1), 1.0, 2.0),
+            (80.0, 2958465.0, 0.04, 0.0, 4.0, 4.0),
+            (43831.0, 2958465.0, 0.05, 0.2, 2.0, 0.0),
+            (45000.0, 2958465.0, 0.05, 0.2, 2.0, 1.0),
+            (44015.0, 60000.0, 0.05, 8000.0, 2.0, 0.0),
+        ] {
+            assert_eq!(
+                price_kernel(s, m, r, y, 100.0, f, Some(b)),
+                num_err,
+                "PRICE ({s}, {m}, r={r}, y={y}, f={f}, b={b})"
+            );
+        }
+        // DURATION / MDURATION prev == 0 (PZD-01,02, PZM-01) and pow overflow (PZD-05,06, PZM-03)
+        assert_eq!(duration_kernel(60.0, 2958465.0, 0.05, 0.04, 2.0, Some(0.0)), num_err);
+        assert_eq!(
+            duration_kernel(60.0, 2958465.0, 0.0, f64::from_bits(0x3ee4f8b588e368f1), 2.0, Some(1.0)),
+            num_err
+        );
+        assert_eq!(duration_kernel(45000.0, 2958465.0, 0.05, 0.2, 2.0, Some(0.0)), num_err);
+        assert_eq!(duration_kernel(44015.0, 60000.0, 0.05, 8000.0, 2.0, Some(0.0)), num_err);
+        assert_eq!(mduration_kernel(60.0, 2958465.0, 0.05, 0.04, 2.0, Some(0.0)), num_err);
+        assert_eq!(mduration_kernel(45000.0, 2958465.0, 0.05, 0.2, 2.0, Some(0.0)), num_err);
     }
 }

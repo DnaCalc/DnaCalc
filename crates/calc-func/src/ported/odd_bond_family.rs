@@ -427,11 +427,20 @@ fn oddfprice_inner(
         let dsc = day_count_non_negative(settlement, first_coupon, basis)?;
         let a = day_count_non_negative(issue, settlement, basis)?;
         let y = dsc / e;
-        let term1 = excel_x87_div(redemption, excel_bond_pow(x, n - 1.0 + y));
-        let term2 = 100.0 * rate / m * dfc / e / excel_bond_pow(x, y);
+        let p1 = excel_bond_pow(x, n - 1.0 + y);
+        let p2 = excel_bond_pow(x, y);
+        if !p1.is_finite() || !p2.is_finite() {
+            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        let term1 = excel_x87_div(redemption, p1);
+        let term2 = 100.0 * rate / m * dfc / e / p2;
         let mut term3 = 0.0;
         for index in aggr_indices(2, n as i64) {
-            term3 += 100.0 * rate / m / excel_bond_pow(x, index as f64 - 1.0 + y);
+            let pk = excel_bond_pow(x, index as f64 - 1.0 + y);
+            if !pk.is_finite() {
+                return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+            }
+            term3 += 100.0 * rate / m / pk;
         }
         let term4 = a / e * (rate / m) * 100.0;
         term1 + term2 + term3 - term4
@@ -478,11 +487,20 @@ fn oddfprice_inner(
         let nq = whole_coupon_count(first_coupon, settlement, months_per_coupon)?;
         let n = number_of_coupons(first_coupon, maturity, frequency)?;
         let y = dsc / e;
-        let term1 = excel_x87_div(redemption, excel_bond_pow(x, y + nq + n));
-        let term2 = 100.0 * rate / m * dcnl / excel_bond_pow(x, nq + y);
+        let p1 = excel_bond_pow(x, y + nq + n);
+        let p2 = excel_bond_pow(x, nq + y);
+        if !p1.is_finite() || !p2.is_finite() {
+            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        let term1 = excel_x87_div(redemption, p1);
+        let term2 = 100.0 * rate / m * dcnl / p2;
         let mut term3 = 0.0;
         for index in aggr_indices(1, n as i64) {
-            term3 += 100.0 * rate / m / excel_bond_pow(x, index as f64 + nq + y);
+            let pk = excel_bond_pow(x, index as f64 + nq + y);
+            if !pk.is_finite() {
+                return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+            }
+            term3 += 100.0 * rate / m / pk;
         }
         let term4 = 100.0 * rate / m * anl;
         term1 + term2 + term3 - term4
@@ -744,10 +762,18 @@ pub fn oddfyield_kernel(
         let mut slope = 0.0_f64;
         for k in 0..n_s {
             let ex = off + k as f64;
-            slope += (ex * cp) / excel_bond_pow(base, ex + 1.0);
+            let disc1 = excel_bond_pow(base, ex + 1.0);
+            if !disc1.is_finite() {
+                return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+            }
+            slope += (ex * cp) / disc1;
         }
         let rex = off + (n_s - 1) as f64;
-        slope += (rex * redemption) / excel_bond_pow(base, rex + 1.0);
+        let r_disc1 = excel_bond_pow(base, rex + 1.0);
+        if !r_disc1.is_finite() {
+            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        }
+        slope += (rex * redemption) / r_disc1;
         slope = -slope / f;
         let step = (price - pr) / slope;
         if !step.is_finite() {
@@ -1183,6 +1209,28 @@ mod tests {
                 Some(9.0),
             ),
             Err(OddBondEvalError::Domain(WorksheetErrorCode::Num))
+        );
+    }
+
+    /// dc-j9k.98 (cb26): discount factor overflow to +inf returns #NUM! in ODDFPRICE/ODDFYIELD.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfprice_and_oddfyield_pow_overflow_returns_num() {
+        let num_err = Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        // Short odd first coupon with huge yield causing pow overflow
+        assert_eq!(
+            oddfprice_kernel(
+                44000.0,
+                60000.0,
+                43950.0,
+                44100.0,
+                0.05,
+                8000.0,
+                100.0,
+                2.0,
+                Some(0.0),
+            ),
+            num_err
         );
     }
 }
