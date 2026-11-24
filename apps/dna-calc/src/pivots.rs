@@ -11,6 +11,7 @@ fn source_field_select(
     fields: RwSignal<Vec<String>>,
     selected: RwSignal<String>,
     optional: bool,
+    other_axis: Option<RwSignal<String>>,
 ) -> impl IntoView {
     view! {
         <label>
@@ -26,11 +27,21 @@ fn source_field_select(
                 <For
                     each={move || fields.get().into_iter().enumerate().collect::<Vec<_>>()}
                     key=|(index, name)| (*index, name.clone())
-                    children={move |(index, name)| view! {
-                        <option value=index.to_string()
-                            prop:selected=move || selected.get() == index.to_string()>
-                            {name}
-                        </option>
+                    children={move |(index, name)| {
+                        let field = index.to_string();
+                        let is_selected = field.clone();
+                        let is_occupied = field.clone();
+                        view! {
+                            <option
+                                value=field
+                                prop:selected=move || selected.with(|current| current == &is_selected)
+                                disabled=move || other_axis.is_some_and(|axis| {
+                                    axis.with(|current| current == &is_occupied)
+                                })
+                            >
+                                {name}
+                            </option>
+                        }
                     }}
                 />
             </select>
@@ -309,12 +320,11 @@ pub fn controls(controller: Controller) -> AnyView {
             controller.say("Choose the row and value fields", true);
             return;
         };
-        let columns = column_field
-            .get_untracked()
-            .parse::<u32>()
-            .ok()
-            .into_iter()
-            .collect();
+        let column = column_field.get_untracked().parse::<u32>().ok();
+        if column == Some(row) {
+            controller.say("Choose different fields for Rows and Columns", true);
+            return;
+        }
         let destination = destination.get_untracked();
         let subtotal = subtotal.get_untracked();
         controller.after_input(move || {
@@ -330,7 +340,7 @@ pub fn controls(controller: Controller) -> AnyView {
                     source: projected_area(area),
                     destination,
                     rows: vec![row],
-                    columns,
+                    columns: column.into_iter().collect(),
                     values: vec![(value, subtotal)],
                 },
                 move |outcome| {
@@ -440,9 +450,9 @@ pub fn controls(controller: Controller) -> AnyView {
                     </button>
                     <Show when=move || !source_fields.get().is_empty()>
                         <div class="dc-command-row">
-                            {source_field_select("Rows ", "pivot-create-row", source_fields, row_field, false)}
-                            {source_field_select("Columns ", "pivot-create-column", source_fields, column_field, true)}
-                            {source_field_select("Values ", "pivot-create-value", source_fields, value_field, false)}
+                            {source_field_select("Rows ", "pivot-create-row", source_fields, row_field, false, Some(column_field))}
+                            {source_field_select("Columns ", "pivot-create-column", source_fields, column_field, true, Some(row_field))}
+                            {source_field_select("Values ", "pivot-create-value", source_fields, value_field, false, None)}
                         </div>
                         <div class="dc-command-row">
                             <label>

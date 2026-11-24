@@ -8,7 +8,7 @@ use calc_value::{
 };
 use rquickjs::{
     Array, Context, Ctx, Error, Function, IntoJs, Module, Object, Persistent, Runtime, TypedArray,
-    Value, function::Args, object::Property,
+    Value, context::EvalOptions, function::Args, object::Property,
 };
 use std::{cell::Cell, rc::Rc, time::Instant};
 
@@ -81,6 +81,19 @@ struct Realm {
     deadline: Rc<Cell<Option<Instant>>>,
 }
 
+impl Realm {
+    fn with_invocation_deadline(
+        &self,
+        end: Instant,
+        invoke: impl FnOnce() -> Result<CalcValue, JsHostError>,
+    ) -> Result<CalcValue, JsHostError> {
+        self.deadline.set(Some(end));
+        let result = invoke();
+        self.deadline.set(None);
+        result
+    }
+}
+
 impl std::fmt::Debug for QuickJs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QuickJs")
@@ -110,7 +123,7 @@ impl JsEngine for QuickJs {
     fn load_module(&mut self, id: &str, source: &str) -> Result<(), JsHostError> {
         if self.realm.is_some() {
             return Err(JsHostError::Registration(
-                "one module per add-in runtime".into(),
+                "one script per add-in runtime".into(),
             ));
         }
         if self.limits.heap_bytes == 0 || source.len() > self.limits.heap_bytes {
@@ -129,15 +142,22 @@ impl JsEngine for QuickJs {
         let context = Context::full(&runtime).map_err(registration_error)?;
         let result = context.with(|ctx| {
             let helpers: Object = ctx.eval(OFFICE_API)?;
-            let loaded = Module::evaluate(ctx.clone(), id, source)?;
-            match loaded.result::<()>() {
-                Some(result) => result?,
-                None => {
-                    return Ok(Err(JsHostError::Deferred {
-                        reason: "asynchronous JavaScript module initialization",
-                        owner: "dc-26wtr.6",
-                    }));
+            if id.ends_with(".mjs") {
+                let loaded = Module::evaluate(ctx.clone(), id, source)?;
+                match loaded.result::<()>() {
+                    Some(result) => result?,
+                    None => {
+                        return Ok(Err(JsHostError::Deferred {
+                            reason: "asynchronous JavaScript module initialization",
+                            owner: "dc-26wtr.6",
+                        }));
+                    }
                 }
+            } else {
+                let mut options = EvalOptions::default();
+                options.strict = false;
+                options.filename = Some(id.to_owned());
+                ctx.eval_with_options::<(), _>(source, options)?;
             }
             helpers.get::<_, Function>("seal")?.call::<_, ()>(())?;
             Ok(Ok(Persistent::save(&ctx, helpers)))
@@ -186,28 +206,27 @@ impl JsEngine for QuickJs {
     ) -> Result<CalcValue, JsHostError> {
         let realm = self.realm()?;
         let end = end_time(self.limits)?;
-        realm.deadline.set(Some(end));
-        let result = realm.context.with(|ctx| {
-            let result = (|| {
-                let helpers = realm.helpers.clone().restore(&ctx)?;
-                let mut bridge = Bridge {
-                    ctx: &ctx,
-                    helpers,
-                    end,
-                    output_bytes: self.limits.heap_bytes,
-                };
-                bridge.invoke(spec, arguments, invocation)
-            })();
-            result.map_err(|error| {
-                if matches!(error, Error::Exception) {
-                    ctx.catch();
-                }
-                JsHostError::Execution(error.to_string())
-            })?
-        });
-        realm.deadline.set(None);
-        check_time(end)?;
-        result
+        realm.with_invocation_deadline(end, || {
+            realm.context.with(|ctx| {
+                let result = (|| {
+                    let helpers = realm.helpers.clone().restore(&ctx)?;
+                    let mut bridge = Bridge {
+                        ctx: &ctx,
+                        helpers,
+                        end,
+                        output_bytes: self.limits.heap_bytes,
+                    };
+                    bridge.invoke(spec, arguments, invocation)
+                })();
+                result.unwrap_or_else(|error| {
+                    if matches!(error, Error::Exception) {
+                        ctx.catch();
+                    }
+                    check_time(end)?;
+                    Err(JsHostError::Execution(error.to_string()))
+                })
+            })
+        })
     }
 }
 
@@ -260,7 +279,14 @@ impl<'js> Bridge<'_, 'js> {
             args.push_arg(value)?;
         }
         args.push_arg(self.invocation(invocation)?)?;
-        let value: Value = match function.call_arg(args) {
+        let called = function.call_arg(args);
+        if let Err(timeout) = check_time(self.end) {
+            if matches!(called, Err(Error::Exception)) {
+                self.ctx.catch();
+            }
+            return Ok(Err(timeout));
+        }
+        let value: Value = match called {
             Err(Error::Exception) => {
                 let thrown = self.ctx.catch();
                 return Ok(match self.returned_error(&thrown)? {
@@ -449,4 +475,21 @@ fn define_element<'js>(
 
 fn conversion(message: &'static str) -> Error {
     Error::new_from_js_message("JavaScript", "worksheet value", message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Native-only: QuickJS runs in a native runtime.
+    #[test]
+    fn deadline_cleanup_preserves_a_completed_invocation() {
+        let mut engine = QuickJs::new(ExecLimits::default());
+        engine.load_module("test", "").unwrap();
+        let realm = engine.realm().unwrap();
+        let value = CalcValue::number(42.);
+        let result = realm.with_invocation_deadline(Instant::now(), || Ok(value.clone()));
+        assert_eq!(result, Ok(value));
+        assert_eq!(realm.deadline.get(), None);
+    }
 }

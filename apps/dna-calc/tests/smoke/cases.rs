@@ -15166,18 +15166,23 @@ pub(crate) const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "pivot creation: selected source headers populate row and value choices",
+        name: "pivot creation: source fields can occupy only one axis",
         actions: &[
             Action::Window(1920, 1800),
             Action::Into("name-box", "A1:B4\u{E007}"),
             Action::OpenDetails("pivot-tools"),
             Action::Click("pivot-source-selection"),
             Action::Wait(Check::Count("[data-dnacalc=pivot-create-value] option", 2)),
+            Action::Wait(Check::Count("[data-dnacalc=pivot-create-column] option[value='0']:disabled", 1)),
+            Action::Choose("pivot-create-column", "1"),
+            Action::Wait(Check::Count("[data-dnacalc=pivot-create-row] option[value='1']:disabled", 1)),
+            Action::Choose("pivot-create-column", ""),
         ],
         checks: &[
             Check::TextContains("pivot-create-range", "A1:B4"),
             Check::TextContains("[data-dnacalc=pivot-create-row]", "Region"),
             Check::Value("pivot-create-value", "1"),
+            Check::Value("pivot-create-column", ""),
         ],
     },
     Case {
