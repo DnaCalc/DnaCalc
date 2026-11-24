@@ -37,6 +37,20 @@ scoped_tls_hkt::scoped_thread_local!(static EVENT_SCOPE: for<'a> (
     Option<&'a (dyn EventReadContext + 'a)>, u64, &'a RefCell<Option<String>>
 ));
 
+thread_local! {
+    /// Object-model members the execution policy denied since the last run of a procedure,
+    /// whether or not the VBA caller caught the error.
+    static OBJECT_DENIALS: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+}
+
+thread_local! {
+    static RUN_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+pub(crate) fn record_object_denial(capability: &str, subject: String) {
+    OBJECT_DENIALS.with(|d| d.borrow_mut().push((capability.to_owned(), subject)));
+}
+
 pub(crate) fn callback_active() -> bool {
     EVENT_SCOPE.is_set()
 }
@@ -366,6 +380,231 @@ impl EventSource {
             (None, Some(reason)) => Err(reason),
             (None, None) => result,
         }
+    }
+}
+
+/// One argument of a procedure a host runs by name.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProcedureArg {
+    Empty,
+    Bool(bool),
+    Number(f64),
+    Text(String),
+}
+
+/// What a procedure a host ran by name returned.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProcedureResult {
+    /// A Sub, or a Function that returned Empty.
+    Empty,
+    Bool(bool),
+    Number(f64),
+    Text(String),
+    /// A value of another kind (an error value, an object, an array): its VBA type name.
+    Other(String),
+}
+
+/// Why a procedure run by name did not return.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ProcedureError {
+    /// No public Sub or Function of that module and name (or the name is ambiguous).
+    Unknown(String),
+    /// More or fewer arguments than the procedure takes.
+    Arguments,
+    /// A VBA run-time error that reached the caller (after any `On Error` handling).
+    Runtime { number: i32, description: String, source: String },
+    /// A host member the run needed is not modelled; the owning work package follows.
+    Refused(String),
+    Budget,
+    Backend(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProcedureKind {
+    Sub,
+    Function,
+}
+
+/// One declared parameter of a catalogued procedure.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProcedureParameter {
+    pub name: String,
+    pub optional: bool,
+    pub by_ref: bool,
+    pub param_array: bool,
+}
+
+/// One Sub or Function of the project, as its catalogue lists it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProcedureEntry {
+    pub module: String,
+    pub name: String,
+    pub kind: ProcedureKind,
+    pub public: bool,
+    pub parameters: Vec<ProcedureParameter>,
+}
+
+impl super::LoadedProject {
+    /// Every Sub and Function the project declares (properties are not entry points).
+    pub fn procedures(&self) -> Vec<ProcedureEntry> {
+        api::Session::procedures(&*self.session)
+            .iter()
+            .filter_map(|p| {
+                let kind = match p.kind {
+                    api::ProcedureKind::Sub => ProcedureKind::Sub,
+                    api::ProcedureKind::Function => ProcedureKind::Function,
+                    _ => return None,
+                };
+                Some(ProcedureEntry {
+                    module: p.module.clone(),
+                    name: p.name.clone(),
+                    kind,
+                    public: p.visibility == api::Visibility::Public,
+                    parameters: p
+                        .parameters
+                        .iter()
+                        .map(|q| ProcedureParameter {
+                            name: q.name.clone(),
+                            optional: q.optional,
+                            by_ref: q.by_ref,
+                            param_array: q.param_array,
+                        })
+                        .collect(),
+                })
+            })
+            .collect()
+    }
+
+    /// Run the public Sub or Function `module.name` once, in a command context: the host's
+    /// workbook model is live (`Range`, `Application`, `ThisWorkbook`), as it is for a document
+    /// event. Not an event: no handler is raised by the call itself.
+    pub fn run_procedure(
+        &self,
+        module: &str,
+        name: &str,
+        arguments: &[ProcedureArg],
+        max_steps: u64,
+    ) -> Result<ProcedureResult, ProcedureError> {
+        self.run_procedure_recorded(module, name, arguments, max_steps).0
+    }
+
+    /// [`run_procedure`](Self::run_procedure) with the object-model members the policy denied
+    /// during the call, as `(capability, descriptor member)`, caught by VBA or not.
+    pub fn run_procedure_recorded(
+        &self,
+        module: &str,
+        name: &str,
+        arguments: &[ProcedureArg],
+        max_steps: u64,
+    ) -> (Result<ProcedureResult, ProcedureError>, Vec<(String, String)>) {
+        // A nested run (`Application.Run` from a procedure) leaves its denials in the log for the
+        // outermost run to return.
+        let depth = RUN_DEPTH.with(|d| d.replace(d.get() + 1));
+        let start = if depth == 0 {
+            OBJECT_DENIALS.with(|d| d.borrow_mut().clear());
+            0
+        } else {
+            OBJECT_DENIALS.with(|d| d.borrow().len())
+        };
+        let result = self.run_inner(module, name, arguments, max_steps);
+        RUN_DEPTH.with(|d| d.set(depth));
+        let denials = OBJECT_DENIALS.with(|d| {
+            if depth == 0 {
+                std::mem::take(&mut *d.borrow_mut())
+            } else {
+                d.borrow()[start..].to_vec()
+            }
+        });
+        (result, denials)
+    }
+
+    fn run_inner(
+        &self,
+        module: &str,
+        name: &str,
+        arguments: &[ProcedureArg],
+        max_steps: u64,
+    ) -> Result<ProcedureResult, ProcedureError> {
+        use calcvba_runtime::Variant;
+        let kind = self
+            .procedures()
+            .into_iter()
+            .find(|p| {
+                p.public
+                    && p.module.eq_ignore_ascii_case(module)
+                    && p.name.eq_ignore_ascii_case(name)
+            })
+            .map(|p| p.kind)
+            .ok_or_else(|| ProcedureError::Unknown(format!("{module}.{name}")))?;
+        let bound = api::Session::bind(
+            &*self.session,
+            module,
+            name,
+            match kind {
+                ProcedureKind::Sub => api::ProcedureKind::Sub,
+                ProcedureKind::Function => api::ProcedureKind::Function,
+            },
+        )
+        .map_err(map_error)?;
+        let args: Vec<Variant> = arguments
+            .iter()
+            .map(|a| match a {
+                ProcedureArg::Empty => Variant::empty(),
+                ProcedureArg::Bool(b) => Variant::from_bool(*b),
+                ProcedureArg::Number(n) => Variant::from_f64(*n),
+                ProcedureArg::Text(t) => Variant::from_string(t.as_str()),
+            })
+            .collect();
+        let refused = RefCell::new(None);
+        let lease = next_lease();
+        let failure: RefCell<Option<api::Error>> = RefCell::new(None);
+        let outcome = crate::runtime::spreadsheet::with_context(&EventSpreadsheet, || {
+            EVENT_SCOPE.set((None, lease, &refused), || {
+                api::Session::call_bound(&*self.session, &bound, &args, max_steps).map_err(|e| {
+                    *failure.borrow_mut() = Some(e);
+                    crate::runtime::Error::Backend(String::new())
+                })
+            })
+        });
+        if let Some(reason) = refused.into_inner() {
+            return Err(ProcedureError::Refused(reason));
+        }
+        let value = match outcome {
+            Ok(value) => value,
+            Err(other) => {
+                return Err(match failure.into_inner() {
+                    Some(error) => map_error(error),
+                    None => ProcedureError::Backend(other.to_string()),
+                });
+            }
+        };
+        Ok(match value.vtype() {
+            calcvba_runtime::VarType::Empty => ProcedureResult::Empty,
+            calcvba_runtime::VarType::Boolean => {
+                ProcedureResult::Bool(value.as_bool().unwrap_or(false))
+            }
+            calcvba_runtime::VarType::String => {
+                ProcedureResult::Text(value.as_bstr().map(|s| s.to_string()).unwrap_or_default())
+            }
+            other => match value.as_f64() {
+                Some(n) if !matches!(other, calcvba_runtime::VarType::Error) => {
+                    ProcedureResult::Number(n)
+                }
+                _ => ProcedureResult::Other(format!("{other:?}")),
+            },
+        })
+    }
+}
+
+fn map_error(error: api::Error) -> ProcedureError {
+    match error {
+        api::Error::UnknownProcedure(name) => ProcedureError::Unknown(name),
+        api::Error::ArgumentMismatch => ProcedureError::Arguments,
+        api::Error::BudgetExceeded => ProcedureError::Budget,
+        api::Error::Runtime { number, description, vba_source } => {
+            ProcedureError::Runtime { number, description, source: vba_source }
+        }
+        other => ProcedureError::Backend(other.to_string()),
     }
 }
 

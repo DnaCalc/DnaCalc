@@ -109,70 +109,83 @@ pub(crate) fn set(cli: &Cli) -> Result<(Value, u8), Failure> {
     Ok((report, code))
 }
 
-/// A `--arg` as the formula text of one argument: a number or `TRUE`/`FALSE` as written, text
-/// quoted.
-fn argument_text(arg: &str) -> String {
-    if arg.parse::<f64>().is_ok() || arg.eq_ignore_ascii_case("true") || arg.eq_ignore_ascii_case("false") {
-        arg.to_owned()
+/// A `--arg` as a procedure argument: a number or `TRUE`/`FALSE` as written, otherwise text.
+fn procedure_argument(arg: &str) -> calc_host_vba::ProcedureArg {
+    if let Ok(number) = arg.parse::<f64>() {
+        calc_host_vba::ProcedureArg::Number(number)
+    } else if arg.eq_ignore_ascii_case("true") || arg.eq_ignore_ascii_case("false") {
+        calc_host_vba::ProcedureArg::Bool(arg.eq_ignore_ascii_case("true"))
     } else {
-        format!("\"{}\"", arg.replace('"', "\"\""))
+        calc_host_vba::ProcedureArg::Text(arg.to_owned())
     }
 }
 
+fn result_json(result: &calc_host_vba::ProcedureResult) -> Value {
+    use calc_host_vba::ProcedureResult as R;
+    match result {
+        R::Empty => json!({"type": "empty"}),
+        R::Bool(b) => json!({"type": "logical", "value": b}),
+        R::Number(n) if n.is_finite() => json!({"type": "number", "value": n}),
+        R::Number(n) => json!({"type": "number", "value": format!("{n:?}")}),
+        R::Text(t) => json!({"type": "text", "value": t}),
+        R::Other(kind) => json!({"type": "other", "vba_type": kind}),
+    }
+}
+
+/// One invocation record as JSON: the entry, how it was reached, the outcome (success, runtime
+/// error, typed refusal naming the member and its owning work package, not callable or failed)
+/// and the policy's denials, caught by VBA or not.
+fn invocation_json(record: &calc_host_vba::InvocationRecord) -> Value {
+    use calc_host_vba::Outcome as O;
+    let outcome = match &record.outcome {
+        O::Success(value) => json!({"kind": "success", "result": result_json(value)}),
+        O::RuntimeError { number, description, source } => json!({
+            "kind": "runtime-error", "number": number, "description": description, "source": source,
+        }),
+        O::NotCallable(why) => json!({"kind": "not-callable", "reason": why}),
+        O::Refused { member, owner, reason } => json!({
+            "kind": "refused", "member": member, "owner": owner, "reason": reason,
+        }),
+        O::Failed(why) => json!({"kind": "failed", "reason": why}),
+    };
+    json!({
+        "entry": record.entry,
+        "invocation": "command",
+        "outcome": outcome,
+        "denials": record.denials.iter().map(|d| json!({
+            "capability": d.capability, "subject": d.subject, "layer": d.layer,
+        })).collect::<Vec<_>>(),
+        "allowed": record.allowed,
+    })
+}
+
 pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
+    if cli.all_macros {
+        return run_all(cli);
+    }
     let name = cli
         .macro_name
         .as_deref()
-        .ok_or_else(|| fail("run needs --macro <Module.Proc>"))?;
+        .ok_or_else(|| fail("run needs --macro <Module.Proc> or --all"))?;
     if cli.level == calc_macro_security::MacroSecurity::Off {
         return Err(fail(format!(
             "the macro level is off, so the file's VBA project does not run and {name} is not called; pass --macro-level guarded or unguarded"
         )));
     }
     let mut book = session::open(cli)?;
-    if book.project.is_none() {
+    let Some(project) = book.project.clone() else {
         let why = book.macros["reason"]
             .as_str()
             .unwrap_or("the file has no VBA project")
             .to_owned();
         return Err(fail(format!("{name} was not called: {why}")));
+    };
+    let args: Vec<_> = cli.macro_args.iter().map(|a| procedure_argument(a)).collect();
+    // The command route: the Sub or Function runs against the live workbook session.
+    let record = project.run_procedure(&mut book.session, name, &args);
+    if let calc_host_vba::Outcome::NotCallable(why) = &record.outcome {
+        return Err(fail(format!("{name} was not run: {why}")));
     }
-    let args = cli
-        .macro_args
-        .iter()
-        .map(|a| argument_text(a))
-        .collect::<Vec<_>>()
-        .join(",");
-    // CalcVBA publishes a project's public Functions to the sheets, so a call is made as a
-    // formula `Module.Proc(args)` in a scratch cell (the last row of the first sheet), which is
-    // cleared again before the book is saved. Subs are not callable here.
-    let scratch = session::parse_cell(&book.session, "A1048576")?;
-    let mut outcome = Err(String::new());
-    for text in [
-        format!("={name}({args})"),
-        format!("={}({args})", name.rsplit('.').next().unwrap_or(name)),
-    ] {
-        let receipt = book.session.dispatch(SkinIntent::EnterCell { at: scratch, text });
-        if !receipt.accepted() {
-            outcome = Err(format!("the call was refused: {receipt:?}"));
-            continue;
-        }
-        session::recalculate(&mut book.session)?;
-        let cell = session::project(&book.session, vec![scratch]);
-        outcome = match cell.first().map(|c| provenance(c.value())) {
-            Some(("calculated", Some(value), _)) => Ok(value),
-            Some((kind, _, note)) => Err(note.unwrap_or_else(|| format!("no value ({kind})"))),
-            None => Err("the scratch cell is unavailable".into()),
-        };
-        if outcome.is_ok() {
-            break;
-        }
-    }
-    let cleared = book.session.dispatch(SkinIntent::EnterCell { at: scratch, text: String::new() });
-    if !cleared.accepted() {
-        return Err(fail("the scratch cell could not be cleared"));
-    }
-    let value = outcome.map_err(|e| fail(format!("{name} was not run: {e}")))?;
     session::recalculate(&mut book.session)?;
     let saved = match &cli.out {
         Some(path) => Some((path.as_str(), session::save(&mut book.session, path)?)),
@@ -182,10 +195,69 @@ pub(crate) fn run_macro(cli: &Cli) -> Result<(Value, u8), Failure> {
         "book": cli.book,
         "macro": name,
         "macros": book.macros,
-        "result": session::value_json(&value),
+        "invocation": invocation_json(&record),
     });
+    let code = match &record.outcome {
+        calc_host_vba::Outcome::Success(value) => {
+            report["result"] = result_json(value);
+            0
+        }
+        _ => 1,
+    };
     if let Some((path, bytes)) = saved {
         report["saved"] = json!({"path": path, "bytes": bytes});
     }
-    Ok((report, 0))
+    Ok((report, code))
+}
+
+/// `run --all`: every public Sub and Function of the project that needs no argument, each in a
+/// freshly opened session, so one entry's workbook edits or module state never reach another's
+/// outcome. Entries that take required arguments are listed as `needs-arguments`.
+fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
+    if cli.level == calc_macro_security::MacroSecurity::Off {
+        return Err(fail("the macro level is off, so the file's VBA project does not run; pass --macro-level guarded or unguarded"));
+    }
+    let first = session::open(cli)?;
+    let Some(project) = first.project.clone() else {
+        let why = first.macros["reason"].as_str().unwrap_or("the file has no VBA project").to_owned();
+        return Err(fail(format!("no macro was called: {why}")));
+    };
+    let entries: Vec<_> = project.procedures().into_iter().filter(|p| p.public).collect();
+    let macros = first.macros.clone();
+    drop(first);
+    let (mut success, mut runtime, mut refused, mut other, mut skipped) = (0u64, 0u64, 0u64, 0u64, 0u64);
+    let mut rows = Vec::new();
+    for entry in entries {
+        let qualified = format!("{}.{}", entry.module, entry.name);
+        if entry.parameters.iter().any(|p| !p.optional && !p.param_array) {
+            skipped += 1;
+            rows.push(json!({"entry": qualified, "invocation": "command",
+                             "outcome": {"kind": "needs-arguments"}}));
+            continue;
+        }
+        let mut book = session::open(cli)?;
+        let Some(project) = book.project.clone() else {
+            return Err(fail("the project was not admitted on reopening"));
+        };
+        let record = project.run_procedure(&mut book.session, &qualified, &[]);
+        match &record.outcome {
+            calc_host_vba::Outcome::Success(_) => success += 1,
+            calc_host_vba::Outcome::RuntimeError { .. } => runtime += 1,
+            calc_host_vba::Outcome::Refused { .. } => refused += 1,
+            _ => other += 1,
+        }
+        rows.push(invocation_json(&record));
+    }
+    let report = json!({
+        "book": cli.book,
+        "macros": macros,
+        "entries": rows.len(),
+        "success": success,
+        "runtime_error": runtime,
+        "refused": refused,
+        "failed": other,
+        "needs_arguments": skipped,
+        "invocations": rows,
+    });
+    Ok((report, u8::from(runtime + refused + other > 0)))
 }
