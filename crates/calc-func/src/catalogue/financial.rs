@@ -318,7 +318,7 @@ ported_shared_family! {
         };
         let values = resolved(s, a, 1, sv)?;
         let dates = resolved(s, a, 2, sv)?;
-        let values = match cash::collect_numeric_vector_from_eval(&values) {
+        let values = match cash::collect_xnpv_numeric_vector_from_eval(&values) {
             Ok(v) => v,
             Err(error) => return cash_err(error),
         };
@@ -336,7 +336,7 @@ ported_shared_family! {
         let dates = resolved(s, a, 1, sv)?;
         let collect = |index, value: &CalcValue| -> Step<Vec<f64>> {
             if matches!(value.core_ref(), CoreRef::Array(_)) {
-                match cash::collect_numeric_vector_from_eval(value) {
+                match cash::collect_xirr_numeric_vector_from_eval(value) {
                     Ok(v) => Ok(v),
                     Err(error) => cash_err(error),
                 }

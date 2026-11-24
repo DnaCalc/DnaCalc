@@ -36,6 +36,36 @@ fn numeric_from_cell(cell: &CalcValue) -> Result<f64, CashflowRateEvalError> {
     }
 }
 
+/// Excel `XIRR` cell coercion inside ranges/arrays (`cb28` S1a-18..27):
+/// blank cells coerce to `0.0`, errors propagate, text/logical return `#VALUE!`.
+fn xirr_numeric_from_cell(cell: &CalcValue) -> Result<f64, CashflowRateEvalError> {
+    match cell.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Empty => Ok(0.0),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Text(_)
+        | CoreRef::Logical(_)
+        | CoreRef::Missing
+        | CoreRef::Array(_)
+        | CoreRef::Reference(_) => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
+    }
+}
+
+/// Excel `XNPV` cell coercion inside ranges/arrays (`cb28` S1a-19..25, S2a-61..64):
+/// errors propagate; blank, text, and logical cells return `#NUM!`.
+fn xnpv_numeric_from_cell(cell: &CalcValue) -> Result<f64, CashflowRateEvalError> {
+    match cell.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Empty | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Missing => {
+            Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num))
+        }
+        CoreRef::Array(_) | CoreRef::Reference(_) => {
+            Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
+        }
+    }
+}
+
 pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, CashflowRateEvalError> {
     match value.core_ref() {
         CoreRef::Number(n) => Ok(n),
@@ -56,7 +86,7 @@ pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, Cashflow
     }
 }
 
-pub(crate) fn collect_numeric_vector_from_eval(
+pub(crate) fn collect_xirr_numeric_vector_from_eval(
     value: &CalcValue,
 ) -> Result<Vec<f64>, CashflowRateEvalError> {
     match value.core_ref() {
@@ -64,12 +94,30 @@ pub(crate) fn collect_numeric_vector_from_eval(
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
         CoreRef::Array(array) => {
             let shape = array.shape();
-            if shape.rows > 1 && shape.cols > 1 {
-                return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
-            }
             let mut out = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                out.push(numeric_from_cell(cell)?);
+                out.push(xirr_numeric_from_cell(cell)?);
+            }
+            Ok(out)
+        }
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
+            Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
+        }
+        _ => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
+    }
+}
+
+pub(crate) fn collect_xnpv_numeric_vector_from_eval(
+    value: &CalcValue,
+) -> Result<Vec<f64>, CashflowRateEvalError> {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(vec![n]),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Array(array) => {
+            let shape = array.shape();
+            let mut out = Vec::with_capacity(shape.rows * shape.cols);
+            for cell in array.iter_row_major() {
+                out.push(xnpv_numeric_from_cell(cell)?);
             }
             Ok(out)
         }
@@ -137,12 +185,9 @@ pub(crate) fn collect_serial_vector_from_eval(
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
         CoreRef::Array(array) => {
             let shape = array.shape();
-            if shape.rows > 1 && shape.cols > 1 {
-                return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
-            }
             let mut out = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                out.push(serial_from_number(numeric_from_cell(cell)?)?);
+                out.push(serial_from_number(xnpv_numeric_from_cell(cell)?)?);
             }
             Ok(out)
         }

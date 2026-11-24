@@ -3383,3 +3383,142 @@ fn npv_empty_collections_keep_base_validation_and_literal_coercion() {
         f64::from_bits(0x3fed1745d1745d17),
     );
 }
+
+/// Carbon cb28 (dc-ztvv.26.44, Excel 16.0.20625.20108): XIRR and XNPV flatten 2-D
+/// ranges/arrays in row-major order (returning #NUM! on length mismatch instead of
+/// #REF!) and enforce cell-coercion asymmetry (XIRR: blank->0, text/bool->#VALUE!;
+/// XNPV: blank/text/bool->#NUM!; errors propagate in both).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xirr_and_xnpv_flatten_2d_row_major_and_apply_cell_coercion_rules() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let arr = |rows: Vec<Vec<CalcValue>>| CalcValue::array(CalcArray::from_rows(rows).unwrap());
+    let f = f64::from_bits;
+
+    // dc-ztvv.26.44 minimal representative (fuzz-XIRR-r01-000233): 1x1 vs 2x2 -> #NUM!, not #REF!.
+    error(
+        call(
+            "XIRR",
+            vec![
+                arr(vec![vec![n(f(0xbf1991d0ddab802b))]]),
+                arr(vec![
+                    vec![n(f(0x3f714b79130eb6fe)), n(f(0xc027b902e836e6fd))],
+                    vec![n(f(0xc0825a2c4c4e22b9)), n(f(0x3fcbc210193ace6c))],
+                ]),
+            ],
+        ),
+        Num,
+    );
+
+    // 2D row-major flattening for XIRR (S1a-03, S1a-08, S1a-10, S1a-13, S1a-16, S3a-2d-3x2-2x3):
+    let v2x2 = arr(vec![vec![n(-100.0), n(30.0)], vec![n(40.0), n(51.0)]]);
+    let d2x2 = arr(vec![
+        vec![n(45000.0), n(45100.0)],
+        vec![n(45200.0), n(45365.0)],
+    ]);
+    let d4x1 = col(&[45000.0, 45100.0, 45200.0, 45365.0]);
+    let v1x4 = arr(vec![vec![n(-100.0), n(30.0), n(40.0), n(51.0)]]);
+    exact(call("XIRR", vec![v2x2.clone(), d2x2.clone()]), f(0x3fd585bb06666666));
+    exact(call("XIRR", vec![v2x2.clone(), d4x1.clone()]), f(0x3fd585bb06666666));
+    exact(call("XIRR", vec![v1x4, d2x2.clone()]), f(0x3fd585bb06666666));
+    error(
+        call(
+            "XIRR",
+            vec![
+                v2x2.clone(),
+                arr(vec![
+                    vec![n(45000.0), n(45050.0), n(45100.0)],
+                    vec![n(45150.0), n(45200.0), n(45365.0)],
+                ]),
+            ],
+        ),
+        Num,
+    );
+    error(call("XIRR", vec![arr(vec![vec![n(-100.0)]]), d2x2.clone()]), Num);
+    exact(
+        call(
+            "XIRR",
+            vec![
+                arr(vec![
+                    vec![n(-500.0), n(100.0)],
+                    vec![n(120.0), n(130.0)],
+                    vec![n(140.0), n(150.0)],
+                ]),
+                arr(vec![
+                    vec![n(45000.0), n(45060.0), n(45120.0)],
+                    vec![n(45180.0), n(45240.0), n(45365.0)],
+                ]),
+            ],
+        ),
+        f(0x3fe23d3d36666667),
+    );
+
+    // 2D row-major flattening for XNPV (S1a-06, S1a-11, S1a-12, S1a-14, S3a-2d-3x2-2x3):
+    exact(call("XNPV", vec![n(0.1), v2x2.clone(), d2x2]), f(0x402b1c2c48998718));
+    exact(call("XNPV", vec![n(0.1), v2x2.clone(), d4x1]), f(0x402b1c2c48998718));
+    exact(
+        call(
+            "XNPV",
+            vec![
+                n(0.1),
+                arr(vec![vec![n(-100.0), n(10.0)], vec![n(110.0), n(5.0)]]),
+                col(&[45000.0, 45050.0, 45300.0, 45365.0]),
+            ],
+        ),
+        f(0x403020a5ee5459f8),
+    );
+    error(
+        call(
+            "XNPV",
+            vec![
+                n(0.1),
+                v2x2,
+                arr(vec![
+                    vec![n(45000.0), n(45060.0), n(45120.0)],
+                    vec![n(45180.0), n(45240.0), n(45365.0)],
+                ]),
+            ],
+        ),
+        Num,
+    );
+    exact(
+        call(
+            "XNPV",
+            vec![
+                n(0.08),
+                arr(vec![
+                    vec![n(-500.0), n(100.0)],
+                    vec![n(120.0), n(130.0)],
+                    vec![n(140.0), n(150.0)],
+                ]),
+                arr(vec![
+                    vec![n(45000.0), n(45060.0), n(45120.0)],
+                    vec![n(45180.0), n(45240.0), n(45365.0)],
+                ]),
+            ],
+        ),
+        f(0x405c388ed6ef5ed0),
+    );
+
+    // Cell-coercion asymmetry (S1a-18..27, S2a-xnpv-*):
+    let dates3 = col(&[45000.0, 45180.0, 45365.0]);
+    let blank_val = arr(vec![vec![n(-100.0)], vec![CalcValue::empty()], vec![n(121.0)]]);
+    let text_val = arr(vec![vec![n(-100.0)], vec![t("skip")], vec![n(121.0)]]);
+    let bool_val = arr(vec![vec![n(-100.0)], vec![b(true)], vec![n(121.0)]]);
+    let err_val = arr(vec![vec![n(-100.0)], vec![e(NA)], vec![n(121.0)]]);
+    let blank_date = arr(vec![vec![n(45000.0)], vec![CalcValue::empty()], vec![n(45365.0)]]);
+
+    // XIRR: blank coerces to 0.0; text/bool -> #VALUE!; error propagates.
+    exact(call("XIRR", vec![blank_val.clone(), dates3.clone()]), f(0x3fcae147a666666b));
+    error(call("XIRR", vec![col(&[-100.0, 121.0, 121.0]), blank_date.clone()]), Num);
+    error(call("XIRR", vec![text_val.clone(), dates3.clone()]), Value);
+    error(call("XIRR", vec![bool_val.clone(), dates3.clone()]), Value);
+    error(call("XIRR", vec![err_val.clone(), dates3.clone()]), NA);
+
+    // XNPV: blank, text, and logical cells all yield #NUM! (even when paired); error propagates.
+    error(call("XNPV", vec![n(0.1), blank_val.clone(), dates3.clone()]), Num);
+    error(call("XNPV", vec![n(0.1), blank_val, blank_date.clone()]), Num);
+    error(call("XNPV", vec![n(0.1), text_val, dates3.clone()]), Num);
+    error(call("XNPV", vec![n(0.1), bool_val, dates3.clone()]), Num);
+    error(call("XNPV", vec![n(0.1), err_val, dates3]), NA);
+}
