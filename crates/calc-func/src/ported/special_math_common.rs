@@ -501,14 +501,15 @@ fn gratio_gamma_nswc(a: f64) -> f64 {
     gam
 }
 
-/// Excel's incomplete-gamma-ratio kernel. Returns `(P(a,x), Q(a,x))`.
-/// `(2.0, 2.0)` is the NSWC error sentinel for invalid arguments.
-pub fn gratio(a: f64, x: f64) -> (f64, f64) {
+/// Excel's incomplete-gamma-ratio kernel returning `(P(a,x), Q(a,x))` or the exact worksheet
+/// error code (`#DIV/0!` on `go200` `excel_exp(gammaln_excel(a))` binary64 overflow for subnormal
+/// `a <= 0x0003_ffff_ffff_ffda`, `#NUM!` on invalid/non-finite inputs; dc-ymjf.2.156).
+pub(crate) fn gratio_checked(a: f64, x: f64) -> Result<(f64, f64), WorksheetErrorCode> {
     if a < 0.0 || x < 0.0 || (a == 0.0 && x == 0.0) {
-        return (2.0, 2.0);
+        return Err(WorksheetErrorCode::Num);
     }
     if a == 0.0 || x == 0.0 {
-        return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
+        return Ok(if x <= a { (0.0, 1.0) } else { (1.0, 0.0) });
     }
     use crate::ported::discrete_dist::poisson_mass;
     if a == 1.0 {
@@ -516,10 +517,10 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         // a = 1+2^-20 contradiction probe; emulator race a=1 slice 179/205
         // with this wrapper). Nearest-rounded exp/expm1 — the chopped series
         // exp does NOT apply on this path.
-        return (
+        return Ok((
             -crate::ported::excel_numeric::excel_expm1_internal(-x),
             crate::ported::excel_numeric::excel_exp(-x),
-        );
+        ));
     }
 
     if a < 1.0 {
@@ -547,12 +548,12 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             if !go200 {
                 let pm = poisson_mass(a, x);
                 return if pm.is_finite() {
-                    gratio_cf_lower(a, x, pm)
+                    Ok(gratio_cf_lower(a, x, pm))
                 } else {
-                    (f64::NAN, f64::NAN)
+                    Err(WorksheetErrorCode::Num)
                 };
             }
-            // statement 200 (cb23 / dc-j9k.5 + dc-j9k.71 + dc-j9k.95)
+            // statement 200 (cb23 / dc-j9k.5 + dc-j9k.71 + dc-j9k.95 + dc-ymjf.2.156)
             let mut c = excel_x87_mul(a, x);
             let mut s = flush_subnormal(excel_x87_div(c, excel_x87_add(a, 1.0)));
             if s != 0.0 {
@@ -572,22 +573,31 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
             let h = gratio_gam1(a);
             let l = excel_expm1_spilled(z);
             let w = excel_exp(z);
-            let denom_g = excel_x87_mul(a, excel_exp(gammaln_excel(a)));
+            let exp_g = excel_exp(gammaln_excel(a));
+            // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at
+            // a = 0x0003_ffff_ffff_ffdb -> 0x0003_ffff_ffff_ffda where gammaln_excel(a)
+            // crosses 0x4086_2e42_fefa_39ef -> ...39f0): binary64 overflow of
+            // excel_exp(gammaln_excel(a)) produces #DIV/0! across GAMMA.DIST, GAMMADIST,
+            // BETA.DIST, and BETADIST.
+            if !exp_g.is_finite() {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            let denom_g = excel_x87_mul(a, exp_g);
             let qans = excel_x87_sub(
                 excel_x87_div(excel_x87_sub(excel_x87_mul(w, j), l), denom_g),
                 h,
             );
             if qans < 0.0 {
-                return (1.0, 0.0);
+                return Ok((1.0, 0.0));
             }
-            return (excel_x87_add(0.5, excel_x87_sub(0.5, qans)), qans);
+            return Ok((excel_x87_add(0.5, excel_x87_sub(0.5, qans)), qans));
         }
         // a < 1, x >= 1.1 (cb8 / dc-j9k.64): unified poisson_mass + Modified-Lentz gratio_cf.
         let pm = poisson_mass(a, x);
         if crate::ported::excel_numeric::excel_x87_mul(pm, a) == 0.0 {
-            return (1.0, 0.0);
+            return Ok((1.0, 0.0));
         }
-        return gratio_cf(a, x, pm);
+        return Ok(gratio_cf(a, x, pm));
     }
 
     // Unified finite-sum domain for integer and half-integer shapes: 1 < a <= 20, a < x <= 30.0
@@ -596,13 +606,13 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     if a <= 20.0 && a < x && x <= 30.0 {
         if a == a.floor() {
             let qans = gratio_integer_sum(a as usize, x);
-            return (0.5 + (0.5 - qans), qans);
+            return Ok((0.5 + (0.5 - qans), qans));
         }
         let twoa = a + a;
         let m = twoa as i64;
         if twoa == m as f64 {
             let qans = gratio_half_integer_sum((m / 2) as usize, x);
-            return (0.5 + (0.5 - qans), qans);
+            return Ok((0.5 + (0.5 - qans), qans));
         }
     }
 
@@ -612,12 +622,12 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         let pm = poisson_mass(a, x);
         let r = crate::ported::excel_numeric::excel_x87_mul(pm, a);
         if r == 0.0 {
-            return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
+            return Ok(if x <= a { (0.0, 1.0) } else { (1.0, 0.0) });
         }
         if x <= a {
-            return gratio_series(a, x, pm);
+            return Ok(gratio_series(a, x, pm));
         }
-        return gratio_cf(a, x, pm);
+        return Ok(gratio_cf(a, x, pm));
     }
 
     // a > 20.0 (bisected on live Excel 16.0.20527: Temme runs strictly for 0.7 < l < 1.3;
@@ -626,21 +636,21 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_sub};
     let l = excel_x87_div(x, a);
     if l > 0.7 && l < 1.3 {
-        return gratio_temme(a, x);
+        return Ok(gratio_temme(a, x));
     }
     let pm = poisson_mass(a, x);
     if !pm.is_finite() {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     if x < 1.1 {
-        return gratio_cf_lower(a, x, pm);
+        return Ok(gratio_cf_lower(a, x, pm));
     }
     let r = excel_x87_mul(pm, a);
     if r == 0.0 {
-        return if x <= a { (0.0, 1.0) } else { (1.0, 0.0) };
+        return Ok(if x <= a { (0.0, 1.0) } else { (1.0, 0.0) });
     }
     if x <= a {
-        return gratio_series(a, x, pm);
+        return Ok(gratio_series(a, x, pm));
     }
     // l >= 1.3: x87-stored forward asymptotic expansion (cb7 §1.1, dc-j9k.63).
     let mut amn = a;
@@ -659,7 +669,20 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
         }
     }
     let qans = excel_x87_mul(pm, excel_x87_mul(excel_x87_div(a, x), s));
-    (0.5 + (0.5 - qans), qans)
+    Ok((0.5 + (0.5 - qans), qans))
+}
+
+/// Excel's incomplete-gamma-ratio kernel. Returns `(P(a,x), Q(a,x))`.
+/// `(2.0, 2.0)` is the NSWC error sentinel for invalid arguments.
+pub fn gratio(a: f64, x: f64) -> (f64, f64) {
+    if a < 0.0 || x < 0.0 || (a == 0.0 && x == 0.0) {
+        return (2.0, 2.0);
+    }
+    match gratio_checked(a, x) {
+        Ok(pq) => pq,
+        Err(WorksheetErrorCode::Div0) => (f64::INFINITY, f64::INFINITY),
+        Err(_) => (f64::NAN, f64::NAN),
+    }
 }
 
 fn gratio_series(a: f64, x: f64, r_series: f64) -> (f64, f64) {
@@ -1695,8 +1718,16 @@ fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
 }
 
 /// bgrat: asymptotic expansion for Ix(a, b) when a is larger than b. Adds the
-/// expansion to `w`; returns (w_new, ierr).
-fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) {
+/// expansion to `w`; returns `Ok((w_new, ierr))` or `Err(WorksheetErrorCode::Div0)` when
+/// `gratio_checked(b, z)` overflows `excel_exp(gammaln_excel(b))` in `go200` (dc-ymjf.2.156).
+fn bratio_bgrat_checked(
+    a: f64,
+    b: f64,
+    x: f64,
+    y: f64,
+    w: f64,
+    eps: f64,
+) -> Result<(f64, i32), WorksheetErrorCode> {
     // `DBL_MIN / f64::EPSILON = 2^-970`: below this, `eps * total` flushes to zero.
     const TWO_TO_MINUS_970: f64 = f64::from_bits(0x0350_0000_0000_0000);
     let bm1 = (b - 0.5) - 0.5;
@@ -1709,28 +1740,12 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         crate::ported::excel_numeric::excel_log1p_times(1.0, -y)
     };
     let z = -nu * lnx;
-    if b * z == 0.0 {
-        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
-    }
-    let mut r =
-        b * (1.0 + bratio_gam1(b)) * crate::ported::excel_numeric::excel_exp(b * crt_log(z));
-    r = r
-        * crate::ported::excel_numeric::excel_exp(a * lnx)
-        * crate::ported::excel_numeric::excel_exp(0.5 * bm1 * lnx);
-    // The gamma-family pieces, as the gamma upper tail forms them: the prefactor `r` is `z` times
-    // the gamma density at `b`.
-    if let Ok(dens) = crate::ported::beta_gamma_stats_family::gamma_dist_kernel(z, b, 1.0, false) {
-        r = z * dens;
-    }
-    if r == 0.0 {
-        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
-    }
     // Q(b, z): half-shape uses Excel's erf/erfc both directly and when seeded
     // by a finite recurrence (w > 0); unit shape uses exp(-z); all other
-    // fractional shapes `b < 1` share Excel's unified `regularized_gamma_q`
-    // across both `z >= 1.1` (CF) and `z < 1.1` (cb11 `gratio` series/st200,
-    // dc-i2wk3). Its prefactor and the expansion normalizer `r` have separate
-    // rounding steps (dc-6332.4).
+    // fractional shapes `b < 1` share Excel's unified `gratio_checked`
+    // across both `z >= 1.1` (CF) and `z < 1.1` (cb11/cb23 `gratio` go200,
+    // dc-i2wk3 / dc-ymjf.2.156). Evaluate Q(b, z) before the `r == 0` check so
+    // `go200` `#DIV/0!` propagates and `r == 0` retains `exp(g) * q`.
     let q = if b == 0.5 {
         let root = crate::ported::excel_numeric::excel_sqrt_staged(z);
         if root <= 0.5 {
@@ -1740,13 +1755,36 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         }
     } else if b == 1.0 {
         crate::ported::excel_numeric::excel_exp(-z)
+    } else if z == 0.0 {
+        1.0
     } else {
-        regularized_gamma_q(b, z)
+        gratio_checked(b, z)?.1
     };
+    let r = if b * z == 0.0 {
+        0.0
+    } else {
+        let mut r0 =
+            b * (1.0 + bratio_gam1(b)) * crate::ported::excel_numeric::excel_exp(b * crt_log(z));
+        r0 = r0
+            * crate::ported::excel_numeric::excel_exp(a * lnx)
+            * crate::ported::excel_numeric::excel_exp(0.5 * bm1 * lnx);
+        // The gamma-family pieces, as the gamma upper tail forms them: the prefactor `r` is `z` times
+        // the gamma density at `b`.
+        if let Ok(dens) = crate::ported::beta_gamma_stats_family::gamma_dist_kernel(z, b, 1.0, false)
+        {
+            r0 = z * dens;
+        }
+        r0
+    };
+    if r == 0.0 && (q == 0.0 || !q.is_finite()) {
+        return Ok((if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1));
+    }
     let n = a + b;
     let s_n = crate::ported::discrete_dist::stirling_error(n);
     let s_a = crate::ported::discrete_dist::stirling_error(a);
-    crate::ported::excel_numeric::excel_beta_bgrat(a, b, bm1, nu, lnx, z, r, q, w, eps, s_n, s_a)
+    Ok(crate::ported::excel_numeric::excel_beta_bgrat(
+        a, b, bm1, nu, lnx, z, r, q, w, eps, s_n, s_a,
+    ))
 }
 
 /// basym: asymptotic expansion for Ix(a, b) when `min(a, b) > 10_000` and
@@ -1854,46 +1892,46 @@ fn bratio_basym(a: f64, b: f64, lambda_: f64, eps: f64) -> f64 {
     E0 * t * u * summ
 }
 
-/// bratio: evaluation of the incomplete beta function Ix(a, b). Returns
-/// (w, w1) = (Ix(a, b), 1 - Ix(a, b)). Domain errors (the Fortran ierr != 0
-/// cases) return (NaN, NaN).
-pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
+/// bratio_checked: evaluation of the incomplete beta function Ix(a, b), returning
+/// `Ok((Ix(a, b), 1 - Ix(a, b)))` or the worksheet error code (`#DIV/0!` on subnormal
+/// `a + b` division or `gratio go200` overflow, `#NUM!` on domain errors; dc-ymjf.2.156).
+pub(crate) fn bratio_checked(a: f64, b: f64, x: f64, y: f64) -> Result<(f64, f64), WorksheetErrorCode> {
     let eps0 = bratio_spmpar1();
     let mut w;
     let mut w1 = 0.0; // read as the seed of the bgrat_150 branch
     if a < 0.0 || b < 0.0 {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     if a == 0.0 && b == 0.0 {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     if x < 0.0 || x > 1.0 {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     if y < 0.0 || y > 1.0 {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     let z = ((x + y) - 0.5) - 0.5;
     if z.abs() > 3.0 * eps0 {
-        return (f64::NAN, f64::NAN);
+        return Err(WorksheetErrorCode::Num);
     }
     if x == 0.0 {
         if a == 0.0 {
-            return (f64::NAN, f64::NAN);
+            return Err(WorksheetErrorCode::Num);
         }
-        return (0.0, 1.0);
+        return Ok((0.0, 1.0));
     }
     if y == 0.0 {
         if b == 0.0 {
-            return (f64::NAN, f64::NAN);
+            return Err(WorksheetErrorCode::Num);
         }
-        return (1.0, 0.0);
+        return Ok((1.0, 0.0));
     }
     if a == 0.0 {
-        return (1.0, 0.0);
+        return Ok((1.0, 0.0));
     }
     if b == 0.0 {
-        return (0.0, 1.0);
+        return Ok((0.0, 1.0));
     }
     let eps = eps0.max(1.0e-15);
     // Excel 20527's half/half integral is the arcsine graph, with the
@@ -1906,11 +1944,11 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         let coordinate = if x < 0.9 { x } else { excel_x87_sub(1.0, x) };
         let angle = crate::ported::asin::asin_kernel(excel_sqrt_staged(coordinate)).unwrap_or(f64::NAN);
         let small = excel_x87_div(excel_x87_mul(2.0, angle), std::f64::consts::PI);
-        return if x < 0.9 {
+        return Ok(if x < 0.9 {
             (small, 0.5 + (0.5 - small))
         } else {
             (0.5 + (0.5 - small), small)
-        };
+        });
     }
     // At the remote end of each unit-shape arm Excel forms the small tail
     // with the corrected exponential, then reflects around the stored half.
@@ -1924,21 +1962,28 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         let exponent = mul(a, excel_log(x));
         if x <= 0.9 {
             let w = excel_exp(exponent);
-            return (w, add(0.5, sub(0.5, w)));
+            return Ok((w, add(0.5, sub(0.5, w))));
         }
         let w1 = -excel_expm1_spilled(exponent);
-        return (add(0.5, sub(0.5, w1)), w1);
+        return Ok((add(0.5, sub(0.5, w1)), w1));
     }
     if a == 1.0 {
         if x >= 0.1 {
             let w1 = excel_exp(mul(b, excel_log(y)));
-            return (add(0.5, sub(0.5, w1)), w1);
+            return Ok((add(0.5, sub(0.5, w1)), w1));
         }
         let w = -excel_expm1_spilled(excel_log1p_times(b, -x));
-        return (w, add(0.5, sub(0.5, w)));
+        return Ok((w, add(0.5, sub(0.5, w))));
     }
     if a.max(b) < 1.0e-3 * eps {
-        return (b / (a + b), a / (a + b));
+        let sum = a + b;
+        // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at
+        // a = b = 0x0008_0000_0000_0000 -> 0.5 vs 0x0007_ffff_ffff_ffff -> #DIV/0!):
+        // dividing by a subnormal `a + b` flushes the divisor to 0.0 -> #DIV/0!.
+        if sum == 0.0 || sum.is_subnormal() {
+            return Err(WorksheetErrorCode::Div0);
+        }
+        return Ok((b / sum, a / sum));
     }
 
     let mut ind = 0;
@@ -1965,7 +2010,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 let raw_xb = mul(x0, b0);
                 let xb = if raw_xb.is_subnormal() { 0.0 } else { raw_xb };
                 if xb == 0.0 {
-                    return (f64::NAN, f64::NAN);
+                    return Err(WorksheetErrorCode::Num);
                 }
                 if excel_exp(mul(a0, excel_log(xb))) <= 0.7 {
                     branch = "bpser";
@@ -2002,12 +2047,12 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 let n = 20;
                 w1 = bratio_bup(b0, a0, y0, x0, n, eps);
                 b0 += n as f64;
-                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, eps);
+                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps)?;
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
             "bgrat_150" => {
-                let (nw1, _ie) = bratio_bgrat(b0, a0, y0, x0, w1, eps);
+                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps)?;
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
@@ -2016,7 +2061,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
         if ind != 0 {
             std::mem::swap(&mut w, &mut w1);
         }
-        return (w, w1);
+        return Ok((w, w1));
     }
 
     // Both shapes exceed one. The stored PC64 products decide the side at
@@ -2083,7 +2128,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                     w += bratio_bup(a0, b0, x0, y0, nn, eps);
                     a0 += nn as f64;
                 }
-                let (nw, _ie) = bratio_bgrat(a0, b0, x0, y0, w, eps);
+                let (nw, _ie) = bratio_bgrat_checked(a0, b0, x0, y0, w, eps)?;
                 w = nw;
                 w1 = 0.5 + (0.5 - w);
             }
@@ -2093,7 +2138,14 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
     if ind != 0 {
         std::mem::swap(&mut w, &mut w1);
     }
-    (w, w1)
+    Ok((w, w1))
+}
+
+/// bratio: evaluation of the incomplete beta function Ix(a, b). Returns
+/// (w, w1) = (Ix(a, b), 1 - Ix(a, b)). Domain errors (the Fortran ierr != 0
+/// cases) return (NaN, NaN).
+pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
+    bratio_checked(a, b, x, y).unwrap_or((f64::NAN, f64::NAN))
 }
 
 /// [`bratio`] for the F and t wrappers. With the first shape 1 (the arm `0.5 + (0.5 - exp(b
@@ -2108,18 +2160,31 @@ pub fn bratio_from_wrapper(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
     bratio(a, b, x, y)
 }
 
-pub fn regularized_beta(x: f64, a: f64, b: f64) -> f64 {
+pub(crate) fn regularized_beta_checked(
+    x: f64,
+    a: f64,
+    b: f64,
+) -> Result<f64, WorksheetErrorCode> {
     if !(0.0..=1.0).contains(&x) || !(a > 0.0) || !(b > 0.0) {
-        return f64::NAN;
+        return Err(WorksheetErrorCode::Num);
     }
     if x == 0.0 {
-        return 0.0;
+        return Ok(0.0);
     }
     if x == 1.0 {
-        return 1.0;
+        return Ok(1.0);
     }
     let y = 1.0 - x;
-    bratio(a, b, x, y).0
+    let cdf = bratio_checked(a, b, x, y)?.0;
+    if cdf.is_finite() {
+        Ok(cdf)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
+}
+
+pub fn regularized_beta(x: f64, a: f64, b: f64) -> f64 {
+    regularized_beta_checked(x, a, b).unwrap_or(f64::NAN)
 }
 
 pub fn bisect_inverse<F>(target: f64, lo: f64, hi: f64, f: F) -> f64

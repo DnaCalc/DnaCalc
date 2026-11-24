@@ -36,7 +36,9 @@ fn nums<const N: usize>(site: &Site<'_>, a: &[CalcValue]) -> Step<[f64; N]> {
 }
 
 fn beta_inverse(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
-    let [p, alpha, beta] = nums::<3>(site, a)?;
+    let p = num(site, a, 0)?;
+    let alpha = num_with_subnormal(site, a, 1)?;
+    let beta = num_with_subnormal(site, a, 2)?;
     let lower = if given(a, 3) { num(site, a, 3)? } else { 0.0 };
     let upper = if given(a, 4) { num(site, a, 4)? } else { 1.0 };
     out(site, bg::beta_inv_kernel(p, alpha, beta, lower, upper))
@@ -199,7 +201,9 @@ ported_shared_family! {
     }
     // Beta and gamma.
     50 beta_dist |s, a, sv| {
-        let [x, alpha, beta] = nums::<3>(s, a)?;
+        let x = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         let cumulative = flag(s, a, 3)?;
         let lower = if given(a, 4) { num(s, a, 4)? } else { 0.0 };
         let upper = if given(a, 5) { num(s, a, 5)? } else { 1.0 };
@@ -213,7 +217,9 @@ ported_shared_family! {
         }
     }
     51 betadist |s, a, sv| {
-        let [x, alpha, beta] = nums::<3>(s, a)?;
+        let x = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         let lower = if given(a, 3) { num(s, a, 3)? } else { 0.0 };
         let upper = if given(a, 4) { num(s, a, 4)? } else { 1.0 };
         let result = bg::beta_dist_kernel(x, alpha, beta, true, lower, upper);
@@ -230,19 +236,27 @@ ported_shared_family! {
         beta_inverse(s, a)
     }
     54 gamma_dist |s, a, sv| {
-        let [x, alpha, beta] = nums::<3>(s, a)?;
+        let x = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         out(s, bg::gamma_dist_kernel(x, alpha, beta, flag(s, a, 3)?))
     }
     55 gammadist |s, a, sv| {
-        let [x, alpha, beta] = nums::<3>(s, a)?;
+        let x = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         out(s, bg::gamma_dist_kernel(x, alpha, beta, flag(s, a, 3)?))
     }
     56 gamma_inv |s, a, sv| {
-        let [p, alpha, beta] = nums::<3>(s, a)?;
+        let p = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         out(s, bg::gamma_inv_kernel(p, alpha, beta))
     }
     57 gammainv |s, a, sv| {
-        let [p, alpha, beta] = nums::<3>(s, a)?;
+        let p = num(s, a, 0)?;
+        let alpha = num_with_subnormal(s, a, 1)?;
+        let beta = num_with_subnormal(s, a, 2)?;
         out(s, bg::gamma_inv_kernel(p, alpha, beta))
     }
     58 gamma |s, a, sv| { out(s, sd::gamma_kernel(num(s, a, 0)?)) }

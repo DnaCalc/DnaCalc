@@ -1,9 +1,14 @@
 use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::special_math_common::{
-    bisect_inverse_closest, gratio, ln_gamma, regularized_beta, regularized_gamma_p,
+    bisect_inverse_closest, gratio_checked, ln_gamma, regularized_beta, regularized_beta_checked,
 };
 use crate::value::WorksheetErrorCode;
+
+/// Exact 1-ULP subnormal shape/scale floor in Excel 16.0.20625.20108 (`2^-1026 = DBL_MIN / 16`):
+/// `GAMMA.DIST`, `GAMMADIST`, `BETA.DIST`, `BETADIST`, `BETA.INV`, and `BETAINV` reject
+/// `alpha` or `beta` strictly below this bit pattern (`<= 0x0000_ffff_ffff_ffff`) with `#NUM!`.
+const EXCEL_SUBNORMAL_SHAPE_MIN: f64 = f64::from_bits(0x0001_0000_0000_0000);
 
 fn bool_flag(value: f64) -> bool {
     value != 0.0
@@ -22,7 +27,7 @@ fn validate_beta_shape(
     if !alpha.is_finite() || !beta.is_finite() || !lower.is_finite() || !upper.is_finite() {
         return Err(WorksheetErrorCode::Value);
     }
-    if alpha <= 0.0 || beta <= 0.0 || upper <= lower {
+    if alpha < EXCEL_SUBNORMAL_SHAPE_MIN || beta < EXCEL_SUBNORMAL_SHAPE_MIN || upper <= lower {
         return Err(WorksheetErrorCode::Num);
     }
     Ok(())
@@ -87,7 +92,7 @@ pub(crate) fn beta_dist_kernel(
         // fractional (344/768 vs the binomial-sum shortcut's 254/768, and
         // the shortcut loses the disagreement rows 177:87). Route all
         // shapes through the identified BRATIO.
-        let cdf = regularized_beta(z, alpha, beta);
+        let cdf = regularized_beta_checked(z, alpha, beta)?;
         return if cdf.is_finite() {
             Ok(cdf)
         } else {
@@ -440,6 +445,9 @@ pub fn gamma_dist_kernel(
     cumulative: bool,
 ) -> Result<f64, WorksheetErrorCode> {
     validate_gamma_shape(alpha, beta)?;
+    if alpha < EXCEL_SUBNORMAL_SHAPE_MIN || beta < EXCEL_SUBNORMAL_SHAPE_MIN {
+        return Err(WorksheetErrorCode::Num);
+    }
     if !x.is_finite() {
         return Err(WorksheetErrorCode::Value);
     }
@@ -447,6 +455,11 @@ pub fn gamma_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
     if cumulative {
+        // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at DBL_MIN -> DBL_MIN - 1ulp):
+        // dividing positive `x` by a subnormal scale `beta` flushes the divisor to 0.0 -> #DIV/0!.
+        if x > 0.0 && beta.is_subnormal() {
+            return Err(WorksheetErrorCode::Div0);
+        }
         // Excel 16.0.20527.20196 (dc-ymjf.2.141, frozen Touchstone controls SHA-256 50fe12bf):
         // subnormal `y = x / beta` flushes to `0.0` across all shapes.
         let y = flush_subnormal(x / beta);
@@ -471,8 +484,11 @@ pub fn gamma_dist_kernel(
         // (1 − e^{-x}·Σ x^k/k!) is an OxFunc-side shortcut Excel does NOT
         // take — on the b26 integer-a corpora it scored 8.1% with ±4,400-ULP
         // catastrophics vs 39.4% (worst −10) through the identified GRATIO
-        // path. All other shapes route through regularized_gamma_p.
-        let cdf = regularized_gamma_p(alpha, y);
+        // path. All other shapes route through gratio_checked.
+        if y == 0.0 {
+            return Ok(0.0);
+        }
+        let cdf = gratio_checked(alpha, y)?.0;
         if !cdf.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
@@ -482,6 +498,11 @@ pub fn gamma_dist_kernel(
     }
     // Gamma(1) = 1 exactly; Lanczos leaves a small nonzero log at this point.
     if x > 0.0 {
+        // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at DBL_MIN -> DBL_MIN - 1ulp):
+        // PDF with subnormal scale `beta` returns #NUM!.
+        if beta.is_subnormal() {
+            return Err(WorksheetErrorCode::Num);
+        }
         // The density is the Poisson mass at `alpha` of mean `x/beta`, stored, times the stored
         // `alpha/x`: R30's scaled public calls read the ratio, and with this mass every one of
         // the 750 unit-shape rows of the bank agrees, where `exp(-x/beta)/beta` does not.
@@ -627,7 +648,7 @@ pub(super) fn gamma_halley_unit(
             let cdf = gamma_dist_kernel(x_val, a, 1.0, true)?;
             Ok(excel_x87_sub(cdf, prob))
         } else {
-            let (p_val, q_val) = gratio(a, x_val);
+            let (p_val, q_val) = gratio_checked(a, x_val)?;
             if !p_val.is_finite() || p_val > 1.5 {
                 return Err(WorksheetErrorCode::Num);
             }
@@ -734,6 +755,12 @@ pub fn gamma_inv_kernel(
     }
     if probability == 0.0 {
         return Ok(0.0);
+    }
+    // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at DBL_MIN -> DBL_MIN - 1ulp,
+    // verified down to 2^-1074): subnormal `alpha` hits `#DIV/0!` on `/ alpha` in the
+    // AS 91 power seed before any `2^-1026` domain check.
+    if alpha.is_subnormal() {
+        return Err(WorksheetErrorCode::Div0);
     }
     use crate::ported::excel_numeric::excel_x87_mul;
     // Unified 7-term Goldstein (Algorithm 451) across all large shapes 2*alpha in [5e10, 2^1000)
@@ -1502,5 +1529,133 @@ mod tests {
                 .to_bits();
             assert_eq!(got, expected, "cb20 {label}: got {got:#018x}, expected {expected:#018x}");
         }
+    }
+
+    /// Excel 16.0.20625.20108 (Touchstone ws2 R1-R4, frozen SHA-256 7523404f / 866b6f17):
+    /// 1. `gratio` go200 stores `excel_exp(gammaln_excel(a))` to binary64 and returns `#DIV/0!`
+    ///    when it overflows (`a <= 0x0003_ffff_ffff_ffda`, `gammaln >= 0x4086_2e42_fefa_39f0`),
+    ///    1-ULP separated from `0x0003_ffff_ffff_ffdb` across `GAMMA.DIST`, `GAMMADIST`,
+    ///    `BETA.DIST`, and `BETADIST` (including `bgrat_150` and `bup_140` where `r == 0`).
+    /// 2. `GAMMA.DIST`/`GAMMADIST`/`BETA.DIST`/`BETADIST`/`BETA.INV`/`BETAINV` reject shape/scale
+    ///    arguments strictly below `2^-1026` (`0x0001_0000_0000_0000`) with `#NUM!`, 1-ULP
+    ///    separated from `0x0000_ffff_ffff_ffff`, while `GAMMA.INV`/`GAMMAINV` accept subnormals
+    ///    down to `2^-1074` (`#DIV/0!` on subnormal `alpha`, `0.0` on subnormal `beta`).
+    /// 3. Subnormal divisor flushes at `DBL_MIN` (`GAMMA.DIST` scale `b`, `GAMMA.INV` shape `a`,
+    ///    `BETA.DIST` `a + b` in `b / (a + b)`) and `bgrat` `r == 0` retains `exp(g) * q`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_ymjf_2_156_gratio_go200_overflow_and_subnormal_shapes_match_excel() {
+        use crate::value::{CalcValue, NumericMode, WorksheetErrorCode};
+        use crate::{
+            EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke,
+        };
+
+        struct SliceArgs<'a>(&'a [CalcValue]);
+        impl PreparedArguments for SliceArgs<'_> {
+            fn count(&self) -> usize {
+                self.0.len()
+            }
+            fn argument(&mut self, index: usize) -> CalcValue {
+                self.0[index].clone()
+            }
+        }
+
+        let eval = |name: &str, args: &[CalcValue]| -> Result<u64, WorksheetErrorCode> {
+            let target = catalogue()
+                .resolve_surface(Notation::Call, name)
+                .unwrap_or_else(|e| panic!("unknown function {name}: {e:?}"));
+            let mut prepared = SliceArgs(args);
+            let mut services = EvalServices::new(&NumericMode::Fast);
+            let mut scratch = FunctionCallScratch::default();
+            let value = invoke(target, &mut prepared, &mut services, &mut scratch)
+                .unwrap_or_else(|fault| panic!("{name}({args:?}) faulted: {fault:?}"));
+            if let Some(err) = value.as_error() {
+                Err(err)
+            } else if let Some(n) = value.as_number() {
+                Ok(n.to_bits())
+            } else {
+                panic!("{name}({args:?}) unexpected value {value:?}");
+            }
+        };
+        let n = |bits: u64| CalcValue::number(f64::from_bits(bits));
+        let f = |v: f64| CalcValue::number(v);
+        let b = CalcValue::logical;
+
+        const DBL_MIN: u64 = 0x0010_0000_0000_0000;
+        const MAX_SUB: u64 = 0x000f_ffff_ffff_ffff;
+        const HALF_DBL_MIN: u64 = 0x0008_0000_0000_0000;
+        const HALF_DBL_MIN_M1: u64 = 0x0007_ffff_ffff_ffff;
+        const GO200_OK: u64 = 0x0003_ffff_ffff_ffdb;
+        const GO200_OVF: u64 = 0x0003_ffff_ffff_ffda;
+        const TWO_M1025: u64 = 0x0002_0000_0000_0000;
+        const CUT_OK: u64 = 0x0001_0000_0000_0000;
+        const CUT_NUM: u64 = 0x0000_ffff_ffff_ffff;
+        const X_A2: u64 = 0x3fef_ffff_ffff_fffc; // 1 - 2^-50
+        const ONE: u64 = 0x3ff0_0000_0000_0000;
+        const HALF: u64 = 0x3fe0_0000_0000_0000;
+        const ZERO: u64 = 0x0000_0000_0000_0000;
+
+        // 1. Exact 1-ULP go200 overflow cliff (0x0003_ffff_ffff_ffdb -> 0x0003_ffff_ffff_ffda)
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), n(GO200_OK), f(1.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), n(GO200_OVF), f(1.0), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMADIST", &[f(0.5), n(GO200_OK), f(1.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("GAMMADIST", &[f(0.5), n(GO200_OVF), f(1.0), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), n(GO200_OVF), f(1.0), b(false)]), Ok(ZERO));
+        assert_eq!(eval("GAMMA.DIST", &[f(1.09), n(TWO_M1025), f(1.0), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.DIST", &[f(1.1), n(TWO_M1025), f(1.0), b(true)]), Ok(ONE));
+
+        // Same 1-ULP cliff through BETA.DIST / BETADIST bgrat_150 & bup_140 -> gratio go200
+        assert_eq!(eval("BETA.DIST", &[n(X_A2), f(20.0), n(GO200_OK), b(true)]), Ok(ZERO));
+        assert_eq!(eval("BETA.DIST", &[n(X_A2), f(20.0), n(GO200_OVF), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("BETADIST", &[n(X_A2), f(20.0), n(GO200_OK)]), Ok(ZERO));
+        assert_eq!(eval("BETADIST", &[n(X_A2), f(20.0), n(GO200_OVF)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("BETA.DIST", &[f(1e-300), n(GO200_OK), f(20.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("BETA.DIST", &[f(1e-300), n(GO200_OVF), f(20.0), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("BETA.DIST", &[n(X_A2), f(2.0), n(GO200_OK), b(true)]), Ok(ZERO));
+        assert_eq!(eval("BETA.DIST", &[n(X_A2), f(2.0), n(GO200_OVF), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("BETA.DIST", &[f(0.99), f(20.0), n(TWO_M1025), b(true)]), Err(WorksheetErrorCode::Div0));
+
+        // bgrat r == 0 retains exp(g) * q when z >= 1.1 (gratio_cf)
+        for &b_bits in &[DBL_MIN, 0x0004_0000_0000_0000, TWO_M1025] {
+            assert_eq!(eval("BETA.DIST", &[f(0.8), f(20.0), n(b_bits), b(true)]), Ok(0x3950_bb74_8ba3_df95));
+            assert_eq!(eval("BETA.DIST", &[f(0.9), f(20.0), n(b_bits), b(true)]), Ok(0x3984_cb44_ef4d_8839));
+        }
+
+        // 2. Exact 1-ULP domain cutoff 2^-1026 (0x0001_0000_0000_0000 vs 0x0000_ffff_ffff_ffff)
+        assert_eq!(eval("GAMMA.DIST", &[f(2.0), n(CUT_OK), f(1.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("GAMMA.DIST", &[f(2.0), n(CUT_NUM), f(1.0), b(true)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), n(CUT_OK), f(1.0), b(false)]), Ok(ZERO));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), n(CUT_NUM), f(1.0), b(false)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), f(0.25), n(CUT_OK), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), f(0.25), n(CUT_NUM), b(true)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("GAMMADIST", &[f(2.0), n(CUT_OK), f(1.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("GAMMADIST", &[f(2.0), n(CUT_NUM), f(1.0), b(true)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(CUT_OK), f(1.0), b(true)]), Ok(ONE));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(CUT_NUM), f(1.0), b(true)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), f(1.0), n(CUT_OK), b(true)]), Ok(ZERO));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), f(1.0), n(CUT_NUM), b(true)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETADIST", &[f(0.5), n(CUT_OK), f(1.0)]), Ok(ONE));
+        assert_eq!(eval("BETADIST", &[f(0.5), n(CUT_NUM), f(1.0)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(CUT_OK), f(20.0), b(false)]), Ok(ZERO));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(CUT_NUM), f(20.0), b(false)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.INV", &[f(0.5), f(20.0), n(CUT_OK)]), Ok(HALF));
+        assert_eq!(eval("BETA.INV", &[f(0.5), f(20.0), n(CUT_NUM)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETAINV", &[f(0.5), f(20.0), n(CUT_OK)]), Ok(HALF));
+        assert_eq!(eval("BETAINV", &[f(0.5), f(20.0), n(CUT_NUM)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.INV", &[f(0.5), n(CUT_OK), f(20.0)]), Err(WorksheetErrorCode::Num));
+
+        // GAMMA.INV / GAMMAINV accept subnormals below 2^-1026
+        assert_eq!(eval("GAMMA.INV", &[f(0.5), n(DBL_MIN), f(1.0)]), Ok(ZERO));
+        assert_eq!(eval("GAMMA.INV", &[f(0.5), n(MAX_SUB), f(1.0)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.INV", &[f(0.5), n(CUT_NUM), f(1.0)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMAINV", &[f(0.5), n(CUT_NUM), f(1.0)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.INV", &[f(0.5), f(0.25), n(CUT_NUM)]), Ok(ZERO));
+
+        // 3. Subnormal divisor edges at DBL_MIN
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), f(0.25), n(DBL_MIN), b(true)]), Ok(ONE));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), f(0.25), n(MAX_SUB), b(true)]), Err(WorksheetErrorCode::Div0));
+        assert_eq!(eval("GAMMA.DIST", &[f(0.5), f(0.25), n(MAX_SUB), b(false)]), Err(WorksheetErrorCode::Num));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(HALF_DBL_MIN), n(HALF_DBL_MIN), b(true)]), Ok(HALF));
+        assert_eq!(eval("BETA.DIST", &[f(0.5), n(HALF_DBL_MIN_M1), n(HALF_DBL_MIN_M1), b(true)]), Err(WorksheetErrorCode::Div0));
     }
 }

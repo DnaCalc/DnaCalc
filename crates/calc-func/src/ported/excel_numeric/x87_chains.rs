@@ -847,7 +847,8 @@ fn beta_bgrat<F: Fpu>(
     let eg = exp_ext::<F>(&g);
     let u = F::mul(&lr, &eg, CW);
     if F::store(&u, CW) == 0.0 {
-        return (if w < TWO_TO_MINUS_970 { 0.0 } else { w }, 1);
+        let total = F::store(&F::add(&lw, &F::mul(&lq, &eg, CW), CW), CW);
+        return (if total < TWO_TO_MINUS_970 { 0.0 } else { total }, 1);
     }
 
     let v = F::div(&quarter, &F::mul(&lnu, &lnu, CW), CW);
