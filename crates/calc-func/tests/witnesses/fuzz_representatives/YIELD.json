@@ -77,8 +77,7 @@
         "0x4010000000000000",
         "0x4000000000000000"
       ],
-      "expected_bits": "0xc11a3d4e5b669882",
-      "calc_func": "error:Num"
+      "expected_bits": "0xc11a3d4e5b669882"
     },
     {
       "id": "Y3-dc-j9k-100-tiny-coupon-negbase",
@@ -92,8 +91,7 @@
         "0x4010000000000000",
         "0x0000000000000000"
       ],
-      "expected_bits": "0xc2417b5a123fae6d",
-      "calc_func": "error:Num"
+      "expected_bits": "0xc2417b5a123fae6d"
     },
     {
       "id": "Y4-dc-j9k-101-newton-1ulp",

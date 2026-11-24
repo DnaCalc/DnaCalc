@@ -743,18 +743,21 @@ pub fn yield_kernel(
             }
             return Err(derr(WorksheetErrorCode::Num));
         }
-        let slope = -excel_x87_add(t_cp, t_red);
-        // Excel keeps the finite iterate on the negative-base zero-coupon curve
-        // when the price slope reaches the subnormal range (sx1 bond-term row 110).
-        if base < 0.0 && rate_ == 0.0 && slope.is_subnormal() {
-            if tracing {
-                crate::trace::hit(8);
-                crate::trace::record_iterations(iter + 1);
-            }
-            return Ok(y);
+        let mut slope = -excel_x87_add(t_cp, t_red);
+        // Excel flushes subnormal slope to 0.0; on negative base (`off` integer),
+        // `diff / 0.0 == ±inf` publishes `y` (`!step.is_nan() && base < 0.0`, cb26 Y3).
+        if slope.abs() < f64::MIN_POSITIVE {
+            slope = 0.0;
         }
         let step = ((pv - accr) - price) / slope;
         if !step.is_finite() {
+            if !step.is_nan() && base < 0.0 {
+                if tracing {
+                    crate::trace::hit(8);
+                    crate::trace::record_iterations(iter + 1);
+                }
+                return Ok(y);
+            }
             if tracing {
                 crate::trace::hit(9);
                 crate::trace::record_iterations(iter + 1);
@@ -2263,6 +2266,61 @@ mod tests {
                 )
                 .is_ok(),
                 "Y2B-11..15 f=1 b={b}"
+            );
+        }
+    }
+
+    /// dc-j9k.100 (cb26 live Excel 16.0.20625.20108, Y3):
+    /// Subnormal slope flushes to 0.0; on negative base (`off` integer), `diff / 0.0 == ±inf`
+    /// publishes `y` (`!step.is_nan() && base < 0.0`), covering both zero and tiny coupons.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_subnormal_slope_flush_and_neg_base_publish() {
+        // sf2-YIELD-01821 (Y3-dc-j9k-100-zero-coupon-negbase)
+        let y0 = yield_kernel(
+            f64::from_bits(0x40e5efe000000000),
+            f64::from_bits(0x40e89cc000000000),
+            0.0,
+            f64::from_bits(0x41f1c0fe0114d10b),
+            100.0,
+            4.0,
+            Some(2.0),
+        )
+        .expect("zero-coupon deep-premium negative-base publishes y");
+        assert_eq!(y0.to_bits(), 0xc11a3d4e5b669882, "got {y0} ({:#018x})", y0.to_bits());
+
+        // sf2-YIELD-02243 (Y3-dc-j9k-100-tiny-coupon-negbase)
+        let y1 = yield_kernel(
+            f64::from_bits(0x40e61d8000000000),
+            f64::from_bits(0x40e75d2000000000),
+            f64::from_bits(0x0010000000000005),
+            f64::from_bits(0x41cc388161846e66),
+            f64::from_bits(0x3f1fef0875adf64f),
+            4.0,
+            Some(0.0),
+        )
+        .expect("tiny-coupon deep-premium negative-base publishes y");
+        assert_eq!(y1.to_bits(), 0xc2417b5a123fae6d, "got {y1} ({:#018x})", y1.to_bits());
+
+        // Y3A-01..06: on-coupon even/odd n with tiny/zero rate and pr > red -> finite
+        for &(s, m, r, pr, f, b) in &[
+            (0x40e566e000000000u64, 0x40e72f8000000000, 0x01a56e1fc2f8f359, 250.0, 2.0, 0.0),
+            (0x40e566e000000000, 0x40e7462000000000, 0x01a56e1fc2f8f359, 250.0, 2.0, 0.0),
+            (0x40e566e000000000, 0x40e72f8000000000, 0x0010000000000000, 300.0, 2.0, 1.0),
+            (0x40e566e000000000, 0x40e813c000000000, 0x0000000000000000, 400.0, 2.0, 0.0),
+        ] {
+            assert!(
+                yield_kernel(
+                    f64::from_bits(s),
+                    f64::from_bits(m),
+                    f64::from_bits(r),
+                    pr,
+                    100.0,
+                    f,
+                    Some(b),
+                )
+                .is_ok(),
+                "Y3A ({s:#x}, {m:#x}, r={r:#x})"
             );
         }
     }
