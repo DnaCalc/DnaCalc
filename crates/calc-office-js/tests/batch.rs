@@ -282,6 +282,57 @@ fn loading_nullness_with_properties_skips_only_missing_objects() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn empty_load_validates_handle_liveness_before_returning() {
+    let host = host();
+    let mut ops = range();
+    ops.extend([
+        Op::Load {
+            target: 4,
+            props: vec![],
+        },
+        Op::Call {
+            target: 2,
+            name: "getItemOrNullObject".into(),
+            args: vec![WireValue::text("Missing")],
+            out: Some(5),
+        },
+        Op::Load {
+            target: 5,
+            props: vec![],
+        },
+    ]);
+    let reply = batch(&host, 1, ops);
+    assert_eq!(reply.error, None);
+    assert!(reply.results[4].loaded.is_empty());
+    assert!(reply.results[5].null_object);
+    assert!(reply.results[6].loaded.is_empty());
+
+    // An unbound handle fails with InvalidObjectPath even when props is empty.
+    let unbound = batch(
+        &host,
+        2,
+        vec![Op::Load {
+            target: 99,
+            props: vec![],
+        }],
+    );
+    assert_eq!(unbound.error.unwrap().code, "InvalidObjectPath");
+
+    // A released handle fails with InvalidObjectPath even when props is empty.
+    host.release(1);
+    let released = batch(
+        &host,
+        3,
+        vec![Op::Load {
+            target: 4,
+            props: vec![],
+        }],
+    );
+    assert_eq!(released.error.unwrap().code, "InvalidObjectPath");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_roots_balance_temporary_application_acquisitions() {
     struct CountedModel<'a> {
         inner: &'a WorkbookAutomation,
@@ -514,6 +565,16 @@ fn office_js_excel_run_reuse_runs_against_real_executor() {
                     staleCode = e.code;
                 }
                 if (staleCode !== "InvalidObjectPath") throw new Error("expected InvalidObjectPath, got " + staleCode);
+                let staleEmptyLoadCode = null;
+                try {
+                    await Excel.run(untracked, async (ctx) => {
+                        untracked.load("");
+                        await ctx.sync();
+                    });
+                } catch (e) {
+                    staleEmptyLoadCode = e.code;
+                }
+                if (staleEmptyLoadCode !== "InvalidObjectPath") throw new Error("expected InvalidObjectPath on empty load, got " + staleEmptyLoadCode);
                 await Excel.run(untracked.context, async (ctx) => {
                     const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
                     range.load("values");

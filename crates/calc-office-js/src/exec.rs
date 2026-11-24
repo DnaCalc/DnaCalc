@@ -212,14 +212,12 @@ impl<M: ObjectModel> Executor<M> {
                 self.invoke(&target, name, Operation::Set, value)?;
             }
             Op::Load { target, props } => {
-                if props.is_empty() {
-                    return Ok(result);
-                }
                 let target = match self.object(context, *target) {
                     Ok(object) => Some(object),
                     Err(failure)
                         if failure.code == "ItemNotFound"
-                            && props.iter().any(|prop| prop == "isNullObject") =>
+                            && (props.is_empty()
+                                || props.iter().any(|prop| prop == "isNullObject")) =>
                     {
                         None
                     }
