@@ -30,7 +30,8 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   restart, Office.js Promise and stream cell timelines, and mixed native callbacks are
   recorded in [the async measurements](../research/async-mechanisms-excel.md).
 - **dc-j9k.68 / dc-j9k.96.** On Win64 AMD at a6a160aa6, CalcFunc passed 572 unit and
-  488 integration tests. The workspace cross-check passed for all Windows targets. The integration rerun staged the fixtures at the paths embedded
+  488 integration tests. The workspace cross-check passed for all Windows targets. The integration
+  rerun staged the fixtures at the paths embedded
   in the cross-built executable. Chrome and Firefox each passed 558 unit and 488 integration
   tests. Dev and perf matched the same CalcFunc-Evidence 4ef2c244 bank counts in every ETS family
   function. SEASONALITY 5,637/5,639, ETS 3,216/3,354, CONFINT 4,525/4,600 and STAT
@@ -64,7 +65,12 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   recreating the sheet under the same name left its old Address at HRESULT 0x800A01A8 and
   Value2 empty. The new handle read 30. Closing and reopening the workbook invalidated that
   handle, and a fresh handle read 30. See `ww12/range-lifetime/range.json`. A paired DNA Calc
-  execution and the remaining E1/E3/E4/E5 arms stay open.
+  run using the ww9 Win64 desktop refused Worksheet.Delete with HRESULT 0x800A03EC and left
+  the held value intact. The COM
+  method stays dc-1nbp.5. The remaining E1/E3/E4/E5 arms stay dc-1nbp.6.
+- **dc-6332.10.** The strict X2Pool retry timed out with 4,506 registration events
+  and no complete result. The private-desktop guard recorded zero windows on the
+  user's desktop. The earlier untraced endpoint evidence stands. See `ww12/x2pool-traced`.
 
 ### ww11 Windows replay, 2026-11-24
 

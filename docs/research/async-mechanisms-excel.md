@@ -157,3 +157,15 @@ All four calls entered the provider and returned the new value and dependent. Wo
 returned with state 0 and Range.Calculate with state 2. In a second clean Manual reopen, the
 nonvolatile-only workbook held 24/25 at state 0. Posting F9 to the focused grid left those values
 and state unchanged, with no new native entry in the next 781 ms. See `ww12/xll-routes/`.
+
+For the Automatic Promise SaveAs with CalculateBeforeSave enabled, the saved worksheet held
+1540/1640 and 1520/1620, the last completed chains before the input changed to 155. Each
+formula cache had `ca="1"`. The live cells later settled to 1570/1670 and 1550/1650.
+The Manual stream save stored 1571/1671 in both chains with `ca="1"`, `calcCompleted="0"`
+and `calcOnSave="0"`. See `ww12/office-js/saved-caches.txt`.
+
+For `AsyncEcho`, the fixture called xlAsyncReturn twice per site with the same handle and
+value. Both calls returned status 0 with a zeroed output operand in the two completed controls
+and again after Esc cancelled a third site. The completed chain held 41/42. In the cancelled
+case both cells held #CALC! and state 2 after the two late returns. The wrapper retained the
+observations and reported baseline reset drift. See `ww12/xll-duplicate-final/`.
