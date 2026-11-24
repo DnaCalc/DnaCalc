@@ -342,14 +342,16 @@ fn attempt_run(
                 }),
             )?;
             println!(
-                "sweep {} seed {}: {} matched / {}, {} mismatched, {} unread, {} crashed",
+                "sweep {} seed {}: {} matched / {}, {} mismatched, {} harness_fault, {} unread, {} crashed ({})",
                 summary.function,
                 summary.seed,
                 summary.total_matched,
                 summary.total_asked,
                 summary.total_mismatched,
+                summary.total_harness_fault,
                 summary.total_unread,
-                summary.total_crashed
+                summary.total_crashed,
+                summary.stop_reason
             );
             Ok(())
         }
@@ -432,7 +434,9 @@ fn pull_tracker(tracker: &Path, log: &str) -> Result<(), String> {
             return Err(error);
         }
         // Same reconciliation as the keeper. The local DB already holds the unpublished rows.
-        let incoming = tracker.join(".git/fuzz-incoming.jsonl");
+        // Place the temporary incoming JSONL outside `.git/` so `br` safety invariant NGI-3 allows it.
+        let incoming = std::env::temp_dir()
+            .join(format!("dnacalc-fuzz-incoming-{}.jsonl", std::process::id()));
         let remote = git(&["show", "MERGE_HEAD:.beads/issues.jsonl"])?;
         fs::write(&incoming, format!("{remote}\n")).map_err(|e| e.to_string())?;
         let mut reconcile = Command::new("br");
@@ -490,6 +494,15 @@ fn new_cluster_issues(
     let mut issues = Vec::new();
     for cluster in clusters {
         let key = cluster["key"].as_str().ok_or("missing fuzz cluster key")?;
+        let kind = cluster["kind"].as_str().unwrap_or("cluster");
+        let rep_calc = cluster["minimal_rep"]["calc_func"].as_str().unwrap_or("");
+        // Defense in depth: DNA-side harness faults are coverage gaps, never Excel discrepancies.
+        if super::cluster::is_dna_fault(rep_calc)
+            || kind.contains("fault:")
+            || key.contains("fault:")
+        {
+            continue;
+        }
         let external_ref = format!(
             "dnacalc-fuzz:{}",
             calc_verdict::sha256_hex(format!("{function}\n{key}").as_bytes())
@@ -497,7 +510,6 @@ fn new_cluster_issues(
         if !seen.insert(external_ref.clone()) {
             continue;
         }
-        let kind = cluster["kind"].as_str().unwrap_or("cluster");
         let priority = match cluster["worst_severity"].as_str() {
             Some("gross" | "structural") => "1",
             _ => "2",
@@ -584,7 +596,7 @@ fn file_clusters(tracker: &Path, pending: &[PathBuf]) -> Result<(), String> {
                     "--priority",
                     issue.priority,
                     "--parent",
-                    "dc-ztvv.26",
+                    "dc-j9k",
                     "--labels",
                     "fuzz-sweep-cluster",
                     "--external-ref",
@@ -778,5 +790,35 @@ mod tests {
             new_cluster_issues(&report, path, &mut seen).unwrap().len(),
             1
         );
+    }
+
+    #[test]
+    fn sweep_cluster_issues_filter_dna_side_harness_faults() {
+        let mut seen = BTreeSet::new();
+        let report = json!({
+            "function": "INDEX",
+            "seed": 42,
+            "clusters": [
+                {
+                    "key": "error:SPILL!_vs_fault:ResultShape|arity=2",
+                    "kind": "error:SPILL!_vs_fault:ResultShape",
+                    "id": "C01",
+                    "count": 50,
+                    "worst_severity": "structural",
+                    "minimal_rep": {"excel": "error:SPILL!", "calc_func": "fault:ResultShape"}
+                },
+                {
+                    "key": "number_vs_error:Value|arity=2",
+                    "kind": "number_vs_error:Value",
+                    "id": "C02",
+                    "count": 4,
+                    "worst_severity": "structural",
+                    "minimal_rep": {"excel": "0x0000000000000000", "calc_func": "error:Value"}
+                }
+            ]
+        });
+        let issues = new_cluster_issues(&report, Path::new("00000009"), &mut seen).unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].title, "Fuzz discrepancy: INDEX number_vs_error:Value");
     }
 }

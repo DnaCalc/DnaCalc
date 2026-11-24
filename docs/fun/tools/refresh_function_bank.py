@@ -56,6 +56,7 @@ def load_fuzz_status(path):
                 r['last_sweep_date'].strip(),
                 int(r['sweeps']),
                 r['last_sweep_commit'].strip(),
+                int(r.get('harness_faults') or 0),
             ]
     return fuzz
 

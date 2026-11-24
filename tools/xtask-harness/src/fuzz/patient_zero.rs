@@ -142,6 +142,8 @@ pub struct FunctionSweepCounts {
     pub asked: usize,
     pub matched: usize,
     pub mismatched: usize,
+    #[serde(default)]
+    pub harness_fault: usize,
     pub unread: usize,
     pub crashed: usize,
     pub clusters: usize,
@@ -150,7 +152,7 @@ pub struct FunctionSweepCounts {
 
 impl FunctionSweepCounts {
     pub fn failed(&self) -> usize {
-        self.mismatched + self.unread + self.crashed
+        self.mismatched + self.harness_fault + self.unread + self.crashed
     }
 }
 
@@ -754,7 +756,9 @@ fn eval_cases_on_touchstone(
     let mut discrepancies = Vec::new();
     let mut dparents = Vec::new();
     let mut fseeds = Vec::new();
-    let (mut asked, mut matched, mut mismatched, mut unread, mut crashed) = (0, 0, 0, 0, 0);
+    let (mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+        (0, 0, 0, 0, 0, 0);
+    let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
     let _ = ingest_judged_cases(
         function,
         cases,
@@ -768,6 +772,8 @@ fn eval_cases_on_touchstone(
         &mut asked,
         &mut matched,
         &mut mismatched,
+        &mut harness_fault,
+        &mut harness_faults,
         &mut unread,
         &mut crashed,
     );
@@ -779,6 +785,7 @@ fn eval_cases_on_touchstone(
             asked,
             matched,
             mismatched,
+            harness_fault,
             unread,
             crashed,
             clusters: clusters.len(),
@@ -858,6 +865,7 @@ pub fn execute_patient_zero(
             asked: 0,
             matched: 0,
             mismatched: 0,
+            harness_fault: 0,
             unread: 0,
             crashed: 0,
             clusters: 0,
@@ -878,6 +886,7 @@ pub fn execute_patient_zero(
                     asked: 0,
                     matched: 0,
                     mismatched: 0,
+                    harness_fault: 0,
                     unread: 0,
                     crashed: 0,
                     clusters: 0,
@@ -918,6 +927,8 @@ pub fn execute_patient_zero(
             let mut asked = p_counts.asked;
             let mut matched = p_counts.matched;
             let mut mismatched = p_counts.mismatched;
+            let mut harness_fault = p_counts.harness_fault;
+            let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
             let mut unread = p_counts.unread;
             let mut crashed = p_counts.crashed;
             let mut excel_s = 0.0;
@@ -945,6 +956,8 @@ pub fn execute_patient_zero(
                 &mut asked,
                 &mut matched,
                 &mut mismatched,
+                &mut harness_fault,
+                &mut harness_faults,
                 &mut unread,
                 &mut crashed,
                 &mut excel_s,
@@ -955,6 +968,7 @@ pub fn execute_patient_zero(
             p_counts.asked = asked;
             p_counts.matched = matched;
             p_counts.mismatched = mismatched;
+            p_counts.harness_fault = harness_fault;
             p_counts.unread = unread;
             p_counts.crashed = crashed;
         }
@@ -1167,6 +1181,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             asked: 0,
             matched: 0,
             mismatched: 0,
+            harness_fault: 0,
             unread: 0,
             crashed: 0,
             clusters: 0,
@@ -1189,6 +1204,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
                     asked: 0,
                     matched: 0,
                     mismatched: 0,
+                    harness_fault: 0,
                     unread: 0,
                     crashed: 0,
                     clusters: 0,

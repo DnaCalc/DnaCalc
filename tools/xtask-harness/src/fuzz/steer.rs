@@ -170,11 +170,13 @@ impl CoverageTracker {
                 }
             }
         }
-        let outcome_count = self.outcome_hits.get(outcome_class).copied().unwrap_or(0);
-        if outcome_count == 0 {
-            score += 40.0;
-        } else if outcome_count < 25 {
-            score += 8.0 / (outcome_count as f64).sqrt();
+        if !outcome_class.starts_with("fault:") {
+            let outcome_count = self.outcome_hits.get(outcome_class).copied().unwrap_or(0);
+            if outcome_count == 0 {
+                score += 40.0;
+            } else if outcome_count < 25 {
+                score += 8.0 / (outcome_count as f64).sqrt();
+            }
         }
         if trace.iterations >= 150 {
             score += 12.0;

@@ -9,6 +9,17 @@ use calc_verdict::{Severity, WITNESS_SET_FORMAT, WitnessInvocation, decode_resul
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashSet};
 
+/// True when DNA Calc's witness/invocation path returned a harness or coverage refusal (`fault:*`)
+/// rather than a worksheet value or Excel error.
+pub fn is_dna_fault(encoded: &str) -> bool {
+    encoded.starts_with("fault:")
+}
+
+/// Return the fault kind (e.g. `"NotImplemented"`, `"ReferenceRequired"`) for a `fault:*` result.
+pub fn dna_fault_kind(encoded: &str) -> Option<&str> {
+    encoded.strip_prefix("fault:")
+}
+
 /// Verdict of comparing one frozen DNA Calc prediction against Excel's Touchstone reply.
 #[derive(Clone, Debug)]
 pub enum RowOutcome {
@@ -17,6 +28,11 @@ pub enum RowOutcome {
         expected: String,
         severity: Severity,
         ulp: Option<u64>,
+    },
+    /// DNA Calc's witness/invocation path refused or faulted (`fault:*`): a harness coverage gap,
+    /// counted per function in coverage tables and failure totals, never banked or clustered.
+    HarnessFault {
+        fault: String,
     },
     Unread {
         #[allow(dead_code)]
@@ -61,6 +77,7 @@ pub struct RegionStats {
     pub asked: usize,
     pub matched: usize,
     pub mismatched: usize,
+    pub harness_fault: usize,
     pub unread: usize,
     pub crashed: usize,
     pub worst_ulp: Option<u64>,
@@ -69,7 +86,7 @@ pub struct RegionStats {
 
 impl RegionStats {
     pub fn total_failed(&self) -> usize {
-        self.mismatched + self.unread + self.crashed
+        self.mismatched + self.harness_fault + self.unread + self.crashed
     }
     pub fn pass_rate(&self) -> f64 {
         if self.asked == 0 {
@@ -293,9 +310,13 @@ fn case_complexity(case: &FuzzCase) -> u64 {
 }
 
 /// Group all discrepancy rows into sorted clusters with minimal & worst-ULP representatives.
+/// Defense in depth: DNA-side `fault:*` rows are never clustered as Excel discrepancies.
 pub fn build_clusters(function: &str, rows: &[DiscrepancyRow]) -> Vec<DiscrepancyCluster> {
     let mut grouped: BTreeMap<String, Vec<&DiscrepancyRow>> = BTreeMap::new();
     for row in rows {
+        if is_dna_fault(&row.case.prediction) {
+            continue;
+        }
         grouped.entry(row.cluster_key.clone()).or_default().push(row);
     }
     let mut clusters: Vec<DiscrepancyCluster> = Vec::with_capacity(grouped.len());
@@ -413,6 +434,12 @@ pub fn encode_witness_set_json(
     let mut seen_canonical: HashSet<String> = HashSet::with_capacity(rows.len());
     let mut unique_rows: Vec<&DiscrepancyRow> = Vec::with_capacity(rows.len());
     for &row in rows {
+        if is_dna_fault(&row.case.prediction) {
+            return Err(format!(
+                "refusing to export DNA-side harness fault row {} ({}) into discrepancy WitnessSet",
+                row.case.id, row.case.prediction
+            ));
+        }
         if row.expected == row.case.prediction {
             return Err(format!(
                 "refusing to export matching row {} into discrepancy WitnessSet",
@@ -593,6 +620,35 @@ mod tests {
             )
             .is_err()
         );
+
+        // DNA-side harness faults (`fault:*`) must NEVER be exported to bank-rows or clustered.
+        for fault in [
+            "fault:ReferenceRequired",
+            "fault:NotImplemented",
+            "fault:ResultShape",
+            "fault:WitnessReferencePosition",
+        ] {
+            let mut fault_row = row.clone();
+            fault_row.case.prediction = fault.to_owned();
+            assert!(
+                encode_witness_set_json(
+                    "COUNTIF",
+                    "sf1",
+                    "sf1/countif/spec.json",
+                    "bad",
+                    "2026-11-24T12:00:00Z",
+                    &envs,
+                    &touchstone_bulk_context(),
+                    &[&fault_row],
+                )
+                .is_err(),
+                "expected {fault} to be refused from discrepancy WitnessSet"
+            );
+            assert!(
+                build_clusters("COUNTIF", &[fault_row]).is_empty(),
+                "expected {fault} to be excluded from discrepancy clusters"
+            );
+        }
 
         // Duplicate canonical inputs must be deduplicated so bank-rows never contains the same row twice.
         let mut dup = row.clone();

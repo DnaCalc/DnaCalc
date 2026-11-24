@@ -11,7 +11,8 @@ use super::boundary::{
     record_excel_window_flips, set_axis_f64,
 };
 use super::cluster::{
-    DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, judge_pair,
+    DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, dna_fault_kind,
+    judge_pair,
 };
 use super::domain::{DomainSpec, ParamKind};
 use super::fractal::{
@@ -32,7 +33,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use touchstone_client::{Answer, Arg, Client, Error, Handle, Priority, Request};
+use touchstone_client::{Answer, Arg, Client, Error, Handle, Priority, RangeCell, Request};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 const INTERACTIVE_CHUNK_SIZE: usize = 96;
@@ -138,6 +139,28 @@ fn excel_error_to_encoded(code: &str) -> String {
     format!("error:{variant}")
 }
 
+fn json_cell_to_range_cell(cell: &Value) -> Result<RangeCell, String> {
+    match cell {
+        Value::Null => Ok(RangeCell::Blank),
+        Value::Bool(b) => Ok(RangeCell::Boolean(*b)),
+        Value::String(s) => {
+            if let Some(bits) = parse_hex_bits(cell) {
+                Ok(RangeCell::Number(bits))
+            } else {
+                Ok(RangeCell::Text(s.clone()))
+            }
+        }
+        Value::Object(map) => {
+            if let Some(code) = map.get("error").and_then(Value::as_str) {
+                Ok(RangeCell::Error(error_variant_to_excel(code)?.to_owned()))
+            } else {
+                Err(format!("unsupported object cell in range: {cell}"))
+            }
+        }
+        other => Err(format!("unsupported cell in range: {other}")),
+    }
+}
+
 /// Convert one WitnessSet-encoded JSON argument to a Touchstone `Arg`.
 pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
     match value {
@@ -153,6 +176,42 @@ pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
         Value::Object(map) => {
             if let Some(code) = map.get("error").and_then(Value::as_str) {
                 Ok(Arg::Error(error_variant_to_excel(code)?.to_owned()))
+            } else if let Some(range) = map.get("range").and_then(Value::as_array) {
+                if range.is_empty() {
+                    return Err("empty range argument".into());
+                }
+                let (rows, cols, cells) = if range[0].is_array() {
+                    let rows = range.len();
+                    let cols = range[0].as_array().map_or(0, Vec::len);
+                    if cols == 0 {
+                        return Err("zero-column range argument".into());
+                    }
+                    let mut cells = Vec::with_capacity(rows * cols);
+                    for row in range {
+                        let row_cells = row
+                            .as_array()
+                            .ok_or_else(|| "ragged range argument".to_owned())?;
+                        if row_cells.len() != cols {
+                            return Err("ragged range argument".into());
+                        }
+                        for cell in row_cells {
+                            cells.push(json_cell_to_range_cell(cell)?);
+                        }
+                    }
+                    (rows, cols, cells)
+                } else {
+                    let mut cells = Vec::with_capacity(range.len());
+                    for cell in range {
+                        cells.push(json_cell_to_range_cell(cell)?);
+                    }
+                    (range.len(), 1, cells)
+                };
+                if rows > 32 || cols > 32 || rows * cols > 128 {
+                    return Err(format!(
+                        "range {rows}x{cols} exceeds Touchstone rRxC bound (32x32, <=128 cells)"
+                    ));
+                }
+                Ok(Arg::Range { rows, cols, cells })
             } else {
                 Err(format!("unsupported object argument: {value}"))
             }
@@ -222,10 +281,21 @@ pub fn answer_to_encoded(answer: &Answer) -> Result<String, RowOutcome> {
     }
 }
 
+fn echo_matches_range_cell(sent: &RangeCell, echoed: &Answer) -> bool {
+    match (sent, echoed) {
+        (RangeCell::Number(a), Answer::Number(b)) => a == b,
+        (RangeCell::Text(a), Answer::Text(b)) => a == b,
+        (RangeCell::Boolean(a), Answer::Boolean(b)) => a == b,
+        (RangeCell::Error(a), Answer::Error(b)) => a.eq_ignore_ascii_case(b),
+        (RangeCell::Blank, Answer::Blank) => true,
+        _ => false,
+    }
+}
+
 /// Verify that Excel's echoed input row matches the arguments we asked for bit-for-bit.
 ///
-/// Touchstone's `echo` wire format (`Program.cs`, `PROTOCOL.md`) flattens `Arg::Array`
-/// (`aRxC`) into `R * C` consecutive scalar `Answer::Number` cells in `ity`/`iv`, while
+/// Touchstone's `echo` wire format (`Program.cs`, `PROTOCOL.md`) flattens `Arg::Array` (`aRxC`)
+/// and `Arg::Range` (`rRxC`) into `R * C` consecutive scalar `Answer` cells in `ity`/`iv`, while
 /// synthetic tests may echo an `Answer::Array`; accept both faithfully.
 pub fn echo_row_matches_sent(sent: &[Arg], echoed: &[Answer]) -> bool {
     let mut pos = 0usize;
@@ -248,6 +318,17 @@ pub fn echo_row_matches_sent(sent: &[Arg], echoed: &[Answer]) -> bool {
                     }
                     pos += bits.len();
                 }
+            }
+            Arg::Range { cells, .. } => {
+                if pos + cells.len() > echoed.len() {
+                    return false;
+                }
+                for (expected_cell, got) in cells.iter().zip(&echoed[pos..pos + cells.len()]) {
+                    if !echo_matches_range_cell(expected_cell, got) {
+                        return false;
+                    }
+                }
+                pos += cells.len();
             }
             _ => {
                 let Some(cell) = echoed.get(pos) else {
@@ -351,6 +432,14 @@ fn prepare_sendable(cases: &[FuzzCase]) -> (Vec<(usize, Vec<Arg>)>, Vec<JudgedRo
     ];
     let mut sendable = Vec::with_capacity(cases.len());
     for (idx, c) in cases.iter().enumerate() {
+        // A DNA-side fault (`fault:*`) is a harness/coverage gap, never an Excel discrepancy:
+        // record it locally without spending Touchstone Excel calls, bank rows, or cluster beads.
+        if let Some(fault) = dna_fault_kind(&c.prediction) {
+            judged[idx].outcome = RowOutcome::HarnessFault {
+                fault: fault.to_owned(),
+            };
+            continue;
+        }
         let mut converted = Vec::with_capacity(c.args.len());
         let mut bad = None;
         for a in &c.args {
@@ -471,14 +560,20 @@ fn drain_one_chunk(
                 continue;
             }
             let pred = &cases[case_idx].prediction;
-            let (severity, ulp) = judge_pair(&encoded, pred);
-            let outcome = if severity == Severity::Exact {
-                RowOutcome::Matched
+            let outcome = if let Some(fault) = dna_fault_kind(pred) {
+                RowOutcome::HarnessFault {
+                    fault: fault.to_owned(),
+                }
             } else {
-                RowOutcome::Discrepancy {
-                    expected: encoded.clone(),
-                    severity,
-                    ulp,
+                let (severity, ulp) = judge_pair(&encoded, pred);
+                if severity == Severity::Exact {
+                    RowOutcome::Matched
+                } else {
+                    RowOutcome::Discrepancy {
+                        expected: encoded.clone(),
+                        severity,
+                        ulp,
+                    }
                 }
             };
             judged[case_idx] = JudgedRow {
@@ -545,11 +640,23 @@ fn ask_bulk_and_interactive(
     let (bulk_sendable, mut bulk_judged) = prepare_sendable(bulk_cases);
     let (inter_sendable, mut inter_judged) = prepare_sendable(interactive_cases);
 
+    let has_range = bulk_sendable
+        .iter()
+        .chain(inter_sendable.iter())
+        .any(|(_, row)| row.iter().any(|arg| matches!(arg, Arg::Range { .. })));
+    let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
+    // Touchstone's `rRxC` path (`EvaluateSpecial`) runs one call at a time; in sweep mode, keep
+    // range chunks short and serial so queued requests never hit the 12s sweep-deferral timeout.
+    let effective_bulk_batch = if sweep && has_range {
+        bulk_batch_size.clamp(1, 8)
+    } else {
+        bulk_batch_size.max(1)
+    };
     let mut work_queue = VecDeque::new();
     // Interleave interactive chunks (<= 96 rows each) right after the first two bulk chunks
     // so w1 and w2 grab bulk work while w3 picks up interactive work in parallel.
     let bulk_chunks: Vec<(Vec<usize>, Vec<Vec<Arg>>)> = bulk_sendable
-        .chunks(bulk_batch_size.max(1))
+        .chunks(effective_bulk_batch)
         .map(|slice| {
             let mut idxs = Vec::with_capacity(slice.len());
             let mut rows = Vec::with_capacity(slice.len());
@@ -599,8 +706,11 @@ fn ask_bulk_and_interactive(
         }
     }
 
-    let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
-    let max_pending = in_flight.max(1) + usize::from(!sweep && !interactive_cases.is_empty());
+    let max_pending = if sweep && has_range {
+        1
+    } else {
+        in_flight.max(1) + usize::from(!sweep && !interactive_cases.is_empty())
+    };
     let (envs, worker_calls) = dispatch_chunks(
         client,
         function,
@@ -647,11 +757,19 @@ pub(crate) fn ask_single_priority(
     }
     let started = Instant::now();
     let (sendable, mut judged) = prepare_sendable(cases);
-    let (batch_size, in_flight) = config
+    let (mut batch_size, mut in_flight) = config
         .filter(|cfg| cfg.sweep.is_some())
         .map_or((batch_size, in_flight), |cfg| {
             (cfg.batch_size, cfg.in_flight)
         });
+    if config.is_some_and(|cfg| cfg.sweep.is_some())
+        && sendable
+            .iter()
+            .any(|(_, row)| row.iter().any(|arg| matches!(arg, Arg::Range { .. })))
+    {
+        batch_size = batch_size.clamp(1, 8);
+        in_flight = 1;
+    }
     let chunks = sendable
         .chunks(batch_size.max(1))
         .map(|slice| {
@@ -756,6 +874,8 @@ pub(crate) fn ingest_judged_cases(
     total_asked: &mut usize,
     total_matched: &mut usize,
     total_mismatched: &mut usize,
+    total_harness_fault: &mut usize,
+    harness_faults: &mut BTreeMap<String, usize>,
     total_unread: &mut usize,
     total_crashed: &mut usize,
 ) -> (usize, HashSet<String>) {
@@ -808,6 +928,11 @@ pub(crate) fn ingest_judged_cases(
                     env_id: row.env_id.clone(),
                     cluster_key: ckey,
                 });
+            }
+            RowOutcome::HarnessFault { fault } => {
+                *total_harness_fault += 1;
+                st.harness_fault += 1;
+                *harness_faults.entry(fault.clone()).or_insert(0) += 1;
             }
             RowOutcome::Unread { .. } => {
                 *total_unread += 1;
@@ -896,6 +1021,8 @@ fn bisect_shifted_frontiers_excel(
     total_asked: &mut usize,
     total_matched: &mut usize,
     total_mismatched: &mut usize,
+    total_harness_fault: &mut usize,
+    harness_faults: &mut BTreeMap<String, usize>,
     total_unread: &mut usize,
     total_crashed: &mut usize,
     excel_seconds: &mut f64,
@@ -1018,6 +1145,8 @@ fn bisect_shifted_frontiers_excel(
             total_asked,
             total_matched,
             total_mismatched,
+            total_harness_fault,
+            harness_faults,
             total_unread,
             total_crashed,
         );
@@ -1138,6 +1267,8 @@ fn bisect_shifted_frontiers_excel(
                 total_asked,
                 total_matched,
                 total_mismatched,
+                total_harness_fault,
+                harness_faults,
                 total_unread,
                 total_crashed,
             );
@@ -1258,6 +1389,8 @@ pub fn fractal_refine_coarse_discrepancies_excel(
     total_asked: &mut usize,
     total_matched: &mut usize,
     total_mismatched: &mut usize,
+    total_harness_fault: &mut usize,
+    harness_faults: &mut BTreeMap<String, usize>,
     total_unread: &mut usize,
     total_crashed: &mut usize,
     excel_seconds: &mut f64,
@@ -1396,6 +1529,8 @@ pub fn fractal_refine_coarse_discrepancies_excel(
             total_asked,
             total_matched,
             total_mismatched,
+            total_harness_fault,
+            harness_faults,
             total_unread,
             total_crashed,
         );
@@ -1514,6 +1649,8 @@ pub fn fractal_refine_coarse_discrepancies_excel(
                 total_asked,
                 total_matched,
                 total_mismatched,
+                total_harness_fault,
+                harness_faults,
                 total_unread,
                 total_crashed,
             );
@@ -1660,6 +1797,46 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let ctx = touchstone_bulk_context();
     std::fs::create_dir_all(&cfg.out_dir)
         .map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
+    if cfg.sweep.is_some()
+        && let Some(reason) = spec.merged.sweep_static_skip_reason()
+    {
+        let summary = FuzzSummary {
+            function: cfg.function.clone(),
+            seed: cfg.seed,
+            budget: cfg.budget,
+            dry_run: false,
+            total_generated: 0,
+            total_asked: 0,
+            total_matched: 0,
+            total_mismatched: 0,
+            total_harness_fault: 0,
+            harness_faults: BTreeMap::new(),
+            total_unread: 0,
+            total_crashed: 0,
+            rounds_run: 0,
+            stop_reason: format!("skipped:{reason}"),
+            case_list_sha256: StreamCaseHasher::new(&cfg.function).finish_hex(),
+            predictions_sha256: Vec::new(),
+            elapsed_seconds: started.elapsed().as_secs_f64(),
+            excel_seconds: 0.0,
+            worker_calls: BTreeMap::new(),
+            region_stats: BTreeMap::new(),
+            clusters: Vec::new(),
+            frontiers: Vec::new(),
+            fractal_stats: FractalDiscoveryStats::default(),
+            tracker: CoverageTracker::new(&cfg.function),
+        };
+        write_outputs(
+            cfg,
+            &spec,
+            &summary,
+            &[],
+            &BTreeMap::new(),
+            &[],
+            &HashMap::new(),
+        )?;
+        return Ok(summary);
+    }
     let client = connect_client(cfg.endpoint.as_deref())?;
     if cfg.sweep.is_some() {
         client.require_sweep().map_err(|e| e.to_string())?;
@@ -1690,6 +1867,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let mut total_asked = 0usize;
     let mut total_matched = 0usize;
     let mut total_mismatched = 0usize;
+    let mut total_harness_fault = 0usize;
+    let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
     let mut total_unread = 0usize;
     let mut total_crashed = 0usize;
     let mut excel_seconds = 0.0f64;
@@ -1788,6 +1967,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut total_asked,
             &mut total_matched,
             &mut total_mismatched,
+            &mut total_harness_fault,
+            &mut harness_faults,
             &mut total_unread,
             &mut total_crashed,
         );
@@ -1804,6 +1985,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut total_asked,
             &mut total_matched,
             &mut total_mismatched,
+            &mut total_harness_fault,
+            &mut harness_faults,
             &mut total_unread,
             &mut total_crashed,
         );
@@ -1839,11 +2022,24 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             dry_streak = 0;
         }
         eprintln!(
-            "[fuzz {} r{round:02}] asked={total_asked} matched={total_matched} mismatched={total_mismatched} unread={total_unread} crashed={total_crashed} clusters={} (+{new_total}) workers={:?}",
+            "[fuzz {} r{round:02}] asked={total_asked} matched={total_matched} mismatched={total_mismatched} harness_fault={total_harness_fault} unread={total_unread} crashed={total_crashed} clusters={} (+{new_total}) workers={:?}",
             cfg.function,
             known_clusters.len(),
             all_worker_calls,
         );
+        if round == 0
+            && cfg.sweep.is_some()
+            && total_asked > 0
+            && total_harness_fault == total_asked
+        {
+            let top_fault = harness_faults
+                .iter()
+                .max_by_key(|&(_, count)| *count)
+                .map_or("Unknown", |(k, _)| k.as_str());
+            stop_reason = format!("skipped:dna-fault:{top_fault}");
+            round += 1;
+            break;
+        }
         round += 1;
         if total_asked >= cfg.min_budget && dry_streak >= cfg.dry_rounds && round >= 2 {
             stop_reason = format!("dry-for-{}-rounds", cfg.dry_rounds);
@@ -1941,6 +2137,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
                 &mut total_asked,
                 &mut total_matched,
                 &mut total_mismatched,
+                &mut total_harness_fault,
+                &mut harness_faults,
                 &mut total_unread,
                 &mut total_crashed,
             );
@@ -1970,6 +2168,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         &mut total_asked,
         &mut total_matched,
         &mut total_mismatched,
+        &mut total_harness_fault,
+        &mut harness_faults,
         &mut total_unread,
         &mut total_crashed,
         &mut excel_seconds,
@@ -2002,6 +2202,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut total_asked,
             &mut total_matched,
             &mut total_mismatched,
+            &mut total_harness_fault,
+            &mut harness_faults,
             &mut total_unread,
             &mut total_crashed,
             &mut excel_seconds,
@@ -2020,6 +2222,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         total_asked,
         total_matched,
         total_mismatched,
+        total_harness_fault,
+        harness_faults,
         total_unread,
         total_crashed,
         rounds_run: round,
@@ -2135,7 +2339,15 @@ mod tests {
                     let mut answers = Vec::new();
                     for g in body["groups"].as_array().unwrap() {
                         let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
-                        let width = tokens.len();
+                        let tok_width = |tok: &str| -> usize {
+                            if let Some(rest) = tok.strip_prefix('a').or_else(|| tok.strip_prefix('r'))
+                                && let Some((rs, cs)) = rest.split_once('x')
+                            {
+                                return rs.parse::<usize>().unwrap() * cs.parse::<usize>().unwrap();
+                            }
+                            1
+                        };
+                        let width: usize = tokens.iter().map(|t| tok_width(t)).sum();
                         let n = g["n"].as_u64().unwrap() as usize;
                         let flat = g["v"].as_array().unwrap();
                         let mut ty = String::with_capacity(n);
@@ -2143,10 +2355,83 @@ mod tests {
                         let mut ity = String::with_capacity(n * width);
                         let mut iv = Vec::with_capacity(n * width);
                         for row_i in 0..n {
-                            let mut args_json = Vec::with_capacity(width);
-                            for col_i in 0..width {
-                                let tok = tokens[col_i];
-                                let cell = &flat[row_i * width + col_i];
+                            let mut args_json = Vec::with_capacity(tokens.len());
+                            let mut offset = 0usize;
+                            for &tok in &tokens {
+                                if let Some(rest) = tok.strip_prefix('r')
+                                    && let Some((rs, cs)) = rest.split_once('x')
+                                {
+                                    let nr: usize = rs.parse().unwrap();
+                                    let nc: usize = cs.parse().unwrap();
+                                    let mut grid = Vec::with_capacity(nr);
+                                    for _ in 0..nr {
+                                        let mut rvec = Vec::with_capacity(nc);
+                                        for _ in 0..nc {
+                                            let cell = &flat[row_i * width + offset];
+                                            offset += 1;
+                                            match cell["type"].as_str().unwrap_or("blank") {
+                                                "number" => {
+                                                    let h = cell["bits"].as_str().unwrap();
+                                                    rvec.push(Value::String(format!("0x{h}")));
+                                                    ity.push('n');
+                                                    iv.push(Value::String(h.to_owned()));
+                                                }
+                                                "text" => {
+                                                    let v = cell["value"].clone();
+                                                    rvec.push(v.clone());
+                                                    ity.push('t');
+                                                    iv.push(v);
+                                                }
+                                                "boolean" => {
+                                                    let v = cell["value"].clone();
+                                                    rvec.push(v.clone());
+                                                    ity.push('b');
+                                                    iv.push(v);
+                                                }
+                                                "error" => {
+                                                    let code = cell["code"].as_str().unwrap();
+                                                    let var = excel_error_to_encoded(code)
+                                                        .strip_prefix("error:")
+                                                        .unwrap_or("Value")
+                                                        .to_owned();
+                                                    rvec.push(json!({"error": var}));
+                                                    ity.push('e');
+                                                    iv.push(Value::String(code.to_owned()));
+                                                }
+                                                _ => {
+                                                    rvec.push(Value::Null);
+                                                    ity.push('z');
+                                                    iv.push(Value::Null);
+                                                }
+                                            }
+                                        }
+                                        grid.push(Value::Array(rvec));
+                                    }
+                                    args_json.push(json!({ "range": grid }));
+                                    continue;
+                                }
+                                if let Some(rest) = tok.strip_prefix('a')
+                                    && let Some((rs, cs)) = rest.split_once('x')
+                                {
+                                    let nr: usize = rs.parse().unwrap();
+                                    let nc: usize = cs.parse().unwrap();
+                                    let mut grid = Vec::with_capacity(nr);
+                                    for _ in 0..nr {
+                                        let mut rvec = Vec::with_capacity(nc);
+                                        for _ in 0..nc {
+                                            let h = flat[row_i * width + offset].as_str().unwrap();
+                                            offset += 1;
+                                            rvec.push(Value::String(format!("0x{h}")));
+                                            ity.push('n');
+                                            iv.push(Value::String(h.to_owned()));
+                                        }
+                                        grid.push(Value::Array(rvec));
+                                    }
+                                    args_json.push(Value::Array(grid));
+                                    continue;
+                                }
+                                let cell = &flat[row_i * width + offset];
+                                offset += 1;
                                 match tok {
                                     "n" => {
                                         let h = cell.as_str().unwrap();
@@ -2188,14 +2473,16 @@ mod tests {
                             }
                             let function = g["f"].as_str().unwrap();
                             let (dna, _, _) = evaluate_traced(function, &args_json, &ctx);
-                            let timing_beg = args_json
-                                .get(4)
-                                .and_then(parse_hex_bits)
-                                .map(f64::from_bits)
-                                .is_some_and(|t| t != 0.0);
+                            let timing_beg = function == "RATE"
+                                && args_json
+                                    .get(4)
+                                    .and_then(parse_hex_bits)
+                                    .map(f64::from_bits)
+                                    .is_some_and(|t| t != 0.0);
+                            let inject_bump = (sweep && function == "ABS") || timing_beg;
                             if let Some(hex) = dna.strip_prefix("0x") {
                                 let mut bits = u64::from_str_radix(hex, 16).unwrap();
-                                if sweep || timing_beg {
+                                if inject_bump {
                                     let bumped = step_ulps(f64::from_bits(bits), 2, true)
                                         .unwrap_or(f64::from_bits(bits));
                                     bits = bumped.to_bits();
@@ -2207,6 +2494,12 @@ mod tests {
                                 out_v.push(Value::String(
                                     error_variant_to_excel(err).unwrap_or("#VALUE!").to_owned(),
                                 ));
+                            } else if let Some(text) = dna.strip_prefix("text:") {
+                                ty.push('t');
+                                out_v.push(Value::String(text.to_owned()));
+                            } else if let Some(b) = dna.strip_prefix("logical:") {
+                                ty.push('b');
+                                out_v.push(Value::Bool(b.eq_ignore_ascii_case("true")));
                             } else {
                                 ty.push('e');
                                 out_v.push(Value::String("#VALUE!".to_owned()));
@@ -2641,7 +2934,9 @@ mod tests {
         let mut discs = Vec::new();
         let mut dparents = Vec::new();
         let mut fseeds = Vec::new();
-        let (mut asked, mut matched, mut mismatched, mut unread, mut crashed) = (0, 0, 0, 0, 0);
+        let (mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
         ingest_judged_cases(
             "RATE",
             &cases,
@@ -2655,6 +2950,8 @@ mod tests {
             &mut asked,
             &mut matched,
             &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
             &mut unread,
             &mut crashed,
         );
@@ -2851,8 +3148,9 @@ mod tests {
         let mut discs = Vec::new();
         let mut dparents = Vec::new();
         let mut fseeds = Vec::new();
-        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
-            (0, 0, 0, 0, 0, 0, 0);
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
         let mut excel_s = 0.0;
 
         bisect_shifted_frontiers_excel(
@@ -2875,6 +3173,8 @@ mod tests {
             &mut asked,
             &mut matched,
             &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
             &mut unread,
             &mut crashed,
             &mut excel_s,
@@ -3045,8 +3345,9 @@ mod tests {
         let mut discs = Vec::new();
         let mut dparents = Vec::new();
         let mut fseeds = Vec::new();
-        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
-            (0, 0, 0, 0, 0, 0, 0);
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
         let mut excel_s = 0.0;
 
         bisect_shifted_frontiers_excel(
@@ -3069,6 +3370,8 @@ mod tests {
             &mut asked,
             &mut matched,
             &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
             &mut unread,
             &mut crashed,
             &mut excel_s,
@@ -3296,8 +3599,17 @@ mod tests {
         let mut known = HashSet::new();
         let mut dparents = Vec::new();
         let mut fseeds = Vec::new();
-        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
-            (1, 0, 0, 0, 0, 0, 0);
+        let (
+            mut next_id,
+            mut generated,
+            mut asked,
+            mut matched,
+            mut mismatched,
+            mut harness_fault,
+            mut unread,
+            mut crashed,
+        ) = (1, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
         let mut excel_s = 0.0;
 
         let added = fractal_refine_coarse_discrepancies_excel(
@@ -3322,6 +3634,8 @@ mod tests {
             &mut asked,
             &mut matched,
             &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
             &mut unread,
             &mut crashed,
             &mut excel_s,
@@ -3343,6 +3657,103 @@ mod tests {
         assert!(f.excel_lo_outcome.as_deref().unwrap().starts_with("0x"));
         assert_eq!(f.excel_hi_outcome.as_deref(), Some("error:Num"));
         assert!(!pred_hashes.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn reference_functions_send_real_ranges_and_dna_faults_never_bank_or_cluster() {
+        // 1. COUNTIF: ParameterClass::Reference must get real `{"range": [[...]]}` -> `rRxC`,
+        // matching through Touchstone + witnesses/call.rs with 0 ReferenceRequired faults.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-range-fault-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+        let broker = thread::spawn(move || {
+            // Serve 3 runs: COUNTIF, VALUE, OFFSET
+            for _ in 0..3 {
+                serve_fake_fuzz_broker(&listener, true, None);
+            }
+        });
+
+        let mut cfg = FuzzConfig::default_for("COUNTIF");
+        cfg.seed = 20261124;
+        cfg.budget = 64;
+        cfg.min_budget = 64;
+        cfg.round_size = 64;
+        cfg.batch_size = 32;
+        cfg.in_flight = 1;
+        cfg.max_frontiers = 0;
+        cfg.fractal_depth = 0;
+        cfg.out_dir = tmp.join("countif");
+        cfg.bank_rows_out = Some(tmp.join("countif-bank.json"));
+        cfg.endpoint = Some(endpoint.clone());
+        cfg.sweep = Some(SweepPolicy::new(
+            tmp.join("PAUSE"),
+            tmp.join("bank/COUNTIF"),
+        ));
+        let countif = execute_live_run(&cfg).expect("COUNTIF live run");
+        assert!(
+            countif.total_matched > 40,
+            "COUNTIF should match real cell ranges, got {}/{} matched (faults={:?})",
+            countif.total_matched,
+            countif.total_asked,
+            countif.harness_faults
+        );
+        assert!(
+            !countif.harness_faults.contains_key("ReferenceRequired"),
+            "COUNTIF must not hit ReferenceRequired: {:?}",
+            countif.harness_faults
+        );
+        assert_eq!(countif.total_mismatched, 0);
+        assert!(countif.clusters.is_empty());
+        assert!(!tmp.join("countif-bank.json").exists());
+
+        // 2. VALUE: partial DNA-side `fault:NotImplemented` (missing locale profile) must be
+        // counted in `total_harness_fault` / `harness_faults`, never mismatched/banked/clustered.
+        let mut val_cfg = cfg.clone();
+        val_cfg.function = "VALUE".to_owned();
+        val_cfg.out_dir = tmp.join("value");
+        val_cfg.bank_rows_out = Some(tmp.join("value-bank.json"));
+        val_cfg.sweep = Some(SweepPolicy::new(tmp.join("PAUSE"), tmp.join("bank/VALUE")));
+        let val = execute_live_run(&val_cfg).expect("VALUE live run");
+        assert!(val.total_matched > 0, "VALUE should match non-locale cases");
+        assert!(
+            val.total_harness_fault > 0 && val.harness_faults.contains_key("NotImplemented"),
+            "VALUE should count NotImplemented harness faults: {:?}",
+            val.harness_faults
+        );
+        assert_eq!(val.total_mismatched, 0);
+        assert!(val.clusters.is_empty());
+        assert!(!tmp.join("value-bank.json").exists());
+
+        // 3. OFFSET: every generated call faults with WitnessReferencePosition -> skipped cleanly
+        // after Round 0 with 0 Excel calls, 0 bank rows, and 0 clusters.
+        let mut off_cfg = cfg.clone();
+        off_cfg.function = "OFFSET".to_owned();
+        off_cfg.out_dir = tmp.join("offset");
+        off_cfg.bank_rows_out = Some(tmp.join("offset-bank.json"));
+        off_cfg.sweep = Some(SweepPolicy::new(tmp.join("PAUSE"), tmp.join("bank/OFFSET")));
+        let off = execute_live_run(&off_cfg).expect("OFFSET live run");
+        assert!(
+            off.stop_reason.starts_with("skipped:dna-fault:"),
+            "expected OFFSET to record skipped reason, got {}",
+            off.stop_reason
+        );
+        assert_eq!(off.total_mismatched, 0);
+        assert_eq!(off.total_matched, 0);
+        assert_eq!(off.total_harness_fault, off.total_asked);
+        assert!(off.clusters.is_empty());
+        assert!(off.worker_calls.is_empty(), "skipped OFFSET must spend 0 Excel calls");
+        assert!(!tmp.join("offset-bank.json").exists());
+
+        broker.join().unwrap();
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

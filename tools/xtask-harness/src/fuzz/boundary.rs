@@ -33,13 +33,13 @@ pub fn predicate_tag(encoded: &str) -> String {
 }
 
 /// Read the raw binary64 bits at `(axis, cell)` (`cell == None` for scalar, `Some((r, c))` for
-/// a 2D numeric array argument like `IRR`'s `values`).
+/// a 2D numeric array or `{"range": [[...]]}` argument).
 pub fn get_axis_bits(args: &[Value], axis: usize, cell: Option<(usize, usize)>) -> Option<u64> {
     let slot = args.get(axis)?;
     match cell {
         None => parse_hex_bits(slot),
         Some((r, c)) => {
-            let rows = slot.as_array()?;
+            let rows = slot.get("range").unwrap_or(slot).as_array()?;
             let row = rows.get(r)?.as_array()?;
             parse_hex_bits(row.get(c)?)
         }
@@ -57,7 +57,12 @@ pub fn set_axis_f64(args: &mut [Value], axis: usize, cell: Option<(usize, usize)
             true
         }
         Some((r, c)) => {
-            let Some(rows) = slot.as_array_mut() else {
+            let rows = if let Some(inner) = slot.get_mut("range") {
+                inner.as_array_mut()
+            } else {
+                slot.as_array_mut()
+            };
+            let Some(rows) = rows else {
                 return false;
             };
             let Some(row) = rows.get_mut(r).and_then(Value::as_array_mut) else {

@@ -43,6 +43,8 @@ pub struct SweepCounts {
     pub asked: usize,
     pub matched: usize,
     pub mismatched: usize,
+    #[serde(default)]
+    pub harness_fault: usize,
     pub unread: usize,
     pub crashed: usize,
     pub failed: usize,
@@ -241,7 +243,10 @@ pub fn build_sweep_recipe(
         recorded_envs.insert(env_id.clone(), rec);
     }
 
-    let total_failed = summary.total_mismatched + summary.total_unread + summary.total_crashed;
+    let total_failed = summary.total_mismatched
+        + summary.total_harness_fault
+        + summary.total_unread
+        + summary.total_crashed;
     let pass_rate_pct = if summary.total_asked == 0 {
         0.0
     } else {
@@ -295,6 +300,7 @@ pub fn build_sweep_recipe(
             asked: summary.total_asked,
             matched: summary.total_matched,
             mismatched: summary.total_mismatched,
+            harness_fault: summary.total_harness_fault,
             unread: summary.total_unread,
             crashed: summary.total_crashed,
             failed: total_failed,
@@ -370,7 +376,7 @@ pub fn verify_sweep_storage_policy(
     if !recipe.storage_policy.discrepancies_only {
         violations.push("storage_policy.discrepancies_only must be true".to_owned());
     }
-    if !recipe.parameters.dry_run && recipe.counts.asked > 0 {
+    if !recipe.parameters.dry_run && recipe.counts.asked > recipe.counts.harness_fault {
         if recipe.excel_builds.is_empty() {
             violations.push("live sweep recipe missing excel_builds".to_owned());
         }
@@ -407,6 +413,13 @@ pub fn verify_sweep_storage_policy(
             .map_err(|e| format!("decode {}: {e}", bpath.display()))?;
         for w in &ws.witnesses {
             match w.calc_func.as_deref() {
+                Some(cf) if super::cluster::is_dna_fault(cf) => {
+                    violations.push(format!(
+                        "bank-rows {} contains DNA-side harness fault witness {} ({cf})",
+                        bpath.display(),
+                        w.id
+                    ));
+                }
                 Some(cf) if cf != w.expected => discrepancy_rows += 1,
                 _ => {
                     matching_rows_in_bank += 1;

@@ -433,6 +433,8 @@ pub struct FuzzSummary {
     pub total_asked: usize,
     pub total_matched: usize,
     pub total_mismatched: usize,
+    pub total_harness_fault: usize,
+    pub harness_faults: BTreeMap<String, usize>,
     pub total_unread: usize,
     pub total_crashed: usize,
     pub rounds_run: usize,
@@ -453,7 +455,10 @@ pub struct FuzzSummary {
 /// frontier map, and discrepancy clusters.
 pub fn render_markdown_report(summary: &FuzzSummary) -> String {
     let mut md = String::new();
-    let total_fail = summary.total_mismatched + summary.total_unread + summary.total_crashed;
+    let total_fail = summary.total_mismatched
+        + summary.total_harness_fault
+        + summary.total_unread
+        + summary.total_crashed;
     let pass_rate = if summary.total_asked == 0 {
         0.0
     } else {
@@ -474,15 +479,19 @@ pub fn render_markdown_report(summary: &FuzzSummary) -> String {
             0.0
         };
         md.push_str(&format!(
-            "- Verdict: **{} matched / {} asked ({:.4}%)**, **{} failed** ({} mismatched, {} unread, {} crashed)\n",
+            "- Verdict: **{} matched / {} asked ({:.4}%)**, **{} failed** ({} mismatched, {} harness_fault, {} unread, {} crashed)\n",
             summary.total_matched,
             summary.total_asked,
             pass_rate,
             total_fail,
             summary.total_mismatched,
+            summary.total_harness_fault,
             summary.total_unread,
             summary.total_crashed
         ));
+        if !summary.harness_faults.is_empty() {
+            md.push_str(&format!("- Harness faults (coverage gaps, never banked/clustered): `{:?}`\n", summary.harness_faults));
+        }
         md.push_str(&format!(
             "- Throughput: `{:.1}` calls/s over `{:.2}s` Excel time (`{:.2}s` total wall); workers: `{:?}`\n",
             rate_s, summary.excel_seconds, summary.elapsed_seconds, summary.worker_calls
@@ -499,13 +508,13 @@ pub fn render_markdown_report(summary: &FuzzSummary) -> String {
     ));
 
     md.push_str("## Per-Region Coverage\n\n");
-    md.push_str("| Region | Asked | Matched | Mismatched | Unread | Crashed | Pass % | Worst ULP |\n");
-    md.push_str("|---|---:|---:|---:|---:|---:|---:|---:|\n");
+    md.push_str("| Region | Asked | Matched | Mismatched | Harness Fault | Unread | Crashed | Pass % | Worst ULP |\n");
+    md.push_str("|---|---:|---:|---:|---:|---:|---:|---:|---:|\n");
     for (region, st) in &summary.region_stats {
         let ulp = st.worst_ulp.map_or("-".to_owned(), |u| u.to_string());
         md.push_str(&format!(
-            "| `{region}` | {} | {} | {} | {} | {} | {:.3}% | {ulp} |\n",
-            st.asked, st.matched, st.mismatched, st.unread, st.crashed, st.pass_rate()
+            "| `{region}` | {} | {} | {} | {} | {} | {} | {:.3}% | {ulp} |\n",
+            st.asked, st.matched, st.mismatched, st.harness_fault, st.unread, st.crashed, st.pass_rate()
         ));
     }
 
@@ -678,6 +687,8 @@ pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         total_asked: 0,
         total_matched: 0,
         total_mismatched: 0,
+        total_harness_fault: 0,
+        harness_faults: BTreeMap::new(),
         total_unread: 0,
         total_crashed: 0,
         rounds_run: round,
@@ -756,6 +767,7 @@ pub fn write_outputs(
                     "asked": st.asked,
                     "matched": st.matched,
                     "mismatched": st.mismatched,
+                    "harness_fault": st.harness_fault,
                     "unread": st.unread,
                     "crashed": st.crashed,
                     "failed": st.total_failed(),
@@ -776,9 +788,11 @@ pub fn write_outputs(
         "total_asked": summary.total_asked,
         "total_matched": summary.total_matched,
         "total_mismatched": summary.total_mismatched,
+        "total_harness_fault": summary.total_harness_fault,
+        "harness_faults": summary.harness_faults,
         "total_unread": summary.total_unread,
         "total_crashed": summary.total_crashed,
-        "total_failed": summary.total_mismatched + summary.total_unread + summary.total_crashed,
+        "total_failed": summary.total_mismatched + summary.total_harness_fault + summary.total_unread + summary.total_crashed,
         "pass_rate_pct": if summary.total_asked == 0 { 0.0 } else { (summary.total_matched as f64) * 100.0 / (summary.total_asked as f64) },
         "rounds_run": summary.rounds_run,
         "stop_reason": summary.stop_reason,
@@ -1127,7 +1141,10 @@ pub fn run(raw: &[String]) -> ExitCode {
                     cfg.out_dir.display()
                 );
             } else {
-                let fail = summary.total_mismatched + summary.total_unread + summary.total_crashed;
+                let fail = summary.total_mismatched
+                    + summary.total_harness_fault
+                    + summary.total_unread
+                    + summary.total_crashed;
                 let pct = if summary.total_asked == 0 {
                     0.0
                 } else {
@@ -1139,13 +1156,14 @@ pub fn run(raw: &[String]) -> ExitCode {
                     0.0
                 };
                 println!(
-                    "xtask fuzz {}: {}/{} matched ({:.4}%), {} failed ({} mismatched, {} unread, {} crashed), {} clusters, routes {}/{}, frontiers {}, {:.1} calls/s, workers {:?}, out {}",
+                    "xtask fuzz {}: {}/{} matched ({:.4}%), {} failed ({} mismatched, {} harness_fault, {} unread, {} crashed), {} clusters, routes {}/{}, frontiers {}, {:.1} calls/s, workers {:?}, out {}",
                     summary.function,
                     summary.total_matched,
                     summary.total_asked,
                     pct,
                     fail,
                     summary.total_mismatched,
+                    summary.total_harness_fault,
                     summary.total_unread,
                     summary.total_crashed,
                     summary.clusters.len(),

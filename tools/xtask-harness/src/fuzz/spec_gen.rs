@@ -8,8 +8,9 @@ use super::hints::{
 use super::oracle::json_arg_to_touchstone;
 use super::rng::{Rng, hex_f64, is_value2_exact, parse_hex_bits, pow2_f64, step_ulps};
 use calc_catalogue::{
-    ArgumentGroups, Availability, DeclarationRef, EntryClass, Implementation, LegacyContext,
-    Lifting, LiftingMode, LiftingOrigin, Notation, ParameterClass, parameter_lifting,
+    ArgumentGroups, Availability, ContextFacility, DeclarationRef, EntryClass, Implementation,
+    LegacyContext, Lifting, LiftingMode, LiftingOrigin, Notation, ParameterClass, ResultForm,
+    parameter_lifting,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -98,6 +99,12 @@ pub struct GenericArgSpec {
 }
 
 impl GenericArgSpec {
+    /// True when Excel / CalcFunc requires a worksheet reference (not a value array or scalar)
+    /// at this argument position.
+    pub fn is_reference_only(&self) -> bool {
+        self.class == ParameterClass::Reference || self.entry_class == EntryClass::Reference
+    }
+
     pub fn to_json(&self) -> Value {
         json!({
             "index": self.index,
@@ -123,6 +130,8 @@ pub struct MergedSpec {
     pub function: String,
     pub implementation: Implementation,
     pub availability: Availability,
+    pub may_return_reference: bool,
+    pub uses_callables: bool,
     pub min_arity: usize,
     pub max_arity: usize,
     pub groups: Option<ArgumentGroups>,
@@ -186,6 +195,18 @@ impl MergedSpec {
 
     pub fn has_hint_error_edges(&self) -> bool {
         self.has_hint_file && !self.parsed_error_edges.is_empty()
+    }
+
+    /// Static metadata reason to skip a function in the standing sweep (e.g. deferred/unheld
+    /// implementation or higher-order callable/LAMBDA parameters with no Touchstone transport).
+    pub fn sweep_static_skip_reason(&self) -> Option<String> {
+        if self.implementation != Implementation::Held {
+            return Some(format!("implementation:{:?}", self.implementation));
+        }
+        if self.uses_callables {
+            return Some("requires-callable-lambda".to_owned());
+        }
+        None
     }
 
     pub fn to_json(&self) -> Value {
@@ -794,6 +815,8 @@ pub fn build_merged_spec(function: &str, hints: &HintBank) -> Result<MergedSpec,
         function: name,
         implementation: decl.implementation(),
         availability: decl.availability(),
+        may_return_reference: decl.result() == ResultForm::MayBeReference,
+        uses_callables: decl.uses_context(ContextFacility::Callables),
         min_arity,
         max_arity,
         groups: decl.groups(),
@@ -881,9 +904,23 @@ fn sample_outside_range(lo: f64, hi: f64, kind: HintArgKind, rng: &mut Rng) -> f
     value2_safe_f64(candidate).unwrap_or(if below { -1.0 } else { 1.0 })
 }
 
+fn gen_cell_range(rows: usize, cols: usize, rng: &mut Rng, mode: u8) -> Value {
+    let rows = rows.clamp(1, 32);
+    let cols = cols.clamp(1, (128 / rows).max(1).min(32));
+    json!({ "range": gen_numeric_array(rows, cols, rng, mode) })
+}
+
 fn gen_arg_value(arg: &GenericArgSpec, rng: &mut Rng, mode: u8) -> Value {
+    if arg.is_reference_only() || arg.kind == HintArgKind::Reference {
+        let (rows, cols) = match mode {
+            0 => (1 + rng.gen_range(4), 1),
+            1 => (1 + rng.gen_range(3), 1 + rng.gen_range(3)),
+            _ => (2 + rng.gen_range(4), 1),
+        };
+        return gen_cell_range(rows, cols, rng, mode);
+    }
     match arg.kind {
-        HintArgKind::Array | HintArgKind::Reference => {
+        HintArgKind::Array => {
             let (rows, cols) = match mode {
                 0 => (1 + rng.gen_range(4), 1),
                 1 => (1 + rng.gen_range(3), 1 + rng.gen_range(3)),
@@ -891,6 +928,7 @@ fn gen_arg_value(arg: &GenericArgSpec, rng: &mut Rng, mode: u8) -> Value {
             };
             gen_numeric_array(rows, cols, rng, mode)
         }
+        HintArgKind::Reference => unreachable!(),
         HintArgKind::Logical => {
             if !arg.specials.is_empty() && rng.chance(0.4) {
                 rng.pick(&arg.specials).clone()
@@ -1086,8 +1124,15 @@ pub fn generate_spec_region(merged: &MergedSpec, region: SpecRegionKind, rng: &m
             let mut out: Vec<Value> = (0..arity)
                 .map(|i| {
                     let arg = &merged.args[i];
-                    if arg.optional && rng.chance(0.2) {
+                    if arg.optional && !arg.is_reference_only() && rng.chance(0.2) {
                         Value::Null
+                    } else if merged.may_return_reference
+                        && arg.class == ParameterClass::ValueOrReference
+                        && arg.lifting.takes_whole_array()
+                        && rng.chance(0.35)
+                    {
+                        let (r, c) = (2 + rng.gen_range(4), 1 + rng.gen_range(2));
+                        gen_cell_range(r, c, rng, 2)
                     } else {
                         gen_arg_value(arg, rng, 2)
                     }
@@ -1099,17 +1144,25 @@ pub fn generate_spec_region(merged: &MergedSpec, region: SpecRegionKind, rng: &m
             out
         }
         SpecRegionKind::LiftingAndShapes => {
-            // Exercise dc-dfl.2.6 lifting metadata: vary array shapes (1x1, 1xN, Nx1, RxC) on
+            // Exercise dc-dfl.2.6 lifting metadata: vary array/range shapes (1x1, 1xN, Nx1, RxC) on
             // whole-array/reference parameters while keeping elementwise-lifting parameters scalar
             // so single-cell Touchstone bulk calls do not spill unexpectedly.
             (0..arity)
                 .map(|i| {
                     let arg = &merged.args[i];
-                    if arg.lifting.takes_whole_array()
-                        || matches!(arg.kind, HintArgKind::Array | HintArgKind::Reference)
-                    {
+                    if arg.is_reference_only() || arg.kind == HintArgKind::Reference {
                         let (r, c) = *rng.pick(&[(1, 1), (1, 3), (3, 1), (2, 2), (3, 2)]);
-                        gen_numeric_array(r, c, rng, 1)
+                        gen_cell_range(r, c, rng, 1)
+                    } else if arg.lifting.takes_whole_array() || arg.kind == HintArgKind::Array {
+                        let (r, c) = *rng.pick(&[(1, 1), (1, 3), (3, 1), (2, 2), (3, 2)]);
+                        if merged.may_return_reference
+                            && arg.class == ParameterClass::ValueOrReference
+                            && rng.chance(0.5)
+                        {
+                            gen_cell_range(r, c, rng, 1)
+                        } else {
+                            gen_numeric_array(r, c, rng, 1)
+                        }
                     } else {
                         gen_arg_value(arg, rng, 0)
                     }

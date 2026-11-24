@@ -804,17 +804,18 @@ fn fuzz_section(root: &Path) -> Result<String, String> {
     let summary = metric("Fuzz sweeps", matched, swept, &evidence)?;
     let _ = write!(html, r#"<div class="site-metrics">{summary}</div>"#);
     html.push_str(
-        r#"<div class="site-table"><table><thead><tr><th>Function</th><th>Cases swept</th><th>Matched</th><th>Failed</th><th>Regions covered</th><th>Frontiers mapped</th><th>Open clusters</th><th>Last sweep</th></tr></thead><tbody>"#,
+        r#"<div class="site-table"><table><thead><tr><th>Function</th><th>Cases swept</th><th>Matched</th><th>Failed</th><th>Harness faults</th><th>Regions covered</th><th>Frontiers mapped</th><th>Open clusters</th><th>Last sweep</th></tr></thead><tbody>"#,
     );
     for row in &rows {
         let _ = write!(
             html,
-            r#"<tr><th scope="row"><a href="/fun/function-bank.html#{}">{}</a></th><td>{}</td><td>{}</td><td>{}</td><td>{} / {}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
+            r#"<tr><th scope="row"><a href="/fun/function-bank.html#{}">{}</a></th><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{} / {}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
             escape(&hash_name(&row.function)),
             escape(&row.function),
             number(row.cases_swept),
             number(row.matched),
             number(row.failed),
+            number(row.harness_faults),
             number(row.regions_covered),
             number(row.regions_total),
             number(row.frontiers_mapped),
@@ -1074,6 +1075,7 @@ mod tests {
                 cases_swept: 1200,
                 matched: 1150,
                 failed: 50,
+                harness_faults: 5,
                 regions_covered: 7,
                 regions_total: 8,
                 frontiers_mapped: 12,
@@ -1087,6 +1089,7 @@ mod tests {
                 cases_swept: 500,
                 matched: 500,
                 failed: 0,
+                harness_faults: 0,
                 regions_covered: 6,
                 regions_total: 6,
                 frontiers_mapped: 4,
@@ -1102,8 +1105,8 @@ mod tests {
         assert!(html.contains("2 functions · 16 frontiers · 3 open clusters · last sweep 2026-11-24"));
         assert!(html.contains(r#"href="/fun/function-bank.html#IRR">IRR</a>"#));
         assert!(html.contains(r#"href="/fun/function-bank.html#NORM-S-INV">NORM.S.INV</a>"#));
-        assert!(html.contains("<td>1,200</td><td>1,150</td><td>50</td><td>7 / 8</td><td>12</td><td>3</td><td>2026-11-24</td>"));
-        assert!(html.contains("<td>500</td><td>500</td><td>0</td><td>6 / 6</td><td>4</td><td>0</td><td>2026-11-23</td>"));
+        assert!(html.contains("<td>1,200</td><td>1,150</td><td>50</td><td>5</td><td>7 / 8</td><td>12</td><td>3</td><td>2026-11-24</td>"));
+        assert!(html.contains("<td>500</td><td>500</td><td>0</td><td>0</td><td>6 / 6</td><td>4</td><td>0</td><td>2026-11-23</td>"));
 
         let _ = fs::remove_dir_all(&base);
     }

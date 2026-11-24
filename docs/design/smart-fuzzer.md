@@ -202,12 +202,14 @@ Standing workflow (`dc-ztvv.26.4`; practical lessons and cycle log in
 [docs/research/fuzz-playbook.md](../research/fuzz-playbook.md)):
 
 1. **Automatic filing and pre-triage filter:** `cargo xtask fuzz sweep --tracker` files each new
-   `(function, cluster_key)` once under `dc-ztvv.26` with label `fuzz-sweep-cluster` and external
-   ref `dnacalc-fuzz:<sha256>` (`P1` for `gross`/`structural`, `P2` for `numeric`/`last_bit`).
-   Before assigning a bead to a Carbon round, separate harness/transport faults
-   (`fault:ReferenceRequired`, `error:SPILL!_vs_fault:ResultShape`, `fault:NotImplemented`) from
-   genuine Excel-vs-CalcFunc discrepancies; route harness faults to fuzzer/hint maintenance
-   (`dc-ztvv.26.11` / `dc-ztvv.26.10`) instead of spending Carbon cycles on them.
+   genuine `(function, cluster_key)` once under `dc-j9k` with label `fuzz-sweep-cluster` and
+   external ref `dnacalc-fuzz:<sha256>` (`P1` for `gross`/`structural`, `P2` for `numeric`/`last_bit`).
+   DNA-side harness/coverage faults (`fault:*` such as `fault:ReferenceRequired`, `fault:ResultShape`,
+   `fault:NotImplemented`, `fault:WitnessReferencePosition`, `fault:ReferenceUnreadable`) are counted
+   in `total_harness_fault` and `crates/calc-func/fuzz-status.tsv` (`harness_faults`) and never
+   exported to `bank-rows` or filed as discrepancy clusters (`dc-ztvv.26.107`). Reference-only
+   parameters (`ParameterClass::Reference` / `EntryClass::Reference`) receive real rectangular
+   worksheet ranges (`rRxC` / `{"range": [[...]]}`) on both sides.
 2. **Ranking order:** rank genuine open cluster beads by:
    1. **Kind / severity:** `number <-> error` first, then `error_A <-> error_B`, then `gross`
       (`> 1,024` ULP), then `numeric` (`5..1,024` ULP), then `last_bit` (`1..4` ULP).
@@ -265,8 +267,8 @@ python3 docs/fun/tools/refresh_function_bank.py
 excludes dry runs and interrupted attempts, resolves open vs closed cluster status against
 `.beads/issues.jsonl` using the shared `dnacalc-fuzz:<sha256>` external reference, and writes
 `crates/calc-func/fuzz-status.tsv` (`function`, `sweeps`, `cases_swept`, `matched`, `failed`,
-`regions_covered`, `regions_total`, `frontiers_mapped`, `open_clusters`, `last_sweep_date`,
-`last_sweep_commit`). `dnacalc.com/status` (`tools/xtask-harness/src/site/marketing.rs`) reads
+`harness_faults`, `regions_covered`, `regions_total`, `frontiers_mapped`, `open_clusters`,
+`last_sweep_date`, `last_sweep_commit`). `dnacalc.com/status` (`tools/xtask-harness/src/site/marketing.rs`) reads
 `crates/calc-func/fuzz-status.tsv` directly, and `docs/fun/tools/refresh_function_bank.py`
 embeds it as `const FUZZ` in `docs/fun/function-bank-data.js` for the Function Bank detail card
 and conformance table.

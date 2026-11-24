@@ -42,6 +42,28 @@ const MAX_FRAME: usize = 64 * 1024 * 1024;
 const SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
 const RECONNECT_WINDOW: Duration = Duration::from_secs(90);
 
+/// One typed cell inside a rectangular worksheet range (`rRxC`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RangeCell {
+    Number(u64),
+    Text(String),
+    Boolean(bool),
+    Error(String),
+    Blank,
+}
+
+impl RangeCell {
+    fn to_wire_json(&self) -> Value {
+        match self {
+            RangeCell::Number(bits) => json!({"type": "number", "bits": format!("{bits:016x}")}),
+            RangeCell::Text(s) => json!({"type": "text", "value": s}),
+            RangeCell::Boolean(b) => json!({"type": "boolean", "value": b}),
+            RangeCell::Error(code) => json!({"type": "error", "code": code}),
+            RangeCell::Blank => json!({"type": "blank"}),
+        }
+    }
+}
+
 /// One typed argument of a call.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Arg {
@@ -61,6 +83,12 @@ pub enum Arg {
         cols: usize,
         bits: Vec<u64>,
     },
+    /// A real rectangular worksheet range (`rRxC`, row-major typed cells) placed on sheet `Q`.
+    Range {
+        rows: usize,
+        cols: usize,
+        cells: Vec<RangeCell>,
+    },
 }
 
 impl Arg {
@@ -79,6 +107,7 @@ impl Arg {
             Arg::Error(_) => "e".into(),
             Arg::Blank => "z".into(),
             Arg::Array { rows, cols, .. } => format!("a{rows}x{cols}"),
+            Arg::Range { rows, cols, .. } => format!("r{rows}x{cols}"),
         }
     }
     fn push_values(&self, out: &mut Vec<Value>) {
@@ -91,11 +120,14 @@ impl Arg {
             Arg::Array { bits, .. } => {
                 out.extend(bits.iter().map(|b| Value::String(format!("{b:016x}"))))
             }
+            Arg::Range { cells, .. } => {
+                out.extend(cells.iter().map(RangeCell::to_wire_json));
+            }
         }
     }
     fn width(&self) -> usize {
         match self {
-            Arg::Array { rows, cols, .. } => rows * cols,
+            Arg::Array { rows, cols, .. } | Arg::Range { rows, cols, .. } => rows * cols,
             _ => 1,
         }
     }
@@ -1153,6 +1185,34 @@ mod tests {
             );
         }
         assert_eq!(seen, [b'A', b'D']);
+    }
+
+    #[test]
+    fn ranges_encode_as_typed_cells_with_r_shape_key() {
+        let range = Arg::Range {
+            rows: 2,
+            cols: 2,
+            cells: vec![
+                RangeCell::Number(0x3ff0_0000_0000_0000),
+                RangeCell::Text("hi".into()),
+                RangeCell::Boolean(true),
+                RangeCell::Blank,
+            ],
+        };
+        let request = Request::new("COUNTIF", vec![vec![range, Arg::Text(">0".into())]]);
+        let groups = group_rows(&request);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].key, "r2x2,s");
+        assert_eq!(groups[0].width, 5);
+        assert_eq!(groups[0].values.len(), 5);
+        assert_eq!(
+            groups[0].values[0],
+            json!({"type": "number", "bits": "3ff0000000000000"})
+        );
+        assert_eq!(groups[0].values[1], json!({"type": "text", "value": "hi"}));
+        assert_eq!(groups[0].values[2], json!({"type": "boolean", "value": true}));
+        assert_eq!(groups[0].values[3], json!({"type": "blank"}));
+        assert_eq!(groups[0].values[4], json!(">0"));
     }
 
     #[test]

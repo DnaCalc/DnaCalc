@@ -24,6 +24,7 @@ pub enum ParamKind {
     Probability,
     IntegerSmall,
     ArrayNumeric,
+    CellRange,
 }
 
 /// One parameter specification derived from `calc-catalogue`.
@@ -164,13 +165,29 @@ const COERCION_TEXTS: &[&str] = &[
 
 const ERROR_VARIANTS: &[&str] = &["Num", "Div0", "Value", "NA", "Ref", "Name", "Null"];
 
-fn infer_param_kind(name: &str, class: ParameterClass) -> ParamKind {
+fn infer_param_kind(
+    name: &str,
+    class: ParameterClass,
+    merged_arg: Option<&super::spec_gen::GenericArgSpec>,
+) -> ParamKind {
+    if merged_arg.is_some_and(|a| a.is_reference_only()) || class == ParameterClass::Reference {
+        return ParamKind::CellRange;
+    }
+    if let Some(a) = merged_arg {
+        match a.kind {
+            super::hints::HintArgKind::Reference => return ParamKind::CellRange,
+            super::hints::HintArgKind::Array => return ParamKind::ArrayNumeric,
+            super::hints::HintArgKind::Criteria
+            | super::hints::HintArgKind::Logical
+            | super::hints::HintArgKind::Text => return ParamKind::RealGeneral,
+            _ => {}
+        }
+    }
     let lower = name.to_ascii_lowercase();
-    if matches!(class, ParameterClass::Reference | ParameterClass::ValueOrReference)
-        || lower.contains("values")
+    if lower.contains("values")
         || lower.contains("array")
-        || lower.contains("range")
         || lower.contains("schedule")
+        || (lower.contains("range") && !lower.contains("lookup"))
     {
         return ParamKind::ArrayNumeric;
     }
@@ -399,7 +416,7 @@ impl DomainSpec {
                 None => (format!("arg{i}"), ParameterClass::Value),
             };
             params.push(ParamSpec {
-                kind: infer_param_kind(&pname, pclass),
+                kind: infer_param_kind(&pname, pclass, merged.args.get(i)),
                 name: pname,
                 class: pclass,
                 optional: i >= min_arity,
@@ -515,7 +532,7 @@ impl DomainSpec {
     }
 
     fn gen_param_value(&self, param: &ParamSpec, rng: &mut Rng, mode: u8) -> Value {
-        if param.kind == ParamKind::ArrayNumeric {
+        if matches!(param.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
             let len = 2 + rng.gen_range(6);
             let mut rows = Vec::with_capacity(len);
             for k in 0..len {
@@ -531,7 +548,11 @@ impl DomainSpec {
                 }
                 rows.push(Value::Array(vec![hex_f64(v)]));
             }
-            return Value::Array(rows);
+            return if param.kind == ParamKind::CellRange {
+                json!({ "range": rows })
+            } else {
+                Value::Array(rows)
+            };
         }
         let val = match param.kind {
             ParamKind::Timing => *rng.pick(&[0.0, 1.0, -1.0, 2.0, 0.5, 1e-12]),
@@ -574,7 +595,7 @@ impl DomainSpec {
                 1 => rng.log_uniform(-1020, 1020, true),
                 _ => *rng.pick(DECIMAL_LITERALS) * if rng.chance(0.5) { -1.0 } else { 1.0 },
             },
-            ParamKind::ArrayNumeric => unreachable!(),
+            ParamKind::ArrayNumeric | ParamKind::CellRange => unreachable!(),
         };
         hex_f64(val)
     }
@@ -584,7 +605,7 @@ impl DomainSpec {
         (0..arity)
             .map(|i| {
                 let p = &self.params[i];
-                if p.kind == ParamKind::ArrayNumeric {
+                if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
                     self.gen_param_value(p, rng, 0)
                 } else if rng.chance(0.25) {
                     let base = *rng.pick(DECIMAL_LITERALS);
@@ -613,7 +634,7 @@ impl DomainSpec {
         (0..arity)
             .map(|i| {
                 let p = &self.params[i];
-                if p.kind == ParamKind::ArrayNumeric {
+                if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
                     return self.gen_param_value(p, rng, 1);
                 }
                 let code = (pattern >> (i * 2)) & 3;
@@ -640,7 +661,7 @@ impl DomainSpec {
         (0..arity)
             .map(|i| {
                 let p = &self.params[i];
-                if p.kind == ParamKind::ArrayNumeric {
+                if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
                     return self.gen_param_value(p, rng, 1);
                 }
                 if p.kind == ParamKind::Timing && rng.chance(0.8) {
@@ -663,7 +684,7 @@ impl DomainSpec {
         (0..arity)
             .map(|i| {
                 let p = &self.params[i];
-                if p.kind == ParamKind::ArrayNumeric {
+                if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
                     return self.gen_param_value(p, rng, 2);
                 }
                 let base = if p.kind == ParamKind::DateSerial {
@@ -701,7 +722,7 @@ impl DomainSpec {
         (0..arity)
             .map(|i| {
                 let p = &self.params[i];
-                if p.optional && rng.chance(0.35) {
+                if p.optional && p.kind != ParamKind::CellRange && rng.chance(0.35) {
                     Value::Null
                 } else {
                     self.gen_param_value(p, rng, 2)
@@ -719,15 +740,32 @@ impl DomainSpec {
             return row;
         }
         let pos = rng.gen_range(arity);
-        if self.params[pos].kind == ParamKind::ArrayNumeric {
-            return row;
-        }
-        row[pos] = match rng.gen_range(4) {
+        let coerced = match rng.gen_range(4) {
             0 => Value::String((*rng.pick(COERCION_TEXTS)).to_owned()),
             1 => Value::Bool(rng.chance(0.5)),
             2 => Value::Null,
             _ => json!({"error": *rng.pick(ERROR_VARIANTS)}),
         };
+        if self.params[pos].kind == ParamKind::CellRange {
+            // Place the non-numeric edge cell inside the real cell range so both Excel and DNA Calc
+            // evaluate range-cell coercion rather than hitting a non-reference fault.
+            if let Some(rows) = row[pos].get_mut("range").and_then(Value::as_array_mut)
+                && !rows.is_empty()
+            {
+                let r = rng.gen_range(rows.len());
+                if let Some(cells) = rows[r].as_array_mut()
+                    && !cells.is_empty()
+                {
+                    let c = rng.gen_range(cells.len());
+                    cells[c] = coerced;
+                }
+            }
+            return row;
+        }
+        if self.params[pos].kind == ParamKind::ArrayNumeric {
+            return row;
+        }
+        row[pos] = coerced;
         row
     }
 }
@@ -1482,8 +1520,9 @@ pub fn mutate_case(spec: &DomainSpec, parent: &[Value], rng: &mut Rng) -> Vec<Va
         return out;
     }
     let idx = rng.gen_range(out.len());
-    // Mutate a numeric array element (e.g. IRR values)
-    if let Some(rows) = out[idx].as_array().cloned() {
+    // Mutate a numeric element inside a real cell range (`{"range": [[...]]}`) or numeric array
+    let is_range = out[idx].get("range").is_some();
+    if let Some(rows) = out[idx].get("range").unwrap_or(&out[idx]).as_array().cloned() {
         if !rows.is_empty() {
             let r = rng.gen_range(rows.len());
             if let Some(cells) = rows[r].as_array().cloned()
@@ -1497,7 +1536,11 @@ pub fn mutate_case(spec: &DomainSpec, parent: &[Value], rng: &mut Rng) -> Vec<Va
                     let mut new_cells = cells;
                     new_cells[c] = hex_f64(mutated);
                     new_rows[r] = Value::Array(new_cells);
-                    out[idx] = Value::Array(new_rows);
+                    out[idx] = if is_range {
+                        json!({ "range": new_rows })
+                    } else {
+                        Value::Array(new_rows)
+                    };
                     return out;
                 }
             }

@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const USAGE: &str = "cargo xtask fuzz coverage --records <dir> [--records <dir>...] [--beads <issues.jsonl>] [--out <tsv>] [--merge]";
 pub const FUZZ_STATUS_PATH: &str = "crates/calc-func/fuzz-status.tsv";
-pub const FUZZ_STATUS_HEADER: &str = "function\tsweeps\tcases_swept\tmatched\tfailed\tregions_covered\tregions_total\tfrontiers_mapped\topen_clusters\tlast_sweep_date\tlast_sweep_commit";
+pub const FUZZ_STATUS_HEADER: &str = "function\tsweeps\tcases_swept\tmatched\tfailed\tharness_faults\tregions_covered\tregions_total\tfrontiers_mapped\topen_clusters\tlast_sweep_date\tlast_sweep_commit";
 
 /// One per-function row in `crates/calc-func/fuzz-status.tsv`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +24,7 @@ pub struct FuzzCoverageRow {
     pub cases_swept: u64,
     pub matched: u64,
     pub failed: u64,
+    pub harness_faults: u64,
     pub regions_covered: u64,
     pub regions_total: u64,
     pub frontiers_mapped: u64,
@@ -103,6 +104,7 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
     let idx_swept = col("cases_swept")?;
     let idx_matched = col("matched")?;
     let idx_failed = col("failed")?;
+    let idx_harness_faults = headers.iter().position(|h| *h == "harness_faults");
     let idx_reg_cov = col("regions_covered")?;
     let idx_reg_tot = col("regions_total")?;
     let idx_frontiers = col("frontiers_mapped")?;
@@ -133,9 +135,19 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
         let cases_swept = u64_at(idx_swept, "cases_swept")?;
         let matched = u64_at(idx_matched, "matched")?;
         let failed = u64_at(idx_failed, "failed")?;
+        let harness_faults = match idx_harness_faults {
+            Some(idx) => u64_at(idx, "harness_faults")?,
+            None => 0,
+        };
         if matched.saturating_add(failed) != cases_swept {
             return Err(format!(
                 "fuzz-status.tsv line {} ({function}): matched ({matched}) + failed ({failed}) != cases_swept ({cases_swept})",
+                line_no + 2
+            ));
+        }
+        if harness_faults > failed {
+            return Err(format!(
+                "fuzz-status.tsv line {} ({function}): harness_faults ({harness_faults}) > failed ({failed})",
                 line_no + 2
             ));
         }
@@ -153,6 +165,7 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
             cases_swept,
             matched,
             failed,
+            harness_faults,
             regions_covered,
             regions_total,
             frontiers_mapped: u64_at(idx_frontiers, "frontiers_mapped")?,
@@ -173,12 +186,13 @@ pub fn format_tsv(rows: &[FuzzCoverageRow]) -> String {
     out.push('\n');
     for r in &sorted {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             r.function,
             r.sweeps,
             r.cases_swept,
             r.matched,
             r.failed,
+            r.harness_faults,
             r.regions_covered,
             r.regions_total,
             r.frontiers_mapped,
@@ -392,6 +406,7 @@ struct FunctionAcc {
     cases_swept: u64,
     matched: u64,
     failed: u64,
+    harness_faults: u64,
     regions_covered: BTreeSet<String>,
     regions_total: BTreeSet<String>,
     unique_frontiers: BTreeSet<String>,
@@ -433,7 +448,10 @@ pub fn collect_from_records(
             continue;
         }
         let total_asked = summary["total_asked"].as_u64().unwrap_or(0);
-        if total_asked == 0 {
+        let skipped = summary["stop_reason"]
+            .as_str()
+            .is_some_and(|r| r.starts_with("skipped:"));
+        if total_asked == 0 && !skipped {
             continue;
         }
         let function = summary["function"]
@@ -451,12 +469,16 @@ pub fn collect_from_records(
         }
 
         let total_matched = summary["total_matched"].as_u64().unwrap_or(0);
+        let total_harness_fault = summary["total_harness_fault"].as_u64().unwrap_or(0);
         let total_failed = match (
             summary["total_mismatched"].as_u64(),
             summary["total_unread"].as_u64(),
             summary["total_crashed"].as_u64(),
         ) {
-            (Some(m), Some(u), Some(c)) => m.saturating_add(u).saturating_add(c),
+            (Some(m), Some(u), Some(c)) => m
+                .saturating_add(total_harness_fault)
+                .saturating_add(u)
+                .saturating_add(c),
             _ => summary["total_failed"]
                 .as_u64()
                 .unwrap_or_else(|| total_asked.saturating_sub(total_matched)),
@@ -520,6 +542,7 @@ pub fn collect_from_records(
         acc.cases_swept += total_asked;
         acc.matched += total_matched;
         acc.failed += total_failed;
+        acc.harness_faults += total_harness_fault;
 
         if let Some(regions) = summary["regions"].as_object() {
             for (name, stats) in regions {
@@ -570,6 +593,14 @@ pub fn collect_from_records(
         if let Some(clusters) = summary["clusters"].as_array() {
             for cluster in clusters {
                 if let Some(key) = cluster["key"].as_str() {
+                    let kind = cluster["kind"].as_str().unwrap_or("");
+                    let rep_calc = cluster["minimal_rep"]["calc_func"].as_str().unwrap_or("");
+                    if super::cluster::is_dna_fault(rep_calc)
+                        || kind.contains("fault:")
+                        || key.contains("fault:")
+                    {
+                        continue;
+                    }
                     let ext_ref = cluster_external_ref(&function, key);
                     let explicit_bead = cluster["bead"].as_str();
                     if !beads.is_closed(&ext_ref, explicit_bead) {
@@ -610,6 +641,7 @@ pub fn collect_from_records(
                 cases_swept: acc.cases_swept,
                 matched: acc.matched,
                 failed: acc.failed,
+                harness_faults: acc.harness_faults,
                 regions_covered,
                 regions_total,
                 frontiers_mapped,
@@ -679,14 +711,16 @@ pub(super) fn run(raw: &[String]) -> ExitCode {
             let swept: u64 = rows.iter().map(|r| r.cases_swept).sum();
             let matched: u64 = rows.iter().map(|r| r.matched).sum();
             let failed: u64 = rows.iter().map(|r| r.failed).sum();
+            let harness_faults: u64 = rows.iter().map(|r| r.harness_faults).sum();
             let frontiers: u64 = rows.iter().map(|r| r.frontiers_mapped).sum();
             let clusters: u64 = rows.iter().map(|r| r.open_clusters).sum();
             println!(
-                "xtask fuzz coverage: {} functions, {} cases swept ({} matched, {} failed), {} frontiers, {} open clusters -> {}",
+                "xtask fuzz coverage: {} functions, {} cases swept ({} matched, {} failed, {} harness_faults), {} frontiers, {} open clusters -> {}",
                 rows.len(),
                 swept,
                 matched,
                 failed,
+                harness_faults,
                 frontiers,
                 clusters,
                 options.out.display()
@@ -793,6 +827,7 @@ mod tests {
                 asked: 40,
                 matched: 36,
                 mismatched: 4,
+                harness_fault: 0,
                 unread: 0,
                 crashed: 0,
                 worst_ulp: None,
@@ -805,6 +840,7 @@ mod tests {
                 asked: 60,
                 matched: 60,
                 mismatched: 0,
+                harness_fault: 0,
                 unread: 0,
                 crashed: 0,
                 worst_ulp: None,
@@ -820,6 +856,8 @@ mod tests {
             total_asked: 100,
             total_matched: 96,
             total_mismatched: 4,
+            total_harness_fault: 0,
+            harness_faults: BTreeMap::new(),
             total_unread: 0,
             total_crashed: 0,
             rounds_run: 2,
@@ -911,19 +949,21 @@ mod tests {
                 "seed": 77,
                 "dry_run": false,
                 "total_asked": 50,
-                "total_matched": 45,
+                "total_matched": 42,
                 "total_mismatched": 4,
+                "total_harness_fault": 3,
                 "total_unread": 1,
                 "total_crashed": 0,
                 "case_list_sha256": "bbbb2222",
                 "frontier_count": 3,
                 "regions": {
-                    "special_values": {"asked": 20, "matched": 18, "mismatched": 2, "unread": 0, "crashed": 0},
-                    "sign_patterns": {"asked": 30, "matched": 27, "mismatched": 2, "unread": 1, "crashed": 0},
-                    "log_uniform": {"asked": 0, "matched": 0, "mismatched": 0, "unread": 0, "crashed": 0}
+                    "special_values": {"asked": 20, "matched": 18, "mismatched": 2, "harness_fault": 0, "unread": 0, "crashed": 0},
+                    "sign_patterns": {"asked": 30, "matched": 24, "mismatched": 2, "harness_fault": 3, "unread": 1, "crashed": 0},
+                    "log_uniform": {"asked": 0, "matched": 0, "mismatched": 0, "harness_fault": 0, "unread": 0, "crashed": 0}
                 },
                 "clusters": [
-                    {"id": "C01", "key": "irr-cluster-open", "count": 4}
+                    {"id": "C01", "key": "irr-cluster-open", "count": 4},
+                    {"id": "C02", "key": "error:Value_vs_fault:NotImplemented|legacy", "kind": "error:Value_vs_fault:NotImplemented", "count": 3}
                 ]
             }))
             .unwrap(),
@@ -994,12 +1034,13 @@ mod tests {
         assert_eq!(irr.function, "IRR");
         assert_eq!(irr.sweeps, 1);
         assert_eq!(irr.cases_swept, 50);
-        assert_eq!(irr.matched, 45);
-        assert_eq!(irr.failed, 5);
+        assert_eq!(irr.matched, 42);
+        assert_eq!(irr.failed, 8);
+        assert_eq!(irr.harness_faults, 3);
         assert_eq!(irr.regions_covered, 2);
         assert_eq!(irr.regions_total, 3);
         assert_eq!(irr.frontiers_mapped, 3);
-        assert_eq!(irr.open_clusters, 1);
+        assert_eq!(irr.open_clusters, 1, "legacy fault cluster must be ignored");
         assert_eq!(irr.last_sweep_date, "2026-11-24");
         assert_eq!(irr.last_sweep_commit, "abcdef1234");
 
@@ -1045,6 +1086,7 @@ mod tests {
             cases_swept: 200,
             matched: 200,
             failed: 0,
+            harness_faults: 0,
             regions_covered: 4,
             regions_total: 4,
             frontiers_mapped: 1,

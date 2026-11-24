@@ -363,21 +363,24 @@ pub fn calculate_with_reference_text(
             }
         }
     }
-    // The attested Touchstone array worker builds numeric arrays with CHOOSE
-    // and passes scalar errors as references to their source cells. Preserve
-    // that origin for regression without inventing the cells' worksheet positions.
-    let mixed_regression_error_cells = !cell_transport
-        && matches!(target.spelling(), "LINEST" | "LOGEST")
+    // The attested Touchstone bulk worker builds numeric arrays with CHOOSE and places
+    // every scalar/blank/error argument in a worksheet cell on sheet S (`RC[...]`). Preserve
+    // that cell-reference origin for non-array reference/value-or-reference parameters without
+    // claiming known row/column positions (arrays shift column offsets).
+    let mixed_bulk_scalar_cells = !cell_transport
         && args.iter().all(|arg| arg.get("range").is_none())
         && values.iter().any(|v| matches!(v.core_ref(), CoreRef::Array(_)))
         && context.is_some_and(|c| {
             c.input_transport.as_deref() == Some("cell_value2_bulk")
                 && c.cell_layout.as_deref() == Some("touchstone/1-bulk")
         });
-    if mixed_regression_error_cells {
+    if mixed_bulk_scalar_cells {
         for (position, argument) in prepared.iter_mut().enumerate() {
-            if matches!(values[position].core_ref(), CoreRef::Error(_))
-                && matches!(target.parameter_class(position), Some(ParameterClass::ValueOrReference))
+            if !matches!(values[position].core_ref(), CoreRef::Array(_))
+                && matches!(
+                    target.parameter_class(position),
+                    Some(ParameterClass::Reference | ParameterClass::ValueOrReference)
+                )
             {
                 let column = position as u32 + 1;
                 grid.insert((1, column), values[position].clone());
@@ -740,6 +743,29 @@ mod tests {
             assert_eq!(calculate(name, &[y.clone(), err.clone()], None, Some(&unknown), true), "error:Div0");
             assert_eq!(calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&attested), true), "error:Div0");
         }
+    }
+
+    /// Touchstone/1 bulk passes scalar blank args as cell references (`RC[...]`) even alongside
+    /// `CHOOSE` array args; AVERAGE ignores blank referenced cells instead of counting them as 0.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn mixed_bulk_scalar_blanks_keep_cell_reference_identity() {
+        let attested = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let arr = json!([["0x4024000000000000"], ["0x4034000000000000"]]); // [10, 20]
+        let args = [arr, Value::Null, Value::Null];
+        assert_eq!(
+            calculate("AVERAGE", &args, None, Some(&attested), true),
+            format!("0x{:016x}", 15.0_f64.to_bits()),
+        );
+        // Without attested bulk cell transport, direct Empty arguments count as 0: (10+20+0+0)/4 = 7.5.
+        assert_eq!(
+            calculate("AVERAGE", &args, None, None, true),
+            format!("0x{:016x}", 7.5_f64.to_bits()),
+        );
     }
 
     /// dc-ymjf.2.84/.85: an attested Touchstone/1 bulk layout fixes an argument cell's sheet
