@@ -308,7 +308,7 @@ impl WorkbookAutomation {
         })
     }
     /// Clear every area of the range in one committed edit.
-    fn mutate_areas(
+    pub(super) fn mutate_areas(
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
