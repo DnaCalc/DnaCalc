@@ -860,12 +860,17 @@ mod shared_declaration_equivalence {
             let positions: Vec<_> = (0..count)
                 .chain(std::iter::once(254))
                 .map(|i| {
-                    (
-                        i,
-                        entry.parameter_class(i),
-                        entry.entry_class(i),
-                        entry.legacy_place(i),
-                    )
+                    let mut class = entry.parameter_class(i);
+                    // The migration capture predates the measured SORTBY order lifting.
+                    if entry.id() == calc_catalogue::ported::arrays::SORTBY && i >= 2 && i % 2 == 0 {
+                        assert_eq!(
+                            class,
+                            Some(super::ParameterClass::Value),
+                            "SORTBY argument {i}"
+                        );
+                        class = Some(super::ParameterClass::ValueOrReference);
+                    }
+                    (i, class, entry.entry_class(i), entry.legacy_place(i))
                 })
                 .collect();
             actual.push_str(&format!(

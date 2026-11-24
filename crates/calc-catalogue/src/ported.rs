@@ -593,7 +593,7 @@ pub mod arrays {
     1 "SEQUENCE" (1, 4) [V "rows", V "columns", V "start", V "step"] three_d (None, None, Some(&[]));  ;
     2 "FILTER" (2, 3) [R "array" ~ ArrayAtRoot, R "include" ~ ArrayAtRoot, R "if_empty" ~ AggregateAtRoot] traits value_error_references; three_d (None, Some(&[0, 1]), Some(&[2])); ;
     3 "SORT" (1, 4) [R "array" ~ ArrayAtRoot, R "sort_index" ~ ArrayAtRoot, R "sort_order", V "by_col"] traits value_error_references; three_d (None, None, Some(&[])); ;
-    4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, R "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
+    4 "SORTBY" (2, 255) [R "array" ~ ArrayAtRoot, R "by_array1" ~ ArrayAtRoot, V "sort_order1" ~ AggregateAtRoot] groups (1, 2, 0); traits value_error_references; three_d (None, None, Some(&[])); ;
     5 "UNIQUE" (1, 3) [R "array" ~ ArrayAtRoot, V "by_col", V "exactly_once"] traits take_reference_array; three_d (None, None, Some(&[]));
         context [NumericMode, Cells, Host]; ;
     6 "TAKE" (2, 3) [R "array" ~ ArrayAtRoot, V "rows", V "columns"] result MayBeReference; traits value_error_references; three_d (None, Some(&[0]), Some(&[1, 2])); ;
