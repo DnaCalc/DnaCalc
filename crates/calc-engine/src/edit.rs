@@ -16,13 +16,28 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NodeChange {
     /// A formula enters a cell that held none. Its ID is reserved when the change is prepared.
-    Added { node: NodeId, at: CellKey },
+    Added {
+        /// New formula node.
+        node: NodeId,
+        /// Cell receiving the node.
+        at: CellKey,
+    },
     /// The cell's formula is set again, to the same text or another. The node keeps its ID and
     /// loses its prerequisites until the new formula's plan is bound.
-    Replaced { node: NodeId, at: CellKey },
+    Replaced {
+        /// Replacement formula node.
+        node: NodeId,
+        /// Cell whose formula was replaced.
+        at: CellKey,
+    },
     /// The cell no longer holds a formula. The node, its edges and its ID go when the change
     /// commits.
-    Removed { node: NodeId, at: CellKey },
+    Removed {
+        /// Retired formula node.
+        node: NodeId,
+        /// Cell from which the node was removed.
+        at: CellKey,
+    },
 }
 
 /// An authored input the edit changes, with its direct graph users in ID order, without
@@ -31,14 +46,19 @@ pub enum NodeChange {
 pub enum InputSeed<'r> {
     /// A scoped definition edit and its bound or missing-name users.
     Name {
+        /// Identity of the affected name.
         key: NameKey,
+        /// Formula nodes that depend on the name.
         dependents: Vec<NodeId>,
     },
     /// A cell the batch sets to an input other than the one it holds in the base snapshot.
     /// `before` is that input, borrowed from the snapshot's page (`None` for an empty cell).
     Cell {
+        /// Cell whose authored input may change.
         at: CellKey,
+        /// Authored cell input before the edit, when present.
         before: Option<&'r CellInput>,
+        /// Formula nodes affected by this cell change.
         dependents: Vec<NodeId>,
     },
     /// A cleared area that empties at least one cell holding an input in the base snapshot. Its
@@ -46,7 +66,9 @@ pub enum InputSeed<'r> {
     /// and none after the batch; a node that reads only cells of the area that were already empty
     /// is not among them.
     Area {
+        /// Region whose inputs may change.
         area: GridArea,
+        /// Formula nodes that read the affected region.
         dependents: Vec<NodeId>,
     },
     /// The cells the published spill of the array formula at `anchor`, which the edit removes,
@@ -54,8 +76,11 @@ pub enum InputSeed<'r> {
     /// covers). Its dependents are the nodes reading a cell of `area`, which no longer reads as
     /// the formula's result.
     Spill {
+        /// Cell anchoring the affected spill.
         anchor: CellKey,
+        /// Region affected by the spill change.
         area: GridArea,
+        /// Formula nodes affected by the spill change.
         dependents: Vec<NodeId>,
     },
 }
@@ -65,24 +90,32 @@ pub enum InputSeed<'r> {
 pub enum PrepareError {
     /// The batch, the engine state and the input snapshot are not all at one revision.
     StaleBase {
+        /// Revision expected by the authored batch.
         batch: AuthoredRevision,
+        /// Authored revision held by the engine.
         engine: AuthoredRevision,
+        /// Authored revision of the supplied inputs.
         inputs: AuthoredRevision,
     },
     /// The batch's base is the last revision the counter holds, so the edit has no next one.
     RevisionExhausted,
+    /// A pivot refresh could not be staged.
     PivotRefresh {
+        /// Index of the refresh operation in the batch.
         operation: usize,
     },
     /// The operation at this index of the batch names a sheet the snapshot does not hold.
     UnknownSheet {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Sheet that the operation could not use.
         sheet: SheetId,
     },
     /// The operation at this index inserts or deletes rows or columns or inserts, renames, moves
     /// or removes a sheet, in a batch that also sets or clears cells. A structural edit is staged
     /// without cell operations (L3, dc-m3u): they would name cells before or after it moves them.
     StructuralEdit {
+        /// Index of the unsupported operation in the batch.
         operation: usize,
     },
 }
@@ -169,10 +202,12 @@ impl<'r> PreparedEngineChange<'_, 'r> {
         self.next
     }
 
+    /// Inspect the formula node changes staged by this edit.
     pub fn node_changes(&self) -> &[NodeChange] {
         &self.node_changes
     }
 
+    /// Inspect the affected inputs and dependency seeds staged by this edit.
     pub fn seeds(&self) -> &[InputSeed<'r>] {
         &self.seeds
     }

@@ -15,21 +15,32 @@ use std::cell::{Cell, RefCell};
 /// This is execution evidence, not a published cell's freshness certificate.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameCalculationResult {
+    /// Authored revision captured for this calculation.
     pub revision: calc_doc_model::AuthoredRevision,
+    /// Result view captured for this calculation.
     pub results: ReadViewId,
+    /// Value or refusal together with detached evaluation evidence.
     pub evaluation: DetachedNameEvaluation,
+    /// User-callable invocations executed by this name calculation.
     pub calls: Vec<CallInvocation<NameEvaluationLocus>>,
+    /// Runtime identity of the root activation, if available.
     pub runtime_root: Option<u64>,
+    /// Cached reads observed during the calculation.
     pub observations: Vec<crate::contract::CachedObservation>,
+    /// Evaluator value requests and the regions they read.
     pub value_reads: Vec<(calc_fml::ReadRequest, GridArea)>,
+    /// Workbook facts queried by the evaluation.
     pub facts: Vec<calc_fml::FactRead>,
+    /// RTD topics and sequences observed by the evaluation.
     pub external_inputs: Vec<calc_fml::RtdRead>,
     /// What the user functions the evaluation ran asked of volatility ([`calc_fml::UdfVolatility`]).
     pub udf_volatility: calc_fml::UdfVolatility,
 }
 
+/// State of an owned name calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NameCalculationProgress {
+    /// The evaluation can advance with a work step.
     Calculating,
     /// A terminal value or refusal is available, including cancellation.
     Ready,
@@ -141,18 +152,22 @@ impl DetachedFormula {
 }
 
 impl NameCalculationWork {
+    /// Return the semantic identity of the root invocation.
     pub fn root(&self) -> &NameInvocationId {
         &self.root
     }
+    /// Borrow the finished result if one is available.
     pub fn result(&self) -> Option<&NameCalculationResult> {
         self.result.as_ref()
     }
+    /// Take the finished result or recover the calculation if it has none.
     pub fn into_result(mut self) -> Result<NameCalculationResult, Self> {
         match self.result.take() {
             Some(result) => Ok(result),
             None => Err(self),
         }
     }
+    /// Report the current evaluation state.
     pub fn progress(&self) -> NameCalculationProgress {
         if self.result.is_some() {
             NameCalculationProgress::Ready
@@ -160,11 +175,13 @@ impl NameCalculationWork {
             NameCalculationProgress::Calculating
         }
     }
+    /// Cancel the active calculation.
     pub fn cancel(&mut self) {
         if self.result.is_none() {
             self.complete(Err(refused("a cancelled selected-name calculation")));
         }
     }
+    /// Expire the calculation and release its activation.
     pub fn expire(&mut self) {
         if self.result.is_none() {
             self.complete(Err(refused(

@@ -66,13 +66,21 @@ impl Column {
 /// Actual result members and allocated rows; a formula extent is never allocated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResultStorageStats {
+    /// Number of columns represented in grouped result storage.
     pub grouped_columns: usize,
+    /// Number of formula results held inside groups.
     pub grouped_members: usize,
+    /// Number of formula results held individually.
     pub individual_members: usize,
+    /// Number of allocated result slots.
     pub allocated_slots: usize,
+    /// Number of vacant result slots.
     pub vacant_slots: usize,
+    /// Number of slots reserved for result storage.
     pub reserved_slots: usize,
+    /// Number of results without a matching formula node.
     pub orphan_results: usize,
+    /// Number of entries in the slot lookup index.
     pub slot_index_entries: usize,
 }
 

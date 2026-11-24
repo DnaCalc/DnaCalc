@@ -123,27 +123,42 @@ pub enum StartError {
     /// A scope whose Excel calculation policy is not implemented. No target
     /// result is produced; the named work package owns the missing profile.
     NotModeledScope {
+        /// Unsupported construct encountered at admission.
         construct: &'static str,
+        /// Work package responsible for the construct.
         owner: &'static str,
     },
     /// An exact scope is empty or names a sheet outside the workbook.
-    InvalidScope { sheet: Option<SheetId> },
+    InvalidScope {
+        /// Unavailable sheet, when the scope error identifies one.
+        sheet: Option<SheetId>,
+    },
     /// The caller must transform the admitted scope after moving worksheet addresses.
     ScopeTransformRequired,
     /// The input snapshot is not at the engine state's revision.
     StaleInputs {
+        /// Authored revision held by the engine.
         engine: AuthoredRevision,
+        /// Authored revision of the supplied inputs.
         inputs: AuthoredRevision,
     },
     /// The input snapshot holds no formula at the anchor of `node`: it is not the snapshot of
     /// the state's revision.
-    ForeignInputs { node: NodeId, at: CellKey },
+    ForeignInputs {
+        /// Formula node with a foreign input.
+        node: NodeId,
+        /// Cell holding the formula.
+        at: CellKey,
+    },
     /// The dirty closure has a cycle. `cells` are the formula cells that cannot be ordered, those
     /// on a cycle and those that read one, in the order of the cells (sheet ID, then row, then
     /// column). [`begin_recalc`] no longer gives it: since L3 (dc-m3u) the formulas on a cycle
     /// are refused one by one or calculated iteratively, as the workbook's iteration settings
     /// say, and the others are calculated.
-    Cycle { cells: Vec<CellKey> },
+    Cycle {
+        /// Cells that participate in the reported cycle.
+        cells: Vec<CellKey>,
+    },
 }
 
 impl fmt::Display for StartError {
@@ -186,12 +201,17 @@ impl std::error::Error for StartError {}
 /// generation is unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RecalcFailure {
+    /// The result belongs to a different publication destination.
     WrongDestination,
+    /// The callable bindings changed since admission.
     CallableBindingMismatch,
+    /// The external input version changed since admission.
     ExternalInputMismatch,
     /// A scope interaction discovered during evaluation has no measured profile.
     NotModeledScope {
+        /// Unsupported construct encountered in calculation.
         construct: &'static str,
+        /// Work package responsible for the construct.
         owner: &'static str,
     },
     /// A read of `area` by the evaluation of the formula at `formula` did not complete, so the
@@ -200,7 +220,9 @@ pub enum RecalcFailure {
     /// engine's own reader keeps. This is a failure of the recalculation, not a result of the
     /// formula.
     ReadFailed {
+        /// Cell holding the formula that tried to spill.
         formula: CellKey,
+        /// Requested output region for the spill.
         area: GridArea,
     },
     /// The evaluation of the formula at `formula` read the formula cell `cell`, which one of
@@ -209,22 +231,30 @@ pub enum RecalcFailure {
     /// graph. Its old value was not handed out. A cell read through a reference the evaluation
     /// computed is waited for instead ([`step`]).
     UnscheduledRead {
+        /// Cell holding the formula that tried to spill.
         formula: CellKey,
+        /// Cell blocking the requested spill.
         cell: CellKey,
     },
     /// The engine state or the input snapshot is no longer at the revision the recalculation
     /// began on (`revision`), or another recalculation published after it began.
     Superseded {
+        /// Authored revision attached to the calculation being finished.
         revision: AuthoredRevision,
     },
     /// [`finish`] was called while `remaining` nodes were still to be evaluated.
     Incomplete {
+        /// Work still outstanding at the attempted finish.
         remaining: usize,
     },
+    /// The result failed validation against its read certificate.
     InvalidCertificate {
+        /// Cell whose result failed certificate validation.
         at: CellKey,
     },
+    /// A changed result falls outside the admitted scope.
     ScopeViolation {
+        /// Cell outside the admitted scope.
         at: CellKey,
     },
 }
@@ -277,9 +307,15 @@ impl std::error::Error for RecalcFailure {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecalcProgress {
     /// `remaining` nodes are still to be evaluated.
-    Pending { remaining: usize },
+    Pending {
+        /// Amount of work still pending.
+        remaining: usize,
+    },
     /// No runnable work remains before an observation fence awaiting provider input.
-    Waiting { remaining: usize },
+    Waiting {
+        /// Amount of work still pending while awaiting an external return.
+        remaining: usize,
+    },
     /// Every node is evaluated; [`finish`] publishes.
     Complete,
     /// The recalculation failed; [`finish`] returns why and publishes nothing.
@@ -299,6 +335,7 @@ impl WorkBudget {
         evaluations: usize::MAX,
     };
 
+    /// Create a budget measured in formula evaluations.
     pub const fn evaluations(count: usize) -> Self {
         WorkBudget { evaluations: count }
     }
@@ -717,6 +754,7 @@ impl RecalcWork {
         }
         self.external_inputs = Some(inputs);
     }
+    /// Supply an immutable RTD input cut for this request.
     pub fn with_external_inputs(mut self, inputs: std::rc::Rc<dyn calc_fml::RtdCut>) -> Self {
         if inputs.version() != self.external_input_version {
             self.failure = Some(RecalcFailure::ExternalInputMismatch);
@@ -731,10 +769,12 @@ impl RecalcWork {
             && self.volatile_input_version == state.volatile_input_version
             && state.environment == self.environment.map(Into::into)
     }
+    /// Whether the supplied calculation inputs still match the engine state.
     pub fn inputs_current(&self, state: &EngineState) -> bool {
         self.external_input_version == state.contract.external_inputs
             && self.linked_input_version == state.linked_input_version
     }
+    /// Supply the host service that tracks retained references.
     pub fn with_reference_tracker(
         mut self,
         references: std::rc::Rc<calc_fml::reference::ReferenceTracker>,
@@ -742,6 +782,7 @@ impl RecalcWork {
         self.references = Some(ReferenceSource::Live(references));
         self
     }
+    /// Supply the view used for retained reference reads.
     pub fn with_reference_view(
         mut self,
         references: std::rc::Rc<calc_fml::reference::ReferenceView>,
@@ -764,6 +805,7 @@ impl RecalcWork {
         self.user_view = view;
         self
     }
+    /// Capture callable bindings for this calculation.
     pub fn with_functions(mut self, functions: &calc_fml::CallableTable) -> Self {
         if self.callable_bindings != functions.bindings() {
             self.failure = Some(RecalcFailure::CallableBindingMismatch);
@@ -772,9 +814,11 @@ impl RecalcWork {
         }
         self
     }
+    /// Whether the request's callable bindings still match the engine state.
     pub fn callables_current(&self, state: &EngineState) -> bool {
         self.callable_bindings == state.callables
     }
+    /// Record why the request starts a new semantic evaluation.
     pub fn with_reevaluation_reason(mut self, reason: ReevaluationReason) -> Self {
         self.root_reason = reason;
         self
@@ -898,6 +942,7 @@ impl RecalcWork {
         }
     }
 
+    /// Inspect progress of the currently active continuation.
     pub fn continuation_progress(&self) -> Option<calc_fml::ContinuationProgress> {
         self.local
             .activation
@@ -913,6 +958,7 @@ impl RecalcWork {
             })
     }
 
+    /// Whether admission work remains before evaluation can proceed.
     pub fn admission_pending(&self) -> bool {
         self.events.iter().any(|event|matches!(event,CalcEvent::Admitted(receipt) if receipt.command==self.admission.command))
     }
@@ -932,15 +978,19 @@ impl RecalcWork {
         }
         self
     }
+    /// Borrow the receipt for the admitted request.
     pub fn admission(&self) -> &AdmissionReceipt {
         &self.admission
     }
+    /// Return the identity of the active pass.
     pub fn pass(&self) -> CalcPassId {
         self.pass
     }
+    /// Return the number of prior results reused by this calculation.
     pub fn reused(&self) -> usize {
         self.reused
     }
+    /// Drain lifecycle events collected so far.
     pub fn take_events(&mut self) -> Vec<CalcEvent> {
         std::mem::take(&mut self.events)
     }
@@ -990,6 +1040,7 @@ impl RecalcWork {
         }
         coverage
     }
+    /// Build the completion receipt for the supplied terminal outcome.
     pub fn completion(
         &self,
         outcome: CompletionOutcome,
@@ -1018,6 +1069,7 @@ impl RecalcWork {
         self.revision
     }
 
+    /// Return the calculation tick assigned to this work.
     pub fn tick(&self) -> CalcTick {
         self.calculation.tick()
     }
@@ -6641,9 +6693,11 @@ fn collision(view: RecalcView<'_>, node: NodeId, anchor: CellKey, extent: GridAr
 }
 
 impl RecalcWork {
+    /// Iterate over the tokens that can receive asynchronous completions.
     pub fn pending_async(&self) -> impl Iterator<Item = &AsyncToken> {
         self.async_waits.values()
     }
+    /// Whether work is waiting for an external completion.
     pub fn is_waiting_external(&self) -> bool {
         if self.async_waits.is_empty() {
             return false;

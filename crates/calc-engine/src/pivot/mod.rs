@@ -5,6 +5,7 @@ use calc_doc_model::{AuthoredRevision, pivot::*};
 use calc_value::{CalcValue, CellKey, ExcelText, GridArea, WorksheetErrorCode};
 use std::{cmp::Ordering, collections::BTreeMap};
 
+/// Create a typed pivot issue for the indicated package part.
 pub fn refusal(part: &str, detail: impl Into<String>) -> PivotIssue {
     PivotIssue {
         part: part.into(),
@@ -21,9 +22,12 @@ struct Group {
     pub(super) hidden: bool,
     pub(super) excluded: bool,
 }
+/// Materialized layout for a single pivot table.
 #[derive(Debug)]
 pub struct PivotLayout {
+    /// Pivot table definition and layout metadata.
     pub table: PivotTable,
+    /// Worksheet cells materialized by this pivot layout.
     pub cells: BTreeMap<CellKey, CalcValue>,
     /// Explicit data-field number format IDs, keyed by output cell.
     pub number_formats: BTreeMap<CellKey, u32>,
@@ -55,10 +59,14 @@ pub fn layout(table: &PivotTable, cache: &PivotCache) -> Result<PivotLayout, Piv
     }
 }
 
+/// Materialized results and diagnostic information for the workbook's pivots.
 #[derive(Clone, Debug, Default)]
 pub struct PivotResults {
+    /// Published pivot values and their calculation evidence.
     pub cells: BTreeMap<CellKey, (CalcValue, Calculation)>,
+    /// Number format IDs for materialized pivot cells.
     pub number_formats: BTreeMap<CellKey, u32>,
+    /// Issues recorded while computing the pivot results.
     pub issues: Vec<PivotIssue>,
 }
 /// Rebuild only derived output; snapshot records remain the actual source readings.

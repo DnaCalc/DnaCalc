@@ -203,6 +203,7 @@ pub trait ReadObserver {
         false
     }
 
+    /// Observe a calculation read with the supplied provenance.
     fn observe(
         &mut self,
         formula: CellKey,
@@ -286,6 +287,7 @@ impl<'a> ObservedEvaluation<'a> {
             .unwrap_or_else(|| self.report.anchor().cell())
     }
 
+    /// Return the calculation evidence associated with the value.
     pub fn calculation(&self) -> &'a Calculation {
         self.calculation
     }
@@ -2296,9 +2298,11 @@ impl std::hash::Hash for CachedReadLease {
     }
 }
 impl CachedReadLease {
+    /// Return the identity of the cached view.
     pub fn id(&self) -> u64 {
         self.0.id
     }
+    /// Return the model, results and input versions of the cached view.
     pub fn frontier(&self) -> crate::contract::ObservationFrontier {
         crate::contract::ObservationFrontier {
             model: self.0.model.revision(),

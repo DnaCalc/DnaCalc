@@ -46,9 +46,12 @@ impl RandomSource for RandomStream {
 /// invocation supplies the draw key; omitted samples still execute normally.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RandomDrawEvidence {
+    /// Recorded random samples in draw order.
     pub samples: Vec<u64>,
+    /// Number of draws beyond the retained sample limit.
     pub omitted: u64,
 }
+/// Maximum number of random samples recorded per evidence record.
 pub const MAX_RECORDED_RANDOM_DRAWS: usize = 1024;
 
 pub(crate) struct RecordedRandom {

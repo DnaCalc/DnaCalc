@@ -24,6 +24,7 @@ pub struct AsyncReturns {
     records: BTreeMap<u64, AsyncRecord>,
 }
 impl AsyncReturns {
+    /// Merge return identities from another ledger, rejecting conflicting identities.
     pub fn absorb(&mut self, other: Self) -> Result<(), AsyncRejection> {
         for (id, incoming) in &other.records {
             if let Some(existing) = self.records.get(id) {
@@ -50,6 +51,7 @@ impl AsyncReturns {
         }
         Ok(())
     }
+    /// Update the ledger from calculation lifecycle events.
     pub fn observe(&mut self, events: &[CalcEvent]) {
         for event in events {
             match event {
@@ -73,6 +75,7 @@ impl AsyncReturns {
             }
         }
     }
+    /// Revoke tokens still tracked by this ledger.
     pub fn revoke(&mut self) {
         for record in self.records.values_mut() {
             record.revoked = true;

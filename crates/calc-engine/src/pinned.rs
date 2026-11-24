@@ -9,6 +9,7 @@ use calc_fml::{CallableTable, RtdCut, reference::ReferenceView};
 use calc_value::{CalcValue, NumericMode};
 use std::{rc::Rc, sync::Arc};
 
+/// Calculation against a retained workbook snapshot for save.
 pub struct PinnedCalculation {
     state: EngineState,
     inputs: Arc<ModelRoot>,
@@ -20,6 +21,7 @@ pub struct PinnedCalculation {
 }
 
 impl PinnedCalculation {
+    /// Admit a calculation whose results belong to a pinned save.
     pub fn begin(
         source: &EngineState,
         inputs: Arc<ModelRoot>,
@@ -73,36 +75,45 @@ impl PinnedCalculation {
             .unwrap_or_default();
         self.record(events);
     }
+    /// Borrow the engine state held for this save.
     pub fn results(&self) -> &EngineState {
         &self.state
     }
+    /// Return the terminal receipt when available.
     pub fn completion(&self) -> Option<&CompletionReceipt> {
         self.completion.as_ref()
     }
+    /// Return the calculation failure, when one was recorded.
     pub fn failure(&self) -> Option<&RecalcFailure> {
         self.failure.as_ref()
     }
+    /// Drain the accumulated calculation events.
     pub fn take_events(&mut self) -> Vec<CalcEvent> {
         std::mem::take(&mut self.events)
     }
+    /// Collect tokens for the outstanding asynchronous requests.
     pub fn pending_async(&self) -> Vec<AsyncToken> {
         self.work
             .as_ref()
             .map(|work| work.pending_async().cloned().collect())
             .unwrap_or_default()
     }
+    /// Whether calculation is waiting on external work.
     pub fn is_waiting(&self) -> bool {
         self.work
             .as_ref()
             .is_some_and(RecalcWork::is_waiting_external)
     }
+    /// Return the amount of work still reported by the calculation.
     pub fn remaining(&self) -> usize {
         self.work.as_ref().map_or(0, RecalcWork::remaining)
     }
+    /// Take the ledger used to classify subsequent returns.
     pub fn retire_returns(&mut self) -> AsyncReturns {
         self.cancel();
         std::mem::take(&mut self.returns)
     }
+    /// Advance the pinned calculation under the supplied budget.
     pub fn advance(
         &mut self,
         budget: WorkBudget,
@@ -131,6 +142,7 @@ impl PinnedCalculation {
         }
         progress
     }
+    /// Deliver a value to the pinned calculation using its owner-issued token.
     pub fn complete_async(&mut self, token: &AsyncToken, value: CalcValue) -> AsyncDisposition {
         let disposition =
             self.returns
@@ -141,6 +153,7 @@ impl PinnedCalculation {
         });
         disposition
     }
+    /// Cancel outstanding work for the pinned calculation.
     pub fn cancel(&mut self) {
         if let Some(work) = self.work.take() {
             let receipt =

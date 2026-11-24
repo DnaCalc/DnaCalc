@@ -26,6 +26,7 @@ pub struct FormulaNode {
 }
 
 impl FormulaNode {
+    /// Return the identity of this formula node.
     pub fn id(&self) -> NodeId {
         self.id
     }
@@ -60,7 +61,9 @@ impl FormulaNode {
 pub enum PrerequisiteError {
     /// The input snapshot is not at the engine state's revision.
     StaleInputs {
+        /// Revision represented by the engine.
         engine: AuthoredRevision,
+        /// Revision represented by the inputs.
         inputs: AuthoredRevision,
     },
     /// The node is not live in this state.
@@ -483,10 +486,12 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    /// Borrow the latest materialized pivot results.
     pub fn pivot_results(&self) -> &crate::pivot::PivotResults {
         &self.pivot_results
     }
 
+    /// Return the versions that identify the current calculation inputs.
     pub fn input_version(&self) -> CalculationInputVersion {
         CalculationInputVersion {
             environment: self.contract.environment,
@@ -948,6 +953,7 @@ impl EngineState {
         self.threads = threads.max(1);
     }
 
+    /// Return the configured calculation thread count.
     pub fn threads(&self) -> usize {
         self.threads
     }
@@ -986,6 +992,7 @@ impl EngineState {
         self.by_anchor.values().filter_map(|id| self.node(*id))
     }
 
+    /// Return the number of formula nodes currently in the graph.
     pub fn node_count(&self) -> usize {
         self.by_anchor.len()
     }
@@ -1176,18 +1183,22 @@ impl EngineState {
         })
     }
 
+    /// Return the identity of the current result view.
     pub fn result_view(&self) -> crate::contract::ReadViewId {
         crate::contract::ReadViewId(self.generation)
     }
 
+    /// Return the identity of the attached workbook instance.
     pub fn workbook_instance(&self) -> crate::contract::WorkbookInstanceId {
         self.contract.workbook
     }
 
+    /// Read requirement state for the formula at the specified cell.
     pub fn requirement_at(&self, at: CellKey) -> Option<crate::contract::RequirementState> {
         Some(self.contract.requirement(self.node_at(at)?))
     }
 
+    /// Read the formula result together with its current validation outcome.
     pub fn validated_result(
         &self,
         inputs: &ModelRoot,
@@ -1427,6 +1438,7 @@ impl EngineState {
         self.contract.facts = self.contract.advance();
     }
 
+    /// Set the calculation's locale, workbook calendar and clock inputs.
     pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
         let semantics = environment.map(Into::into);
         let clock = environment.and_then(|e| e.now);
@@ -1602,6 +1614,7 @@ impl EngineState {
         Some(plan.name_memo_candidates())
     }
 
+    /// Return statistics for the formula plan cache.
     pub fn plan_cache_stats(&self) -> calc_fml::PlanCacheStats {
         self.plans.stats()
     }

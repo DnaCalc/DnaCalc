@@ -243,15 +243,21 @@ impl std::fmt::Debug for DetachedFormula {
 /// Evidence from an explicit diagnostic; it installs no cell or shared name result.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetachedNameEvaluation {
+    /// Computed value or typed refusal for this evaluation.
     pub outcome: Result<CalcValue, NotModeled>,
+    /// Arithmetic policy used by the evaluator.
     pub numeric: NumericMode,
     /// Present for a selected, admitted name pass; never a synthetic cell root.
     pub root: Option<crate::contract::NameInvocationId>,
+    /// Calculation inputs observed by the invocation.
     pub inputs: crate::CalculationInputVersion,
     /// The supplied owner clock, not an implicit time sample during evaluation.
     pub clock: Option<f64>,
+    /// Random draws recorded by the evaluation.
     pub random_draws: crate::RandomDrawEvidence,
+    /// Definition invocations executed during the evaluation.
     pub invocations: Vec<calc_fml::NameInvocation>,
+    /// Number of additional definition invocations omitted from the retained evidence.
     pub omitted: u64,
 }
 

@@ -42,10 +42,12 @@ impl AxisInterval {
         })
     }
 
+    /// Return the sheet containing this dependency axis.
     pub const fn sheet(self) -> SheetId {
         self.sheet
     }
 
+    /// Return the address axis within the sheet.
     pub const fn axis(self) -> Axis {
         self.axis
     }

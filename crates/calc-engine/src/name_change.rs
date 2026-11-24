@@ -6,6 +6,7 @@ use calc_fml::{NameAnalysis, PlanCache};
 use calc_value::{CellKey, ExcelText, NameId, NameKey, NameScope};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Check defined-name syntax independently of any workbook namespace.
 pub fn valid_defined_name(name: &str) -> bool {
     let first = name.chars().next();
     if name.encode_utf16().count() > 255
@@ -53,20 +54,31 @@ pub fn valid_defined_name(name: &str) -> bool {
             .is_some_and(|n| n.kind() == calc_fml::syntax::SyntaxKind::IdentifierExpr)
 }
 
+/// Requested identity, scope and spelling for an existing name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameChangeRequest {
+    /// Stable identity of the definition to change.
     pub id: NameId,
+    /// Expected version of the definition.
     pub version: u64,
+    /// Destination scope of the name.
     pub scope: NameScope,
+    /// Requested spelling.
     pub name: String,
 }
 
+/// Reason the name change cannot be prepared.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NameChangeFailure {
+    /// The definition identity or version is stale.
     StaleIdentity,
+    /// The requested spelling fails defined-name validation.
     InvalidName,
+    /// The requested sheet scope is unavailable.
     UnavailableSheet,
+    /// Another definition conflicts in the destination namespace.
     Conflict,
+    /// The required transform is unsupported.
     NotModelled(&'static str),
 }
 impl std::fmt::Display for NameChangeFailure {

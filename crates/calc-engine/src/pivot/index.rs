@@ -253,6 +253,7 @@ pub(crate) fn invalid_model_request(
     None
 }
 
+/// Find the output cell for a data field and its field-item filters.
 pub fn data_cell(
     state: &PivotState,
     data_field: &str,

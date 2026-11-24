@@ -1,5 +1,6 @@
 use super::*;
 
+/// Convert supported pivot cache items to worksheet values.
 pub fn item_value(item: &PivotItem) -> Result<CalcValue, PivotIssue> {
     Ok(match item {
         PivotItem::Missing => CalcValue::empty(),

@@ -19,6 +19,7 @@ impl CalcTick {
         CalcTick(value)
     }
 
+    /// Return the underlying calculation sequence number.
     pub const fn get(self) -> u64 {
         self.0
     }
@@ -56,6 +57,7 @@ impl Calculation {
         }
     }
 
+    /// Borrow the result's certificate and provenance stamp, when present.
     pub fn stamp(&self) -> Option<&crate::contract::ResultStamp> {
         self.stamp.as_deref()
     }
@@ -94,10 +96,12 @@ impl Calculation {
         self.revision
     }
 
+    /// Return the tick of the calculation that produced this evidence.
     pub fn tick(&self) -> CalcTick {
         self.tick
     }
 
+    /// Return the arithmetic policy used by that calculation.
     pub fn mode(&self) -> &NumericMode {
         &self.mode
     }
@@ -172,7 +176,9 @@ impl fmt::Display for NotModeled {
 pub enum FormulaResult {
     /// The value this engine calculated through CalcFml.
     Calculated {
+        /// Value produced by formula calculation.
         value: CalcValue,
+        /// Evidence for the calculation that produced the value.
         calculation: Calculation,
     },
     /// The result a file stored for the formula. Nothing here calculated it: it never counts as
@@ -181,7 +187,9 @@ pub enum FormulaResult {
     FileCached(FileCached),
     /// The calculation refused the formula; it has no value.
     NotModeled {
+        /// Typed refusal returned by the formula calculation.
         refusal: NotModeled,
+        /// Evidence for the calculation attempt that returned the refusal.
         calculation: Calculation,
     },
 }
@@ -197,6 +205,7 @@ impl FormulaResult {
         }
         self
     }
+    /// Borrow the result's certificate and provenance stamp, when present.
     pub fn stamp(&self) -> Option<&crate::contract::ResultStamp> {
         match self {
             Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
@@ -249,10 +258,20 @@ impl FormulaResult {
 pub enum ValueChange {
     /// The node at `at` was evaluated, and [`crate::EngineState::result`] gives its result now
     /// published (dc-dxm: the delta names the cell, and no longer holds a copy of every result).
-    Published { at: CellKey, node: NodeId },
+    Published {
+        /// Cell where the result was published.
+        at: CellKey,
+        /// Node whose value was published.
+        node: NodeId,
+    },
     /// The formula at `at` was removed by an edit committed before the recalculation; its result
     /// is no longer published.
-    Removed { at: CellKey, node: NodeId },
+    Removed {
+        /// Cell whose result was removed.
+        at: CellKey,
+        /// Node whose result was removed.
+        node: NodeId,
+    },
 }
 
 /// A change to the cells an array formula's result fills beside its anchor, which a finished
@@ -260,8 +279,11 @@ pub enum ValueChange {
 /// when it filled or fills only its anchor, was blocked, or was refused).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpillChange {
+    /// Cell anchoring the spill.
     pub anchor: CellKey,
+    /// Previous spill footprint, if any.
     pub before: Option<GridArea>,
+    /// Published spill footprint, if any.
     pub after: Option<GridArea>,
 }
 
@@ -297,6 +319,7 @@ impl ValueDelta {
         self.events = events;
         self
     }
+    /// Borrow the lifecycle events emitted during the calculation.
     pub fn events(&self) -> &[crate::contract::CalcEvent] {
         &self.events
     }
@@ -315,6 +338,7 @@ impl ValueDelta {
             _ => None,
         })
     }
+    /// Borrow the terminal receipt attached to this publication, if present.
     pub fn completion(&self) -> Option<&crate::contract::CompletionReceipt> {
         self.completion.as_ref()
     }
@@ -337,10 +361,12 @@ impl ValueDelta {
         self.revision
     }
 
+    /// Return the tick attached to this calculation.
     pub fn tick(&self) -> CalcTick {
         self.tick
     }
 
+    /// Borrow the value changes recorded for this calculation.
     pub fn changes(&self) -> &[ValueChange] {
         &self.changes
     }
@@ -350,6 +376,7 @@ impl ValueDelta {
 /// formula in the snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CacheWithoutFormula {
+    /// Cell holding the associated formula or result.
     pub at: CellKey,
 }
 

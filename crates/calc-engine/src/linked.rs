@@ -31,18 +31,23 @@ pub struct LinkedWorkbookSnapshot {
     pub(crate) sheets: Vec<LinkedSheet>,
 }
 impl LinkedWorkbookSnapshot {
+    /// Return the identity of the linked snapshot.
     pub fn id(&self) -> u64 {
         self.id
     }
+    /// Return the snapshot's authored revision.
     pub fn revision(&self) -> AuthoredRevision {
         self.model.revision()
     }
+    /// Return the linked workbook instance identity.
     pub fn workbook(&self) -> WorkbookInstanceId {
         self.workbook
     }
+    /// Return the captured result view.
     pub fn results(&self) -> ReadViewId {
         self.results
     }
+    /// Find calculation provenance for a cell in the linked snapshot.
     pub fn calculation(&self, sheet: &str, row: u32, column: u32) -> Option<&Calculation> {
         self.sheet(sheet)?
             .cells
@@ -79,9 +84,12 @@ impl std::hash::Hash for LinkedWorkbookSnapshot {
 
 pub(crate) type LinkedWorkbooks = BTreeMap<u32, Arc<LinkedWorkbookSnapshot>>;
 
+/// Version and snapshots of the linked inputs read during a calculation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LinkedInputStamp {
+    /// Version of the admitted linked input set.
     pub version: u64,
+    /// Snapshots supplying the linked workbook values.
     pub sources: Vec<Arc<LinkedWorkbookSnapshot>>,
 }
 

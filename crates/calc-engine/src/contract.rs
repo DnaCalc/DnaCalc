@@ -5,122 +5,192 @@ use calc_doc_model::{AuthoredRevision, ModelRoot};
 use calc_fml::{FactRead, ReadRequest};
 use calc_value::{CellKey, GridArea, NodeId, SheetId};
 
+/// Client-issued identity of an authored or calculation request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CommandId {
+    /// Session that issued the command.
     pub client_session: u64,
+    /// Sequence within the issuing session.
     pub sequence: u64,
 }
+/// Result store eligible to receive a calculation's publication.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ResultDestination {
+    /// Publish to the workbook's live results.
     #[default]
     Live,
+    /// Publish into the result view reserved for a save.
     PinnedSave {
+        /// Client request that owns the pinned save.
         save: CommandId,
     },
 }
 
+/// Domain-issued identity of an admitted calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CalcCommandId {
+    /// Incarnation of the calculation domain.
     pub domain_incarnation: u64,
+    /// Sequence within the domain incarnation.
     pub sequence: u64,
 }
+/// Reason a calculation pass was started.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PassReason {
+    /// First pass of a newly admitted command.
     Initial,
+    /// Recalculate dependents of a delivered asynchronous value.
     AsyncDependents,
+    /// Repair a dependency discovered during evaluation.
     DependencyRepair,
+    /// Recalculate after a spill footprint changes.
     SpillShape,
+    /// Iteration pass identified by its sweep number.
     IterationSweep(u32),
+    /// Data-table pass identified by its scenario number.
     Scenario(u32),
 }
+/// Identity of one pass within an admitted calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CalcPassId {
+    /// Calculation that owns this pass.
     pub command: CalcCommandId,
+    /// Pass number within the calculation.
     pub ordinal: u32,
+    /// Reason this pass was started.
     pub reason: PassReason,
 }
+/// Identity of one open workbook instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WorkbookInstanceId {
+    /// Document identity assigned by the host.
     pub document: u64,
+    /// Open-instance generation of the document.
     pub incarnation: u64,
 }
+/// Identity of one formula or definition invocation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InvocationId<L = CellKey> {
+    /// Pass in which the invocation ran.
     pub pass: CalcPassId,
+    /// Workbook instance containing the evaluated formula or definition.
     pub workbook: WorkbookInstanceId,
+    /// Location or definition evaluated by the invocation.
     pub locus: L,
+    /// Identity of the root evaluation within the pass.
     pub evaluation: u64,
+    /// Call site in the compiled formula or definition.
     pub call_site: u32,
+    /// Occurrence path distinguishing repeated calls at a site.
     pub occurrence: Vec<u32>,
+    /// Reason for semantic reevaluation.
     pub reason: ReevaluationReason,
 }
 /// An explicit definition evaluation has its own locus. Its caller places relative
 /// references; it is not a formula cell or a shared value attached to that name.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NameEvaluationLocus {
+    /// Resolved definition being evaluated.
     pub definition: calc_fml::reference::BoundName,
+    /// Cell used to place the definition's relative references.
     pub caller: CellKey,
 }
+/// Invocation identity for an explicitly evaluated name definition.
 pub type NameInvocationId = InvocationId<NameEvaluationLocus>;
+/// Workbook and formula generation to which a result belongs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EvaluationTarget {
+    /// Workbook instance owning the target.
     pub workbook: WorkbookInstanceId,
+    /// Authored revision from which this evaluation originated.
     pub origin_revision: AuthoredRevision,
+    /// Generation of the target formula.
     pub formula_generation: u64,
+    /// Dependency graph node for the formula.
     pub node: NodeId,
+    /// Cell holding the formula.
     pub locus: CellKey,
 }
+/// Authored model and external input cutoff fixed at command admission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AdmissionFrontier {
+    /// Authored model revision admitted to the command.
     pub model: AuthoredRevision,
+    /// Highest external input sequence admitted to the command.
     pub external_through: u64,
 }
+/// Identity of a captured result read view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ReadViewId(pub u64);
+/// Versions visible to an evaluation when it made its observations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ObservationFrontier {
+    /// Authored model revision the evaluation observed.
     pub model: AuthoredRevision,
+    /// Captured result view the evaluation could read.
     pub results: ReadViewId,
+    /// External input version the evaluation observed.
     pub inputs: u64,
 }
 
+/// Workbook region selected for calculation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum CalcScope {
+    /// All sheets in the workbook.
     Workbook,
+    /// A single sheet.
     Sheet(SheetId),
+    /// The supplied sheet-qualified grid areas.
     Range(Vec<GridArea>),
 }
 /// The measured Manual Range.Calculate profile keeps its targets required for the next
 /// command. Satisfied is the SliceV1 policy for other admissions, not broad Auto-mode parity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RangePostState {
+    /// Satisfy the targets' requirements upon publication.
     Satisfied,
+    /// Keep the targets required for the next command.
     StillRequired,
 }
+/// Policy for selecting formulas within a calculation scope.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EvalSelection {
+    /// Select required and volatile formulas.
     DirtyAndVolatile,
+    /// Select all formulas in the scope.
     ForceAll,
     /// One assigned formula, evaluated on the owner before a later calculation.
     /// Only a single-cell range is admitted; Manual entry leaves it required.
     FormulaEntry,
 }
 impl EvalSelection {
+    /// Whether selection forces evaluation of each formula in its admitted scope.
     pub fn forces_all(self) -> bool {
         matches!(self, Self::ForceAll | Self::FormulaEntry)
     }
 }
+/// Reason for starting a fresh semantic evaluation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReevaluationReason {
+    /// A dependency discovered during evaluation changed the result's prerequisites.
     DependencyRepair,
+    /// A callable binding changed after a reload.
     CallableReload,
+    /// An XLL returned from an uncalculated read.
     XllUncalcedUnwind,
+    /// Arguments observed provisionally became final.
     ProvisionalArguments,
+    /// A later command required a new evaluation.
     NewCommandDemand,
+    /// A formula was evaluated during assignment.
     FormulaEntry,
+    /// An authored input or external input changed.
     AuthoredOrInputChange,
+    /// A spill footprint change initiated another pass.
     SpillShapePass,
+    /// An iterative cycle advanced to a new sweep.
     IterationSweep,
+    /// A data-table calculation entered a scenario.
     TableScenario,
 }
 
@@ -128,56 +198,96 @@ pub enum ReevaluationReason {
 /// cannot authorize a return, including after Undo restores identical formula text.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AsyncToken {
+    /// Destination whose pending activation can receive the completion.
     pub destination: ResultDestination,
+    /// Owner-issued token identity.
     pub id: u64,
+    /// Invocation that issued the request.
     pub invocation: InvocationId,
+    /// Runtime activation identity.
     pub runtime: u64,
+    /// Formula generation and workbook instance eligible for completion.
     pub target: EvaluationTarget,
+    /// Callable registration that issued the request.
     pub provider: calc_fml::CallableHandle,
+    /// Provider request identity.
     pub request: u64,
+    /// Target requirement version at suspension.
     pub required: u64,
 }
+/// Reason an asynchronous completion could not be admitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AsyncRejection {
+    /// Token identity has no matching registration.
     UnknownToken,
+    /// The supplied token differs from the registered identity.
     IdentityMismatch,
+    /// The owner revoked the token.
     Revoked,
+    /// The formula target or generation changed.
     TargetChanged,
+    /// The issuing provider changed.
     ProviderChanged,
+    /// The target requirements advanced after suspension.
     RequirementsChanged,
+    /// The original arguments no longer apply.
     ArgumentsChanged,
+    /// The suspended continuation cannot receive the completion.
     ContinuationUnavailable,
+    /// The token already received a different value.
     ConflictingDuplicate,
+    /// The returned value failed admission checks.
     InvalidValue,
 }
+/// Outcome of delivering an asynchronous completion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AsyncDisposition {
+    /// The completion was admitted.
     Accepted,
+    /// An identical completion was already received.
     Duplicate,
+    /// Admission failed for the recorded reason.
     Rejected(AsyncRejection),
 }
 
+/// A cached region read recorded by an invocation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CachedObservation {
+    /// Whether the read included an unversioned external cache.
     pub external_cache: bool,
+    /// Result view pinned for the read.
     pub view: crate::CachedReadLease,
+    /// Evaluator request that produced the observation.
     pub request: calc_fml::ReadRequest,
+    /// Region covered by the read.
     pub region: GridArea,
+    /// Boundary-cache lineage when available.
     pub lineage: Option<BoundaryReadSpan>,
+    /// Whether the cached value was observed provisionally.
     pub provisional: bool,
 }
+/// Record of an executed user-callable invocation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CallInvocation<L = CellKey> {
+    /// Semantic identity of this call occurrence.
     pub identity: InvocationId<L>,
+    /// Runtime activation identity.
     pub runtime: u64,
+    /// Runtime identity of the parent call, when nested.
     pub parent: Option<u64>,
+    /// Callable registration actually invoked.
     pub callable: calc_fml::CallableHandle,
+    /// Whether the call completed.
     pub completed: bool,
+    /// Whether the call runs in a synchronous interval without preemption.
     pub non_preemptible: bool,
 }
+/// Cached result view associated with a root invocation.
 #[derive(Clone, Debug)]
 pub struct InvocationReadView<L = CellKey> {
+    /// Root invocation that owns this read view.
     pub root: InvocationId<L>,
+    /// Pinned results available to the invocation.
     pub view: crate::CachedReadLease,
 }
 
@@ -185,8 +295,11 @@ pub struct InvocationReadView<L = CellKey> {
 /// physical dependency retries keep the pass and the root invocation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct RequirementState {
+    /// Producing pass of the held calculation value, if available.
     pub value_version: Option<CalcPassId>,
+    /// Latest version that requires evaluation of this target.
     pub required: u64,
+    /// Latest requirement version satisfied by the target.
     pub satisfied: u64,
 }
 
@@ -194,59 +307,94 @@ pub struct RequirementState {
 /// versions, so changing any member advances the span; no per-cell certificate is allocated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SpanVersions {
+    /// Latest authored change affecting the span.
     pub authored: u64,
+    /// Latest producing pass observed in the span.
     pub value: Option<CalcPassId>,
+    /// Latest formula requirement in the span.
     pub required: u64,
+    /// Latest satisfied formula requirement in the span.
     pub satisfied: u64,
+    /// Latest formula generation change affecting the span.
     pub formulas: u64,
+    /// Version of pending production affecting the span.
     pub pending: u64,
     /// Existing iteration/table session values have actual calculation ticks, but no SliceV1
     /// invocation proof. Keep that boundary explicit through ordinary dependents.
     pub uncertified: u64,
+    /// Latest calculation tick for legacy session results.
     pub legacy_tick: u64,
+    /// Latest version observed through a pinned result cache.
     pub boundary_cache: u64,
+    /// Latest version observed from a value loaded with the workbook.
     pub imported_cache: u64,
 }
+/// Dependency read over a sheet-qualified region.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ReadSpan {
+    /// Region observed by the evaluation.
     pub region: GridArea,
+    /// Kind of read made by the evaluator.
     pub request: ReadRequest,
+    /// Versions observed across the region.
     pub versions: SpanVersions,
+    /// Boundary-cache lineage associated with this dependency.
     pub boundary_caches: Vec<BoundaryReadSpan>,
 }
+/// Version of a workbook fact observed during evaluation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FactStamp {
+    /// Fact query issued by the evaluator.
     pub read: FactRead,
+    /// Version observed for the queried fact.
     pub version: u64,
 }
+/// Purpose of an observation that establishes absence over a region.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AbsenceKind {
+    /// A read observed blank cells.
     ReadBlank,
+    /// A spill checked for blockers in its output range.
     SpillReservation,
 }
+/// Evidence that a read or spill reservation observed an unoccupied region.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct AbsenceProof {
+    /// Region covered by the absence observation.
     pub region: GridArea,
+    /// Purpose for which the absence was established.
     pub kind: AbsenceKind,
+    /// Authored change version observed for the region.
     pub authored: u64,
+    /// Occupancy version observed for the region.
     pub occupancy: u64,
+    /// Version of spill corridors affecting the region.
     pub corridor: u64,
+    /// Version of formula producers affecting the region.
     pub producers: u64,
+    /// Number of producers still pending when the region was observed.
     pub pending_producers: usize,
     /// An exact scoped command may use the pinned absence of excluded producers.
     /// This never establishes workbook-wide absence or freshness.
     pub cached: Option<ReadViewId>,
+    /// Contiguous blank runs recorded by the observation.
     pub blanks: Vec<BlankRun>,
 }
 /// A batched read through the command's pinned boundary cache. Imported values have
 /// no producing invocation. Dirty caches remain qualified even if their numeric value matches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BoundaryReadSpan {
+    /// Region covered by this cached read.
     pub region: GridArea,
+    /// Pinned result view used for the read.
     pub view: ReadViewId,
+    /// Version of calculated values in the cached region.
     pub values: u64,
+    /// Version of dirty cached values in the region.
     pub dirty: u64,
+    /// Version of imported cached values in the region.
     pub imported: u64,
+    /// Source parts that supplied the imported values.
     pub imported_sources: Vec<std::sync::Arc<calc_doc_model::SourcePart>>,
 }
 /// Common dependency/freshness evidence stays inline. Other evidence is allocated only
@@ -257,11 +405,17 @@ pub struct ReadCertificate {
     pub external_cache: bool,
     /// An existing session boundary has calculation provenance but no invocation certificate.
     pub legacy_boundary: bool,
+    /// Whether a read depended on the command's pinned boundary cache.
     pub uses_boundary_cache: bool,
+    /// Whether a read depended on a value imported from the workbook.
     pub uses_imported_cache: bool,
+    /// Versioned cell and region dependencies read by the evaluation.
     pub dependencies: Vec<ReadSpan>,
+    /// Version of the calculation's semantic environment.
     pub semantic_environment: u64,
+    /// Version of the formula's reference bindings.
     pub bindings: u64,
+    /// Version of volatile inputs observed by the evaluation, if any.
     pub volatile_inputs: Option<u64>,
     pub(crate) details: OptionalReadDetails,
 }
@@ -270,20 +424,29 @@ pub struct ReadCertificate {
 /// in full when present; an unallocated instance has exactly the default contents.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ReadDetails {
+    /// Version and lineage of linked workbook inputs, if read.
     pub linked_inputs: Option<crate::LinkedInputStamp>,
+    /// Cached observations collected during invocation.
     pub observations: Vec<CachedObservation>,
+    /// RTD topic reads and sequences observed by the evaluation.
     pub external_inputs: Vec<calc_fml::RtdRead>,
+    /// Callable registrations and versions observed by the evaluation.
     pub callables: Vec<calc_fml::CallableBindingProof>,
+    /// User callable invocations executed by the evaluation.
     pub invocations: Vec<CallInvocation>,
     /// Actual executed definition bodies, scoped by this result's producing invocation.
     pub name_invocations: Vec<calc_fml::NameInvocation>,
+    /// Number of executed name invocations omitted from the retained evidence.
     pub omitted_name_invocations: u64,
     /// What the user functions this evaluation ran asked of the formula's volatility, when its
     /// plan can run one: no request, the last request executed `false`, or `true`. `None` for a
     /// plan with no user call.
     pub udf_volatility: Option<calc_fml::UdfVolatility>,
+    /// Pinned boundary-cache reads with their source lineage.
     pub boundary_caches: Vec<BoundaryReadSpan>,
+    /// Facts and versions observed by the evaluation.
     pub facts: Vec<FactStamp>,
+    /// Blank and spill-reservation observations.
     pub absences: Vec<AbsenceProof>,
     /// Resolved identities/versions and scoped namespace probes, including misses.
     pub names: Vec<calc_fml::reference::NameBindingProof>,
@@ -339,118 +502,209 @@ impl std::ops::DerefMut for ReadCertificate {
         &mut self.details
     }
 }
+/// Outcome of calculating an individual formula target.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TargetCompletion {
+    /// Calculation produced a worksheet value.
     Value,
+    /// Calculation produced a worksheet error value.
     WorksheetError,
+    /// Engine refused the target.
     EngineRefusal,
 }
+/// How the engine obtained the recorded outcome.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ComputationOrigin {
-    Evaluated { root: InvocationId },
+    /// A formula invocation produced the result.
+    Evaluated {
+        /// Root formula invocation that produced the result.
+        root: InvocationId,
+    },
+    /// The engine recorded a typed refusal.
     EngineRefusal,
+    /// The engine applied its circular-reference rule.
     CircularRule,
 }
+/// Command and input frontier for which a result is certified.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FreshnessClaim {
+    /// Calculation whose requirement the certification covers.
     pub command: CalcCommandId,
+    /// Pass that certified the result.
     pub pass: CalcPassId,
+    /// Authored and input cut against which freshness was established.
     pub frontier: AdmissionFrontier,
+    /// Requirement version covered by the certification.
     pub required: u64,
 }
+/// Provenance and freshness evidence for one formula result.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ResultStamp {
+    /// Result store that owns the stamp.
     pub destination: ResultDestination,
+    /// Workbook and formula target of the result.
     pub target: EvaluationTarget,
+    /// Input versions visible to the producing evaluation.
     pub observed: ObservationFrontier,
+    /// Origin of the computed value or refusal.
     pub computed_by: ComputationOrigin,
+    /// Dependencies and input observations of the producing evaluation.
     pub reads: ReadCertificate,
+    /// Freshness claim established for the current requirement.
     pub certification: FreshnessClaim,
+    /// Result classification for this target.
     pub completion: TargetCompletion,
 }
+/// Receipt describing the scope and inputs of an admitted calculation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdmissionReceipt {
+    /// Result store eligible to receive publication.
     pub destination: ResultDestination,
+    /// Identity assigned to the admitted calculation.
     pub command: CalcCommandId,
+    /// Client command that requested the calculation.
     pub source: CommandId,
+    /// Initial pass identity.
     pub pass: CalcPassId,
+    /// Scope admitted for calculation.
     pub scope: CalcScope,
+    /// Requirement policy applied after a scoped range calculation.
     pub range_post_state: RangePostState,
+    /// Formula selection policy applied within the scope.
     pub selection: EvalSelection,
+    /// Authored model and external inputs fixed at admission.
     pub admitted: AdmissionFrontier,
+    /// Earlier calculation identified as this admission's predecessor, if any.
     pub predecessor: Option<CalcCommandId>,
 }
+/// Terminal disposition of an admitted calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompletionOutcome {
+    /// The command reached completion.
     Complete,
+    /// The command ended with unmet work.
     Incomplete,
-    Superseded { by: CalcCommandId },
+    /// A later calculation superseded the command.
+    Superseded {
+        /// Calculation that superseded this command.
+        by: CalcCommandId,
+    },
+    /// The command was cancelled.
     Cancelled,
+    /// The command ended with an execution failure.
     Failed,
 }
+/// Counts describing the outcomes inside the requested scope.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScopeCoverage {
+    /// Number of required targets in the scope.
     pub required: usize,
+    /// Number of targets covered by calculated results.
     pub calculated: usize,
+    /// Number of targets with a typed refusal.
     pub refused: usize,
+    /// Number of targets still held without satisfying their requirement.
     pub held: usize,
+    /// Number of targets with calculation provenance but no invocation certificate.
     pub uncertified: usize,
+    /// Number of targets qualified by a boundary-cache read.
     pub boundary_cached: usize,
+    /// Number of targets qualified by an imported-cache read.
     pub imported_cached: usize,
 }
+/// Identity of one result publication within a calculation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PublicationUnitId {
+    /// Calculation that owns the publication.
     pub command: CalcCommandId,
+    /// Publication sequence within the calculation.
     pub sequence: u64,
 }
+/// Terminal receipt for an admitted calculation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionReceipt {
+    /// Destination associated with the calculation.
     pub destination: ResultDestination,
+    /// Calculation covered by the receipt.
     pub command: CalcCommandId,
+    /// Requested calculation scope.
     pub scope: CalcScope,
+    /// Authored and input frontier fixed at admission.
     pub admitted: AdmissionFrontier,
+    /// Terminal disposition of the calculation.
     pub outcome: CompletionOutcome,
+    /// Coverage counts for the requested targets.
     pub coverage: ScopeCoverage,
+    /// Result view observed at completion.
     pub results: ReadViewId,
+    /// Latest publication acknowledged by the receipt, when present.
     pub after_publication: Option<PublicationUnitId>,
 }
+/// Authored, execution and publication observations reported by the engine.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CalcEvent {
+    /// An authored revision was committed.
     Committed {
+        /// Revision made current by the commit.
         revision: AuthoredRevision,
     },
+    /// A calculation command was admitted.
     Admitted(AdmissionReceipt),
     /// These targets remain unmet and retain their old result provenance.
     TargetsRefused {
+        /// Calculation responsible for the refusals.
         command: CalcCommandId,
+        /// Targets whose requirements remain unmet.
         targets: Vec<CellKey>,
+        /// Unsupported construct reported for the targets.
         construct: &'static str,
+        /// Work package responsible for the construct.
         owner: &'static str,
     },
+    /// The calculation yielded with work remaining.
     Yielded {
+        /// Pass that yielded.
         pass: CalcPassId,
+        /// Remaining work reported by the scheduler.
         remaining: usize,
     },
+    /// An admitted command was superseded.
     Superseded(CompletionReceipt),
+    /// A held result was certified for the current command.
     Reused {
+        /// Cell whose result was reused.
         at: CellKey,
+        /// Command that originally computed the result.
         computed_by: CalcCommandId,
+        /// Command for which the result was certified.
         certified_for: CalcCommandId,
     },
+    /// A held result could not be certified.
     Rejected {
+        /// Cell whose held result was rejected.
         at: CellKey,
     },
+    /// A formula began a new semantic invocation.
     Reevaluated {
+        /// Identity of the prior invocation.
         previous: InvocationId,
+        /// Identity of the replacement invocation.
         next: InvocationId,
+        /// Callable invocation records carried with the reevaluation event.
         invocations: Vec<CallInvocation>,
     },
+    /// An activation suspended awaiting asynchronous completion.
     AwaitingAsync(AsyncToken),
+    /// The owner attempted to admit an asynchronous return.
     AsyncReturned {
+        /// Identity of the delivered token.
         token: u64,
+        /// Admission outcome for the return.
         disposition: AsyncDisposition,
     },
+    /// A result publication became visible to the command's destination.
     Published(PublicationUnitId),
+    /// A calculation reached a terminal outcome.
     Completed(CompletionReceipt),
 }
 
@@ -1181,6 +1435,7 @@ impl CalcScope {
         }
     }
 
+    /// Whether the cell is covered by this set.
     pub fn contains(&self, at: CellKey) -> bool {
         match self {
             Self::Workbook => true,
@@ -1218,10 +1473,13 @@ fn scope_area(area: GridArea, edit: &calc_fml::reference::StructuralEdit) -> Vec
 /// Keeping runs avoids inventing absence for populated cells and avoids per-cell certificates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BlankRun {
+    /// Offset of the first blank in the flattened region.
     pub offset: u64,
+    /// Number of consecutive blanks in the run.
     pub len: u64,
 }
 impl BlankRun {
+    /// Find the first cell in the blank run that intersects the requested read area.
     pub fn first_intersection(self, read: GridArea, region: GridArea) -> Option<CellKey> {
         if self.len == 0 || read.sheet() != region.sheet() {
             return None;

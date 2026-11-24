@@ -92,6 +92,8 @@
 //!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-engine/CONTRACT.md).
 
+#![warn(missing_docs)]
+
 pub mod contract;
 mod data_table;
 mod detached;
