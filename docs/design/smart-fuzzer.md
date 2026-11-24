@@ -161,3 +161,21 @@ and cluster key as a stable external reference across sweeps. It checks and push
 tracker updates using the clone's configured Git access and `DNACALC_AGENT_LOG`. Without
 `--tracker`, the completed reports remain available for filing from a later invocation.
 The dedicated clone should have no independent unpublished work.
+
+## Per-function fuzz coverage (`crates/calc-func/fuzz-status.tsv`)
+
+```sh
+cargo xtask fuzz coverage --records ~/codex-runs/sweep/state --out crates/calc-func/fuzz-status.tsv
+python3 docs/fun/tools/refresh_function_bank.py
+```
+
+`cargo xtask fuzz coverage` aggregates completed live Excel sweep records (both standalone
+`cargo xtask fuzz` outputs and `cargo xtask fuzz sweep` run directories with `done.json`),
+excludes dry runs and interrupted attempts, resolves open vs closed cluster status against
+`.beads/issues.jsonl` using the shared `dnacalc-fuzz:<sha256>` external reference, and writes
+`crates/calc-func/fuzz-status.tsv` (`function`, `sweeps`, `cases_swept`, `matched`, `failed`,
+`regions_covered`, `regions_total`, `frontiers_mapped`, `open_clusters`, `last_sweep_date`,
+`last_sweep_commit`). `dnacalc.com/status` (`tools/xtask-harness/src/site/marketing.rs`) reads
+`crates/calc-func/fuzz-status.tsv` directly, and `docs/fun/tools/refresh_function_bank.py`
+embeds it as `const FUZZ` in `docs/fun/function-bank-data.js` for the Function Bank detail card
+and conformance table.

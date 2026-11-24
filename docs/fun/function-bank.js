@@ -14,11 +14,16 @@
   var CLASS_NAME = { exact: 'Exact', last_bit: 'Last bit', numeric: 'Numeric', structural: 'In kind', excluded: 'Excluded' };
   var CLASS_COLOR = { exact: C.exact, last_bit: C.near, numeric: C.far, structural: C.kind, excluded: C.faint };
   var FIX = { COUNT: 'Statistical', SUM: 'Math & trigonometry', IF: 'Logical', FILTER: 'Lookup & reference', UNIQUE: 'Lookup & reference', XLOOKUP: 'Lookup & reference', TEXTBEFORE: 'Text', EUROCONVERT: 'Add-ins', '_EUROTOOL.EUROCONVERT': 'Add-ins' };
+  var FUZZ_MAP = (typeof FUZZ !== 'undefined' && FUZZ) ? FUZZ : {};
+  function parseFuzz(raw) {
+    if (!raw || !raw.length) return null;
+    return { swept: raw[0], matched: raw[1], failed: raw[2], regionsCovered: raw[3], regionsTotal: raw[4], frontiers: raw[5], openClusters: raw[6], lastDate: raw[7], sweeps: raw[8] || 1, commit: raw[9] || '-' };
+  }
   var data = BANK.map(function (r) {
     var cat = FIX[r[0]] || r[5] || 'Add-ins';
     if (/^User defined/.test(cat)) cat = 'Add-ins';
     if (cat === 'Cubes') cat = 'Cube';
-    return { name: r[0], rows: r[1], matched: r[2], ulp: r[3], cls: r[4], fam: cat, state: r[6], desc: (r[7] || '').replace(/:$/, '.'), notes: r[8] || [], beads: r[9] || [], hist: HIST.fn[r[0]] || [] };
+    return { name: r[0], rows: r[1], matched: r[2], ulp: r[3], cls: r[4], fam: cat, state: r[6], desc: (r[7] || '').replace(/:$/, '.'), notes: r[8] || [], beads: r[9] || [], hist: HIST.fn[r[0]] || [], fuzz: parseFuzz(FUZZ_MAP[r[0]]) };
   });
   var DAYS = HIST.dates, LAST = DAYS.length - 1;
   var state = { color: 'match', size: 'answers', day: LAST, hidden: {}, selected: null, focus: null };
@@ -42,9 +47,11 @@
 
   // ---------- masthead totals and timeline ----------
   var total = d3.sum(data, function (d) { return d.rows; }), matched = d3.sum(data, function (d) { return d.matched; });
+  var fuzzedFns = data.filter(function (d) { return !!d.fuzz; }).length;
   document.getElementById('totals').innerHTML = [
     [fmt(data.length), 'functions'], [fmt(total), 'Excel answers'], [(matched / total * 100).toFixed(2) + '%', 'matched exactly'],
-    [fmt(data.filter(function (d) { return d.cls === 'exact'; }).length), 'with no miss at all']
+    [fmt(data.filter(function (d) { return d.cls === 'exact'; }).length), 'with no miss at all'],
+    [fmt(fuzzedFns), 'functions fuzzed']
   ].map(function (t) { return '<div><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('');
   var TL = d3.select('#timeline'), TW = 560, TH = 210, tm = { l: 46, r: 40, t: 14, b: 30 };
   var tx = d3.scaleBand().domain(d3.range(DAYS.length)).range([tm.l, TW - tm.r]).padding(.22);
@@ -242,6 +249,12 @@
       : '<p class="desc chart-muted">Not yet in the bank on ' + DAYS[state.day] + '.</p>';
     if (state.day === LAST) h += '<p class="state">' + esc(CLASS_TEXT[d.cls]) + '</p>';
     if (d.state) h += '<p class="state">Handbook: <b>' + esc(d.state) + '</b></p>';
+    h += '<h2 class="chart-subheading">Fuzz coverage</h2>';
+    if (d.fuzz) {
+      h += '<div class="kv"><span>cases swept</span><b>' + fmt(d.fuzz.swept) + '</b><span>matched / failed</span><b>' + fmt(d.fuzz.matched) + ' / ' + fmt(d.fuzz.failed) + '</b><span>regions covered</span><b>' + fmt(d.fuzz.regionsCovered) + ' / ' + fmt(d.fuzz.regionsTotal) + '</b><span>frontiers mapped</span><b>' + fmt(d.fuzz.frontiers) + '</b><span>open clusters</span><b>' + fmt(d.fuzz.openClusters) + '</b><span>last sweep</span><b>' + esc(d.fuzz.lastDate) + '</b></div>';
+    } else {
+      h += '<p class="desc chart-muted">No live fuzz sweep recorded yet.</p>';
+    }
     h += sparkline(d);
     if (d.notes.length) h += '<h2 class="chart-subheading">Measured notes</h2><ul class="list">' + d.notes.map(function (n) { return '<li><code>' + esc(n[0]) + '</code>' + esc(n[1]) + '</li>'; }).join('') + '</ul>';
     if (d.beads.length) h += '<h2 class="chart-subheading">Open work</h2><ul class="list beads">' + d.beads.map(function (b) { return '<li><code>' + esc(b[0]) + '</code>' + esc(b[1]) + '</li>'; }).join('') + '</ul>';
@@ -434,7 +447,7 @@
   var tipEl = document.getElementById('tip');
   function tip(e, d) {
     var dv = dayValue(d, state.day);
-    tipEl.innerHTML = '<b>' + esc(d.name) + '</b><br>' + esc(d.fam) + '<br>' + (dv ? fmt(dv[1]) + ' / ' + fmt(dv[0]) + ' · ' + pct(dv[0], dv[1]) : 'not in the bank on ' + DAYS[state.day]) + (state.day === LAST && d.ulp ? '<br>worst ' + ulpText(d.ulp) : '');
+    tipEl.innerHTML = '<b>' + esc(d.name) + '</b><br>' + esc(d.fam) + '<br>' + (dv ? fmt(dv[1]) + ' / ' + fmt(dv[0]) + ' · ' + pct(dv[0], dv[1]) : 'not in the bank on ' + DAYS[state.day]) + (state.day === LAST && d.ulp ? '<br>worst ' + ulpText(d.ulp) : '') + (d.fuzz ? '<br>fuzz: ' + fmt(d.fuzz.swept) + ' swept · ' + fmt(d.fuzz.regionsCovered) + '/' + fmt(d.fuzz.regionsTotal) + ' regions · ' + fmt(d.fuzz.openClusters) + ' open clusters' : '');
     tipEl.hidden = false; moveTip(e);
   }
   function moveTip(e) { tipEl.style.left = Math.min(innerWidth - 290, e.clientX + 14) + 'px'; tipEl.style.top = Math.min(innerHeight - 110, e.clientY + 14) + 'px'; }
@@ -443,7 +456,7 @@
     lad.attr('fill-opacity', function (p) { return !name || p.d.name === name ? 1 : .3; });
   }
 
-  document.getElementById('foot').innerHTML = 'Data: <code>crates/calc-func/witness-status.tsv</code> at ' + esc(BANK_AT) + ' (full bank, judged against Excel 16.0 answers) and its git history, one snapshot per day from ' + DAYS[0] + '. Descriptions, families, notes and handbook verdicts from the Excel Functions Handbook build; the handbook verdict can lag the bank. Open work: open beads in the DNA Calc tracker whose title names the function.';
+  document.getElementById('foot').innerHTML = 'Data: <code>crates/calc-func/witness-status.tsv</code> at ' + esc(BANK_AT) + ' (full bank, judged against Excel 16.0 answers) and its git history, one snapshot per day from ' + DAYS[0] + '. Fuzz coverage: <code>crates/calc-func/fuzz-status.tsv</code> (live Excel sweeps, regions, frontiers, open clusters, last sweep date). Descriptions, families, notes and handbook verdicts from the Excel Functions Handbook build; the handbook verdict can lag the bank. Open work: open beads in the DNA Calc tracker whose title names the function.';
   function fromHash() {
     var h = decodeURIComponent(location.hash.slice(1));
     return h ? data.find(function (d) { return hashName(d.name) === h || d.name === h.toUpperCase(); }) : null;

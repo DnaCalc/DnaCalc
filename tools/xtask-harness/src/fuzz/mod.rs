@@ -6,6 +6,7 @@
 
 pub mod boundary;
 pub mod cluster;
+pub mod coverage;
 pub mod domain;
 pub mod fractal;
 pub mod hints;
@@ -30,7 +31,7 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (sweep ... | coverage ... | --func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
@@ -707,11 +708,13 @@ pub fn write_outputs(
             )
         })
         .collect();
+    let finished_utc = utc_timestamp_now();
     let summary_doc = json!({
         "function": summary.function,
         "seed": summary.seed,
         "budget": summary.budget,
         "dry_run": summary.dry_run,
+        "finished_utc": finished_utc,
         "total_generated": summary.total_generated,
         "total_asked": summary.total_asked,
         "total_matched": summary.total_matched,
@@ -822,10 +825,13 @@ pub fn write_outputs(
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
-    if let Some((mode, args)) = raw.split_first()
-        && mode == "sweep"
-    {
-        return sweep::run(args);
+    if let Some((mode, args)) = raw.split_first() {
+        if mode == "sweep" {
+            return sweep::run(args);
+        }
+        if mode == "coverage" {
+            return coverage::run(args);
+        }
     }
     let cfg = match parse_args(raw) {
         Ok(c) => c,

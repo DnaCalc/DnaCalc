@@ -10,6 +10,7 @@ lines (BANK, HIST, BANK_AT) in the data asset. Run from the repository root:
 import argparse, collections, csv, datetime, io, json, os, re, subprocess, sys
 
 STATUS = 'crates/calc-func/witness-status.tsv'
+FUZZ_STATUS = 'crates/calc-func/fuzz-status.tsv'
 DATA = 'docs/fun/function-bank-data.js'
 LANDSCAPES = 'docs/fun/function-bank-landscapes.js'
 CALL_CLASSES = ('exact', 'last_bit', 'numeric', 'gross', 'structural', 'refused', 'excluded')
@@ -35,10 +36,36 @@ def first_sentence(md):
     return (m.group(1) if m else s[:240]).strip()
 
 
+def load_fuzz_status(path):
+    if not path or not os.path.exists(path):
+        return {}
+    fuzz = {}
+    with open(path, encoding='utf-8') as fh:
+        for r in csv.DictReader(fh, delimiter='\t'):
+            fn = (r.get('function') or '').strip().upper()
+            if not fn:
+                continue
+            fuzz[fn] = [
+                int(r['cases_swept']),
+                int(r['matched']),
+                int(r['failed']),
+                int(r['regions_covered']),
+                int(r['regions_total']),
+                int(r['frontiers_mapped']),
+                int(r['open_clusters']),
+                r['last_sweep_date'].strip(),
+                int(r['sweeps']),
+                r['last_sweep_commit'].strip(),
+            ]
+    return fuzz
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--handbook', help='folder with FUNC.<NAME>.json files from the handbook build; omit to retain existing handbook metadata')
     ap.add_argument('--working-status', action='store_true', help='use the current witness-status.tsv for the latest snapshot')
+    ap.add_argument('--fuzz-status', default=FUZZ_STATUS, help='path to crates/calc-func/fuzz-status.tsv')
+    ap.add_argument('--out', default=DATA, help='destination path for function-bank-data.js')
     ap.add_argument('--land', help='landscape.json from function_bank_landscape.py (optional; keeps the embedded one otherwise)')
     ap.add_argument('--land-note', default='', help='where the landscape rows came from, shown in the footer')
     a = ap.parse_args()
@@ -66,6 +93,7 @@ def main():
             'fn': {n: [list(s[n]) if n in s else None for s in snaps] for n in names}}
     issues = [json.loads(l) for l in open('.beads/issues.jsonl', encoding='utf-8')]
     open_beads = [i for i in issues if i.get('status') not in ('closed', 'tombstone')]
+    fuzz = load_fuzz_status(a.fuzz_status)
     out = []
     for r in cur:
         n = r['function']
@@ -85,8 +113,9 @@ def main():
         out.append([n, int(r['rows']), int(r['matched']), w, r['class'], cat, state, desc, notes, beads, counts])
     lines = ('const BANK=' + json.dumps(out, ensure_ascii=False, separators=(',', ':')) + ';\n'
              + 'const HIST=' + json.dumps(hist, separators=(',', ':')) + ';\n'
-             + 'const BANK_AT=' + json.dumps(head + ', ' + dates[-1]) + ';\n')
-    new, k = re.subn(r'const BANK=.*?\nconst HIST=.*?\nconst BANK_AT=.*?;\n', lambda m: lines, page, count=1, flags=re.S)
+             + 'const BANK_AT=' + json.dumps(head + ', ' + dates[-1]) + ';\n'
+             + 'const FUZZ=' + json.dumps(fuzz, ensure_ascii=False, separators=(',', ':'), sort_keys=True) + ';\n')
+    new, k = re.subn(r'const BANK=.*?\nconst HIST=.*?\nconst BANK_AT=.*?;\n(?:const FUZZ=.*?;\n)?', lambda m: lines, page, count=1, flags=re.S)
     if k != 1:
         sys.exit('data block not found in ' + DATA)
     if a.land:
@@ -110,9 +139,9 @@ def main():
             sys.exit('landscape block not found in ' + LANDSCAPES)
         open(LANDSCAPES, 'w', encoding='utf-8', newline='\n').write(landscapes)
         print(f'landscapes for {len(land)} functions, {len(sig)} signatures')
-    open(DATA, 'w', encoding='utf-8', newline='\n').write(new)
+    open(a.out, 'w', encoding='utf-8', newline='\n').write(new)
     print(f'{sum(r[2] for r in out):,} of {sum(r[1] for r in out):,} Excel answers matched')
-    print(f'{len(out)} functions, {len(dates)} days ({dates[0]} to {dates[-1]}), at {head}')
+    print(f'{len(out)} functions, {len(dates)} days ({dates[0]} to {dates[-1]}), {len(fuzz)} fuzzed, at {head}')
 
 
 if __name__ == '__main__':

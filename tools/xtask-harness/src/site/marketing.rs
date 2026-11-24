@@ -89,6 +89,7 @@ const VIDEO: &[(&str, &str)] = &[
 const PAGES: &str = "docs/site/pages";
 const LAYOUT: &str = "docs/site/layout.json";
 const WITNESS: &str = "crates/calc-func/witness-status.tsv";
+const FUZZ_STATUS: &str = crate::fuzz::coverage::FUZZ_STATUS_PATH;
 const RELEASES: &str = "docs/plan/RELEASES.md";
 const VBA: &str = "crates/calc-vba/tests/corpus/baseline.json";
 const SAMPLE: &str = "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx";
@@ -336,6 +337,7 @@ pub(super) fn build(
     let cards = build_fun(root, output, prefix)?;
     let mut index = Index::default();
     let vba = vba_table(root)?;
+    let fuzz = fuzz_section(root)?;
     let builds = builds_table(root, version, commit, built)?;
     let runner = runner_commands(root)?;
     let live = live_box(layout.explorer)?;
@@ -349,6 +351,7 @@ pub(super) fn build(
             ("bank", &bank),
             ("cards", &cards),
             ("vba", &vba),
+            ("fuzz", &fuzz),
             ("builds", &builds),
             ("runner", &runner),
             ("packages", &packages),
@@ -757,6 +760,74 @@ fn bank_metric(root: &Path) -> Result<String, String> {
     metric("Function bank", matched, total, &evidence)
 }
 
+fn hash_name(function: &str) -> String {
+    let mut out = String::new();
+    let mut dash = false;
+    for ch in function.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            dash = false;
+        } else if !dash {
+            out.push('-');
+            dash = true;
+        }
+    }
+    out
+}
+
+fn fuzz_section(root: &Path) -> Result<String, String> {
+    let table = source(root, FUZZ_STATUS)?;
+    let rows = crate::fuzz::coverage::parse_tsv(&table)?;
+    let mut html = String::from("<h2>Per-function fuzz coverage</h2>");
+    if rows.is_empty() {
+        html.push_str(
+            r#"<p class="site-note">0 functions swept · 0 cases swept · 0 frontiers mapped · 0 open clusters. Generated from live Excel sweep records into <code>crates/calc-func/fuzz-status.tsv</code> via <code>cargo xtask fuzz coverage</code> and mirrored in the <a href="/fun/function-bank.html">Function Bank</a>.</p>"#,
+        );
+        return Ok(html);
+    }
+    let swept: u64 = rows.iter().map(|r| r.cases_swept).sum();
+    let matched: u64 = rows.iter().map(|r| r.matched).sum();
+    let frontiers: u64 = rows.iter().map(|r| r.frontiers_mapped).sum();
+    let open_clusters: u64 = rows.iter().map(|r| r.open_clusters).sum();
+    let latest_date = rows
+        .iter()
+        .map(|r| r.last_sweep_date.as_str())
+        .max()
+        .unwrap_or("-");
+    let evidence = format!(
+        "{} functions · {} frontiers · {} open clusters · last sweep {} · fuzz-status.tsv",
+        number(rows.len() as u64),
+        number(frontiers),
+        number(open_clusters),
+        escape(latest_date),
+    );
+    let summary = metric("Fuzz sweeps", matched, swept, &evidence)?;
+    let _ = write!(html, r#"<div class="site-metrics">{summary}</div>"#);
+    html.push_str(
+        r#"<div class="site-table"><table><thead><tr><th>Function</th><th>Cases swept</th><th>Matched</th><th>Failed</th><th>Regions covered</th><th>Frontiers mapped</th><th>Open clusters</th><th>Last sweep</th></tr></thead><tbody>"#,
+    );
+    for row in &rows {
+        let _ = write!(
+            html,
+            r#"<tr><th scope="row"><a href="/fun/function-bank.html#{}">{}</a></th><td>{}</td><td>{}</td><td>{}</td><td>{} / {}</td><td>{}</td><td>{}</td><td>{}</td></tr>"#,
+            escape(&hash_name(&row.function)),
+            escape(&row.function),
+            number(row.cases_swept),
+            number(row.matched),
+            number(row.failed),
+            number(row.regions_covered),
+            number(row.regions_total),
+            number(row.frontiers_mapped),
+            number(row.open_clusters),
+            escape(&row.last_sweep_date),
+        );
+    }
+    html.push_str(
+        r#"</tbody></table></div><p class="site-note">Generated from live Excel sweep records into <code>crates/calc-func/fuzz-status.tsv</code>; open clusters exclude clusters whose tracker bead is closed. Browse full function cards in the <a href="/fun/function-bank.html">Function Bank</a>.</p>"#,
+    );
+    Ok(html)
+}
+
 fn builds_table(root: &Path, version: &str, commit: &str, built: &str) -> Result<String, String> {
     let path = super::PUBLISHED_FILE;
     let data: Value =
@@ -878,6 +949,9 @@ mod tests {
                 }
                 let status = source(&dir, "articles/last-bit-status/index.html")?;
                 assert!(status.contains(r#"href="/articles/last-bit-gamma/""#));
+                let status_page = source(&dir, "status/index.html")?;
+                assert!(status_page.contains("<h2>Per-function fuzz coverage</h2>"));
+                assert!(status_page.contains("crates/calc-func/fuzz-status.tsv"));
                 let vba = source(&dir, "developers/vba/index.html")?;
                 assert!(vba.contains(r#"href="/articles/calcvba-variant/""#));
                 let gamma = source(&dir, "articles/last-bit-gamma/index.html")?;
@@ -973,5 +1047,64 @@ mod tests {
         })();
         let _ = fs::remove_dir_all(output);
         result.unwrap();
+    }
+
+    /// Native-only: writes a temporary fuzz-status.tsv and checks /status fuzz rendering.
+    #[test]
+    fn status_fuzz_section_renders_per_function_coverage_from_fuzz_status_tsv() {
+        let base = std::env::temp_dir().join(format!(
+            "dnacalc-site-fuzz-status-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        let tsv_path = base.join(FUZZ_STATUS);
+        fs::create_dir_all(tsv_path.parent().unwrap()).unwrap();
+
+        // Empty table renders honest zero-state summary.
+        fs::write(&tsv_path, format!("{}\n", crate::fuzz::coverage::FUZZ_STATUS_HEADER)).unwrap();
+        let empty_html = fuzz_section(&base).unwrap();
+        assert!(empty_html.contains("0 functions swept"));
+        assert!(empty_html.contains("0 cases swept"));
+
+        // Populated table renders metric card + per-function rows with every coverage column.
+        let rows = vec![
+            crate::fuzz::coverage::FuzzCoverageRow {
+                function: "IRR".to_owned(),
+                sweeps: 2,
+                cases_swept: 1200,
+                matched: 1150,
+                failed: 50,
+                regions_covered: 7,
+                regions_total: 8,
+                frontiers_mapped: 12,
+                open_clusters: 3,
+                last_sweep_date: "2026-11-24".to_owned(),
+                last_sweep_commit: "abcdef1234".to_owned(),
+            },
+            crate::fuzz::coverage::FuzzCoverageRow {
+                function: "NORM.S.INV".to_owned(),
+                sweeps: 1,
+                cases_swept: 500,
+                matched: 500,
+                failed: 0,
+                regions_covered: 6,
+                regions_total: 6,
+                frontiers_mapped: 4,
+                open_clusters: 0,
+                last_sweep_date: "2026-11-23".to_owned(),
+                last_sweep_commit: "1234567890".to_owned(),
+            },
+        ];
+        fs::write(&tsv_path, crate::fuzz::coverage::format_tsv(&rows)).unwrap();
+        let html = fuzz_section(&base).unwrap();
+        assert!(html.contains("Fuzz sweeps"));
+        assert!(html.contains("1,650 of 1,700 matched · 50 failed"));
+        assert!(html.contains("2 functions · 16 frontiers · 3 open clusters · last sweep 2026-11-24"));
+        assert!(html.contains(r#"href="/fun/function-bank.html#IRR">IRR</a>"#));
+        assert!(html.contains(r#"href="/fun/function-bank.html#NORM-S-INV">NORM.S.INV</a>"#));
+        assert!(html.contains("<td>1,200</td><td>1,150</td><td>50</td><td>7 / 8</td><td>12</td><td>3</td><td>2026-11-24</td>"));
+        assert!(html.contains("<td>500</td><td>500</td><td>0</td><td>6 / 6</td><td>4</td><td>0</td><td>2026-11-23</td>"));
+
+        let _ = fs::remove_dir_all(&base);
     }
 }
