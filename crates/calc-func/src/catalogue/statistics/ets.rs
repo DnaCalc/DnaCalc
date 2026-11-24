@@ -1137,24 +1137,23 @@ fn push_unique(cands: &mut Vec<usize>, p: usize) {
 }
 
 /// The automatic period of FORECAST.ETS.SEASONALITY and seasonality 1.
-/// Measured on Excel 20527 (eng24 boundary probes, ig1 AUTOPERIOD recovery):
+/// Measured on Excel 20527 / 20625 (eng24, ig1, sx1, Carbon cb24, dc-j9k.68):
 /// - n = 5..10: dominant-bin ratio `>= 2 - 3/n` on the cosine-tapered residual
 ///   periodogram (no taper below 10; `floor(n/10)` end points from 10).
 /// - n >= 11: AUTOPERIOD (Vlachos, Yu & Castelli 2005) over above-mean bins
-///   `k >= 2` with rounded period `p_bin in 2..=floor(2n/5)`. Each bin maps to
+///   `k >= 2` with rounded period `p_bin in 3..=floor(2n/5)`. Each bin maps to
 ///   ACF core `[lo-1, hi-1]` and hill window `[max(1, lo-1), min(n-1, hi+1)]`,
 ///   validated by a 2-segment piecewise-linear hill (minimizing sum of segment
 ///   MSEs) whose left/right slopes bracket the flanking slope (0 when the left
-///   flank is empty), peak unbiased ACF `>= 0.45`, and short-period tail checks
-///   (`p = 3`: `u[3] > u[2] && u[4] > u[5] && u[4] > u[6]` in short windows;
-///   `p = 4`: `u[5] > u[6]`; `p = 5`: `slope(u[6..=9]) < 0`).
-/// - Spectral 2.5-sigma outlier (`p_top >= 6`) enters the candidate set.
-///   If its lag has autocorrelation below 0.45, the strongest eligible lower
-///   frequency bin can supersede it by validating a longer period whose
-///   second harmonic falls in the outlier bin (Excel 20625, dc-j9k.68).
-///   Remaining candidates break ties by fundamental power on trailing whole
-///   cycles of raw `y`. When no candidate survives, a dominant bin (`p <= 5`)
-///   falls back to `p_top`.
+///   flank is empty), peak unbiased ACF `>= 0.45`, short-window `p = 3/4/5`
+///   checks, `R - 1` right-padding trim for `p_bin in {4, 5}`, doubled-cycle
+///   `[2a .. min(n-1, 2R)]` tail rescue (and `p_bin == 4` spillover to `5`),
+///   and valley subharmonic recovery for `p_bin >= 5`.
+/// - Two-regime spectral competition: `sp = dominant_period` (`p_top <= 5`) or
+///   `outlier_period` (`p_top >= 6`, 2.5-sigma spectral outlier) enters the
+///   candidate set iff no ACF-validated candidate has `p >= 6`. Ties break by
+///   fundamental power on trailing whole cycles of raw `y` (strict `>`, keeping
+///   the earlier candidate).
 fn detect_period(y: &[f64]) -> usize {
     const MIN_PEAK_CORRELATION: f64 = 0.45;
     let n = y.len();
@@ -1252,115 +1251,192 @@ fn detect_period(y: &[f64]) -> usize {
         0
     };
 
-    let mean_power = power[1..].iter().sum::<f64>() / half as f64;
-    let bin_period = |k: usize| (n as f64 / k as f64 + 0.5).floor() as usize;
-    let harmonic_bin = if outlier_period != 0 && u[outlier_period] < MIN_PEAK_CORRELATION {
-        (2..top)
-            .rev()
-            .filter(|&k| bin_period(k) <= last_lag)
-            .max_by(|&a, &b| power[a].total_cmp(&power[b]))
-    } else {
-        None
-    };
-    let tail_ok = |pk: usize| -> bool {
-        if pk == 4 {
-            6 < n && u[5] > u[6]
-        } else if pk == 5 {
-            9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0
-        } else {
-            true
+    let check_hill = |a: usize, b: usize, left: usize, right: usize| -> (bool, usize, bool) {
+        if right < left + 4 {
+            return (false, left, false);
         }
+        let (mut best_err, mut best_sl, mut best_sr, mut best_t) =
+            (f64::INFINITY, 0.0, 0.0, left + 2);
+        for t in (left + 2)..=(right - 2) {
+            let (mse_l, sl) = ols_mse_and_slope(&u[left..=t]);
+            let (mse_r, sr) = ols_mse_and_slope(&u[t..=right]);
+            if mse_l + mse_r < best_err {
+                (best_err, best_sl, best_sr, best_t) = (mse_l + mse_r, sl, sr, t);
+            }
+        }
+        let lfs = a.saturating_sub(3).max(2);
+        let bf = if lfs >= a {
+            0.0
+        } else {
+            let flank: Vec<usize> = (lfs..a).chain((b + 1)..(b + 4).min(n)).collect();
+            ols_slope_indexed(&u, &flank)
+        };
+        (
+            best_sl > bf && best_sr < bf,
+            best_t,
+            best_sl < bf && best_sr > bf,
+        )
+    };
+    let ok_p3 = |req_2nd: bool| -> bool {
+        3 <= last_lag
+            && u[3] >= MIN_PEAK_CORRELATION
+            && u[3] > u[2]
+            && 6 < n
+            && u[4] > u[5]
+            && u[4] > u[6]
+            && (!req_2nd || (9 < n && u[7] > u[6] && u[8] > u[9]))
     };
 
+    let mean_power = power[1..].iter().sum::<f64>() / half as f64;
     let mut candidates = Vec::new();
-    let mut flank = Vec::with_capacity(6);
     for k in 2..=half {
         if power[k] <= mean_power {
             continue;
         }
-        let p_bin = bin_period(k);
-        if p_bin < 2 || p_bin > last_lag {
+        let p_bin = (n as f64 / k as f64 + 0.5).floor() as usize;
+        if p_bin < 3 || p_bin > last_lag {
             continue;
         }
-        let inv_p = 1.0 / p_bin as f64;
-        let inv_n = 1.0 / n as f64;
-        let lo = (1.0 / (inv_p + inv_n) + 0.5).floor() as usize;
-        let hi = (1.0 / (inv_p - inv_n) + 0.5).floor() as usize;
-        let a = lo.saturating_sub(1);
-        let b = hi.saturating_sub(1);
-        let left = a.max(1);
-        let right = (b + 2).min(n - 1);
-
-        let pk = if right < left + 4 {
-            if p_bin == 3
-                && 3 <= last_lag
-                && u[3] >= MIN_PEAK_CORRELATION
-                && u[3] > u[2]
-                && 6 < n
-                && u[4] > u[5]
-                && u[4] > u[6]
-            {
-                push_unique(&mut candidates, 3);
+        let (inv_p, inv_n) = (1.0 / p_bin as f64, 1.0 / n as f64);
+        let a = ((1.0 / (inv_p + inv_n) + 0.5).floor() as usize).saturating_sub(1);
+        let b = ((1.0 / (inv_p - inv_n) + 0.5).floor() as usize).saturating_sub(1);
+        let (left, right) = (a.max(1), (b + 2).min(n - 1));
+        let (mut pk, mut best_t, mut valley, mut hill) = (0usize, left, false, false);
+        if right < left + 4 {
+            if p_bin == 3 {
+                if ok_p3(n >= 16) {
+                    push_unique(&mut candidates, 3);
+                }
                 continue;
-            }
-            argmax_slice(&u, left, right)
-        } else {
-            let mut best_err = f64::INFINITY;
-            let mut best_sl = 0.0;
-            let mut best_sr = 0.0;
-            for t in (left + 2)..=(right - 2) {
-                let (mse_l, sl) = ols_mse_and_slope(&u[left..=t]);
-                let (mse_r, sr) = ols_mse_and_slope(&u[t..=right]);
-                let err = mse_l + mse_r;
-                if err < best_err {
-                    best_err = err;
-                    best_sl = sl;
-                    best_sr = sr;
+            } else if p_bin == 4 {
+                let pk_ab = argmax_slice(&u, a.max(1), b.max(4).min(n - 1));
+                if pk_ab == 3 {
+                    if ok_p3(true) {
+                        push_unique(&mut candidates, 3);
+                    }
+                    continue;
+                }
+                (pk, hill) = (pk_ab, true);
+            } else {
+                let pk_lr = argmax_slice(&u, left, right);
+                if pk_lr > 1 && pk_lr + 1 < n && u[pk_lr] > u[pk_lr - 1] && u[pk_lr] > u[pk_lr + 1]
+                {
+                    (pk, hill) = (pk_lr, true);
                 }
             }
+        } else {
+            (hill, best_t, valley) = check_hill(a, b, left, right);
+            if hill {
+                let (lo_p, hi_p) = if p_bin == 4 {
+                    (a.max(1), b.max(4).min(n - 1))
+                } else {
+                    (left, right)
+                };
+                pk = argmax_slice(&u, lo_p, hi_p);
+            } else if p_bin <= 5 {
+                let pk_try = argmax_slice(&u, left, right);
+                if (pk_try == 4 || pk_try == 5)
+                    && pk_try < right
+                    && u[pk_try] > u[pk_try - 1]
+                    && u[pk_try] > u[pk_try + 1]
+                    && (right - 1 < left + 4
+                        || check_hill(a, b.saturating_sub(1), left, right - 1).0)
+                {
+                    (pk, hill) = (pk_try, true);
+                }
+            }
+        }
 
-            let left_flank_start = a.saturating_sub(3).max(2);
-            let bf = if left_flank_start >= a {
-                0.0
+        let mut accepted = false;
+        if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION {
+            let mut t_ok = if pk == 4 {
+                6 < n && u[5] > u[6]
+            } else if pk == 5 {
+                9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0
             } else {
-                flank.clear();
-                flank.extend(left_flank_start..a);
-                flank.extend((b + 1)..(b + 4).min(n));
-                ols_slope_indexed(&u, &flank)
+                true
             };
-            if !(best_sl > bf && best_sr < bf) {
-                continue;
+            if !t_ok && hill && (pk == 4 || pk == 5) && pk >= p_bin && n >= 16 {
+                let (s_lo, s_hi) = ((2 * a).max(6), (2 * right).min(n - 1));
+                if s_lo <= s_hi {
+                    let pk2 = argmax_slice(&u, s_lo, s_hi);
+                    t_ok = pk2 / 2 == pk
+                        && (n >= 4 * pk || u[pk2] >= MIN_PEAK_CORRELATION)
+                        && pk2 + 2 < n
+                        && u[pk2 + 1] > u[pk2 + 2];
+                }
             }
-            let (pk_lo, pk_hi) = if p_bin == 4 { (a.max(1), b.min(n - 1)) } else { (left, right) };
-            argmax_slice(&u, pk_lo, pk_hi)
-        };
-        if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION && tail_ok(pk) {
-            if harmonic_bin == Some(k)
-                && pk > outlier_period
-                && (2.0 * n as f64 / pk as f64).round() as usize == top
+            if t_ok {
+                push_unique(&mut candidates, pk);
+                accepted = true;
+            }
+        }
+        if !accepted && hill && p_bin == 4 && n >= 16 {
+            if argmax_slice(&u, left, right) == 5
+                && 5 <= last_lag
+                && u[5] >= MIN_PEAK_CORRELATION
+                && u[5] > u[4]
+                && 6 < n
+                && u[5] > u[6]
             {
-                return pk;
+                let s_hi = (2 * right).min(n - 1);
+                let t5 = (9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0)
+                    || (n >= 17 && 6 <= s_hi && {
+                        let pk2 = argmax_slice(&u, 6, s_hi);
+                        pk2 / 2 == 5 && pk2 + 2 < n && u[pk2 + 1] > u[pk2 + 2]
+                    });
+                if t5 {
+                    push_unique(&mut candidates, 5);
+                    accepted = true;
+                }
             }
-            push_unique(&mut candidates, pk);
+        }
+        if !accepted && !hill && p_bin >= 5 {
+            let (mut l2, r2) = (if valley { best_t } else { 2 * a }, (2 * right).min(n - 1));
+            let mut hill2 = r2 >= l2 + 4 && check_hill(l2, r2.saturating_sub(2), l2, r2).0;
+            if !hill2
+                && valley
+                && 2 * a > l2
+                && r2 >= 2 * a + 4
+                && check_hill(2 * a, r2.saturating_sub(2), 2 * a, r2).0
+            {
+                (l2, hill2) = (2 * a, true);
+            }
+            if !hill2 && valley && r2 >= l2 + 5 && check_hill(0, r2.saturating_sub(2), l2, r2).0 {
+                hill2 = true;
+            }
+            if hill2 {
+                let half_pk = argmax_slice(&u, l2, r2) / 2;
+                if half_pk > b
+                    && (6..=last_lag).contains(&half_pk)
+                    && u[half_pk] >= MIN_PEAK_CORRELATION
+                    && u[half_pk] > u[half_pk - 1]
+                    && half_pk + 1 < n
+                    && u[half_pk] > u[half_pk + 1]
+                {
+                    push_unique(&mut candidates, half_pk);
+                }
+            }
         }
     }
 
-    if outlier_period != 0 {
-        push_unique(&mut candidates, outlier_period);
+    if !candidates.iter().any(|&p| p >= 6) {
+        let sp = if p_top <= 5 { dominant_period } else { outlier_period };
+        if sp != 0 {
+            push_unique(&mut candidates, sp);
+        }
     }
-    if candidates.is_empty() {
-        return dominant_period;
-    }
+    let Some(&first) = candidates.first() else {
+        return 0;
+    };
     if candidates.len() == 1 {
-        return candidates[0];
+        return first;
     }
-    let mut best_p = candidates[0];
-    let mut best_score = fundamental_power(y, best_p);
+    let (mut best_p, mut best_score) = (first, fundamental_power(y, first));
     for &p in &candidates[1..] {
         let s = fundamental_power(y, p);
         if s > best_score {
-            best_score = s;
-            best_p = p;
+            (best_p, best_score) = (p, s);
         }
     }
     best_p
