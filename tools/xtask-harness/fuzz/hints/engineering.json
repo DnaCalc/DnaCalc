@@ -1,0 +1,4578 @@
+{
+  "family": "engineering",
+  "version": 1,
+  "functions": {
+    "BIN2DEC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "1",
+            "1100100",
+            "0111111111",
+            "1000000000",
+            "1111111111",
+            "11111111111",
+            "102",
+            " 1",
+            "-1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (10 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement binary text (range -512..=511)."
+    },
+    "BIN2HEX": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "1",
+            "11111011",
+            "0111111111",
+            "1000000000",
+            "1111111111",
+            "11111111111",
+            "102",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (10 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement binary text (range -512..=511)."
+    },
+    "BIN2OCT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "1",
+            "1001",
+            "0111111111",
+            "1000000000",
+            "1111111111",
+            "11111111111",
+            "102",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (10 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement binary text (range -512..=511)."
+    },
+    "DEC2BIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -513,
+            -512,
+            -100,
+            -1,
+            0,
+            1,
+            9,
+            511,
+            512,
+            5.9
+          ],
+          "ranges": [
+            [
+              -512,
+              511
+            ]
+          ],
+          "edges": [
+            {
+              "value": -512,
+              "why": "minimum 10-character two's-complement value for binary",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:88"
+            },
+            {
+              "value": 511,
+              "why": "maximum 10-character two's-complement value for binary",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:92"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        },
+        {
+          "name": "negative_ignores_places",
+          "how": "negative number outputs full 10-character two's-complement width regardless of valid places",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:104"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "trunc(number) < -512 or trunc(number) > 511",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Truncates number to integer in [-512, 511] and renders binary string."
+    },
+    "DEC2HEX": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -549755813889,
+            -549755813888,
+            -54,
+            -1,
+            0,
+            1,
+            100,
+            255.8,
+            549755813887,
+            549755813888
+          ],
+          "ranges": [
+            [
+              -549755813888,
+              549755813887
+            ]
+          ],
+          "edges": [
+            {
+              "value": -549755813888,
+              "why": "minimum 10-character two's-complement value for hexadecimal",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:88"
+            },
+            {
+              "value": 549755813887,
+              "why": "maximum 10-character two's-complement value for hexadecimal",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:92"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        },
+        {
+          "name": "negative_ignores_places",
+          "how": "negative number outputs full 10-character two's-complement width regardless of valid places",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:104"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "trunc(number) < -549755813888 or trunc(number) > 549755813887",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Truncates number to integer in [-549755813888, 549755813887] and renders hexadecimal string."
+    },
+    "DEC2OCT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -536870913,
+            -536870912,
+            -100,
+            -1,
+            0,
+            1,
+            58,
+            536870911,
+            536870912
+          ],
+          "ranges": [
+            [
+              -536870912,
+              536870911
+            ]
+          ],
+          "edges": [
+            {
+              "value": -536870912,
+              "why": "minimum 10-character two's-complement value for octal",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:88"
+            },
+            {
+              "value": 536870911,
+              "why": "maximum 10-character two's-complement value for octal",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:92"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        },
+        {
+          "name": "negative_ignores_places",
+          "how": "negative number outputs full 10-character two's-complement width regardless of valid places",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:104"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "trunc(number) < -536870912 or trunc(number) > 536870911",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Truncates number to integer in [-536870912, 536870911] and renders octal string."
+    },
+    "HEX2BIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "F",
+            "1FF",
+            "FFFFFFFFFE",
+            "FFFFFFFFFF",
+            "1000000000",
+            "200",
+            "00000000001",
+            "G",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "decoded signed value outside [-512, 511]",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "invalid hex digits, whitespace, or > 10 chars",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char hex text into binary within 10-bit signed range [-512, 511]."
+    },
+    "HEX2DEC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "a5",
+            "3DA408B9",
+            "7FFFFFFFFF",
+            "8000000000",
+            "FFFFFFFFFF",
+            "00000000001",
+            "G",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (40 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement hexadecimal text (range -549755813888..=549755813887)."
+    },
+    "HEX2OCT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "F",
+            "1FFFFFFF",
+            "FFE0000000",
+            "FFFFFFFF5B",
+            "20000000",
+            "00000000001",
+            "G",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "decoded signed value outside [-536870912, 536870911]",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "invalid hex digits, whitespace, or > 10 chars",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char hex text into octal within 30-bit signed range [-536870912, 536870911]."
+    },
+    "OCT2BIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "3",
+            "777",
+            "7777777000",
+            "7777777777",
+            "1000",
+            "00000000000",
+            "8",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "decoded signed value outside [-512, 511]",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:100"
+        },
+        {
+          "when": "invalid octal digits, whitespace, or > 10 chars",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char octal text into binary within 10-bit signed range [-512, 511]."
+    },
+    "OCT2DEC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "54",
+            "3777777777",
+            "4000000000",
+            "7777777533",
+            "7777777777",
+            "00000000000",
+            "8",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (30 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement octal text (range -536870912..=536870911)."
+    },
+    "OCT2HEX": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "100",
+            "3777777777",
+            "4000000000",
+            "7777777777",
+            "00000000000",
+            "8",
+            " 1"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string parses as 0",
+              "source": "handbook FN-BIN2DEC-001"
+            }
+          ]
+        },
+        {
+          "name": "places",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8,
+            10,
+            11,
+            4.8
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid places (trunc(places) in 1..=10)",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            },
+            {
+              "value": 10,
+              "why": "maximum valid places",
+              "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_text_is_zero",
+          "how": "empty string '' parses as 0, while spaces/tabs return #NUM!",
+          "source": "handbook FN-BIN2DEC-001"
+        },
+        {
+          "name": "places_validated_first",
+          "how": "places is validated before reading number (even for negative outputs that ignore places)",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:51"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "places < 1 or places >= 11 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:78"
+        },
+        {
+          "when": "number or places is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        },
+        {
+          "when": "number or places is omitted placeholder",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:29"
+        },
+        {
+          "when": "invalid digits, whitespace, sign, or > 10 characters (30 bits)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:45"
+        },
+        {
+          "when": "non-negative output requires more digits than places",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/engineering_radix_family.rs:118"
+        }
+      ],
+      "notes": "Converts 10-char signed two's-complement octal text (range -536870912..=536870911)."
+    },
+    "BITAND": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            5,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.1,
+              "why": "fractional operand returns #NUM! (does not truncate)",
+              "source": "handbook FN-BITAND-001"
+            },
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            3,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "number1 < 0 or number1 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        },
+        {
+          "when": "number2 < 0 or number2 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        }
+      ],
+      "notes": "Bitwise AND on exact 48-bit unsigned integers [0, 2^48 - 1]; fractional inputs give #NUM!."
+    },
+    "BITOR": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            5,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.1,
+              "why": "fractional operand returns #NUM! (does not truncate)",
+              "source": "handbook FN-BITAND-001"
+            },
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            3,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "number1 < 0 or number1 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        },
+        {
+          "when": "number2 < 0 or number2 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        }
+      ],
+      "notes": "Bitwise OR on exact 48-bit unsigned integers [0, 2^48 - 1]; fractional inputs give #NUM!."
+    },
+    "BITXOR": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            5,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.1,
+              "why": "fractional operand returns #NUM! (does not truncate)",
+              "source": "handbook FN-BITAND-001"
+            },
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.1,
+            1.5,
+            3,
+            255,
+            65535,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 281474976710655,
+              "why": "maximum 48-bit unsigned integer (2^48 - 1)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:2"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "number1 < 0 or number1 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        },
+        {
+          "when": "number2 < 0 or number2 > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        }
+      ],
+      "notes": "Bitwise XOR on exact 48-bit unsigned integers [0, 2^48 - 1]; fractional inputs give #NUM!."
+    },
+    "BITLSHIFT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.5,
+            4,
+            140737488355328,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "when number == 0, any finite shift_amount returns 0 (even |shift_amount| > 53)",
+              "source": "handbook FN-BITLSHIFT-001"
+            },
+            {
+              "value": 0.5,
+              "why": "fractional number returns #NUM! without truncation",
+              "source": "handbook FN-BITAND-001"
+            }
+          ]
+        },
+        {
+          "name": "shift_amount",
+          "kind": "integer",
+          "specials": [
+            -54,
+            -53.5,
+            -53,
+            -49,
+            -48,
+            -13.5,
+            -1,
+            0,
+            1,
+            47,
+            48,
+            49,
+            53,
+            53.5,
+            54
+          ],
+          "ranges": [
+            [
+              -53,
+              53
+            ]
+          ],
+          "edges": [
+            {
+              "value": 49,
+              "why": "nonzero number with |trunc(shift_amount)| in 49..=53 returns 0 instead of #NUM!",
+              "source": "handbook FN-BITLSHIFT-001"
+            },
+            {
+              "value": 53,
+              "why": "maximum |trunc(shift_amount)| before #NUM! (for nonzero number)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:16"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "zero_bypass",
+          "how": "number == 0 returns 0 for any finite shift_amount",
+          "source": "crates/calc-func/src/ported/bit_common.rs:32"
+        },
+        {
+          "name": "large_shift_zero",
+          "how": "for nonzero number and |trunc(shift_amount)| in 49..=53, returns 0",
+          "source": "crates/calc-func/src/ported/bit_common.rs:36"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0 or number > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        },
+        {
+          "when": "number != 0 and |trunc(shift_amount)| > 53",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:16"
+        },
+        {
+          "when": "left shift overflows 48-bit bound (result > 2^48 - 1)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:43"
+        }
+      ],
+      "notes": "Bitwise left (or right when shift_amount < 0) shift; number must be exact integer in [0, 2^48-1], shift_amount truncates."
+    },
+    "BITRSHIFT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            0.5,
+            4,
+            140737488355328,
+            281474976710655,
+            281474976710656,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              281474976710655
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "when number == 0, any finite shift_amount returns 0 (even |shift_amount| > 53)",
+              "source": "handbook FN-BITLSHIFT-001"
+            },
+            {
+              "value": 0.5,
+              "why": "fractional number returns #NUM! without truncation",
+              "source": "handbook FN-BITAND-001"
+            }
+          ]
+        },
+        {
+          "name": "shift_amount",
+          "kind": "integer",
+          "specials": [
+            -54,
+            -53.5,
+            -53,
+            -49,
+            -48,
+            -13.5,
+            -1,
+            0,
+            1,
+            47,
+            48,
+            49,
+            53,
+            53.5,
+            54
+          ],
+          "ranges": [
+            [
+              -53,
+              53
+            ]
+          ],
+          "edges": [
+            {
+              "value": 49,
+              "why": "nonzero number with |trunc(shift_amount)| in 49..=53 returns 0 instead of #NUM!",
+              "source": "handbook FN-BITLSHIFT-001"
+            },
+            {
+              "value": 53,
+              "why": "maximum |trunc(shift_amount)| before #NUM! (for nonzero number)",
+              "source": "crates/calc-func/src/ported/bit_common.rs:16"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "zero_bypass",
+          "how": "number == 0 returns 0 for any finite shift_amount",
+          "source": "crates/calc-func/src/ported/bit_common.rs:32"
+        },
+        {
+          "name": "large_shift_zero",
+          "how": "for nonzero number and |trunc(shift_amount)| in 49..=53, returns 0",
+          "source": "crates/calc-func/src/ported/bit_common.rs:36"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0 or number > 281474976710655 or non-integer",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:8"
+        },
+        {
+          "when": "number != 0 and |trunc(shift_amount)| > 53",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:16"
+        },
+        {
+          "when": "left shift overflows 48-bit bound (result > 2^48 - 1)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bit_common.rs:43"
+        }
+      ],
+      "notes": "Bitwise right (or left when shift_amount < 0) shift; number must be exact integer in [0, 2^48-1], shift_amount truncates."
+    },
+    "COMPLEX": {
+      "args": [
+        {
+          "name": "real_num",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            3,
+            1e-308,
+            2.2250738585072014e-308,
+            1.7976931348623157e+308,
+            -1e+100
+          ],
+          "ranges": [
+            [
+              -1e+307,
+              1e+307
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2.2250738585072014e-308,
+              "why": "exact DBL_MIN formats as '0' when 15-digit rounding drops below MIN_POSITIVE",
+              "source": "handbook FN-COMPLEX-001"
+            },
+            {
+              "value": 1.7976931348623157e+308,
+              "why": "exact DBL_MAX is rejected with #NUM!",
+              "source": "crates/calc-func/src/ported/complex_family.rs:487"
+            }
+          ]
+        },
+        {
+          "name": "i_num",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            4,
+            1e-308,
+            1e+100
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "suffix",
+          "kind": "text",
+          "specials": [
+            "i",
+            "j",
+            "",
+            "k",
+            "I",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string defaults to 'i'",
+              "source": "crates/calc-func/src/catalogue/engineering.rs:199"
+            },
+            {
+              "value": "j",
+              "why": "uses 'j' imaginary suffix (lowercase only)",
+              "source": "crates/calc-func/src/catalogue/engineering.rs:200"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "21_char_fixed_cutoff",
+          "how": "renders fixed decimal up to 21 unsigned characters, otherwise E+xxx scientific notation",
+          "source": "crates/calc-func/src/ported/complex_family.rs:531"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "suffix not in {'i', 'j', ''}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:201"
+        },
+        {
+          "when": "real_num or i_num is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:126"
+        },
+        {
+          "when": "coefficient magnitude == DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:487"
+        }
+      ],
+      "notes": "Formats (real_num, i_num) to 15 significant digits via x87 decimal conversion with 'i' or 'j' suffix."
+    },
+    "IMABS": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "crt_hypot",
+          "how": "computes CRT hypot(re, im) without intermediate squaring underflow/overflow",
+          "source": "handbook FN-IMABS-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        }
+      ],
+      "notes": "Complex modulus via CRT hypot(re, im)."
+    },
+    "IMAGINARY": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "15_digit_parse_flush",
+          "how": "parses complex text to 15 significant digits and flushes subnormals below DBL_MIN to 0",
+          "source": "handbook FN-IMAGINARY-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        }
+      ],
+      "notes": "Extracts imaginary coefficient of complex number as binary64."
+    },
+    "IMREAL": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "15_digit_parse_flush",
+          "how": "parses complex text to 15 significant digits and flushes subnormals below DBL_MIN to 0",
+          "source": "handbook FN-IMAGINARY-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        }
+      ],
+      "notes": "Extracts real coefficient of complex number as binary64."
+    },
+    "IMARGUMENT": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null,
+            "0+0i",
+            "0+1i",
+            "0-1i",
+            "-1+0i",
+            "-1-1e-10i"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "1e-300+1e109i",
+              "why": "when |im / re| overflows binary64, returns #DIV/0! instead of +-pi/2",
+              "source": "handbook FN-IMARGUMENT-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "re == 0 && im == 0, or |im / re| overflows binary64",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:160"
+        }
+      ],
+      "notes": "Principal argument in (-pi, pi] computed from atan(im/re) with quadrant adjustment."
+    },
+    "IMCONJUGATE": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "formatted coefficient == DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:487"
+        }
+      ],
+      "notes": "Negates imaginary coefficient and preserves operand's 'i'/'j' suffix."
+    },
+    "IMCOS": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "134217728",
+              "why": "|re| >= 2^27 returns #NUM!",
+              "source": "handbook FN-IMCOS-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "circular_exp_pairing",
+          "how": "pairs Excel scalar sin/cos(re) with exp_kernel(im) and RN53(RN64(1/exp_kernel(im)))",
+          "source": "handbook FN-IMCOS-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "|re| >= 134217728 (2^27)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:571"
+        }
+      ],
+      "notes": "Complex cosine; rejects |re| >= 2^27."
+    },
+    "IMSIN": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "134217728",
+              "why": "|re| >= 2^27 returns #NUM!",
+              "source": "handbook FN-IMSIN-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "circular_exp_pairing",
+          "how": "pairs Excel scalar sin/cos(re) with exp_kernel(im) and RN53(RN64(1/exp_kernel(im)))",
+          "source": "handbook FN-IMSIN-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "|re| >= 134217728 (2^27)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:571"
+        }
+      ],
+      "notes": "Complex sine; rejects |re| >= 2^27."
+    },
+    "IMTAN": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0+354.5i",
+              "why": "im > 354.5 saturates to 'i' before checking |re| >= 2^27",
+              "source": "handbook FN-IMTAN-001"
+            },
+            {
+              "value": "0-354.5i",
+              "why": "im < -354.0 saturates to '-i' before checking |re| >= 2^27",
+              "source": "handbook FN-IMTAN-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "imaginary_saturation",
+          "how": "im > 354.5 -> i and im < -354.0 -> -i checked before circular domain bound",
+          "source": "crates/calc-func/src/ported/complex_family.rs:249"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "|re| >= 134217728 (2^27) when -354 <= im <= 354.5",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:257"
+        },
+        {
+          "when": "denominator == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:268"
+        }
+      ],
+      "notes": "Complex tangent with asymmetric imaginary saturation (im > 354.5, im < -354) checked before |re| < 2^27."
+    },
+    "IMCOT": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "134217728",
+              "why": "real axis |re| >= 2^27 returns '0' (unlike IMTAN which returns #NUM!)",
+              "source": "handbook FN-IMCOT-001"
+            },
+            {
+              "value": "0",
+              "why": "tan(0) == 0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/complex_family.rs:378"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "real_axis_bound_zero",
+          "how": "on real axis (im == 0), |re| >= 2^27 returns '0'",
+          "source": "crates/calc-func/src/ported/complex_family.rs:370"
+        },
+        {
+          "name": "imaginary_saturation",
+          "how": "im > 354.5 -> -i and im < -354.0 -> i before circular domain check",
+          "source": "handbook FN-IMCOT-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "re == 0 && im == 0 (or tan(re) == 0 on real axis)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:378"
+        },
+        {
+          "when": "off-axis |re| >= 2^27 when -354 <= im <= 354.5",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:387"
+        }
+      ],
+      "notes": "Complex cotangent; returns '0' on real axis for |re| >= 2^27 and saturates to -+i for large im."
+    },
+    "IMSEC": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "134217728",
+              "why": "|re| >= 2^27 returns #NUM!",
+              "source": "handbook FN-IMSEC-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "scaled_reciprocal",
+          "how": "forms single scaled reciprocal 1 / cos(z) with subnormals flushed to 0",
+          "source": "handbook FN-IMSEC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "|re| >= 134217728 (2^27) or cos(z) == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:419"
+        }
+      ],
+      "notes": "Complex secant via single scaled reciprocal of IMCOS(z)."
+    },
+    "IMCSC": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "sin(0) == 0 returns #NUM!",
+              "source": "handbook FN-IMCSC-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "scaled_reciprocal",
+          "how": "forms single scaled reciprocal 1 / sin(z) with subnormals flushed to 0",
+          "source": "handbook FN-IMCSC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "|re| >= 134217728 (2^27) or sin(z) == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:422"
+        }
+      ],
+      "notes": "Complex cosecant via single scaled reciprocal of IMSIN(z)."
+    },
+    "IMCOSH": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0.0001",
+              "why": "for |re| <= 0.0001 uses Taylor 1 + re^2/2",
+              "source": "handbook FN-IMCOSH-001"
+            },
+            {
+              "value": "710",
+              "why": "real-axis EXP overflow returns #NUM!",
+              "source": "handbook FN-IMCOSH-001"
+            },
+            {
+              "value": "710+i",
+              "why": "off-axis re > 709 or < -708 uses EXP(|re| + LN(cos(im)/2))",
+              "source": "crates/calc-func/src/ported/complex_family.rs:322"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "hyperbolic_cutoffs",
+          "how": "|re| <= 0.0001 Taylor, 0.0001 < |re| < 20 via exp(-re), >= 20 via exp(|re|)/2, off-axis > 709 via exp+ln",
+          "source": "crates/calc-func/src/ported/complex_family.rs:295"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "im == 0 and EXP(|re|) overflows",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:282"
+        },
+        {
+          "when": "off-axis |re| > 709 (or < -708) with cos(im) <= 0 or sin(im) <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:327"
+        },
+        {
+          "when": "off-axis |im| >= 2^27",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:571"
+        }
+      ],
+      "notes": "Complex hyperbolic cosine."
+    },
+    "IMSINH": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0.01",
+              "why": "for |re| <= 0.01 uses Taylor re + re^3/6 + re^5/120",
+              "source": "handbook FN-IMSINH-001"
+            },
+            {
+              "value": "710",
+              "why": "real-axis EXP overflow returns #NUM!",
+              "source": "handbook FN-IMSINH-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "hyperbolic_cutoffs",
+          "how": "|re| <= 0.01 Taylor, 0.01 < |re| < 20 via exp(-re), >= 20 via exp(|re|)/2, off-axis > 709 via exp+ln",
+          "source": "crates/calc-func/src/ported/complex_family.rs:295"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "im == 0 and EXP(|re|) overflows",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:282"
+        },
+        {
+          "when": "off-axis |re| > 709 (or < -708) with cos(im) <= 0 or sin(im) <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:327"
+        },
+        {
+          "when": "off-axis |im| >= 2^27",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:571"
+        }
+      ],
+      "notes": "Complex hyperbolic sine."
+    },
+    "IMSECH": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "1e100",
+              "why": "skips IMCOSH real-axis overflow check and returns '0'",
+              "source": "handbook FN-IMSECH-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "scaled_reciprocal_wide",
+          "how": "uses hyperbolic_parts without real-axis EXP overflow check, then scaled reciprocal",
+          "source": "handbook FN-IMSECH-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "cosh(z) == 0 or off-axis |im| >= 2^27",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:425"
+        }
+      ],
+      "notes": "Complex hyperbolic secant via single scaled reciprocal of cosh(z)."
+    },
+    "IMCSCH": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "sinh(0) == 0 returns #NUM!",
+              "source": "handbook FN-IMCSCH-001"
+            },
+            {
+              "value": "1e100",
+              "why": "skips IMSINH real-axis overflow check and returns '0'",
+              "source": "handbook FN-IMCSCH-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "scaled_reciprocal_wide",
+          "how": "uses hyperbolic_parts without real-axis EXP overflow check, then scaled reciprocal",
+          "source": "handbook FN-IMCSCH-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "z == 0 or sinh(z) == 0 or off-axis |im| >= 2^27",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:429"
+        }
+      ],
+      "notes": "Complex hyperbolic cosecant via single scaled reciprocal of sinh(z)."
+    },
+    "IMEXP": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null,
+            "300",
+            "301",
+            "-300",
+            "-301",
+            300,
+            301
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": 300,
+              "why": "numeric real inputs in [-300, 300] route through worksheet EXP kernel",
+              "source": "handbook FN-IMEXP-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "real_numeric_fastpath",
+          "how": "CoreRef::Number in [-300, 300] uses worksheet excel_exp; complex text or outside [-300, 300] uses CRT exp/cos/sin",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:221"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "result coefficient overflows to infinite or == DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:487"
+        }
+      ],
+      "notes": "Complex exponential; numeric scalars in [-300, 300] use Excel's scalar EXP."
+    },
+    "IMLN": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "IMLN(0) returns #NUM!",
+              "source": "handbook FN-IMLN-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "IMABS(inumber) == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:192"
+        }
+      ],
+      "notes": "Principal complex natural logarithm ln(|z|) + atan2(im, re)i."
+    },
+    "IMLOG10": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "IMLOG10(0) returns #NUM!",
+              "source": "handbook FN-IMLOG10-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "real_axis_vs_off_axis",
+          "how": "on real axis (im == 0) multiplies excel_log(|re|) * LOG10_E in x87; off-axis divides IMLN(z) by crt_log(10)",
+          "source": "handbook FN-IMLOG10-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "IMABS(inumber) == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:192"
+        }
+      ],
+      "notes": "Base-10 complex logarithm."
+    },
+    "IMLOG2": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "IMLOG2(0) returns #NUM!",
+              "source": "handbook FN-IMLOG2-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "real_axis_vs_off_axis",
+          "how": "on real axis (im == 0) multiplies excel_log(|re|) * 0x3ff71547652b82ff in x87; off-axis divides IMLN(z) by crt_log(2)",
+          "source": "handbook FN-IMLOG2-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "IMABS(inumber) == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:192"
+        }
+      ],
+      "notes": "Base-2 complex logarithm."
+    },
+    "IMSQRT": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null,
+            "1e200+1e200i",
+            "1e-300"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "1e-300",
+              "why": "squares re and im directly flushing < DBL_MIN to 0, returning '0'",
+              "source": "handbook FN-IMSQRT-001"
+            },
+            {
+              "value": "1e200+1e200i",
+              "why": "if finite squares sum to infinity, returns '0'",
+              "source": "crates/calc-func/src/ported/complex_family.rs:213"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "individual component square overflows to infinity",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:200"
+        }
+      ],
+      "notes": "Principal complex square root; treats IMARGUMENT #DIV/0! angles as 0."
+    },
+    "IMDIV": {
+      "args": [
+        {
+          "name": "inumber1",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        },
+        {
+          "name": "inumber2",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            },
+            {
+              "value": "0",
+              "why": "zero divisor returns #NUM!",
+              "source": "handbook FN-IMDIV-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "scaled_complex_division",
+          "how": "scales numerator and denominator by smaller/larger component ratio and flushes quotients < DBL_MIN to 0",
+          "source": "handbook FN-IMDIV-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "inumber2 == 0+0i",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:100"
+        },
+        {
+          "when": "operands mix 'i' and 'j' suffixes",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:652"
+        }
+      ],
+      "notes": "Complex quotient using scaled denominator and subnormal flushing."
+    },
+    "IMPOWER": {
+      "args": [
+        {
+          "name": "inumber",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null,
+            "i",
+            "0"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        },
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -2,
+            -1,
+            0,
+            0.5,
+            1,
+            2,
+            100000000.0,
+            1e-300
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0^0 returns #NUM!; nonzero^0 returns '1'",
+              "source": "crates/calc-func/src/catalogue/engineering.rs:276"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "axis_vs_off_axis_angle",
+          "how": "real/imaginary axes (re==0 or im==0) use Excel 66-bit pi circular reduction and worksheet power; off-axis uses CRT",
+          "source": "handbook FN-IMPOWER-001"
+        },
+        {
+          "name": "underflow_before_angle_check",
+          "how": "if |z|^number underflows to 0, returns '0' before checking |angle| > 2^27 - 1",
+          "source": "crates/calc-func/src/ported/complex_family.rs:451"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "inumber == 0 and number <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:435"
+        },
+        {
+          "when": "|atan2(im, re) * number| > 134217727 (2^27 - 1) when scale != 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/complex_family.rs:456"
+        }
+      ],
+      "notes": "Complex power z^number; checks |angle| <= 2^27 - 1 when scaled magnitude is nonzero."
+    },
+    "IMSUB": {
+      "args": [
+        {
+          "name": "inumber1",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        },
+        {
+          "name": "inumber2",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "operands mix 'i' and 'j' suffixes",
+          "excel": "#VALUE!",
+          "source": "handbook FN-IMSUB-001"
+        }
+      ],
+      "notes": "Complex difference (re1 - re2) + (im1 - im2)i."
+    },
+    "IMSUM": {
+      "args": [
+        {
+          "name": "inumber1",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        },
+        {
+          "name": "inumber2",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "operands mix 'i' and 'j' suffixes",
+          "excel": "#VALUE!",
+          "source": "handbook FN-IMSUM-001"
+        }
+      ],
+      "notes": "Sum of 1..=255 complex operands (ranges/arrays supported)."
+    },
+    "IMPRODUCT": {
+      "args": [
+        {
+          "name": "inumber1",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        },
+        {
+          "name": "inumber2",
+          "kind": "text",
+          "specials": [
+            "0",
+            "1",
+            "-1",
+            "i",
+            "-i",
+            "j",
+            "-j",
+            "3+4i",
+            "3-4j",
+            "1+i",
+            "1-i",
+            "1e-300",
+            "1e-300-1e9i",
+            "1e-300+1e109i",
+            "3e150+4e150i",
+            "1.5707963267948966i",
+            "3.141592653589793i",
+            "709+i",
+            "710+i",
+            "1e100",
+            "134217727.5",
+            "134217728",
+            "0+354.5i",
+            "0+355i",
+            "0-354i",
+            "0-354.5i",
+            "",
+            "bad",
+            0,
+            1,
+            -1,
+            1e-300,
+            1e+100,
+            134217728,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #NUM! while a blank cell evaluates as 0",
+              "source": "crates/calc-func/src/ported/complex_family.rs:626"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "inumber is empty text '' or invalid complex syntax",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:83"
+        },
+        {
+          "when": "inumber is logical TRUE/FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:86"
+        },
+        {
+          "when": "operands mix 'i' and 'j' suffixes",
+          "excel": "#VALUE!",
+          "source": "handbook FN-IMPRODUCT-001"
+        }
+      ],
+      "notes": "Product of 1..=255 complex operands (ranges/arrays supported)."
+    },
+    "BESSELI": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -709.8,
+            -709.7,
+            -3.75,
+            -2.5,
+            -1,
+            0,
+            1,
+            1.5,
+            3.75,
+            20,
+            709.7,
+            709.78
+          ],
+          "ranges": [
+            [
+              -709.7,
+              709.7
+            ]
+          ],
+          "edges": [
+            {
+              "value": 3.75,
+              "why": "switch between I0/I1 small and large A&S 9.8.1-9.8.4 polynomials",
+              "source": "crates/calc-func/src/ported/bessel.rs:184"
+            },
+            {
+              "value": 709.7,
+              "why": "maximum admitted |x|; next binary64 up returns #NUM!",
+              "source": "handbook FN-BESSELI-004"
+            }
+          ]
+        },
+        {
+          "name": "n",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            3,
+            10,
+            100,
+            10000000,
+            10000001
+          ],
+          "ranges": [
+            [
+              0,
+              10000000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "minimum order (truncated); < 0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/bessel.rs:317"
+            },
+            {
+              "value": 10000000,
+              "why": "maximum order after trunc(); > 10,000,000 returns #NUM!",
+              "source": "crates/calc-func/src/ported/bessel.rs:112"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "orders_0_1_vs_higher",
+          "how": "orders 0 and 1 use A&S polynomials; n >= 2 uses Miller backward recurrence normalized by I0(x)",
+          "source": "handbook FN-BESSELI-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "x > 709.7 or x < -709.7",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:455"
+        },
+        {
+          "when": "n < 0 or trunc(n) > 10000000",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:317"
+        },
+        {
+          "when": "x or n is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        }
+      ],
+      "notes": "Modified Bessel function In(x); subnormals flushed to zero."
+    },
+    "BESSELJ": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -134217728,
+            -2.5,
+            0,
+            1e-300,
+            1.9,
+            8,
+            134217727.5,
+            134217728
+          ],
+          "ranges": [
+            [
+              -134217727,
+              134217727
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "BESSELJ(0, 0) returns 1.00000000283141 in captured Excel",
+              "source": "handbook FN-BESSELJ-001"
+            },
+            {
+              "value": 8,
+              "why": "switch between small and asymptotic J0/J1 rational approximations",
+              "source": "crates/calc-func/src/ported/bessel.rs:238"
+            },
+            {
+              "value": 134217727.5,
+              "why": "phase-shifted limit |x| - phase <= 2^27 - 1 (phase 0.785398164 for J0, 2.356194491 for J1)",
+              "source": "crates/calc-func/src/ported/bessel.rs:228"
+            }
+          ]
+        },
+        {
+          "name": "n",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            10,
+            10000000,
+            10000000.5,
+            10000001
+          ],
+          "ranges": [
+            [
+              0,
+              10000000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 10000000,
+              "why": "maximum order after trunc()",
+              "source": "crates/calc-func/src/ported/bessel.rs:112"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "forward_vs_backward",
+          "how": "|x| > n uses forward recurrence from J0/J1; |x| <= n uses backward recurrence",
+          "source": "crates/calc-func/src/ported/bessel.rs:422"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "|x| - phase > 134217727 (2^27 - 1)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:228"
+        },
+        {
+          "when": "n < 0 or trunc(n) > 10000000",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:317"
+        },
+        {
+          "when": "x or n is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        }
+      ],
+      "notes": "Bessel function of the first kind Jn(x); flushes subnormals to zero."
+    },
+    "BESSELK": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -1,
+            0,
+            1e-300,
+            1.5,
+            2,
+            700,
+            706
+          ],
+          "ranges": [
+            [
+              1e-300,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "x <= 0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/bessel.rs:483"
+            },
+            {
+              "value": 2,
+              "why": "switch between A&S 9.8.5/9.8.7 (x <= 2) and asymptotic 9.8.6/9.8.8 (x > 2)",
+              "source": "crates/calc-func/src/ported/bessel.rs:204"
+            },
+            {
+              "value": 706,
+              "why": "underflows to 0",
+              "source": "crates/calc-func/src/ported/bessel.rs:27"
+            }
+          ]
+        },
+        {
+          "name": "n",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            10,
+            10000000,
+            10000001
+          ],
+          "ranges": [
+            [
+              0,
+              10000000
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "x <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:483"
+        },
+        {
+          "when": "n < 0 or trunc(n) > 10000000",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:317"
+        },
+        {
+          "when": "x or n is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        }
+      ],
+      "notes": "Modified Bessel function of the second kind Kn(x); requires x > 0 and uses stored PC64 forward recurrence."
+    },
+    "BESSELY": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -1,
+            0,
+            0.5,
+            8,
+            100,
+            134217727.5,
+            134217728,
+            134217729
+          ],
+          "ranges": [
+            [
+              1e-300,
+              134217727
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "x <= 0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/bessel.rs:439"
+            },
+            {
+              "value": 8,
+              "why": "switch between small and asymptotic Y0/Y1 approximations",
+              "source": "crates/calc-func/src/ported/bessel.rs:272"
+            },
+            {
+              "value": 134217728,
+              "why": "BESSELY(134217728, 1) is admitted by phase-shifted 2^27 - 1 limit (phase 2.356194491)",
+              "source": "handbook FN-BESSELY-001"
+            }
+          ]
+        },
+        {
+          "name": "n",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            10,
+            10000000,
+            10000001
+          ],
+          "ranges": [
+            [
+              0,
+              10000000
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "x <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:439"
+        },
+        {
+          "when": "|x| - phase > 134217727 (2^27 - 1)",
+          "excel": "#NUM!",
+          "source": "handbook FN-BESSELY-001"
+        },
+        {
+          "when": "n < 0 or trunc(n) > 10000000",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/bessel.rs:317"
+        },
+        {
+          "when": "x or n is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:28"
+        }
+      ],
+      "notes": "Bessel function of the second kind Yn(x); requires x > 0."
+    },
+    "DELTA": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "number",
+          "specials": [
+            -1,
+            -0.0,
+            0,
+            1e-308,
+            1,
+            5,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "number",
+          "specials": [
+            -1,
+            -0.0,
+            0,
+            1e-308,
+            1,
+            5,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "right_to_left_validation",
+          "how": "reads and validates number2 before number1, and rejects logicals in either position with #VALUE!",
+          "source": "handbook FN-DELTA-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number1 or number2 is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:302"
+        }
+      ],
+      "notes": "Returns 1 if number1 == number2 (default number2 = 0), else 0; reads second arg first."
+    },
+    "GESTEP": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -5,
+            -1e-308,
+            -0.0,
+            0,
+            1e-308,
+            1,
+            5,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "step",
+          "kind": "number",
+          "specials": [
+            -5,
+            -0.0,
+            0,
+            1,
+            5,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "right_to_left_validation",
+          "how": "reads and validates step before number, and rejects logicals in either position with #VALUE!",
+          "source": "handbook FN-DELTA-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number or step is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/engineering.rs:308"
+        }
+      ],
+      "notes": "Returns 1 if number >= step (default step = 0), else 0; reads second arg first."
+    },
+    "CONVERT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -40,
+            0,
+            1,
+            10,
+            100,
+            273.15,
+            10000000000.0
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "from_unit",
+          "kind": "text",
+          "specials": [
+            "m",
+            "km",
+            "cm",
+            "in",
+            "ft",
+            "yd",
+            "mi",
+            "Nmi",
+            "g",
+            "kg",
+            "lbm",
+            "ozm",
+            "sec",
+            "mn",
+            "hr",
+            "day",
+            "Pa",
+            "kPa",
+            "atm",
+            "psi",
+            "l",
+            "ml",
+            "tsp",
+            "tbs",
+            "oz",
+            "cup",
+            "pt",
+            "qt",
+            "gal",
+            "C",
+            "F",
+            "K",
+            "bar",
+            "bad"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "bar",
+              "why": "rejected with #N/A in measured Excel / kernel table",
+              "source": "handbook FN-CONVERT-001"
+            }
+          ]
+        },
+        {
+          "name": "to_unit",
+          "kind": "text",
+          "specials": [
+            "m",
+            "km",
+            "cm",
+            "in",
+            "ft",
+            "yd",
+            "mi",
+            "Nmi",
+            "g",
+            "kg",
+            "lbm",
+            "ozm",
+            "sec",
+            "mn",
+            "hr",
+            "day",
+            "Pa",
+            "kPa",
+            "atm",
+            "psi",
+            "l",
+            "ml",
+            "tsp",
+            "tbs",
+            "oz",
+            "cup",
+            "pt",
+            "qt",
+            "gal",
+            "C",
+            "F",
+            "K",
+            "bar",
+            "bad"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "linear_x87_chain",
+          "how": "linear units use three PC64-stored x87 steps: mul(number, from_factor) / to_factor * 10^(from_exp - to_exp)",
+          "source": "handbook FN-CONVERT-001"
+        },
+        {
+          "name": "temperature_affine",
+          "how": "K/C/F conversions use direct affine offsets without x87 factor chain",
+          "source": "crates/calc-func/src/ported/misc_conversion_family.rs:338"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "unknown unit or incompatible unit categories",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/ported/misc_conversion_family.rs:364"
+        }
+      ],
+      "notes": "Converts measurements across length, mass, time, pressure, volume (with SI prefixes), and temperature."
+    }
+  }
+}
