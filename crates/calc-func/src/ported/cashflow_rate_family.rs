@@ -1,6 +1,8 @@
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreRef, CoreValue};
 
+const MAX_DATE_SERIAL: f64 = 2_958_465.0;
+
 #[cfg(test)]
 const IRR_PUBLICATION_ULP_SCAN_RADIUS: usize = 16;
 
@@ -165,7 +167,7 @@ pub(crate) fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalErro
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
     let serial = value.trunc();
-    if serial > 2_958_465.0 {
+    if serial > MAX_DATE_SERIAL {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
     Ok(serial as i64)
@@ -173,14 +175,15 @@ pub(crate) fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalErro
 
 /// Excel `XNPV` date serial admission (`cb28` S1b, S2a, S3a):
 /// rejects `date < 1.0` before truncation, rejects `2_958_466..=i32::MAX`,
-/// and retains x86 `cvttsd2si` 32-bit signed saturation (`>= 2^31` wraps to
-/// `INT_MIN <= 2_958_465` and passes validation while `years` uses `f64`).
+/// and retains the x86 `cvttsd2si` result for subsequent dates (`>= 2^31`
+/// converts to `INT_MIN` for the upper-bound check while `years` uses `f64`).
+/// The anchor also has to be a valid Excel date serial.
 pub(crate) fn xnpv_serial_from_number(value: f64) -> Result<f64, CashflowRateEvalError> {
     if !value.is_finite() || value < 1.0 {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
     let serial = value.trunc();
-    if serial > 2_958_465.0 && serial <= f64::from(i32::MAX) {
+    if serial > MAX_DATE_SERIAL && serial <= f64::from(i32::MAX) {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
     Ok(serial)
@@ -240,7 +243,9 @@ fn validate_xnpv_inputs_f64(values: &[f64], dates: &[f64]) -> Result<(), Workshe
         return Err(WorksheetErrorCode::Value);
     }
     let anchor = dates[0];
-    if !anchor.is_finite() || dates.iter().any(|date| !date.is_finite() || *date < anchor) {
+    if !(1.0..=MAX_DATE_SERIAL).contains(&anchor)
+        || dates.iter().any(|date| !date.is_finite() || *date < anchor)
+    {
         return Err(WorksheetErrorCode::Num);
     }
     Ok(())
