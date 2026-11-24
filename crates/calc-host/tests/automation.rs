@@ -165,6 +165,125 @@ fn text(model: &WorkbookAutomation, object: &ObjectRef, name: &str) -> String {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_horizontal_alignment_formats_a_whole_column() {
+    let (host, model, _) = blank_report();
+    let column = range(&model, "D:D");
+    assert!(matches!(
+        invoke(&model, &column, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    invoke_kind(
+        &model,
+        &column,
+        "HorizontalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I4(-4108)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(
+            &model,
+            &range(&model, "D1048576"),
+            "HorizontalAlignment",
+            vec![]
+        )
+        .unwrap(),
+        AutoValue::I4(-4108)
+    ));
+    assert!(matches!(
+        invoke(&model, &range(&model, "D:E"), "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert!(matches!(
+        invoke(&model, &column, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_vertical_alignment_preserves_other_properties() {
+    let (_, model, _) = blank_report();
+    let cells = range(&model, "A1:B2");
+    let cell = range(&model, "A1");
+    assert!(matches!(
+        invoke(&model, &cells, "VerticalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4107)
+    ));
+    invoke_kind(
+        &model,
+        &cell,
+        "HorizontalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I4(-4131)],
+    )
+    .unwrap();
+    invoke_kind(
+        &model,
+        &cells,
+        "VerticalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I2(-4160)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "VerticalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4160)
+    ));
+    assert!(matches!(
+        invoke(&model, &cell, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4131)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_wrap_text_reports_mixed_null_and_round_trips() {
+    let (host, model, _) = blank_report();
+    let cells = range(&model, "B1:B2");
+    let cell = range(&model, "B1");
+    assert!(matches!(
+        invoke(&model, &cells, "WrapText", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    invoke_kind(
+        &model,
+        &cell,
+        "WrapText",
+        InvokeKind::Put,
+        vec![AutoValue::Bool(true)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "WrapText", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_, reopened) = setup_session(reopened);
+    assert!(matches!(
+        invoke(&reopened, &range(&reopened, "B1"), "WrapText", vec![]).unwrap(),
+        AutoValue::Bool(true)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_2_number_format_get_reports_uniform_codes_and_mixed_null() {
     let (_, model, _) = blank_report();
     let cells = range(&model, "A1:B2");

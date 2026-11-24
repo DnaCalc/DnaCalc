@@ -2,7 +2,7 @@
 /* The page (moved from web/index.html). */
 html, body { margin: 0; background: var(--dna-paper); color: var(--dna-ink); }
 #onecalc-loading { font-family: system-ui, sans-serif; color: var(--dna-ink-3); padding: 16px; }
-.oc{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--dna-ink);max-width:1100px;margin:0 auto;padding:16px}
+.oc{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--dna-ink);background:var(--dna-paper);max-width:1100px;margin:0 auto;padding:16px}
 .oc h1{font-size:20px;margin:0 0 4px}
 .oc .oc-sub{color:var(--dna-ink-3);margin:0 0 16px;font-size:13px}
 .oc-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
