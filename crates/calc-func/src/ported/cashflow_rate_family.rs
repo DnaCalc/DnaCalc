@@ -1,17 +1,8 @@
-use crate::ported::excel_numeric::crt_pow;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreRef, CoreValue};
 
-const ROOT_TOLERANCE: f64 = 1e-8;
-const ROOT_DERIVATIVE_EPS: f64 = 1e-12;
-const ROOT_MAX_ITERATIONS: usize = 100;
-const MIN_VALID_RATE: f64 = -0.999_999_999;
+#[cfg(test)]
 const IRR_PUBLICATION_ULP_SCAN_RADIUS: usize = 16;
-const ROOT_POLISH_ITERATIONS: usize = 64;
-const XIRR_TWO_CASHFLOW_RELATIVE_BRACKET_TOLERANCE: f64 = 2e-8;
-const XIRR_TWO_CASHFLOW_MAX_BRACKET_EXPANSIONS: usize = 128;
-const XIRR_GENERAL_POSITIVE_ROOT_BRENT_EPS: f64 = 1e-8;
-const XIRR_GENERAL_POSITIVE_ROOT_MAX_BRACKET_EXPANSIONS: usize = 128;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CashflowRateEvalError {
@@ -236,29 +227,11 @@ fn validate_xcashflow_inputs(values: &[f64], dates: &[i64]) -> Result<(), Worksh
     if values.len() != dates.len() || dates.is_empty() {
         return Err(WorksheetErrorCode::Num);
     }
-    let anchor = dates[0];
-    if dates.iter().any(|date| *date < anchor) {
-        return Err(WorksheetErrorCode::Num);
-    }
     Ok(())
 }
 
 // XNPV is pure discounting — no sign-change or minimum-count requirement.
 // Keep: equal-length arrays, non-empty, all values finite, no date before anchor.
-fn validate_xnpv_inputs(values: &[f64], dates: &[i64]) -> Result<(), WorksheetErrorCode> {
-    if values.len() != dates.len() || dates.is_empty() {
-        return Err(WorksheetErrorCode::Num);
-    }
-    if !values.iter().all(|v| v.is_finite()) {
-        return Err(WorksheetErrorCode::Value);
-    }
-    let anchor = dates[0];
-    if dates.iter().any(|date| *date < anchor) {
-        return Err(WorksheetErrorCode::Num);
-    }
-    Ok(())
-}
-
 fn validate_xnpv_inputs_f64(values: &[f64], dates: &[f64]) -> Result<(), WorksheetErrorCode> {
     if values.len() != dates.len() || dates.is_empty() {
         return Err(WorksheetErrorCode::Num);
@@ -273,47 +246,7 @@ fn validate_xnpv_inputs_f64(values: &[f64], dates: &[f64]) -> Result<(), Workshe
     Ok(())
 }
 
-fn xnpv_kernel_raw(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {
-    validate_xnpv_inputs(values, dates)?;
-    if !rate.is_finite() || rate <= MIN_VALID_RATE {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let base = 1.0 + rate;
-    let anchor = dates[0];
-    let mut total = 0.0;
-    for (value, date) in values.iter().zip(dates.iter()) {
-        let years = (*date - anchor) as f64 / 365.0;
-        total += *value / crt_pow(base, years);
-    }
-    if total.is_finite() {
-        Ok(total)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
-fn xnpv_derivative(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {
-    validate_xnpv_inputs(values, dates)?;
-    if !rate.is_finite() || rate <= MIN_VALID_RATE {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let base = 1.0 + rate;
-    let anchor = dates[0];
-    let mut total = 0.0;
-    for (value, date) in values.iter().zip(dates.iter()) {
-        let years = (*date - anchor) as f64 / 365.0;
-        if years == 0.0 {
-            continue;
-        }
-        total += -years * *value / crt_pow(base, years + 1.0);
-    }
-    if total.is_finite() {
-        Ok(total)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
+#[cfg(test)]
 fn ordered_rate(rate: f64) -> u64 {
     let bits = rate.to_bits();
     if rate.is_sign_negative() {
@@ -323,6 +256,7 @@ fn ordered_rate(rate: f64) -> u64 {
     }
 }
 
+#[cfg(test)]
 fn rate_from_ordered(key: u64) -> f64 {
     f64::from_bits(if key & (1 << 63) == 0 {
         !key
@@ -336,6 +270,7 @@ fn rate_from_ordered(key: u64) -> f64 {
 /// by one is unbounded in practice. There are only 64 bits in the ordered representation,
 /// so each end needs at most 64 distance probes and 64 bisections. A plateau with no finite
 /// end returns #NUM!.
+#[cfg(test)]
 fn residual_plateau_end<F>(
     root: u64,
     residual: u64,
@@ -387,6 +322,7 @@ where
     Err(WorksheetErrorCode::Num)
 }
 
+#[cfg(test)]
 fn midpoint_of_local_min_abs_residual_plateau<F>(
     root: f64,
     mut f: F,
@@ -428,111 +364,6 @@ where
         return Ok(0.0);
     }
     Ok(rate_from_ordered(lower + (upper - lower) / 2))
-}
-
-fn bounded_rate_solve<F, D>(
-    guess: f64,
-    mut f: F,
-    mut derivative: D,
-) -> Result<f64, WorksheetErrorCode>
-where
-    F: FnMut(f64) -> Result<f64, WorksheetErrorCode>,
-    D: FnMut(f64) -> Result<f64, WorksheetErrorCode>,
-{
-    let mut prev_rate = 0.0;
-    let mut prev_value = f(prev_rate)?;
-    let mut current_rate = if guess <= MIN_VALID_RATE { 0.1 } else { guess };
-    let mut current_value = f(current_rate)?;
-
-    for _ in 0..ROOT_MAX_ITERATIONS {
-        if current_value.abs() <= ROOT_TOLERANCE {
-            return polish_rate(current_rate, &mut f, &mut derivative);
-        }
-
-        let secant_next = if (current_value - prev_value).abs() > ROOT_DERIVATIVE_EPS {
-            let next = current_rate
-                - current_value * (current_rate - prev_rate) / (current_value - prev_value);
-            (next.is_finite() && next > MIN_VALID_RATE).then_some(next)
-        } else {
-            None
-        };
-
-        let newton_next = if let Ok(deriv) = derivative(current_rate) {
-            if deriv.abs() > ROOT_DERIVATIVE_EPS {
-                let next = current_rate - current_value / deriv;
-                (next.is_finite() && next > MIN_VALID_RATE).then_some(next)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let next_rate = secant_next.or(newton_next).unwrap_or_else(|| {
-            if current_rate > 0.0 {
-                current_rate / 2.0
-            } else {
-                0.1
-            }
-        });
-
-        prev_rate = current_rate;
-        prev_value = current_value;
-        current_rate = if next_rate <= MIN_VALID_RATE {
-            0.1
-        } else {
-            next_rate
-        };
-        current_value = f(current_rate)?;
-    }
-
-    if current_value.abs() <= ROOT_TOLERANCE {
-        polish_rate(current_rate, &mut f, &mut derivative)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
-/// Once the bracketed solve is within `ROOT_TOLERANCE` of a root, the residual
-/// `|NPV|` can still leave the *rate* far (10^4–10^5 ULP) from the true root when
-/// the NPV slope is gentle — beyond the `IRR_PUBLICATION_ULP_SCAN_RADIUS` plateau
-/// scan that selects Excel's published double. Polish the seed with analytic
-/// Newton to a rate fixpoint so the plateau sits adjacent to the |NPV|-minimal
-/// double (for a representable exact root this lands on it bit-for-bit).
-fn polish_rate<F, D>(seed: f64, f: &mut F, derivative: &mut D) -> Result<f64, WorksheetErrorCode>
-where
-    F: FnMut(f64) -> Result<f64, WorksheetErrorCode>,
-    D: FnMut(f64) -> Result<f64, WorksheetErrorCode>,
-{
-    let mut rate = seed;
-    let mut last_step = f64::INFINITY;
-    for _ in 0..ROOT_POLISH_ITERATIONS {
-        let value = f(rate)?;
-        let deriv = match derivative(rate) {
-            // Currency units do not decide whether a nonzero slope can polish a rate.
-            Ok(d) if d != 0.0 => d,
-            _ => break,
-        };
-        let next = rate - value / deriv;
-        if !next.is_finite() || next <= MIN_VALID_RATE {
-            break;
-        }
-        if next.to_bits() == rate.to_bits() {
-            break; // bit-level fixpoint
-        }
-        let step = (next - rate).abs();
-        if step >= last_step {
-            // No longer contracting (rounding noise near the root): keep whichever
-            // of the adjacent candidates has the smaller residual.
-            if f(next)?.abs() <= value.abs() {
-                rate = next;
-            }
-            break;
-        }
-        last_step = step;
-        rate = next;
-    }
-    Ok(rate)
 }
 
 #[inline]
@@ -870,192 +701,132 @@ pub(crate) fn xnpv_kernel_f64(
     Ok(total)
 }
 
-fn xirr_two_cashflow_root(values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {
-    if values.len() != 2 || dates.len() != 2 {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let first = values[0];
-    let second = values[1];
-    let years = (dates[1] - dates[0]) as f64 / 365.0;
-    if years <= 0.0 || first == 0.0 {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let ratio = -second / first;
-    if !ratio.is_finite() || ratio <= 0.0 {
-        return Err(WorksheetErrorCode::Num);
-    }
-    let root = crt_pow(ratio, 1.0 / years) - 1.0;
-    if root.is_finite() && root > MIN_VALID_RATE {
-        Ok(root)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
-}
-
-fn xirr_two_cashflow_positive_root_excel_like(
+fn xnpv_for_xirr(
+    rate: f64,
     values: &[f64],
     dates: &[i64],
-    guess: f64,
 ) -> Result<f64, WorksheetErrorCode> {
-    if !guess.is_finite() || guess <= 0.0 {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div};
+    use crate::ported::power_fn::power_kernel;
+
+    if !rate.is_finite() || rate <= -1.0 {
         return Err(WorksheetErrorCode::Num);
     }
-
-    let mut lower = 0.0;
-    let mut lower_value = xnpv_kernel_raw(lower, values, dates)?;
-    let mut upper = guess;
-    let mut upper_value = xnpv_kernel_raw(upper, values, dates)?;
-
-    if lower_value == 0.0 {
-        return Ok(lower);
-    }
-    if upper_value == 0.0 {
-        return Ok(upper);
-    }
-
-    let mut expansions = 0usize;
-    while lower_value.signum() == upper_value.signum() {
-        lower = upper;
-        lower_value = upper_value;
-        upper *= 2.0;
-        if !upper.is_finite() || upper <= MIN_VALID_RATE {
-            return Err(WorksheetErrorCode::Num);
-        }
-        upper_value = xnpv_kernel_raw(upper, values, dates)?;
-        expansions += 1;
-        if expansions > XIRR_TWO_CASHFLOW_MAX_BRACKET_EXPANSIONS {
-            return Err(WorksheetErrorCode::Num);
-        }
-    }
-
-    for _ in 0..ROOT_MAX_ITERATIONS {
-        let midpoint = (lower + upper) / 2.0;
-        let relative_width = (upper - lower) / midpoint.abs();
-        if relative_width <= XIRR_TWO_CASHFLOW_RELATIVE_BRACKET_TOLERANCE {
-            return Ok(midpoint);
-        }
-
-        let midpoint_value = xnpv_kernel_raw(midpoint, values, dates)?;
-        if midpoint_value == 0.0 {
-            return Ok(midpoint);
-        }
-        if lower_value.signum() == midpoint_value.signum() {
-            lower = midpoint;
-            lower_value = midpoint_value;
-        } else {
-            upper = midpoint;
-        }
-    }
-
-    Err(WorksheetErrorCode::Num)
-}
-
-fn xirr_general_positive_root_excel_like(
-    values: &[f64],
-    dates: &[i64],
-    guess: f64,
-) -> Result<f64, WorksheetErrorCode> {
-    if !guess.is_finite() || guess <= 0.0 {
+    let base = excel_x87_add(1.0, rate);
+    if !base.is_finite() || base <= 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
-
-    let zero = 0.0;
-    let zero_value = xnpv_kernel_raw(zero, values, dates)?;
-    if zero_value == 0.0 {
-        return Ok(zero);
-    }
-
-    let mut lower = guess;
-    let mut lower_value = xnpv_kernel_raw(lower, values, dates)?;
-    if lower_value == 0.0 {
-        return Ok(lower);
-    }
-
-    let mut upper;
-
-    if zero_value.signum() != lower_value.signum() {
-        lower = zero;
-        lower_value = zero_value;
-        upper = guess;
-        let upper_value = xnpv_kernel_raw(upper, values, dates)?;
-        if upper_value == 0.0 {
-            return Ok(upper);
-        }
-    } else {
-        upper = guess * 2.0;
-        if !upper.is_finite() || upper <= MIN_VALID_RATE {
+    let anchor = dates[0];
+    let mut total = 0.0;
+    for (&value, &date) in values.iter().zip(dates.iter()) {
+        let years = (date - anchor) as f64 / 365.0;
+        let pow = if years == 0.0 {
+            1.0
+        } else {
+            power_kernel(base, years).map_err(|_| WorksheetErrorCode::Num)?
+        };
+        if !pow.is_finite() || pow <= 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        let mut upper_value = xnpv_kernel_raw(upper, values, dates)?;
-
-        let mut expansions = 0usize;
-        while lower_value.signum() == upper_value.signum() {
-            lower = upper;
-            lower_value = upper_value;
-            upper *= 2.0;
-            if !upper.is_finite() || upper <= MIN_VALID_RATE {
-                return Err(WorksheetErrorCode::Num);
-            }
-            upper_value = xnpv_kernel_raw(upper, values, dates)?;
-            expansions += 1;
-            if expansions > XIRR_GENERAL_POSITIVE_ROOT_MAX_BRACKET_EXPANSIONS {
-                return Err(WorksheetErrorCode::Num);
-            }
+        let term = excel_x87_div(value, pow);
+        if !term.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
+        total = excel_x87_add(total, term);
+        if !total.is_finite() {
+            return Err(WorksheetErrorCode::Num);
         }
     }
-
-    for _ in 0..ROOT_MAX_ITERATIONS {
-        let midpoint = (lower + upper) / 2.0;
-        let bracket_width = upper - lower;
-        let brent_tol = XIRR_GENERAL_POSITIVE_ROOT_BRENT_EPS * (1.0 + 2.0 * midpoint.abs());
-        if bracket_width <= brent_tol {
-            return Ok(midpoint);
-        }
-
-        let midpoint_value = xnpv_kernel_raw(midpoint, values, dates)?;
-        if midpoint_value == 0.0 {
-            return Ok(midpoint);
-        }
-        if lower_value.signum() == midpoint_value.signum() {
-            lower = midpoint;
-            lower_value = midpoint_value;
-        } else {
-            upper = midpoint;
-        }
-    }
-
-    Err(WorksheetErrorCode::Num)
+    Ok(total)
 }
 
+/// Worksheet `XIRR` — unified 1990s bracket + dyadic bisection solver (`cb28` + `nl29`,
+/// verified across live Excel 16.0.20527/20625 witnesses, `w087`, and sweep `00000010`):
+///
+/// * `guess == 0.0` maps to `1e-5`; `!g.is_finite() || g <= -1.0` returns `#NUM!`.
+/// * Evaluates `f(0)` and `f(g)` using `xnpv_for_xirr` (x87 add/div + full `power_kernel`,
+///   no `r <= 0` guard, allows `dates[i] < dates[0]` unlike `XNPV`).
+/// * Bracketing shares a 100-evaluation budget (`exp_cnt + bis_cnt <= 98` after `f(0)` and `f(g)`):
+///   - `g > 0 && values[0] * f(0) < 0`: double `b *= 2.0` while `fa * fb > 0`.
+///   - `g > 0 && values[0] * f(0) >= 0`: if `|f(0) - values[0]| < |values[0]|`, flip to negative
+///     search (`b = -g`, `exp_cnt = 1`, halving toward `-1`; `-g <= -1` yields `#NUM!`);
+///     otherwise skip expansion with `(0, g, fg)` (producing `g * 2^-k`, e.g. `0.1 * 2^-25`).
+///   - `-1 < g < 0`: halve `b = 0.5 * (b - 1.0)` while `fa * fb > 0` (no `+0.1` fallback).
+/// * Bisection tracks only `b_pos = fb > 0.0` without sorting `(a, b)` or early `fm == 0` exit,
+///   halving `m = x87_add(a, 0.5 * x87_sub(b, a))` until `w <= 1e-8 * (1 + 2 * |m|)` and
+///   (`m >= 0` or `|fm| <= 2e-8 * |values[0]|`).
 pub(crate) fn xirr_kernel(
     values: &[f64],
     dates: &[i64],
     guess: Option<f64>,
 ) -> Result<f64, WorksheetErrorCode> {
+    use crate::ported::excel_numeric::{excel_x87_add, excel_x87_sub};
+
     validate_xcashflow_inputs(values, dates)?;
     let guess = guess.unwrap_or(0.1);
-    if values.len() == 2 && dates.len() == 2 {
-        let root = xirr_two_cashflow_root(values, dates)?;
-        if root >= 0.0 && guess < 0.0 {
+    let g = if guess == 0.0 { 1e-5 } else { guess };
+    if !g.is_finite() || g <= -1.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
+    let f = |r: f64| xnpv_for_xirr(r, values, dates);
+    let f0 = f(0.0)?;
+    let fg = f(g)?;
+    let (mut a, mut b, mut fb, mut exp_cnt) = (0.0, g, fg, 0usize);
+    if g > 0.0 {
+        if values[0] * fg < 0.0 {
+            while fb * values[0] < 0.0 {
+                if exp_cnt >= 98 {
+                    return Err(WorksheetErrorCode::Num);
+                }
+                a = b;
+                b *= 2.0;
+                fb = f(b)?;
+                exp_cnt += 1;
+            }
+        } else if values[0] * f0 >= 0.0 && (f0 - values[0]).abs() < values[0].abs() {
+            b = -g;
+            fb = f(b)?;
+            exp_cnt = 1;
+            while fb * values[0] > 0.0 {
+                if exp_cnt >= 98 {
+                    return Err(WorksheetErrorCode::Num);
+                }
+                a = b;
+                b = 0.5 * (b - 1.0);
+                fb = f(b)?;
+                exp_cnt += 1;
+            }
+        }
+    } else {
+        while fb * values[0] > 0.0 {
+            if exp_cnt >= 98 {
+                return Err(WorksheetErrorCode::Num);
+            }
+            a = b;
+            b = 0.5 * (b - 1.0);
+            fb = f(b)?;
+            exp_cnt += 1;
+        }
+    }
+    let b_pos = fb > 0.0;
+    for bis_cnt in 1usize.. {
+        if exp_cnt + bis_cnt > 98 {
             return Err(WorksheetErrorCode::Num);
         }
-        if root >= 0.0 {
-            return xirr_two_cashflow_positive_root_excel_like(values, dates, guess);
+        let w = (b - a).abs();
+        let m = excel_x87_add(a, 0.5 * excel_x87_sub(b, a));
+        let fm = f(m)?;
+        let tol = 1e-8 * (1.0 + 2.0 * m.abs());
+        if w <= tol && (m >= 0.0 || fm.abs() <= 2e-8 * values[0].abs()) {
+            return Ok(m);
         }
-        return Ok(root);
-    }
-
-    if guess > 0.0 {
-        if let Ok(root) = xirr_general_positive_root_excel_like(values, dates, guess) {
-            return Ok(root);
+        if fm == 0.0 || (fm > 0.0) == b_pos {
+            b = m;
+        } else {
+            a = m;
         }
     }
-
-    bounded_rate_solve(
-        guess,
-        |rate| xnpv_kernel_raw(rate, values, dates),
-        |rate| xnpv_derivative(rate, values, dates),
-    )
+    unreachable!()
 }
 
 pub fn map_cashflow_rate_error_to_ws(error: &CashflowRateEvalError) -> WorksheetErrorCode {

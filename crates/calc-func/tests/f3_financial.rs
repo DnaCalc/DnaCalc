@@ -3728,3 +3728,253 @@ fn xirr_rejects_negative_and_out_of_range_dates_before_truncation() {
         );
     }
 }
+
+/// Carbon cb28 (dc-ztvv.26.47, Excel 16.0.20625.20108): unified XIRR bracket +
+/// dyadic bisection solver with shared 100-evaluation budget (`exp_cnt + bis_cnt <= 98`),
+/// `guess == 0 -> 1e-5`, `values[0] * f(0) >= 0` quirk, x87+`power_kernel` evaluation,
+/// and no `len == 2` closed-form or Newton/secant fallback.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xirr_unified_bracket_and_dyadic_bisection_solver_matches_cb28_witnesses() {
+    let f = f64::from_bits;
+
+    // dc-ztvv.26.47 minimal representative (fuzz-XIRR-r02-000288, arity=3):
+    error(
+        call(
+            "XIRR",
+            vec![
+                col(&[
+                    f(0xbfcd81c62a3c37ab),
+                    f(0x40842b4e8f3a0907),
+                    f(0xbfc50a8bf2f2512f),
+                ]),
+                col(&[
+                    f(0xbf59f7f95b24591d),
+                    f(0x40419b5c2a217800),
+                    f(0x407631ea2d41aff1),
+                ]),
+                n(f(0xbfefffffca501acb)),
+            ],
+        ),
+        Num,
+    );
+
+    // guess == 0 -> 1e-5 and negative-guess no-fallback (S1c):
+    let p1_v = col(&[-100.0, 30.0, 40.0, 51.0]);
+    let p1_d = col(&[45000.0, 45100.0, 45200.0, 45365.0]);
+    exact(call("XIRR", vec![p1_v.clone(), p1_d.clone(), n(0.0)]), f(0x3fd585bb0b391926));
+    exact(call("XIRR", vec![p1_v.clone(), p1_d.clone(), n(1e-22)]), f(0x3fd585bb07eab042));
+    error(call("XIRR", vec![p1_v.clone(), p1_d.clone(), n(1e-23)]), Num);
+    error(call("XIRR", vec![p1_v.clone(), p1_d.clone(), n(-0.1)]), Num);
+    error(call("XIRR", vec![p1_v, p1_d, n(-0.5)]), Num);
+
+    // Shared 100-evaluation budget locks: g=0.1 k=67 ok vs k=68 #NUM!, g=1.0 k=72 ok vs k=73 #NUM!.
+    let yr_d = col(&[45000.0, 45365.0]);
+    exact(
+        call("XIRR", vec![col(&[-1.0, 2.0_f64.powi(67)]), yr_d.clone(), n(0.1)]),
+        f(0x441ffffffccccccd),
+    );
+    error(
+        call("XIRR", vec![col(&[-1.0, 2.0_f64.powi(68)]), yr_d.clone(), n(0.1)]),
+        Num,
+    );
+    exact(
+        call("XIRR", vec![col(&[-1.0, 2.0_f64.powi(72)]), yr_d.clone(), n(1.0)]),
+        f(0x446ffffffc000000),
+    );
+    error(
+        call("XIRR", vec![col(&[-1.0, 2.0_f64.powi(73)]), yr_d.clone(), n(1.0)]),
+        Num,
+    );
+
+    // Negative roots dyadic midpoints (S1c-n1/n2/n3, S2a-negtol-m085/m090):
+    let n1_v = col(&[-100.0, 60.0]);
+    exact(call("XIRR", vec![n1_v.clone(), yr_d.clone()]), f(0xbfd999999c000001));
+    exact(call("XIRR", vec![n1_v.clone(), yr_d.clone(), n(0.5)]), f(0xbfd9999998000000));
+    exact(call("XIRR", vec![n1_v.clone(), yr_d.clone(), n(0.0)]), f(0xbfd999999283f3e2));
+    exact(call("XIRR", vec![n1_v.clone(), yr_d.clone(), n(-0.01)]), f(0xbfd999999e28f5c2));
+    exact(call("XIRR", vec![n1_v, yr_d.clone(), n(-0.9)]), f(0xbfd999999599999a));
+
+    let n2_v = col(&[-100.0, 20.0, 40.0]);
+    let n2_d = col(&[45000.0, 45180.0, 45365.0]);
+    exact(call("XIRR", vec![n2_v.clone(), n2_d.clone()]), f(0xbfdcf8173a666668));
+    exact(call("XIRR", vec![n2_v.clone(), n2_d.clone(), n(0.0)]), f(0xbfdcf8173d448bec));
+    exact(call("XIRR", vec![n2_v.clone(), n2_d.clone(), n(-0.5)]), f(0xbfdcf81738000000));
+    exact(call("XIRR", vec![n2_v, n2_d, n(-0.9)]), f(0xbfdcf81734000001));
+
+    let n3_v = col(&[206_101_714.849_377, -156_650_972.542_65]);
+    let n3_d = col(&[36585.0, 36616.0]);
+    exact(call("XIRR", vec![n3_v.clone(), n3_d.clone(), n(-0.1)]), f(0xbfeebc063acccccc));
+    exact(call("XIRR", vec![n3_v.clone(), n3_d.clone(), n(-0.5)]), f(0xbfeebc063c000000));
+    exact(call("XIRR", vec![n3_v, n3_d, n(0.1)]), f(0xbfeebc063acccccc));
+
+    exact(call("XIRR", vec![col(&[-100.0, 25.0]), yr_d.clone(), n(-0.1)]), f(0xbfe7ffffff000000));
+    exact(call("XIRR", vec![col(&[-100.0, 20.0]), yr_d.clone(), n(-0.1)]), f(0xbfe999999a99999a));
+    exact(call("XIRR", vec![col(&[-100.0, 15.0]), yr_d.clone(), n(-0.1)]), f(0xbfeb333334666666));
+    exact(call("XIRR", vec![col(&[-100.0, 10.0]), yr_d.clone(), n(-0.1)]), f(0xbfeccccccc666666));
+    exact(call("XIRR", vec![col(&[-100.0, 5.0]), yr_d.clone(), n(-0.1)]), f(0xbfee666666333333));
+
+    // values[0] * f(0) >= 0 quirk (0.1 * 2^-25 = 0x3e2999999999999a, 0.5 * 2^-27 = 0x3e30000000000000):
+    exact(
+        call("XIRR", vec![col(&[0.0, -100.0, 121.0]), col(&[45000.0, 45100.0, 45365.0])]),
+        f(0x3e2999999999999a),
+    );
+    exact(
+        call("XIRR", vec![col(&[-100.0, 100.0]), yr_d.clone(), n(0.1)]),
+        f(0x3e2999999999999a),
+    );
+    exact(
+        call("XIRR", vec![col(&[-100.0, 100.0]), yr_d, n(0.5)]),
+        f(0x3e30000000000000),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[f(0xbf4caf87241508d2), f(0x401a39b5f5fbdc08), f(0xc072204eee3d1791)]),
+                col(&[1000.0, 1001.0, 1240.0]),
+            ],
+        ),
+        f(0x3e2999999999999a),
+    );
+
+    // Unsorted later dates accepted; power overflow returns #NUM!:
+    exact(
+        call("XIRR", vec![col(&[-100.0, 70.0, 60.0]), col(&[45000.0, 45365.0, 45180.0])]),
+        f(0x3fda98a5acccccce),
+    );
+    error(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 150.0, 10.0]),
+                col(&[45000.0, 45365.0, 2_958_465.0]),
+            ],
+        ),
+        Num,
+    );
+
+    // nl29 live-Excel pins: exact |f(0) - v0| < |v0| flip boundary, |fm| <= 2e-8 * |v0|
+    // negative-root residual check, and fb * v0 sign expansion (including dates[i] < dates[0]):
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-50.0, 100.0, -200.0, 50.0]),
+                col(&[45000.0, 45100.0, 45200.0, 45365.0]),
+            ],
+        ),
+        f(0x3e2999999999999a),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-50.001, 100.0, -200.0, 50.0]),
+                col(&[45000.0, 45100.0, 45200.0, 45365.0]),
+            ],
+        ),
+        f(0xbfeda8c4f3b9999a),
+    );
+    error(
+        call(
+            "XIRR",
+            vec![
+                col(&[-51.0, 100.0, -200.0, 50.0]),
+                col(&[45000.0, 45100.0, 45200.0, 45365.0]),
+                n(10.0),
+            ],
+        ),
+        Num,
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-51.0, 100.0, -200.0, 50.0]),
+                col(&[45000.0, 46000.0, 47000.0, 48000.0]),
+            ],
+        ),
+        f(0xbfd78b169ba00002),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-1000.0, 900.0, 5.0]),
+                col(&[45000.0, 45000.0, 45365.0]),
+                n(-0.1),
+            ],
+        ),
+        f(0xbfee666664666666),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-10000.0, 9900.0, 5.0]),
+                col(&[45000.0, 45000.0, 45365.0]),
+                n(-0.1),
+            ],
+        ),
+        f(0xbfee666660cccccc),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 20.0, 40.0]),
+                col(&[45000.0, 44900.0, 45365.0]),
+            ],
+        ),
+        f(0xbfe0b33a8e000000),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 20.0, 120.0]),
+                col(&[45000.0, 44900.0, 45365.0]),
+            ],
+        ),
+        f(0x3fe19468e3333335),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 110.0, 1.0]),
+                col(&[45365.0, 45000.0, 46000.0]),
+                n(-0.5),
+            ],
+        ),
+        f(0xbfed9e509c000000),
+    );
+    exact(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 50.0, 50.0]),
+                col(&[44314.0, 44013.0, 45000.0]),
+            ],
+        ),
+        f(0x3e2999999999999a),
+    );
+    error(
+        call(
+            "XIRR",
+            vec![
+                col(&[-100.0, 50.0, 50.0]),
+                col(&[44314.0, 44013.0, 44500.0]),
+            ],
+        ),
+        Num,
+    );
+    error(
+        call(
+            "XIRR",
+            vec![col(&[-100.0, 100.0]), col(&[44378.0, 35821.0])],
+        ),
+        Num,
+    );
+}
