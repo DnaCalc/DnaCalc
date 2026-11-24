@@ -5,8 +5,13 @@ use std::rc::Rc;
 mod source;
 #[cfg(test)]
 mod tests;
-pub use source::{EventReadContext, EventSource};
-pub(crate) use source::{callback_active, lease_is_active, record_event_refusal, with_event_read};
+pub use source::{
+    EventReadContext, EventSource, ProcedureArg, ProcedureEntry, ProcedureError, ProcedureKind,
+    ProcedureParameter, ProcedureResult,
+};
+pub(crate) use source::{
+    callback_active, lease_is_active, record_event_refusal, record_object_denial, with_event_read,
+};
 
 /// Commands admitted by a mutable document-event owner. Ordinary worksheet UDFs
 /// have no authority to execute these operations.

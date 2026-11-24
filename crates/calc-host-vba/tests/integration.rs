@@ -5,3 +5,6 @@ mod excel_recalculation;
 
 #[path = "opened_projects.rs"]
 mod opened_projects;
+
+#[path = "commands.rs"]
+mod commands;
