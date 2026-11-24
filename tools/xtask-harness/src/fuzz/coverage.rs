@@ -259,6 +259,7 @@ struct DiscoveredRecord {
     spec_path: Option<PathBuf>,
     frontiers_path: Option<PathBuf>,
     attempt_path: Option<PathBuf>,
+    recipe_path: Option<PathBuf>,
     done_finished_utc: Option<String>,
 }
 
@@ -287,17 +288,15 @@ fn discover_records(dir: &Path, out: &mut Vec<DiscoveredRecord>) -> Result<(), S
         let spec_path = attempt_dir.join("spec.json");
         let frontiers_path = attempt_dir.join("frontiers.json");
         let attempt_path = attempt_dir.join("attempt.json");
+        let recipe_path = attempt_dir.join("recipe.json");
         out.push(DiscoveredRecord {
             summary_path,
             spec_path: spec_path.is_file().then_some(spec_path),
             frontiers_path: frontiers_path.is_file().then_some(frontiers_path),
             attempt_path: attempt_path.is_file().then_some(attempt_path),
+            recipe_path: recipe_path.is_file().then_some(recipe_path),
             done_finished_utc: done["finished_utc"].as_str().map(str::to_owned),
         });
-        return Ok(());
-    }
-    // Incomplete scheduler run directory: skip attempts until done.json exists.
-    if dir.join("recipe.json").is_file() {
         return Ok(());
     }
     let summary_path = dir.join("summary.json");
@@ -305,13 +304,19 @@ fn discover_records(dir: &Path, out: &mut Vec<DiscoveredRecord>) -> Result<(), S
         let spec_path = dir.join("spec.json");
         let frontiers_path = dir.join("frontiers.json");
         let attempt_path = dir.join("attempt.json");
+        let recipe_path = dir.join("recipe.json");
         out.push(DiscoveredRecord {
             summary_path,
             spec_path: spec_path.is_file().then_some(spec_path),
             frontiers_path: frontiers_path.is_file().then_some(frontiers_path),
             attempt_path: attempt_path.is_file().then_some(attempt_path),
+            recipe_path: recipe_path.is_file().then_some(recipe_path),
             done_finished_utc: None,
         });
+    } else if dir.join("recipe.json").is_file() {
+        // Incomplete scheduler run directory (has recipe.json without done.json or direct
+        // summary.json): skip its numbered attempt subdirectories until done.json exists.
+        return Ok(());
     }
     let mut subdirs = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
@@ -471,11 +476,24 @@ pub fn collect_from_records(
             }
             None => None,
         };
+        let recipe_json: Option<Value> = match &rec.recipe_path {
+            Some(path) => {
+                let raw = fs::read_to_string(path)
+                    .map_err(|e| format!("{}: {e}", path.display()))?;
+                Some(serde_json::from_str(&raw).map_err(|e| format!("{}: {e}", path.display()))?)
+            }
+            None => None,
+        };
 
         let timestamp = rec
             .done_finished_utc
             .clone()
             .or_else(|| summary["finished_utc"].as_str().map(str::to_owned))
+            .or_else(|| {
+                recipe_json
+                    .as_ref()
+                    .and_then(|r| r["timestamp_utc"].as_str().map(str::to_owned))
+            })
             .or_else(|| {
                 attempt_json
                     .as_ref()
@@ -488,6 +506,11 @@ pub fn collect_from_records(
         let sweep_commit = attempt_json
             .as_ref()
             .and_then(|a| a["versions"]["calc_func_commit"].as_str())
+            .or_else(|| {
+                recipe_json
+                    .as_ref()
+                    .and_then(|r| r["calc_func_commit"].as_str())
+            })
             .or_else(|| summary["calc_func_commit"].as_str())
             .map(short_commit)
             .unwrap_or_else(|| "-".to_owned());
