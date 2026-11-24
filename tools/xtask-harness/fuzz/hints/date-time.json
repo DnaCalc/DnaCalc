@@ -7,8 +7,28 @@
         {
           "name": "year",
           "kind": "integer",
-          "specials": [0, 1, 89, 100, 1899, 1900, 1904, 1999, 2000, 2024, 2100, 9999, 10000, -1],
-          "ranges": [[0, 9999]],
+          "specials": [
+            0,
+            1,
+            89,
+            100,
+            1899,
+            1900,
+            1904,
+            1999,
+            2000,
+            2024,
+            2100,
+            9999,
+            10000,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              9999
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -40,8 +60,27 @@
         {
           "name": "month",
           "kind": "integer",
-          "specials": [-32768, -32767, -15, -1, 0, 1, 2, 3, 12, 13, 14, 32766, 32767],
-          "ranges": [[-32766, 32766]],
+          "specials": [
+            -32768,
+            -32767,
+            -15,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            12,
+            13,
+            14,
+            32766,
+            32767
+          ],
+          "ranges": [
+            [
+              -32766,
+              32766
+            ]
+          ],
           "edges": [
             {
               "value": -32767,
@@ -68,8 +107,26 @@
         {
           "name": "day",
           "kind": "integer",
-          "specials": [-32769, -32768, -15, 0, 1, 28, 29, 30, 31, 35, 32767, 32768],
-          "ranges": [[-32768, 32767]],
+          "specials": [
+            -32769,
+            -32768,
+            -15,
+            0,
+            1,
+            28,
+            29,
+            30,
+            31,
+            35,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              -32768,
+              32767
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -134,8 +191,23 @@
         {
           "name": "hour",
           "kind": "integer",
-          "specials": [-1, 0, 1, 12, 23, 24, 25, 32767, 32768],
-          "ranges": [[-32767, 32767]],
+          "specials": [
+            -1,
+            0,
+            1,
+            12,
+            23,
+            24,
+            25,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              -32767,
+              32767
+            ]
+          ],
           "edges": [
             {
               "value": 24,
@@ -157,8 +229,24 @@
         {
           "name": "minute",
           "kind": "integer",
-          "specials": [-60, -1, 0, 1, 30, 59, 60, 1440, 32767, 32768],
-          "ranges": [[-32767, 32767]],
+          "specials": [
+            -60,
+            -1,
+            0,
+            1,
+            30,
+            59,
+            60,
+            1440,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              -32767,
+              32767
+            ]
+          ],
           "edges": [
             {
               "value": 32767,
@@ -170,8 +258,23 @@
         {
           "name": "second",
           "kind": "integer",
-          "specials": [-60, -1, 0, 1, 30, 59, 60, 32767, 32768],
-          "ranges": [[-32767, 32767]],
+          "specials": [
+            -60,
+            -1,
+            0,
+            1,
+            30,
+            59,
+            60,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              -32767,
+              32767
+            ]
+          ],
           "edges": [
             {
               "value": 32767,
@@ -210,8 +313,27 @@
         {
           "name": "serial_number",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 59, 60, 61, 366, 1462, 45351, 2958465, 2958465.999994213, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            59,
+            60,
+            61,
+            366,
+            1462,
+            45351,
+            2958465,
+            2958465.999994213,
+            2958466,
+            367
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -227,6 +349,11 @@
               "value": 2958465.999994213,
               "why": "serial + 0.5/86400 crosses 2958466.0 and triggers #NUM!",
               "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+            },
+            {
+              "value": 366,
+              "why": "serial 366 is 1900-12-31 (year 1900 because of fictitious Feb 29); 367 is 1901-01-01",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:178"
             }
           ]
         }
@@ -244,6 +371,16 @@
           "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        },
+        {
+          "when": "serial_number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        },
+        {
+          "when": "serial_number >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:175"
         }
       ],
       "notes": "Adds 0.5/86400 before flooring; maps 1904 system serials by +1462 when non-negative."
@@ -253,8 +390,26 @@
         {
           "name": "serial_number",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 31, 32, 59, 60, 61, 45351, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            31,
+            32,
+            59,
+            60,
+            61,
+            45351,
+            2958465,
+            2958466,
+            2958465.999994213
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -270,6 +425,11 @@
               "value": 2958465.999994213,
               "why": "serial + 0.5/86400 crosses 2958466.0 and returns #NUM!",
               "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+            },
+            {
+              "value": 59,
+              "why": "1900-02-28 (serial 59 -> month 2) vs 60 (1900-02-29 -> 2) vs 61 (1900-03-01 -> 3)",
+              "source": "handbook FUNC.MONTH"
             }
           ]
         }
@@ -287,6 +447,16 @@
           "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        },
+        {
+          "when": "serial_number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        },
+        {
+          "when": "serial_number >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:175"
         }
       ],
       "notes": "Returns 1..12 after half-second pre-rounding."
@@ -296,8 +466,25 @@
         {
           "name": "serial_number",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 31, 32, 59, 60, 61, 45351, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            31,
+            32,
+            59,
+            60,
+            61,
+            45351,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -339,8 +526,23 @@
         {
           "name": "serial_number",
           "kind": "time-fraction",
-          "specials": [-0.5, 0, 0.5, 0.999994212962963, 0.999999, 45000.5, 2958465.5, 2958465.999999, 2958466],
-          "ranges": [[0, 2958465.999994]],
+          "specials": [
+            -0.5,
+            0,
+            0.5,
+            0.999994212962963,
+            0.999999,
+            45000.5,
+            2958465.5,
+            2958465.999999,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465.999994
+            ]
+          ],
           "edges": [
             {
               "value": 0.999999,
@@ -377,8 +579,21 @@
         {
           "name": "serial_number",
           "kind": "time-fraction",
-          "specials": [-0.1, 0, 0.5, 0.500005787037037, 0.999999, 45000.25, 2958465.999999],
-          "ranges": [[0, 2958465.999994]],
+          "specials": [
+            -0.1,
+            0,
+            0.5,
+            0.500005787037037,
+            0.999999,
+            45000.25,
+            2958465.999999
+          ],
+          "ranges": [
+            [
+              0,
+              2958465.999994
+            ]
+          ],
           "edges": [
             {
               "value": 0.500005787037037,
@@ -415,8 +630,21 @@
         {
           "name": "serial_number",
           "kind": "time-fraction",
-          "specials": [-0.1, 0, 0.5, 0.5000173611111111, 0.999999, 45000.75, 2958465.999999],
-          "ranges": [[0, 2958465.999994]],
+          "specials": [
+            -0.1,
+            0,
+            0.5,
+            0.5000173611111111,
+            0.999999,
+            45000.75,
+            2958465.999999
+          ],
+          "ranges": [
+            [
+              0,
+              2958465.999994
+            ]
+          ],
           "edges": [
             {
               "value": 0.5000173611111111,
@@ -453,8 +681,24 @@
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 1462, 45000, 2958465, 2958465.9, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            1462,
+            45000,
+            2958465,
+            2958465.9,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 60,
@@ -471,8 +715,23 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 1462, 45000, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            1462,
+            45000,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -506,8 +765,22 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 45351, 45716, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            45351,
+            45716,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 60,
@@ -524,8 +797,22 @@
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 45351, 45716, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            45351,
+            45716,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 45716,
@@ -537,7 +824,10 @@
         {
           "name": "method",
           "kind": "logical",
-          "specials": [false, true],
+          "specials": [
+            false,
+            true
+          ],
           "ranges": [],
           "edges": [
             {
@@ -582,8 +872,23 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 36922, 36950, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            36922,
+            36950,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 36922,
@@ -595,14 +900,40 @@
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 59, 60, 61, 36950, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            59,
+            60,
+            61,
+            36950,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "unit",
           "kind": "text",
-          "specials": ["Y", "M", "D", "YM", "YD", "MD", "y", "md", " MD ", "X", ""],
+          "specials": [
+            "Y",
+            "M",
+            "D",
+            "YM",
+            "YD",
+            "MD",
+            "y",
+            "md",
+            " MD ",
+            "X",
+            ""
+          ],
           "ranges": [],
           "edges": [
             {
@@ -660,7 +991,11 @@
             "9999-12-31",
             "10000-01-01",
             "12:30 PM",
-            ""
+            "",
+            "45000",
+            45000,
+            true,
+            null
           ],
           "ranges": [],
           "edges": [
@@ -678,6 +1013,16 @@
               "value": "1900-02-29",
               "why": "accepted as serial 60 in 1900 system",
               "source": "crates/calc-func/src/value_text.rs:630"
+            },
+            {
+              "value": "12:30 PM",
+              "why": "time-only string parses as Reading::DateTime in [0, 1) and floors to serial 0",
+              "source": "crates/calc-func/src/catalogue/dates.rs:295"
+            },
+            {
+              "value": "45000",
+              "why": "pure numeric text parses as Reading::Number and returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/dates.rs:296"
             }
           ]
         }
@@ -764,8 +1109,23 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 31, 59, 60, 61, 45351, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            31,
+            59,
+            60,
+            61,
+            45351,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 60,
@@ -777,8 +1137,21 @@
         {
           "name": "months",
           "kind": "integer",
-          "specials": [-120000, -12, -1, 0, 1, 12, 120000],
-          "ranges": [[-97200, 97200]],
+          "specials": [
+            -120000,
+            -12,
+            -1,
+            0,
+            1,
+            12,
+            120000
+          ],
+          "ranges": [
+            [
+              -97200,
+              97200
+            ]
+          ],
           "edges": []
         }
       ],
@@ -821,22 +1194,68 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, 0, 31, 59, 60, 61, 45351, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            31,
+            59,
+            60,
+            61,
+            45351,
+            2958465,
+            2958466,
+            1,
+            true,
+            false
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 60,
               "why": "EOMONTH(60, 0) returns 59 (1900-02-28) rather than 60",
               "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 0,
+              "why": "serial 0 (1900-01-00) with months=0 returns 31 (1900-01-31)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:240"
             }
           ]
         },
         {
           "name": "months",
           "kind": "integer",
-          "specials": [-120000, -12, -1, 0, 1, 12, 120000],
-          "ranges": [[-97200, 97200]],
-          "edges": []
+          "specials": [
+            -120000,
+            -12,
+            -1,
+            0,
+            1,
+            12,
+            120000,
+            -1.9,
+            1.9,
+            true,
+            false
+          ],
+          "ranges": [
+            [
+              -97200,
+              97200
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.9,
+              "why": "months is truncated toward zero before shifting",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:242"
+            }
+          ]
         }
       ],
       "relations": [
@@ -859,6 +1278,16 @@
           "when": "logical in start_date or months",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/dates.rs:69"
+        },
+        {
+          "when": "start_date < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:206"
+        },
+        {
+          "when": "start_date >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:206"
         }
       ],
       "notes": "Truncates start_date and months; returns last real day of shifted month."
@@ -868,8 +1297,24 @@
         {
           "name": "serial_number",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 59, 60, 61, 45000, 2958465, 2958465.999994213, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465,
+            2958465.999994213,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 60,
@@ -886,13 +1331,53 @@
         {
           "name": "return_type",
           "kind": "integer",
-          "specials": [0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-          "ranges": [[1, 3], [11, 17]],
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            0.9999999,
+            1.9999999,
+            3.9999999,
+            10.9999999,
+            17.9999999,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ],
+            [
+              11,
+              17
+            ]
+          ],
           "edges": [
             {
               "value": 3,
               "why": "0-based Monday=0..Sunday=6 instead of 1-based",
               "source": "crates/calc-func/src/ported/date_kernels.rs:265"
+            },
+            {
+              "value": 3.9999999,
+              "why": "uses date_integer_floor threshold (2^-22 + 2^-33), snapping 3.9999999 up to invalid 4 (#NUM!)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:283"
+            },
+            {
+              "value": null,
+              "why": "explicit missing placeholder reads as 0 (#NUM!), whereas omitted argument defaults to 1",
+              "source": "crates/calc-func/src/catalogue/dates.rs:219"
             }
           ]
         }
@@ -915,6 +1400,26 @@
           "when": "return_type outside {1, 2, 3, 11..17}",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/ported/date_kernels.rs:270"
+        },
+        {
+          "when": "serial_number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:279"
+        },
+        {
+          "when": "serial_number >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:282"
+        },
+        {
+          "when": "return_type < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:270"
+        },
+        {
+          "when": "return_type > 17",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:270"
         }
       ],
       "notes": "Uses date_integer_floor on return_type; explicit missing placeholder reads as 0."
@@ -924,8 +1429,24 @@
         {
           "name": "serial_number",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 59, 60, 61, 43831, 45000, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            59,
+            60,
+            61,
+            43831,
+            45000,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -937,8 +1458,36 @@
         {
           "name": "return_type",
           "kind": "integer",
-          "specials": [-1, 0, 1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 21, 22],
-          "ranges": [[1, 2], [11, 17], [21, 21]],
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            21,
+            22
+          ],
+          "ranges": [
+            [
+              1,
+              2
+            ],
+            [
+              11,
+              17
+            ],
+            [
+              21,
+              21
+            ]
+          ],
           "edges": [
             {
               "value": 21,
@@ -995,8 +1544,25 @@
         {
           "name": "date",
           "kind": "date-serial",
-          "specials": [-1, 0, 1, 2, 59, 60, 61, 43831, 45000, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            59,
+            60,
+            61,
+            43831,
+            45000,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -1027,8 +1593,24 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465, 2958466],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465,
+            2958466
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": -0.5,
@@ -1040,8 +1622,23 @@
         {
           "name": "days",
           "kind": "integer",
-          "specials": [-1000, -1, -0.5, 0, 0.5, 1, 5, 250, 2500000],
-          "ranges": [[-2113189, 2113189]],
+          "specials": [
+            -1000,
+            -1,
+            -0.5,
+            0,
+            0.5,
+            1,
+            5,
+            250,
+            2500000
+          ],
+          "ranges": [
+            [
+              -2113189,
+              2113189
+            ]
+          ],
           "edges": [
             {
               "value": 0,
@@ -1053,8 +1650,25 @@
         {
           "name": "holidays",
           "kind": "array",
-          "specials": [[], [45005], [45005, 45006], [-1]],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            [],
+            [
+              45005
+            ],
+            [
+              45005,
+              45006
+            ],
+            [
+              -1
+            ]
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         }
       ],
@@ -1092,22 +1706,74 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "days",
           "kind": "integer",
-          "specials": [-100, -1, 0, 1, 5, 250],
-          "ranges": [[-2958465, 2958465]],
+          "specials": [
+            -100,
+            -1,
+            0,
+            1,
+            5,
+            250
+          ],
+          "ranges": [
+            [
+              -2958465,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "weekend",
           "kind": "any",
-          "specials": [0, 1, 2, 7, 8, 11, 17, 18, "0000011", "1111110", "1111111", "0000000", "invalid", true, false],
-          "ranges": [[1, 7], [11, 17]],
+          "specials": [
+            0,
+            1,
+            2,
+            7,
+            8,
+            11,
+            17,
+            18,
+            "0000011",
+            "1111110",
+            "1111111",
+            "0000000",
+            "invalid",
+            true,
+            false
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ],
+            [
+              11,
+              17
+            ]
+          ],
           "edges": [
             {
               "value": "1111111",
@@ -1124,8 +1790,18 @@
         {
           "name": "holidays",
           "kind": "array",
-          "specials": [[], [45005]],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            [],
+            [
+              45005
+            ]
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         }
       ],
@@ -1163,22 +1839,66 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "holidays",
           "kind": "array",
-          "specials": [[], [45005], [45005, 45006]],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            [],
+            [
+              45005
+            ],
+            [
+              45005,
+              45006
+            ]
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         }
       ],
@@ -1210,22 +1930,77 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            59,
+            60,
+            61,
+            45000,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "weekend",
           "kind": "any",
-          "specials": [0, 1, 2, 7, 8, 11, 17, 18, "0000011", "1111110", "1111111", "0000000", "invalid", true, false],
-          "ranges": [[1, 7], [11, 17]],
+          "specials": [
+            0,
+            1,
+            2,
+            7,
+            8,
+            11,
+            17,
+            18,
+            "0000011",
+            "1111110",
+            "1111111",
+            "0000000",
+            "invalid",
+            true,
+            false
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ],
+            [
+              11,
+              17
+            ]
+          ],
           "edges": [
             {
               "value": "1111111",
@@ -1237,8 +2012,18 @@
         {
           "name": "holidays",
           "kind": "array",
-          "specials": [[], [45005]],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            [],
+            [
+              45005
+            ]
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         }
       ],
@@ -1276,8 +2061,25 @@
         {
           "name": "start_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 54, 59, 60, 61, 1805, 45351, 45716, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            54,
+            59,
+            60,
+            61,
+            1805,
+            45351,
+            45716,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": [
             {
               "value": 59,
@@ -1289,15 +2091,45 @@
         {
           "name": "end_date",
           "kind": "date-serial",
-          "specials": [-1, -0.5, 0, 54, 59, 60, 61, 1805, 45351, 45716, 2958465],
-          "ranges": [[0, 2958465]],
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            54,
+            59,
+            60,
+            61,
+            1805,
+            45351,
+            45716,
+            2958465
+          ],
+          "ranges": [
+            [
+              0,
+              2958465
+            ]
+          ],
           "edges": []
         },
         {
           "name": "basis",
           "kind": "integer",
-          "specials": [-1, 0, 1, 2, 3, 4, 5],
-          "ranges": [[0, 4]],
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "ranges": [
+            [
+              0,
+              4
+            ]
+          ],
           "edges": [
             {
               "value": 0,

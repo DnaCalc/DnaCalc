@@ -38,7 +38,12 @@
             "abc",
             true,
             false,
-            42
+            42,
+            "  123  ",
+            "1e309",
+            "0e-309",
+            "12:00:00",
+            null
           ],
           "ranges": [],
           "edges": [
@@ -61,6 +66,16 @@
               "value": "12345678901234567",
               "why": "digits beyond the 15th significant digit are truncated",
               "source": "crates/calc-func/src/value_text.rs:16"
+            },
+            {
+              "value": null,
+              "why": "empty referenced cell evaluates to 0 while empty text \"\" returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:79"
+            },
+            {
+              "value": "1e309",
+              "why": "overflow numeral text fails coercion as #VALUE! rather than returning infinity",
+              "source": "handbook FUNC.VALUE"
             }
           ]
         }
@@ -119,7 +134,10 @@
             "",
             "abc",
             true,
-            false
+            false,
+            null,
+            "#N/A",
+            "2024-02-29"
           ],
           "ranges": [],
           "edges": [
@@ -132,6 +150,11 @@
               "value": -1,
               "why": "negative number under a date/time format code returns #VALUE!",
               "source": "crates/calc-func/src/format/mod.rs:21"
+            },
+            {
+              "value": null,
+              "why": "blank cell formats as 0 under numeric formats and empty string under @",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:186"
             }
           ]
         },
@@ -157,7 +180,11 @@
             "[>100]\"big\";0",
             "# ?/?",
             "1e2",
-            ""
+            "",
+            0,
+            1,
+            "0;-0;;@",
+            "hh:mm:ss"
           ],
           "ranges": [],
           "edges": [
@@ -170,6 +197,16 @@
               "value": "1e2",
               "why": "plain exponent-looking format codes are rejected as #VALUE!",
               "source": "crates/calc-func/src/catalogue/text_format.rs:194"
+            },
+            {
+              "value": 0,
+              "why": "numeric format_text has no text section, so logical or non-numeric text value returns verbatim",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:130"
+            },
+            {
+              "value": "",
+              "why": "empty format_text returns empty string for numeric values",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:238"
             }
           ]
         }
@@ -202,6 +239,11 @@
           "when": "invalid format code or integer-part fraction under space grouping separator",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/format/mod.rs:25"
+        },
+        {
+          "when": "error value in value or format_text",
+          "excel": "#VALUE! (propagated)",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:120"
         }
       ],
       "notes": "Formats numeric values via Excel number/date/time sections and text via the fourth section or @."
@@ -1738,10 +1780,18 @@
             "",
             "Sheet2!A1",
             123,
-            true
+            true,
+            null,
+            "#DIV/0!"
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "empty cell link_location coerces to empty string",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:1015"
+            }
+          ]
         },
         {
           "name": "friendly_name",
@@ -1774,7 +1824,13 @@
           "source": "crates/calc-func/src/catalogue/text_format.rs:1016"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "error in link_location",
+          "excel": "#VALUE! (propagated)",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1015"
+        }
+      ],
       "notes": "Coerces link_location to text and returns friendly_name verbatim when provided."
     },
     "CHAR": {
@@ -2752,10 +2808,19 @@
             "a",
             "ab",
             "😀",
-            12
+            12,
+            true,
+            false,
+            null
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text bypasses the 32,767 output cap up to count < 2^31",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:480"
+            }
+          ]
         },
         {
           "name": "number_times",
@@ -2770,7 +2835,9 @@
             32767,
             32768,
             2147483647,
-            2147483648
+            2147483648,
+            null,
+            2147483647.9
           ],
           "ranges": [
             [
@@ -2793,12 +2860,23 @@
               "value": 2147483648,
               "why": "count >= 2^31 returns #VALUE! even when text is empty",
               "source": "crates/calc-func/src/ported/text_kernels.rs:473"
+            },
+            {
+              "value": -0.5,
+              "why": "sign check runs before truncation, so (-1, 0) fractions return #VALUE! rather than 0",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:473"
             }
           ]
         }
       ],
       "relations": [],
-      "regimes": [],
+      "regimes": [
+        {
+          "name": "empty_text_shortcut",
+          "how": "empty text skips the 32,767 UTF-16 output length cap up to 2^31 - 1",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:480"
+        }
+      ],
       "error_edges": [
         {
           "when": "number_times < 0 (before trunc) or >= 2147483648",
@@ -2809,6 +2887,16 @@
           "when": "len(text) * trunc(number_times) > 32,767 UTF-16 code units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/ported/text_kernels.rs:484"
+        },
+        {
+          "when": "number_times < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:473"
+        },
+        {
+          "when": "number_times >= 2147483648",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:473"
         }
       ],
       "notes": "Repeats text trunc(number_times) times; checks sign before truncating and caps result at 32,767 UTF-16 units."
@@ -3509,10 +3597,25 @@
             "a\tb\nc",
             123,
             true,
-            null
+            null,
+            0,
+            -0.0,
+            1e-10,
+            1e+20
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "blank or omitted argument coerces to empty string",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:212"
+            },
+            {
+              "value": true,
+              "why": "logical TRUE/FALSE coerces to 'TRUE'/'FALSE'",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:212"
+            }
+          ]
         },
         {
           "name": "text2",
@@ -3536,10 +3639,25 @@
             "a\tb\nc",
             456,
             false,
-            null
+            null,
+            0,
+            -0.0,
+            1e-10,
+            1e+20
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "blank or omitted argument coerces to empty string",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:212"
+            },
+            {
+              "value": true,
+              "why": "logical TRUE/FALSE coerces to 'TRUE'/'FALSE'",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:212"
+            }
+          ]
         }
       ],
       "relations": [],
@@ -3550,7 +3668,13 @@
           "source": "crates/calc-func/src/catalogue/text_functions.rs:215"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "error value in any text argument",
+          "excel": "#VALUE! (propagated)",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:212"
+        }
+      ],
       "notes": "Joins scalar text arguments; truncates past 32,767 UTF-16 units (unlike CONCAT which returns #CALC!)."
     },
     "CONCAT": {
