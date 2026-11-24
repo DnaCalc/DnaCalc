@@ -2551,6 +2551,39 @@ End Sub
     }
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_vba_formats_a_report_total_through_the_descriptor() {
+    let sheet_source = r#"
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ If Target.Column <> 1 Then Exit Sub
+ Dim totals As Excel.Range
+ Set totals = Me.Range("D:D")
+ totals.NumberFormat = "0.00"
+ History = CStr(totals.NumberFormat) & ":" & CStr(Me.Range("D2").Text)
+End Sub
+"#;
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "format-report.xlsm");
+        enter(&mut session, 2, 4, "=15+15");
+        drain(&mut session);
+        let project = mutable_owner(&mut session, sheet_source, OWNER_STATE, 10_000, backend);
+        enter(&mut session, 1, 1, "go");
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?}: {:?}",
+            session.workbook_event_failures()
+        );
+        let trace = project.functions().call("Trace", &[]).unwrap();
+        assert_eq!(
+            trace.as_text().unwrap().to_string_lossy(),
+            "0.00:30.00",
+            "{backend:?}"
+        );
+        assert_eq!(value(&session, 2, 4).as_number(), Some(30.0), "{backend:?}");
+    }
+}
+
 /// Excel Q13: a late-bound Let through a read-only table member writes the returned
 /// range's default value. An object assignment to the property itself raises 438.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
