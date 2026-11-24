@@ -1277,15 +1277,6 @@ fn detect_period(y: &[f64]) -> usize {
             best_sl < bf && best_sr > bf,
         )
     };
-    let ok_p3 = |req_2nd: bool| -> bool {
-        3 <= last_lag
-            && u[3] >= MIN_PEAK_CORRELATION
-            && u[3] > u[2]
-            && 6 < n
-            && u[4] > u[5]
-            && u[4] > u[6]
-            && (!req_2nd || (9 < n && u[7] > u[6] && u[8] > u[9]))
-    };
 
     let mean_power = power[1..].iter().sum::<f64>() / half as f64;
     let mut candidates = Vec::new();
@@ -1304,19 +1295,9 @@ fn detect_period(y: &[f64]) -> usize {
         let (mut pk, mut best_t, mut valley, mut hill) = (0usize, left, false, false);
         if right < left + 4 {
             if p_bin == 3 {
-                if ok_p3(n >= 16) {
-                    push_unique(&mut candidates, 3);
-                }
-                continue;
+                (pk, hill) = (3, true);
             } else if p_bin == 4 {
-                let pk_ab = argmax_slice(&u, a.max(1), b.max(4).min(n - 1));
-                if pk_ab == 3 {
-                    if ok_p3(true) {
-                        push_unique(&mut candidates, 3);
-                    }
-                    continue;
-                }
-                (pk, hill) = (pk_ab, true);
+                (pk, hill) = (argmax_slice(&u, left, b.max(4).min(n - 1)), true);
             } else {
                 let pk_lr = argmax_slice(&u, left, right);
                 if pk_lr > 1 && pk_lr + 1 < n && u[pk_lr] > u[pk_lr - 1] && u[pk_lr] > u[pk_lr + 1]
@@ -1327,12 +1308,8 @@ fn detect_period(y: &[f64]) -> usize {
         } else {
             (hill, best_t, valley) = check_hill(a, b, left, right);
             if hill {
-                let (lo_p, hi_p) = if p_bin == 4 {
-                    (a.max(1), b.max(4).min(n - 1))
-                } else {
-                    (left, right)
-                };
-                pk = argmax_slice(&u, lo_p, hi_p);
+                let hi_p = if p_bin <= 4 { b.max(p_bin).min(n - 1) } else { right };
+                pk = argmax_slice(&u, left, hi_p);
             } else if p_bin <= 5 {
                 let pk_try = argmax_slice(&u, left, right);
                 if (pk_try == 4 || pk_try == 5)
@@ -1348,7 +1325,26 @@ fn detect_period(y: &[f64]) -> usize {
         }
 
         let mut accepted = false;
-        if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION {
+        if pk == 3
+            && hill
+            && a >= 2
+            && 2 * right < n
+            && 3 <= last_lag
+            && u[3] >= MIN_PEAK_CORRELATION
+            && u[3] > u[2]
+            && 6 < n
+            && u[4] > u[5]
+            && u[4] > u[6]
+        {
+            let (s_lo, s_hi) = ((2 * a).max(5), 2 * right);
+            if s_lo <= s_hi {
+                let pk2 = argmax_slice(&u, s_lo, s_hi);
+                if pk2 == 7 && pk2 + 2 < n && u[pk2 + 1] > u[pk2 + 2] {
+                    push_unique(&mut candidates, 3);
+                    accepted = true;
+                }
+            }
+        } else if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION {
             let mut t_ok = if pk == 4 {
                 6 < n && u[5] > u[6]
             } else if pk == 5 {
