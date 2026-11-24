@@ -393,6 +393,7 @@ dependencies = [
  "calc-value",
  "dna-calc-protocol",
  "quick-xml",
+ "rquickjs",
  "serde_json",
  "wasm-bindgen-test",
 ]

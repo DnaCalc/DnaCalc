@@ -128,20 +128,45 @@
     }
   }
 
+  function wireUsesHandle(w, handle) {
+    if (!w || typeof w !== "object") return false;
+    if (w.t === "object") return w.h === handle;
+    if (w.t === "array") return Array.isArray(w.v) && w.v.some(item => wireUsesHandle(item, handle));
+    return false;
+  }
+
   class RequestContext {
     constructor(transport) {
       this._id = nextContext++; this._queue = []; this._handle = 1; this._loads = new Map(); this._outs = new Map();
       this._transport = transport || root.__dnaOfficeTransport; this._syncing = false; this._running = false;
-      this._push({ op: "root", name: "workbook", out: this._alloc() });
-      this.workbook = new Workbook(this, this._handle);
+      this._workbookLive = false; this._workbookQueued = false; this._workbookTracked = false;
+      this.workbook = new Workbook(this, this._alloc());
       this.trackedObjects = new TrackedObjects(this);
     }
     _alloc() { return ++this._handle; }
-    _push(op) { this._queue.push(op); return this._queue.length - 1; }
+    _ensureWorkbook() {
+      if (!this._workbookLive && !this._workbookQueued) {
+        this._workbookQueued = true;
+        this._queue.push({ op: "root", name: "workbook", out: this.workbook._handle });
+      }
+    }
+    _push(op) {
+      if (op.op !== "root" && this.workbook) {
+        const wb = this.workbook._handle;
+        if (op.target === wb
+            || (op.args && op.args.some(a => wireUsesHandle(a, wb)))
+            || wireUsesHandle(op.value, wb)) {
+          this._ensureWorkbook();
+        }
+      }
+      this._queue.push(op);
+      return this._queue.length - 1;
+    }
     _discard() {
       this._queue = [];
       this._loads = new Map();
       this._outs = new Map();
+      this._workbookQueued = false;
     }
     async _send(id, request) {
       const response = JSON.parse(await this._transport(JSON.stringify({ id, request })));
@@ -151,6 +176,7 @@
     }
     async _release() {
       await this._send(nextMessage++, { AutomationRelease: { context: this._id } });
+      if (!this._workbookTracked) this._workbookLive = false;
     }
     async sync() { return this._sync(false); }
     async _sync(final) {
@@ -166,7 +192,14 @@
         });
         const reply = envelope?.AutomationBatch;
         if (reply?.batch_id !== id) throw new OfficeError("GeneralException", "Mismatched batch reply.");
+        const wb = this.workbook._handle;
         for (const r of reply.results) {
+          const op = ops[r.ordinal];
+          if (op) {
+            if (op.op === "root" && op.out === wb) this._workbookLive = true;
+            else if (op.op === "track" && op.target === wb) this._workbookTracked = true;
+            else if (op.op === "untrack" && op.target === wb) this._workbookTracked = false;
+          }
           const obj = loads.get(r.ordinal);
           if (obj) for (const [k, w] of (r.loaded || [])) {
             const v = fromWire(w);
@@ -174,6 +207,7 @@
           }
           if (r.null_object) { const p = outs.get(ops[r.ordinal].out); if (p) p.isNullObject = true; }
         }
+        if (final && !this._workbookTracked) this._workbookLive = false;
         if (reply.error) throw new OfficeError(reply.error.code, reply.error.message,
           { errorLocation: "op " + reply.error.ordinal, owner: reply.error.owner });
       } finally { this._syncing = false; }

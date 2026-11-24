@@ -367,3 +367,181 @@ fn loaded_addresses_quote_sheet_names_as_excel_references() {
         );
     }
 }
+
+/// Native-only: runs the real `apps/dna-calc/web/office-js/office.js` client in QuickJS against `Executor`.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn office_js_excel_run_reuse_runs_against_real_executor() {
+    use rquickjs::{Context, Function, Runtime};
+
+    const OFFICE_JS: &str = include_str!("../../../apps/dna-calc/web/office-js/office.js");
+
+    let host = Rc::new(host_with_extra_sheet(Some("Sheet2")));
+    let runtime = Runtime::new().unwrap();
+    let context = Context::full(&runtime).unwrap();
+
+    let host_for_js = Rc::clone(&host);
+    context.with(|ctx| {
+        let transport = Function::new(ctx.clone(), move |request_json: String| -> String {
+            let message = decode::<ToServer>(&request_json).expect("valid wire request");
+            match host_for_js.handle(&message.request) {
+                Some(reply) => encode(&FromServer::Reply {
+                    id: message.id,
+                    reply,
+                }),
+                None => encode(&FromServer::Failed {
+                    id: Some(message.id),
+                    message: "unhandled request".into(),
+                }),
+            }
+        })
+        .unwrap();
+        ctx.globals()
+            .set("__dnaOfficeTransportSync", transport)
+            .unwrap();
+        ctx.eval::<(), _>(
+            "globalThis.__dnaOfficeTransport = (json) => Promise.resolve(globalThis.__dnaOfficeTransportSync(json));",
+        )
+        .unwrap();
+        ctx.eval::<(), _>(OFFICE_JS).unwrap();
+        ctx.eval::<(), _>(
+            r#"
+            globalThis.__outcome = null;
+            (async () => {
+                // 1. Track two sheets in an initial Excel.run, then reuse the context via
+                //    one object, an array of objects, and the RequestContext while calling ctx.workbook.
+                let sheet1, sheet2;
+                await Excel.run(async (ctx) => {
+                    sheet1 = ctx.workbook.worksheets.getItem("Sheet1");
+                    sheet2 = ctx.workbook.worksheets.getItem("Sheet2");
+                    ctx.trackedObjects.add(sheet1);
+                    ctx.trackedObjects.add(sheet2);
+                    await ctx.sync();
+                });
+
+                await Excel.run(sheet1, async (ctx) => {
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.values = [[11]];
+                    sheet1.load("name");
+                    range.load("values");
+                    await ctx.sync();
+                    if (sheet1.name !== "Sheet1") throw new Error("unexpected sheet1 name: " + sheet1.name);
+                    if (range.values[0][0] !== 11) throw new Error("unexpected A1 value: " + range.values[0][0]);
+                });
+
+                let sheet2Range;
+                await Excel.run([sheet1, sheet2], async (ctx) => {
+                    sheet2Range = ctx.workbook.worksheets.getItem("Sheet2").getRange("B2");
+                    sheet2Range.values = [[22]];
+                    sheet2Range.load("values");
+                    sheet2.load("name");
+                });
+                if (sheet2.name !== "Sheet2") throw new Error("unexpected sheet2 name: " + sheet2.name);
+                if (sheet2Range.values[0][0] !== 22) throw new Error("unexpected B2 value: " + sheet2Range.values[0][0]);
+
+                const readBack = await Excel.run(sheet1.context, async (ctx) => {
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.load("values");
+                    await ctx.sync();
+                    return range.values[0][0];
+                });
+                if (readBack !== 11) throw new Error("unexpected readBack: " + readBack);
+
+                // 2. A rejected reused Excel.run discards queued writes and still allows follow-up workbook access.
+                let rejected = false;
+                try {
+                    await Excel.run(sheet1, async (ctx) => {
+                        ctx.workbook.worksheets.getItem("Sheet1").getRange("A1").values = [[99]];
+                        throw new Error("boom");
+                    });
+                } catch (e) {
+                    rejected = e.message === "boom";
+                }
+                if (!rejected) throw new Error("expected boom rejection");
+
+                const afterReject = await Excel.run(sheet1, async (ctx) => {
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.load("values");
+                    await ctx.sync();
+                    return range.values[0][0];
+                });
+                if (afterReject !== 11) throw new Error("discarded write leaked: " + afterReject);
+
+                // 3. Catching a mid-run sync failure keeps ctx.workbook live for the rest of the same run.
+                await Excel.run(sheet1, async (ctx) => {
+                    let missingErr = null;
+                    try {
+                        ctx.workbook.worksheets.getItem("NoSuchSheet").load("name");
+                        await ctx.sync();
+                    } catch (e) {
+                        missingErr = e.code;
+                    }
+                    if (missingErr !== "ItemNotFound") throw new Error("expected ItemNotFound, got " + missingErr);
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.load("values");
+                    await ctx.sync();
+                    if (range.values[0][0] !== 11) throw new Error("mid-run recovery value mismatch");
+                });
+
+                // 4. Explicitly tracking ctx.workbook survives exit without duplicate root binding on reuse.
+                await Excel.run(sheet1, async (ctx) => {
+                    ctx.trackedObjects.add(ctx.workbook);
+                    await ctx.sync();
+                });
+                await Excel.run(sheet1.context.workbook, async (ctx) => {
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.load("values");
+                    ctx.trackedObjects.remove(ctx.workbook);
+                    ctx.trackedObjects.remove(sheet1);
+                    ctx.trackedObjects.remove(sheet2);
+                    await ctx.sync();
+                    if (range.values[0][0] !== 11) throw new Error("tracked workbook reuse mismatch");
+                });
+
+                // 5. Untracked objects are released on exit, while ctx.workbook still re-roots on reuse.
+                let untracked;
+                await Excel.run(async (ctx) => {
+                    untracked = ctx.workbook.worksheets.getItem("Sheet1");
+                    await ctx.sync();
+                });
+                let staleCode = null;
+                try {
+                    await Excel.run(untracked, async (ctx) => {
+                        untracked.load("name");
+                        await ctx.sync();
+                    });
+                } catch (e) {
+                    staleCode = e.code;
+                }
+                if (staleCode !== "InvalidObjectPath") throw new Error("expected InvalidObjectPath, got " + staleCode);
+                await Excel.run(untracked.context, async (ctx) => {
+                    const range = ctx.workbook.worksheets.getItem("Sheet1").getRange("A1");
+                    range.load("values");
+                    await ctx.sync();
+                    if (range.values[0][0] !== 11) throw new Error("workbook re-root after untracked failure mismatch");
+                });
+
+                return "ok";
+            })().then(
+                v => { globalThis.__outcome = { ok: true, value: v }; },
+                e => { globalThis.__outcome = { ok: false, message: (e && e.code ? e.code + ": " : "") + (e && e.message ? e.message : String(e)) }; }
+            );
+            "#,
+        )
+        .unwrap();
+    });
+
+    while runtime.is_job_pending() {
+        runtime.execute_pending_job().unwrap();
+    }
+
+    context.with(|ctx| {
+        let outcome: rquickjs::Object = ctx.globals().get("__outcome").unwrap();
+        let ok: bool = outcome.get("ok").unwrap();
+        if !ok {
+            let message: String = outcome.get("message").unwrap();
+            panic!("office.js against real Executor failed: {message}");
+        }
+    });
+    assert_eq!(host.live_handles(), 0, "all handles released after Excel.run");
+}
