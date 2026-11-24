@@ -44,6 +44,7 @@ use touchstone_client::Priority;
 
 pub const PATIENT_ZERO_FORMAT: &str = "dnacalc-patient-zero/1";
 pub const RESWEEP_RECIPE_FORMAT: &str = "dnacalc-resweep-recipe/1";
+pub const RESWEEP_CASES_FORMAT: &str = "dnacalc-resweep-cases/1";
 pub const RESWEEP_VERDICT_FORMAT: &str = "dnacalc-resweep-verdict/1";
 
 /// Broad shared helper files where siblings must also match the `family` column in `order.tsv`.
@@ -108,6 +109,25 @@ impl PatientZeroConfig {
     }
 }
 
+/// One persisted pre-fix input case saved alongside `resweep-recipe.json` so [`execute_resweep`]
+/// replays the exact pre-fix suite verbatim without storing any Excel answers.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PersistedResweepCase {
+    pub id: String,
+    pub region: String,
+    pub args: Vec<Value>,
+}
+
+/// Persisted pre-fix primary and sibling case lists saved alongside `resweep-recipe.json`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResweepCaseList {
+    pub format: String,
+    pub function: String,
+    pub primary_cases: Vec<PersistedResweepCase>,
+    pub sibling_cases: BTreeMap<String, Vec<PersistedResweepCase>>,
+    pub cases_sha256: String,
+}
+
 /// Reproducible re-sweep recipe written by [`execute_patient_zero`] and consumed by [`execute_resweep`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResweepRecipe {
@@ -132,6 +152,10 @@ pub struct ResweepRecipe {
     pub initial_primary_discrepancies: usize,
     pub initial_sibling_discrepancies: BTreeMap<String, usize>,
     pub initial_clusters: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cases_file: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cases_sha256: Option<String>,
 }
 
 /// Per-function sweep statistics recorded in patient-zero reports and re-sweep verdicts.
@@ -1055,6 +1079,94 @@ pub fn execute_patient_zero(
         (true, "clean-primary-and-siblings".to_owned())
     };
 
+    // Persist the exact pre-fix primary case list (including any coarse-escalation failing cases
+    // and escalated frontier endpoints) and sibling case lists alongside `resweep-recipe.json` so
+    // `execute_resweep` replays them verbatim after a fix changes routes or frontiers.
+    let mut persisted_primary: Vec<PersistedResweepCase> = Vec::with_capacity(
+        suite.primary_cases.len() + primary_discrepancies.len(),
+    );
+    let mut seen_primary: HashSet<String> = HashSet::new();
+    for c in &suite.primary_cases {
+        if seen_primary.insert(canonical_case_key(&seed.function, &c.args)) {
+            persisted_primary.push(PersistedResweepCase {
+                id: c.id.clone(),
+                region: c.region.clone(),
+                args: c.args.clone(),
+            });
+        }
+    }
+    for d in &primary_discrepancies {
+        if seen_primary.insert(canonical_case_key(&seed.function, &d.case.args)) {
+            persisted_primary.push(PersistedResweepCase {
+                id: d.case.id.clone(),
+                region: d.case.region.clone(),
+                args: d.case.args.clone(),
+            });
+        }
+    }
+    for f in &suite.primary_frontiers {
+        if f.scale != "coarse_discrepancy" {
+            continue;
+        }
+        let mut endpoint_bits = vec![f.dna_lo_bits, f.dna_hi_bits];
+        if let Some(b) = f.excel_lo_bits {
+            endpoint_bits.push(b);
+        }
+        if let Some(b) = f.excel_hi_bits {
+            endpoint_bits.push(b);
+        }
+        for (idx, bits) in endpoint_bits.into_iter().enumerate() {
+            let mut args = f.base_args.clone();
+            if set_axis_f64(&mut args, f.axis, f.axis_cell, f64::from_bits(bits))
+                && seen_primary.insert(canonical_case_key(&seed.function, &args))
+            {
+                persisted_primary.push(PersistedResweepCase {
+                    id: format!("{}-ep{idx}", f.id),
+                    region: format!("fractal_coarse:{}", f.axis_name),
+                    args,
+                });
+            }
+        }
+    }
+    let mut persisted_siblings: BTreeMap<String, Vec<PersistedResweepCase>> = BTreeMap::new();
+    for (sfunc, scases) in &suite.sibling_cases {
+        persisted_siblings.insert(
+            sfunc.clone(),
+            scases
+                .iter()
+                .map(|c| PersistedResweepCase {
+                    id: c.id.clone(),
+                    region: c.region.clone(),
+                    args: c.args.clone(),
+                })
+                .collect(),
+        );
+    }
+    let mut cases_hasher = StreamCaseHasher::new(&seed.function);
+    for c in &persisted_primary {
+        cases_hasher.update_case(&c.region, &c.args);
+    }
+    for (sfunc, scases) in &persisted_siblings {
+        for c in scases {
+            cases_hasher.update_case(&format!("{sfunc}:{}", c.region), &c.args);
+        }
+    }
+    let cases_sha256 = cases_hasher.finish_hex();
+    let cases_filename = "resweep-cases.json";
+    let cases_doc = ResweepCaseList {
+        format: RESWEEP_CASES_FORMAT.to_owned(),
+        function: seed.function.clone(),
+        primary_cases: persisted_primary,
+        sibling_cases: persisted_siblings,
+        cases_sha256: cases_sha256.clone(),
+    };
+    let cases_path = cfg.out_dir.join(cases_filename);
+    fs::write(
+        &cases_path,
+        serde_json::to_string_pretty(&cases_doc).map_err(|e| e.to_string())? + "\n",
+    )
+    .map_err(|e| format!("write {}: {e}", cases_path.display()))?;
+
     let recipe = ResweepRecipe {
         format: RESWEEP_RECIPE_FORMAT.to_owned(),
         generator_version: GENERATOR_VERSION.to_owned(),
@@ -1077,6 +1189,8 @@ pub fn execute_patient_zero(
         initial_primary_discrepancies: primary_counts.mismatched,
         initial_sibling_discrepancies: sibling_disc_counts,
         initial_clusters: primary_clusters.iter().map(|c| c.key.clone()).collect(),
+        cases_file: Some(cases_filename.to_owned()),
+        cases_sha256: Some(cases_sha256),
     };
     let recipe_path = cfg.out_dir.join("resweep-recipe.json");
     fs::write(
@@ -1146,22 +1260,109 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             recipe.format
         ));
     }
-    let hints = match &cfg.hints_dir {
-        Some(dir) => HintBank::load_dir(dir)?,
-        None => load_default_hints()?,
+    let (primary_cases, sibling_cases, seed_prediction) = if let Some(ref cases_rel) =
+        recipe.cases_file
+    {
+        let cases_path = recipe_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(cases_rel);
+        let raw_cases = fs::read_to_string(&cases_path)
+            .map_err(|e| format!("read {}: {e}", cases_path.display()))?;
+        let persisted: ResweepCaseList = serde_json::from_str(&raw_cases)
+            .map_err(|e| format!("parse {}: {e}", cases_path.display()))?;
+        if persisted.format != RESWEEP_CASES_FORMAT {
+            return Err(format!(
+                "{}: unsupported resweep cases format {:?}",
+                cases_path.display(),
+                persisted.format
+            ));
+        }
+        if !persisted.function.eq_ignore_ascii_case(&recipe.function) {
+            return Err(format!(
+                "{}: resweep cases function {:?} does not match recipe function {:?}",
+                cases_path.display(),
+                persisted.function,
+                recipe.function
+            ));
+        }
+        let ctx = touchstone_bulk_context();
+        let pz_key = canonical_case_key(&recipe.function, &recipe.patient_zero.args);
+        let (seed_pred, seed_trace, seed_oc) =
+            evaluate_traced(&recipe.function, &recipe.patient_zero.args, &ctx);
+        let mut p_cases = Vec::with_capacity(persisted.primary_cases.len() + 1);
+        let mut has_pz = false;
+        for c in persisted.primary_cases {
+            if canonical_case_key(&recipe.function, &c.args) == pz_key {
+                has_pz = true;
+            }
+            let (prediction, trace, outcome_class) =
+                evaluate_traced(&recipe.function, &c.args, &ctx);
+            p_cases.push(FuzzCase {
+                id: c.id,
+                region: c.region,
+                round: 0,
+                args: c.args,
+                prediction,
+                trace,
+                outcome_class,
+            });
+        }
+        if !has_pz {
+            p_cases.insert(
+                0,
+                FuzzCase {
+                    id: format!("pz-{}-000001", recipe.function),
+                    region: "pz:seed".to_owned(),
+                    round: 0,
+                    args: recipe.patient_zero.args.clone(),
+                    prediction: seed_pred.clone(),
+                    trace: seed_trace,
+                    outcome_class: seed_oc,
+                },
+            );
+        }
+        let mut s_cases: BTreeMap<String, Vec<FuzzCase>> = BTreeMap::new();
+        for (sfunc, cases) in persisted.sibling_cases {
+            let mut evaled = Vec::with_capacity(cases.len());
+            for c in cases {
+                let (prediction, trace, outcome_class) = evaluate_traced(&sfunc, &c.args, &ctx);
+                evaled.push(FuzzCase {
+                    id: c.id,
+                    region: c.region,
+                    round: 0,
+                    args: c.args,
+                    prediction,
+                    trace,
+                    outcome_class,
+                });
+            }
+            s_cases.insert(sfunc, evaled);
+        }
+        (p_cases, s_cases, seed_pred)
+    } else {
+        let hints = match &cfg.hints_dir {
+            Some(dir) => HintBank::load_dir(dir)?,
+            None => load_default_hints()?,
+        };
+        let pz_cfg = PatientZeroConfig {
+            seed: recipe.seed,
+            neighbourhood_budget: recipe.neighbourhood_budget,
+            same_route_budget: recipe.same_route_budget,
+            sibling_budget: recipe.sibling_budget,
+            max_siblings: recipe.siblings.len().max(1),
+            siblings_override: recipe.siblings.clone(),
+            fractal_depth: recipe.fractal_depth,
+            max_frontiers: recipe.max_frontiers,
+            frontier_window: recipe.frontier_window,
+        };
+        let suite = build_patient_zero_suite(&recipe.patient_zero, &hints, &pz_cfg)?;
+        (
+            suite.primary_cases,
+            suite.sibling_cases,
+            suite.seed_case.prediction,
+        )
     };
-    let pz_cfg = PatientZeroConfig {
-        seed: recipe.seed,
-        neighbourhood_budget: recipe.neighbourhood_budget,
-        same_route_budget: recipe.same_route_budget,
-        sibling_budget: recipe.sibling_budget,
-        max_siblings: recipe.siblings.len().max(1),
-        siblings_override: recipe.siblings.clone(),
-        fractal_depth: recipe.fractal_depth,
-        max_frontiers: recipe.max_frontiers,
-        frontier_window: recipe.frontier_window,
-    };
-    let suite = build_patient_zero_suite(&recipe.patient_zero, &hints, &pz_cfg)?;
     fs::create_dir_all(&cfg.out_dir).map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
 
     let mut all_envs: BTreeMap<String, Value> = BTreeMap::new();
@@ -1173,11 +1374,11 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
         let p_sha = freeze_predictions(
             &cfg.out_dir.join("resweep-primary-predictions.jsonl"),
             &recipe.function,
-            &suite.primary_cases,
+            &primary_cases,
         )?;
         primary_counts = FunctionSweepCounts {
             function: recipe.function.clone(),
-            generated: suite.primary_cases.len(),
+            generated: primary_cases.len(),
             asked: 0,
             matched: 0,
             mismatched: 0,
@@ -1187,7 +1388,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             clusters: 0,
             predictions_sha256: p_sha,
         };
-        for (sfunc, scases) in &suite.sibling_cases {
+        for (sfunc, scases) in &sibling_cases {
             let s_sha = freeze_predictions(
                 &cfg.out_dir.join(format!(
                     "resweep-sibling-{}-predictions.jsonl",
@@ -1218,7 +1419,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
         let (p_counts, p_discs, excel_answers) = eval_cases_on_touchstone(
             &client,
             &recipe.function,
-            &suite.primary_cases,
+            &primary_cases,
             &cfg.out_dir.join("resweep-primary-predictions.jsonl"),
             cfg.batch_size,
             cfg.in_flight,
@@ -1228,7 +1429,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
         let pz_key = canonical_case_key(&recipe.function, &recipe.patient_zero.args);
         patient_zero_matched = excel_answers
             .get(&pz_key)
-            .is_some_and(|ex| ex == &suite.seed_case.prediction);
+            .is_some_and(|ex| ex == &seed_prediction);
         primary_counts = p_counts;
 
         if let Some(bank_path) = &cfg.bank_rows_out
@@ -1255,7 +1456,7 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             )?;
         }
 
-        for (sfunc, scases) in &suite.sibling_cases {
+        for (sfunc, scases) in &sibling_cases {
             let (s_counts, s_discs, _) = eval_cases_on_touchstone(
                 &client,
                 sfunc,
@@ -1722,6 +1923,240 @@ mod tests {
         assert_eq!(clean.siblings["FV"].failed(), 0);
         assert!(clean.can_close, "clean primary + sibling re-sweep should allow closure: {}", clean.closure_reason);
         assert!(resweep_cfg.out_dir.join("resweep-verdict.json").is_file());
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resweep_replays_persisted_pre_fix_and_coarse_escalation_cases_verbatim() {
+        // Phase 0: patient zero (nper=10) mismatches by +2 ULPs, and Excel also has an
+        // Excel-only #NUM! cutoff at nper > 37.25 so coarse escalation bisects into (37.25, 38.0)
+        // and generates `fractal_coarse:nper` failing cases NOT produced by `build_patient_zero_suite`.
+        // Phase 1: everything matches EXCEPT cases in (37.25, 38.0). Re-sweep MUST replay the
+        // pre-fix escalated failing cases and refuse closure (`can_close == false`).
+        // Phase 2: everything matches; even if `resweep-recipe.json`'s `seed` is altered (simulating
+        // post-fix suite drift from route_mask/frontier changes), re-sweep MUST replay the exact
+        // persisted primary & sibling case lists verbatim and close cleanly.
+        let phase = Arc::new(AtomicU8::new(0));
+        let phase_srv = phase.clone();
+        let seen_in_phase1 = Arc::new(std::sync::Mutex::new(Vec::<f64>::new()));
+        let seen_in_phase1_srv = seen_in_phase1.clone();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-pz-verbatim-{port}"));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let _server = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            for _ in 0..3 {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    break;
+                };
+                while let Some((kind, body)) = read_frame(&mut stream) {
+                    match kind {
+                        b'H' => write_frame(
+                            &mut stream,
+                            b'H',
+                            &json!({
+                                "v": "touchstone/1",
+                                "server": "fake-pz-verbatim-broker",
+                                "envs": {
+                                    "e1": {
+                                        "file_version": "16.0.20625.20108",
+                                        "cpu": "Fake CPU",
+                                        "machine": "x86-64"
+                                    }
+                                }
+                            }),
+                        ),
+                        b'S' => {
+                            let id = body["id"].as_str().unwrap().to_string();
+                            let cur_phase = phase_srv.load(Ordering::SeqCst);
+                            let mut answers = Vec::new();
+                            for g in body["groups"].as_array().unwrap() {
+                                let func = g["f"].as_str().unwrap().to_ascii_uppercase();
+                                let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                                let width = tokens.len();
+                                let n = g["n"].as_u64().unwrap() as usize;
+                                let flat = g["v"].as_array().unwrap();
+                                let mut ty = String::new();
+                                let mut out_v = Vec::new();
+                                let mut ity = String::new();
+                                let mut iv = Vec::new();
+                                for r in 0..n {
+                                    let mut args_json = Vec::with_capacity(width);
+                                    for c in 0..width {
+                                        let tok = tokens[c];
+                                        let cell = &flat[r * width + c];
+                                        match tok {
+                                            "n" => {
+                                                let h = cell.as_str().unwrap();
+                                                args_json.push(Value::String(format!("0x{h}")));
+                                                ity.push('n');
+                                                iv.push(Value::String(h.to_owned()));
+                                            }
+                                            "s" | "S" => {
+                                                args_json.push(cell.clone());
+                                                ity.push('t');
+                                                iv.push(cell.clone());
+                                            }
+                                            "b" | "B" => {
+                                                args_json.push(cell.clone());
+                                                ity.push('b');
+                                                iv.push(cell.clone());
+                                            }
+                                            _ => {
+                                                args_json.push(Value::Null);
+                                                ity.push('z');
+                                                iv.push(Value::Null);
+                                            }
+                                        }
+                                    }
+                                    let nper = args_json
+                                        .first()
+                                        .and_then(parse_hex_bits)
+                                        .map(f64::from_bits)
+                                        .unwrap_or(0.0);
+                                    if cur_phase == 1 && func == "RATE" {
+                                        seen_in_phase1_srv.lock().unwrap().push(nper);
+                                    }
+                                    let (dna, _, _) = evaluate_traced(&func, &args_json, &ctx);
+                                    let force_num = func == "RATE"
+                                        && ((cur_phase == 0 && nper > 37.25)
+                                            || (cur_phase == 1 && nper > 37.25 && nper < 38.0));
+                                    let bump_seed =
+                                        func == "RATE" && cur_phase == 0 && (nper - 10.0).abs() < 1e-12;
+                                    if force_num {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#NUM!".to_owned()));
+                                    } else if let Some(hex) = dna.strip_prefix("0x") {
+                                        let mut bits = u64::from_str_radix(hex, 16).unwrap();
+                                        if bump_seed {
+                                            bits = step_ulps(f64::from_bits(bits), 2, true)
+                                                .unwrap_or_else(|| f64::from_bits(bits))
+                                                .to_bits();
+                                        }
+                                        ty.push('n');
+                                        out_v.push(Value::String(format!("{bits:016x}")));
+                                    } else if let Some(err) = dna.strip_prefix("error:") {
+                                        let excel_err = match err {
+                                            "Null" => "#NULL!",
+                                            "Div0" => "#DIV/0!",
+                                            "Value" => "#VALUE!",
+                                            "Ref" => "#REF!",
+                                            "Name" => "#NAME?",
+                                            "Num" => "#NUM!",
+                                            "NA" => "#N/A",
+                                            _ => "#VALUE!",
+                                        };
+                                        ty.push('e');
+                                        out_v.push(Value::String(excel_err.to_owned()));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#VALUE!".to_owned()));
+                                    }
+                                }
+                                let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                                if let Some(o) = g.get("o") {
+                                    g_out["o"] = o.clone();
+                                } else {
+                                    g_out["i"] = g["i"].clone();
+                                }
+                                answers.push(g_out);
+                            }
+                            write_frame(
+                                &mut stream,
+                                b'A',
+                                &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w1", "g": answers}),
+                            );
+                            if body["last"] == json!(true) {
+                                write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        let seed_file = tmp.join("pz-seed.json");
+        fs::write(
+            &seed_file,
+            json!({
+                "id": "pz-rate-verbatim",
+                "function": "RATE",
+                "args": [hex_f64(10.0), hex_f64(-120.0), hex_f64(1000.0), hex_f64(0.0), hex_f64(0.0), hex_f64(0.1)]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.seed = 20261124;
+        cfg.budget = 60;
+        cfg.batch_size = 50;
+        cfg.in_flight = 2;
+        cfg.max_frontiers = 4;
+        cfg.fractal_depth = 1;
+        cfg.frontier_window = 2;
+        cfg.pz_siblings = vec!["PV".to_owned()];
+        cfg.max_siblings = 1;
+        cfg.endpoint = Some(endpoint);
+        cfg.out_dir = tmp.join("pz-initial");
+
+        // Phase 0: coarse escalation pinpoints the 37.25 Excel-only boundary and discovers
+        // failing `fractal_coarse:nper` cases in (37.25, 38.0).
+        let initial = execute_patient_zero(&cfg, &seed_file).expect("phase 0");
+        assert!(!initial.can_close);
+        assert!(initial.primary.mismatched > 0);
+
+        // Mutate recipe.seed on disk to simulate post-fix suite drift (different RNG/route_mask
+        // would produce a different suite if execute_resweep regenerated instead of replaying).
+        let mut recipe_val: Value =
+            serde_json::from_str(&fs::read_to_string(&initial.recipe_path).unwrap()).unwrap();
+        recipe_val["seed"] = json!(99999999u64);
+        fs::write(
+            &initial.recipe_path,
+            serde_json::to_string_pretty(&recipe_val).unwrap(),
+        )
+        .unwrap();
+
+        // Phase 1: only the escalated (37.25, 38.0) failing cases still fail -> MUST NOT close!
+        phase.store(1, Ordering::SeqCst);
+        let mut resweep_cfg = cfg.clone();
+        resweep_cfg.out_dir = tmp.join("resweep-phase1");
+        let phase1 = execute_resweep(&resweep_cfg, &initial.recipe_path).expect("phase 1 resweep");
+        assert!(
+            seen_in_phase1
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|&v| v > 37.25 && v < 38.0),
+            "resweep must replay persisted coarse-escalation failing cases in (37.25, 38.0)"
+        );
+        assert!(
+            phase1.primary.mismatched > 0,
+            "still-failing pre-fix escalated cases must be caught in resweep"
+        );
+        assert!(
+            !phase1.can_close,
+            "resweep must refuse closure while pre-fix failing cases still fail"
+        );
+
+        // Phase 2: all persisted cases match -> closes cleanly!
+        phase.store(2, Ordering::SeqCst);
+        resweep_cfg.out_dir = tmp.join("resweep-phase2");
+        let phase2 = execute_resweep(&resweep_cfg, &initial.recipe_path).expect("phase 2 resweep");
+        assert!(phase2.can_close, "clean verbatim resweep should close: {}", phase2.closure_reason);
+        assert_eq!(phase2.primary.asked, phase1.primary.asked);
+        assert_eq!(phase2.siblings["PV"].asked, initial.siblings["PV"].asked);
 
         let _ = fs::remove_dir_all(&tmp);
     }
