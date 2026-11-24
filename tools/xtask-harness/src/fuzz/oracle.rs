@@ -2406,6 +2406,25 @@ mod tests {
             }
         }
 
+        // Storage policy audit (dc-ztvv.26.7): recipe.json must record seed, generator version,
+        // CalcFunc commit, Excel build, CPU, counts, and pass discrepancies-only / no-matching-readings audit.
+        let audit = crate::fuzz::storage::verify_sweep_storage_policy(
+            &cfg.out_dir,
+            Some(&bank_path),
+        )
+        .expect("storage audit");
+        assert!(audit.ok, "storage policy violations: {:?}", audit.violations);
+        assert_eq!(audit.discrepancy_rows, summary.total_mismatched);
+        assert_eq!(audit.matching_rows_in_bank, 0);
+        let recipe: crate::fuzz::storage::SweepRecipe = serde_json::from_str(
+            &std::fs::read_to_string(cfg.out_dir.join("recipe.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(recipe.excel_builds, vec!["16.0.20625.20108".to_owned()]);
+        assert_eq!(recipe.cpus, vec!["Fake AMD Ryzen".to_owned()]);
+        assert!(!recipe.storage_policy.matching_readings_stored);
+        assert!(recipe.storage_policy.discrepancies_only);
+
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
