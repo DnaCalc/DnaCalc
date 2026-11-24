@@ -55,6 +55,45 @@ fn sequence_argument_coercion_order() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sort_indices_and_orders_use_tolerant_floor() {
+    let mut book = Book::new();
+    for (function, args) in [("SORT", "{3;1;2},1"), ("SORTBY", "{3;1;2},{3;1;2}")] {
+        for order in ["-1.5", "0", "0.9", "1.9999999999999998"] {
+            let formula = format!("={function}({args},{order})");
+            assert_eq!(book.dynamic(&formula), e(W::Value), "{formula}");
+        }
+        for order in ["-1.0000000000000002", "-1", "-0.9", "-0.1"] {
+            let formula = format!("={function}({args},{order})");
+            assert_eq!(
+                book.dynamic(&formula),
+                numbers(&[&[3.0], &[2.0], &[1.0]]),
+                "{formula}",
+            );
+        }
+        for order in ["0.9999999999999999", "1", "1.5"] {
+            let formula = format!("={function}({args},{order})");
+            assert_eq!(
+                book.dynamic(&formula),
+                numbers(&[&[1.0], &[2.0], &[3.0]]),
+                "{formula}",
+            );
+        }
+    }
+    let boundary = 2.0 - 2.0_f64.powi(-22) - 2.0_f64.powi(-33);
+    book.number("A1", boundary.next_down());
+    assert_eq!(
+        book.dynamic("=SORT({30,1;10,3;20,2},A1)"),
+        numbers(&[&[10.0, 3.0], &[20.0, 2.0], &[30.0, 1.0]]),
+    );
+    book.number("A1", boundary);
+    assert_eq!(
+        book.dynamic("=SORT({30,1;10,3;20,2},A1)"),
+        numbers(&[&[30.0, 1.0], &[20.0, 2.0], &[10.0, 3.0]]),
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {
     let mut book = data();
     assert_eq!(
