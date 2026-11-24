@@ -633,6 +633,33 @@ class BrokerTests(unittest.TestCase):
         from touchstone import client
         return client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name=name)
 
+    def test_weeknum_sweep_preserves_serial_positions_in_one_calculation_pass(self):
+        broker, state, stop = start_broker(workers=3)
+        try:
+            conn = self.connect(state)
+            self.addCleanup(conn.close)
+            slot = next(slot for slot in broker.slots if slot.serial)
+            worker_run = slot.proc.run
+            worker_batches = []
+
+            def record(message, timeout):
+                worker_batches.append(message)
+                return worker_run(message, timeout)
+
+            # Interleave argument shapes across the ordinary sweep's 32-call batch boundary.
+            rows = [[number(ONE), number(TWO)] if i % 2 == 0 else [number(ONE)] for i in range(40)]
+            with patch.object(slot.proc, "run", side_effect=record):
+                reply = conn.submit_rows("WEEKNUM", rows, priority="sweep", echo=True).result(10)
+            self.assertEqual(reply["order"], "serial")
+            self.assertEqual(reply["rows"], [number(ONE)] * len(rows))
+            self.assertEqual(len(worker_batches), 1)
+            message = worker_batches[0]
+            self.assertTrue(message["serial"])
+            self.assertEqual([list(protocol.positions(group)) for group in message["groups"]],
+                             [list(range(0, len(rows), 2)), list(range(1, len(rows), 2))])
+        finally:
+            stop()
+
     def test_sweep_uses_one_worker_until_idle_expansion(self):
         broker, state, stop = start_broker(workers=4)
         try:
