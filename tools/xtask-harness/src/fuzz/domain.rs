@@ -524,11 +524,7 @@ impl DomainSpec {
     }
 
     fn pick_arity(&self, rng: &mut Rng) -> usize {
-        if self.max_arity <= self.min_arity {
-            self.min_arity
-        } else {
-            self.min_arity + rng.gen_range(self.max_arity - self.min_arity + 1)
-        }
+        self.merged.pick_valid_arity(rng)
     }
 
     fn gen_param_value(&self, param: &ParamSpec, rng: &mut Rng, mode: u8) -> Value {

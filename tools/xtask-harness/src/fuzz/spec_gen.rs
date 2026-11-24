@@ -148,23 +148,23 @@ pub struct MergedSpec {
 }
 
 impl MergedSpec {
+    /// Whether `arity` satisfies `min_arity..=max_arity` and repeating `groups`.
+    pub fn is_valid_arity(&self, arity: usize) -> bool {
+        if arity < self.min_arity || arity > self.max_arity {
+            return false;
+        }
+        !self.groups.is_some_and(|g| g.incomplete(arity))
+    }
+
     /// Pick a deterministic valid arity respecting `min_arity..=max_arity` and repeating `groups`.
     pub fn pick_valid_arity(&self, rng: &mut Rng) -> usize {
         if self.max_arity <= self.min_arity {
             return self.min_arity;
         }
-        if let Some(groups) = self.groups {
-            let mut valid = Vec::new();
-            for n in self.min_arity..=self.max_arity {
-                if n <= groups.from {
-                    valid.push(n);
-                } else {
-                    let rem = (n - groups.from) % groups.size;
-                    if rem == 0 || rem == groups.tail {
-                        valid.push(n);
-                    }
-                }
-            }
+        if self.groups.is_some() {
+            let valid: Vec<usize> = (self.min_arity..=self.max_arity)
+                .filter(|&n| self.is_valid_arity(n))
+                .collect();
             if !valid.is_empty() {
                 return *rng.pick(&valid);
             }
@@ -1238,17 +1238,29 @@ pub fn generate_spec_region(merged: &MergedSpec, region: SpecRegionKind, rng: &m
     }
 }
 
-/// Validate that a generated argument vector has valid arity, Value2-exact doubles, and converts
-/// cleanly to Touchstone `Arg` values.
+/// Validate that a generated argument vector has valid arity (including repeating `ArgumentGroups`),
+/// Value2-exact doubles, and converts cleanly to Touchstone `Arg` values.
 pub fn validate_generated_args(
     args: &[Value],
     min_arity: usize,
     max_arity: usize,
+    groups: Option<ArgumentGroups>,
 ) -> Result<(), String> {
     if args.len() < min_arity || args.len() > max_arity {
         return Err(format!(
             "generated arity {} outside [{min_arity}, {max_arity}]",
             args.len()
+        ));
+    }
+    if let Some(g) = groups
+        && g.incomplete(args.len())
+    {
+        return Err(format!(
+            "generated arity {} ends in an incomplete argument group (from={}, size={}, tail={})",
+            args.len(),
+            g.from,
+            g.size,
+            g.tail
         ));
     }
     for (idx, arg) in args.iter().enumerate() {
@@ -1334,7 +1346,7 @@ pub fn run_all_catalogue_dry_run(
         for i in 0..cases_per_function {
             let region = &spec.regions[i % spec.regions.len()];
             let args = spec.generate(region.kind, &mut rng);
-            validate_generated_args(&args, spec.min_arity, spec.max_arity)
+            validate_generated_args(&args, spec.min_arity, spec.max_arity, spec.merged.groups)
                 .map_err(|e| format!("{func} case {i} (region {}): {e}", region.name))?;
             unique.insert(super::rng::canonical_case_key(func, &args));
         }
@@ -1399,7 +1411,7 @@ mod tests {
         let mut rng = Rng::from_seed(1);
         let args = generate_spec_region(&pi, SpecRegionKind::GenericDomain, &mut rng);
         assert!(args.is_empty());
-        validate_generated_args(&args, pi.min_arity, pi.max_arity).unwrap();
+        validate_generated_args(&args, pi.min_arity, pi.max_arity, pi.groups).unwrap();
     }
 
     #[test]
@@ -1436,7 +1448,7 @@ mod tests {
         let mut broken = 0usize;
         for _ in 0..200 {
             let args = generate_spec_region(&merged, SpecRegionKind::HintRangesAndRelations, &mut rng);
-            validate_generated_args(&args, merged.min_arity, merged.max_arity).unwrap();
+            validate_generated_args(&args, merged.min_arity, merged.max_arity, merged.groups).unwrap();
             let s = f64::from_bits(parse_hex_bits(&args[0]).unwrap());
             let m = f64::from_bits(parse_hex_bits(&args[1]).unwrap());
             if s < m {
@@ -1452,7 +1464,7 @@ mod tests {
         let mut neg_rates = 0usize;
         for _ in 0..50 {
             let args = generate_spec_region(&merged, SpecRegionKind::HintErrorEdges, &mut rng);
-            validate_generated_args(&args, merged.min_arity, merged.max_arity).unwrap();
+            validate_generated_args(&args, merged.min_arity, merged.max_arity, merged.groups).unwrap();
             let r = f64::from_bits(parse_hex_bits(&args[2]).unwrap());
             if r < 0.0 {
                 neg_rates += 1;
@@ -1505,6 +1517,60 @@ mod tests {
         assert_eq!(
             report.total_cases_generated,
             report.functions_total * 1_000
+        );
+    }
+
+    #[test]
+    fn grouped_functions_only_generate_valid_arities_across_all_regions() {
+        let bank = super::super::hints::load_default_hints().expect("load default hints");
+        for func in ["SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS", "COUNTIFS", "IFS", "SORTBY", "SWITCH"] {
+            let spec = super::super::domain::DomainSpec::for_function_with_hints(func, &bank).unwrap();
+            let groups = spec
+                .merged
+                .groups
+                .unwrap_or_else(|| panic!("{func} should declare ArgumentGroups"));
+            let mut rng = Rng::from_seed_and_tag(20261124, func);
+            for region in &spec.regions {
+                for _ in 0..40 {
+                    let args = spec.generate(region.kind, &mut rng);
+                    assert!(
+                        !groups.incomplete(args.len()),
+                        "{func} region {} generated incomplete grouped arity {} (groups={groups:?})",
+                        region.name,
+                        args.len()
+                    );
+                    validate_generated_args(&args, spec.min_arity, spec.max_arity, Some(groups))
+                        .unwrap_or_else(|e| panic!("{func} region {} failed validation: {e}", region.name));
+                }
+            }
+        }
+
+        // Explicitly verify validate_generated_args rejects incomplete grouped arities and accepts valid ones.
+        let sumifs = build_merged_spec("SUMIFS", &bank).unwrap();
+        let four_args = vec![hex_f64(1.0); 4];
+        assert!(
+            validate_generated_args(&four_args, sumifs.min_arity, sumifs.max_arity, sumifs.groups).is_err(),
+            "SUMIFS must reject even arity 4"
+        );
+        let three_args = vec![hex_f64(1.0); 3];
+        assert!(
+            validate_generated_args(&three_args, sumifs.min_arity, sumifs.max_arity, sumifs.groups).is_ok(),
+            "SUMIFS must accept odd arity 3"
+        );
+        let countifs = build_merged_spec("COUNTIFS", &bank).unwrap();
+        assert!(
+            validate_generated_args(&three_args, countifs.min_arity, countifs.max_arity, countifs.groups).is_err(),
+            "COUNTIFS must reject odd arity 3"
+        );
+        let sortby = build_merged_spec("SORTBY", &bank).unwrap();
+        let two_args = vec![hex_f64(1.0); 2];
+        assert!(
+            validate_generated_args(&two_args, sortby.min_arity, sortby.max_arity, sortby.groups).is_ok(),
+            "SORTBY must accept 2-arg form (array, by_array1)"
+        );
+        assert!(
+            validate_generated_args(&four_args, sortby.min_arity, sortby.max_arity, sortby.groups).is_err(),
+            "SORTBY must reject incomplete 4-arg form"
         );
     }
 }
