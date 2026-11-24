@@ -438,40 +438,45 @@ fn rate_secant(
         crate::trace::hit(5);
     }
     let balance = |rate: f64| -> Result<f64, FinancialError> {
-        if rate == 0.0 {
+        // Use FV's `(pv * factor + pmt * term) + fv` stage at every rate, including rate == 0.0,
+        // and reject a nonfinite balance immediately as #NUM! (Excel 16.0.20625.20108, dc-ztvv.21).
+        let (factor, term) = if rate == 0.0 {
             if tracing {
                 crate::trace::hit(1);
             }
-            return Ok(excel_x87_add(
-                excel_x87_add(future_value, present_value),
-                excel_underflow_to_zero(excel_x87_mul(payment_value, periods)),
-            ));
-        }
-        let base = excel_x87_add(1.0, rate);
-        if tracing && base <= 0.0 {
-            crate::trace::hit(2);
-        }
-        // The initial guess and final root have separate domain rules. An
-        // intermediate integer-period power can cross a negative base.
-        let factor = match growth_from_base(base, periods) {
-            Ok(f) => f,
-            Err(e) => {
-                if tracing {
-                    crate::trace::hit(3);
-                }
-                return Err(e);
+            (1.0, periods)
+        } else {
+            let base = excel_x87_add(1.0, rate);
+            if tracing && base <= 0.0 {
+                crate::trace::hit(2);
             }
+            // The initial guess and final root have separate domain rules. An
+            // intermediate integer-period power can cross a negative base.
+            let factor = match growth_from_base(base, periods) {
+                Ok(f) => f,
+                Err(e) => {
+                    if tracing {
+                        crate::trace::hit(3);
+                    }
+                    return Err(e);
+                }
+            };
+            let raw_end_term = excel_x87_div(excel_x87_sub(factor, 1.0), rate);
+            let end_term = excel_underflow_to_zero(raw_end_term);
+            if tracing && raw_end_term != 0.0 && end_term == 0.0 {
+                crate::trace::hit(4);
+            }
+            (factor, excel_x87_mul(end_term, timing.factor(rate)))
         };
-        let raw_end_term = excel_x87_div(excel_x87_sub(factor, 1.0), rate);
-        let end_term = excel_underflow_to_zero(raw_end_term);
-        if tracing && raw_end_term != 0.0 && end_term == 0.0 {
-            crate::trace::hit(4);
-        }
-        let term = excel_x87_mul(end_term, timing.factor(rate));
-        Ok(excel_x87_add(
+        let total = excel_x87_add(
             payment_balance(present_value, payment_value, factor, term),
             future_value,
-        ))
+        );
+        if total.is_finite() {
+            Ok(total)
+        } else {
+            Err(FinancialError::Num)
+        }
     };
     let mut before = guess;
     let mut value_before = balance(before)?;
@@ -1641,6 +1646,138 @@ mod tests {
         )
         .expect("rate witness");
         assert_bits(actual, f64::from_bits(0x3f71110b2048574f));
+    }
+
+    /// Excel 16.0.20625.20108 (sf2 live smart-fuzzer sweeps, dc-ztvv.21): RATE's balance at
+    /// rate == 0.0 uses FV's `(pv + pmt * nper) + fv` order (`payment_balance(pv, pmt, 1, nper)
+    /// + fv`), not `(fv + pv) + pmt * nper`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rate_balance_at_zero_uses_payment_balance_order() {
+        use PaymentTiming::{BeginningOfPeriod as Begin, EndOfPeriod as End};
+        for (args, timing, expected) in [
+            // sf2-RATE-00005 (s1): 1 ULP
+            (
+                [
+                    0x4000_0000_0000_0000_u64,
+                    0x405b_e84c_f8ab_8ed1,
+                    0xc06e_2fd8_de67_0869,
+                    0x4059_20e6_3578_5045,
+                    0x0000_0000_0000_0000,
+                ],
+                End,
+                Ok(0x3fc9_2596_8f7b_d84b_u64),
+            ),
+            // sf2-RATE-00004 (s2): 6,849 ULP
+            (
+                [
+                    0x3ff0_0000_0000_0000,
+                    0xc151_2454_78db_6370,
+                    0x414b_8b92_e7bc_7b76,
+                    0x412b_8841_e0d3_0d7f,
+                    0x0000_0000_0000_0000,
+                ],
+                End,
+                Ok(0xbf75_7ab3_9518_9896),
+            ),
+            // sf2-RATE-00063 (s1): guess = -0.001 steps to rate == 0.0
+            (
+                [
+                    0x4075_8000_0000_0000,
+                    0x3ef1_d179_e64c_8b70,
+                    0x414c_be96_ed41_cff2,
+                    0xc14c_be96_ed41_cff2,
+                    0xbf50_624d_d2f1_a9fc,
+                ],
+                End,
+                Ok(0xbd93_d617_dc8a_9a5c),
+            ),
+            // sf2-RATE-00246 (s1): tiny guess steps to rate == 0.0 on iter 0
+            (
+                [
+                    0x3ff0_0000_0000_0000,
+                    0xbeb0_0515_1cf3_ef70,
+                    0x3f9d_d5ac_8017_ddd1,
+                    0xbf9d_d5ac_8017_ddd1,
+                    0x8010_0000_0000_0283,
+                ],
+                End,
+                Ok(0x3f01_2eba_f7b7_ab8d),
+            ),
+            // sf2-RATE-00575 (s1): #NUM! vs finite number
+            (
+                [
+                    0xc000_0000_0000_0000,
+                    0x40de_60c2_7577_ea46,
+                    0xc114_442b_5b49_6cff,
+                    0x4118_1043_a9de_3363,
+                    0x0000_0000_0000_0000,
+                ],
+                End,
+                Err(FinancialError::Num),
+            ),
+            // frontier-RATE-017 (s2): adjacent fv words shifted -499 ULP before fix
+            (
+                [
+                    0x3fe0_0000_0000_0000,
+                    0xc0ca_2a7e_5c0e_6be3,
+                    0x40d5_449a_af51_a76d,
+                    0xc0c1_fe59_7a20_dff8,
+                    0x0000_0000_0000_0000,
+                ],
+                Begin,
+                Ok(0xbfe6_b217_53c6_b554),
+            ),
+            (
+                [
+                    0x3fe0_0000_0000_0000,
+                    0xc0ca_2a7e_5c0e_6be3,
+                    0x40d5_449a_af51_a76d,
+                    0xc0c1_fe59_7a20_dff7,
+                    0x0000_0000_0000_0000,
+                ],
+                Begin,
+                Err(FinancialError::Num),
+            ),
+        ] {
+            let got = rate(
+                f64::from_bits(args[0]),
+                f64::from_bits(args[1]),
+                f64::from_bits(args[2]),
+                f64::from_bits(args[3]),
+                timing,
+                Some(f64::from_bits(args[4])),
+            );
+            assert_eq!(got.map(f64::to_bits), expected, "args={args:x?}");
+        }
+    }
+
+    /// Excel 16.0.20625.20108 (sf2 frontier-RATE-014, dc-ztvv.21): when RATE's initial balance
+    /// overflows to +/-infinity, Excel returns #NUM! immediately (as FV does) rather than
+    /// continuing to `guess +/- 0.001` and hitting a downstream #DIV/0! in growth_from_base.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rate_balance_overflow_returns_num_before_next_probe() {
+        let pmt = f64::from_bits(0xc056_7bf2_a65f_3603);
+        let pv = f64::from_bits(0x407f_5b86_2e2a_57fd);
+        let guess = Some(f64::from_bits(0xbfe8_df81_c443_d4f7));
+        for (nper_bits, expected) in [
+            // Former DNA flip: balance(guess) overflows to +inf; balance(guess - 0.001) -> #DIV/0!.
+            (0xc07d_6458_666c_ca98_u64, Err(FinancialError::Num)),
+            // Excel exact #NUM! <-> #DIV/0! boundary: (1 + guess)^|nper| crosses 2^-1022.
+            (0xc07d_7ae4_1dc5_60a9_u64, Err(FinancialError::Num)),
+            (0xc07d_7ae4_1dc5_60aa_u64, Err(FinancialError::Div0)),
+        ] {
+            let got = rate(
+                f64::from_bits(nper_bits),
+                pmt,
+                pv,
+                0.0,
+                PaymentTiming::EndOfPeriod,
+                guess,
+            );
+            assert_eq!(got, expected, "nper={nper_bits:#018x}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
