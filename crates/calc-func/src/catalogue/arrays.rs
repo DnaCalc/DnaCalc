@@ -18,7 +18,7 @@
 //! is refused here too.
 
 use super::comparison::{self, Want};
-use super::kit::{fail, grid, scalar_error};
+use super::kit::{fail, grid, opt_flag, scalar_error};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::dynamic_array_reshape_family::{
@@ -270,20 +270,6 @@ fn descending(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
     }
 }
 
-/// A logical flag argument (by_col, exactly_once): omitted or blank is FALSE.
-fn flag(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
-    if value.is_some_and(CalcValue::is_excel_overflow) {
-        return Ok(false);
-    }
-    match value.map(CalcValue::core_ref) {
-        None | Some(CoreRef::Missing | CoreRef::Empty) => Ok(false),
-        Some(CoreRef::Logical(b)) => Ok(b),
-        Some(CoreRef::Number(n)) => Ok(n != 0.0),
-        Some(CoreRef::Error(code)) => fail(code),
-        Some(_) => Ok(optional_number(site, value)?.is_some_and(|n| n.trunc() != 0.0)),
-    }
-}
-
 /// The rank of a value's kind in the sort order.
 fn kind(value: &CalcValue) -> u8 {
     match value.core_ref() {
@@ -441,7 +427,7 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
     {
         scalar_error(value)?;
     }
-    let by_col = flag(site, args.get(3))?;
+    let by_col = opt_flag(site, &args, 3, false)?;
     let ArrayShape { rows, cols } = array.shape();
     let (len, width) = if by_col { (cols, rows) } else { (rows, cols) };
     let mut indices: Vec<CalcValue> = match args.get(1) {
@@ -662,8 +648,8 @@ fn held_reference_keys(
 fn unique(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let args = prepared(site, a, sv)?;
     let array = as_array(&args[0]);
-    let by_col = flag(site, args.get(1))?;
-    let exactly_once = flag(site, args.get(2))?;
+    let by_col = opt_flag(site, &args, 1, false)?;
+    let exactly_once = opt_flag(site, &args, 2, false)?;
     let ArrayShape { rows, cols } = array.shape();
     let len = if by_col { cols } else { rows };
     let mut lines: Vec<Vec<CalcValue>> = (0..len).map(|i| line(&array, i, by_col)).collect();

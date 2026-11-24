@@ -94,6 +94,32 @@ fn sort_indices_and_orders_use_tolerant_floor() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sort_and_unique_coerce_optional_logical_arguments() {
+    let mut book = Book::new();
+    assert_eq!(
+        book.dynamic("=UNIQUE({3,3;1,1;3,3},\"false\",\"TRUE\")"),
+        numbers(&[&[1.0, 1.0]]),
+    );
+    book.set("A1", t("TrUe"));
+    assert_eq!(
+        book.dynamic("=UNIQUE({3,3;1,1;3,3},A1)"),
+        numbers(&[&[3.0], &[1.0], &[3.0]]),
+    );
+    assert_eq!(
+        book.dynamic("=SORT({3,1,2;20,30,10},1,1,\"TrUe\")"),
+        numbers(&[&[1.0, 2.0, 3.0], &[30.0, 10.0, 20.0]]),
+    );
+    for formula in [
+        "=UNIQUE({3,3;1,1;3,3},\" FALSE \")",
+        "=UNIQUE({3,3;1,1;3,3},FALSE,\"1\")",
+        "=SORT({3,1,2;20,30,10},1,1,\"1\")",
+    ] {
+        assert_eq!(book.dynamic(formula), e(W::Value), "{formula}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {
     let mut book = data();
     assert_eq!(
