@@ -651,16 +651,21 @@ class Broker:
                    if piece.priority == "sweep" and piece.t_received <= cutoff}
         for key in expired:
             request = self.requests.get(key)
-            self.batcher.discard_request(key[1])
+            self.batcher.discard_request(key[1], origin=key[0])
             for piece in request.pieces.values() if request else ():
                 self.fail_piece(piece, "sweep-deferred", "sweep yielded after waiting for an Excel worker")
+            if request is not None and self.requests.pop(key, None) is not None:
+                self.cache_bytes -= request.cache_bytes
 
     def dispatch_sweeps(self, reserve):
         plain = [slot for slot in self.slots if not slot.addins and slot.state in ("idle", "busy")]
         if not plain or self.batcher.serial_pending():
             return
-        foreground_idle = all(slot.state != "busy" or slot.running == "sweep" for slot in self.slots)
-        cap = self.opt("sweep_workers", 1) if foreground_idle else 1
+        foreground_idle = (not self.batcher.has_work()
+                           and all(slot.state != "busy" or slot.running == "sweep" for slot in self.slots))
+        if not foreground_idle:
+            return
+        cap = self.opt("sweep_workers", 1)
         busy = sum(slot.state == "busy" and slot.running == "sweep" for slot in plain)
         idle = sum(slot.state == "idle" for slot in plain)
         available = min(cap - busy, idle - min(reserve, len(plain) - 1))

@@ -165,13 +165,13 @@ class _Class:
             for queue in self.origins[origin].shapes.values():
                 yield from queue
 
-    def discard_request(self, rid):
-        for origin in list(self.order):
-            shapes = self.origins[origin].shapes
+    def discard_request(self, rid, origin=None):
+        for fair_origin in list(self.order):
+            shapes = self.origins[fair_origin].shapes
             for key, queue in list(shapes.items()):
                 kept = deque()
                 for item in queue:
-                    if item.piece.rid == rid:
+                    if item.piece.rid == rid and (origin is None or item.piece.origin == origin):
                         self.calls -= item.n
                     else:
                         kept.append(item)
@@ -180,8 +180,8 @@ class _Class:
                 else:
                     del shapes[key]
             if not shapes:
-                self.order.remove(origin)
-                self.deficit[origin] = 0
+                self.order.remove(fair_origin)
+                self.deficit[fair_origin] = 0
 
     def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None, allow_isolated=True):
         """Items by cost-weighted deficit round robin over clients until a budget is spent.
@@ -376,12 +376,14 @@ class Batcher:
                 for group in piece.groups:
                     yield piece, group, False
 
-    def discard_request(self, rid):
+    def discard_request(self, rid, origin=None):
+        def matches(piece):
+            return piece.rid == rid and (origin is None or piece.origin == origin)
         for cls in self.classes():
-            cls.discard_request(rid)
-        self.serial = deque(p for p in self.serial if p.rid != rid)
+            cls.discard_request(rid, origin=origin)
+        self.serial = deque(p for p in self.serial if not matches(p))
         for addins, queue in self.pinned.items():
-            self.pinned[addins] = deque(p for p in queue if p.rid != rid)
+            self.pinned[addins] = deque(p for p in queue if not matches(p))
 
     def serial_pending(self):
         return bool(self.serial)

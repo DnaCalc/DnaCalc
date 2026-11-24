@@ -627,6 +627,91 @@ class BrokerTests(unittest.TestCase):
         finally:
             stop()
 
+    def test_sweep_does_not_dispatch_while_foreground_bulk_is_busy(self):
+        broker, state, stop = start_broker(workers=4, extra={"reserve": 1, "sweep_workers": 2})
+        try:
+            conn = self.connect(state)
+            # Occupy 1 worker with foreground bulk (3 idle > reserve=1).
+            fg = conn.submit_rows("SLEEP", [[number(ONE)]], priority="bulk")
+            until = time.monotonic() + 3
+            while not any(slot.state == "busy" and slot.running == "bulk" for slot in broker.slots):
+                self.assertLess(time.monotonic(), until)
+                time.sleep(0.005)
+            sweep = conn.submit_rows("ID", [[number(TWO)]] * 4, priority="sweep")
+            # While foreground bulk is running, zero sweep workers may dispatch.
+            saw_sweep_during_fg = False
+            while any(slot.state == "busy" and slot.running == "bulk" for slot in broker.slots):
+                if any(slot.state == "busy" and slot.running == "sweep" for slot in broker.slots):
+                    saw_sweep_during_fg = True
+                    break
+                if sweep.done():
+                    saw_sweep_during_fg = True
+                    break
+                time.sleep(0.005)
+            self.assertEqual(len(fg.result(5)["rows"]), 1)
+            self.assertEqual(len(sweep.result(5)["rows"]), 4)
+            self.assertFalse(
+                saw_sweep_during_fg,
+                "sweep must not dispatch onto an idle worker while foreground bulk is active",
+            )
+        finally:
+            stop()
+
+    def test_expire_sweeps_scopes_discard_by_origin_and_evicts_expired_request(self):
+        import broker as broker_module
+        import batcher as batcher_module
+
+        class DummyConn:
+            def __init__(self, origin):
+                self.origin = origin
+                self.sent = []
+            def send(self, kind, body, urgent=False):
+                self.sent.append((kind, body, urgent))
+
+        temporary = tempfile.TemporaryDirectory()
+        try:
+            state = Path(temporary.name)
+            options = SimpleNamespace(
+                state=state, workers=1, local_queue=state / "queue", hosts=[], admission=None,
+                worker_command=[sys.executable, str(HERE / "fake_worker.py")], sweep_orphans=False,
+            )
+            instance = broker_module.Broker(options)
+            instance.prepare()
+            conn_a = DummyConn("origin-a")
+            conn_b = DummyConn("origin-b")
+            rid = "shared-rid-001"
+            grp = [{"f": "ID", "k": "n", "n": 1, "v": [ONE], "o": 0}]
+
+            piece_a = batcher_module.Piece(conn_a, rid, 0, grp, True, "sweep")
+            piece_a.t_received = time.monotonic() - (broker_module.SWEEP_QUEUE_SECONDS + 5.0)
+            req_a = broker_module.Request()
+            req_a.priority = "sweep"
+            req_a.last_seq = 0
+            req_a.pieces[0] = piece_a
+            instance.requests[("origin-a", rid)] = req_a
+            instance.batcher.add_piece(piece_a)
+
+            piece_b = batcher_module.Piece(conn_b, rid, 0, grp, True, "bulk")
+            req_b = broker_module.Request()
+            req_b.priority = "bulk"
+            req_b.last_seq = 0
+            req_b.pieces[0] = piece_b
+            instance.requests[("origin-b", rid)] = req_b
+            instance.batcher.add_piece(piece_b)
+
+            instance.expire_sweeps()
+
+            # origin-a's expired sweep must be failed and immediately evicted from broker.requests.
+            self.assertNotIn(("origin-a", rid), instance.requests)
+            self.assertTrue(any(body.get("code") == "sweep-deferred" for _, body, _ in conn_a.sent))
+            # origin-b's request sharing the same bare rid must remain intact in both batcher and requests.
+            self.assertIn(("origin-b", rid), instance.requests)
+            waiting_keys = {(p.origin, p.rid) for p, _, _ in instance.batcher.waiting()}
+            self.assertIn(("origin-b", rid), waiting_keys)
+            self.assertNotIn(("origin-a", rid), waiting_keys)
+        finally:
+            temporary.cleanup()
+
     def test_answers_arrive_in_request_order_with_the_environment(self):
         broker, state, stop = start_broker()
         try:
