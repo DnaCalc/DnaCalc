@@ -1,8 +1,8 @@
 //! Chart axes of a macro (dc-oxh8w.11): `Chart.Axes(Type)` and the scale members of `Axis`
 //! (`MinimumScale`, `MaximumScale`, `MajorUnit`, their `...IsAuto` switches and `ReversePlotOrder`).
 //! Writes go through `WorkbookCommand::ChartAxis`, the chart axis dialog's command, so the retained
-//! chart writer saves them. Reading a scale that is automatic needs the renderer's computed scale
-//! (Excel returns it) and refuses naming dc-oxh8w.13; axis titles and number formats are dc-oxh8w.12.
+//! chart writer saves them. Reading a scale that is automatic returns the renderer's computed scale (dc-oxh8w.13); the rest
+//! refuses naming dc-oxh8w.21 (secondary groups, the Axes collection); titles and formats are in dc-oxh8w.12.
 
 use super::report::report;
 use super::report_draw::number;
@@ -10,7 +10,8 @@ use super::*;
 use crate::WorkbookCommand;
 use calc_object_model::ReportItem;
 
-const AXES: &str = "dc-oxh8w.13";
+const AXES: &str = "dc-oxh8w.21";
+
 
 #[derive(Clone, Copy)]
 enum Scale {
@@ -102,11 +103,24 @@ impl WorkbookAutomation {
         }
         match value.and_then(|v| v.parse::<f64>().ok()) {
             Some(v) => Ok(AutoValue::R8(v)),
-            None => Err(AutoError::not_modelled(
-                format!("Axis.{name} while automatic (Excel's computed scale)"),
-                AXES,
-            )),
+            None => Ok(AutoValue::R8(self.computed_scale(target, scale)?)),
         }
+    }
+
+    /// The renderer's scale for the axis: what Excel reads while a setting is automatic (dc-oxh8w.21).
+    fn computed_scale(&self, target: &ObjectRef, scale: Scale) -> Result<f64, AutoError> {
+        let (_, sheet, _) = Self::report_key(target)?;
+        let part = Self::chart_token(target)?;
+        let id = self.axis_read(target, scale.name(), |a| a.id)?;
+        let computed = self.read_host(target, |s, _, _| Ok(crate::chart::axis_scale(s.host(), sheet, &part, id)))?;
+        let computed = computed.map_err(|e| {
+            AutoError::excel(1004, format!("Unable to get the {} property of the Axis class ({e})", scale.name()))
+        })?;
+        Ok(match scale {
+            Scale::Minimum => computed.minimum,
+            Scale::Maximum => computed.maximum,
+            Scale::Unit => computed.step,
+        })
     }
 
     fn axis_auto(&self, target: &ObjectRef, call: &Call<'_>, scale: Scale) -> Reply {
@@ -187,17 +201,15 @@ impl WorkbookAutomation {
         if geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)? {
             return self.axis_write(target, call, scale, None);
         }
-        // False from automatic freezes the computed scale: that needs the renderer's scale.
+        // False from automatic freezes the scale the chart shows now.
         let auto = self.axis_read(target, scale.name(), |a| match scale {
             Scale::Minimum => a.minimum.is_none(),
             Scale::Maximum => a.maximum.is_none(),
             Scale::Unit => a.major_unit.is_none(),
         })?;
         if auto {
-            return Err(AutoError::not_modelled(
-                format!("Axis.{}IsAuto = False from automatic", scale.name()),
-                AXES,
-            ));
+            let current = self.computed_scale(target, scale)?;
+            return self.axis_write(target, call, scale, Some(current));
         }
         Ok(AutoValue::Empty)
     }
