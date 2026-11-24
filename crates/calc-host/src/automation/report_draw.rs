@@ -16,7 +16,7 @@ fn single(value: f64) -> AutoValue {
     AutoValue::R4(value as f32)
 }
 
-fn number(value: &AutoValue) -> Result<f64, AutoError> {
+pub(super) fn number(value: &AutoValue) -> Result<f64, AutoError> {
     match value {
         AutoValue::I2(v) => Ok(f64::from(*v)),
         AutoValue::I4(v) => Ok(f64::from(*v)),
@@ -58,7 +58,7 @@ impl WorkbookAutomation {
     // --- charts ---------------------------------------------------------------------------------
 
     /// The chart part a chart-valued report object denotes.
-    fn chart_token(target: &ObjectRef) -> Result<String, AutoError> {
+    pub(super) fn chart_token(target: &ObjectRef) -> Result<String, AutoError> {
         match &target.key {
             ObjectKey::Report {
                 item:
@@ -67,7 +67,8 @@ impl WorkbookAutomation {
                     | ReportItem::ChartTitle(part)
                     | ReportItem::ChartShape(part)
                     | ReportItem::SeriesCollection(part)
-                    | ReportItem::Series(part, _),
+                    | ReportItem::Series(part, _)
+                    | ReportItem::Axis(part, _),
                 ..
             } => Ok(part.clone()),
             _ => Err(geometry::type_mismatch()),
@@ -79,7 +80,7 @@ impl WorkbookAutomation {
     }
 
     /// A read of the chart the object denotes; a chart that is gone is Excel's "Object required".
-    fn real_chart<T>(
+    pub(super) fn real_chart<T>(
         &self,
         target: &ObjectRef,
         read: impl Fn(&calc_doc_model::Chart) -> T,
