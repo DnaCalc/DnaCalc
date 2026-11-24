@@ -5,18 +5,25 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Identity assigned to a workbook when it joins a calculation domain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DomainWorkbookId(u64);
+/// Identity of a domain save request. Use it to collect or cancel that request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DomainSaveId(u64);
 
+/// Why the domain could not admit an operation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DomainError {
+    /// The domain already has calculation work in progress.
     Busy,
+    /// The requested workbook or save identity is unavailable.
     UnknownWorkbook,
+    /// The destination workbook has no external link at the specified index.
     UnknownLink,
     /// Cross-workbook circular/iterative sessions are not implemented by this owner.
     LinkedCycle {
+        /// Tracker ID for cross-workbook cycle handling.
         owner: &'static str,
     },
 }
@@ -27,18 +34,28 @@ impl std::fmt::Display for DomainError {
 }
 impl std::error::Error for DomainError {}
 
+/// Outcome of one bounded step through a domain calculation.
 #[derive(Debug)]
 pub enum DomainProgress {
+    /// A workbook's calculation advanced.
     Advanced {
+        /// Identity of the workbook reporting this outcome.
         workbook: DomainWorkbookId,
+        /// Progress reported by the workbook session.
         progress: HostProgress,
     },
+    /// There is no calculation work left to advance.
     Complete,
+    /// A workbook is waiting for an asynchronous result.
     Waiting {
+        /// Identity of the workbook reporting this outcome.
         workbook: DomainWorkbookId,
     },
+    /// A workbook's calculation failed and the domain calculation stopped.
     Failed {
+        /// Identity of the workbook reporting this outcome.
         workbook: DomainWorkbookId,
+        /// Failure reported by the workbook session.
         error: RecalcFailed,
     },
 }
@@ -61,6 +78,27 @@ struct DomainSave {
     terminal: Option<Result<crate::PreparedSave, crate::SaveFailed>>,
 }
 
+/// Owns workbook sessions and calculates linked sources before their consumers.
+///
+/// A domain supplies each consumer with a snapshot of each linked source's
+/// results from the current calculation request.
+///
+/// ```
+/// use std::sync::Arc;
+/// use calc_host::{
+///     CalculationDomain, HostOptions, HostSession, MemorySource, OpenPolicy, blank_package,
+/// };
+///
+/// let session = HostSession::open(
+///     Arc::new(MemorySource::new(blank_package())),
+///     &OpenPolicy::default(),
+///     HostOptions::default(),
+/// ).unwrap();
+/// let mut domain = CalculationDomain::new();
+/// let id = domain.insert_session(session).unwrap();
+/// assert_eq!(domain.workbook_ids().collect::<Vec<_>>(), vec![id]);
+/// assert!(domain.session(id).is_some());
+/// ```
 #[derive(Default)]
 pub struct CalculationDomain {
     workbooks: BTreeMap<DomainWorkbookId, HostSession>,
@@ -69,12 +107,15 @@ pub struct CalculationDomain {
     save: Option<DomainSave>,
 }
 impl CalculationDomain {
+    /// Create an empty calculation domain.
     pub fn new() -> Self {
         Self::default()
     }
+    /// Wrap the host in a session and register it, returning its domain identity.
     pub fn insert(&mut self, host: HostState) -> Result<DomainWorkbookId, DomainError> {
         self.insert_session(HostSession::new(host))
     }
+    /// Register a workbook session when the domain has no calculation in progress.
     pub fn insert_session(
         &mut self,
         session: HostSession,
@@ -86,9 +127,11 @@ impl CalculationDomain {
         self.workbooks.insert(id, session);
         Ok(id)
     }
+    /// Get the authored and calculated state of a registered workbook.
     pub fn host(&self, id: DomainWorkbookId) -> Option<&HostState> {
         self.session(id).map(HostSession::host)
     }
+    /// Get a registered workbook's session by domain identity.
     pub fn session(&self, id: DomainWorkbookId) -> Option<&HostSession> {
         self.workbooks.get(&id)
     }
@@ -97,6 +140,7 @@ impl CalculationDomain {
     pub fn host_mut(&mut self, id: DomainWorkbookId) -> Result<&mut HostState, DomainError> {
         Ok(&mut self.session_mut(id)?.host)
     }
+    /// Get mutable session access between calculations and invalidate dependent link snapshots.
     pub fn session_mut(&mut self, id: DomainWorkbookId) -> Result<&mut HostSession, DomainError> {
         if self.work.is_some() {
             return Err(DomainError::Busy);
@@ -127,6 +171,7 @@ impl CalculationDomain {
             }
         }
     }
+    /// Route the destination workbook's external link number to a registered source workbook.
     pub fn connect(
         &mut self,
         destination: DomainWorkbookId,
@@ -150,6 +195,7 @@ impl CalculationDomain {
         self.invalidate_consumers(destination);
         Ok(())
     }
+    /// Remove routing and the held snapshot for the destination's external link number.
     pub fn disconnect(
         &mut self,
         destination: DomainWorkbookId,
@@ -169,9 +215,13 @@ impl CalculationDomain {
         self.invalidate_consumers(destination);
         Ok(())
     }
+    /// Iterate over registered workbook identities in identity order.
     pub fn workbook_ids(&self) -> impl Iterator<Item = DomainWorkbookId> + '_ {
         self.workbooks.keys().copied()
     }
+    /// Schedule the targets and their linked sources in dependency order.
+    ///
+    /// Use `full` to recalculate all formulas. Otherwise calculate dirty and volatile formulas.
     pub fn request_calculation(
         &mut self,
         targets: &[DomainWorkbookId],
@@ -244,9 +294,11 @@ impl CalculationDomain {
         }
         Ok(())
     }
+    /// Drive the current workbook's calculation with the supplied work budget.
     pub fn advance(&mut self, budget: WorkBudget) -> DomainProgress {
         self.advance_observed(budget, None, &mut Unobserved)
     }
+    /// Drive one bounded step and report reads only for the selected workbook.
     pub fn advance_observed(
         &mut self,
         budget: WorkBudget,
@@ -500,6 +552,7 @@ impl CalculationDomain {
             completion,
         ));
     }
+    /// Consume the completed save result. A pending save remains available for a later call.
     pub fn take_save(
         &mut self,
         id: DomainSaveId,
@@ -520,6 +573,7 @@ impl CalculationDomain {
             .terminal
             .expect("checked terminal image")
     }
+    /// Cancel a pending save and its calculation. A completed result remains available to collect.
     pub fn cancel_save(&mut self, id: DomainSaveId) -> Result<(), DomainError> {
         let Some(save) = &mut self.save else {
             return Err(DomainError::UnknownWorkbook);
@@ -540,6 +594,7 @@ impl CalculationDomain {
         }
         Ok(())
     }
+    /// Deliver an asynchronous formula result to the identified workbook session.
     pub fn complete_async(
         &mut self,
         id: DomainWorkbookId,
