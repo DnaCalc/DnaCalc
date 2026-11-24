@@ -18,7 +18,7 @@ impl WorkbookAutomation {
         })
     }
 
-    /// Text shows; False restores the default status; anything else is a type mismatch.
+    /// Excel documents text assignment and Boolean False to restore its status.
     fn put_status_bar(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() != 1 {
             return Err(geometry::bad_count());
@@ -26,7 +26,7 @@ impl WorkbookAutomation {
         let text = match call.arg(0) {
             AutoValue::Text(_) => call.arg(0).as_text(),
             AutoValue::Bool(false) => None,
-            _ => return Err(geometry::type_mismatch()),
+            _ => return Err(AutoError::not_modelled("Application.StatusBar coercion", "dc-oxh8w.9")),
         };
         *self.status_bar.borrow_mut() = text;
         Ok(AutoValue::Empty)

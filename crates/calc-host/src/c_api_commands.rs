@@ -11,15 +11,16 @@
 //! [`AutoValue::Missing`], a reference operand is an [`AutoValue::Object`] range or the XLM text
 //! form (`R2C3`, `R2C3:R4C5`, always R1C1).
 //!
-//! Sources: Microsoft's Excel 4.0 Macro Functions Reference (the argument lists and the shift,
-//! clear and format codes) and docs/architecture/C_API_COMMANDS.md (ordinals). The value a command
-//! returns on success is TRUE. Where the documentation does not say what an omitted operand does,
-//! the command refuses with a typed refusal owned by dc-oxh8w.9 until a Windows Excel capture
-//! settles it (docs/architecture/C_API_COMMANDS.md, "Defaults ... require separate evidence").
+//! Sources: the Excel 4.0 Macro Functions Reference (arguments and codes), MS-XLSB Cetab (operand
+//! counts), and docs/architecture/C_API_COMMANDS.md (ordinals). The portable dispatcher currently
+//! maps completed member calls to TRUE. The Windows C2 capture records command-specific return
+//! values in Excel. Their replay and the remaining operand translations belong to dc-oxh8w.9.
 
 use calc_object_model::{
     AutoError, AutoValue, Call, Descriptor, InvokeKind, ObjectModel, ObjectRef, geometry,
 };
+use calc_fml::reference::column_letters;
+use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
 /// Owner of every refusal this module raises for an unmeasured form.
 const OWNER: &str = "dc-oxh8w.9";
@@ -34,7 +35,7 @@ pub struct XlcCommand {
     pub symbol: &'static str,
     /// XLM name, for example `FORMULA`.
     pub xlm: &'static str,
-    /// Most operands the command takes.
+    /// Maximum number of operands in the documented XLM signature.
     pub max_operands: usize,
     /// The member (or members) the command calls, as `Interface.Member`.
     pub member: &'static str,
@@ -59,23 +60,23 @@ const fn c(
 /// Every command batch 1 serves, by ordinal.
 pub const COMMANDS: &[XlcCommand] = &[
     c(4, "xlcSave", "SAVE", 0, "_Workbook.Save"),
-    c(17, "xlcRun", "RUN", 1, "_Application.Run"),
+    c(17, "xlcRun", "RUN", 2, "_Application.Run"),
     c(31, "xlcCalculateNow", "CALCULATE.NOW", 0, "_Application.Calculate"),
     c(42, "xlcFormatNumber", "FORMAT.NUMBER", 1, "Range.NumberFormat"),
-    c(47, "xlcColumnWidth", "COLUMN.WIDTH", 2, "Range.ColumnWidth"),
+    c(47, "xlcColumnWidth", "COLUMN.WIDTH", 5, "Range.ColumnWidth"),
     c(49, "xlcCut", "CUT", 2, "Range.Cut"),
     c(50, "xlcCopy", "COPY", 2, "Range.Copy"),
     c(51, "xlcPaste", "PASTE", 1, "_Worksheet.Paste"),
     c(52, "xlcClear", "CLEAR", 1, "Range.Clear"),
     c(54, "xlcEditDelete", "EDIT.DELETE", 1, "Range.Delete"),
-    c(55, "xlcInsert", "INSERT", 1, "Range.Insert"),
-    c(61, "xlcDefineName", "DEFINE.NAME", 2, "Names.Add"),
+    c(55, "xlcInsert", "INSERT", 2, "Range.Insert"),
+    c(61, "xlcDefineName", "DEFINE.NAME", 7, "Names.Add"),
     c(96, "xlcFormula", "FORMULA", 2, "Range.FormulaR1C1"),
     c(97, "xlcFormulaFill", "FORMULA.FILL", 2, "Range.FormulaR1C1"),
-    c(109, "xlcSelect", "SELECT", 1, "Range.Select"),
+    c(109, "xlcSelect", "SELECT", 2, "Range.Select"),
     c(110, "xlcDeleteName", "DELETE.NAME", 1, "Name.Delete"),
     c(122, "xlcMessage", "MESSAGE", 2, "_Application.StatusBar"),
-    c(127, "xlcRowHeight", "ROW.HEIGHT", 2, "Range.RowHeight"),
+    c(127, "xlcRowHeight", "ROW.HEIGHT", 4, "Range.RowHeight"),
     c(141, "xlcEcho", "ECHO", 1, "_Application.ScreenUpdating"),
     c(167, "xlcCalculateDocument", "CALCULATE.DOCUMENT", 0, "_Worksheet.Calculate"),
 ];
@@ -172,6 +173,14 @@ fn refuse(what: &'static str) -> XlcError {
 }
 
 impl Run<'_> {
+    /// A documented optional form may still require a separate translation.
+    fn require_supported_operands(&self, count: usize, what: &'static str) -> Result<(), XlcError> {
+        if self.operands.len() > count {
+            return Err(refuse(what));
+        }
+        Ok(())
+    }
+
     fn operand(&self, index: usize) -> &AutoValue {
         self.operands.get(index).unwrap_or(&AutoValue::Missing)
     }
@@ -307,6 +316,7 @@ impl Run<'_> {
     // RUN (macro_text): the named procedure. A reference to a macro-sheet cell and the step
     // argument are XLM macro-sheet control flow, not a procedure call.
     fn run_macro(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(1, "RUN with a second operand")?;
         match self.operand(0) {
             AutoValue::Text(_) => {
                 let name = self.text(0)?;
@@ -345,11 +355,11 @@ impl Run<'_> {
         if self.operand(0).is_missing() {
             return Err(refuse("CLEAR without type_num"));
         }
-        let member = match self.number(0)? as i64 {
-            1 => "Clear",
-            2 => "ClearFormats",
-            3 => "ClearContents",
-            4 => "ClearComments",
+        let member = match self.number(0)? {
+            1.0 => "Clear",
+            2.0 => "ClearFormats",
+            3.0 => "ClearContents",
+            4.0 => "ClearComments",
             _ => return Err(XlcError::Operand("type_num")),
         };
         let selection = self.object(&self.application(), "Selection")?;
@@ -358,6 +368,7 @@ impl Run<'_> {
 
     // SELECT (selection): the active cell argument is not served.
     fn select(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(1, "SELECT with an active-cell operand")?;
         if self.operands.is_empty() {
             return Err(refuse("SELECT without a selection"));
         }
@@ -374,6 +385,7 @@ impl Run<'_> {
 
     // COLUMN.WIDTH (width_num, reference): characters, as `Range.ColumnWidth`.
     fn column_width(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(2, "COLUMN.WIDTH with standard or type operands")?;
         let width = self.number(0)?;
         let range = self.range(1)?;
         self.put(&range, "ColumnWidth", AutoValue::R8(width))
@@ -381,6 +393,7 @@ impl Run<'_> {
 
     // ROW.HEIGHT (row_height, reference): points, as `Range.RowHeight`.
     fn row_height(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(2, "ROW.HEIGHT with standard or type operands")?;
         let height = self.number(0)?;
         let range = self.range(1)?;
         self.put(&range, "RowHeight", AutoValue::R8(height))
@@ -390,22 +403,23 @@ impl Run<'_> {
     // 3 the entire rows, 4 the entire columns. `codes` are the XlInsertShiftDirection or
     // XlDeleteShiftDirection constants for 1 and 2.
     fn shift(&self, member: &str, codes: [i32; 2]) -> Result<(), XlcError> {
+        self.require_supported_operands(1, "INSERT with a second operand")?;
         if self.operand(0).is_missing() {
             return Err(refuse("INSERT or EDIT.DELETE without shift_num"));
         }
-        let shift = self.number(0)? as i64;
-        if !(1..=4).contains(&shift) {
+        let shift = self.number(0)?;
+        if !matches!(shift, 1.0 | 2.0 | 3.0 | 4.0) {
             return Err(XlcError::Operand("shift_num"));
         }
         let selection = self.object(&self.application(), "Selection")?;
         match shift {
-            1 => self.method(&selection, member, vec![AutoValue::I4(codes[0])]),
-            2 => self.method(&selection, member, vec![AutoValue::I4(codes[1])]),
-            3 => {
+            1.0 => self.method(&selection, member, vec![AutoValue::I4(codes[0])]),
+            2.0 => self.method(&selection, member, vec![AutoValue::I4(codes[1])]),
+            3.0 => {
                 let rows = self.object(&selection, "EntireRow")?;
                 self.method(&rows, member, vec![])
             }
-            4 => {
+            4.0 => {
                 let columns = self.object(&selection, "EntireColumn")?;
                 self.method(&columns, member, vec![])
             }
@@ -437,6 +451,7 @@ impl Run<'_> {
 
     // DEFINE.NAME (name_text, refers_to): refers_to is formula text in R1C1.
     fn define_name(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(2, "DEFINE.NAME with additional name options")?;
         let name = self.text(0)?;
         let refers_to = match self.operand(1) {
             AutoValue::Missing => return Err(refuse("DEFINE.NAME without refers_to")),
@@ -471,31 +486,39 @@ impl Run<'_> {
     }
 }
 
-/// An XLM text reference (`R2C3`, `R2C3:R4C5`, with optional `$`... never) as the A1 text
-/// `Application.Range` takes. Sheet-qualified and relative forms belong to dc-oxh8w.9.
+/// Convert an absolute XLM cell or rectangle to the A1 notation Application.Range takes.
+/// Resolving a relative or qualified reference requires the Excel command's binding context.
 fn r1c1_text_to_a1(text: &str) -> Result<String, XlcError> {
-    fn cell(part: &str) -> Option<String> {
-        let rest = part.strip_prefix(['R', 'r'])?;
-        let (row, column) = rest.split_once(['C', 'c'])?;
-        let (row, column): (u32, u32) = (row.parse().ok()?, column.parse().ok()?);
-        if row == 0 || row > 1_048_576 || column == 0 || column > 16_384 {
-            return None;
+    const NEEDS_CONTEXT: &str = "a sheet-qualified or relative text reference";
+    const INVALID: XlcError = XlcError::Operand("text reference");
+
+    fn axis(text: &str, limit: u32) -> Result<Option<u32>, XlcError> {
+        if text.is_empty() {
+            return Ok(None);
         }
-        let mut letters = Vec::new();
-        let mut n = column;
-        while n > 0 {
-            letters.push(b'A' + ((n - 1) % 26) as u8);
-            n = (n - 1) / 26;
-        }
-        letters.reverse();
-        Some(format!("{}{row}", String::from_utf8(letters).ok()?))
+        text.parse::<u32>()
+            .ok()
+            .filter(|n| (1..=limit).contains(n))
+            .map(Some)
+            .ok_or(INVALID)
     }
-    if text.contains(['!', '[']) {
-        return Err(refuse("a sheet-qualified or relative text reference"));
+
+    fn cell(part: &str) -> Result<String, XlcError> {
+        let rest = part.strip_prefix(['R', 'r']).ok_or(INVALID)?;
+        let (row, column) = rest.split_once(['C', 'c']).ok_or(INVALID)?;
+        let (Some(row), Some(column)) = (axis(row, MAX_ROWS)?, axis(column, MAX_COLUMNS)?) else {
+            return Err(refuse(NEEDS_CONTEXT));
+        };
+        Ok(format!("{}{row}", column_letters(column)))
     }
-    let converted = match text.split_once(':') {
-        Some((first, last)) => cell(first).zip(cell(last)).map(|(a, b)| format!("{a}:{b}")),
+
+    if text.contains(['!', '['])
+        || text.split(':').any(|part| part.eq_ignore_ascii_case("R") || part.eq_ignore_ascii_case("C"))
+    {
+        return Err(refuse(NEEDS_CONTEXT));
+    }
+    match text.split_once(':') {
+        Some((first, last)) => Ok(format!("{}:{}", cell(first)?, cell(last)?)),
         None => cell(text),
-    };
-    converted.ok_or(XlcError::Operand("text reference"))
+    }
 }

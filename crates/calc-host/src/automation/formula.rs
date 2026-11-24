@@ -230,6 +230,7 @@ impl WorkbookAutomation {
             AutoValue::Text(t) => t.to_string_lossy(),
             AutoValue::R8(n) => n.to_string(),
             AutoValue::I4(n) => n.to_string(),
+            AutoValue::I2(n) => n.to_string(),
             AutoValue::Bool(true) => "TRUE".to_owned(),
             AutoValue::Bool(false) => "FALSE".to_owned(),
             _ => {
