@@ -1,0 +1,3039 @@
+{
+  "family": "lookup-information-logical",
+  "version": 1,
+  "functions": {
+    "INDEX": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ],
+            "#N/A",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank or omitted array returns #VALUE! before reading indices",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1418"
+            }
+          ]
+        },
+        {
+          "name": "row_num",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            100,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 (or omitted/blank) selects all rows; negative returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1433"
+            }
+          ]
+        },
+        {
+          "name": "column_num",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            100,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 (or omitted/blank) selects all columns",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1506"
+            }
+          ]
+        },
+        {
+          "name": "area_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            -1,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "explicit blank or < 1 returns #VALUE!; > area_count (or > 1 for arrays) returns #REF!",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1428"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "1d_omitted_column",
+          "how": "when column_num is omitted on a 1-row array/range, row_num indexes columns",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1474"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "row_num < 0 or column_num < 0 or trunc(area_num) < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1433"
+        },
+        {
+          "when": "row_num > rows or column_num > columns or area_num > areas",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1494"
+        }
+      ],
+      "notes": "Indexes a reference (preserving reference identity) or array; truncates indices and treats 0 as entire axis."
+    },
+    "MATCH": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            3.5,
+            "2",
+            "a",
+            "a*",
+            "a?c",
+            "~*",
+            "ß",
+            "ss",
+            "é",
+            "é",
+            "😀",
+            "??",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank or omitted lookup_value is treated as number 0",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:146"
+            },
+            {
+              "value": "ß",
+              "why": "without wildcards, exact match requires equal UTF-16 length (so 'ss' != 'ß')",
+              "source": "handbook FN-MATCH-001"
+            }
+          ]
+        },
+        {
+          "name": "lookup_array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "match_type",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            0.5,
+            -0.5,
+            null
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "exact match with wildcards (*, ?, ~); omitted/blank match_type is 0",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1026"
+            },
+            {
+              "value": 1,
+              "why": "default when omitted: bisection over cells of lookup_value's kind (works on unsorted arrays)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:29"
+            },
+            {
+              "value": -1,
+              "why": "descending walk stopping at first smaller cell of same kind",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:35"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "wildcard_utf16_unit",
+          "how": "in match_type 0, '?' matches one UTF-16 code unit (so astral emoji needs '??')",
+          "source": "handbook FN-MATCH-001"
+        },
+        {
+          "name": "255_unit_key_limit",
+          "how": "text lookup_value > 255 UTF-16 code units returns #VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:152"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "lookup_value not found or lookup_array is 2D (>1 row and >1 col)",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1034"
+        },
+        {
+          "when": "text lookup_value length > 255 UTF-16 units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:152"
+        }
+      ],
+      "notes": "1-based lookup along 1D vector; blanks map to 0 and exact mode checks UTF-16 length when wildcard-free."
+    },
+    "XMATCH": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            "2",
+            "a",
+            "a*",
+            "ß",
+            "ss",
+            "ae",
+            "æ",
+            "é",
+            "é",
+            "😀",
+            "??",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank or omitted lookup_value stays Blank (matches blank cells, sorts after errors)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:138"
+            },
+            {
+              "value": "ß",
+              "why": "exact match (mode 0) equates ligatures ('ss' == 'ß', 'ae' == 'æ') and decomposed marks",
+              "source": "handbook FN-XMATCH-001"
+            }
+          ]
+        },
+        {
+          "name": "lookup_array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ],
+            [
+              1,
+              2
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "match_mode",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "ranges": [
+            [
+              -1,
+              2
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "exact match (default)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:951"
+            },
+            {
+              "value": -1,
+              "why": "exact or next smaller",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:952"
+            },
+            {
+              "value": 1,
+              "why": "exact or next larger",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:953"
+            },
+            {
+              "value": 2,
+              "why": "wildcard match (*, ?, ~); illegal with binary search_mode +-2",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:965"
+            }
+          ]
+        },
+        {
+          "name": "search_mode",
+          "kind": "integer",
+          "specials": [
+            -3,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "first-to-last linear scan (default)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:959"
+            },
+            {
+              "value": -1,
+              "why": "last-to-first linear scan",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:960"
+            },
+            {
+              "value": 2,
+              "why": "ascending binary search",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:961"
+            },
+            {
+              "value": -2,
+              "why": "descending binary search",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:962"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "total_kind_order",
+          "how": "orders numbers < text < logicals < errors < blanks (-0 equals +0)",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:38"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "match_mode not in {-1, 0, 1, 2, 3} or search_mode not in {-2, -1, 1, 2}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:950"
+        },
+        {
+          "when": "match_mode == 2 and |search_mode| == 2",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:965"
+        },
+        {
+          "when": "lookup_array is blank/omitted or 2D (>1 row and >1 col)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1070"
+        },
+        {
+          "when": "no match found",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1084"
+        }
+      ],
+      "notes": "Flexible 1D lookup with collation equality, linear/binary search modes, and total type ordering."
+    },
+    "XLOOKUP": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            "2",
+            "a",
+            "a*",
+            "ß",
+            "ss",
+            "é",
+            "é",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "lookup_array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ],
+            [
+              1
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "return_array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ],
+            [
+              10
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "if_not_found",
+          "kind": "any",
+          "specials": [
+            "not found",
+            0,
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "match_mode",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4
+          ],
+          "ranges": [
+            [
+              -1,
+              2
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "search_mode",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            1,
+            2,
+            0
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "total_kind_order",
+          "how": "shares XMATCH ordering and collation rules (full collation in exact mode)",
+          "source": "handbook FN-XMATCH-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "lookup_array or return_array blank/omitted or mismatched dimensions",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1116"
+        },
+        {
+          "when": "match_mode == 2 and |search_mode| == 2",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:965"
+        },
+        {
+          "when": "not found and if_not_found omitted",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1161"
+        }
+      ],
+      "notes": "Searches lookup_array via XMATCH rules and returns aligned slice/reference of return_array."
+    },
+    "VLOOKUP": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            "2",
+            "a",
+            "a*",
+            "ß",
+            "ss",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "table_array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                10,
+                100
+              ]
+            ],
+            [
+              1,
+              2,
+              3
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "col_index_num",
+          "kind": "integer",
+          "specials": [
+            -2147483649,
+            -2147483648,
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "col_index_num < 1 (down to -2^31 + 1) returns #VALUE! only if a match is found",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1288"
+            },
+            {
+              "value": -2147483648,
+              "why": "col_index_num <= -2^31 returns #REF! after match",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+            }
+          ]
+        },
+        {
+          "name": "range_lookup",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": true,
+              "why": "default when omitted: bisection on first column",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1260"
+            },
+            {
+              "value": null,
+              "why": "explicit blank/empty range_lookup evaluates as FALSE (exact match)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1225"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "index_checked_after_match",
+          "how": "col_index_num bounds (#VALUE! or #REF!) are checked only after matching a row",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1277"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no match found or table_array is scalar/blank/multi-area",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1264"
+        },
+        {
+          "when": "text lookup_value > 255 UTF-16 units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:152"
+        },
+        {
+          "when": "matched and trunc(col_index_num) in (-2147483648, 1)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1288"
+        },
+        {
+          "when": "matched and (trunc(col_index_num) > width or <= -2147483648)",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+        }
+      ],
+      "notes": "Vertical lookup in first column; blanks map to 0 and UTF-16 length check applies in exact non-wildcard mode."
+    },
+    "HLOOKUP": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            "2",
+            "a",
+            "a*",
+            "ß",
+            "ss",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "table_array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "row_index_num",
+          "kind": "integer",
+          "specials": [
+            -2147483649,
+            -2147483648,
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "row_index_num < 1 (above -2^31) returns #VALUE! after match",
+              "source": "handbook FN-HLOOKUP-001"
+            },
+            {
+              "value": -2147483648,
+              "why": "row_index_num <= -2^31 returns #REF! after match",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+            }
+          ]
+        },
+        {
+          "name": "range_lookup",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "index_checked_after_match",
+          "how": "row_index_num bounds (#VALUE! or #REF!) are checked only after matching a column",
+          "source": "handbook FN-HLOOKUP-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no match found or table_array is scalar/blank/multi-area",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1264"
+        },
+        {
+          "when": "text lookup_value > 255 UTF-16 units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:152"
+        },
+        {
+          "when": "matched and trunc(row_index_num) in (-2147483648, 1)",
+          "excel": "#VALUE!",
+          "source": "handbook FN-HLOOKUP-001"
+        },
+        {
+          "when": "matched and (trunc(row_index_num) > rows or <= -2147483648)",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+        }
+      ],
+      "notes": "Horizontal lookup in first row; truncates row_index_num and validates bounds only on match."
+    },
+    "LOOKUP": {
+      "args": [
+        {
+          "name": "lookup_value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            2,
+            5,
+            "a",
+            "z",
+            true,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "lookup_vector",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              4,
+              3,
+              2,
+              1
+            ],
+            [
+              10,
+              5,
+              20,
+              15
+            ],
+            [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                20
+              ],
+              [
+                3,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                10,
+                20,
+                30
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              0,
+              0.0
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "result_vector",
+          "kind": "array",
+          "specials": [
+            [
+              10,
+              20,
+              30,
+              40,
+              50
+            ],
+            [
+              [
+                10,
+                20
+              ],
+              [
+                30,
+                40
+              ]
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "2arg_orientation",
+          "how": "in 2-arg form, searches first row and returns last row when cols > rows; else searches first col and returns last col",
+          "source": "handbook FN-LOOKUP-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "lookup_vector or result_vector is blank/omitted",
+          "excel": "#VALUE!",
+          "source": "handbook FN-LOOKUP-001"
+        },
+        {
+          "when": "3-arg result_vector has >1 row and >1 col, or no match found, or array result shorter than match",
+          "excel": "#N/A",
+          "source": "handbook FN-LOOKUP-001"
+        },
+        {
+          "when": "text lookup_value > 255 UTF-16 units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:152"
+        }
+      ],
+      "notes": "Bisection lookup; blank lookup_value maps to 0 and 3-arg result_vector must be 1D."
+    },
+    "CHOOSE": {
+      "args": [
+        {
+          "name": "index_num",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            255,
+            256
+          ],
+          "ranges": [
+            [
+              1,
+              12
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "index_num < 1 or > value_count returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1590"
+            }
+          ]
+        },
+        {
+          "name": "value1",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "lazy_branch_selection",
+          "how": "only reads index_num and the selected valueN; preserves reference identity for scalar index",
+          "source": "handbook FN-CHOOSE-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "trunc(index_num) < 1 or trunc(index_num) > number of value arguments",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1590"
+        }
+      ],
+      "notes": "Truncates scalar index_num and lazily returns selected valueN (empty/omitted slot becomes Empty)."
+    },
+    "ROW": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_vs_multi_row",
+          "how": "omitted returns caller row; 1-row area returns scalar row; multi-row area spills vertical array up to 1,048,576 rows",
+          "source": "handbook FN-ROW-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "reference has multiple disjoint areas",
+          "excel": "#REF!",
+          "source": "handbook FN-ROW-001"
+        },
+        {
+          "when": "runtime value is not a reference (including blank)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1662"
+        }
+      ],
+      "notes": "Returns 1-based row number(s) of reference or caller cell."
+    },
+    "COLUMN": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_vs_multi_col",
+          "how": "omitted returns caller column; 1-col area returns scalar col; multi-col area spills horizontal array up to 16,384 cols",
+          "source": "handbook FN-COLUMN-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "reference has multiple disjoint areas",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1660"
+        },
+        {
+          "when": "runtime value is not a reference (including blank)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1662"
+        }
+      ],
+      "notes": "Returns 1-based column number(s) of reference or caller cell."
+    },
+    "ROWS": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            5,
+            "abc",
+            true,
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "multi-area reference",
+          "excel": "#REF!",
+          "source": "handbook FN-ROWS-001"
+        },
+        {
+          "when": "blank or omitted argument",
+          "excel": "#VALUE!",
+          "source": "handbook FN-ROWS-001"
+        }
+      ],
+      "notes": "Counts rows of a single-area reference or array; returns 1 for non-empty scalars."
+    },
+    "COLUMNS": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            5,
+            "abc",
+            true,
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "multi-area reference",
+          "excel": "#REF!",
+          "source": "handbook FN-COLUMNS-001"
+        },
+        {
+          "when": "blank or omitted argument",
+          "excel": "#VALUE!",
+          "source": "handbook FN-COLUMNS-001"
+        }
+      ],
+      "notes": "Counts columns of a single-area reference or array; returns 1 for non-empty scalars."
+    },
+    "AREAS": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "runtime value is not a reference (e.g. AREAS(CHOOSE(1, 5)))",
+          "excel": "#VALUE!",
+          "source": "handbook FN-AREAS-001"
+        }
+      ],
+      "notes": "Counts disjoint rectangular areas in a reference; non-reference constants refused at entry."
+    },
+    "ISBLANK": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE only for a truly empty cell; returns FALSE for empty string '' and errors (never propagates errors)."
+    },
+    "ISERR": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            "#GETTING_DATA",
+            "#SPILL!",
+            "#CALC!",
+            "#FIELD!",
+            "#BUSY!"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE for every worksheet error except #N/A (includes #CALC!, #SPILL!, #FIELD!, #BUSY!, #GETTING_DATA)."
+    },
+    "ISERROR": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            "#GETTING_DATA",
+            "#SPILL!",
+            "#CALC!",
+            "#FIELD!",
+            "#BUSY!"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE for every worksheet error including #N/A and newer dynamic-array/rich errors."
+    },
+    "ISNA": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE only for #N/A; FALSE for all other errors and values."
+    },
+    "ISNUMBER": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE only for numeric values (no coercion of numeric strings or logicals)."
+    },
+    "ISTEXT": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE for text values including empty string ''; FALSE for numbers, logicals, blanks, and errors."
+    },
+    "ISNONTEXT": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE for everything except text (including numbers, logicals, blanks, errors, and rich images)."
+    },
+    "ISLOGICAL": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE only for TRUE/FALSE logical values; FALSE for 'TRUE', 0, and 1."
+    },
+    "ISEVEN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -5,
+            -2.5,
+            -2,
+            -1,
+            -1e-10,
+            0,
+            1e-10,
+            1,
+            1.99999999995,
+            2,
+            2.5,
+            9007199254740992,
+            "2",
+            "1e3",
+            "abc",
+            true,
+            false,
+            null
+          ],
+          "ranges": [
+            [
+              -1000000000000000.0,
+              1000000000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.99999999995,
+              "why": "adds PARITY_TOLERANCE = 1e-10 to |number| before truncating (so within 1e-10 below 2 snaps to 2)",
+              "source": "crates/calc-func/src/catalogue/information.rs:328"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "parity_tolerance",
+          "how": "trunc(|number| + 1e-10) % 2 == 0; coerces numeric text, rejects logicals and multi-cell references",
+          "source": "crates/calc-func/src/catalogue/information.rs:331"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number is logical or non-numeric text or multi-cell/multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/information.rs:347"
+        }
+      ],
+      "notes": "Checks evenness of truncated magnitude (+ 1e-10 tolerance); rejects logicals with #VALUE!."
+    },
+    "ISODD": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -5,
+            -2.5,
+            -1,
+            0,
+            1,
+            1.99999999995,
+            2,
+            2.5,
+            9007199254740992,
+            "3",
+            "abc",
+            true,
+            false,
+            null
+          ],
+          "ranges": [
+            [
+              -1000000000000000.0,
+              1000000000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.99999999995,
+              "why": "adds PARITY_TOLERANCE = 1e-10 to |number| before truncating",
+              "source": "crates/calc-func/src/catalogue/information.rs:328"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "parity_tolerance",
+          "how": "trunc(|number| + 1e-10) % 2 != 0; coerces numeric text, rejects logicals and multi-cell references",
+          "source": "crates/calc-func/src/catalogue/information.rs:331"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number is logical or non-numeric text or multi-cell/multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/information.rs:347"
+        }
+      ],
+      "notes": "Checks oddness of truncated magnitude (+ 1e-10 tolerance); rejects logicals with #VALUE!."
+    },
+    "ISREF": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "TRUE for references (without dereferencing cells, even error cells); FALSE for #REF!, arrays, and scalars."
+    },
+    "ISFORMULA": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "spill_over_area",
+          "how": "multi-cell single-area reference returns a logical array up to 2^22 cells; closed external workbooks return #N/A",
+          "source": "handbook FN-ISFORMULA-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Inspects whether reference cell(s) hold formulas; non-reference operands refused at entry."
+    },
+    "TYPE": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "type_codes",
+          "how": "1 = number or blank, 2 = text, 4 = logical, 16 = error or multi-area ref, 64 = array or multi-cell ref, 128 = image",
+          "source": "crates/calc-func/src/catalogue/information.rs:359"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns numeric type code (1, 2, 4, 16, 64, 128); never propagates scalar error values."
+    },
+    "N": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "no_text_parsing",
+          "how": "numbers pass through, TRUE -> 1, FALSE/text/blank -> 0, errors propagate, arrays lift elementwise",
+          "source": "crates/calc-func/src/catalogue/information.rs:409"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "value is an error",
+          "excel": "propagates error",
+          "source": "crates/calc-func/src/catalogue/information.rs:444"
+        }
+      ],
+      "notes": "Converts numbers/logicals to numeric, text/blanks to 0, and propagates errors."
+    },
+    "NA": {
+      "args": [],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "always",
+          "excel": "#N/A",
+          "source": "handbook FN-NA-001"
+        }
+      ],
+      "notes": "Zero-argument constant returning #N/A."
+    },
+    "ERROR.TYPE": {
+      "args": [
+        {
+          "name": "error_val",
+          "kind": "any",
+          "specials": [
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            "#GETTING_DATA",
+            "#SPILL!",
+            "#FIELD!",
+            "#CALC!",
+            "#BUSY!",
+            0,
+            1,
+            "abc",
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#BUSY!",
+              "why": "ERROR.TYPE(#BUSY!) returns 0",
+              "source": "handbook FN-ERROR.TYPE-001"
+            },
+            {
+              "value": "#CALC!",
+              "why": "ERROR.TYPE(#CALC!) returns 14 (#SPILL!=9, #FIELD!=13, #GETTING_DATA=8)",
+              "source": "crates/calc-func/src/catalogue/information.rs:469"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "error_val is not an error value",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/information.rs:485"
+        }
+      ],
+      "notes": "Maps error codes to integers (#NULL!=1..#GETTING_DATA=8, #SPILL!=9, #FIELD!=13, #CALC!=14, #BUSY!=0) and #N/A for non-errors."
+    },
+    "IF": {
+      "args": [
+        {
+          "name": "logical_test",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "1",
+              "why": "numeric strings ('1', '0', '') in logical_test return #VALUE!; only 'TRUE'/'FALSE' strings coerce",
+              "source": "handbook FN-IF-001"
+            },
+            {
+              "value": null,
+              "why": "blank cell in logical_test coerces to FALSE",
+              "source": "crates/calc-func/src/coerce.rs:198"
+            }
+          ]
+        },
+        {
+          "name": "value_if_true",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value_if_false",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "lazy_branch",
+          "how": "evaluates logical_test first and only asks for the taken branch (omitted chosen branch becomes 0; FALSE with 2 args returns FALSE)",
+          "source": "crates/calc-func/src/catalogue/logical.rs:48"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "logical_test is non-boolean string (such as '1', '', 'x')",
+          "excel": "#VALUE!",
+          "source": "handbook FN-IF-001"
+        }
+      ],
+      "notes": "Lazy conditional branch; preserves reference identity of chosen branch."
+    },
+    "AND": {
+      "args": [
+        {
+          "name": "logical1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              true,
+              false
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "x",
+              "why": "direct non-boolean text is skipped (if all skipped -> #VALUE!); direct blank/omitted is FALSE",
+              "source": "handbook FN-AND-001"
+            }
+          ]
+        },
+        {
+          "name": "logical2",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              true,
+              true
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_evaluation",
+          "how": "reads all direct arguments before references/arrays (so direct errors precede array/range errors)",
+          "source": "handbook FN-AND-001"
+        },
+        {
+          "name": "direct_vs_held_text",
+          "how": "direct 'TRUE'/'FALSE' strings count as logicals; text and blanks inside references/arrays are ignored",
+          "source": "crates/calc-func/src/catalogue/logical.rs:14"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no logical or numeric values found across all arguments",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/logical.rs:115"
+        }
+      ],
+      "notes": "Eager conjunction across 1..=255 arguments; reads all arguments without short-circuiting."
+    },
+    "OR": {
+      "args": [
+        {
+          "name": "logical1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              false,
+              true
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "logical2",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              false,
+              false
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_evaluation",
+          "how": "reads all direct arguments before references/arrays",
+          "source": "handbook FN-AND-001"
+        },
+        {
+          "name": "direct_vs_held_text",
+          "how": "direct 'TRUE'/'FALSE' count as logicals; held text and blanks in references/arrays are ignored",
+          "source": "crates/calc-func/src/catalogue/logical.rs:14"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no logical or numeric values found across all arguments",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/logical.rs:115"
+        }
+      ],
+      "notes": "Eager disjunction across 1..=255 arguments; reads all arguments without short-circuiting."
+    },
+    "XOR": {
+      "args": [
+        {
+          "name": "logical1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              true,
+              true
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "logical2",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null,
+            [
+              true,
+              false
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_evaluation",
+          "how": "reads all direct arguments before references/arrays",
+          "source": "handbook FN-AND-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no logical or numeric values found across all arguments",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/logical.rs:115"
+        }
+      ],
+      "notes": "Exclusive OR across 1..=254 arguments (TRUE iff odd number of TRUE values)."
+    },
+    "NOT": {
+      "args": [
+        {
+          "name": "logical",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "1",
+              "why": "numeric strings ('1', '0') and empty string '' return #VALUE!; only 'TRUE'/'FALSE' coerce",
+              "source": "handbook FN-NOT-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "logical is non-boolean string (such as '1', '', 'x')",
+          "excel": "#VALUE!",
+          "source": "handbook FN-NOT-001"
+        }
+      ],
+      "notes": "Logical negation using worksheet logical coercion (blanks -> FALSE -> TRUE)."
+    },
+    "TRUE": {
+      "args": [],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Zero-argument constant returning logical TRUE."
+    },
+    "FALSE": {
+      "args": [],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Zero-argument constant returning logical FALSE."
+    },
+    "IFS": {
+      "args": [
+        {
+          "name": "logical_test1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            "TRUE",
+            "FALSE",
+            "true",
+            "1",
+            "0",
+            "",
+            "x",
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value_if_true1",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "first_true_pair",
+          "how": "returns value of first TRUE condition (omitted becomes 0); later array conditions do not lift once matched",
+          "source": "handbook FN-IFS-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "odd number of arguments (unpaired condition)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/logical_more.rs:110"
+        },
+        {
+          "when": "no condition evaluates to TRUE",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/logical_more.rs:115"
+        }
+      ],
+      "notes": "Evaluates condition-value pairs in order up to 254 arguments; #N/A if none match."
+    },
+    "SWITCH": {
+      "args": [
+        {
+          "name": "expression",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            1.7976931348623157e+308,
+            1.797693134862315e+308
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 1.7976931348623157e+308,
+              "why": "numbers >= READING_OVERFLOW (0x7feffffffffffffc) match every number and blank in SWITCH",
+              "source": "crates/calc-func/src/catalogue/logical_more.rs:170"
+            }
+          ]
+        },
+        {
+          "name": "value1",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "result1",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "equality_and_overflow_match",
+          "how": "uses '=' comparison order (case-insensitive text, -0 == +0) plus READING_OVERFLOW equivalence",
+          "source": "crates/calc-func/src/catalogue/logical_more.rs:153"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no case matches and no default argument supplied",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/logical_more.rs:138"
+        }
+      ],
+      "notes": "Matches expression against value/result pairs with optional trailing default."
+    },
+    "IFERROR": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A",
+            "#GETTING_DATA",
+            "#SPILL!",
+            "#CALC!",
+            "#FIELD!",
+            "#BUSY!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank cell returns Empty (displayed as 0 in cells, '' in text concatenation)",
+              "source": "handbook FN-IFERROR-001"
+            }
+          ]
+        },
+        {
+          "name": "value_if_error",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "lazy_fallback",
+          "how": "asks for value_if_error only when value is a worksheet error (callables are not errors here)",
+          "source": "crates/calc-func/src/catalogue/error_fallback.rs:67"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Catches all worksheet errors lazily; preserves blank cell as Empty and callable identity."
+    },
+    "IFNA": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value_if_na",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -1,
+            0.5,
+            42,
+            1e-308,
+            1e+308,
+            "",
+            "0",
+            "1",
+            "2",
+            "abc",
+            "TRUE",
+            "FALSE",
+            "true",
+            "#N/A",
+            true,
+            false,
+            null,
+            "#NULL!",
+            "#DIV/0!",
+            "#VALUE!",
+            "#REF!",
+            "#NAME?",
+            "#NUM!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "lazy_na_fallback",
+          "how": "asks for value_if_na only when value is #N/A; passes all other errors through",
+          "source": "handbook FN-IFNA-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Catches #N/A lazily; passes all other errors and non-errors through unchanged."
+    }
+  }
+}
