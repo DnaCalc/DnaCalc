@@ -131,6 +131,25 @@ impl WorkbookAutomation {
         on("Series", "Values", Put, Self::series_values_put);
         on("Series", "XValues", Get, Self::series_xvalues_get);
         on("Series", "XValues", Put, Self::series_xvalues_put);
+        on("Chart", "Axes", Method, Self::chart_axes);
+        for (member, kind) in [
+            ("MinimumScale", 0),
+            ("MaximumScale", 1),
+            ("MajorUnit", 2),
+        ] {
+            let (get, put, auto_get, auto_put): (Handler<Self>, Handler<Self>, Handler<Self>, Handler<Self>) = match kind {
+                0 => (Self::axis_min, Self::axis_put_min, Self::axis_min_auto, Self::axis_put_min_auto),
+                1 => (Self::axis_max, Self::axis_put_max, Self::axis_max_auto, Self::axis_put_max_auto),
+                _ => (Self::axis_unit, Self::axis_put_unit, Self::axis_unit_auto, Self::axis_put_unit_auto),
+            };
+            on("Axis", member, Get, get);
+            on("Axis", member, Put, put);
+            on("Axis", &format!("{member}IsAuto"), Get, auto_get);
+            on("Axis", &format!("{member}IsAuto"), Put, auto_put);
+        }
+        on("Axis", "ReversePlotOrder", Get, Self::axis_reversed);
+        on("Axis", "ReversePlotOrder", Put, Self::axis_put_reversed);
+        on("Axis", "Type", Get, Self::axis_type);
         on("ChartTitle", "Text", Get, Self::chart_title_text);
         on("ChartTitle", "Text", Put, Self::chart_title_put_text);
         // Drawings.

@@ -4797,6 +4797,60 @@ fn dc_oxh8w_4__range_copy_and_cut_to_a_destination() {
     assert!(matches!(call("A2", "Copy", vec![]), Err(AutoError::NotModelled { .. })));
 }
 
+// ---- chart members batch 2 (dc-oxh8w.11): axes through the object model ----
+
+/// A macro scales the value axis of a chart it built; the chart saves with the scale, reads it back, and the
+/// category axis refuses the scale members as Excel does (1004).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"], &["East", "50"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B4");
+    let axis = |kind: i32| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(kind)]);
+    let value = obj(axis(2).unwrap());
+    let category = obj(axis(1).unwrap());
+    assert!(matches!(invoke(&model, &value, "Type", vec![]).unwrap(), AutoValue::I4(2)));
+    assert!(matches!(invoke(&model, &value, "MaximumScaleIsAuto", vec![]).unwrap(), AutoValue::Bool(true)));
+    let put = |name: &str, v: AutoValue| invoke_kind(&model, &value, name, InvokeKind::Put, vec![v]);
+    put("MinimumScale", AutoValue::R8(0.0)).unwrap();
+    put("MaximumScale", AutoValue::I4(100)).unwrap();
+    put("MajorUnit", AutoValue::R8(25.0)).unwrap();
+    put("ReversePlotOrder", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &value, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 100.0));
+    assert!(matches!(invoke(&model, &value, "MajorUnit", vec![]).unwrap(), AutoValue::R8(v) if v == 25.0));
+    assert!(matches!(invoke(&model, &value, "MaximumScaleIsAuto", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &value, "ReversePlotOrder", vec![]).unwrap(), AutoValue::Bool(true)));
+    // A scale back to automatic.
+    put("MaximumScaleIsAuto", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &value, "MaximumScaleIsAuto", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("MaximumScale", AutoValue::R8(80.0)).unwrap();
+    // The category axis has no scale.
+    let bad = invoke_kind(&model, &category, "MinimumScale", InvokeKind::Put, vec![AutoValue::R8(1.0)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let bad = invoke(&model, &category, "MaximumScale", vec![]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    // Saved.
+    let xml = saved_part(&mut host.session.borrow_mut(), "xl/charts/")
+        .replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "");
+    assert!(xml.contains("<c:max val=\"80\"/>"), "{xml}");
+    assert!(xml.contains("<c:min val=\"0\"/>"), "{xml}");
+    assert!(xml.contains("<c:majorUnit val=\"25\"/>"), "{xml}");
+    assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
+}
+
 /// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn dc_oxh8w_4__range_sort_orders_rows_by_key_columns() {

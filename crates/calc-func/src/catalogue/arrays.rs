@@ -24,6 +24,7 @@ use crate::kernel::{Exit, Site, Step};
 use crate::ported::dynamic_array_reshape_family::{
     self as k, CoercionError, DynamicArrayReshapeEvalError as E,
 };
+use crate::ported::text_kernels::date_integer_floor;
 use crate::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
@@ -237,8 +238,8 @@ fn as_array(value: &CalcValue) -> CalcArray {
     }
 }
 
-/// An integer argument of SORT and SORTBY: a blank or omitted one is `None`.
-fn integer(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<isize>> {
+/// A numeric argument of SORT and SORTBY: a blank or omitted one is `None`.
+fn optional_number(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<f64>> {
     let Some(value) = value else {
         return Ok(None);
     };
@@ -246,7 +247,7 @@ fn integer(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<isize>> {
         return Ok(None);
     }
     match k::coerce_prepared_to_number(value) {
-        Ok(n) if n.is_finite() => Ok(Some(n.trunc() as isize)),
+        Ok(n) if n.is_finite() => Ok(Some(n)),
         Ok(_) => fail(WorksheetErrorCode::Value),
         Err(CoercionError::WorksheetError(code)) => fail(code),
         Err(CoercionError::NotModelled) => Err(site.not_modelled(None)),
@@ -254,9 +255,15 @@ fn integer(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<isize>> {
     }
 }
 
+/// Excel 16.0.20625 floors sort indices and orders with the same integer tolerance as date
+/// arguments. For example, an order of -0.9 descends and -1.5 gives #VALUE!.
+fn sort_integer(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<isize>> {
+    Ok(optional_number(site, value)?.map(|n| date_integer_floor(n) as isize))
+}
+
 /// A sort order: 1 (or omitted) ascending, -1 descending, anything else #VALUE!.
 fn descending(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
-    match integer(site, value)? {
+    match sort_integer(site, value)? {
         None | Some(1) => Ok(false),
         Some(-1) => Ok(true),
         Some(_) => fail(WorksheetErrorCode::Value),
@@ -273,10 +280,7 @@ fn flag(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
         Some(CoreRef::Logical(b)) => Ok(b),
         Some(CoreRef::Number(n)) => Ok(n != 0.0),
         Some(CoreRef::Error(code)) => fail(code),
-        Some(_) => match integer(site, value)? {
-            Some(n) => Ok(n != 0),
-            None => Ok(false),
-        },
+        Some(_) => Ok(optional_number(site, value)?.is_some_and(|n| n.trunc() != 0.0)),
     }
 }
 
@@ -466,7 +470,7 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
     }
     let mut keys = Vec::with_capacity(indices.len());
     for (n, index) in indices.iter().enumerate() {
-        let at = match integer(site, Some(index))? {
+        let at = match sort_integer(site, Some(index))? {
             None => 0,
             Some(i) if i >= 1 && (i as usize) <= width => i as usize - 1,
             Some(_) => return fail(WorksheetErrorCode::Value),

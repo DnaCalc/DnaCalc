@@ -275,6 +275,10 @@ shorter side of the data, rows when equal, a table's range by columns, text firs
 column as names and categories). Drawing objects the file holds are never rewritten; changing one
 refuses naming dc-zjsg.4.
 
+Axes (dc-oxh8w.11): `Chart.Axes(xlCategory|xlValue)` and `Axis.MinimumScale`, `MaximumScale`, `MajorUnit`, their `...IsAuto`,
+`ReversePlotOrder` and `Type`, over `WorkbookCommand::ChartAxis` (`chart_axes.rs`). Reading an automatic scale and the category axis's
+scale members' Excel text are open (dc-oxh8w.13); axis titles, number formats and formatting are dc-oxh8w.12.
+
 What is not Excel's yet: a table name that is not a defined-name shape (`1bad name`, `R1C1`) is
 refused where Excel accepts it; `ListObjects.Add` with xlNo, or without xlYes over a first row that
 is not text, refuses where Excel inserts a header row; `ListObject.Range = ...` is refused (Excel
