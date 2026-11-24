@@ -49,8 +49,7 @@
         "0x3ff0000000000000",
         "0x0000000000000000"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0xbfc25982cc0dca64"
+      "expected_bits": "error:Num"
     },
     {
       "id": "Y2-dc-j9k-99-extreme-coupon-pos",

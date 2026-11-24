@@ -691,7 +691,7 @@ pub fn yield_kernel(
         if tracing && base < 0.0 {
             crate::trace::hit(7);
         }
-        let (mut pv, mut slope) = (0.0_f64, 0.0_f64);
+        let (mut pv, mut t_cp) = (0.0_f64, 0.0_f64);
         for k in 0..p.n {
             let ex = off + k as f64;
             let disc = excel_bond_pow(base, ex);
@@ -704,7 +704,10 @@ pub fn yield_kernel(
                 return Err(derr(WorksheetErrorCode::Num));
             }
             pv += cp / disc;
-            slope += (ex * cp) / disc1;
+            t_cp = excel_x87_add(
+                t_cp,
+                excel_x87_div(excel_x87_mul(excel_x87_div(ex, f), cp), disc1),
+            );
         }
         let rex = off + (p.n - 1) as f64;
         let r_disc = excel_bond_pow(base, rex);
@@ -717,8 +720,30 @@ pub fn yield_kernel(
             return Err(derr(WorksheetErrorCode::Num));
         }
         pv += excel_x87_div(red, r_disc);
-        slope += (rex * red) / r_disc1;
-        slope = -slope / f;
+        // Pre-registered rival Y2-B (cb26 16/16 live Excel 16.0.20625.20108): frequency == 1
+        // skips the redemption derivative finiteness check while frequency in {2, 4} rejects
+        // !t_red.is_finite(); t_cp + t_red == +inf is never checked, so slope = -inf -> step = -0.0.
+        let t_red = if c.frequency == 1 {
+            excel_x87_div(excel_x87_mul(rex, red), r_disc1)
+        } else {
+            let v = excel_x87_div(excel_x87_mul(excel_x87_div(rex, f), red), r_disc1);
+            if !v.is_finite() {
+                if tracing {
+                    crate::trace::hit(9);
+                    crate::trace::record_iterations(iter + 1);
+                }
+                return Err(derr(WorksheetErrorCode::Num));
+            }
+            v
+        };
+        if !pv.is_finite() || !t_cp.is_finite() {
+            if tracing {
+                crate::trace::hit(9);
+                crate::trace::record_iterations(iter + 1);
+            }
+            return Err(derr(WorksheetErrorCode::Num));
+        }
+        let slope = -excel_x87_add(t_cp, t_red);
         // Excel keeps the finite iterate on the negative-base zero-coupon curve
         // when the price slope reaches the subnormal range (sx1 bond-term row 110).
         if base < 0.0 && rate_ == 0.0 && slope.is_subnormal() {
@@ -751,7 +776,14 @@ pub fn yield_kernel(
                     crate::trace::hit(12);
                 }
             }
-            return Ok(y);
+            // Excel's `while (cIter-- > 0)` leaves `cIter == 0` when breaking on the 100th
+            // evaluation (`iter == 99`), triggering `if (cIter == 0) return #NUM!`, whereas
+            // 100 non-converged steps exit with `cIter == -1` and publish `y_100`.
+            return if iter == 99 {
+                Err(derr(WorksheetErrorCode::Num))
+            } else {
+                Ok(y)
+            };
         }
         y -= step;
     }
@@ -2090,5 +2122,148 @@ mod tests {
         assert_eq!(duration_kernel(44015.0, 60000.0, 0.05, 8000.0, 2.0, Some(0.0)), num_err);
         assert_eq!(mduration_kernel(60.0, 2958465.0, 0.05, 0.04, 2.0, Some(0.0)), num_err);
         assert_eq!(mduration_kernel(45000.0, 2958465.0, 0.05, 0.2, 2.0, Some(0.0)), num_err);
+    }
+
+    /// dc-j9k.99 (cb26 live Excel 16.0.20625.20108, Y2-A & Y2-B pre-registered rival):
+    /// Separate derivative component finiteness checks (`t_cp` always, `t_red` only when
+    /// `frequency != 1`, without checking `t_cp + t_red` overflow), plus the `cIter--`
+    /// off-by-one where convergence on the 100th evaluation (`iter == 99`) returns #NUM!
+    /// while >100 non-converged steps publish `y_100`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_derivative_finiteness_and_iter_99_frontier() {
+        let num_err = Err(BondCoreEvalError::Domain(WorksheetErrorCode::Num));
+        // sf2-YIELD-01776 (Y2-dc-j9k-99-extreme-price-neg)
+        assert_eq!(
+            yield_kernel(
+                f64::from_bits(0x40e50b4000000000),
+                f64::from_bits(0x40eb710000000000),
+                0.0,
+                f64::from_bits(0x40d9204834ac4d58),
+                100.0,
+                1.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        // Y2A-05, Y2A-06: converge on 100th eval (iter == 99) -> #NUM!
+        assert_eq!(
+            yield_kernel(
+                f64::from_bits(0x40e50b8000000000),
+                f64::from_bits(0x40eb580000000000),
+                0.0,
+                f64::from_bits(0x40d8dc4449e4244c),
+                100.0,
+                1.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        assert_eq!(
+            yield_kernel(
+                f64::from_bits(0x40e5180000000000),
+                f64::from_bits(0x40eadb0000000000),
+                f64::from_bits(0x3f947ae147ae147b),
+                f64::from_bits(0x40e5c13ddb587403),
+                100.0,
+                2.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        // Y2A-11, Y2A-12: >100 non-converged evals -> finite y_100
+        assert!(
+            yield_kernel(
+                f64::from_bits(0x40e50b8000000000),
+                f64::from_bits(0x40eb580000000000),
+                0.0,
+                f64::from_bits(0x40d94e1ba49ddd6c),
+                100.0,
+                1.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        assert!(
+            yield_kernel(
+                f64::from_bits(0x40e5180000000000),
+                f64::from_bits(0x40eadb0000000000),
+                f64::from_bits(0x3f947ae147ae147b),
+                f64::from_bits(0x40e81cc0aa9908dc),
+                100.0,
+                2.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        // Y2B-01..02: t_cp, t_red finite with t_cp + t_red == +inf -> finite y_1
+        assert!(
+            yield_kernel(
+                f64::from_bits(0x40e57de000000000),
+                f64::from_bits(0x40e9e10000000000),
+                f64::from_bits(0x3feccccccccccccd),
+                f64::from_bits(0x4102499445b32fc8),
+                100.0,
+                1.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        assert!(
+            yield_kernel(
+                f64::from_bits(0x40e58a6000000000),
+                f64::from_bits(0x40e8e70000000000),
+                f64::from_bits(0x3ffccccccccccccd),
+                f64::from_bits(0x41133a8a953c78b1),
+                100.0,
+                2.0,
+                Some(0.0),
+            )
+            .is_ok()
+        );
+        // Y2B-06..10: f in {2, 4} with t_red == +inf or t_cp == +inf -> #NUM!
+        for &(s, m, r, pr, red, f, b) in &[
+            (0x40e58a6000000000u64, 0x40e8e70000000000, 0x3fd999999999999a, 0x40f670f7da047e00, 100.0, 2.0, 0.0),
+            (0x40e596e000000000, 0x40e9258000000000, 0x3fd70a3d70a3d70a, 0x40f85d09f08f0d52, 120.0, 2.0, 1.0),
+            (0x40e5a36000000000, 0x40e82b8000000000, 0x3fd999999999999a, 0x40fac56225d71c12, 100.0, 4.0, 2.0),
+            (0x40e5afe000000000, 0x40e86a0000000000, 0x4020000000000000, 0x4138dbd01b06b901, 80.0, 4.0, 3.0),
+            (0x40e5bc6000000000, 0x40e9640000000000, 0x400fae147ae147af, 0x41277c85aa1f0cd5, 90.0, 2.0, 4.0),
+        ] {
+            assert_eq!(
+                yield_kernel(
+                    f64::from_bits(s),
+                    f64::from_bits(m),
+                    f64::from_bits(r),
+                    f64::from_bits(pr),
+                    red,
+                    f,
+                    Some(b),
+                ),
+                num_err,
+                "Y2B-06..10 f={f} b={b}"
+            );
+        }
+        // Y2B-11..15 (winning rival_f1_tred_inf): f == 1 skips t_red finiteness -> finite y_1
+        for &(s, m, r, pr, red, b) in &[
+            (0x40e57e8000000000u64, 0x40e9fa0000000000, 0x3fb0624dd2f1a9fc, 0x40d8bf36801c4abf, 80.0, 0.0),
+            (0x40e58b0000000000, 0x40ea1f8000000000, 0x3fa5c28f5c28f5c3, 0x40d7276e86c94fc2, 85.0, 1.0),
+            (0x40e5978000000000, 0x40ea450000000000, 0x3faeb851eb851eb8, 0x40dd9c8f2a005b96, 100.0, 0.0),
+            (0x40e5a40000000000, 0x40ea6a8000000000, 0x3fa47ae147ae147b, 0x40db080fd5105928, 100.0, 2.0),
+            (0x40e5b08000000000, 0x40ea900000000000, 0x3fb999999999999a, 0x40eda0131c91c6ad, 200.0, 3.0),
+        ] {
+            assert!(
+                yield_kernel(
+                    f64::from_bits(s),
+                    f64::from_bits(m),
+                    f64::from_bits(r),
+                    f64::from_bits(pr),
+                    red,
+                    1.0,
+                    Some(b),
+                )
+                .is_ok(),
+                "Y2B-11..15 f=1 b={b}"
+            );
+        }
     }
 }

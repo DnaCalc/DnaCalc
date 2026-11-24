@@ -743,7 +743,7 @@ pub fn oddfyield_kernel(
     let off = dsc_dir / e;
     let cp = (100.0 * rate) / f;
 
-    for _ in 0..100 {
+    for iter in 0..100u32 {
         let base = 1.0 + y / f;
         if !(base > 0.0) || !base.is_finite() {
             return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
@@ -780,7 +780,11 @@ pub fn oddfyield_kernel(
             return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
         }
         if step.abs() <= 1e-10 {
-            return Ok(y);
+            return if iter == 99 {
+                Err(OddBondEvalError::Domain(WorksheetErrorCode::Num))
+            } else {
+                Ok(y)
+            };
         }
         y -= step;
     }
@@ -1231,6 +1235,70 @@ mod tests {
                 Some(0.0),
             ),
             num_err
+        );
+    }
+
+    /// dc-j9k.99 (cb26 live Excel 16.0.20625.20108, PZ-ODD): ODDFYIELD shares the cIter--
+    /// off-by-one where convergence on the 100th evaluation (iter == 99) returns #NUM!,
+    /// while >100 non-converged steps publish y_100.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfyield_iter_99_returns_num_while_over_100_publishes_y100() {
+        let num_err = Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        let (s, m, i, fc) = (
+            f64::from_bits(0x40e575c000000000),
+            f64::from_bits(0x40ebbb8000000000),
+            f64::from_bits(0x40e56f8000000000),
+            f64::from_bits(0x40e57da000000000),
+        );
+        // PZO-02, PZO-05: iter == 99 -> #NUM!
+        assert_eq!(
+            oddfyield_kernel(s, m, i, fc, 0.0, f64::from_bits(0x40e330ca85242bef), 100.0, 2.0, Some(0.0)),
+            num_err
+        );
+        assert_eq!(
+            oddfyield_kernel(
+                s, m, i, fc,
+                f64::from_bits(0x3f947ae147ae147b),
+                f64::from_bits(0x40ddf6baf98cde8e),
+                100.0, 1.0, Some(1.0),
+            ),
+            num_err
+        );
+        // PZO-01, PZO-03, PZO-04, PZO-06: <=99 and >100 -> exact finite bits
+        assert_eq!(
+            oddfyield_kernel(s, m, i, fc, 0.0, f64::from_bits(0x40e210ccc5b900c0), 100.0, 2.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0xbfc4a407c2d4f2f4
+        );
+        assert_eq!(
+            oddfyield_kernel(s, m, i, fc, 0.0, f64::from_bits(0x40e42ee6a682bb72), 100.0, 2.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0xbfd59f49a5b978c0
+        );
+        assert_eq!(
+            oddfyield_kernel(
+                s, m, i, fc,
+                f64::from_bits(0x3f947ae147ae147b),
+                f64::from_bits(0x40dc88cfe837e6ef),
+                100.0, 1.0, Some(1.0),
+            )
+            .unwrap()
+            .to_bits(),
+            0xbfc2aee73d82fab4
+        );
+        assert_eq!(
+            oddfyield_kernel(
+                s, m, i, fc,
+                f64::from_bits(0x3f947ae147ae147b),
+                f64::from_bits(0x40de3a7e35a615e4),
+                100.0, 1.0, Some(1.0),
+            )
+            .unwrap()
+            .to_bits(),
+            0xbfc3958fdcff839d
         );
     }
 }
