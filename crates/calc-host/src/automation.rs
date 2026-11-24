@@ -1199,10 +1199,14 @@ impl WorkbookEventObserver for AutomationObserver {
     }
 
     fn workbook_open(&self, session: &mut HostSession) -> Result<(), String> {
+        let events_enabled = session.workbook_events_switch();
         self.model
             .with_event_session(session, false, || {
                 let workbook = self.model.workbook_object()?;
                 let document = self.events.raise(&workbook, "WorkbookEvents", "Open", &[]);
+                if !events_enabled.get() {
+                    return document;
+                }
                 let application = self.events.raise(
                     &self.model.application(),
                     "AppEvents",
@@ -1241,15 +1245,22 @@ impl WorkbookEventObserver for AutomationObserver {
     }
 
     fn worksheet_calculate(&self, session: &mut HostSession, sheet: SheetId) -> Result<(), String> {
+        let events_enabled = session.workbook_events_switch();
         self.model
             .with_event_session(session, false, || {
                 let worksheet = self.model.worksheet_object(sheet)?;
                 let workbook = self.model.workbook_object()?;
                 let document = self.events.raise(&worksheet, "DocEvents", "Calculate", &[]);
+                if !events_enabled.get() {
+                    return document;
+                }
                 let args = [AutoValue::Object(worksheet)];
                 let book = self
                     .events
                     .raise(&workbook, "WorkbookEvents", "SheetCalculate", &args);
+                if !events_enabled.get() {
+                    return document.and(book);
+                }
                 let application = self.events.raise(
                     &self.model.application(),
                     "AppEvents",
@@ -1280,6 +1291,7 @@ impl WorkbookEventObserver for AutomationObserver {
         operation: crate::SaveOperation,
         cancel: &mut bool,
     ) -> Result<(), String> {
+        let events_enabled = session.workbook_events_switch();
         self.model
             .with_event_session(session, false, || {
                 let workbook = self.model.workbook_object()?;
@@ -1291,6 +1303,9 @@ impl WorkbookEventObserver for AutomationObserver {
                     &[save_as_ui.clone()],
                     cancel,
                 );
+                if !events_enabled.get() {
+                    return document;
+                }
                 let application = self.events.raise_with_cancel(
                     &self.model.application(),
                     "AppEvents",

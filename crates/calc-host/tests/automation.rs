@@ -4021,3 +4021,124 @@ fn automation_projects_document_events_and_cancels_before_save_is_prepared() {
         expected
     );
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn enable_events_is_rechecked_between_automation_event_levels() {
+    struct Receiver {
+        model: Rc<WorkbookAutomation>,
+        disable_at: (&'static str, &'static str),
+        trace: RefCell<Vec<String>>,
+    }
+
+    impl EventSource for Receiver {
+        fn raise(
+            &self,
+            _: &ObjectRef,
+            interface: &str,
+            event: &str,
+            args: &[AutoValue],
+        ) -> Result<(), AutoError> {
+            if matches!(
+                event,
+                "Open" | "WorkbookOpen" | "Calculate" | "SheetCalculate" | "AfterCalculate"
+                    | "BeforeSave" | "WorkbookBeforeSave"
+            ) {
+                self.trace.borrow_mut().push(format!("{interface}.{event}"));
+            }
+            for value in args {
+                if let AutoValue::Object(object) = value {
+                    self.model.released(object);
+                }
+            }
+            if (interface, event) == self.disable_at {
+                let application = self.model.application();
+                let result = invoke_kind(
+                    &self.model,
+                    &application,
+                    "EnableEvents",
+                    InvokeKind::Put,
+                    vec![AutoValue::Bool(false)],
+                );
+                self.model.released(&application);
+                result?;
+            }
+            Ok(())
+        }
+
+        fn raise_with_cancel(
+            &self,
+            source: &ObjectRef,
+            interface: &str,
+            event: &str,
+            args: &[AutoValue],
+            cancel: &mut bool,
+        ) -> Result<(), AutoError> {
+            if interface == "WorkbookEvents" {
+                *cancel = true;
+            }
+            self.raise(source, interface, event, args)
+        }
+    }
+
+    let cases: [(_, &[&str]); 4] = [
+        (("WorkbookEvents", "Open"), &["WorkbookEvents.Open"]),
+        (("DocEvents", "Calculate"), &["DocEvents.Calculate"]),
+        (
+            ("WorkbookEvents", "SheetCalculate"),
+            &["DocEvents.Calculate", "WorkbookEvents.SheetCalculate"],
+        ),
+        (
+            ("WorkbookEvents", "BeforeSave"),
+            &["WorkbookEvents.BeforeSave"],
+        ),
+    ];
+    let mut mismatches = Vec::new();
+    for (disable_at, expected) in cases {
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Manual),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (host, model) = setup_session(session);
+        let receiver = Rc::new(Receiver {
+            model: model.clone(),
+            disable_at,
+            trace: RefCell::default(),
+        });
+        host.session
+            .borrow_mut()
+            .set_workbook_event_observer(Some(model.observer(receiver.clone())));
+        match disable_at.1 {
+            "Open" => host.session.borrow_mut().notify_workbook_open(),
+            "BeforeSave" => {
+                enter(&host, at(&host, 4, 2), "17");
+                let mut output = Vec::new();
+                assert!(matches!(
+                    host.session.borrow_mut().save(&SavePolicy::default(), &mut output),
+                    Err(SaveFailed::Cancelled)
+                ));
+                assert!(output.is_empty());
+            }
+            _ => {
+                enter(&host, at(&host, 3, 2), "=1+2");
+                let mut session = host.session.borrow_mut();
+                session.dispatch(SkinIntent::Recalculate);
+                while session.has_pending_calculation() {
+                    session.advance_calculation();
+                }
+            }
+        }
+        assert!(!host.session.borrow().workbook_events_enabled(), "{disable_at:?}");
+        let trace = receiver.trace.borrow();
+        if trace.as_slice() != expected {
+            mismatches.push(format!("{disable_at:?}: got {trace:?}, expected {expected:?}"));
+        }
+    }
+
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
