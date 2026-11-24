@@ -321,7 +321,9 @@ pub fn load_patient_zero_seeds(
                 expected: Some(w.expected.clone()),
                 cluster_key: None,
             };
-            if w.calc_func.as_deref().is_some_and(|c| c != w.expected) {
+            if w.calc_func.as_deref().is_some_and(|c| {
+                super::cluster::judge_pair(&w.expected, c).0 != calc_verdict::Severity::Exact
+            }) {
                 failing.push(seed.clone());
             }
             all.push(seed);
@@ -1427,9 +1429,9 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
             &mut all_envs,
         )?;
         let pz_key = canonical_case_key(&recipe.function, &recipe.patient_zero.args);
-        patient_zero_matched = excel_answers
-            .get(&pz_key)
-            .is_some_and(|ex| ex == &seed_prediction);
+        patient_zero_matched = excel_answers.get(&pz_key).is_some_and(|ex| {
+            super::cluster::judge_pair(ex, &seed_prediction).0 == calc_verdict::Severity::Exact
+        });
         primary_counts = p_counts;
 
         if let Some(bank_path) = &cfg.bank_rows_out

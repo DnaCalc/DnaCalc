@@ -1408,7 +1408,8 @@ fn select_closest_discrepancy_bracket(
     let mut best: Option<(u8, u128, u128, usize, bool)> = None;
     for (idx, w) in pts.windows(2).enumerate() {
         let pred_flip = predicate_tag(&w[0].1) != predicate_tag(&w[1].1);
-        let disc_flip = (w[0].1 == w[0].2) != (w[1].1 == w[1].2);
+        let disc_flip = (judge_pair(&w[0].1, &w[0].2).0 == Severity::Exact)
+            != (judge_pair(&w[1].1, &w[1].2).0 == Severity::Exact);
         if !pred_flip && !disc_flip {
             continue;
         }

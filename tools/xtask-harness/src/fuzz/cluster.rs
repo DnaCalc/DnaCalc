@@ -441,7 +441,7 @@ pub fn encode_witness_set_json(
                 row.case.id, row.case.prediction
             ));
         }
-        if row.expected == row.case.prediction {
+        if judge_pair(&row.expected, &row.case.prediction).0 == Severity::Exact {
             return Err(format!(
                 "refusing to export matching row {} into discrepancy WitnessSet",
                 row.case.id

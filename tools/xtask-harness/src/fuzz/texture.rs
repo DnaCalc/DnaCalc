@@ -231,7 +231,9 @@ pub fn extract_texture_catalogue(
 
     let matched_status = |args: &[Value], dna_pred: &str| -> Option<bool> {
         let key = canonical_case_key(func, args);
-        excel_answers.get(&key).map(|ex| ex == dna_pred)
+        excel_answers.get(&key).map(|ex| {
+            super::cluster::judge_pair(ex, dna_pred).0 == calc_verdict::Severity::Exact
+        })
     };
 
     let mut consider = |kind: TextureKind, bucket: String, case: TextureCase| {

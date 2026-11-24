@@ -267,6 +267,14 @@ pub fn build_sweep_recipe(
         cfg.fractal_depth,
         cfg.frontier_window,
     );
+    if let Some(dir) = &cfg.hints_dir {
+        let s = dir.display().to_string();
+        if s.chars().any(char::is_whitespace) {
+            cmd.push_str(&format!(" --hints-dir \"{s}\""));
+        } else {
+            cmd.push_str(&format!(" --hints-dir {s}"));
+        }
+    }
     if cfg.dry_run {
         cmd.push_str(" --dry-run");
     }
@@ -399,21 +407,6 @@ pub fn verify_sweep_storage_policy(
         }
     }
 
-    // Ensure no matching-reading archive files exist in `out_dir`.
-    if let Ok(entries) = fs::read_dir(out_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
-            if name.contains("matched-readings")
-                || name.contains("all-answers")
-                || (name.starts_with("answers-") && name.ends_with(".json"))
-            {
-                violations.push(format!(
-                    "forbidden matching-readings file found in sweep output: {name}"
-                ));
-            }
-        }
-    }
-
     let mut discrepancy_rows = 0usize;
     let mut matching_rows_in_bank = 0usize;
     let bank_files: Vec<PathBuf> = if let Some(explicit) = bank_rows_path {
@@ -430,6 +423,95 @@ pub fn verify_sweep_storage_policy(
     } else {
         Vec::new()
     };
+    let known_bank_names: HashSet<String> = bank_files
+        .iter()
+        .filter(|p| p.parent().is_some_and(|parent| parent == out_dir))
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()))
+        .collect();
+
+    // Enforce an explicit allowlist of sweep output files + inspect unexpected files and
+    // summary.json so matching Excel readings cannot hide under arbitrary filenames.
+    const ALLOWED_EXACT: &[&str] = &[
+        "recipe.json",
+        "summary.json",
+        "spec.json",
+        "frontiers.json",
+        "textures.json",
+        "report.md",
+        "attempt.json",
+        "done.json",
+        "interrupted.json",
+        "filed.json",
+        "excel-environments.json",
+        "prediction-hashes.json",
+        "retention-plan.json",
+        "patient-zero.json",
+        "resweep-recipe.json",
+        "resweep-cases.json",
+        "resweep-verdict.json",
+    ];
+    if let Ok(entries) = fs::read_dir(out_dir) {
+        let mut sorted_entries: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file())
+            .collect();
+        sorted_entries.sort();
+        for path in sorted_entries {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_ascii_lowercase())
+                .unwrap_or_default();
+            if name == "summary.json" {
+                if let Ok(raw_summary) = fs::read_to_string(&path)
+                    && let Ok(val) = serde_json::from_str::<Value>(&raw_summary)
+                    && (val.get("excel_answers").is_some()
+                        || val.get("matched_readings").is_some()
+                        || val.get("all_answers").is_some())
+                {
+                    violations.push("summary.json embeds forbidden matching Excel readings".to_owned());
+                }
+                continue;
+            }
+            if ALLOWED_EXACT.contains(&name.as_str())
+                || name.ends_with("-predictions.jsonl")
+                || known_bank_names.contains(&name)
+            {
+                continue;
+            }
+            // Any file outside the sweep output allowlist is a storage-policy violation; inspect
+            // its contents for clearer diagnostics when it holds WitnessSet or Excel readings.
+            let mut detail = format!("unexpected file outside sweep output allowlist: {name}");
+            if let Ok(bytes) = fs::read(&path) {
+                if let Ok(ws) = WitnessSet::decode(&bytes) {
+                    let exact_matches = ws
+                        .witnesses
+                        .iter()
+                        .filter(|w| {
+                            w.calc_func.as_deref().is_some_and(|cf| {
+                                super::cluster::judge_pair(&w.expected, cf).0
+                                    == calc_verdict::Severity::Exact
+                            })
+                        })
+                        .count();
+                    if exact_matches > 0 {
+                        detail = format!(
+                            "forbidden WitnessSet file in sweep output contains {exact_matches} matching rows: {name}"
+                        );
+                    }
+                } else if let Ok(val) = serde_json::from_slice::<Value>(&bytes)
+                    && (val.get("excel_answers").is_some()
+                        || val.get("matched_readings").is_some()
+                        || val.get("all_answers").is_some())
+                {
+                    detail = format!(
+                        "forbidden matching-readings JSON found in sweep output: {name}"
+                    );
+                }
+            }
+            violations.push(detail);
+        }
+    }
     if recipe.storage_policy.discrepancy_rows_exported > 0 && bank_files.is_empty() {
         violations.push(
             "recipe reports discrepancy_rows_exported > 0 but lists no bank_rows_path/bank_rows_files"
@@ -464,7 +546,12 @@ pub fn verify_sweep_storage_policy(
                         w.id
                     ));
                 }
-                Some(cf) if cf != w.expected => discrepancy_rows += 1,
+                Some(cf)
+                    if super::cluster::judge_pair(&w.expected, cf).0
+                        != calc_verdict::Severity::Exact =>
+                {
+                    discrepancy_rows += 1;
+                }
                 _ => {
                     matching_rows_in_bank += 1;
                     violations.push(format!(
@@ -585,7 +672,10 @@ pub fn plan_bank_retention(
         let iter_b = iteration_regime_bucket(trace.iterations);
 
         // 1. Discrepancies (recorded or live) are ALWAYS kept.
-        if w.calc_func.as_deref().is_some_and(|c| c != w.expected) || dna_pred != w.expected {
+        if w.calc_func.as_deref().is_some_and(|c| {
+            super::cluster::judge_pair(&w.expected, c).0 != calc_verdict::Severity::Exact
+        }) || super::cluster::judge_pair(&w.expected, &dna_pred).0 != calc_verdict::Severity::Exact
+        {
             kept_indices.insert(idx, "discrepancy".to_owned());
             seen_signatures.insert((trace.route_mask, iter_b, oc));
             continue;
@@ -793,5 +883,92 @@ mod tests {
                 assert_eq!(entry.reason, "discrepancy");
             }
         }
+    }
+
+    #[test]
+    fn storage_policy_rejects_unexpected_files_uses_judge_pair_and_records_hints_dir() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-storage-strict-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+        let custom_hints = tmp.join("my-hints");
+        fs::create_dir_all(&custom_hints).unwrap();
+
+        let mut cfg = FuzzConfig::default_for("PV");
+        cfg.seed = 20261124;
+        cfg.budget = 40;
+        cfg.round_size = 40;
+        cfg.max_frontiers = 2;
+        cfg.fractal_depth = 0;
+        cfg.frontier_window = 2;
+        cfg.dry_run = true;
+        cfg.hints_dir = Some(custom_hints.clone());
+        cfg.out_dir = tmp.join("out");
+
+        let _ = execute_dry_run(&cfg).expect("dry run");
+        let recipe: SweepRecipe =
+            serde_json::from_str(&fs::read_to_string(cfg.out_dir.join("recipe.json")).unwrap())
+                .unwrap();
+        assert!(
+            recipe.reproduce_command.contains("--hints-dir")
+                && recipe
+                    .reproduce_command
+                    .contains(&custom_hints.display().to_string()),
+            "reproduce_command must include --hints-dir: {}",
+            recipe.reproduce_command
+        );
+
+        // 1. Clean output directory passes storage policy audit.
+        let clean = verify_sweep_storage_policy(&cfg.out_dir, None).expect("clean audit");
+        assert!(clean.ok, "unexpected violations: {:?}", clean.violations);
+
+        // 2. An arbitrarily-named extra file (not matching the old 3-pattern blacklist) must fail!
+        let sneaky = cfg.out_dir.join("excel-readings-dump.json");
+        fs::write(&sneaky, r#"{"readings": [1, 2, 3]}"#).unwrap();
+        let bad_file = verify_sweep_storage_policy(&cfg.out_dir, None).expect("bad file audit");
+        assert!(
+            !bad_file.ok,
+            "unexpected file {} outside allowlist must fail storage audit",
+            sneaky.display()
+        );
+        fs::remove_file(&sneaky).unwrap();
+
+        // 3. A bank-rows WitnessSet where expected and calc_func match under judge_pair
+        //    (e.g. "0x3FF0000000000000" vs "0x3ff0000000000000", or "logical:true" vs "logical:True")
+        //    must be flagged as a matching row, NOT treated as a discrepancy via raw !=.
+        let bank_path = tmp.join("case-mismatch-bank.json");
+        let ws = json!({
+            "format": calc_verdict::WITNESS_SET_FORMAT,
+            "function": "ISNUMBER",
+            "lane": "fz2",
+            "selection": "test",
+            "readings": [{
+                "id": "r0",
+                "source": "test",
+                "excel_build": "16.0",
+                "platform": "Windows",
+                "bitness": "64-bit",
+                "cpu": "Fake",
+                "env_id": "e1",
+                "lane": "fz2",
+                "timestamp": "2026-11-24T12:00:00Z"
+            }],
+            "witnesses": [{
+                "id": "w-exact-case",
+                "reading": "r0",
+                "args": ["0x3ff0000000000000"],
+                "expected_bits": "logical:true",
+                "calc_func": "logical:True"
+            }]
+        });
+        fs::write(&bank_path, serde_json::to_string_pretty(&ws).unwrap()).unwrap();
+        let bad_bank = verify_sweep_storage_policy(&cfg.out_dir, Some(&bank_path)).expect("bank audit");
+        assert!(
+            !bad_bank.ok && bad_bank.matching_rows_in_bank == 1,
+            "judge_pair must flag matching row despite case difference: {bad_bank:?}"
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }
