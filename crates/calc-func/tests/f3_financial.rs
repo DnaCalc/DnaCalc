@@ -3635,6 +3635,17 @@ fn xnpv_date_bounds_split_and_i32_wraparound_and_xirr_arity3_2d() {
         ),
         f(0x402c2c44e9ef8ab0),
     );
+    // Excel 16.0.20625.20108 permits wraparound only after the anchor.
+    for anchor in [2_147_483_648.0, 4_294_967_296.0, 1e20] {
+        error(
+            call(
+                "XNPV",
+                vec![n(tiny_rate), col(&[-100.0, 121.0]), col(&[anchor, anchor + 365.0])],
+            ),
+            Num,
+        );
+        error(call("XNPV", vec![n(tiny_rate), col(&[121.0]), col(&[anchor])]), Num);
+    }
     // Power overflow on huge wrapped dates returns #NUM!:
     error(
         call(
