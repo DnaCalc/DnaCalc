@@ -1137,17 +1137,19 @@ fn push_unique(cands: &mut Vec<usize>, p: usize) {
 }
 
 /// The automatic period of FORECAST.ETS.SEASONALITY and seasonality 1.
-/// Measured on Excel 20527 / 20625 (eng24, ig1, sx1, Carbon cb24, dc-j9k.68):
+/// Measured on Excel 20527 / 20625 (eng24, ig1, sx1, Carbon cb24, dc-j9k.68,
+/// dc-j9k.106, dc-j9k.107):
 /// - n = 5..10: dominant-bin ratio `>= 2 - 3/n` on the cosine-tapered residual
 ///   periodogram (no taper below 10; `floor(n/10)` end points from 10).
 /// - n >= 11: AUTOPERIOD (Vlachos, Yu & Castelli 2005) over above-mean bins
 ///   `k >= 2` with rounded period `p_bin in 3..=floor(2n/5)`. Each bin maps to
-///   ACF core `[lo-1, hi-1]` and hill window `[max(1, lo-1), min(n-1, hi+1)]`,
-///   validated by a 2-segment piecewise-linear hill (minimizing sum of segment
-///   MSEs) whose left/right slopes bracket the flanking slope (0 when the left
-///   flank is empty), peak unbiased ACF `>= 0.45`, short-window `p = 3/4/5`
-///   checks, `R - 1` right-padding trim for `p_bin in {4, 5}`, doubled-cycle
-///   `[2a .. min(n-1, 2R)]` tail rescue (and `p_bin == 4` spillover to `5`),
+///   ACF core `[a, b]` and hill window `[max(1, a), min(n-1, b+2)]`, validated
+///   by a 2-segment piecewise-linear hill (minimizing sum of segment MSEs)
+///   whose left/right slopes bracket the flanking slope (0 when the left flank
+///   is empty), peak unbiased ACF `>= 0.45`, short-window `p_bin` checks,
+///   `right - 1` trim for `p_bin in {4, 5}`, unified doubled-window tail
+///   confirmation (`a >= 2 && 2*right < n`, searching
+///   `[(2*a).max(cand+2)..=2*right]`, plus `p_bin == 4` spillover to `5`),
 ///   and valley subharmonic recovery for `p_bin >= 5`.
 /// - Two-regime spectral competition: `sp = dominant_period` (`p_top <= 5`) or
 ///   `outlier_period` (`p_top >= 6`, 2.5-sigma spectral outlier) enters the
@@ -1325,65 +1327,51 @@ fn detect_period(y: &[f64]) -> usize {
         }
 
         let mut accepted = false;
-        if pk == 3
-            && hill
-            && a >= 2
-            && 2 * right < n
-            && 3 <= last_lag
-            && u[3] >= MIN_PEAK_CORRELATION
-            && u[3] > u[2]
-            && 6 < n
-            && u[4] > u[5]
-            && u[4] > u[6]
-        {
-            let (s_lo, s_hi) = ((2 * a).max(5), 2 * right);
-            if s_lo <= s_hi {
-                let pk2 = argmax_slice(&u, s_lo, s_hi);
-                if pk2 == 7 && pk2 + 2 < n && u[pk2 + 1] > u[pk2 + 2] {
-                    push_unique(&mut candidates, 3);
-                    accepted = true;
-                }
+        if hill {
+            let mut try_cands = [0usize; 2];
+            let mut ntry = 0usize;
+            if pk >= 3 && pk <= last_lag {
+                try_cands[ntry] = pk;
+                ntry += 1;
             }
-        } else if pk >= 4 && pk <= last_lag && u[pk] >= MIN_PEAK_CORRELATION {
-            let mut t_ok = if pk == 4 {
-                6 < n && u[5] > u[6]
-            } else if pk == 5 {
-                9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0
-            } else {
-                true
-            };
-            if !t_ok && hill && (pk == 4 || pk == 5) && pk >= p_bin && n >= 16 {
-                let (s_lo, s_hi) = ((2 * a).max(6), (2 * right).min(n - 1));
-                if s_lo <= s_hi {
-                    let pk2 = argmax_slice(&u, s_lo, s_hi);
-                    t_ok = pk2 / 2 == pk
-                        && (n >= 4 * pk || u[pk2] >= MIN_PEAK_CORRELATION)
-                        && pk2 + 2 < n
-                        && u[pk2 + 1] > u[pk2 + 2];
-                }
-            }
-            if t_ok {
-                push_unique(&mut candidates, pk);
-                accepted = true;
-            }
-        }
-        if !accepted && hill && p_bin == 4 && n >= 16 {
-            if argmax_slice(&u, left, right) == 5
+            if p_bin == 4
+                && 5 <= right
                 && 5 <= last_lag
-                && u[5] >= MIN_PEAK_CORRELATION
-                && u[5] > u[4]
-                && 6 < n
-                && u[5] > u[6]
+                && pk != 5
+                && argmax_slice(&u, left, right) == 5
             {
-                let s_hi = (2 * right).min(n - 1);
-                let t5 = (9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0)
-                    || (n >= 17 && 6 <= s_hi && {
-                        let pk2 = argmax_slice(&u, 6, s_hi);
-                        pk2 / 2 == 5 && pk2 + 2 < n && u[pk2 + 1] > u[pk2 + 2]
-                    });
-                if t5 {
-                    push_unique(&mut candidates, 5);
+                try_cands[ntry] = 5;
+                ntry += 1;
+            }
+            for &cand in &try_cands[..ntry] {
+                if u[cand] < MIN_PEAK_CORRELATION {
+                    continue;
+                }
+                if cand == 5 && (6 >= n || u[5] <= u[4] || u[5] <= u[6]) {
+                    continue;
+                }
+                let mut t_ok = if cand >= 6 {
+                    true
+                } else if cand == 4 {
+                    6 < n && u[5] > u[6]
+                } else if cand == 5 {
+                    9 < n && ols_mse_and_slope(&u[6..=9]).1 < 0.0
+                } else {
+                    false
+                };
+                if !t_ok && cand <= 5 && a >= 2 && 2 * right < n && (cand == 3 || cand >= p_bin) {
+                    let (s_lo, s_hi) = ((2 * a).max(cand + 2), 2 * right);
+                    if s_lo <= s_hi {
+                        let pk2 = argmax_slice(&u, s_lo, s_hi);
+                        let p3_ok = cand != 3
+                            || (u[3] > u[2] && 6 < n && u[4] > u[5] && u[4] > u[6] && pk2 == 7);
+                        t_ok = p3_ok && pk2 / 2 == cand && pk2 + 2 < n && u[pk2 + 1] > u[pk2 + 2];
+                    }
+                }
+                if t_ok {
+                    push_unique(&mut candidates, cand);
                     accepted = true;
+                    break;
                 }
             }
         }
@@ -1397,9 +1385,6 @@ fn detect_period(y: &[f64]) -> usize {
                 && check_hill(2 * a, r2.saturating_sub(2), 2 * a, r2).0
             {
                 (l2, hill2) = (2 * a, true);
-            }
-            if !hill2 && valley && r2 >= l2 + 5 && check_hill(0, r2.saturating_sub(2), l2, r2).0 {
-                hill2 = true;
             }
             if hill2 {
                 let half_pk = argmax_slice(&u, l2, r2) / 2;

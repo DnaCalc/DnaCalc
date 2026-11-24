@@ -1372,6 +1372,128 @@ fn ets_seasonality_p3_doubled_window_rules_match_excel() {
     }
 }
 
+/// Excel 16.0.20625.20108 unified doubled-window tail rescue with no fitted length cutoffs
+/// (dc-j9k.107, rw4 item 7): doubled-window confirmation applies whenever a >= 2 && 2 * right < n,
+/// with no u[pk2] >= 0.45 guard:
+/// - pk=4 at n=15 (2 * right = 12 < 15) rescues both u[pk2] >= 0.45 (nl25-s1-062) and < 0.45
+///   (nl25-s1-064), while n=12, 14 (2 * right = 14 >= n) return 0 (nl25-s1-052, nl25-s1-060);
+/// - pk=5 at n=16, 18, 19 rescues u[pk2] < 0.45 without n >= 4 * pk (nl25-s1-088, 092, 095);
+/// - p_bin=5 alone at n=16 (2 * right = 16 >= n) returns 0 (nl25-s2-014, nl25-s2-015), while
+///   n=18 (2 * right = 16 < 18) rescues 5 (nl25-s2-017).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_unified_doubled_window_rescue_match_excel() {
+    let cases: [(f64, &[u64]); 10] = [
+        // Touchstone 16.0.20625.20108 nl25-s1-062 (n=15, pk=4 rescue, u[8]=0.81 -> Excel=4)
+        (
+            4.0,
+            &[
+                0x3fed000000000000, 0xbfd3b00000000000, 0xc000c00000000000, 0x3fdcf00000000000,
+                0x3fc5400000000000, 0x3fe4400000000000, 0xbfe3800000000000, 0x3ff0740000000000,
+                0xbfc8800000000000, 0xbfcf600000000000, 0xbffcfc0000000000, 0x3ff6ec0000000000,
+                0x3fe1180000000000, 0x3fe4b80000000000, 0xbfe9080000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-064 (n=15, pk=4 rescue, u[8]=0.27 < 0.45 -> Excel=4)
+        (
+            4.0,
+            &[
+                0x3fe0200000000000, 0x3fbd800000000000, 0x3fc0600000000000, 0xbfe3100000000000,
+                0x3fcec00000000000, 0x3fe7180000000000, 0xbfe2c00000000000, 0xbfc4800000000000,
+                0xbfe7000000000000, 0x3fffd40000000000, 0xbffd100000000000, 0xbfe2380000000000,
+                0xbff08c0000000000, 0x3ffca00000000000, 0xc000140000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-088 (n=16, pk=5 rescue, u[10]=0.33 < 0.45 -> Excel=5)
+        (
+            5.0,
+            &[
+                0xbfd1400000000000, 0xbfc9200000000000, 0xbfed580000000000, 0x3fd8b00000000000,
+                0x3ff5dc0000000000, 0xbfede80000000000, 0x3fc4000000000000, 0xbffa2c0000000000,
+                0x3ff41c0000000000, 0x3fd6800000000000, 0xbffd100000000000, 0xbff1500000000000,
+                0xbfd6200000000000, 0x3fd9600000000000, 0x3fd3a00000000000, 0xbfd4700000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-092 (n=18, pk=5 rescue, u[10]=0.28 < 0.45 -> Excel=5)
+        (
+            5.0,
+            &[
+                0xbfb5400000000000, 0x3fc7e00000000000, 0x3fd2300000000000, 0xbfc2a00000000000,
+                0xbff6740000000000, 0x3fe6b00000000000, 0x3ff0580000000000, 0xbfd3d00000000000,
+                0x3fd5700000000000, 0xbff8fc0000000000, 0xbf93000000000000, 0x3feb880000000000,
+                0xbff1540000000000, 0xbff69c0000000000, 0xbfc9200000000000, 0xbfe0c00000000000,
+                0x3ff2dc0000000000, 0xbfe0280000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-095 (n=19, pk=5 rescue, u[10]=0.42 < 0.45 -> Excel=5)
+        (
+            5.0,
+            &[
+                0x3fb2c00000000000, 0xbfa6800000000000, 0x3ff5a40000000000, 0xbfe7500000000000,
+                0xbfe4900000000000, 0x3ff3d80000000000, 0xbfcfa00000000000, 0x3ff6080000000000,
+                0x3fd3900000000000, 0xc002600000000000, 0x3fe7500000000000, 0x3fe7000000000000,
+                0x3ff0ec0000000000, 0xbfe9700000000000, 0xbffcec0000000000, 0x3feb500000000000,
+                0x3fc8e00000000000, 0x3fb2400000000000, 0xbff79c0000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s2-014 (n=16, p_bin=5 only, 2*right=16 == n -> Excel=0)
+        (
+            0.0,
+            &[
+                0xbfd5200000000000, 0xbfee680000000000, 0x3ff4280000000000, 0x3feee00000000000,
+                0xbfd2700000000000, 0x3fa4000000000000, 0xc001a40000000000, 0x3fe7200000000000,
+                0x3fd2700000000000, 0x3fc0600000000000, 0xbfc0400000000000, 0xbffb140000000000,
+                0x3feb000000000000, 0x3fc8400000000000, 0xbf99000000000000, 0xbfe7b00000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s2-015 (n=16, p_bin=5 only, 2*right=16 == n -> Excel=0)
+        (
+            0.0,
+            &[
+                0xbfe1a00000000000, 0xbfe4f00000000000, 0x3ff9c80000000000, 0x3fd9200000000000,
+                0xbff9b40000000000, 0xbfe4b80000000000, 0xbfe5a00000000000, 0x40002e0000000000,
+                0xbfb0400000000000, 0xbfebd00000000000, 0x3fe2e00000000000, 0xbfe2380000000000,
+                0x3ff6380000000000, 0x3fd8600000000000, 0xbfe5880000000000, 0xbf94000000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s2-017 (n=18, p_bin=5 only, 2*right=16 < 18 -> Excel=5)
+        (
+            5.0,
+            &[
+                0x3ffa380000000000, 0x3fa3000000000000, 0x3fd8e00000000000, 0xbff2880000000000,
+                0xbffa980000000000, 0x3ffd180000000000, 0x3fc3600000000000, 0x3fd4b00000000000,
+                0xbfc5400000000000, 0xbff3440000000000, 0x4003980000000000, 0x3fc5600000000000,
+                0xbfd1200000000000, 0xbff2900000000000, 0xbffb4c0000000000, 0x4002c20000000000,
+                0x3fd8300000000000, 0xbfd5600000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-052 (n=12, p_bin=4 2*right=14 >= 12 -> Excel=0)
+        (
+            0.0,
+            &[
+                0xbff2c80000000000, 0xbfbc800000000000, 0xbff4380000000000, 0x3fe6500000000000,
+                0x3ff0ac0000000000, 0xbfe8200000000000, 0xbff3840000000000, 0x3ff7500000000000,
+                0x3fda800000000000, 0xbfe9180000000000, 0x3fcc600000000000, 0x3fe7700000000000,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 nl25-s1-060 (n=14, p_bin=4 2*right=14 >= 14 -> Excel=0)
+        (
+            0.0,
+            &[
+                0xbfb7c00000000000, 0x3fda700000000000, 0xc005520000000000, 0xbfe7600000000000,
+                0x4000b60000000000, 0xbfbd800000000000, 0xc000c00000000000, 0x3ff7780000000000,
+                0x3fd9a00000000000, 0x3fe1e80000000000, 0xbfeec00000000000, 0xbfe5100000000000,
+                0x3fbbc00000000000, 0x3fef380000000000,
+            ],
+        ),
+    ];
+    for (expected, bits) in cases {
+        let history: Vec<f64> = bits.iter().map(|&b| f64::from_bits(b)).collect();
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 period-two histories of 6 and 7 observations search the full
 /// SEASONAL_PARAMETERS grid (dc-iuwct.54; only n=5 is restricted to the five
 /// SHORT_TWO_PARAMETERS candidates).
