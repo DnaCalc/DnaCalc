@@ -70,6 +70,17 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   Allowing the save wrote 2. See `ww13/range`, `ww13/range-dna`, `ww13/save` and
   `ww13/bank-rows/range-structural-edit.json`. The UI Undo and remaining E3–E5 arms
   stay dc-1nbp.6.
+- **dc-1nbp.6 / dc-1nbp.3.1.** With D1 dirty at a cached 2, calculating only E1
+  entered its VBA reader once and returned the cached 2, while D1 stayed at 2.
+  Application.Calculate refreshed the explicit-argument reader and D1 and left the
+  untracked VBA readers unchanged. CalculateFull refreshed all three. In Automatic,
+  the outer A1 Change saw the recalculated 3, then the nested C1 write raised a
+  second AfterCalculate before C1 Change. Manual Change saw the old 2. Calling
+  Calculate inside the Manual handler published 3 before the outer Change returned.
+  With events disabled, A1 recalculated and the C1 write was absent, including
+  after reenable. See `ww13/e3/e3.json` and `ww13/e4/e4.json`. This is an Excel VBA
+  control for the DNA Calc page event-order work in dc-1nbp.3.1. Remaining E3–E5
+  controls stay dc-1nbp.6.
 
 ### ww12 Windows replay, 2026-11-24
 
