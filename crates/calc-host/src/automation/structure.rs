@@ -2,7 +2,7 @@
 //! (dc-oxh8w.4). Each is one session command (`WorkbookCommand::Sheet`), so undo, recalculation and
 //! events are the ones every other Automation write uses.
 use super::*;
-use crate::{CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
+use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
 
 /// xlWorksheet, the only sheet type Worksheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
@@ -13,6 +13,7 @@ impl WorkbookAutomation {
         handlers.on("Worksheet", "Name", InvokeKind::Put, Self::worksheet_set_name);
         handlers.on("Worksheet", "Delete", InvokeKind::Method, Self::worksheet_delete);
         handlers.on("Worksheet", "Move", InvokeKind::Method, Self::worksheet_move);
+        handlers.on("Names", "Add", InvokeKind::Method, Self::names_add);
     }
 
     /// One sheet command; a refusal is Excel's 1004 with the host's reason (a name Excel rejects, the
@@ -181,5 +182,94 @@ impl WorkbookAutomation {
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })
+    }
+}
+
+impl WorkbookAutomation {
+    /// Names.Add(Name, RefersTo): a workbook-level name, redefining the name when it exists, as Excel does.
+    fn names_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() > 11 {
+            return Err(geometry::bad_count());
+        }
+        // Visible, MacroType, ShortcutKey, Category, the Local forms and the R1C1 forms are not modelled.
+        for (index, what) in [
+            (2, "Visible"),
+            (3, "MacroType"),
+            (4, "ShortcutKey"),
+            (5, "Category"),
+            (6, "NameLocal"),
+            (7, "RefersToLocal"),
+            (8, "CategoryLocal"),
+            (9, "RefersToR1C1"),
+            (10, "RefersToR1C1Local"),
+        ] {
+            let missing = call.arg(index).is_missing();
+            let default_visible = index == 2 && matches!(call.arg(2), AutoValue::Bool(true));
+            if !missing && !default_visible {
+                return Err(AutoError::not_modelled(format!("Names.Add {what}"), "dc-hsa5.6"));
+            }
+        }
+        let name = call.arg(0).as_text().ok_or_else(|| {
+            AutoError::not_modelled("Names.Add without a Name text", "dc-hsa5.6")
+        })?;
+        if name.contains('!') {
+            return Err(AutoError::not_modelled("Names.Add of a worksheet-scoped name", "dc-hsa5.6"));
+        }
+        let formula = call
+            .arg(1)
+            .as_text()
+            .filter(|text| text.starts_with('='))
+            .ok_or_else(|| AutoError::not_modelled("Names.Add RefersTo other than formula text", "dc-hsa5.6"))?;
+        let mut result = Ok(AutoValue::Empty);
+        let reply = self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let existing = session
+                .host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(calc_doc_model::NameScope::Workbook, &name)
+                .map(|node| (node.id(), node.binding_version(), node.definition().name.clone()));
+            if existing.as_ref().is_some_and(|(_, _, spelling)| *spelling != name) {
+                return Err(AutoError::not_modelled(
+                    "Names.Add over an existing name spelled in another case",
+                    "dc-hsa5.6",
+                ));
+            }
+            let receipt = session.dispatch_from(
+                CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::Name(NameEdit {
+                    id: existing.as_ref().map(|(id, _, _)| *id),
+                    version: existing.as_ref().map(|(_, version, _)| *version),
+                    scope: calc_doc_model::NameScope::Workbook,
+                    name: name.clone(),
+                    formula: Some(formula.clone()),
+                })),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::excel(1004, error.to_string()));
+            }
+            Self::settle(session, receipt.recalc, call)?;
+            self.context_changed(session);
+            let id = session
+                .host()
+                .model()
+                .definitions()
+                .name_table()
+                .lookup(calc_doc_model::NameScope::Workbook, &name)
+                .map(|node| node.id())
+                .ok_or_else(|| AutoError::not_modelled("Names.Add result lookup", "dc-hsa5.6"))?;
+            result = Ok(AutoValue::Object(object(
+                "Name",
+                ObjectKey::Name {
+                    workbook: self.metadata()?.workbook,
+                    id,
+                },
+            )));
+            Ok(AutoValue::Empty)
+        });
+        reply?;
+        result
     }
 }
