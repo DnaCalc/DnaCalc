@@ -203,6 +203,16 @@ fn prune_artifacts(
     Ok(())
 }
 
+struct ProfileLock(File);
+
+impl Drop for ProfileLock {
+    fn drop(&mut self) {
+        // A concurrent fork can briefly retain the file descriptor. Release the lock
+        // explicitly so it ends with this pruning pass even if a copy is still open.
+        let _ = self.0.unlock();
+    }
+}
+
 fn prune_profile(
     path: &Path,
     cutoff: SystemTime,
@@ -219,7 +229,7 @@ fn prune_profile(
         }
         let lock = OpenOptions::new().read(true).write(true).open(lock_path)?;
         match lock.try_lock() {
-            Ok(()) => locks.push(lock),
+            Ok(()) => locks.push(ProfileLock(lock)),
             Err(TryLockError::WouldBlock) => {
                 report.busy += 1;
                 return Ok(true);
@@ -290,6 +300,25 @@ pub fn run(args: &[String]) -> ExitCode {
 mod tests {
     use super::*;
     use std::fs::FileTimes;
+
+    #[test]
+    fn profile_lock_releases_while_a_duplicate_handle_is_open() {
+        let path = std::env::temp_dir().join(format!("xtask-prune-lock-{}", std::process::id()));
+        let file = File::create_new(&path).unwrap();
+        file.try_lock().unwrap();
+        let lock = ProfileLock(file);
+        let duplicate = lock.0.try_clone().unwrap();
+        let contender = OpenOptions::new().write(true).open(&path).unwrap();
+
+        assert!(matches!(contender.try_lock(), Err(TryLockError::WouldBlock)));
+        drop(lock);
+        let reacquired = contender.try_lock();
+
+        drop(contender);
+        drop(duplicate);
+        fs::remove_file(path).unwrap();
+        reacquired.expect("the profile lock is released when pruning leaves the profile");
+    }
 
     fn executable(deps: &Path, stem: &str, stamp: SystemTime) -> PathBuf {
         let path = deps.join(format!("{stem}{}", std::env::consts::EXE_SUFFIX));
