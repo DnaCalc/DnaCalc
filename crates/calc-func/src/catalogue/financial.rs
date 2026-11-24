@@ -322,11 +322,11 @@ ported_shared_family! {
             Ok(v) => v,
             Err(error) => return cash_err(error),
         };
-        let dates = match cash::collect_serial_vector_from_eval(&dates) {
+        let dates = match cash::collect_xnpv_serial_vector_from_eval(&dates) {
             Ok(d) => d,
             Err(error) => return cash_err(error),
         };
-        out(s, cash::xnpv_kernel(rate, &values, &dates))
+        out(s, cash::xnpv_kernel_f64(rate, &values, &dates))
     }
     20 xirr_fn |s, a, sv| {
         // XIRR reads its optional scalar guess before the two paired vectors.

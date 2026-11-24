@@ -177,17 +177,32 @@ pub(crate) fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalErro
     Ok(serial)
 }
 
-pub(crate) fn collect_serial_vector_from_eval(
+/// Excel `XNPV` date serial admission (`cb28` S1b, S2a, S3a):
+/// rejects `date < 1.0` before truncation, rejects `2_958_466..=i32::MAX`,
+/// and retains x86 `cvttsd2si` 32-bit signed saturation (`>= 2^31` wraps to
+/// `INT_MIN <= 2_958_465` and passes validation while `years` uses `f64`).
+pub(crate) fn xnpv_serial_from_number(value: f64) -> Result<f64, CashflowRateEvalError> {
+    if !value.is_finite() || value < 1.0 {
+        return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    let serial = value.trunc();
+    if serial > 2_958_465.0 && serial <= f64::from(i32::MAX) {
+        return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    Ok(serial)
+}
+
+pub(crate) fn collect_xnpv_serial_vector_from_eval(
     value: &CalcValue,
-) -> Result<Vec<i64>, CashflowRateEvalError> {
+) -> Result<Vec<f64>, CashflowRateEvalError> {
     match value.core_ref() {
-        CoreRef::Number(n) => Ok(vec![serial_from_number(n)?]),
+        CoreRef::Number(n) => Ok(vec![xnpv_serial_from_number(n)?]),
         CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
         CoreRef::Array(array) => {
             let shape = array.shape();
             let mut out = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                out.push(serial_from_number(xnpv_numeric_from_cell(cell)?)?);
+                out.push(xnpv_serial_from_number(xnpv_numeric_from_cell(cell)?)?);
             }
             Ok(out)
         }
@@ -236,6 +251,20 @@ fn validate_xnpv_inputs(values: &[f64], dates: &[i64]) -> Result<(), WorksheetEr
     }
     let anchor = dates[0];
     if dates.iter().any(|date| *date < anchor) {
+        return Err(WorksheetErrorCode::Num);
+    }
+    Ok(())
+}
+
+fn validate_xnpv_inputs_f64(values: &[f64], dates: &[f64]) -> Result<(), WorksheetErrorCode> {
+    if values.len() != dates.len() || dates.is_empty() {
+        return Err(WorksheetErrorCode::Num);
+    }
+    if !values.iter().all(|v| v.is_finite()) {
+        return Err(WorksheetErrorCode::Value);
+    }
+    let anchor = dates[0];
+    if !anchor.is_finite() || dates.iter().any(|date| !date.is_finite() || *date < anchor) {
         return Err(WorksheetErrorCode::Num);
     }
     Ok(())
@@ -794,27 +823,48 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
 /// iterates legitimately go negative) is intentionally NOT this path; its
 /// staging is a separate identification (catalog G6 solver lane).
 pub fn xnpv_kernel(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {
+    let dates_f64: Vec<f64> = dates.iter().map(|&d| d as f64).collect();
+    xnpv_kernel_f64(rate, values, &dates_f64)
+}
+
+pub(crate) fn xnpv_kernel_f64(
+    rate: f64,
+    values: &[f64],
+    dates: &[f64],
+) -> Result<f64, WorksheetErrorCode> {
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div};
     use crate::ported::power_fn::power_kernel;
 
-    validate_xnpv_inputs(values, dates)?;
+    validate_xnpv_inputs_f64(values, dates)?;
     if !rate.is_finite() || rate <= 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
     let base = excel_x87_add(1.0, rate);
+    if !base.is_finite() || base <= 0.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
     let anchor = dates[0];
     let mut total = 0.0;
-    for (value, date) in values.iter().zip(dates.iter()) {
-        let years = (*date - anchor) as f64 / 365.0;
-        let pow = power_kernel(base, years)?;
-        let term = excel_x87_div(*value, pow);
+    for (&value, &date) in values.iter().zip(dates.iter()) {
+        let years = (date - anchor) / 365.0;
+        let pow = if years == 0.0 {
+            1.0
+        } else {
+            power_kernel(base, years)?
+        };
+        if !pow.is_finite() || pow <= 0.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        let term = excel_x87_div(value, pow);
+        if !term.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
         total = excel_x87_add(total, term);
+        if !total.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
     }
-    if total.is_finite() {
-        Ok(total)
-    } else {
-        Err(WorksheetErrorCode::Num)
-    }
+    Ok(total)
 }
 
 fn xirr_two_cashflow_root(values: &[f64], dates: &[i64]) -> Result<f64, WorksheetErrorCode> {

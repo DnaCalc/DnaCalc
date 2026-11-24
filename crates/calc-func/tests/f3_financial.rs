@@ -3522,3 +3522,140 @@ fn xirr_and_xnpv_flatten_2d_row_major_and_apply_cell_coercion_rules() {
     error(call("XNPV", vec![n(0.1), bool_val, dates3.clone()]), Num);
     error(call("XNPV", vec![n(0.1), err_val, dates3]), NA);
 }
+
+/// Carbon cb28 (dc-ztvv.26.45, Excel 16.0.20625.20108): XIRR arity-3 2D mismatch
+/// (#NUM!, not #REF!) and XNPV date bounds (`date < 1.0` -> #NUM!, `2958466..=i32::MAX`
+/// -> #NUM!, `>= 2^31` passes x86 `cvttsd2si` check while `years` uses `f64`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xnpv_date_bounds_split_and_i32_wraparound_and_xirr_arity3_2d() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let arr = |rows: Vec<Vec<CalcValue>>| CalcValue::array(CalcArray::from_rows(rows).unwrap());
+    let f = f64::from_bits;
+
+    // dc-ztvv.26.45 minimal representative (fuzz-XIRR-r01-000245, arity=3):
+    error(
+        call(
+            "XIRR",
+            vec![
+                arr(vec![vec![n(f(0x4039f226d39580b3)), n(f(0xc06a1e204405320c))]]),
+                arr(vec![
+                    vec![n(f(0xbf9134b947ad068c)), n(f(0xc02f8bd50e3136ed))],
+                    vec![n(f(0xc0b6c82716c44a1d)), n(f(0xbf025a63cbdcea02))],
+                ]),
+                n(f(0xbff0000000000000)),
+            ],
+        ),
+        Num,
+    );
+    // Same shape with a valid positive guess still returns #NUM! (not #REF!):
+    error(
+        call(
+            "XIRR",
+            vec![
+                arr(vec![vec![n(-100.0), n(121.0)]]),
+                arr(vec![
+                    vec![n(45000.0), n(45100.0)],
+                    vec![n(45200.0), n(45365.0)],
+                ]),
+                n(0.1),
+            ],
+        ),
+        Num,
+    );
+
+    // XNPV rejects negative floats and [0, 1) before truncation:
+    for bad_d0 in [
+        -0.5,
+        -1e-15,
+        -f64::MIN_POSITIVE,
+        0.0,
+        f64::MIN_POSITIVE,
+        0.5,
+        0.75,
+        f(0x3fefffffe0000000), // 1 - 2^-24
+        f(0x3fefffff80000000), // 1 - 2^-22
+        f(0x3feffffe00000000), // 1 - 2^-20
+    ] {
+        error(
+            call(
+                "XNPV",
+                vec![n(0.1), col(&[-100.0, 121.0]), col(&[bad_d0, 366.0])],
+            ),
+            Num,
+        );
+    }
+
+    // XNPV upper bound 2,958,465 (9999-12-31) accepted; 2,958,466..=i32::MAX rejected:
+    let tiny_rate = f(0x3e45798ee2308c3a); // 1e-8
+    exact(
+        call(
+            "XNPV",
+            vec![n(tiny_rate), col(&[-100.0, 121.0]), col(&[45000.0, 2_958_465.0])],
+        ),
+        f(0x4034fd870e7a9eb4),
+    );
+    exact(
+        call(
+            "XNPV",
+            vec![n(tiny_rate), col(&[-100.0, 121.0]), col(&[45000.0, 2_958_465.9])],
+        ),
+        f(0x4034fd870e7a9eb4),
+    );
+    for hi_bad in [2_958_466.0, 10_000_000.0, 536_870_912.0, 2_147_483_647.0] {
+        error(
+            call(
+                "XNPV",
+                vec![n(tiny_rate), col(&[-100.0, 121.0]), col(&[45000.0, hi_bad])],
+            ),
+            Num,
+        );
+    }
+
+    // XNPV x86 cvttsd2si 32-bit wraparound for date >= 2^31 (0 ULP exact to Excel):
+    exact(
+        call(
+            "XNPV",
+            vec![
+                n(tiny_rate),
+                col(&[-100.0, 121.0]),
+                col(&[45000.0, 2_147_483_648.0]),
+            ],
+        ),
+        f(0x402c2c44ea0a6410),
+    );
+    exact(
+        call(
+            "XNPV",
+            vec![
+                n(tiny_rate),
+                col(&[-100.0, 121.0]),
+                col(&[45000.0, 2_147_483_649.0]),
+            ],
+        ),
+        f(0x402c2c44e9ef8ab0),
+    );
+    // Power overflow on huge wrapped dates returns #NUM!:
+    error(
+        call(
+            "XNPV",
+            vec![
+                n(tiny_rate),
+                col(&[-100.0, 121.0]),
+                col(&[45000.0, 9_007_199_254_740_991.0]),
+            ],
+        ),
+        Num,
+    );
+    error(
+        call(
+            "XNPV",
+            vec![
+                n(0.1),
+                col(&[-100.0, 121.0]),
+                col(&[45000.0, 4_294_967_296.0 + 45365.0]),
+            ],
+        ),
+        Num,
+    );
+}
