@@ -24,6 +24,7 @@ impl PreparedEdit {
         &self.model
     }
 
+    /// Consume the prepared edit and return the new authored model.
     pub fn into_model(self) -> Arc<ModelRoot> {
         self.model
     }
@@ -33,6 +34,7 @@ impl PreparedEdit {
 /// against is unchanged.
 #[derive(Debug, PartialEq, Eq)]
 pub enum EditError {
+    /// The requested worksheet operation could not be applied.
     SheetOperation(String),
     /// The model refused the batch: it was prepared against another revision, names a sheet the
     /// model does not hold, or holds a row, column or sheet edit, which this package does not
@@ -41,7 +43,9 @@ pub enum EditError {
     /// The formula the operation at this index sets is longer than
     /// [`FORMULA_MAX_UTF16_CODE_UNITS`], so [`crate::load`] would refuse the saved package.
     FormulaTooLong {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Length in UTF-16 code units.
         units: usize,
     },
     /// CalcFml's parser reads the formula the operation at this index sets with a diagnostic:
@@ -50,7 +54,9 @@ pub enum EditError {
     /// formula's text as it was authored, so only text the parser reads without a diagnostic is
     /// admitted; how Excel treats text the parser does not read is not measured.
     FormulaSyntax {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Diagnostic from the formula conversion or validation.
         message: String,
     },
     /// The operation at this index changes part of the legacy array formula anchored at
@@ -59,7 +65,9 @@ pub enum EditError {
     /// engine shows #SPILL! at the anchor. Setting a dynamic array's anchor replaces the array,
     /// and clearing any of its cells is admitted.
     ArrayPart {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Cell anchoring the affected array formula.
         anchor: CellKey,
     },
     /// The operation at this index sets an error constant Excel cannot hold in a cell: one of the
@@ -68,22 +76,28 @@ pub enum EditError {
     /// constant it keeps #SPILL! and the others as text and #GETTING_DATA as #N/A (measured,
     /// tests/fixtures/d1/excel-errors.json), so a save could not write the cell faithfully.
     ErrorConstant {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Worksheet error encountered while staging the operation.
         code: calc_doc_model::value::WorksheetErrorCode,
     },
     /// The operation at this index of a structural batch ([`prepare_structural_edit`]) is not
     /// an insertion or deletion of rows or columns.
     NotAxisEdit {
+        /// Index of the operation in the batch.
         operation: usize,
     },
     /// The axis edit at this index changes the header or totals row of the table `table`,
     /// inserts or deletes columns inside it, or deletes all of it.
     TablePart {
+        /// Index of the operation in the batch.
         operation: usize,
+        /// Name of the affected table.
         table: String,
     },
     /// The insertion at this index would push cells that hold an input off the grid.
     PushedOffGrid {
+        /// Index of the operation in the batch.
         operation: usize,
     },
 }

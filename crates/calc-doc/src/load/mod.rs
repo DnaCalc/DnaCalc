@@ -224,6 +224,7 @@ impl LoadedSheet {
         &self.pivots
     }
 
+    /// Borrow the parsed chart and drawing data for this sheet.
     pub fn charts(&self) -> &SheetCharts {
         &self.charts
     }
@@ -301,6 +302,7 @@ impl LoadedSheet {
             })
             .unwrap_or(0)
     }
+    /// Iterate over row and column default styles.
     pub fn default_styles(&self) -> impl Iterator<Item = calc_doc_model::StyleRun> + '_ {
         use calc_doc_model::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS};
         self.column_styles
@@ -383,14 +385,17 @@ pub struct SharedFormula {
 }
 
 impl SharedFormula {
+    /// Return the shared formula index from the worksheet.
     pub fn index(&self) -> u32 {
         self.index
     }
 
+    /// Return the cell holding the shared formula text.
     pub fn master(&self) -> CellKey {
         self.master
     }
 
+    /// Return the region declared by the shared formula master.
     pub fn area(&self) -> GridArea {
         self.area
     }
@@ -428,19 +433,39 @@ pub enum LoadRepair {
     /// A sheet's `r:id` names no relationship of the workbook part: Excel keeps the sheet, empty,
     /// with its name and visibility, and so does the load. (An empty `r:id=""` is not a repair:
     /// Excel opens it without a prompt as the same empty sheet.)
-    SheetRelationshipMissing { sheet: SheetId, id: String },
+    SheetRelationshipMissing {
+        /// Worksheet whose relationship could not be found.
+        sheet: SheetId,
+        /// Relationship ID referenced by the workbook.
+        id: String,
+    },
     /// A plain formula inside the area of an array formula: Excel drops it and shows the array's
     /// result in that cell, and so does the load (the cell is a member of the array).
     FormulaInsideArray {
+        /// Sheet containing the invalid cell.
         sheet: SheetId,
+        /// Row of the affected cell.
         row: u32,
+        /// Column of the affected cell.
         column: u32,
     },
     /// Excel removed a rejected stored formula and kept its cached scalar as a constant.
-    RejectedFormulaValue { at: CellKey, rule: String },
+    RejectedFormulaValue {
+        /// Cell holding the rejected formula.
+        at: CellKey,
+        /// Rule that rejected the formula or its value.
+        rule: String,
+    },
     /// A later sheet repeats an earlier sheet's `sheetId` (`id`): Excel keeps both sheets and gives
     /// the later one a new id (`now`), the next above the highest the workbook part declares.
-    DuplicateSheetId { sheet: SheetId, id: u32, now: u32 },
+    DuplicateSheetId {
+        /// Worksheet assigned a replacement ID.
+        sheet: SheetId,
+        /// ID declared by the worksheet.
+        id: u32,
+        /// Replacement ID assigned during load.
+        now: u32,
+    },
 }
 
 /// A loaded workbook: the model root of its sheets, their cells and its skin layout at the
@@ -509,6 +534,7 @@ impl LoadedWorkbook {
         chain
     }
 
+    /// Check whether the requested persisted pivot state is supported.
     pub fn check_pivot_state(
         &self,
         state: &calc_doc_model::pivot::PivotState,
@@ -522,6 +548,7 @@ impl LoadedWorkbook {
         )
     }
 
+    /// Borrow the workbook's parsed pivot cache metadata.
     pub fn pivot_caches(&self) -> &pivot::PivotCaches {
         &self.pivot_caches
     }
@@ -676,6 +703,7 @@ impl LoadedWorkbook {
         self.model = previous.with_imported_worksheets(&self.model)?;
         Ok(())
     }
+    /// Whether the review drawing is shared.
     pub fn review_drawing_shared(&self, sheet: SheetId) -> bool {
         let Some(sheet) = self.sheet(sheet) else {
             return false;
@@ -706,12 +734,15 @@ impl LoadedWorkbook {
                 > 1
         })
     }
+    /// Read threaded comment authors by person ID.
     pub fn review_people(&self) -> std::collections::BTreeMap<String, String> {
         review::persons(&self.package)
     }
+    /// Whether the source package contains the named part.
     pub fn has_part(&self, name: &str) -> bool {
         self.package.part(name).is_some()
     }
+    /// Find an unused part name respecting the supplied reservations.
     pub fn available_part_name(&self, stem: &str, extension: &str, reserved: &[String]) -> String {
         crate::save::available_part_name(
             &self.package,
@@ -721,6 +752,7 @@ impl LoadedWorkbook {
             reserved,
         )
     }
+    /// Find the sheet's note or threaded comment part.
     pub fn review_part(&self, sheet: SheetId, threaded: bool) -> Option<String> {
         let sheet = self.sheet(sheet)?;
         let suffix = if threaded {
@@ -1137,6 +1169,7 @@ impl LoadedWorkbook {
         false
     }
 
+    /// Borrow the loaded authored workbook model.
     pub fn model(&self) -> &Arc<ModelRoot> {
         &self.model
     }
@@ -1215,6 +1248,7 @@ impl LoadedWorkbook {
         Arc::clone(&self.sheets)
     }
 
+    /// Find a loaded worksheet by stable sheet identity.
     pub fn sheet(&self, id: SheetId) -> Option<&LoadedSheet> {
         self.sheets.iter().find(|sheet| sheet.id == id)
     }

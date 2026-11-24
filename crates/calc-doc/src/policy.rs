@@ -37,6 +37,8 @@ impl Default for PackageLimits {
 /// Everything [`crate::open`] is told: the archive's limits and the XML readers' limits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct OpenPolicy {
+    /// Limits applied to the ZIP archive and decoded part sizes.
     pub package: PackageLimits,
+    /// Limits applied while reading XML parts.
     pub xml: XmlLimits,
 }

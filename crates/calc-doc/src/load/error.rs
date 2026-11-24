@@ -11,40 +11,93 @@ use std::fmt;
 #[derive(Debug, PartialEq, Eq)]
 pub enum LoadError {
     /// A part could not be read.
-    Part { part: String, error: PartReadError },
+    Part {
+        /// Part being loaded.
+        part: String,
+        /// Reason the part could not be read.
+        error: PartReadError,
+    },
     /// A part is not acceptable XML.
-    Xml { part: String, error: XmlError },
+    Xml {
+        /// Part being loaded.
+        part: String,
+        /// XML decoding or validation error.
+        error: XmlError,
+    },
     /// The package's relationships do not name one workbook part inside it.
-    Workbook { detail: &'static str },
+    Workbook {
+        /// Workbook validation diagnostic.
+        detail: &'static str,
+    },
     /// The workbook part's content type is not a SpreadsheetML workbook's.
     NotASpreadsheet {
+        /// Workbook part being examined.
         part: String,
+        /// Content type declared for the workbook part, if available.
         content_type: Option<String>,
     },
     /// A relationship's target part is not in the package.
-    MissingPart { part: String },
+    MissingPart {
+        /// Name of the missing required package part.
+        part: String,
+    },
     /// A part does not have the shape SpreadsheetML gives it.
-    InvalidPart { part: String, detail: &'static str },
+    InvalidPart {
+        /// Name of the affected package part.
+        part: String,
+        /// Reason the part failed validation.
+        detail: &'static str,
+    },
     /// A sheet is a chart sheet, a dialog sheet or another kind than a worksheet or macro sheet.
-    UnsupportedSheet { name: String, kind: String },
+    UnsupportedSheet {
+        /// Workbook sheet name.
+        name: String,
+        /// Unsupported sheet kind.
+        kind: String,
+    },
     /// A sheet's name is not a sheet name.
-    InvalidSheetName { name: String, error: SheetNameError },
+    InvalidSheetName {
+        /// Name as stored in the workbook.
+        name: String,
+        /// Sheet name validation failure.
+        error: SheetNameError,
+    },
     /// Two sheets have this name, compared ignoring ASCII case.
-    DuplicateSheetName { name: String },
+    DuplicateSheetName {
+        /// Name shared by multiple sheets.
+        name: String,
+    },
     /// Repairing a repeated `sheetId` (Excel gives the later sheet the next id above the highest)
     /// would need an id beyond `u32`; `key` is the repeated id.
-    DuplicateSheetKey { key: u32 },
+    DuplicateSheetKey {
+        /// Repeated sheet key from the workbook.
+        key: u32,
+    },
     /// The caller's allocator could not issue a sheet ID.
     SheetIds(IdError),
     /// A cell's `r` attribute is not a cell reference inside the grid.
-    InvalidCellAddress { part: String, text: String },
+    InvalidCellAddress {
+        /// Worksheet part containing the address.
+        part: String,
+        /// Address text from the worksheet.
+        text: String,
+    },
     /// A row's `r` attribute is not a row number inside the grid.
-    InvalidRowNumber { part: String, text: String },
+    InvalidRowNumber {
+        /// Worksheet part containing the row.
+        part: String,
+        /// Row number text from the worksheet.
+        text: String,
+    },
     /// A cell was refused.
     Cell {
+        /// Worksheet part containing the cell.
         part: String,
+        /// Row of the affected cell.
         row: u32,
+        /// Column of the affected cell.
         column: u32,
+        /// Reason the cell could not be loaded.
         error: CellError,
     },
 }
@@ -55,36 +108,76 @@ pub enum CellError {
     /// The cell is not after the cell or row before it, or lies outside the row that holds it.
     OutOfOrder,
     /// The cell's type (`t`) is one this loader does not read, such as `d` (an ISO 8601 date).
-    UnsupportedType { kind: String },
+    UnsupportedType {
+        /// Unsupported worksheet cell type.
+        kind: String,
+    },
     /// The array formula's cell metadata (`cm`) does not resolve to dynamic-array properties: the
     /// workbook has no metadata part, the index names no record, or the record is of another
     /// type.
     UnsupportedMetadata,
     /// An array or data table formula is not well formed.
-    ArrayFormula { detail: &'static str },
+    ArrayFormula {
+        /// Reason the array formula declaration was rejected.
+        detail: &'static str,
+    },
     /// The cell's style (`s`) is not an index into the workbook's cell formats.
-    StyleIndex { text: String, cell_formats: u32 },
+    StyleIndex {
+        /// Style index text from the cell.
+        text: String,
+        /// Number of cell format records in the workbook.
+        cell_formats: u32,
+    },
     /// The cell's value is not a number, or not a finite one.
-    InvalidNumber { text: String },
+    InvalidNumber {
+        /// Numeric text from the cell.
+        text: String,
+    },
     /// The cell's value is not a boolean.
-    InvalidBoolean { text: String },
+    InvalidBoolean {
+        /// Boolean text from the cell.
+        text: String,
+    },
     /// The cell's value is not a worksheet error this loader knows.
-    UnknownError { text: String },
+    UnknownError {
+        /// Worksheet error spelling from the cell.
+        text: String,
+    },
     /// The cell's value is not an index into the shared strings.
-    SharedStringIndex { text: String, count: usize },
+    SharedStringIndex {
+        /// Shared string index text from the cell.
+        text: String,
+        /// Number of shared strings available.
+        count: usize,
+    },
     /// The cell's text is longer than a cell's text can be.
-    TextTooLong { units: usize },
+    TextTooLong {
+        /// Text length in UTF-16 code units.
+        units: usize,
+    },
     /// The cell's elements do not fit its type.
-    Malformed { detail: &'static str },
+    Malformed {
+        /// Cell validation diagnostic.
+        detail: &'static str,
+    },
     /// The formula is of a kind this loader does not read (not normal, shared, array or data
     /// table).
-    UnsupportedFormula { kind: String },
+    UnsupportedFormula {
+        /// Unsupported stored formula type.
+        kind: String,
+    },
     /// The formula's text is empty.
     EmptyFormula,
     /// The formula's text is longer than [`crate::FORMULA_MAX_UTF16_CODE_UNITS`].
-    FormulaTooLong { units: usize },
+    FormulaTooLong {
+        /// Formula length in UTF-16 code units.
+        units: usize,
+    },
     /// A shared formula's group is not well formed.
-    SharedFormula { detail: &'static str },
+    SharedFormula {
+        /// Reason the shared formula declaration was rejected.
+        detail: &'static str,
+    },
     /// Moving a shared formula's relative references to this cell takes one outside the grid.
     SharedFormulaPastGrid,
 }

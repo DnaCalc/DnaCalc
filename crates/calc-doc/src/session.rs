@@ -66,11 +66,14 @@ pub enum SessionArray {
 /// The session's one formula and where it is entered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionFormula {
+    /// Row of the formula cell.
     pub row: u32,
+    /// Column of the formula cell.
     pub column: u32,
     /// The text after the `=`. Read from a file, it is the file's spelling; given to
     /// [`write_session`], it is the entry spelling and gets the prefixes Excel writes.
     pub text: String,
+    /// Array storage form selected for the formula.
     pub array: SessionArray,
 }
 
@@ -93,17 +96,24 @@ pub fn plain_formula_needs_legacy(text: &str) -> bool {
 /// A constant a cell holds.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SessionValue {
+    /// Numeric worksheet value.
     Number(f64),
+    /// Text worksheet value.
     Text(String),
+    /// Logical worksheet value.
     Logical(bool),
+    /// Worksheet error value.
     Error(WorksheetErrorCode),
 }
 
 /// One constant cell.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SessionConstant {
+    /// Row of the stored cell.
     pub row: u32,
+    /// Column of the stored cell.
     pub column: u32,
+    /// Value associated with the stored cell.
     pub value: SessionValue,
 }
 
@@ -112,6 +122,7 @@ pub struct SessionConstant {
 pub struct SessionFile {
     /// The one sheet's name.
     pub sheet: String,
+    /// Formula attached to the cell, if present.
     pub formula: Option<SessionFormula>,
     /// The constants, in row-major order.
     pub constants: Vec<SessionConstant>,
@@ -134,6 +145,7 @@ pub struct SessionFile {
 /// project's document modules to the workbook and its sheet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionVba {
+    /// Bytes of the session's VBA project.
     pub project: Vec<u8>,
     /// The workbook's code name (`workbookPr codeName`, `ThisWorkbook` in English Excel).
     pub workbook_code_name: Option<String>,
@@ -145,26 +157,52 @@ pub struct SessionVba {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionRefusal {
     /// The bytes are not a package this codec opens, or its workbook does not load.
-    Unreadable { detail: String },
+    Unreadable {
+        /// Reason the source session could not be read.
+        detail: String,
+    },
     /// The workbook has more or fewer than one sheet.
-    Sheets { count: usize },
+    Sheets {
+        /// Number of sheets found in the source package.
+        count: usize,
+    },
     /// The workbook has more than one formula cell.
-    Formulas { count: usize },
+    Formulas {
+        /// Number of formulas found in the session.
+        count: usize,
+    },
     /// The formula is an array formula over more than its one cell.
-    ArrayArea { rows: u32, columns: u32 },
+    ArrayArea {
+        /// Height of the array region.
+        rows: u32,
+        /// Width of the array region.
+        columns: u32,
+    },
     /// A defined name, table, chart, pivot table, validation, conditional format or merged area:
     /// content this file does not hold.
-    Content { what: &'static str },
+    Content {
+        /// Source content that cannot be represented in a session.
+        what: &'static str,
+    },
     /// The workbook's VBA project part could not be read.
-    VbaProject { detail: String },
+    VbaProject {
+        /// Reason the VBA project could not be included.
+        detail: String,
+    },
     /// A cell holds something a constant cannot be here, or text too long.
     Cell {
+        /// Row of the affected formula.
         row: u32,
+        /// Column of the affected formula.
         column: u32,
+        /// Diagnostic for the affected formula.
         detail: String,
     },
     /// The session could not be written.
-    Write { detail: String },
+    Write {
+        /// Reason session output could not be written.
+        detail: String,
+    },
 }
 
 impl fmt::Display for SessionRefusal {

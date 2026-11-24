@@ -24,7 +24,9 @@ use std::collections::BTreeMap;
 /// caller resolves with the palette it shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LookColor {
+    /// Color stored as RGB or ARGB text.
     Rgb(String),
+    /// Index into the workbook's color palette.
     Indexed(u32),
 }
 
@@ -32,9 +34,13 @@ pub enum LookColor {
 /// is a gradient, and whether the cell's value is shown beside it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarLook {
+    /// Fraction of the cell width occupied by the bar.
     pub fraction: f64,
+    /// Resolved bar color, if available.
     pub color: Option<LookColor>,
+    /// Whether to draw a gradient.
     pub gradient: bool,
+    /// Whether to show the cell value alongside the bar.
     pub show_value: bool,
 }
 
@@ -42,22 +48,34 @@ pub struct BarLook {
 /// lowest band's), and whether the value is shown.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IconLook {
+    /// Name of the selected icon set.
     pub set: String,
+    /// Index of the selected icon in the set.
     pub index: usize,
+    /// Whether to show the cell value alongside the icon.
     pub show_value: bool,
 }
 
 /// What a cell's conditional formats give it; a part left `None` is the cell's own.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CellLook {
+    /// Conditional cell fill, when supplied by the matching rules.
     pub fill: Option<LookColor>,
+    /// Conditional font color, when supplied by the matching rules.
     pub font_color: Option<LookColor>,
+    /// Conditional bold override.
     pub bold: Option<bool>,
+    /// Conditional italic override.
     pub italic: Option<bool>,
+    /// Conditional underline override.
     pub underline: Option<bool>,
+    /// Conditional strikethrough override.
     pub strike: Option<bool>,
+    /// Conditional number format code.
     pub number_format: Option<String>,
+    /// Conditional data bar for this cell.
     pub bar: Option<BarLook>,
+    /// Conditional icon for this cell.
     pub icon: Option<IconLook>,
 }
 
@@ -71,12 +89,19 @@ impl CellLook {
 /// A differential format's look (a rule's `dxfId`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Appearance {
+    /// Fill override declared by the differential style.
     pub fill: Option<LookColor>,
+    /// Font color override declared by the differential style.
     pub font_color: Option<LookColor>,
+    /// Bold override declared by the differential style.
     pub bold: Option<bool>,
+    /// Italic override declared by the differential style.
     pub italic: Option<bool>,
+    /// Underline override declared by the differential style.
     pub underline: Option<bool>,
+    /// Strikethrough override declared by the differential style.
     pub strike: Option<bool>,
+    /// Number format code declared by the differential style.
     pub number_format: Option<String>,
 }
 

@@ -1389,10 +1389,14 @@ fn item(e: &XmlElement, events: &Events<'_>) -> Result<PivotItem, LoadError> {
         },
     })
 }
+/// Decoded entries from a pivot cache records part.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PivotRecords {
+    /// Record count declared by the part, when present.
     pub declared_count: Option<u64>,
+    /// Decoded records in source order, with their fields in cache order.
     pub records: Vec<Vec<PivotItem>>,
+    /// Whether record decoding stopped at the configured limit.
     pub truncated: bool,
 }
 /// Bounded inspection of records; opening a workbook never expands the records part.

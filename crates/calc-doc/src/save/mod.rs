@@ -115,6 +115,7 @@ pub(crate) struct Edited {
 }
 
 impl DocumentSnapshot {
+    /// Attach pivot output values and formats for worksheet serialization.
     pub fn with_pivot_outputs(
         mut self,
         values: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
@@ -205,6 +206,7 @@ impl DocumentSnapshot {
         self.with_calculation_save_state(dirty, completed, mode, false)
     }
 
+    /// Attach calculation properties derived from the save's result state.
     pub fn with_calculation_save_state(
         mut self,
         dirty: BTreeSet<CellKey>,
@@ -223,6 +225,7 @@ impl DocumentSnapshot {
         self
     }
 
+    /// Borrow the source OPC package for the snapshot.
     pub fn package(&self) -> &Package {
         &self.package
     }
@@ -236,18 +239,25 @@ impl DocumentSnapshot {
 /// SpreadsheetML's workbook kind. The main-part content type is its template flag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpreadsheetFormat {
+    /// Macro-free XML workbook.
     Xlsx,
+    /// Macro-enabled XML workbook.
     Xlsm,
+    /// Macro-free XML template.
     Xltx,
+    /// Macro-enabled XML template.
     Xltm,
 }
 impl SpreadsheetFormat {
+    /// Whether the package uses a template workbook content type.
     pub fn is_template(self) -> bool {
         matches!(self, Self::Xltx | Self::Xltm)
     }
+    /// Whether the output format can carry macros.
     pub fn macro_enabled(self) -> bool {
         matches!(self, Self::Xlsm | Self::Xltm)
     }
+    /// Return the conventional file extension without its leading dot.
     pub fn extension(self) -> &'static str {
         match self {
             Self::Xlsx => "xlsx",
@@ -256,6 +266,7 @@ impl SpreadsheetFormat {
             Self::Xltm => "xltm",
         }
     }
+    /// Return the content type for the workbook part.
     pub fn content_type(self) -> &'static str {
         match self {
             Self::Xlsx => {
@@ -268,6 +279,7 @@ impl SpreadsheetFormat {
             Self::Xltm => "application/vnd.ms-excel.template.macroEnabled.main+xml",
         }
     }
+    /// Recognize a supported XML workbook or template content type.
     pub fn from_content_type(content_type: &str) -> Option<Self> {
         [Self::Xlsx, Self::Xlsm, Self::Xltx, Self::Xltm]
             .into_iter()
@@ -293,6 +305,7 @@ pub enum SaveFormat {
 pub struct SavePolicy {
     /// Immutable first-window state captured by the application for this save only.
     pub views: Option<Arc<SaveViews>>,
+    /// File format requested for the saved package.
     pub format: SaveFormat,
     /// The longest package written, in bytes. A package past 4 GiB - 1 byte, the most a ZIP
     /// archive without ZIP64 records addresses, is refused whatever this says, since this writer
@@ -310,10 +323,14 @@ impl Default for SavePolicy {
     }
 }
 
+/// Revision-bound workbook and worksheet view settings for save.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SaveViews {
+    /// Authored revision to which these settings apply.
     pub revision: u64,
+    /// Sheet selected in the workbook view, if any.
     pub active_sheet: Option<calc_doc_model::value::SheetId>,
+    /// Saved view settings by sheet identity.
     pub sheets: BTreeMap<calc_doc_model::value::SheetId, crate::SheetView>,
 }
 
@@ -322,42 +339,63 @@ pub struct SaveViews {
 /// revision the caller holds.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SaveRefusal {
+    /// The pivot change cannot be serialized by the supported save route.
     PivotNotModelled {
+        /// Package part containing the affected pivot data.
         part: String,
+        /// Diagnostic describing the unsupported pivot state.
         detail: String,
+        /// Work package responsible for the unsupported state.
         owner: &'static str,
     },
+    /// The chart change cannot be serialized by the supported save route.
     ChartNotModelled {
+        /// Package part containing the affected chart data.
         part: String,
+        /// Diagnostic describing the unsupported chart state.
         detail: String,
+        /// Work package responsible for the unsupported state.
         owner: &'static str,
     },
+    /// The template change cannot be serialized by the supported save route.
     TemplateNotModelled {
+        /// Diagnostic describing the unsupported template state.
         detail: String,
+        /// Work package responsible for the unsupported state.
         owner: &'static str,
     },
     /// Macro-free output would discard active content. Choose a macro-enabled format.
     MacroLoss {
+        /// Work package responsible for preserving the active content.
         owner: &'static str,
     },
+    /// The outline change requires an unsupported worksheet rewrite.
     OutlineNotModelled {
+        /// Worksheet part containing the affected outline.
         part: String,
+        /// Work package responsible for the unsupported outline.
         owner: &'static str,
     },
+    /// The workbook or sheet view cannot be written as requested.
     WindowView {
+        /// Diagnostic describing the unsupported view.
         detail: String,
+        /// Work package responsible for the unsupported view.
         owner: &'static str,
     },
     /// This rectangular style plane still needs too many individual blank-cell XML records.
     /// Row and column defaults have already been compacted; no bytes have been written.
     StyleExpansionNotModelled {
+        /// Number of blank cell records that worksheet styles would require.
         cells: u64,
+        /// Work package responsible for the unsupported style expansion.
         owner: &'static str,
     },
     /// XLSB output needs the validated original binary package (dc-snz.14).
     BinarySourceRequired,
     /// The XML authoring route found part rewrites, for which no binary writer exists yet.
     BinaryChangesNotModelled {
+        /// Work package responsible for binary workbook authoring.
         owner: &'static str,
     },
     /// The snapshot's model is not a revision of the loaded workbook: it is not of the lineage of
@@ -367,13 +405,17 @@ pub enum SaveRefusal {
     /// A part the save rewrites could not be read from the source, such as a payload changed
     /// since the package was opened.
     Part {
+        /// Package part that could not be read.
         part: String,
+        /// Underlying part read error.
         error: PartReadError,
     },
     /// A part the save rewrites is not shaped as this writer rewrites it, such as a workbook part
     /// with two `calcPr` elements.
     InvalidPart {
+        /// Package part that failed validation.
         part: String,
+        /// Diagnostic explaining why the writer cannot rewrite this part.
         detail: String,
     },
     /// A changed cell lies in the header row or the totals row of a table (ListObject) of its
@@ -382,13 +424,18 @@ pub enum SaveRefusal {
     /// yet). A change in a
     /// table's data rows is saved.
     EditInTable {
+        /// Worksheet part containing the edited table cell.
         part: String,
+        /// Name of the affected table.
         table: String,
+        /// Row of the edited cell.
         row: u32,
+        /// Column of the edited cell.
         column: u32,
     },
     /// Two sheets of the workbook are this one part, which the save would rewrite for one of them.
     SharedSheetPart {
+        /// Worksheet part shared by multiple sheets.
         part: String,
     },
     /// The revision changes a cell, a format or the rows or columns of an Excel 4.0 macro sheet
@@ -396,6 +443,7 @@ pub enum SaveRefusal {
     /// of a workbook with one, whose formulas' references the save cannot move: a macro sheet is
     /// saved as it was read (dc-xuw).
     MacroSheetChanged {
+        /// Package part containing the Excel 4.0 macro sheet.
         part: String,
     },
     /// The revision changes a chart sheet or a dialog sheet (`part`; `kind` says which), removes
@@ -403,7 +451,9 @@ pub enum SaveRefusal {
     /// Such a sheet opens as an empty sheet. Its opaque parts can refer to other sheets by name,
     /// so a save refuses edits whose references it cannot transform safely.
     PreservedSheetChanged {
+        /// Package part containing the preserved sheet.
         part: String,
+        /// Kind of preserved sheet.
         kind: &'static str,
     },
     /// A formula the revision sets in a cell (of the worksheet part `part`) is longer than
@@ -411,25 +461,36 @@ pub enum SaveRefusal {
     /// [`crate::prepare_edit`] refuses such a formula; this refuses one in a revision made
     /// another way, such as by [`calc_doc_model::ModelRoot::apply`].
     FormulaTooLong {
+        /// Worksheet part containing the formula.
         part: String,
+        /// Row of the offending formula.
         row: u32,
+        /// Column of the offending formula.
         column: u32,
+        /// Formula length in UTF-16 code units.
         units: usize,
     },
     /// CalcFml's parser reads a formula the revision sets in a cell (of the worksheet part
     /// `part`) with a diagnostic, as [`crate::prepare_edit`] would refuse it
     /// ([`crate::EditError::FormulaSyntax`]).
     FormulaSyntax {
+        /// Worksheet part containing the formula.
         part: String,
+        /// Row of the offending formula.
         row: u32,
+        /// Column of the offending formula.
         column: u32,
+        /// Parser diagnostic for the formula.
         message: String,
     },
     /// The package would be longer than the policy's bound, or than a ZIP archive without ZIP64
     /// records addresses, or hold more entries than one counts.
     PackageTooLarge {
+        /// Total bytes planned for the package.
         bytes: u64,
+        /// Number of entries planned for the package.
         entries: usize,
+        /// Maximum package length in bytes.
         limit: u64,
     },
     /// The revision's skin layout differs from the loaded one, but the package's DNA view manifest
@@ -437,43 +498,59 @@ pub enum SaveRefusal {
     /// manifest this codec does not read. A save that leaves the layout as loaded copies the
     /// manifest's parts as they are.
     LayoutNotWritable {
+        /// Part containing the manifest that cannot be rewritten.
         part: String,
     },
     /// A block the revision creates has the locator name `name`, which the workbook part `part`
     /// already holds as a workbook-scoped defined name, compared ignoring ASCII case.
     LocatorNameTaken {
+        /// Workbook part containing the conflicting defined name.
         part: String,
+        /// Locator name already in use.
         name: String,
     },
     /// A value given to save as a cached result (of the worksheet part `part`) is for a cell the
     /// revision holds no formula in.
     ValueWithoutFormula {
+        /// Worksheet part containing the supplied value.
         part: String,
+        /// Row of the cell without a formula.
         row: u32,
+        /// Column of the cell without a formula.
         column: u32,
     },
     /// A formula the revision sets in a cell (of the worksheet part `part`) has no file form
     /// here ([`crate::FileFormError`]): its text is not readable, or it nests deeper than the
     /// converter walks.
     FormulaFileForm {
+        /// Worksheet part containing the formula.
         part: String,
+        /// Row of the offending formula.
         row: u32,
+        /// Column of the offending formula.
         column: u32,
+        /// Reason the formula cannot be converted to file form.
         error: crate::FileFormError,
     },
     /// The revision sets an error constant (in a cell of the worksheet part `part`) that Excel
     /// does not hold in a cell ([`crate::EditError::ErrorConstant`]).
     ErrorConstant {
+        /// Worksheet part containing the error constant.
         part: String,
+        /// Row of the error constant.
         row: u32,
+        /// Column of the error constant.
         column: u32,
+        /// Worksheet error code that cannot be written as a constant.
         code: calc_doc_model::value::WorksheetErrorCode,
     },
     /// Rows or columns were inserted or deleted, and the part `part` holds `what`, which names
     /// positions of an edited sheet that the save does not move
     /// ([`DocumentSnapshot::with_structural_edits`]): it would be written where it was.
     StructuralNotMoved {
+        /// Package part containing positions affected by the edit.
         part: String,
+        /// Description of the positions the writer cannot move.
         what: String,
     },
 }
@@ -859,6 +936,7 @@ impl SavePlan {
 /// What a completed write produced.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SaveReceipt {
+    /// Number of bytes emitted to the package sink.
     pub bytes_written: u64,
     /// The entries copied as their stored bytes.
     pub entries_copied: usize,
@@ -902,7 +980,10 @@ pub enum WriteError {
     /// The backing source failed a read.
     Source(SourceError),
     /// An entry's stored bytes in the source are no longer the bytes that were opened.
-    SourceChanged { entry: String },
+    SourceChanged {
+        /// Name of the entry whose source changed after planning.
+        entry: String,
+    },
     /// The sink refused bytes.
     Sink(SinkError),
 }

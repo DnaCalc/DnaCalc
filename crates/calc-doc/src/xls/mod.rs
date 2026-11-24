@@ -67,8 +67,13 @@ impl LegacyReport {
 /// A legacy workbook's container, identified without interpreting workbook content.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LegacyFormat {
+    /// Workbook stored in an OLE compound document.
     Compound,
-    RawBiff { version: u8 },
+    /// Standalone BIFF stream.
+    RawBiff {
+        /// BIFF version declared by the stream.
+        version: u8,
+    },
 }
 
 impl LegacyFormat {

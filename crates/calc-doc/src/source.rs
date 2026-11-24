@@ -11,12 +11,14 @@ pub struct SourceError {
 }
 
 impl SourceError {
+    /// Create a source error with a caller-supplied diagnostic.
     pub fn new(detail: impl Into<String>) -> Self {
         SourceError {
             detail: detail.into(),
         }
     }
 
+    /// Borrow the source error's diagnostic.
     pub fn detail(&self) -> &str {
         &self.detail
     }
@@ -37,12 +39,14 @@ pub struct SinkError {
 }
 
 impl SinkError {
+    /// Create a sink error with a caller-supplied diagnostic.
     pub fn new(detail: impl Into<String>) -> Self {
         SinkError {
             detail: detail.into(),
         }
     }
 
+    /// Borrow the sink error's diagnostic.
     pub fn detail(&self) -> &str {
         &self.detail
     }
@@ -88,6 +92,7 @@ pub struct MemorySource {
 }
 
 impl MemorySource {
+    /// Use shared in-memory bytes as a package source.
     pub fn new(bytes: impl Into<Arc<[u8]>>) -> Self {
         MemorySource {
             bytes: bytes.into(),

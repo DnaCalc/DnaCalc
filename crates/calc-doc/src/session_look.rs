@@ -22,23 +22,35 @@ use std::sync::Arc;
 /// the default, as the Formatting panel does.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SessionFormat {
+    /// Font family name.
     pub font_family: String,
     /// Points; 0 is the default.
     pub font_size: u32,
+    /// Whether the font is bold.
     pub bold: bool,
+    /// Whether the font is italic.
     pub italic: bool,
+    /// Whether the font is underlined.
     pub underline: bool,
+    /// Whether the font uses strikethrough.
     pub strike: bool,
     /// `#rrggbb` or empty.
     pub text_color: String,
+    /// Cell fill color.
     pub fill: String,
     /// `left`, `center`, `right` or empty (general).
     pub horizontal: String,
+    /// Whether the cell wraps text.
     pub wrap: bool,
+    /// Whether to draw the top border.
     pub border_top: bool,
+    /// Whether to draw the bottom border.
     pub border_bottom: bool,
+    /// Whether to draw the left border.
     pub border_left: bool,
+    /// Whether to draw the right border.
     pub border_right: bool,
+    /// Color used for cell borders.
     pub border_color: String,
 }
 
@@ -52,12 +64,19 @@ impl SessionFormat {
 /// A rule's differential format (`dxf`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SessionDxf {
+    /// Fill color supplied by the differential style, if any.
     pub fill: Option<String>,
+    /// Font color supplied by the differential style, if any.
     pub font_color: Option<String>,
+    /// Whether the differential style applies bold.
     pub bold: bool,
+    /// Whether the differential style applies italic.
     pub italic: bool,
+    /// Whether the differential style applies underline.
     pub underline: bool,
+    /// Whether the differential style applies strikethrough.
     pub strike: bool,
+    /// Number format supplied by the differential style, if any.
     pub number_format: Option<String>,
 }
 
@@ -72,17 +91,24 @@ impl SessionDxf {
 pub struct SessionRule {
     /// The rule as `cfRule` holds it. Its `dxf` index is the file's and is not used here.
     pub rule: ConditionalRule,
+    /// Differential style applied by the rule, if supplied.
     pub dxf: Option<SessionDxf>,
 }
 
 /// The formats and rules over the cells `rows` x `columns` from (`row`, `column`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SessionLook {
+    /// First row of the session region.
     pub row: u32,
+    /// First column of the session region.
     pub column: u32,
+    /// Height of the region in rows.
     pub rows: u32,
+    /// Width of the region in columns.
     pub columns: u32,
+    /// Base cell format applied to the region, if supplied.
     pub format: Option<SessionFormat>,
+    /// Conditional rules applied to the region.
     pub rules: Vec<SessionRule>,
 }
 

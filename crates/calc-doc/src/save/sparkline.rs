@@ -108,8 +108,7 @@ pub(crate) fn rewrite(xml: &XmlPart, groups: &[SparklineGroup]) -> Result<Vec<u8
     let _ = root;
     // The extLst (its span and the end of its start tag) and the sparkline ext inside it.
     let (mut ext_list, mut ext, mut others) = (None, None, 0usize);
-    let mut close = None;
-    loop {
+    let close = loop {
         match reader.expect()? {
             (XmlEvent::Start(e), span) => {
                 if e.name.local == "extLst" {
@@ -138,14 +137,10 @@ pub(crate) fn rewrite(xml: &XmlPart, groups: &[SparklineGroup]) -> Result<Vec<u8
                     reader.element_end()?;
                 }
             }
-            (XmlEvent::End(_), span) => {
-                close = Some(span.0);
-                break;
-            }
+            (XmlEvent::End(_), span) => break span.0,
             (XmlEvent::Text(_), _) => {}
         }
-    }
-    let close = close.ok_or_else(|| reader.invalid("the worksheet does not close"))?;
+    };
     let new_ext = (!groups.is_empty()).then(|| {
         let mut out = format!("<{prefix}ext uri=\"{SPARKLINE_EXT}\" xmlns:x14=\"{X14}\">").into_bytes();
         out.extend(groups_xml(groups));

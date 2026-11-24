@@ -8,14 +8,18 @@ use crate::{
 };
 use calc_doc_model::value::{CellKey, GridArea, SheetId};
 
+/// Review data found on a worksheet.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SheetReview {
     /// Source conditional extensions need their own interpretation before colour filtering.
     pub conditional_extensions: bool,
     /// Complete source ranges of extension-backed rules, or `None` if their scope is unread.
     pub conditional_extension_areas: Option<Vec<(u32, u32, u32, u32)>>,
+    /// Notes loaded from the worksheet's review parts.
     pub notes: Vec<ReviewNote>,
+    /// Hyperlinks loaded from the worksheet.
     pub links: Vec<ReviewLink>,
+    /// Review constructs the loader could not represent.
     pub unsupported: Vec<String>,
 }
 pub use calc_doc_model::ReviewNote;

@@ -7,6 +7,7 @@ use calc_doc_model::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
+/// Limit on the work spent identifying equivalent formula sources.
 #[derive(Clone, Copy, Debug)]
 pub struct FormulaSourceBudget {
     /// Occupied cells inspected, including constants and ineligible formulas.
@@ -22,11 +23,16 @@ impl Default for FormulaSourceBudget {
         }
     }
 }
+/// Result of regrouping authored formula sources.
 #[derive(Debug)]
 pub struct RegroupedFormulaSources {
+    /// Workbook model with the updated formula source groups.
     pub model: Arc<ModelRoot>,
+    /// Formula source statistics before regrouping.
     pub before: FormulaSourceStats,
+    /// Formula source statistics after regrouping.
     pub after: FormulaSourceStats,
+    /// Number of cells assigned to a regrouped source.
     pub regrouped_cells: usize,
 }
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

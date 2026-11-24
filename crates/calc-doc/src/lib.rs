@@ -92,6 +92,8 @@
 //!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-doc/CONTRACT.md).
 
+#![warn(missing_docs)]
+
 mod blank;
 mod custom_xml;
 pub use custom_xml::CustomXmlItem;
@@ -161,6 +163,7 @@ pub struct OpenedDocument {
 }
 
 impl OpenedDocument {
+    /// Borrow the opened workbook's underlying OPC package.
     pub fn package(&self) -> &Package {
         &self.package
     }

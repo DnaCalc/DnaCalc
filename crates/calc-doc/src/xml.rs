@@ -38,17 +38,37 @@ pub enum XmlError {
     /// The part holds a document type declaration (`<!DOCTYPE`), which could declare entities.
     DocumentTypeDeclaration,
     /// The part refers to an entity that is neither predefined nor a character reference.
-    UndefinedEntity { name: String },
+    UndefinedEntity {
+        /// Entity name used in the XML input.
+        name: String,
+    },
     /// Elements nest deeper than [`XmlLimits::max_depth`].
-    DepthLimit { limit: u32 },
+    DepthLimit {
+        /// Maximum permitted XML nesting depth.
+        limit: u32,
+    },
     /// An element carries more attributes than [`XmlLimits::max_attributes`].
-    AttributeLimit { limit: u32 },
+    AttributeLimit {
+        /// Maximum permitted number of attributes.
+        limit: u32,
+    },
     /// A name uses a namespace prefix that no enclosing element declares.
-    UnboundPrefix { prefix: String },
+    UnboundPrefix {
+        /// Prefix used without an in-scope namespace binding.
+        prefix: String,
+    },
     /// The part is not encoded as UTF-8.
-    UnsupportedEncoding { encoding: String },
+    UnsupportedEncoding {
+        /// Encoding named by the XML declaration.
+        encoding: String,
+    },
     /// The part is not well-formed XML.
-    Malformed { position: u64, detail: String },
+    Malformed {
+        /// Byte position of the XML error.
+        position: u64,
+        /// Parser diagnostic.
+        detail: String,
+    },
 }
 
 impl fmt::Display for XmlError {
@@ -85,6 +105,7 @@ impl std::error::Error for XmlError {}
 pub struct XmlStr(Cow<'static, str>);
 
 impl XmlStr {
+    /// Borrow the decoded text.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -220,7 +241,9 @@ fn common_local(bytes: &[u8]) -> Option<&'static str> {
 /// An element or attribute name: its namespace URI, if it has one, and its local name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct XmlName {
+    /// Namespace URI, if the name is qualified.
     pub namespace: Option<XmlStr>,
+    /// Local name without the namespace prefix.
     pub local: XmlStr,
 }
 
@@ -234,13 +257,16 @@ impl XmlName {
 /// One attribute, its value with entity and character references replaced.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct XmlAttribute {
+    /// Resolved attribute name.
     pub name: XmlName,
+    /// Decoded attribute value.
     pub value: String,
 }
 
 /// A start tag. An empty element (`<a/>`) is a start tag followed by its end tag.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct XmlElement {
+    /// Resolved element name.
     pub name: XmlName,
     /// The element's attributes in document order, without its namespace declarations.
     pub attributes: Vec<XmlAttribute>,
@@ -259,7 +285,9 @@ impl XmlElement {
 /// One event of a part, in document order. Comments and processing instructions are skipped.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum XmlEvent {
+    /// Opening element event with its attributes.
     Start(XmlElement),
+    /// Closing element event with its resolved name.
     End(XmlName),
     /// Character data inside the document element, CDATA sections included.
     Text(String),
@@ -287,10 +315,12 @@ impl XmlPart {
         }
     }
 
+    /// Return the package part name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Borrow the original XML payload bytes.
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

@@ -50,6 +50,7 @@ impl Part {
         self.compressed
     }
 
+    /// Return the number of compressed bytes stored for this entry.
     pub fn compressed_size(&self) -> u64 {
         self.compressed_size
     }
@@ -112,18 +113,22 @@ impl ContentTypes {
 /// external target is recorded and never fetched.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TargetMode {
+    /// The relationship targets a package part.
     Internal,
+    /// The relationship targets a resource outside the package.
     External,
 }
 
 /// One relationship.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Relationship {
+    /// Relationship ID within its relationship part.
     pub id: String,
     /// The relationship type URI.
     pub kind: String,
     /// The target as written.
     pub target: String,
+    /// Whether the relationship target is internal or external.
     pub mode: TargetMode,
     /// For an internal target, the ZIP item name it resolves to against its source part;
     /// `None` for an external target or one that resolves above the package root.
@@ -149,6 +154,7 @@ impl Relationships {
         self.source.as_deref()
     }
 
+    /// Borrow all relationships in their stored order.
     pub fn items(&self) -> &[Relationship] {
         &self.items
     }
@@ -300,6 +306,7 @@ impl Package {
             .find(|part| part.name.eq_ignore_ascii_case(name))
     }
 
+    /// Borrow the package's parsed content type declarations.
     pub fn content_types(&self) -> &ContentTypes {
         &self.content_types
     }

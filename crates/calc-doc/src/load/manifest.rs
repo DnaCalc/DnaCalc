@@ -68,7 +68,9 @@ pub enum LayoutWarning {
     /// when it declares none). The model's layout is empty, and a save that changes the layout is
     /// refused ([`crate::SaveRefusal::LayoutNotWritable`]).
     UnsupportedVersion {
+        /// Package part containing the manifest.
         part: String,
+        /// Manifest version observed in the part, if recoverable.
         version: Option<String>,
     },
     /// The DNA manifest at `part` is version 1 but could not be read; or the XML reader refused
@@ -77,13 +79,20 @@ pub enum LayoutWarning {
     /// content could not be read; or the package holds more than one DNA manifest (`part` is the
     /// first). `detail` says which. The model's layout is empty, and a save that changes the
     /// layout is refused.
-    UnreadableManifest { part: String, detail: String },
+    UnreadableManifest {
+        /// Package part containing the unreadable manifest.
+        part: String,
+        /// Diagnostic from reading the manifest.
+        detail: String,
+    },
     /// The block's locator is not a locator the workbook part holds once (a hidden, workbook-scoped
     /// defined name of a locator's form, `_dna.block.` and 32 hex digits), or does not refer to one
     /// cell or range of one of the workbook's sheets. The block is loaded without an anchor, and
     /// a layout save changes no defined name for it unless the name is such a locator.
     UnresolvedLocator {
+        /// Block whose location could not be resolved.
         block: BlockId,
+        /// Defined name used to locate the block.
         locator: LocatorName,
     },
 }

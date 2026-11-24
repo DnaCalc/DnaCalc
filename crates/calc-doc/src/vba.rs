@@ -24,6 +24,7 @@ pub(crate) fn has_project(package: &Package, workbook: &str) -> bool {
 /// Limits the accepted project part. Its contents are limited by CalcVBA when it reads them.
 #[derive(Clone, Copy, Debug)]
 pub struct VbaReadPolicy {
+    /// Maximum number of bytes to read for the project.
     pub max_project_bytes: usize,
 }
 
@@ -40,13 +41,18 @@ impl Default for VbaReadPolicy {
 pub struct VbaProjectPart {
     /// The part's name in the package (`xl/vbaProject.bin` as Excel writes it).
     pub part: String,
+    /// Uncompressed bytes of the embedded VBA project.
     pub bytes: Vec<u8>,
 }
 
+/// Reason an embedded VBA project could not be read.
 #[derive(Debug)]
 pub enum VbaReadError {
+    /// The embedded project part could not be read.
     Part(PartReadError),
+    /// The workbook's VBA project relationship could not be resolved.
     Relationship,
+    /// A configured project-reading limit was exceeded.
     Limit(&'static str),
     /// A document part's XML could not be read for its code name.
     CodeName(String),

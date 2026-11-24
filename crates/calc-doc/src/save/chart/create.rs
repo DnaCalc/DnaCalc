@@ -813,7 +813,7 @@ pub(crate) fn add_with(
     let mut media = super::super::shapes::MediaRels::new();
     for shape in every.iter().copied().filter(|s| s.kind == calc_doc_model::ShapeKind::Picture) {
         let Some(picture) = shape.media.as_ref() else { continue };
-        let mut put = |item: &calc_doc_model::PictureMedia, out: &mut Changes| -> Result<String, SaveRefusal> {
+        let put = |item: &calc_doc_model::PictureMedia, out: &mut Changes| -> Result<String, SaveRefusal> {
             let extension = super::super::shapes::media_extension(&item.content_type)
                 .ok_or_else(|| invalid(&drawing, "A picture's media type is not one Excel stores"))?;
             let reserved = out.added.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>();

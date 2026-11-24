@@ -19,6 +19,7 @@ use crate::zip::crc32::Crc32;
 /// A custom XML item an application keeps: the namespace of its document element and its bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CustomXmlItem {
+    /// Namespace URI of the custom XML document.
     pub namespace: String,
     /// The part's content: a complete XML document whose document element is in `namespace`.
     pub content: Vec<u8>,

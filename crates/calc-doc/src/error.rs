@@ -32,7 +32,12 @@ pub enum OpenError {
     /// The backing source failed a read.
     Source(SourceError),
     /// The source is longer than [`crate::PackageLimits::max_package_bytes`].
-    PackageTooLarge { length: u64, limit: u64 },
+    PackageTooLarge {
+        /// Package length in bytes.
+        length: u64,
+        /// Maximum permitted package length.
+        limit: u64,
+    },
     /// No end-of-central-directory record ends the source, so it is not a ZIP archive.
     NotAZipArchive,
     /// The archive uses ZIP64 records or sizes, which this reader does not read.
@@ -40,46 +45,116 @@ pub enum OpenError {
     /// The archive spans more than one disk.
     SpannedArchive,
     /// An entry is encrypted.
-    EncryptedEntry { name: String },
+    EncryptedEntry {
+        /// Encrypted ZIP entry name.
+        name: String,
+    },
     /// An entry uses a compression method other than stored (0) or deflated (8).
-    UnsupportedCompression { name: String, method: u16 },
+    UnsupportedCompression {
+        /// ZIP entry name.
+        name: String,
+        /// Compression method identifier.
+        method: u16,
+    },
     /// The archive's records contradict each other or point outside the archive.
-    MalformedArchive { offset: u64, detail: &'static str },
+    MalformedArchive {
+        /// Byte offset of the malformed record.
+        offset: u64,
+        /// Archive validation diagnostic.
+        detail: &'static str,
+    },
     /// The archive declares more entries than [`crate::PackageLimits::max_entries`].
-    TooManyEntries { declared: u64, limit: u32 },
+    TooManyEntries {
+        /// Entry count declared by the archive.
+        declared: u64,
+        /// Maximum permitted entry count.
+        limit: u32,
+    },
     /// An entry's name could be read as a path outside the package.
-    UnsafeEntryName { name: String, reason: UnsafeName },
+    UnsafeEntryName {
+        /// Entry name as declared in the directory.
+        name: String,
+        /// Reason the name is unsafe.
+        reason: UnsafeName,
+    },
     /// An entry's name is not UTF-8 (with the UTF-8 flag) or not ASCII (without it).
-    EntryNameEncoding { offset: u64 },
+    EntryNameEncoding {
+        /// Byte offset of the entry name.
+        offset: u64,
+    },
     /// Two entries have names equal apart from ASCII case, which OPC treats as the same part.
-    DuplicateEntryName { name: String },
+    DuplicateEntryName {
+        /// Duplicate ZIP entry name.
+        name: String,
+    },
     /// An entry declares more uncompressed bytes than [`crate::PackageLimits::max_part_bytes`].
     PartTooLarge {
+        /// Name of the affected entry.
         name: String,
+        /// Uncompressed length declared for the entry.
         declared: u64,
+        /// Maximum uncompressed entry length.
         limit: u64,
     },
     /// The entries together declare more uncompressed bytes than
     /// [`crate::PackageLimits::max_expanded_bytes`].
-    PackageExpansionTooLarge { declared: u64, limit: u64 },
+    PackageExpansionTooLarge {
+        /// Aggregate uncompressed size declared by the archive.
+        declared: u64,
+        /// Maximum total uncompressed size.
+        limit: u64,
+    },
     /// Two entries' stored bytes overlap, so one payload would be read twice.
-    OverlappingEntries { first: String, second: String },
+    OverlappingEntries {
+        /// Name of the first overlapping entry.
+        first: String,
+        /// Name of the second overlapping entry.
+        second: String,
+    },
     /// The package has no `[Content_Types].xml`.
     MissingContentTypes,
     /// A structural part could not be read.
-    Part { part: String, error: PartReadError },
+    Part {
+        /// Name of the package part.
+        part: String,
+        /// Reason the part could not be read.
+        error: PartReadError,
+    },
     /// A structural part is not acceptable XML.
-    Xml { part: String, error: XmlError },
+    Xml {
+        /// Name of the package part.
+        part: String,
+        /// XML decoding or validation error.
+        error: XmlError,
+    },
     /// `[Content_Types].xml` does not have the shape OPC gives it.
-    InvalidContentTypes { detail: &'static str },
+    InvalidContentTypes {
+        /// Content types validation diagnostic.
+        detail: &'static str,
+    },
     /// A relationships part does not have the shape OPC gives it.
-    InvalidRelationships { part: String, detail: &'static str },
+    InvalidRelationships {
+        /// Part containing the relationship declarations.
+        part: String,
+        /// Relationship validation diagnostic.
+        detail: &'static str,
+    },
     /// An Excel binary workbook (.xlsb) holds a part, a record or a formula token its conversion
     /// to SpreadsheetML does not read (bead dc-5sr): `part` names the part, `detail` what in it.
-    BinaryWorkbook { part: String, detail: String },
+    BinaryWorkbook {
+        /// Name of the binary workbook part.
+        part: String,
+        /// Binary workbook diagnostic.
+        detail: String,
+    },
     /// A legacy Excel workbook (.xls, .xla, .xlt; dc-4j0e) holds a stream, a record or a form its
     /// conversion to SpreadsheetML does not read: `stream` names the stream, `detail` what in it.
-    LegacyWorkbook { stream: String, detail: String },
+    LegacyWorkbook {
+        /// Name of the legacy workbook stream.
+        stream: String,
+        /// Legacy workbook diagnostic.
+        detail: String,
+    },
     /// A legacy Excel workbook is encrypted and the password it needs was not given
     /// ([`crate::open_with_password`] takes one).
     PasswordRequired,
@@ -164,7 +239,10 @@ impl std::error::Error for OpenError {}
 #[derive(Debug, PartialEq, Eq)]
 pub enum PartReadError {
     /// The package has no part of that name.
-    NotAPart { name: String },
+    NotAPart {
+        /// Name that did not identify a readable package part.
+        name: String,
+    },
     /// The backing source failed a read.
     Source(SourceError),
     /// The entry's deflated payload is larger than its declared size allows: `compressed` bytes,
@@ -172,21 +250,45 @@ pub enum PartReadError {
     /// for flush markers give its `declared` uncompressed bytes. Refused before the part read
     /// reads any of the payload (open has already streamed it for its CRC).
     CompressedPayloadTooLarge {
+        /// Compressed length declared for the entry.
         compressed: u64,
+        /// Uncompressed length declared for the entry.
         declared: u64,
+        /// Maximum expansion permitted for this compressed length.
         bound: u64,
     },
     /// The compressed payload is not valid DEFLATE.
-    CorruptDeflate { detail: &'static str },
+    CorruptDeflate {
+        /// Diagnostic from processing the DEFLATE stream.
+        detail: &'static str,
+    },
     /// The payload holds bytes after its final DEFLATE block: the stream ends within the first
     /// `consumed` of its `compressed` bytes.
-    BytesAfterFinalBlock { compressed: u64, consumed: u64 },
+    BytesAfterFinalBlock {
+        /// Compressed length declared for the entry.
+        compressed: u64,
+        /// Number of bytes consumed by the stream.
+        consumed: u64,
+    },
     /// The payload expands past the size its entry declares; decoding stopped there.
-    ExpandsPastDeclaredSize { declared: u64 },
+    ExpandsPastDeclaredSize {
+        /// Declared uncompressed length.
+        declared: u64,
+    },
     /// The payload expands to fewer bytes than its entry declares.
-    ShorterThanDeclared { declared: u64, actual: u64 },
+    ShorterThanDeclared {
+        /// Declared uncompressed length.
+        declared: u64,
+        /// Number of bytes produced by decompression.
+        actual: u64,
+    },
     /// The content's CRC-32 is not the one its entry declares.
-    CrcMismatch { declared: u32, actual: u32 },
+    CrcMismatch {
+        /// CRC recorded by the archive.
+        declared: u32,
+        /// CRC calculated from the decoded bytes.
+        actual: u32,
+    },
 }
 
 impl fmt::Display for PartReadError {

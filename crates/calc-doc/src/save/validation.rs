@@ -318,6 +318,7 @@ pub(super) fn rewrite(xml: &XmlPart, rules: &[Validation]) -> Result<Vec<u8>, Sa
     Ok(splice.finish())
 }
 
+/// Build the supported copy of a source data-validation rule.
 pub fn copied_validation_source(rule: &Validation) -> Result<Validation, String> {
     let mut rule = rule.clone();
     rule.authored_copy = true;

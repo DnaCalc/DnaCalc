@@ -59,6 +59,7 @@ pub struct StructuralEdits {
 }
 
 impl StructuralEdits {
+    /// Create the structural edit plan with its formula rewriting service.
     pub fn new(edits: Vec<AxisEdit>, rewriter: Arc<dyn FormulaRewriter + Send + Sync>) -> Self {
         StructuralEdits {
             edits: edits.into(),
@@ -66,6 +67,7 @@ impl StructuralEdits {
         }
     }
 
+    /// Borrow the ordered row and column edits in this plan.
     pub fn edits(&self) -> &[AxisEdit] {
         &self.edits
     }

@@ -11,23 +11,31 @@ use std::collections::BTreeMap;
 /// One `<col>` element: the columns `first` to `last` (1-based, inclusive).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColumnSpan {
+    /// First row or column index in the run.
     pub first: u32,
+    /// Last row or column index in the run.
     pub last: u32,
     /// The width, in characters; `None` when the element states none.
     pub width: Option<f64>,
+    /// Whether the rows or columns in the run are hidden.
     pub hidden: bool,
     /// `customWidth`: the span's width is its own rather than the sheet's default (dc-uar:
     /// CELL("width") reports it).
     pub custom_width: bool,
+    /// Outline nesting level for the run.
     pub outline_level: u8,
+    /// Whether the run marks a collapsed outline.
     pub collapsed: bool,
 }
 
 /// The worksheet window's display mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SheetViewMode {
+    /// Standard worksheet view.
     Normal,
+    /// Worksheet view showing page breaks.
     PageBreakPreview,
+    /// Worksheet view showing the printed page layout.
     PageLayout,
 }
 impl SheetViewMode {
@@ -56,12 +64,16 @@ impl SheetViewMode {
 pub struct SheetView {
     /// The first window's stored mode. An absent or unknown mode leaves the source attribute alone.
     pub mode: Option<SheetViewMode>,
+    /// Saved zoom percentage, if supplied.
     pub zoom: Option<u16>,
+    /// Saved top-left cell coordinate, if supplied.
     pub top_left: Option<(u32, u32)>,
+    /// Saved active cell coordinate, if supplied.
     pub active_cell: Option<(u32, u32)>,
     /// The stored `sqref` of the active pane's selection as (top, left, bottom, right), when it
     /// is one area larger than a cell that has the active cell at a corner.
     pub selection: Option<(u32, u32, u32, u32)>,
+    /// Saved frozen pane configuration, if any.
     pub frozen: Option<calc_doc_model::FrozenPanes>,
     /// The bottom-right pane's first visible cell, independent of the first pane's origin.
     pub pane_top_left: Option<(u32, u32)>,
@@ -73,6 +85,7 @@ pub struct SheetView {
     pub split_window: bool,
 }
 impl SheetView {
+    /// Return the geometry of the worksheet's pane layout.
     pub fn pane_layout(self) -> Option<calc_doc_model::PaneLayout> {
         use calc_doc_model::{PaneLayout, SplitPanes};
         if let Some(p) = self.frozen {
@@ -82,6 +95,7 @@ impl SheetView {
         let (r, c) = self.pane_top_left.unwrap_or((1, 1));
         SplitPanes::new(f64::from_bits(x), f64::from_bits(y), r, c).map(PaneLayout::Split)
     }
+    /// Set the pane layout and return the updated view.
     pub fn with_pane_layout(mut self, layout: Option<calc_doc_model::PaneLayout>) -> Self {
         use calc_doc_model::PaneLayout;
         self.frozen = None;
@@ -119,8 +133,11 @@ impl SheetView {
 pub struct RowFormat {
     /// The height in points; `None` when the row states none.
     pub height: Option<f64>,
+    /// Whether the row or column is hidden.
     pub hidden: bool,
+    /// Outline nesting level.
     pub outline_level: u8,
+    /// Whether this entry marks a collapsed outline.
     pub collapsed: bool,
 }
 
@@ -137,8 +154,11 @@ pub struct SheetGeometry {
     pub columns: Vec<ColumnSpan>,
     /// The rows that state a height or are hidden.
     pub rows: BTreeMap<u32, RowFormat>,
+    /// Whether outline summaries appear below their detail rows, when declared.
     pub summary_below: Option<bool>,
+    /// Whether the worksheet contains unsupported outline settings.
     pub outline_unsupported: bool,
+    /// Whether outline summaries appear to the right of their detail columns, when declared.
     pub summary_right: Option<bool>,
     pub(crate) outline_state: Option<super::outline::OutlineState>,
 }

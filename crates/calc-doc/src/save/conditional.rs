@@ -273,6 +273,7 @@ fn parse(xml: &XmlPart) -> Result<Vec<load::ConditionalFormat>, String> {
     Ok(blocks)
 }
 
+/// Convert an authored conditional rule to its worksheet representation.
 pub fn conditional_rule(source: &ConditionalRuleSource) -> Result<load::ConditionalRule, String> {
     // Materialization writes current priority/stop fields. Preserve the original spelling's
     // validity before those defaults can conceal an unread imported value or formula count.
@@ -555,6 +556,7 @@ pub fn copied_conditional_source(
         .into();
     Ok(rule)
 }
+/// Convert a conditional rule and resolve its differential style for saving.
 pub fn conditional_with_dxf(
     rule: &ConditionalRuleSource,
     id: u32,

@@ -198,6 +198,7 @@ pub(super) fn supported_extensions(root: &Node) -> bool {
     true
 }
 
+/// Merge the template's preserved package content into the generated workbook.
 pub fn merge(
     target: &crate::LoadedWorkbook,
     source: &crate::LoadedWorkbook,

@@ -19,8 +19,11 @@ pub(crate) const X14_NAMESPACE: &str =
 /// `sqref` lists them, and its rules in document order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConditionalFormat {
+    /// Whether the container has content the loader cannot interpret.
     pub unread_container: bool,
+    /// Inclusive worksheet rectangles covered by this group.
     pub areas: Vec<(u32, u32, u32, u32)>,
+    /// Rules applied to those rectangles.
     pub rules: Vec<ConditionalRule>,
 }
 
@@ -29,15 +32,20 @@ pub struct ConditionalFormat {
 /// to it reaches it (`gte`, true unless the file says 0).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Threshold {
+    /// OOXML threshold kind.
     pub kind: String,
+    /// Threshold's stored value or formula, if present.
     pub value: Option<String>,
+    /// Whether the threshold includes equality.
     pub gte: bool,
 }
 
 /// A colour scale's thresholds and their colours.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ColorScale {
+    /// Thresholds delimiting the color scale.
     pub thresholds: Vec<Threshold>,
+    /// Colors corresponding to the thresholds.
     pub colors: Vec<StyleColor>,
 }
 
@@ -47,11 +55,17 @@ pub struct ColorScale {
 /// with a gradient or solid, the value shown or not.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DataBar {
+    /// Thresholds delimiting the data bar's value range.
     pub thresholds: Vec<Threshold>,
+    /// Color used to draw the bar.
     pub color: StyleColor,
+    /// Minimum bar length as a percentage of the cell width.
     pub min_length: u32,
+    /// Maximum bar length as a percentage of the cell width.
     pub max_length: u32,
+    /// Whether the fill uses a gradient.
     pub gradient: bool,
+    /// Whether the cell value is shown alongside the bar.
     pub show_value: bool,
 }
 
@@ -59,9 +73,13 @@ pub struct DataBar {
 /// in reverse and whether the value is shown.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IconSet {
+    /// Name of the built-in icon set.
     pub name: String,
+    /// Thresholds that select an icon.
     pub thresholds: Vec<Threshold>,
+    /// Whether icon order is reversed.
     pub reverse: bool,
+    /// Whether the cell value is shown alongside the icon.
     pub show_value: bool,
 }
 
@@ -76,25 +94,38 @@ pub struct ConditionalRule {
     /// `beginsWith`, `endsWith`, `containsBlanks`, `notContainsBlanks`, `containsErrors`,
     /// `notContainsErrors`, `timePeriod`.
     pub kind: String,
+    /// Worksheet priority used to order rules.
     pub priority: i64,
+    /// Whether a match prevents lower-priority rules from applying.
     pub stop_if_true: bool,
     /// The differential format the rule applies (the styles part's `dxfs`).
     pub dxf: Option<u32>,
+    /// Comparison operator for the rule, if supplied.
     pub operator: Option<String>,
     /// The rule's formulas (`<formula>`), as written: relative to the top-left cell of the
     /// block's first area.
     pub formulas: Vec<String>,
+    /// Text operand for a text-matching rule.
     pub text: Option<String>,
+    /// Rank cutoff for a top or bottom rule.
     pub rank: Option<u32>,
+    /// Whether the rank is interpreted as a percentage.
     pub percent: bool,
+    /// Whether ranking starts from the bottom.
     pub bottom: bool,
     /// `aboveAverage`: above the average (true, the default) or below it.
     pub above_average: bool,
+    /// Whether an average rule includes values equal to its cutoff.
     pub equal_average: bool,
+    /// Standard-deviation offset for an average rule, if specified.
     pub std_dev: Option<u32>,
+    /// Relative date period for a time-period rule.
     pub time_period: Option<String>,
+    /// Color-scale settings, if present.
     pub color_scale: Option<ColorScale>,
+    /// Data-bar settings, if present.
     pub data_bar: Option<DataBar>,
+    /// Icon-set settings, if present.
     pub icon_set: Option<IconSet>,
     /// The rule's Excel 2010 extension id (`x14:id`), which a data bar's lengths come from.
     pub extension_id: Option<String>,
