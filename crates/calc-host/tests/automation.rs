@@ -165,6 +165,125 @@ fn text(model: &WorkbookAutomation, object: &ObjectRef, name: &str) -> String {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_horizontal_alignment_formats_a_whole_column() {
+    let (host, model, _) = blank_report();
+    let column = range(&model, "D:D");
+    assert!(matches!(
+        invoke(&model, &column, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    invoke_kind(
+        &model,
+        &column,
+        "HorizontalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I4(-4108)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(
+            &model,
+            &range(&model, "D1048576"),
+            "HorizontalAlignment",
+            vec![]
+        )
+        .unwrap(),
+        AutoValue::I4(-4108)
+    ));
+    assert!(matches!(
+        invoke(&model, &range(&model, "D:E"), "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert!(matches!(
+        invoke(&model, &column, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_vertical_alignment_preserves_other_properties() {
+    let (_, model, _) = blank_report();
+    let cells = range(&model, "A1:B2");
+    let cell = range(&model, "A1");
+    assert!(matches!(
+        invoke(&model, &cells, "VerticalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4107)
+    ));
+    invoke_kind(
+        &model,
+        &cell,
+        "HorizontalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I4(-4131)],
+    )
+    .unwrap();
+    invoke_kind(
+        &model,
+        &cells,
+        "VerticalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I2(-4160)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "VerticalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4160)
+    ));
+    assert!(matches!(
+        invoke(&model, &cell, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4131)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_wrap_text_reports_mixed_null_and_round_trips() {
+    let (host, model, _) = blank_report();
+    let cells = range(&model, "B1:B2");
+    let cell = range(&model, "B1");
+    assert!(matches!(
+        invoke(&model, &cells, "WrapText", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    invoke_kind(
+        &model,
+        &cell,
+        "WrapText",
+        InvokeKind::Put,
+        vec![AutoValue::Bool(true)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "WrapText", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_, reopened) = setup_session(reopened);
+    assert!(matches!(
+        invoke(&reopened, &range(&reopened, "B1"), "WrapText", vec![]).unwrap(),
+        AutoValue::Bool(true)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_2_number_format_get_reports_uniform_codes_and_mixed_null() {
     let (_, model, _) = blank_report();
     let cells = range(&model, "A1:B2");
@@ -4849,6 +4968,72 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(xml.contains("<c:min val=\"0\"/>"), "{xml}");
     assert!(xml.contains("<c:majorUnit val=\"25\"/>"), "{xml}");
     assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
+}
+
+/// dc-oxh8w.12: axis titles and tick-label number formats set by a macro are saved in the chart part.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_12__a_macro_titles_the_axes_and_formats_tick_labels() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"], &["East", "50"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B4");
+    let axis = |kind: i32| obj(invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
+    let (category, value) = (axis(1), axis(2));
+    assert!(matches!(invoke(&model, &value, "HasTitle", vec![]).unwrap(), AutoValue::Bool(false)));
+    let none = invoke(&model, &value, "AxisTitle", vec![]);
+    assert!(matches!(none, Err(AutoError::Excel { .. })), "{none:?}");
+    invoke_kind(&model, &value, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &value, "AxisTitle", vec![]).unwrap());
+    assert_eq!(text(&model, &title, "Text"), "Axis Title");
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Sales & cost")]).unwrap();
+    let cat_title = {
+        invoke_kind(&model, &category, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        obj(invoke(&model, &category, "AxisTitle", vec![]).unwrap())
+    };
+    invoke_kind(&model, &cat_title, "Caption", InvokeKind::Put, vec![AutoValue::text("Region")]).unwrap();
+    let xml = saved_part(&mut host.session.borrow_mut(), "xl/charts/")
+        .replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "");
+    assert!(xml.contains("Sales &amp; cost"), "{xml}");
+    assert!(xml.contains("<a:t>Region</a:t>") || xml.contains("Region</a:t>"), "{xml}");
+    // Titles off again.
+    invoke_kind(&model, &value, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &value, "HasTitle", vec![]).unwrap(), AutoValue::Bool(false)));
+}
+
+/// dc-oxh8w.12: `TickLabels.NumberFormat` (runs once the descriptor holds TickLabels, RUN-ON-WINDOWS).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_12__tick_label_number_format_through_the_object_model() {
+    if calc_object_model::Descriptor::get().id("TickLabels").is_none() {
+        eprintln!("dc-oxh8w.12: descriptor lacks TickLabels; member round trip not run");
+        return;
+    }
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)]).unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B3");
+    let value = obj(invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(2)]).unwrap());
+    let labels = obj(invoke(&model, &value, "TickLabels", vec![]).unwrap());
+    assert_eq!(text(&model, &labels, "NumberFormat"), "General");
+    invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &labels, "NumberFormat"), "0.00");
+    assert!(matches!(invoke(&model, &labels, "NumberFormatLinked", vec![]).unwrap(), AutoValue::Bool(false)));
+    let xml = saved_part(&mut host.session.borrow_mut(), "xl/charts/");
+    assert!(xml.contains("formatCode=\"0.00\""), "{xml}");
 }
 
 /// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.

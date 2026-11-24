@@ -195,7 +195,7 @@ fn backoff_runs_for(consecutive_give_ups: u32) -> u64 {
     BASE_BACKOFF_RUNS << shift
 }
 
-fn failed_attempts_info(run: &Path) -> Result<(u64, u64, Option<String>), String> {
+fn persistent_failures(run: &Path) -> Result<(u64, u64, Option<String>), String> {
     if !run.is_dir() {
         return Ok((0, 0, None));
     }
@@ -205,13 +205,14 @@ fn failed_attempts_info(run: &Path) -> Result<(u64, u64, Option<String>), String
     for (n, dir) in numbered(run)? {
         let interrupted = dir.join("interrupted.json");
         if interrupted.is_file() {
+            let doc: Value = read_json(&interrupted)?;
+            let error = doc["error"].as_str();
+            if error.is_some_and(is_transient_infra_error) {
+                continue;
+            }
             count += 1;
             last_attempt = n;
-            if let Ok(doc) = read_json::<Value>(&interrupted)
-                && let Some(err) = doc["error"].as_str()
-            {
-                last_error = Some(err.to_owned());
-            }
+            last_error = error.map(str::to_owned);
         }
     }
     Ok((count, last_attempt, last_error))
@@ -223,6 +224,7 @@ fn is_transient_infra_error(error: &str) -> bool {
         || lower.contains("timed out")
         || lower.contains("worker-down")
         || lower.contains("sweep-deferred")
+        || lower == "sweep paused"
         || lower.contains("broken pipe")
         || lower.contains("connection refused")
 }
@@ -852,7 +854,7 @@ fn execute(options: &Options) -> Result<(), String> {
         let recipe_path = run.join("recipe.json");
         let recipe = if recipe_path.exists() {
             let existing: Recipe = read_json(&recipe_path)?;
-            let (prior_failed, last_att, last_err) = failed_attempts_info(&run)?;
+            let (prior_failed, last_att, last_err) = persistent_failures(&run)?;
             if prior_failed >= MAX_FAILED_ATTEMPTS {
                 let err = last_err.unwrap_or_else(|| "repeated failed attempts".to_owned());
                 record_give_up(
@@ -875,14 +877,11 @@ fn execute(options: &Options) -> Result<(), String> {
             existing
         } else {
             let entry = ordered(&entries, &last, &backoff_until, sequence)[0];
-            if backoff_until
-                .get(&entry.function)
-                .is_some_and(|&until| until > sequence)
+            if let Some(&until) = backoff_until.get(&entry.function)
+                && until > sequence
             {
-                if options.runs.is_some() {
-                    return Ok(());
-                }
-                std::thread::sleep(RETRY_DELAY);
+                // When all entries are deferred, the queue starts with the earliest retry.
+                sequence = until;
                 continue;
             }
             let recipe = next_recipe(sequence, options, entry, &order_hash, max_priority);
@@ -903,14 +902,18 @@ fn execute(options: &Options) -> Result<(), String> {
                 }
             }
             Err(error) => {
-                let (failed_count, last_att, _) = failed_attempts_info(&run)?;
-                if pause.exists() {
+                if pause.exists() || is_transient_infra_error(&error) {
                     if options.runs.is_some() {
                         return Err(error);
                     }
+                    eprintln!(
+                        "sweep {} seed {} waiting to retry: {error}",
+                        recipe.function, recipe.seed
+                    );
                     std::thread::sleep(RETRY_DELAY);
                     continue;
                 }
+                let (failed_count, last_att, last_error) = persistent_failures(&run)?;
                 if failed_count >= MAX_FAILED_ATTEMPTS {
                     record_give_up(
                         &run,
@@ -919,7 +922,7 @@ fn execute(options: &Options) -> Result<(), String> {
                         &versions,
                         failed_count,
                         last_att,
-                        &error,
+                        last_error.as_deref().unwrap_or(&error),
                         &mut last,
                         &mut give_ups,
                         &mut backoff_until,
@@ -928,9 +931,6 @@ fn execute(options: &Options) -> Result<(), String> {
                     sequence += 1;
                     ran += 1;
                     continue;
-                }
-                if options.runs.is_some() && is_transient_infra_error(&error) {
-                    return Err(error);
                 }
                 eprintln!(
                     "sweep {} seed {} attempt {}/{} failed, will retry: {error}",
@@ -1123,5 +1123,86 @@ mod tests {
         assert_eq!(gave_up.last_attempt, 5);
         assert!(gave_up.reason.contains("OutOfMemoryException"));
         let _ = fs::remove_dir_all(&tmp);
+    }
+
+    fn single_function_sweep(name: &str) -> (PathBuf, PathBuf, [String; 6]) {
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-{name}-{}", std::process::id()));
+        let out = tmp.join("state");
+        let first = out.join("00000001");
+        new_dir(&first).unwrap();
+        write_json(
+            &first.join("recipe.json"),
+            &Recipe {
+                function: "RAND".into(),
+                seed: 123,
+                budget: 64,
+                rank: 1,
+                bank_class: "-".into(),
+                order_sha256: "abc".into(),
+            },
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n1\tRAND\t10.0\t-\n",
+        )
+        .unwrap();
+        let args = [
+            "--runs",
+            "1",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        (tmp, first, args)
+    }
+
+    #[test]
+    fn sweep_resumes_same_recipe_after_three_transient_failures() {
+        let (tmp, first, args) = single_function_sweep("transient-resume");
+        for (index, error) in ["Connection refused", "timed out", "worker-down"]
+            .into_iter()
+            .enumerate()
+        {
+            let attempt = first.join(format!("{:08}", index + 1));
+            new_dir(&attempt).unwrap();
+            write_json(&attempt.join("interrupted.json"), &json!({"error": error})).unwrap();
+        }
+
+        assert_eq!(run(&args), ExitCode::SUCCESS);
+        assert!(!first.join("gave_up.json").exists());
+        let done: Value = read_json(&first.join("done.json")).unwrap();
+        assert_eq!(done["attempt"], 4);
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn sweep_advances_to_first_eligible_sequence_when_all_entries_are_backed_off() {
+        let (tmp, first, args) = single_function_sweep("all-backed-off");
+        write_json(
+            &first.join("gave_up.json"),
+            &GaveUp {
+                function: "RAND".into(),
+                attempts: 3,
+                last_attempt: 3,
+                finished_utc: utc_timestamp_now(),
+                reason: "gave-up:3-attempts: excel-error".into(),
+                error: "excel-error".into(),
+                consecutive_give_ups: 1,
+                backoff_runs: 4,
+                retry_after_sequence: 5,
+                calc_func_commit: "abc".into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(run(&args), ExitCode::SUCCESS);
+        let out = first.parent().unwrap();
+        assert!(out.join("00000005/done.json").is_file());
+        assert_eq!(numbered(out).unwrap().len(), 2);
+        let _ = fs::remove_dir_all(tmp);
     }
 }

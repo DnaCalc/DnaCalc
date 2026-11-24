@@ -277,7 +277,10 @@ refuses naming dc-zjsg.4.
 
 Axes (dc-oxh8w.11): `Chart.Axes(xlCategory|xlValue)` and `Axis.MinimumScale`, `MaximumScale`, `MajorUnit`, their `...IsAuto`,
 `ReversePlotOrder` and `Type`, over `WorkbookCommand::ChartAxis` (`chart_axes.rs`). Reading an automatic scale and the category axis's
-scale members' Excel text are open (dc-oxh8w.13); axis titles, number formats and formatting are dc-oxh8w.12.
+scale members' Excel text are open (dc-oxh8w.13).
+Axis titles and tick-label formats (dc-oxh8w.12): `Axis.HasTitle`, `AxisTitle.Text/Caption` and `TickLabels.NumberFormat/NumberFormatLinked` over
+`WorkbookCommand::ChartAxisLabels`; the writer saves `c:title` and `c:numFmt` (retained and newly made charts). Formats beyond the six the
+loader reads, data labels and series/plot/chart-area formatting are dc-oxh8w.18 and dc-oxh8w.19.
 
 What is not Excel's yet: a table name that is not a defined-name shape (`1bad name`, `R1C1`) is
 refused where Excel accepts it; `ListObjects.Add` with xlNo, or without xlYes over a first row that

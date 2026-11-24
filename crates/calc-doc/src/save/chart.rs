@@ -285,6 +285,8 @@ fn source_with_xml(
         retained.major_unit = old.major_unit.clone();
         retained.reversed = old.reversed;
         retained.log_base = old.log_base.clone();
+        retained.title = old.title.clone();
+        retained.number_format = old.number_format.clone();
         if retained != *old || (settings && old.kind != "valAx") {
             return Err(invalid(
                 "Only retained value-axis scale, bounds, units and direction can be edited (dc-971p.46)",
@@ -292,6 +294,24 @@ fn source_with_xml(
         }
         if old == new {
             continue;
+        }
+        if new.title != old.title
+            && new.title.as_ref().is_some_and(|t| {
+                t.encode_utf16().count() > 255
+                    || t.chars().any(|c| {
+                        (c < ' ' && !matches!(c, '\t' | '\n' | '\r'))
+                            || matches!(c, '\u{fffe}' | '\u{ffff}')
+                    })
+            })
+        {
+            return Err(invalid("The axis title contains unsupported text"));
+        }
+        if new.number_format != old.number_format
+            && new.number_format.as_ref().is_some_and(|f| {
+                f.is_empty() || f.chars().any(|c| c < ' ' || matches!(c, '\u{fffe}' | '\u{ffff}'))
+            })
+        {
+            return Err(invalid("The axis number format is not supported"));
         }
         valid_log_axis(new).map_err(invalid)?;
         for text in [
@@ -1289,6 +1309,8 @@ fn axis_settings(
     let mut unit = false;
     let mut scale_at = None;
     let mut unit_at = None;
+    let (mut title_seen, mut fmt_seen) = (false, false);
+    let (mut after_title, mut after_fmt) = (None, None);
     let close = loop {
         match reader.expect()? {
             (XmlEvent::Start(e), _) if e.name.is(C, "axId") => {
@@ -1332,7 +1354,37 @@ fn axis_settings(
                     );
                 }
             }
+            (XmlEvent::Start(e), child) if e.name.is(C, "title") => {
+                title_seen = true;
+                let end = reader.element_end()?;
+                if before.title != after.title {
+                    match after.title.as_deref() {
+                        Some(text) => patches.push(((child.0, end), axis_title(text, None))),
+                        None => patches.push(((child.0, end), Vec::new())),
+                    }
+                }
+            }
+            (XmlEvent::Start(e), child) if e.name.is(C, "numFmt") => {
+                if fmt_seen {
+                    return Err(reader.invalid("Duplicate axis number formats (dc-oxh8w.12)"));
+                }
+                fmt_seen = true;
+                after_title.get_or_insert(child.0);
+                let end = reader.element_end()?;
+                if before.number_format != after.number_format {
+                    patches.push(((child.0, end), fresh_num_fmt(after.number_format.as_deref())));
+                }
+            }
             (XmlEvent::Start(e), child) => {
+                if !["axId", "scaling", "delete", "axPos", "majorGridlines", "minorGridlines"]
+                    .iter()
+                    .any(|n| e.name.is(C, n))
+                {
+                    after_title.get_or_insert(child.0);
+                    if !e.name.is(C, "title") {
+                        after_fmt.get_or_insert(child.0);
+                    }
+                }
                 if ["minorUnit", "dispUnits", "extLst"]
                     .iter()
                     .any(|n| e.name.is(C, n))
@@ -1356,6 +1408,19 @@ fn axis_settings(
         })?;
         patches.push(((at, at), fresh_scaling(after)));
     }
+    if !title_seen && before.title != after.title {
+        if let Some(text) = after.title.as_deref() {
+            let at = after_title.unwrap_or(close);
+            patches.push(((at, at), axis_title(text, None)));
+        }
+    }
+    if !fmt_seen && before.number_format != after.number_format {
+        let fresh = fresh_num_fmt(after.number_format.as_deref());
+        if !fresh.is_empty() {
+            let at = after_fmt.unwrap_or(close);
+            patches.push(((at, at), fresh));
+        }
+    }
     if !unit && before.major_unit != after.major_unit {
         if let Some(value) = after.major_unit.as_deref() {
             let at = unit_at.unwrap_or(close);
@@ -1363,6 +1428,22 @@ fn axis_settings(
         }
     }
     Ok(())
+}
+fn axis_title(text: &str, lang: Option<&str>) -> Vec<u8> {
+    let mut bytes = format!("<c:title xmlns:c=\"{C}\">").into_bytes();
+    bytes.extend(tx(text, lang));
+    bytes.extend_from_slice(b"<c:overlay val=\"0\"/></c:title>");
+    bytes
+}
+fn fresh_num_fmt(code: Option<&str>) -> Vec<u8> {
+    match code {
+        Some(code) => format!(
+            "<c:numFmt xmlns:c=\"{C}\" formatCode=\"{}\" sourceLinked=\"0\"/>",
+            plain_text(code).replace('"', "&quot;")
+        )
+        .into_bytes(),
+        None => Vec::new(),
+    }
 }
 fn fresh_number(name: &str, value: &str) -> Vec<u8> {
     format!("<c:{name} xmlns:c=\"{C}\" val=\"{value}\"/>").into_bytes()
