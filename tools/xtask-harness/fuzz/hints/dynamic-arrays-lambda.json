@@ -177,7 +177,7 @@
       ],
       "error_edges": [
         {
-          "when": "missing lambda argument (1-arg call)",
+          "when": "missing lambda (1-arg call) or lambda returns multi-cell array (>1x1)",
           "excel": "#CALC!",
           "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:306"
         },
@@ -185,11 +185,6 @@
           "when": "lambda argument is not a 1-arg LAMBDA (including scalar error)",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
-        },
-        {
-          "when": "lambda returns multi-cell array (>1x1)",
-          "excel": "#CALC!",
-          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:543"
         }
       ],
       "notes": "Applies 1-arg LAMBDA to each column and spills a 1-row array."
@@ -369,7 +364,7 @@
       ],
       "error_edges": [
         {
-          "when": "missing lambda argument (1-arg call)",
+          "when": "missing lambda (1-arg call) or lambda returns multi-cell array (>1x1)",
           "excel": "#CALC!",
           "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:306"
         },
@@ -377,11 +372,6 @@
           "when": "lambda argument is not a 1-arg LAMBDA (including scalar error)",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
-        },
-        {
-          "when": "lambda returns multi-cell array (>1x1)",
-          "excel": "#CALC!",
-          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:543"
         }
       ],
       "notes": "Applies 1-arg LAMBDA to each row and spills a 1-column array."
@@ -639,14 +629,9 @@
       ],
       "error_edges": [
         {
-          "when": "col_num1 == 0",
+          "when": "col_num1 == 0 or col_num1 > 10 or col_num1 < -10",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
-        },
-        {
-          "when": "abs(col_num1) > cols",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:193"
         }
       ],
       "notes": "Selects 1-based columns (negative from right), flattening array selectors row-major."
@@ -904,14 +889,9 @@
       ],
       "error_edges": [
         {
-          "when": "row_num1 == 0",
+          "when": "row_num1 == 0 or row_num1 > 10 or row_num1 < -10",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
-        },
-        {
-          "when": "abs(row_num1) > rows",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:193"
         }
       ],
       "notes": "Selects 1-based rows (negative from bottom), flattening array selectors row-major."
@@ -1150,7 +1130,7 @@
           "source": "handbook FN-FILTER-001"
         },
         {
-          "when": "fractional rows or columns",
+          "when": "rows == 1.5 or columns == 1.5",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:136"
         }
@@ -2821,7 +2801,7 @@
       ],
       "error_edges": [
         {
-          "when": "SUM(data_all) == 0",
+          "when": "data_all == 0",
           "excel": "#DIV/0!",
           "source": "crates/calc-func/src/catalogue/group_pivot.rs:49"
         },
@@ -3180,6 +3160,11 @@
           "when": "row_sort_order == 0 or col_sort_order == 0",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/grouping.rs:148"
+        },
+        {
+          "when": "row_total_depth < -2 or row_total_depth > 2 or col_total_depth < -2 or col_total_depth > 2",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:858"
         }
       ],
       "notes": "2D pivot table over row_fields and col_fields with configurable depths, sorting, and relative_to."
@@ -4211,7 +4196,7 @@
           "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:335"
         },
         {
-          "when": "fractional rows or columns",
+          "when": "rows == 1.5 or columns == 1.5",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:136"
         }

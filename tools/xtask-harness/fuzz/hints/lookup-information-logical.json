@@ -3813,7 +3813,7 @@
           "source": "crates/calc-func/src/catalogue/arrays.rs:472"
         },
         {
-          "when": "sort_order after trunc is neither 1 nor -1",
+          "when": "sort_order == 0 or sort_order < -1 or sort_order > 1",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/arrays.rs:262"
         },

@@ -182,17 +182,17 @@
           "source": "crates/calc-func/src/catalogue/subtotal.rs:269"
         },
         {
-          "when": "function_num >= 14 and function_num <= 15 and (k < 1 or k > count)",
+          "when": "function_num >= 14 and function_num <= 15 and ref2 < 1",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:329"
         },
         {
-          "when": "function_num == 17 and (k < 0 or k >= 5)",
+          "when": "function_num == 17 and (ref2 < 0 or ref2 >= 5)",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:343"
         },
         {
-          "when": "function_num == 19 and (k < 1 or k >= 4)",
+          "when": "function_num == 19 and (ref2 < 1 or ref2 >= 4)",
           "excel": "#NUM!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:349"
         }
@@ -388,14 +388,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria text exceeds 255 UTF-16 code units",
+          "when": "criteria > 255 UTF-16 code units or multi-area/closed-workbook range",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:969"
-        },
-        {
-          "when": "any range argument is a multi-area reference or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
         },
         {
           "when": "zero numeric cells match criteria",
@@ -683,19 +678,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria_range shapes differ from target range shape",
+          "when": "range shape mismatch, multi-area/closed-workbook ref, or criteria > 255 UTF-16 units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:482"
-        },
-        {
-          "when": "any range is a multi-area or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
-        },
-        {
-          "when": "any criteria text exceeds 255 UTF-16 code units",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:969"
         },
         {
           "when": "zero numeric cells match all criteria",
@@ -833,14 +818,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria text exceeds 255 UTF-16 code units",
+          "when": "criteria > 255 UTF-16 code units or multi-area/closed-workbook range",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:969"
-        },
-        {
-          "when": "any range argument is a multi-area reference or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
         }
       ],
       "notes": "Single-area reference required; criteria arrays lift elementwise."
@@ -1062,19 +1042,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria_range shapes differ from target range shape",
+          "when": "range shape mismatch, multi-area/closed-workbook ref, or criteria > 255 UTF-16 units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:482"
-        },
-        {
-          "when": "any range is a multi-area or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
-        },
-        {
-          "when": "any criteria text exceeds 255 UTF-16 code units",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:969"
         }
       ],
       "notes": "Pairs (criteria_range, criteria) repeat; criteria arrays lift elementwise."
@@ -1357,19 +1327,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria_range shapes differ from target range shape",
+          "when": "range shape mismatch, multi-area/closed-workbook ref, or criteria > 255 UTF-16 units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:482"
-        },
-        {
-          "when": "any range is a multi-area or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
-        },
-        {
-          "when": "any criteria text exceeds 255 UTF-16 code units",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:969"
         }
       ],
       "notes": "All ranges must match target shape (#VALUE! otherwise); returns 0 if no numeric matches."
@@ -1652,19 +1612,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria_range shapes differ from target range shape",
+          "when": "range shape mismatch, multi-area/closed-workbook ref, or criteria > 255 UTF-16 units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:482"
-        },
-        {
-          "when": "any range is a multi-area or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
-        },
-        {
-          "when": "any criteria text exceeds 255 UTF-16 code units",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:969"
         }
       ],
       "notes": "All ranges must match target shape (#VALUE! otherwise); returns 0 if no numeric matches."
@@ -1826,12 +1776,12 @@
           "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
         },
         {
-          "when": "function_num in 12..=100",
+          "when": "function_num >= 12 and function_num <= 100",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
         },
         {
-          "when": "function_num is AVERAGE/STDEV/STDEVP/VAR/VARP (1,7,8,10,11 or +100) with zero numbers (or <2 for sample)",
+          "when": "function_num in {1,7,8,10,11,101,107,108,110,111} with zero numbers (<2 for sample)",
           "excel": "#DIV/0!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:168"
         }
@@ -2027,14 +1977,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria text exceeds 255 UTF-16 code units",
+          "when": "criteria > 255 UTF-16 code units or multi-area/closed-workbook range",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:969"
-        },
-        {
-          "when": "any range argument is a multi-area reference or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
         },
         {
           "when": "sum of matched numbers overflows binary64",
@@ -2322,19 +2267,9 @@
       ],
       "error_edges": [
         {
-          "when": "criteria_range shapes differ from target range shape",
+          "when": "range shape mismatch, multi-area/closed-workbook ref, or criteria > 255 UTF-16 units",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/conditional.rs:482"
-        },
-        {
-          "when": "any range is a multi-area or closed-workbook reference",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:412"
-        },
-        {
-          "when": "any criteria text exceeds 255 UTF-16 code units",
-          "excel": "#VALUE!",
-          "source": "crates/calc-func/src/catalogue/conditional.rs:969"
         },
         {
           "when": "sum of matched numbers overflows binary64",
