@@ -3251,6 +3251,24 @@ fn npv_discount_stores_preserve_the_running_sum() {
     );
 }
 
+/// Live Excel 16.0.20625.20108 distinguishes quotient overflow from an unusable divisor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn npv_and_mirr_report_overflow_of_a_finite_discount_term() {
+    error(call("NPV", vec![n(-0.5), n(0.0), n(f64::MAX)]), Num);
+    error(call("NPV", vec![n(-1.5), col(&[0.0, -f64::MAX])]), Num);
+    error(call("MIRR", vec![col(&[1.0, -f64::MAX]), n(-0.5), n(0.0)]), Num);
+
+    // The second flow overflows in both calls. At period 26 the denominator
+    // is subnormal and Excel reports the unusable divisor.
+    let rate = 2.0_f64.powi(-40) - 1.0;
+    let mut flows = vec![0.0; 26];
+    flows[1] = f64::MAX;
+    error(call("NPV", vec![n(rate), col(&flows)]), Num);
+    flows.push(0.0);
+    error(call("NPV", vec![n(rate), col(&flows)]), Div0);
+}
+
 /// Native service packets batch6-public-regression-controls.json: finance
 /// poles, signed root domains, intermediate stores and error precedence.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3295,7 +3313,7 @@ fn mirr_discount_and_root_stages_follow_native_controls() {
     error(mirr(&[-1.0, 0.0, 0.0, 0.0, 2.0], 1e100, 1e100), Div0);
 }
 
-/// Excel 20527 separates an overflowing positive MIRR term from a zero divisor.
+/// Excel 20625 returns #NUM! for overflow in either function with a finite divisor.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn mirr_positive_term_overflow_keeps_divisor_errors_distinct() {
@@ -3306,7 +3324,7 @@ fn mirr_positive_term_overflow_keeps_divisor_errors_distinct() {
         flows[0] = -1.0;
         flows[15] = 2.0_f64.powi(250);
         error(call("MIRR", vec![col(&flows), n(0.0), n(rate)]), Num);
-        error(call("NPV", vec![n(rate), col(&flows)]), Div0);
+        error(call("NPV", vec![n(rate), col(&flows)]), Num);
 
         flows.resize(21, 0.0);
         flows[15] = 0.0;
