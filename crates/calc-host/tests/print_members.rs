@@ -49,7 +49,9 @@ fn get(session: &HostSession, sheet: SheetId, member: &str) -> V {
     read(session.host(), sheet, member).expect(member)
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__defaults_of_an_untouched_sheet() {
     let (s, sheet) = open();
     for (member, want) in [
@@ -89,7 +91,9 @@ fn dc_oxh8w_8__defaults_of_an_untouched_sheet() {
     assert_eq!(calc_host::print_members::MEMBERS.len(), 34);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__orientation_zoom_and_fit_to_pages() {
     let (mut s, sheet) = open();
     assert_eq!(set(&mut s, sheet, "Orientation", V::Int(2)), V::Int(2));
@@ -111,7 +115,9 @@ fn dc_oxh8w_8__orientation_zoom_and_fit_to_pages() {
     assert_eq!(write(s.host(), sheet, "FitToPagesWide", &V::Int(-1)), Err(PrintError::Refused));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__margins_are_points() {
     let (mut s, sheet) = open();
     for (member, points) in [
@@ -130,7 +136,9 @@ fn dc_oxh8w_8__margins_are_points() {
     assert_eq!(write(s.host(), sheet, "LeftMargin", &V::Bool(true)), Err(PrintError::Mismatch));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__print_options_and_flags() {
     let (mut s, sheet) = open();
     for member in [
@@ -151,7 +159,9 @@ fn dc_oxh8w_8__print_options_and_flags() {
     assert_eq!(write(s.host(), sheet, "Draft", &V::Int(1)), Err(PrintError::Mismatch));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__order_paper_first_page_comments_errors() {
     let (mut s, sheet) = open();
     assert_eq!(set(&mut s, sheet, "Order", V::Int(2)), V::Int(2));
@@ -170,7 +180,9 @@ fn dc_oxh8w_8__order_paper_first_page_comments_errors() {
     assert_eq!(write(s.host(), sheet, "PrintErrors", &V::Int(4)), Err(PrintError::Refused));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__headers_and_footers_keep_their_neighbour_sections() {
     let (mut s, sheet) = open();
     assert_eq!(set(&mut s, sheet, "CenterHeader", V::Text("Report &P".into())), V::Text("Report &P".into()));
@@ -187,7 +199,9 @@ fn dc_oxh8w_8__headers_and_footers_keep_their_neighbour_sections() {
     assert_eq!(write(s.host(), sheet, "LeftHeader", &V::Int(1)), Err(PrintError::Mismatch));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__print_area_and_titles() {
     let (mut s, sheet) = open();
     assert_eq!(set(&mut s, sheet, "PrintArea", V::Text("A1:C10".into())), V::Text("$A$1:$C$10".into()));
@@ -205,7 +219,9 @@ fn dc_oxh8w_8__print_area_and_titles() {
     assert_eq!(write(s.host(), sheet, "PrintTitleColumns", &V::Text("$1:$2".into())), Err(PrintError::Refused));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__settings_survive_save_and_reopen() {
     let (mut s, sheet) = open();
     set(&mut s, sheet, "Orientation", V::Int(2));
@@ -225,7 +241,9 @@ fn dc_oxh8w_8__settings_survive_save_and_reopen() {
     assert_eq!(get(&again, sheet, "PrintTitleRows"), V::Text("$1:$1".into()));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__manual_breaks_follow_the_stored_breaks() {
     use calc_host::print_members::{manual_breaks, with_break, without_break};
     let (mut s, sheet) = open();

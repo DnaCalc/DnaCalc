@@ -573,7 +573,9 @@ pub fn break_extent(b: &PageBreak, horizontal: bool) -> i64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn header_sections_split_and_join_as_excel_writes_them() {
         assert_eq!(header_sections("&LLeft&CMid&RRight"), ["Left", "Mid", "Right"].map(String::from));
         // Text before any code is the centre section.
@@ -584,7 +586,9 @@ mod tests {
         assert_eq!(header_join(&Default::default()), "");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn area_text_matches_excels_print_area_strings() {
         use calc_value::CellKey;
         let s = calc_value::IdAllocator::<SheetId>::new().issue().unwrap();
@@ -596,7 +600,9 @@ mod tests {
         assert_eq!(area_text(&area(cell(1, 1), cell(1_048_576, 2))), "$A:$B");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn breaks_sort_dedupe_and_refuse_the_first_line() {
         let mut setup = PageSetup::default();
         setup.row_breaks = with_break(&setup, true, 21).unwrap();
