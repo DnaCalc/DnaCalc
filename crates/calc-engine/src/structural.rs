@@ -125,6 +125,19 @@ impl FormulaRewriter for ReferenceRewriter {
     }
 }
 
+/// The formula `text` (without `=`) of the cell `at` spelled in the other reference notation, bound
+/// against the workbook's sheets: Excel's `Range.FormulaR1C1` is this with `from` R1C1 and `to` A1.
+/// `None` when the text does not parse.
+pub fn convert_formula_notation(
+    root: &ModelRoot,
+    text: &str,
+    at: CellKey,
+    from: ReferenceNotation,
+    to: ReferenceNotation,
+) -> Option<String> {
+    convert_notation(text, at, from, to, &SnapshotCatalog::new(root))
+}
+
 /// The formula a copy of the cell `from` writes in the cell `to`, as Excel's copy and paste and its
 /// fill write it ("Move or copy cells"): every relative row or column keeps its offset from the
 /// formula's cell and every absolute one (`$`) stays, through CalcFml's A1 and R1C1 spellings of

@@ -9,6 +9,8 @@ impl WorkbookAutomation {
     pub(super) fn register_formula(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Formula", InvokeKind::Get, Self::range_formula);
         handlers.on("Range", "Formula", InvokeKind::Put, Self::put_formula);
+        handlers.on("Range", "FormulaR1C1", InvokeKind::Get, Self::range_formula_r1c1);
+        handlers.on("Range", "FormulaR1C1", InvokeKind::Put, Self::put_formula_r1c1);
         handlers.on("Range", "Text", InvokeKind::Get, Self::cells_text);
     }
 
@@ -58,16 +60,36 @@ impl WorkbookAutomation {
     /// to 15 significant digits (a date-formatted number is its serial), TRUE/FALSE, an error constant
     /// `#N/A`, text as it is (a quote prefix is dropped), an empty cell `""`. A range answers a 2-D array.
     fn range_formula(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.formula_get(target, call, false)
+    }
+    /// `Range.FormulaR1C1`: the same answer with every reference of a formula spelled relative to its own
+    /// cell (`=RC[-1]*2`); constants are as `Range.Formula` gives them.
+    fn range_formula_r1c1(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.formula_get(target, call, true)
+    }
+    fn formula_get(&self, target: &ObjectRef, call: &Call<'_>, r1c1: bool) -> Reply {
         self.with_range(target, |access, _, range, _| {
             no_args(call)?;
             let area = range.areas()[0];
             let cells = Self::session_cells(access, area, "Range.Formula")?;
+            let width = area.column_count() as usize;
             let values = cells
                 .iter()
-                .map(|cell| {
-                    AutoValue::text(&match cell.input() {
+                .enumerate()
+                .map(|(i, cell)| {
+                    let at = CellKey::new(
+                        area.sheet(),
+                        area.first().row() + (i / width) as u32,
+                        area.first().column() + (i % width) as u32,
+                    )
+                    .expect("cell in valid area");
+                    Ok(AutoValue::text(&match cell.input() {
                         Some(CellInput::Formula(_)) => {
-                            normalise_formula(&crate::search::entry_text(cell.input()))
+                            let text = normalise_formula(&crate::search::entry_text(cell.input()));
+                            match (r1c1, access_model(access)) {
+                                (true, Some(root)) => convert_text(root, &text, at, false)?,
+                                _ => text,
+                            }
                         }
                         None => String::new(),
                         Some(CellInput::Number(n)) => number_text_15(n.get()),
@@ -76,9 +98,9 @@ impl WorkbookAutomation {
                             if *b { "TRUE" } else { "FALSE" }.to_owned()
                         }
                         Some(CellInput::Error(code)) => code.excel_spelling().to_owned(),
-                    })
+                    }))
                 })
-                .collect();
+                .collect::<Result<Vec<_>, AutoError>>()?;
             Self::shaped(area, values)
         })
     }
@@ -226,18 +248,26 @@ impl WorkbookAutomation {
     }
 
     fn put_formula(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.formula_put(target, call, false)
+    }
+    /// `Range.FormulaR1C1` put: a formula's references are read relative to the cell they are entered in
+    /// (`=RC[-1]*2`), so one text over a range is the same relative formula in every cell.
+    fn put_formula_r1c1(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.formula_put(target, call, true)
+    }
+    fn formula_put(&self, target: &ObjectRef, call: &Call<'_>, r1c1: bool) -> Reply {
         // An array of arrays writes nothing and raises no error (Q16).
         if matches!(call.args.last(), Some(AutoValue::Array(a))
             if a.values.iter().any(|v| matches!(v, AutoValue::Array(_))))
         {
             return Ok(AutoValue::Empty);
         }
-        self.mutate_range(target, call, |_, range| {
+        self.mutate_range(target, call, |session, range| {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
             let area = range.areas()[0];
-            let entries = match call.arg(0) {
+            let mut entries = match call.arg(0) {
                 AutoValue::Array(a) => {
                     if u64::from(a.rows) * u64::from(a.columns) != a.values.len() as u64 {
                         return Err(AutoError::not_modelled(
@@ -271,9 +301,41 @@ impl WorkbookAutomation {
                 }
                 other => vec![(area, Self::entry_of(other)?)],
             };
+            if r1c1 {
+                for (cells, entry) in &mut entries {
+                    if entry.starts_with('=') {
+                        *entry = convert_text(session.host().model(), entry, cells.first(), true)?;
+                    }
+                }
+            }
             Ok(SkinIntent::EnterEntries { entries })
         })
     }
+}
+
+/// The model of a session read, when the access is one.
+fn access_model<'a>(access: &'a Access<'_>) -> Option<&'a calc_doc_model::ModelRoot> {
+    match access {
+        Access::Session(session, _) => Some(session.host().model()),
+        Access::Invocation(_) => None,
+    }
+}
+
+/// A formula entry (leading `=`) spelled in the other notation for the cell `at`: `to_a1` reads R1C1 and
+/// writes A1 (the document holds A1), otherwise it reads A1 and writes R1C1. A text that does not parse is
+/// Excel's 1004.
+fn convert_text(
+    root: &calc_doc_model::ModelRoot,
+    entry: &str,
+    at: CellKey,
+    to_a1: bool,
+) -> Result<String, AutoError> {
+    use calc_fml::reference::ReferenceNotation::{A1, R1C1};
+    let (from, to) = if to_a1 { (R1C1, A1) } else { (A1, R1C1) };
+    let body = entry.strip_prefix('=').unwrap_or(entry);
+    calc_engine::convert_formula_notation(root, body, at, from, to)
+        .map(|text| format!("={text}"))
+        .ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))
 }
 
 /// A number as Excel's `Range.Formula` writes it: 15 significant digits, trailing zeros dropped, scientific

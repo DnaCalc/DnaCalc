@@ -30,6 +30,7 @@ use std::{
 
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
+mod application;
 mod formula;
 mod mutation;
 mod navigation;
@@ -104,6 +105,10 @@ pub struct WorkbookAutomation {
     handlers: Handlers<Self>,
     snapshot: RefCell<Option<Rc<Snapshot>>>,
     next_workbook: Cell<u64>,
+    /// `Application.ScreenUpdating`: a flag the application holds; no renderer is attached here.
+    screen_updating: Cell<bool>,
+    /// `Application.StatusBar`: the text set, or None for the default status.
+    status_bar: RefCell<Option<String>>,
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
     /// their own acquisition too. The model drops its lease when the projection releases it.
     ranges: RefCell<HashMap<StoredReference, RangeLeases>>,
@@ -226,6 +231,7 @@ impl WorkbookAutomation {
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
         Self::register_formula(&mut handlers);
+        Self::register_application(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
         handlers.on(
@@ -241,6 +247,8 @@ impl WorkbookAutomation {
             handlers,
             snapshot: RefCell::new(None),
             next_workbook: Cell::new(1),
+            screen_updating: Cell::new(true),
+            status_bar: RefCell::new(None),
             ranges: RefCell::default(),
         }
     }
