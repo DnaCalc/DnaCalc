@@ -67,6 +67,40 @@ one context, **refused** when the source rejects the command in all covered cont
 | Worksheet drawing objects and controls | 39 | 0 | 39 | 0 |
 | **Total** | **403** | **1** | **402** | **0** |
 
+## Portable command translation (batch 1, dc-oxh8w.5)
+
+`crates/calc-host/src/c_api_commands.rs` holds the first twenty commands as translations to
+object-model members, independent of the Windows XLL loader. `execute(model, ordinal, operands)`
+decodes the XLM operands, calls the described member on any `ObjectModel` and answers TRUE; a
+member the profile has not implemented answers its own typed refusal, which the command passes
+through, so a command starts working when its member lands. The in-process `Excel12` entry
+(dc-17spk.16) and `ExecuteExcel4Macro` (dc-17spk.19) are its callers. The tables below still list
+the Windows host's own dispatch; this section lists what the portable translation covers.
+
+| Ordinal | Command | Translates to | Works against the workbook profile now |
+| ---: | --- | --- | --- |
+| 4 | `SAVE` | `Workbook.Save` | refused by the member |
+| 17 | `RUN` (text) | `Application.Run` | yes |
+| 31 | `CALCULATE.NOW` | `Application.Calculate` | yes |
+| 42 | `FORMAT.NUMBER` | `Range.NumberFormat` (selection) | refused by the member |
+| 47 | `COLUMN.WIDTH` | `Range.ColumnWidth` | refused by the member |
+| 49, 50 | `CUT`, `COPY` | `Range.Cut`, `Range.Copy` | refused by the member |
+| 51 | `PASTE` | `Worksheet.Paste` | refused by the member |
+| 52 | `CLEAR` (1 all, 2 formats, 3 formulas, 4 notes) | `Range.Clear`, `ClearFormats`, `ClearContents`, `ClearComments` (selection) | type 3 only |
+| 54, 55 | `EDIT.DELETE`, `INSERT` (1 to 4) | `Range.Delete`, `Range.Insert`, or the entire row or column | refused by the member |
+| 61, 110 | `DEFINE.NAME`, `DELETE.NAME` | `Names.Add` (RefersToR1C1), `Names.Item` then `Name.Delete` | refused by the member |
+| 96, 97 | `FORMULA`, `FORMULA.FILL` | `Range.FormulaR1C1` (new) | yes |
+| 109 | `SELECT` | `Range.Select` | refused by the member |
+| 122 | `MESSAGE` | `Application.StatusBar` (new) | yes |
+| 127 | `ROW.HEIGHT` | `Range.RowHeight` | refused by the member |
+| 141 | `ECHO` (with an argument) | `Application.ScreenUpdating` (new) | yes |
+| 167 | `CALCULATE.DOCUMENT` | `Worksheet.Calculate` (active sheet) | yes |
+
+Forms the documentation does not settle are refused with owner dc-oxh8w.9 until a Windows Excel
+capture measures them: `ECHO()`, `CLEAR()`, `INSERT()` and `EDIT.DELETE()` without their argument,
+`FORMULA` over more than one cell, `SELECT` without a selection, `DEFINE.NAME` without `refers_to`,
+`RUN` of a macro-sheet reference, and sheet-qualified or relative text references.
+
 ## Application
 
 | Ordinal | Callback | SDK symbol | XLM command | XLM arguments | DNA Calc |

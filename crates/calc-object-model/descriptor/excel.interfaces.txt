@@ -42,3 +42,10 @@ Legend
 Shapes
 Shape
 ShapeRange
+# Printing (dc-oxh8w.8): the PageSetup members and page breaks macros use. Added by lane cl3,
+# 2026-11-24; the JSON is regenerated on Windows (RUN-ON-WINDOWS item 1 of lane cl3).
+PageSetup
+HPageBreaks
+HPageBreak
+VPageBreaks
+VPageBreak
