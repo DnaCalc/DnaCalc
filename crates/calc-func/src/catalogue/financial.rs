@@ -312,10 +312,8 @@ ported_shared_family! {
         out(s, cash::irr_kernel(&cashflows, g))
     }
     19 xnpv_fn |s, a, sv| {
-        let rate = match cash::scalar_number_from_eval(&a[0]) {
-            Ok(n) => n,
-            Err(error) => return cash_err(error),
-        };
+        reject_logical(&a[0])?;
+        let rate = num_with_subnormal(s, a, 0)?;
         let values = resolved(s, a, 1, sv)?;
         let dates = resolved(s, a, 2, sv)?;
         let values = match cash::collect_xnpv_numeric_vector_from_eval(&values) {

@@ -3523,6 +3523,21 @@ fn xirr_and_xnpv_flatten_2d_row_major_and_apply_cell_coercion_rules() {
     error(call("XNPV", vec![n(0.1), err_val, dates3]), NA);
 }
 
+/// Excel 16.0.20625.20108 rate coercion with paired cash flows and dates (dc-j9k.134).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xnpv_reads_blank_and_numeric_text_rates_and_rejects_logicals() {
+    let values = col(&[1.0, 2.0]);
+    let dates = col(&[1.0, 2.0]);
+    let rate_call = |rate| call("XNPV", vec![rate, values.clone(), dates.clone()]);
+    error(rate_call(calc_func::value::CalcValue::empty()), Num);
+    error(rate_call(b(true)), Value);
+    error(rate_call(b(false)), Value);
+    error(rate_call(t("bad")), Value);
+    error(rate_call(e(NA)), NA);
+    exact(rate_call(t("0.1")), f64::from_bits(0x4007feee3a451786));
+}
+
 /// Carbon cb28 (dc-ztvv.26.45, Excel 16.0.20625.20108): XIRR arity-3 2D mismatch
 /// (#NUM!, not #REF!) and XNPV date bounds (`date < 1.0` -> #NUM!, `2958466..=i32::MAX`
 /// -> #NUM!, `>= 2^31` passes x86 `cvttsd2si` check while `years` uses `f64`).
