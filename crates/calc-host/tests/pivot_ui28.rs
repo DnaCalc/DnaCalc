@@ -4063,6 +4063,240 @@ fn dc_8wp_23__crossed_rows_use_layout_and_each_measure_source() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn crossed_row_values_inner_subtotals_and_count_errors() {
+    use calc_doc_model::pivot::{PivotFieldItem, PivotItem, PivotSnapshot, PivotSnapshotOrigin};
+
+    let book = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("fixtures/pivot/m8-axes/m1-layout-plain.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let pivots = book.host().model().definitions().pivots();
+    let original = pivots.tables().next().unwrap();
+    let sheet = original.area.first().sheet();
+
+    // 1. 4-field crossed row axis [0, -2, 1, 2] with inner subtotals below Values (level 2):
+    //    default subtotal rows under measure 1 must carry data_index = 1 and measure 1's numFmtId.
+    let mut cache = (*pivots.caches.caches[&original.cache_id]).clone();
+    // Ensure 6 fields: 0=Region, 1=Product, 2=Channel (inner row), 3=Month (col), 4=Amount, 5=Units.
+    let mut extra = cache.fields[1].clone();
+    extra.name = "Channel".into();
+    let month = cache.fields[2].clone();
+    let amount = cache.fields[3].clone();
+    let mut units = cache.fields[4].clone();
+    units.name = "Units".into();
+    cache.fields = vec![
+        cache.fields[0].clone(),
+        cache.fields[1].clone(),
+        extra,
+        month,
+        amount,
+        units,
+    ];
+    for (i, labels) in [
+        (0usize, &["East", "West"][..]),
+        (1, &["A", "B"][..]),
+        (2, &["Direct", "Partner"][..]),
+        (3, &["Jan", "Feb"][..]),
+    ] {
+        cache.fields[i].items = labels
+            .iter()
+            .map(|label| PivotItem::Text((*label).into()))
+            .collect();
+        cache.fields[i].shared_items = Some(labels.len() as u32);
+        cache.fields[i].group = None;
+        cache.fields[i].unused_items.clear();
+    }
+    for i in [4usize, 5] {
+        cache.fields[i].items.clear();
+        cache.fields[i].shared_items = None;
+        cache.fields[i].group = None;
+        cache.fields[i].unused_items.clear();
+    }
+    // Records: (Region, Product, Channel, Month, Amount, Units)
+    let records = [
+        (0, 0, 0, 0, 2.0, 7.0),
+        (0, 0, 1, 0, 9.0, 11.0),
+        (0, 1, 0, 1, 5.0, 13.0),
+    ]
+    .into_iter()
+    .map(|(r, p, ch, m, amt, u)| {
+        vec![
+            PivotItem::Index(r),
+            PivotItem::Index(p),
+            PivotItem::Index(ch),
+            PivotItem::Index(m),
+            PivotItem::Number(amt.to_string()),
+            PivotItem::Number(u.to_string()),
+        ]
+    })
+    .collect();
+    cache.snapshot = Some(Arc::new(PivotSnapshot {
+        records,
+        origin: PivotSnapshotOrigin::SourceRead,
+        source_revision: 0,
+        numeric: calc_host::value::NumericMode::Fast,
+    }));
+
+    let mut table = original.clone();
+    let template_field = table.fields[1].clone();
+    table.fields.insert(2, template_field);
+    table.row_fields = vec![0, -2, 1, 2];
+    table.column_fields = vec![3];
+    table.data_fields.truncate(2);
+    table.data_fields[0].field = 4;
+    table.data_fields[0].subtotal = "max".into();
+    table.data_fields[0].name = Some("Max Amount".into());
+    table.data_fields[0]
+        .attributes
+        .insert("numFmtId".into(), "1".into());
+    table.data_fields[1].field = 5;
+    table.data_fields[1].subtotal = "sum".into();
+    table.data_fields[1].name = Some("Sum Units".into());
+    table.data_fields[1]
+        .attributes
+        .insert("numFmtId".into(), "2".into());
+    for field in &mut table.fields {
+        field.items.clear();
+        field
+            .attributes
+            .retain(|name, _| !name.ends_with("Subtotal"));
+        field.attributes.insert("compact".into(), "0".into());
+        field.attributes.insert("outline".into(), "0".into());
+        field.attributes.insert("sortType".into(), "ascending".into());
+    }
+
+    let layout = calc_engine::pivot::layout(&table, &cache).unwrap();
+    let header_rows = layout.table.location["firstDataRow"].parse::<u32>().unwrap();
+    let first = layout.table.area.first();
+    let last_col = layout.table.area.last().column();
+    let default_subtotals: Vec<_> = layout
+        .table
+        .row_items
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.kind == "default")
+        .map(|(i, item)| {
+            let row = first.row() + header_rows + i as u32;
+            let key = CellKey::new(sheet, row, last_col).unwrap();
+            let val = match layout.cells[&key].core_ref() {
+                CoreRef::Number(n) => n.to_bits(),
+                other => panic!("expected number on default subtotal row {row}: {other:?}"),
+            };
+            (item.data_index, val, layout.number_formats.get(&key).copied())
+        })
+        .collect();
+    assert_eq!(
+        default_subtotals,
+        vec![
+            (0, 9.0f64.to_bits(), Some(1)),
+            (0, 5.0f64.to_bits(), Some(1)),
+            (1, 18.0f64.to_bits(), Some(2)),
+            (1, 13.0f64.to_bits(), Some(2)),
+        ]
+    );
+
+    // 2. Count and CountNums measures on a field with source #N/A (and no error-propagating
+    //    measure or custom subtotal on that field) must return counts rather than forcing #N/A.
+    let err_records = vec![
+        vec![
+            PivotItem::Index(0),
+            PivotItem::Index(0),
+            PivotItem::Index(0),
+            PivotItem::Index(0),
+            PivotItem::Error("#N/A".into()),
+            PivotItem::Number("10".into()),
+        ],
+        vec![
+            PivotItem::Index(0),
+            PivotItem::Index(1),
+            PivotItem::Index(0),
+            PivotItem::Index(0),
+            PivotItem::Number("4".into()),
+            PivotItem::Error("#N/A".into()),
+        ],
+    ];
+    let mut err_cache = cache.clone();
+    err_cache.snapshot = Some(Arc::new(PivotSnapshot {
+        records: err_records,
+        origin: PivotSnapshotOrigin::SourceRead,
+        source_revision: 0,
+        numeric: calc_host::value::NumericMode::Fast,
+    }));
+
+    let mut count_table = table.clone();
+    count_table.row_fields = vec![0, 1, -2];
+    count_table.data_fields[0].field = 4;
+    count_table.data_fields[0].subtotal = "count".into();
+    count_table.data_fields[0].name = Some("Count Amount".into());
+    count_table.data_fields[1].field = 4;
+    count_table.data_fields[1].subtotal = "countNums".into();
+    count_table.data_fields[1].name = Some("CountNums Amount".into());
+    for (flag, kind) in [("countASubtotal", "countA"), ("countSubtotal", "count")] {
+        count_table.fields[0]
+            .attributes
+            .insert(flag.into(), "1".into());
+        count_table.fields[0].items.push(PivotFieldItem {
+            index: None,
+            kind: kind.into(),
+            hidden: false,
+            missing: false,
+            calculated: false,
+        });
+    }
+    let count_layout = calc_engine::pivot::layout(&count_table, &err_cache).unwrap();
+    let count_last = count_layout.table.area.last();
+    let count_header = count_layout.table.location["firstDataRow"]
+        .parse::<u32>()
+        .unwrap();
+    let count_first = count_layout.table.area.first();
+    for (i, item) in count_layout.table.row_items.iter().enumerate() {
+        let row = count_first.row() + count_header + i as u32;
+        for col in [count_last.column() - 1, count_last.column()] {
+            let cell = &count_layout.cells[&CellKey::new(sheet, row, col).unwrap()];
+            assert!(
+                !matches!(cell.core_ref(), CoreRef::Error(_)),
+                "count/countNums row {row} ({}) col {col} must not force source error: {cell:?}",
+                item.kind,
+            );
+        }
+    }
+    let grand_count =
+        count_layout.cells[&CellKey::new(sheet, count_last.row() - 1, count_last.column()).unwrap()]
+            .core_ref();
+    let grand_count_nums =
+        count_layout.cells[&CellKey::new(sheet, count_last.row(), count_last.column()).unwrap()]
+            .core_ref();
+    assert!(matches!(grand_count, CoreRef::Number(n) if n.to_bits() == 2.0f64.to_bits()));
+    assert!(matches!(grand_count_nums, CoreRef::Number(n) if n.to_bits() == 1.0f64.to_bits()));
+
+    // 3. Different source fields: Sum Amount (field 4) + Count Units (field 5, has #N/A).
+    //    Count Units grand totals stay numeric because Units has no error-propagating measure.
+    let mut split_table = table.clone();
+    split_table.row_fields = vec![0, -2, 1];
+    split_table.data_fields[0].field = 4;
+    split_table.data_fields[0].subtotal = "sum".into();
+    split_table.data_fields[0].name = Some("Sum Amount".into());
+    split_table.data_fields[1].field = 5;
+    split_table.data_fields[1].subtotal = "count".into();
+    split_table.data_fields[1].name = Some("Count Units".into());
+    let split_layout = calc_engine::pivot::layout(&split_table, &err_cache).unwrap();
+    let split_last = split_layout.table.area.last();
+    let sum_grand =
+        split_layout.cells[&CellKey::new(sheet, split_last.row() - 1, split_last.column()).unwrap()]
+            .core_ref();
+    let count_grand =
+        split_layout.cells[&CellKey::new(sheet, split_last.row(), split_last.column()).unwrap()]
+            .core_ref();
+    assert!(matches!(sum_grand, CoreRef::Error(_)));
+    assert!(matches!(count_grand, CoreRef::Number(n) if n.to_bits() == 2.0f64.to_bits()));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_8wp_24__product_order_is_independent_of_other_measures() {
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(
         include_bytes!("fixtures/pivot/m1-calculation/built.xlsx").to_vec(),

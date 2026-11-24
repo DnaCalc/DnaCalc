@@ -82,10 +82,23 @@ pub(super) struct Walk<'a> {
     pub(super) collect_paths: bool,
     pub(super) values_level: Option<usize>,
     pub(super) value_captions: &'a [String],
+    pub(super) value_kinds: &'a [&'a str],
 }
-impl Walk<'_> {
+impl<'a> Walk<'a> {
     pub(super) fn visit(&mut self, path: &mut Vec<usize>) -> Result<(), PivotIssue> {
         walk_axis(self, path)
+    }
+    fn measure_for(&self, path: &[usize]) -> usize {
+        self.values_level
+            .and_then(|index| path.get(index))
+            .copied()
+            .unwrap_or(0)
+    }
+    fn kind_for(&self, path: &[usize]) -> &'a str {
+        self.value_kinds
+            .get(self.measure_for(path))
+            .copied()
+            .unwrap_or(self.kind)
     }
 }
 impl AxisVisitor for Walk<'_> {
@@ -127,17 +140,13 @@ impl AxisVisitor for Walk<'_> {
         let g = path[level];
         let group = &self.levels[level][g];
         let x = self.position[level][g].expect("visible group");
-        let total = self.totals[level][&*path].result(self.kind);
+        let total = self.totals[level][&*path].result(self.kind_for(path));
         let label_column = if self.form == Form::Compact {
             0
         } else {
             level as u32
         };
-        let data_index = self
-            .values_level
-            .and_then(|index| path.get(index))
-            .copied()
-            .unwrap_or(0) as u32;
+        let data_index = self.measure_for(path) as u32;
         if level + 1 == depth {
             match self.form {
                 Form::Compact | Form::Outline => {
@@ -179,7 +188,10 @@ impl AxisVisitor for Walk<'_> {
             Form::Compact | Form::Outline => {
                 self.cells
                     .insert((self.r, label_column), group_label(group)?);
-                if self.subtotal_top && self.subtotal_on[level] && self.custom_subtotals.is_empty()
+                if self.subtotal_top
+                    && self.subtotal_on[level]
+                    && self.custom_subtotals.is_empty()
+                    && !self.values_level.is_some_and(|v| level + 1 < v)
                 {
                     self.cells.insert((self.r, self.value_column), total);
                     if self.collect_paths {
@@ -263,13 +275,16 @@ impl AxisVisitor for Walk<'_> {
                 level as u32
             };
             let group = &self.levels[level][g];
-            let total = self.totals[level][&*path].result(self.kind);
+            let data_index = self.measure_for(path) as u32;
+            let total = self.totals[level][&*path].result(self.kind_for(path));
             let total_label = plain_text(&format!("{} Total", label_text(group)?));
             match self.form {
                 Form::Compact | Form::Outline if !self.subtotal_top => {
                     self.cells.insert((self.r, label_column), total_label);
                     self.cells.insert((self.r, self.value_column), total);
-                    self.axis.push(axis_item("default", level as u32, vec![x]));
+                    let mut item = axis_item("default", level as u32, vec![x]);
+                    item.data_index = data_index;
+                    self.axis.push(item);
                     if self.collect_paths {
                         self.row_paths.push((self.r, path.to_vec(), None, None));
                     }
@@ -278,7 +293,9 @@ impl AxisVisitor for Walk<'_> {
                 Form::Tabular => {
                     self.cells.insert((self.r, level as u32), total_label);
                     self.cells.insert((self.r, self.value_column), total);
-                    self.axis.push(axis_item("default", level as u32, vec![x]));
+                    let mut item = axis_item("default", level as u32, vec![x]);
+                    item.data_index = data_index;
+                    self.axis.push(item);
                     if self.collect_paths {
                         self.row_paths.push((self.r, path.to_vec(), None, None));
                     }
@@ -2202,12 +2219,31 @@ pub(super) fn render_axes(
     };
     let empty_total = Total::default();
     let mut axis = Vec::new();
+    // Excel's captured err-values and m8-axes (C10..C12) carry source errors into Count/CountNums
+    // subtotals and grand totals when the same source field has an error-propagating aggregation;
+    // when a field only counts (err-keys), Count and CountNums keep their numeric counts.
+    let propagates_source_error = |measure: usize, kind: &str| {
+        if !matches!(kind, "count" | "countNums") {
+            return true;
+        }
+        let field = table.data_fields[measure].field;
+        table.data_fields.iter().any(|data| {
+            data.field == field && !matches!(data.subtotal.as_str(), "count" | "countNums")
+        }) || custom_subtotals
+            .iter()
+            .any(|&(_, _, _, calculation)| !matches!(calculation, "count" | "countNums"))
+    };
     let mut r = header;
     if multiple_rows {
         let value_sources: Vec<_> = table
             .data_fields
             .iter()
             .map(|data| cache.fields[data.field as usize].name.as_str())
+            .collect();
+        let value_kinds: Vec<_> = table
+            .data_fields
+            .iter()
+            .map(|data| data.subtotal.as_str())
             .collect();
         let mut walk = Walk {
             levels: &row_levels,
@@ -2238,6 +2274,7 @@ pub(super) fn render_axes(
             }),
             values_level: row_values,
             value_captions: &value_captions,
+            value_kinds: &value_kinds,
         };
         walk.visit(&mut Vec::new())?;
         for ((row, column), value) in walk.cells {
@@ -2290,6 +2327,7 @@ pub(super) fn render_axes(
                         }
                     } else if crossed_row_values
                         && (subtotal_kind.is_some() || entry.kind == "grand")
+                        && propagates_source_error(measure, kind)
                         && let Some(error) = total.source_error()
                     {
                         CalcValue::error(error)
@@ -2390,7 +2428,9 @@ pub(super) fn render_axes(
                     cells.insert((r, col as u32 + label_width), value.clone());
                 } else if let Some(total) = totals.get(&(usize::MAX, entry.path.clone(), m)) {
                     let error = common_error.or_else(|| {
-                        if crossed_row_values {
+                        if crossed_row_values
+                            && propagates_source_error(m, &table.data_fields[m].subtotal)
+                        {
                             total.source_error()
                         } else {
                             None
@@ -2580,8 +2620,14 @@ pub(super) fn render_axes(
             }
             row_path.truncate(repeat);
             row_path.extend_from_slice(&item.indexes);
-            // Parent labels in a Values-on-rows layout do not carry a value field.
-            if item.kind == "data" && row_path.len() < next.row_fields.len() {
+            // Parent labels in a Values-on-rows layout do not carry a value field unless an
+            // outline top subtotal sits below Values.
+            let has_top_subtotal = subtotal_top
+                && custom_subtotals.is_empty()
+                && !row_path.is_empty()
+                && subtotal_on[row_path.len() - 1]
+                && row_values.is_some_and(|v| row_path.len() > v);
+            if item.kind == "data" && row_path.len() < next.row_fields.len() && !has_top_subtotal {
                 continue;
             }
         }
