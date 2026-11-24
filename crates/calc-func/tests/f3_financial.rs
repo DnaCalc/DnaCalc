@@ -43,6 +43,29 @@ fn first_adjacent_period_open_exception() {
     );
 }
 
+/// Excel 16.0.20625.20108 rejects subnormal annuity denominators (dc-j9k.129).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn payment_denominator_requires_normal_binary64() {
+    let periods = f64::from_bits(0x8010_0000_0000_0003);
+    error(call("PMT", vec![n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]), Num);
+    let normal = f64::from_bits(0x0017_1547_652b_82fe);
+    for (periods, expected) in [(normal.next_down(), None), (normal, Some(0xffc0_0000_0000_0000))] {
+        let payment = call("PMT", vec![n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]);
+        let principal = call("PPMT", vec![n(1.0), n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]);
+        for result in [payment, principal] {
+            match expected {
+                Some(bits) => exact(result, f64::from_bits(bits)),
+                None => error(result, Num),
+            }
+        }
+    }
+    exact(
+        call("IPMT", vec![n(1.0), n(1.0), n(normal.next_down()), n(2.0), n(-1.0), n(1.0)]),
+        0.0,
+    );
+}
+
 /// Carbon cb19 (dc-j9k.90 / dc-j9k.12): Excel 16.0.20527.20196 bit-exact controls for the unified
 /// PC=64 PMT quotient body, shared `excel_log1p_times(1.0, rate)` in `alnrel`, and PC=64 stored
 /// exponent products across PMT, IPMT, PPMT, CUMPRINC and CUMIPMT.

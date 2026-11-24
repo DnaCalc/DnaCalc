@@ -59,6 +59,105 @@ fn dates_without_an_environment_are_refused() {
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
+/// Excel 16.0.20625 rejects out-of-range dates and rounds serials just below a whole day.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn days360_validates_and_rounds_serials() {
+    let env = host();
+    for invalid in [f64::MAX, 2_958_466.0, 2_958_466.0 - 0.000_005, -f64::EPSILON] {
+        for method in [false, true] {
+            error(c(&env, "DAYS360", vec![n(invalid), n(1.0), b(method)]), Num);
+            error(c(&env, "DAYS360", vec![n(1.0), n(invalid), b(method)]), Num);
+        }
+    }
+    let before = |day: f64| n(f64::from_bits(day.to_bits() - 1));
+    exact(c(&env, "DAYS360", vec![n(45351.0), before(45716.0)]), 358.0);
+    exact(c(&env, "DAYS360", vec![before(60.0), n(0.0)]), -60.0);
+    exact(c(&env, "DAYS360", vec![n(0.0), before(1.0), b(true)]), 1.0);
+    exact(c(&env, "DAYS360", vec![n(0.0), n(1.0 - 0.000_006)]), 0.0);
+    exact(c(&env, "DAYS360", vec![n(45351.0), n(45381.0), t("TRUE")]), 31.0);
+    error(c(&env, "DAYS360", vec![n(45351.0), n(45381.0), t("0.1")]), Value);
+}
+
+/// Excel 16.0.20625 checks DATEDIF's calendar serials before doing even a day count.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn datedif_checks_calendar_serials() {
+    let env = host();
+    for unit in ["d", "m"] {
+        error(c(&env, "DATEDIF", vec![n(0.0), n(f64::MAX), t(unit)]), Num);
+        error(c(&env, "DATEDIF", vec![n(-f64::EPSILON), n(1.0), t(unit)]), Num);
+    }
+    let before_march = f64::from_bits(61.0_f64.to_bits() - 1);
+    exact(c(&env, "DATEDIF", vec![n(1.0), n(before_march), t("d")]), 59.0);
+    exact(c(&env, "DATEDIF", vec![n(1.0), n(before_march), t("m")]), 2.0);
+    exact(c(&env, "DATEDIF", vec![n(60.0), n(61.0), t("md")]), 1.0);
+    exact(c(&env, "DATEDIF", vec![n(60.0), n(61.0), t("yd")]), 1.0);
+    error(c(&env, "DATEDIF", vec![n(1.0), n(2.0), t(" d ")]), Num);
+    for (start, end, days) in [
+        (43890.0, 44256.0, 0.0),
+        (43890.0, 44561.0, 306.0),
+        (43702.0, 45133.0, 336.0),
+        (43521.0, 45579.0, 231.0),
+    ] {
+        exact(c(&env, "DATEDIF", vec![n(start), n(end), t("yd")]), days);
+    }
+}
+
+/// Excel 16.0.20625 treats 28 February 1900 as the month end for YEARFRAC basis 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn yearfrac_us_day_count_uses_the_gregorian_february_end() {
+    let env = host();
+    error(c(&env, "YEARFRAC", vec![n(7909.0), n(12681.0), n(-0.25)]), Num);
+    exact(c(&env, "YEARFRAC", vec![n(59.0), n(60.0)]), -1.0 / 360.0);
+    exact(c(&env, "YEARFRAC", vec![n(59.0), n(61.0)]), 1.0 / 360.0);
+    exact(c(&env, "YEARFRAC", vec![n(89.0), n(60.0)]), 30.0 / 360.0);
+    exact(c(&env, "YEARFRAC", vec![n(44985.0), n(45016.0)]), 31.0 / 360.0);
+    error(c(&env, "YEARFRAC", vec![n(-1.0), n(45100.0), b(false)]), Value);
+    error(c(&env, "YEARFRAC", vec![e(NA), n(45100.0), n(-1.0)]), Num);
+    error(c(&env, "YEARFRAC", vec![n(-1.0), n(45100.0), e(Ref)]), Ref);
+}
+
+/// Excel 16.0.20625 rejects negative fractional holidays before truncating them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn business_days_check_holiday_serials_before_truncation() {
+    let env = host();
+    for (name, second) in [
+        ("NETWORKDAYS", 45001.0),
+        ("NETWORKDAYS.INTL", 45001.0),
+        ("WORKDAY", 2.0),
+        ("WORKDAY.INTL", 2.0),
+    ] {
+        for holiday in [n(-0.25), arr(vec![vec![45001.0], vec![-0.25]])] {
+            let mut args = vec![n(45000.0), n(second)];
+            if name.ends_with(".INTL") {
+                args.push(n(1.0));
+            }
+            args.push(holiday);
+            error(c(&env, name, args), Num);
+        }
+    }
+}
+
+/// Excel 16.0.20625 reads a weekend string as a seven-day mask and a blank cell as code zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn intl_business_days_distinguish_weekend_argument_kinds() {
+    let env = host();
+    for (name, second, expected) in [
+        ("NETWORKDAYS.INTL", 45001.0, 2.0),
+        ("WORKDAY.INTL", 2.0, 45002.0),
+    ] {
+        let with_weekend = |kind| c(&env, name, vec![n(45000.0), n(second), kind]);
+        error(with_weekend(t("1")), Value);
+        error(with_weekend(CalcValue::empty()), Num);
+        exact(with_weekend(missing()), expected);
+        exact(with_weekend(n(1.0)), expected);
+    }
+}
+
 /// Excel 20527: an invalid year cannot wrap to 1900 or be rescued from 10000 by a negative month.
 /// Negative years within the ordinary range still normalize with their month before the serial check.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
