@@ -384,6 +384,7 @@ impl DiscrepancyCluster {
         json!({
             "id": self.id,
             "key": self.key,
+            "external_ref": super::coverage::cluster_external_ref(&self.function, &self.key),
             "function": self.function,
             "kind": self.kind,
             "region_group": self.region_group,

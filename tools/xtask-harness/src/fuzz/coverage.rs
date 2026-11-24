@@ -255,6 +255,11 @@ impl BeadsIndex {
         Ok(index)
     }
 
+    fn is_tracked(&self, external_ref: &str, explicit_bead: Option<&str>) -> bool {
+        self.status_by_ext_ref.contains_key(external_ref)
+            || explicit_bead.is_some_and(|id| self.status_by_id.contains_key(id))
+    }
+
     fn is_closed(&self, external_ref: &str, explicit_bead: Option<&str>) -> bool {
         if let Some(status) = self.status_by_ext_ref.get(external_ref) {
             return matches!(status.as_str(), "closed" | "tombstone");
@@ -412,6 +417,9 @@ struct FunctionAcc {
     unique_frontiers: BTreeSet<String>,
     unindexed_frontiers: u64,
     open_cluster_refs: BTreeSet<String>,
+    /// Standalone clusters with no matching bead in `.beads/issues.jsonl`, tagged with their
+    /// sweep timestamp so a newer clean post-fix sweep supersedes stale pre-fix untracked clusters.
+    untracked_clusters_by_ts: Vec<(String, BTreeSet<String>)>,
     last_sweep_ts: String,
     last_sweep_date: String,
     last_sweep_commit: String,
@@ -597,6 +605,7 @@ pub fn collect_from_records(
         }
 
         if let Some(clusters) = summary["clusters"].as_array() {
+            let mut sweep_untracked: BTreeSet<String> = BTreeSet::new();
             for cluster in clusters {
                 if let Some(key) = cluster["key"].as_str() {
                     let kind = cluster["kind"].as_str().unwrap_or("");
@@ -609,10 +618,19 @@ pub fn collect_from_records(
                     }
                     let ext_ref = cluster_external_ref(&function, key);
                     let explicit_bead = cluster["bead"].as_str();
-                    if !beads.is_closed(&ext_ref, explicit_bead) {
+                    if beads.is_closed(&ext_ref, explicit_bead) {
+                        continue;
+                    }
+                    if beads.is_tracked(&ext_ref, explicit_bead) {
                         acc.open_cluster_refs.insert(ext_ref);
+                    } else {
+                        sweep_untracked.insert(ext_ref);
                     }
                 }
+            }
+            if !sweep_untracked.is_empty() {
+                acc.untracked_clusters_by_ts
+                    .push((timestamp.clone(), sweep_untracked));
             }
         }
 
@@ -625,8 +643,17 @@ pub fn collect_from_records(
         }
     }
 
-    // Union any open fuzz-sweep-cluster beads for functions that were swept.
+    // Include untracked standalone clusters ONLY from the latest sweep timestamp (so a clean
+    // post-fix sweep closes manually-filed pre-fix standalone clusters that had no external_ref),
+    // and union any open fuzz-sweep-cluster beads for functions that were swept.
     for (function, acc) in &mut by_func {
+        for (ts, refs) in &acc.untracked_clusters_by_ts {
+            if ts == &acc.last_sweep_ts {
+                for r in refs {
+                    acc.open_cluster_refs.insert(r.clone());
+                }
+            }
+        }
         if let Some(open_refs) = beads.open_fuzz_refs_by_func.get(function) {
             for r in open_refs {
                 acc.open_cluster_refs.insert(r.clone());
@@ -676,6 +703,38 @@ fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
+fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCoverageRow {
+    let regions_total = prev.regions_total.max(fresh.regions_total);
+    let regions_covered = prev
+        .regions_covered
+        .max(fresh.regions_covered)
+        .min(regions_total);
+    let (last_sweep_date, last_sweep_commit) = if fresh.last_sweep_date >= prev.last_sweep_date {
+        let commit = if fresh.last_sweep_commit != "-" {
+            fresh.last_sweep_commit
+        } else {
+            prev.last_sweep_commit.clone()
+        };
+        (fresh.last_sweep_date, commit)
+    } else {
+        (prev.last_sweep_date.clone(), prev.last_sweep_commit.clone())
+    };
+    FuzzCoverageRow {
+        function: fresh.function,
+        sweeps: prev.sweeps.saturating_add(fresh.sweeps),
+        cases_swept: prev.cases_swept.saturating_add(fresh.cases_swept),
+        matched: prev.matched.saturating_add(fresh.matched),
+        failed: prev.failed.saturating_add(fresh.failed),
+        harness_faults: prev.harness_faults.saturating_add(fresh.harness_faults),
+        regions_covered,
+        regions_total,
+        frontiers_mapped: prev.frontiers_mapped.max(fresh.frontiers_mapped),
+        open_clusters: fresh.open_clusters,
+        last_sweep_date,
+        last_sweep_commit,
+    }
+}
+
 fn execute(options: &Options) -> Result<Vec<FuzzCoverageRow>, String> {
     let default_beads = PathBuf::from(".beads/issues.jsonl");
     let beads_path = options
@@ -691,7 +750,12 @@ fn execute(options: &Options) -> Result<Vec<FuzzCoverageRow>, String> {
             .map(|r| (r.function.clone(), r))
             .collect();
         for row in fresh {
-            by_fn.insert(row.function.clone(), row);
+            let key = row.function.clone();
+            let merged = match by_fn.get(&key) {
+                Some(prev) => merge_coverage_row(prev, row),
+                None => row,
+            };
+            by_fn.insert(key, merged);
         }
         fresh = by_fn.into_values().collect();
     }
@@ -1115,6 +1179,205 @@ mod tests {
         let merged = parse_tsv(&fs::read_to_string(&merged_tsv).unwrap()).unwrap();
         assert_eq!(merged.len(), 3);
         assert_eq!(merged[2], existing_row);
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn coverage_merge_accumulates_totals_and_clean_post_fix_sweep_closes_untracked_clusters() {
+        let base = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-cov-merge-close-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+
+        // 1. --merge must accumulate per-function totals instead of overwriting prior sweeps.
+        let merged_tsv = base.join("fuzz-status.tsv");
+        let prev_rate = FuzzCoverageRow {
+            function: "RATE".to_owned(),
+            sweeps: 1,
+            cases_swept: 100,
+            matched: 96,
+            failed: 4,
+            harness_faults: 0,
+            regions_covered: 3,
+            regions_total: 6,
+            frontiers_mapped: 4,
+            open_clusters: 1,
+            last_sweep_date: "2026-11-23".to_owned(),
+            last_sweep_commit: "1111111111".to_owned(),
+        };
+        fs::write(&merged_tsv, format_tsv(&[prev_rate])).unwrap();
+
+        let new_rate_dir = base.join("new-rate");
+        fs::create_dir_all(&new_rate_dir).unwrap();
+        fs::write(
+            new_rate_dir.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "RATE",
+                "seed": 20261124,
+                "dry_run": false,
+                "total_asked": 200,
+                "total_matched": 200,
+                "total_mismatched": 0,
+                "total_harness_fault": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "new-rate-clean",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "calc_func_commit": "2222222222abcdef",
+                "frontier_count": 2,
+                "regions": {
+                    "special_values": {"asked": 100, "matched": 100, "mismatched": 0},
+                    "near_integers": {"asked": 100, "matched": 100, "mismatched": 0}
+                },
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let empty_beads = base.join("empty-issues.jsonl");
+        fs::write(&empty_beads, "").unwrap();
+        let merge_args = [
+            "--records",
+            new_rate_dir.to_str().unwrap(),
+            "--beads",
+            empty_beads.to_str().unwrap(),
+            "--out",
+            merged_tsv.to_str().unwrap(),
+            "--merge",
+        ]
+        .map(str::to_owned);
+        assert_eq!(run(&merge_args), ExitCode::SUCCESS);
+        let rows = parse_tsv(&fs::read_to_string(&merged_tsv).unwrap()).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].sweeps, 2, "--merge must accumulate sweeps");
+        assert_eq!(rows[0].cases_swept, 300, "--merge must accumulate cases_swept");
+        assert_eq!(rows[0].matched, 296, "--merge must accumulate matched");
+        assert_eq!(rows[0].failed, 4, "--merge must accumulate failed");
+        assert_eq!(rows[0].regions_covered, 3);
+        assert_eq!(rows[0].regions_total, 6);
+        assert_eq!(rows[0].frontiers_mapped, 4);
+        assert_eq!(rows[0].open_clusters, 0, "clean post-fix merge must clear open_clusters");
+        assert_eq!(rows[0].last_sweep_date, "2026-11-24");
+        assert_eq!(rows[0].last_sweep_commit, "2222222222");
+
+        // 2. Standalone pre-fix cluster without external_ref must close after a clean post-fix sweep,
+        //    while a tracked open fuzz-sweep-cluster bead stays open until closed in issues.jsonl.
+        let both_dir = base.join("both-sweeps");
+        let pv_pre = both_dir.join("pv-pre");
+        let pv_post = both_dir.join("pv-post");
+        let fv_pre = both_dir.join("fv-pre");
+        let fv_post = both_dir.join("fv-post");
+        for d in [&pv_pre, &pv_post, &fv_pre, &fv_post] {
+            fs::create_dir_all(d).unwrap();
+        }
+        fs::write(
+            pv_pre.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "PV",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 50,
+                "total_matched": 45,
+                "total_mismatched": 5,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "pv-pre-hash",
+                "finished_utc": "2026-11-23T10:00:00Z",
+                "clusters": [
+                    {"id": "C01", "key": "pv-standalone-manual-bug", "count": 5}
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            pv_post.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "PV",
+                "seed": 2,
+                "dry_run": false,
+                "total_asked": 100,
+                "total_matched": 100,
+                "total_mismatched": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "pv-post-hash",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            fv_pre.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "FV",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 50,
+                "total_matched": 48,
+                "total_mismatched": 2,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "fv-pre-hash",
+                "finished_utc": "2026-11-23T10:00:00Z",
+                "clusters": [
+                    {"id": "C01", "key": "fv-tracked-open-bug", "count": 2}
+                ]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            fv_post.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "FV",
+                "seed": 2,
+                "dry_run": false,
+                "total_asked": 100,
+                "total_matched": 100,
+                "total_mismatched": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "fv-post-hash",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let tracked_beads = base.join("tracked-issues.jsonl");
+        let fv_ref = cluster_external_ref("FV", "fv-tracked-open-bug");
+        fs::write(
+            &tracked_beads,
+            format!(
+                "{}\n",
+                json!({
+                    "id": "dc-test.fv",
+                    "title": "Fuzz discrepancy: FV numeric",
+                    "status": "open",
+                    "labels": ["fuzz-sweep-cluster"],
+                    "external_ref": fv_ref
+                })
+            ),
+        )
+        .unwrap();
+
+        let collected = collect_from_records(&[both_dir], Some(&tracked_beads)).unwrap();
+        let fv = collected.iter().find(|r| r.function == "FV").unwrap();
+        let pv = collected.iter().find(|r| r.function == "PV").unwrap();
+        assert_eq!(
+            pv.open_clusters, 0,
+            "standalone pre-fix cluster without external_ref must clear after a clean post-fix sweep"
+        );
+        assert_eq!(
+            fv.open_clusters, 1,
+            "tracked open bead in issues.jsonl must remain open until closed"
+        );
 
         let _ = fs::remove_dir_all(&base);
     }
