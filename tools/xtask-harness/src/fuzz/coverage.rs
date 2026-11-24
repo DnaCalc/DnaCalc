@@ -579,8 +579,14 @@ pub fn collect_from_records(
                         "{}|{}|{}|{}",
                         f["axis_name"].as_str().unwrap_or(""),
                         f["kind"].as_str().unwrap_or(""),
-                        f["dna_lo_bits"].as_str().unwrap_or(""),
-                        f["dna_hi_bits"].as_str().unwrap_or(""),
+                        f["dna_lo_bits"]
+                            .as_str()
+                            .or_else(|| f["excel_lo_bits"].as_str())
+                            .unwrap_or(""),
+                        f["dna_hi_bits"]
+                            .as_str()
+                            .or_else(|| f["excel_hi_bits"].as_str())
+                            .unwrap_or(""),
                     );
                     acc.unique_frontiers.insert(key);
                 }

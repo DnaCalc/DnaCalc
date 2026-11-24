@@ -544,14 +544,23 @@ pub fn render_markdown_report(summary: &FuzzSummary) -> String {
         md.push_str("| ID | Axis | Flip | DNA lo..hi | Excel lo..hi | Shift (ULP) |\n");
         md.push_str("|---|---|---|---|---|---:|\n");
         for f in summary.frontiers.iter().take(25) {
+            let dna = if f.is_excel_only() {
+                "-".to_owned()
+            } else {
+                format!("`0x{:016x}`..`0x{:016x}`", f.dna_lo_bits, f.dna_hi_bits)
+            };
             let ex = match (f.excel_lo_bits, f.excel_hi_bits) {
                 (Some(l), Some(h)) => format!("`0x{l:016x}`..`0x{h:016x}`"),
                 _ => "-".to_owned(),
             };
-            let sh = f.shifted_ulps.map_or("-".to_owned(), |s| s.to_string());
+            let sh = if f.is_excel_only() {
+                "excel-only".to_owned()
+            } else {
+                f.shifted_ulps.map_or("-".to_owned(), |s| s.to_string())
+            };
             md.push_str(&format!(
-                "| `{}` | `{}` | `{}` | `0x{:016x}`..`0x{:016x}` | {} | {} |\n",
-                f.id, f.axis_name, f.kind, f.dna_lo_bits, f.dna_hi_bits, ex, sh
+                "| `{}` | `{}` | `{}` | {} | {} | {} |\n",
+                f.id, f.axis_name, f.kind, dna, ex, sh
             ));
         }
     }

@@ -1419,7 +1419,9 @@ pub fn fractal_refine_coarse_discrepancies_excel(
         return Ok(0);
     }
 
-    // Collect numeric axes for each exemplar (up to 2 axes per exemplar to keep probe budget tight).
+    // Collect all present numeric axes for each exemplar (up to 10 axes per exemplar so 5-9 arg
+    // functions like RATE, YIELD, PV, FV, PMT, ODDFPRICE escalate along pv/fv/type/guess/rate/pr/basis).
+    const MAX_COARSE_AXES_PER_EXEMPLAR: usize = 10;
     #[derive(Clone)]
     struct TargetAxis {
         base_args: Vec<Value>,
@@ -1432,7 +1434,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
     for ex in &exemplars {
         let mut added = 0usize;
         for (i, p) in spec.params.iter().enumerate() {
-            if added >= 2 {
+            if added >= MAX_COARSE_AXES_PER_EXEMPLAR {
                 break;
             }
             let cell = if p.kind == ParamKind::ArrayNumeric {
@@ -1731,16 +1733,23 @@ pub fn fractal_refine_coarse_discrepancies_excel(
         let mut args_hi = tgt.base_args.clone();
         set_axis_f64(&mut args_hi, tgt.axis, tgt.cell, f64::from_bits(hi_b));
         let (dna_hi, _, _) = evaluate_traced(&cfg.function, &args_hi, &ctx);
-        let kind = if pred_flip {
+        let dna_pred_flip = predicate_tag(&dna_lo) != predicate_tag(&dna_hi);
+        let matched_dna_flip = pred_flip && dna_pred_flip;
+        let kind = if matched_dna_flip {
             format!("{}<->{}", predicate_tag(&lo_o), predicate_tag(&hi_o))
+        } else if pred_flip {
+            format!("excel_only:{}<->{}", predicate_tag(&lo_o), predicate_tag(&hi_o))
         } else {
             "discrepancy_onset".to_owned()
         };
-        let transition_kind = if pred_flip {
+        let transition_kind = if matched_dna_flip {
             "predicate_flip".to_owned()
+        } else if pred_flip {
+            "excel_only_predicate_flip".to_owned()
         } else {
             "discrepancy_onset".to_owned()
         };
+        let shifted_ulps = matched_dna_flip.then_some(0);
         let f = Frontier {
             id: format!("frontier-{}-{:03}", cfg.function, frontiers.len() + 1),
             function: cfg.function.clone(),
@@ -1757,7 +1766,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
             excel_hi_bits: Some(hi_b),
             excel_lo_outcome: Some(lo_o),
             excel_hi_outcome: Some(hi_o),
-            shifted_ulps: Some(0),
+            shifted_ulps,
             depth: 0,
             scale: super::fractal::FractalScale::CoarseDiscrepancy.as_str().to_owned(),
             transition_kind,
@@ -3982,5 +3991,196 @@ mod tests {
             assert_eq!(f.excel_lo_bits, None, "frontier {} must remain unshifted", f.id);
             assert_eq!(f.shifted_ulps, None, "frontier {} must not log bogus shift", f.id);
         }
+    }
+
+    #[test]
+    fn coarse_discrepancy_escalation_probes_later_axes_and_marks_excel_only_unshifted() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-coarse-later-axis-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        // Excel-only #NUM! cutoff on RATE's 6th parameter (axis 5 = `guess`) at guess > 0.125.
+        let secret_cut = 0.125_f64;
+        let _server = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-coarse-axis5", "envs": {"e1": {"file_version": "16.0.20625.20108", "build": "20625", "cpu": "Fake", "machine": "x86-64"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                let mut args_json = Vec::with_capacity(width);
+                                for c in 0..width {
+                                    let h = flat[r * width + c].as_str().unwrap();
+                                    ity.push('n');
+                                    iv.push(Value::String(h.to_owned()));
+                                    args_json.push(Value::String(format!("0x{h}")));
+                                }
+                                let guess = f64::from_bits(
+                                    u64::from_str_radix(flat[r * width + 5].as_str().unwrap(), 16).unwrap(),
+                                );
+                                if guess > secret_cut {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#NUM!".to_owned()));
+                                } else {
+                                    let (dna, _, _) = evaluate_traced("RATE", &args_json, &ctx);
+                                    if let Some(hex) = dna.strip_prefix("0x") {
+                                        ty.push('n');
+                                        out_v.push(Value::String(hex.to_owned()));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#NUM!".to_owned()));
+                                    }
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let spec = DomainSpec::for_function("RATE").unwrap();
+        let ctx = touchstone_bulk_context();
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.out_dir = tmp.join("out");
+
+        let disc_args = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.25),
+        ];
+        let (pred, trace, oc) = evaluate_traced("RATE", &disc_args, &ctx);
+        let disc_case = FuzzCase {
+            id: "fuzz-RATE-r00-000001".to_owned(),
+            region: "special_values".to_owned(),
+            round: 0,
+            args: disc_args.clone(),
+            prediction: pred,
+            trace,
+            outcome_class: oc,
+        };
+        let mut discrepancies = vec![DiscrepancyRow {
+            case: disc_case,
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|guess".to_owned(),
+        }];
+        let mut frontiers = Vec::new();
+        let mut fractal_stats = FractalDiscoveryStats::default();
+        let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let disc_key = canonical_case_key("RATE", &disc_args);
+        seen.insert(disc_key.clone());
+        excel_answers.insert(disc_key, "error:Num".to_owned());
+        let mut hasher = StreamCaseHasher::new("RATE");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut harness_fault, mut unread, mut crashed) =
+            (1, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
+        let mut excel_s = 0.0;
+
+        let added = fractal_refine_coarse_discrepancies_excel(
+            &cfg,
+            &spec,
+            &client,
+            &mut frontiers,
+            &mut fractal_stats,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discrepancies,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            1,
+            2,
+        )
+        .expect("coarse escalation succeeded");
+
+        assert!(added >= 1, "expected coarse escalation to probe axis 5 (guess)");
+        let f = frontiers
+            .iter()
+            .find(|f| f.axis == 5 && f.scale == "coarse_discrepancy")
+            .expect("axis 5 (guess) coarse_discrepancy frontier must be discovered");
+        assert_eq!(f.excel_lo_bits, Some(secret_cut.to_bits()));
+        assert_eq!(
+            f.excel_hi_bits,
+            Some(step_ulps(secret_cut, 1, true).unwrap().to_bits())
+        );
+        assert_eq!(
+            f.shifted_ulps, None,
+            "Excel-only boundary where DNA Calc did not flip must NOT report shifted_ulps=Some(0)"
+        );
+        assert_eq!(f.transition_kind, "excel_only_predicate_flip");
+        let j = f.to_json();
+        assert!(j["dna_lo_bits"].is_null(), "Excel-only frontier JSON must not fabricate dna_lo_bits: {j}");
+        assert!(j["dna_hi_bits"].is_null(), "Excel-only frontier JSON must not fabricate dna_hi_bits: {j}");
+        assert!(j["shifted_ulps"].is_null(), "Excel-only frontier JSON must have shifted_ulps=null: {j}");
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -108,7 +108,24 @@ pub struct Frontier {
 }
 
 impl Frontier {
+    /// True when this frontier was discovered purely from an Excel boundary or discrepancy onset
+    /// where DNA Calc itself did not flip at `(excel_lo_bits, excel_hi_bits)`.
+    pub fn is_excel_only(&self) -> bool {
+        matches!(
+            self.transition_kind.as_str(),
+            "excel_only_predicate_flip" | "discrepancy_onset"
+        )
+    }
+
     pub fn to_json(&self) -> Value {
+        let (dna_lo_json, dna_hi_json) = if self.is_excel_only() {
+            (Value::Null, Value::Null)
+        } else {
+            (
+                Value::String(format!("0x{:016x}", self.dna_lo_bits)),
+                Value::String(format!("0x{:016x}", self.dna_hi_bits)),
+            )
+        };
         json!({
             "id": self.id,
             "function": self.function,
@@ -121,8 +138,8 @@ impl Frontier {
             "transition_kind": self.transition_kind,
             "parent_id": self.parent_id,
             "base_args": self.base_args,
-            "dna_lo_bits": format!("0x{:016x}", self.dna_lo_bits),
-            "dna_hi_bits": format!("0x{:016x}", self.dna_hi_bits),
+            "dna_lo_bits": dna_lo_json,
+            "dna_hi_bits": dna_hi_json,
             "dna_lo_outcome": self.dna_lo_outcome,
             "dna_hi_outcome": self.dna_hi_outcome,
             "excel_lo_bits": self.excel_lo_bits.map(|b| format!("0x{b:016x}")),
