@@ -52,12 +52,15 @@ impl NameCalculation {
             self.release();
         }
     }
+    /// Borrow the terminal result if it is ready and has not been taken.
     pub fn result(&self) -> Option<&NameCalculationResult> {
         self.result.as_ref()
     }
+    /// Take ownership of the terminal result, if available.
     pub fn take_result(&mut self) -> Option<NameCalculationResult> {
         self.result.take()
     }
+    /// Report whether the activation is calculating or has reached a terminal state.
     pub fn progress(&self) -> NameCalculationProgress {
         if self.work.is_none() {
             NameCalculationProgress::Ready
@@ -65,12 +68,16 @@ impl NameCalculation {
             NameCalculationProgress::Calculating
         }
     }
+    /// Cancel an active calculation, making its terminal result available.
     pub fn cancel(&mut self) {
         if let Some(work) = &mut self.work {
             work.cancel();
         }
         self.collect_terminal();
     }
+    /// Advance by the given engine quantum against the owning session.
+    /// If the session's calculation authority, options, or input facts have
+    /// changed since admission, the calculation expires.
     pub fn advance(
         &mut self,
         session: &mut HostSession,

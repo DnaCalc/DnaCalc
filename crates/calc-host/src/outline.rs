@@ -3,22 +3,37 @@ use crate::{CellEdit, HostState};
 use calc_doc_model::{Axis, AxisFormatEdit};
 use calc_value::{CellKey, SheetId};
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Change the grouping or visibility of rows or columns on one worksheet.
 pub enum OutlineChange {
+    /// Add one level of grouping to a contiguous range.
     Group {
+        /// First row or column, using one-based coordinates.
         first: u32,
+        /// Last row or column, inclusive.
         last: u32,
     },
+    /// Remove one level of grouping while preserving hidden detail.
     Ungroup {
+        /// First row or column, using one-based coordinates.
         first: u32,
+        /// Last row or column, inclusive.
         last: u32,
     },
+    /// Expand or collapse one group identified by detail or its summary band.
     Detail {
+        /// First selected row or column, using one-based coordinates.
         first: u32,
+        /// Last selected row or column, inclusive.
         last: u32,
+        /// Limit the selection to groups at this level when provided.
         level: Option<u8>,
+        /// Expand the group when true and collapse it when false.
         show: bool,
     },
+    /// Expand groups below the requested level and collapse groups at or above it.
+    /// The display level ranges from 1 through 8.
     ShowLevel(u8),
+    /// Put summaries after the detail when true or before it when false.
     SummaryAfter(bool),
 }
 pub(crate) fn prepare(

@@ -5,21 +5,34 @@ pub use calc_doc_model::{AutoFilter, FilterCriteria, FilterOperator, FilterPredi
 use calc_engine::{DetachedEvaluationContext, DetachedReadPolicy};
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Change the range, criteria, or visibility of an AutoFilter.
 pub enum FilterChange {
+    /// Filter by a cell's fill or font color.
     Color {
+        /// One-based worksheet column.
         column: u32,
+        /// Match the fill when true or the font when false.
         cell_color: bool,
+        /// Color text to resolve into a differential format.
         color: String,
     },
+    /// Set the AutoFilter range.
     Enable {
+        /// Range containing the header row and the data rows.
         area: GridArea,
     },
+    /// Change the criterion for one column.
     Column {
+        /// One-based worksheet column.
         column: u32,
+        /// New criterion, or `None` to clear the column's criterion.
         criteria: Option<FilterCriteria>,
     },
+    /// Clear all criteria while retaining the filter range.
     Clear,
+    /// Remove the filter.
     Remove,
+    /// Apply the existing criteria again to current cell values.
     Reapply,
 }
 fn refusal(detail: impl std::fmt::Display) -> String {
@@ -686,6 +699,16 @@ pub fn filter_values(
 ) -> Result<(Vec<(String, bool)>, bool), String> {
     filter_values_for(host, sheet, None, column)
 }
+/// List AutoFilter choices for a one-based worksheet column.
+///
+/// Pass the table's package part name to query a table filter, or `None` for
+/// the worksheet filter. Each returned pair contains the choice text and whether
+/// it is selected by the column's criterion. The final flag is the blank choice's
+/// selection state. Other columns' criteria do not limit these choices.
+///
+/// # Errors
+/// Returns an error if the filter or column is unavailable, the values need
+/// calculation, or the list exceeds 10,000 distinct choices.
 pub fn filter_values_for(
     host: &HostState,
     sheet: SheetId,

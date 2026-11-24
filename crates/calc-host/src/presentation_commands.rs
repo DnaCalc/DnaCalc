@@ -3,7 +3,10 @@
 //! bf6dfd7 `src/dnacalc-stage-notebook/src/{lib.rs,model.rs}` port recorded there.
 use crate::{CellEdit, HostState, PlacementId, SkinIntent};
 use calc_value::{CellKey, GridArea};
+/// Maximum occupied-cell workload accepted by [`autofit_cells`].
 pub const AUTOFIT_CELLS: usize = 10_000;
+
+/// Check that the target's worksheet exists and allows ordinary cell edits.
 pub fn can_edit(host: &HostState, at: CellKey) -> Result<(), String> {
     if host.model().sheet_by_id(at.sheet()).is_none() {
         return Err("The worksheet is unavailable".into());
@@ -18,6 +21,8 @@ pub fn can_edit(host: &HostState, at: CellKey) -> Result<(), String> {
     Ok(())
 }
 
+/// Prepare an intent to append a prose or calculation link to the notebook.
+/// With `text`, the intent also enters content into a single empty cell.
 pub fn prepare_notebook_link(
     host: &HostState,
     target: GridArea,
@@ -136,6 +141,9 @@ pub fn prepare_notebook_link(
     }
 }
 
+/// Prepare a notebook placement edit. Negative and positive directions move
+/// toward the previous and next link on the same sheet. Zero removes the link.
+/// Returns `Ok(None)` when there is no peer in the requested direction.
 pub fn prepare_notebook_order(
     host: &HostState,
     id: PlacementId,
@@ -197,6 +205,9 @@ pub fn prepare_notebook_order(
     }
     Ok(Some(SkinIntent::Edit { edits }))
 }
+/// Collect distinct occupied cells accepted by `visible` for AutoFit measurement.
+/// Returns an error for an unavailable or protected sheet, intersecting merges,
+/// or an occupied-cell workload beyond [`AUTOFIT_CELLS`].
 pub fn autofit_cells(
     host: &HostState,
     target: GridArea,

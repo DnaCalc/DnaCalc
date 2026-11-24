@@ -41,7 +41,9 @@ pub enum ErrorStyle {
 /// The rule that applies to a cell, as a skin shows it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidationRule {
+    /// The workbook's validation kind, such as `list` or `whole`.
     pub kind: String,
+    /// How the client should report a rejected entry.
     pub style: ErrorStyle,
     /// Whether the cell shows a drop-down (a list whose file does not hide it).
     pub dropdown: bool,
@@ -52,8 +54,11 @@ pub struct ValidationRule {
 /// Why an entry is not allowed: the rule's style, and the title and message Excel shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidationFailure {
+    /// Whether the entry is blocked or can be accepted by the user.
     pub style: ErrorStyle,
+    /// Heading for the validation error message.
     pub title: String,
+    /// Text explaining why the entry failed validation.
     pub message: String,
 }
 
@@ -89,20 +94,32 @@ fn literal_items(formula: &str) -> Option<Vec<String>> {
 /// An audit never treats unavailable values or rules as valid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ValidationStatus {
+    /// The current cell value passes validation.
     Valid,
+    /// The current value fails the applicable rule.
     Invalid(ValidationFailure),
+    /// The audit could not determine whether the value passes.
     Unavailable {
+        /// Why the audit could not complete the check.
         reason: &'static str,
+        /// Work package that owns the unavailable behavior.
         owner: &'static str,
     },
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Results of auditing worksheet data validation rules.
 pub struct ValidationScan {
+    /// Locations of cells whose values failed validation.
     pub invalid: Vec<CellKey>,
+    /// Total number of distinct cells checked.
     pub checked: u32,
+    /// Number of cells that passed the audit.
     pub valid: u32,
+    /// Number of cells for which no verdict was available.
     pub unavailable: u32,
+    /// Whether the audit stopped at the 10,000-cell limit.
     pub truncated: bool,
+    /// Counts of unavailable verdicts by reason, ordered by reason.
     pub reasons: Vec<(String, u32)>,
 }
 

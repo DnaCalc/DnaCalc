@@ -21,18 +21,26 @@ pub enum EntryRefusal {
     /// The text is `=` alone: a formula entry with no formula.
     EmptyFormula,
     /// The text is longer than a cell's text can be.
-    TooLong { units: usize },
+    TooLong {
+        /// Length of the entry in UTF-16 code units.
+        units: usize,
+    },
     /// Excel may read the text as a number, date, time, percentage or currency under the locale's
     /// number formats, or as a number rounded to 15 significant digits, or (a leading `+` or `-`)
     /// as a formula. That reading is not modelled (dc-b1l): with no locale profile, or where the
     /// profile's reading is not modelled ([`interpret_entry_in`]).
-    NumberShaped { text: String },
+    NumberShaped {
+        /// Original entry text whose numeric interpretation is unavailable.
+        text: String,
+    },
     /// Excel's formula entry refuses the formula by `rule` ([`calc_fml::check_entry`]), at `span`
     /// of the entered text: the grid shows Excel's "There's a problem with this
     /// formula" and stores nothing (dc-mx3x). The file loader and the corpus verdict ask the same
     /// check.
     Rejected {
+        /// Span of the input identified by the formula entry check.
         span: calc_fml::syntax::TextSpan,
+        /// Rule that rejected the formula entry.
         rule: calc_fml::Rejection,
     },
 }

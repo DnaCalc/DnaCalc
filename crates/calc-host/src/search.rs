@@ -4,25 +4,43 @@ use crate::{CellEdit, CellInput, HostState, ProjectedCell, ProjectionRequest};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where to look for matching cells.
 pub enum SearchScope {
+    /// Search the active worksheet.
     Sheet,
+    /// Search the selected areas on the active worksheet.
     Selection,
+    /// Search every worksheet in workbook order.
     Workbook,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Scope and matching rules for a workbook search.
 pub struct SearchOptions {
+    /// Active worksheet, which must exist even for a workbook search.
     pub sheet: crate::value::SheetId,
+    /// Areas to search when the scope is [`SearchScope::Selection`].
     pub areas: Vec<GridArea>,
+    /// Search text, between 1 and 256 characters.
     pub text: String,
+    /// Require matching letter case.
     pub case_sensitive: bool,
+    /// Require the pattern to match the entire cell text.
     pub whole: bool,
+    /// Interpret `*`, `?`, and `~` using Excel wildcard syntax.
     pub wildcards: bool,
+    /// Limit candidates to authored entries when true or use occupied areas when false.
+    /// The text callback passed to [`find`] determines what is matched.
     pub formulas: bool,
+    /// Worksheets or selection to search.
     pub scope: SearchScope,
 }
+/// Matching cells and the extent of the search.
 pub struct SearchMatches {
+    /// Projected cells that match the pattern, in search order.
     pub rows: Vec<ProjectedCell>,
+    /// Number of projected cells examined.
     pub scanned: u64,
+    /// Whether a search limit may have left some matches out.
     pub partial: bool,
 }
 fn cell_label(host: &HostState, at: CellKey) -> String {
@@ -174,6 +192,10 @@ pub fn replace_literal(
     output
 }
 
+/// Render an authored cell entry for search or replacement.
+///
+/// Formulas include the leading `=`. Literal text receives a leading apostrophe
+/// when entering it as-is would make the host interpret it as another cell type.
 pub fn entry_text(input: Option<&CellInput>) -> String {
     match input {
         None => String::new(),
@@ -192,6 +214,16 @@ pub fn entry_text(input: Option<&CellInput>) -> String {
     }
 }
 
+/// Search live workbook projections using the caller's cell-to-text conversion.
+///
+/// Use [`entry_text`] to search authored entries. To search display values, use
+/// the same value formatting as the host client. Search limits are reported in
+/// [`SearchMatches::partial`].
+///
+/// # Errors
+///
+/// Returns an error for an unavailable worksheet, more than 1,024 selection
+/// areas, or search text outside the supported length range.
 pub fn find(
     host: &HostState,
     options: &SearchOptions,
@@ -314,6 +346,16 @@ pub fn find(
     })
 }
 
+/// Prepare edits for a literal replacement in authored cell entries.
+///
+/// Pass `only` to restrict replacement to one matching cell. An entry that
+/// becomes empty produces a clear edit. Submit the returned edits together
+/// to apply them as a workbook transaction.
+///
+/// # Errors
+///
+/// Returns an error for unsupported search options, partial results, protected
+/// or macro sheets, or a replacement that fails entry parsing or validation.
 pub fn replace_edits(
     host: &HostState,
     options: &SearchOptions,

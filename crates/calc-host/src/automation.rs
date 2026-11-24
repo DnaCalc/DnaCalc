@@ -40,10 +40,12 @@ mod value;
 /// The application supplies access, never a copied value reader. `None` means no admitted
 /// worksheet invocation; `Some(Err(..))` must never fall back to the command route.
 pub trait AutomationHost: ApplicationHost {
+    /// Run the callback with the currently admitted worksheet invocation, if any.
     fn with_invocation(
         &self,
         call: &mut dyn FnMut(&mut dyn UserFunctionContext) -> Reply,
     ) -> Option<Reply>;
+    /// Lend the application session to an Automation command for a read.
     fn with_session(&self, call: &mut dyn FnMut(&HostSession) -> Reply) -> Reply;
     /// A command lends the same session mutably for Automation ingress. Hosts that only
     /// expose reads explicitly refuse writes until they supply this callback.
@@ -57,6 +59,7 @@ pub trait AutomationHost: ApplicationHost {
     fn context_changed(&self, _session: &HostSession) {}
 }
 
+/// Return the typed refusal used when an Automation call cannot borrow the session.
 pub fn busy() -> AutoError {
     AutoError::not_modelled("Automation session is busy", OWNER)
 }
@@ -117,10 +120,12 @@ enum Access<'a> {
 }
 
 impl WorkbookAutomation {
+    /// Build a workbook Automation profile with the default member policy.
     pub fn new(host: Rc<dyn AutomationHost>) -> Self {
         Self::with_policy(host, Default::default())
     }
 
+    /// Build a workbook Automation profile with an explicit member policy.
     pub fn with_policy(
         host: Rc<dyn AutomationHost>,
         policy: calc_object_model::policy::PolicyChecker,
@@ -239,6 +244,7 @@ impl WorkbookAutomation {
             ranges: RefCell::default(),
         }
     }
+    /// Read the workbook profile's registered member handlers.
     pub fn handlers(&self) -> &Handlers<Self> {
         &self.handlers
     }
@@ -310,6 +316,7 @@ impl WorkbookAutomation {
             )
         })
     }
+    /// Create a session observer that forwards workbook events to `events`.
     pub fn observer(self: &Rc<Self>, events: Rc<dyn EventSource>) -> Rc<dyn WorkbookEventObserver> {
         Rc::new(AutomationObserver {
             model: self.clone(),
@@ -406,6 +413,7 @@ impl WorkbookAutomation {
             }));
         }
     }
+    /// Refresh the workbook identity and selection used by the Automation profile.
     pub fn context_changed(&self, session: &HostSession) {
         let enabled = session.workbook_events_switch();
         let previous = self.snapshot.borrow().clone();
@@ -1147,6 +1155,7 @@ impl Drop for WorkbookAutomation {
     }
 }
 
+/// Adapter that forwards session events through the workbook Automation profile.
 pub struct AutomationObserver {
     model: Rc<WorkbookAutomation>,
     events: Rc<dyn EventSource>,

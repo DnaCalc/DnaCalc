@@ -180,35 +180,60 @@ mod regional_format_tests {
 /// None leaves the property alone; empty colours mean automatic font colour or no fill.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FormatPatch {
+    /// Excel number format code.
     pub number_format: Option<String>,
+    /// Horizontal alignment keyword.
     pub horizontal: Option<String>,
+    /// Vertical alignment keyword.
     pub vertical: Option<String>,
+    /// Wrap long text onto multiple lines.
     pub wrap: Option<bool>,
+    /// Shrink text to fit the cell width.
     pub shrink: Option<bool>,
+    /// Text rotation from -90 to 90 degrees, or 255 for stacked text.
     pub rotation: Option<i16>,
+    /// Indentation level from 0 through 250.
     pub indent: Option<u16>,
+    /// Font family name.
     pub font_name: Option<String>,
+    /// Font size in points, encoded as text.
     pub font_size: Option<String>,
+    /// Enable or disable bold text.
     pub bold: Option<bool>,
+    /// Enable or disable italics.
     pub italic: Option<bool>,
+    /// Enable or disable underlining.
     pub underline: Option<bool>,
+    /// Underline style keyword.
     pub underline_style: Option<String>,
+    /// Enable or disable strikethrough.
     pub strike: Option<bool>,
     /// Format Cells' Superscript and Subscript boxes (the font's `vertAlign`): turning one on turns the other off, as
     /// Excel's dialog does; turning one off leaves a different setting alone.
     pub superscript: Option<bool>,
+    /// Enable or disable subscript. Enabling it clears superscript.
     pub subscript: Option<bool>,
+    /// Six-digit RGB font color, optionally prefixed with a hash. An empty string selects automatic color.
     pub font_color: Option<String>,
+    /// Six-digit RGB fill color, optionally prefixed with a hash. An empty string clears the fill.
     pub fill: Option<String>,
+    /// Replacement settings for the four outer border edges.
     pub borders: Option<BorderPatch>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Replacement border style and color. Each `false` flag clears its edge.
 pub struct BorderPatch {
+    /// Apply the patch to the left edge.
     pub left: bool,
+    /// Apply the patch to the right edge.
     pub right: bool,
+    /// Apply the patch to the top edge.
     pub top: bool,
+    /// Apply the patch to the bottom edge.
     pub bottom: bool,
+    /// Excel border style keyword.
     pub style: String,
+    /// Six-digit RGB border color, optionally prefixed with a hash. An empty string uses automatic color.
     pub color: String,
 }
 
@@ -226,6 +251,7 @@ pub(crate) fn color(value: &str) -> Result<Option<StyleColor>, String> {
     }))
 }
 impl FormatPatch {
+    /// Check that the patch can be applied using the supported cell-format values.
     pub fn validate(&self) -> Result<(), String> {
         if self.number_format.as_ref().is_some_and(|s| {
             s.is_empty() || s.encode_utf16().count() > 255 || s.chars().any(char::is_control)

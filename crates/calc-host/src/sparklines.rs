@@ -16,7 +16,9 @@ fn sheet_of(area: calc_doc_model::value::GridArea) -> SheetId {
 /// One sparkline: the cell it is drawn in and its values in order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SparklineView {
+    /// Worksheet cell where the sparkline is drawn.
     pub cell: CellKey,
+    /// Numeric data points in reading order. A missing value denotes an empty point.
     pub values: Vec<Option<f64>>,
     /// On a date axis, the date each value stands at (the same length as `values`); empty otherwise.
     pub dates: Vec<Option<f64>>,
@@ -111,9 +113,13 @@ impl HostState {
 /// its input range (a list or combo box's items).
 #[derive(Clone, Debug, PartialEq)]
 pub struct FormControlView {
+    /// Imported form control definition.
     pub control: calc_doc_model::FormControl,
+    /// First cell of the resolved linked range, when available.
     pub link: Option<CellKey>,
+    /// Current value of the linked cell, when available.
     pub linked: Option<calc_doc_model::value::CalcValue>,
+    /// Input range values converted to display text in reading order.
     pub items: Vec<String>,
 }
 
@@ -163,17 +169,35 @@ pub enum SparklineChange {
     /// A new sparkline group of one sparkline in `cell` over `data` (one row or one column), `kind` `line` (the
     /// default), `column` or `stacked` (win/loss), with the look Excel gives a sparkline it inserts.
     Add {
+        /// Data range, one row or one column.
         data: calc_doc_model::value::GridArea,
+        /// Destination cell for the new sparkline.
         cell: CellKey,
+        /// Sparkline kind. Omit it to use a line.
         kind: Option<String>,
     },
     /// The type of the group holding the sparkline in `cell` (Excel changes the whole group).
-    Kind { cell: CellKey, kind: Option<String> },
+    Kind {
+        /// Cell identifying the group to update.
+        cell: CellKey,
+        /// New sparkline kind. Omit it to use a line.
+        kind: Option<String>,
+    },
     /// Which points the group holding the sparkline in `cell` shows apart: `markers`, `high`, `low`, `first`,
     /// `last` or `negative`.
-    Show { cell: CellKey, point: String, on: bool },
+    Show {
+        /// Cell identifying the group to update.
+        cell: CellKey,
+        /// Point category whose display changes.
+        point: String,
+        /// Show the chosen category when true.
+        on: bool,
+    },
     /// The sparkline in `cell` deleted (its group with it when it was the last).
-    Delete { cell: CellKey },
+    Delete {
+        /// Cell whose sparkline should be removed.
+        cell: CellKey,
+    },
 }
 
 fn refusal(s: &str) -> String {

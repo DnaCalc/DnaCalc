@@ -42,44 +42,62 @@ use std::sync::Arc;
 /// Why a copy made no edit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CopyRefusal {
+    /// The affected workbook metadata cannot be copied or moved by this operation.
     Metadata(&'static str),
     /// The source and the target are on sheets the workbook does not hold.
     UnknownSheet,
     /// The target is not a whole multiple of the source's shape (Excel: "the copy area and the
     /// paste area are not the same size"); for a cut, not the source's shape.
     Shape {
+        /// Height and width of the source range.
         source: (u32, u32),
+        /// Height and width of the destination range.
         target: (u32, u32),
     },
     /// The target reaches past the grid.
     PastTheGrid,
     /// The copy would make more edits than a copy takes at once.
     TooLarge {
+        /// Number of cells the operation would write.
         cells: u64,
     },
     /// A source formula's text does not parse, so it cannot be relocated.
     Unrelocatable {
+        /// Cell containing the formula that could not be relocated.
         at: CellKey,
     },
     /// The source holds part of a legacy array formula, which is copied or moved only whole.
     PartOfArray {
+        /// Anchor of the legacy array at the source.
         anchor: CellKey,
     },
+    /// The cells captured for a cut have since changed.
     SourceChanged,
     /// Captured format definitions belong to another workbook or unsupported source records.
     StyleDefinitionsChanged,
+    /// A value required for the paste is unavailable in the current calculation.
     UnavailableValue {
+        /// Cell whose current value is unavailable.
         at: CellKey,
     },
+    /// The destination worksheet is protected.
     Protected,
+    /// The destination would change only part of an existing array.
     PartialSpill {
+        /// Anchor of the array at the destination.
         anchor: CellKey,
     },
+    /// The requested series cannot be filled from the supplied seed.
     Series,
+    /// A fill would use a legacy array as its source.
     LegacyFill,
+    /// Transposition was requested for a cut.
     TransposeCut,
+    /// Transposition was requested for array formulas.
     TransposeArray,
+    /// The transposed source intersects a table.
     TransposeTable,
+    /// Transposition was requested for a fill.
     TransposeFill,
 }
 
@@ -157,9 +175,13 @@ pub use calc_value::COPY_LIMIT;
 /// Paste Special's independent content/format choices. Formulas includes literal inputs, as Excel does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PasteMode {
+    /// Paste cell contents and formats.
     All,
+    /// Paste values without formulas or formats.
     Values,
+    /// Paste authored formulas and literal inputs without formats.
     Formulas,
+    /// Paste cell formats only.
     Formats,
 }
 
@@ -176,6 +198,7 @@ pub struct CopySnapshot {
 }
 
 impl CopySnapshot {
+    /// Capture source cells and styles at the current workbook revision.
     pub fn capture(host: &HostState, from: GridArea) -> Result<Self, CopyRefusal> {
         if host.model.sheet_by_id(from.sheet()).is_none() {
             return Err(CopyRefusal::UnknownSheet);
@@ -230,6 +253,7 @@ impl CopySnapshot {
         })
     }
 
+    /// Return the worksheet range captured in this snapshot.
     pub fn area(&self) -> GridArea {
         self.from
     }
@@ -356,6 +380,7 @@ impl CopySnapshot {
         )
     }
 
+    /// Resolve the destination range, expanding a single cell to the source dimensions.
     pub fn target(&self, to: GridArea) -> Result<GridArea, CopyRefusal> {
         self.target_oriented(to, false)
     }

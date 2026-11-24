@@ -31,7 +31,9 @@ pub enum IrreversibleReason {
 /// An edit that cannot be undone, and the first cell that makes it so.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Irreversible {
+    /// First affected cell whose original content cannot be restored.
     pub at: CellKey,
+    /// Reason the original content cannot be restored.
     pub reason: IrreversibleReason,
 }
 

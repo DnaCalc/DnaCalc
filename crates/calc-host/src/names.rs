@@ -7,11 +7,17 @@ use calc_value::{CellKey, NameId};
 /// qualifications. This query neither binds a definition nor evaluates its body.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameInvocationView {
+    /// Authored revision at the time of the query.
     pub revision: calc_doc_model::AuthoredRevision,
+    /// Published result view at the time of the query.
     pub results: calc_engine::contract::ReadViewId,
+    /// Caller cell projection, including its current value provenance.
     pub result: crate::ProjectedCell,
+    /// Root invocation from the caller's calculation stamp.
     pub root: calc_engine::contract::InvocationId,
+    /// Recorded name invocations from that calculation.
     pub invocations: Vec<calc_fml::NameInvocation>,
+    /// Number of name invocations omitted from the calculation evidence.
     pub omitted: u64,
 }
 
@@ -20,18 +26,28 @@ pub struct NameInvocationView {
 /// It can consume supplied clock/random services without installing a cell or shared value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameDiagnosticEvaluation {
+    /// Authored revision used for the evaluation.
     pub revision: calc_doc_model::AuthoredRevision,
+    /// Published result view used for the evaluation.
     pub results: calc_engine::contract::ReadViewId,
+    /// Engine identity of the workbook that was evaluated.
     pub workbook: calc_engine::contract::WorkbookInstanceId,
+    /// Diagnostic outcome and its name evaluation evidence.
     pub evaluation: calc_engine::DetachedNameEvaluation,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Create, modify, or delete a workbook or worksheet name.
 pub struct NameEdit {
+    /// Identity of the existing name, or `None` to create one.
     pub id: Option<NameId>,
+    /// Expected binding version of an existing name.
     pub version: Option<u64>,
+    /// Scope of the definition.
     pub scope: NameScope,
+    /// Excel spelling of the name.
     pub name: String,
+    /// Definition text, with an optional leading `=`, or `None` to delete.
     pub formula: Option<String>,
 }
 use calc_engine::valid_defined_name as valid_name;
@@ -247,6 +263,8 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
     Ok(vec![CellEdit::RestoreNames(snapshots)])
 }
 impl HostState {
+    /// Read recorded invocation evidence for a cell's last calculation.
+    /// Returns `None` when the cell has no applicable calculation stamp.
     pub fn name_invocation_view(&self, caller: CellKey) -> Option<NameInvocationView> {
         let page = crate::project(
             self,
@@ -277,6 +295,7 @@ impl HostState {
         })
     }
 
+    /// Look up the current definition and binding metadata for a name identity.
     pub fn name_node(&self, id: NameId) -> Option<&NameNode> {
         self.engine.name_node(&self.model, id)
     }
@@ -325,6 +344,11 @@ impl HostState {
             })
     }
 
+    /// Evaluate a defined name at a caller cell and return diagnostic evidence.
+    ///
+    /// The result preserves the detached evaluation outcome, including faults.
+    /// An unavailable name or anchor worksheet, a changed binding version, or
+    /// a compilation failure returns an error before evaluation.
     pub fn evaluate_name_with_evidence(
         &self,
         id: NameId,

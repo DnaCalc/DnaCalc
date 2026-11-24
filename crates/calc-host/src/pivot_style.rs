@@ -7,8 +7,11 @@ use calc_value::CellKey;
 /// The supported pivot style additions, before conditional formatting.
 #[derive(Clone, Debug, Default)]
 pub struct PivotStyleLook {
+    /// Pivot style override for font weight.
     pub bold: Option<bool>,
+    /// Pivot style override for font color.
     pub font_color: Option<StyleColor>,
+    /// Pivot style override for the cell fill color.
     pub fill: Option<StyleColor>,
     /// Left, top, bottom, right. An absent edge leaves the cell's own edge in place.
     pub borders: [Option<BorderEdge>; 4],

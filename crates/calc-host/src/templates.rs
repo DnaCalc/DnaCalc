@@ -1,8 +1,5 @@
 //! Worksheet templates enter the same authored history and evaluator as other sheet commands.
-use crate::{
-    HostOptions, HostSession, HostState, MemorySource, OpenPolicy, SavePolicy, SkinIntent,
-    WorkbookCommand,
-};
+use crate::{HostOptions, HostSession, HostState, MemorySource, OpenPolicy, SavePolicy};
 use std::{collections::BTreeSet, sync::Arc};
 
 pub(crate) fn prepare(
@@ -154,7 +151,7 @@ pub(crate) fn prepare(
 mod tests {
     use super::*;
     use crate::{
-        Axis, AxisChange, AxisEdit,
+        Axis, AxisChange, AxisEdit, SkinIntent, WorkbookCommand,
         value::{CellKey, GridArea, ReferenceLike},
     };
     use calc_func::ReferenceHandles;

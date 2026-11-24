@@ -49,9 +49,15 @@ pub enum HostProgress {
     Manual,
     /// A recalculation of the current revision is in progress with `remaining` formulas to
     /// evaluate; the next step continues it.
-    Calculating { remaining: usize },
+    Calculating {
+        /// Number of formulas still to evaluate.
+        remaining: usize,
+    },
     /// Provider input is required; schedule no continuation task until a return or edit.
-    Waiting { remaining: usize },
+    Waiting {
+        /// Number of formulas remaining when the calculation paused.
+        remaining: usize,
+    },
     /// A recalculation installed a publication unit: what changed. More work may remain.
     Published(ValueDelta),
     /// A recalculation failed. Another request or authored change permits a new attempt.
@@ -321,6 +327,7 @@ impl HostState {
         }
         self.calc_events.extend(events);
     }
+    /// List the asynchronous return tokens owned by the current calculation.
     pub fn pending_async(&self) -> Vec<calc_engine::contract::AsyncToken> {
         self.work
             .as_ref()
@@ -421,6 +428,7 @@ impl HostState {
             })
         })
     }
+    /// Install a connector for RTD subscriptions and refresh the function bindings.
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {
         self.rtd_connector = Some(connector);
         let functions = self.functions.clone();

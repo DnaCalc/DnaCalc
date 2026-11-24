@@ -5,27 +5,46 @@ use calc_value::{CellKey, SheetId};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// An authored change to a cell note or threaded comment.
 pub enum ReviewAction {
+    /// Create a note, start a comment thread, or reply to a thread.
     Create {
+        /// Index of the parent comment in the sheet review records, if replying.
         parent: Option<u32>,
+        /// Create a threaded comment when true or a legacy note when false.
         threaded: bool,
+        /// Display name of the author.
         author: String,
+        /// Text to store in the note or comment.
         text: String,
+        /// Application-supplied ISO date and time for a threaded comment.
         timestamp: String,
     },
+    /// Apply rich-text formatting to part of a legacy note.
     Format {
+        /// Index of the record in the sheet review records.
         index: u32,
+        /// Replacement note text to which the formatting span applies.
         text: String,
+        /// Start of the formatting span in UTF-16 code units.
         start: u32,
+        /// End of the formatting span in UTF-16 code units, exclusive.
         end: u32,
+        /// Style changes to apply within the span.
         patch: NoteStylePatch,
     },
+    /// Resolve or reopen a comment thread.
     Resolve {
+        /// Index of the record in the sheet review records.
         index: u32,
+        /// Resolve the thread when true or reopen it when false.
         resolved: bool,
     },
+    /// Replace the text of an existing note or comment.
     Edit {
+        /// Index of the record in the sheet review records.
         index: u32,
+        /// Replacement text.
         text: String,
     },
 }

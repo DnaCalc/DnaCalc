@@ -113,6 +113,8 @@
 //!
 //! See the [crate contract](https://github.com/DnaCalc/DnaCalc/blob/master/crates/calc-host/CONTRACT.md).
 
+#![warn(missing_docs)]
+
 mod actions;
 pub mod automation;
 mod page_setup;

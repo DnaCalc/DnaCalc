@@ -4,49 +4,80 @@ use calc_doc_model::{AutoFilter, Table, TableStyle};
 use calc_value::{CellKey, ExcelText, GridArea, fold_workbook_name};
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// An authored table change applied with its worksheet cell edits.
 pub enum TableChange {
+    /// Create a table over an existing range.
     Create {
+        /// Worksheet range for the new table.
         area: GridArea,
+        /// Name of the new table.
         name: String,
     },
+    /// Change the extent of an existing table.
     Resize {
+        /// Package part name identifying the existing table.
         part: String,
+        /// New worksheet range for the table.
         area: GridArea,
     },
+    /// Change header, totals, and table style options.
     Options {
+        /// Package part name identifying the existing table.
         part: String,
+        /// Show the table header row.
         headers: bool,
+        /// Show the table totals row.
         totals: bool,
+        /// Table style name. An empty string clears the style name.
         style: String,
+        /// Show banded rows.
         row_stripes: bool,
+        /// Show banded columns.
         column_stripes: bool,
+        /// Apply the style treatment for the first column.
         first_column: bool,
+        /// Apply the style treatment for the last column.
         last_column: bool,
     },
+    /// Set the calculation for one column in the totals row.
     Total {
+        /// Package part name identifying the existing table.
         part: String,
+        /// One-based worksheet column within the table.
         column: u32,
+        /// Excel totals function keyword. An empty string clears the function.
         function: String,
     },
+    /// Rename a table column.
     RenameColumn {
+        /// Package part name identifying the existing table.
         part: String,
+        /// One-based worksheet column within the table.
         column: u32,
+        /// New header and structured-reference name for the column.
         name: String,
     },
+    /// Set or clear the formula for a calculated column.
     CalculatedColumn {
+        /// Package part name identifying the existing table.
         part: String,
+        /// One-based worksheet column within the table.
         column: u32,
+        /// Column formula with an optional leading equals sign. Use `None` to clear the definition.
         formula: Option<String>,
     },
     /// `ListObject.Name`: the table's new name. Refused while any formula, name, rule or chart
     /// source mentions the old name, since Excel rewrites those and this does not yet (dc-piw0.1).
     Rename {
+        /// Package part name identifying the existing table.
         part: String,
+        /// New name of the existing table.
         name: String,
     },
     /// `ListObject.Unlist` and a `Value` put over a whole table range (dc-piw0.10 Q13): the table goes, the
     /// cells stay. Refused while a formula, name, rule or chart source mentions the table's name.
     Unlist {
+        /// Package part name identifying the existing table.
         part: String,
     },
 }
