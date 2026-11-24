@@ -471,6 +471,7 @@ fn irr_daz(value: f64) -> f64 {
 enum IrrStep {
     Ok(f64),
     RetryNum,
+    HardNum,
     HardDiv0,
 }
 
@@ -528,42 +529,42 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                 return Err(IrrStep::HardDiv0);
             }
             let term = irr_daz(div(flow, divisor));
-            if !term.is_finite() {
-                if tracing {
-                    crate::trace::hit(9);
-                }
-                return Err(IrrStep::RetryNum);
+            if tracing && !term.is_finite() {
+                crate::trace::hit(9);
             }
             total = add(total, term);
         }
         if total.is_finite() {
             Ok(total)
         } else {
-            Err(IrrStep::RetryNum)
+            Err(IrrStep::HardNum)
         }
     };
-    let publish = |u: f64| -> IrrStep {
+    let publish = |u: f64, min_v: f64| -> IrrStep {
         let v = sub(1.0, u);
         if tracing {
-            crate::trace::observe_boundary("irr_publish_v", v, 0.0);
+            crate::trace::observe_boundary("irr_publish_v", v, min_v);
         }
-        if v <= 0.0 {
+        if v < min_v {
             if tracing {
                 crate::trace::hit(19);
             }
             return IrrStep::RetryNum;
         }
-        let rate = sub(div(1.0, v), 1.0);
+        let rate = crate::ported::real_policy::excel_underflow_to_zero(sub(div(1.0, v), 1.0));
         let ok = rate.is_finite() && rate > -1.0;
         if tracing && !ok {
             crate::trace::hit(19);
         }
         if ok {
-            IrrStep::Ok(rate)
+            IrrStep::Ok(if rate == 0.0 { 0.0 } else { rate })
         } else {
             IrrStep::RetryNum
         }
     };
+    // Unified 16-bit high-word `rgw[3] == 0` flat check (`0.0 <= change < 2^-1026`),
+    // mirroring RATE's negative-side check on `y0 - y1` (dc-j9k.104 / cb25).
+    let is_flat = |chg: f64| (0.0..f64::MIN_POSITIVE / 16.0).contains(&chg);
 
     let mut before = u_start;
     let mut value_before = match npv(before) {
@@ -579,7 +580,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
     let mut step = f64::INFINITY;
     for iter in 0..200u32 {
         let mut change = sub(value, value_before);
-        if change == 0.0 {
+        if is_flat(change) {
             let nudge = if current > before { 0.001 } else { -0.001 };
             if tracing {
                 crate::trace::hit(if current > before { 10 } else { 11 });
@@ -590,11 +591,12 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                 Err(e) => return e,
             };
             change = sub(value, value_before);
-            if change == 0.0 {
+            if is_flat(change) {
                 if tracing {
                     crate::trace::hit(12);
+                    crate::trace::record_iterations(iter + 1);
                 }
-                continue;
+                return IrrStep::RetryNum;
             }
         }
         let divisor = irr_daz(change);
@@ -612,7 +614,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                 crate::trace::hit(14);
                 crate::trace::record_iterations(iter + 1);
             }
-            return IrrStep::RetryNum;
+            return IrrStep::HardNum;
         }
         step = sub(next, current).abs();
         (before, value_before) = (current, value);
@@ -635,7 +637,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                     crate::trace::hit(16);
                 }
             }
-            return publish(current);
+            return publish(current, 1e-7);
         }
     }
     if tracing {
@@ -648,7 +650,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
     // the iterate at budget for IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24
     // D3378); from 2^25 on #NUM!.
     let published = if step <= 1e-4 && value.abs() <= 1e-4 {
-        publish(current)
+        publish(current, 1e-4)
     } else {
         IrrStep::RetryNum
     };
@@ -675,11 +677,14 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
         }
         return Err(WorksheetErrorCode::Value);
     }
-    if let Err(e) = validate_cashflows(cashflows) {
+    // No sign-change pre-check in IRR (dc-j9k.104 / cb25): single-sign arrays enter
+    // `irr_u_secant` so power overflow/underflow returns `#DIV/0!` and tiny positive
+    // arrays with `|npv| < 1e-7` match Excel.
+    if !cashflows.iter().all(|v| v.is_finite()) {
         if tracing {
             crate::trace::hit(1);
         }
-        return Err(e);
+        return Err(WorksheetErrorCode::Value);
     }
     // Excel strips leading zero cashflows before discounting (factoring out base^-start)
     // while retaining interior and trailing zeros (dc-j9k.102 / cb25).
@@ -712,6 +717,7 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
                 return Ok(r);
             }
             IrrStep::HardDiv0 => return Err(WorksheetErrorCode::Div0),
+            IrrStep::HardNum => return Err(WorksheetErrorCode::Num),
             IrrStep::RetryNum => continue,
         }
     }
@@ -1240,6 +1246,199 @@ mod tests {
         long_flows[0] = -100.0;
         assert_eq!(
             irr_kernel(&long_flows, Some(f64::from_bits(0x41a7d78400000000))),
+            Err(WorksheetErrorCode::Div0)
+        );
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.104): IRR's symmetric pole check
+    /// (`v = 1 - u >= 1e-7` in-loop, `>= 1e-4` post-budget), high-word flat-slope
+    /// check (`0 <= change < 2^-1026`) with strict `current > before` nudge and
+    /// `RetryNum` on second flat, and no sign-change pre-check.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_pole_flat_slope_and_single_sign_frontiers_match_excel() {
+        // I2-dc-j9k-103-div0-vs-finite (needs v >= 1e-7 to avoid huge root before hitting v == 0):
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xbff0000000000000),
+                    f64::from_bits(0x4340000000000002),
+                ],
+                None
+            ),
+            Err(WorksheetErrorCode::Div0)
+        );
+        // I3-dc-j9k-104-huge-root-vs-num:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xbe7ad7f29abcaf48),
+                    f64::from_bits(0x408f400000000000),
+                ],
+                None
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        // I3-dc-j9k-104-near-neg1-vs-num:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x41ffadf9355c8248),
+                    f64::from_bits(0xbedc89cd5f474471),
+                ],
+                Some(f64::from_bits(0x433fffffffffffff))
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        // I3-dc-j9k-104-huge-vs-moderate-root:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xbe810a4cb3aa9e03),
+                    f64::from_bits(0x411c2034d4f46c5e),
+                    f64::from_bits(0x3ed4c7455ccc98f4),
+                    f64::from_bits(0x40985d09dc90d26b),
+                    f64::from_bits(0xc102873257e856a4),
+                ],
+                None
+            )
+            .unwrap()
+            .to_bits(),
+            0xbfd3e7d32e6d11fa
+        );
+        // I3-dc-j9k-104-finite-vs-num (all-positive cashflows reaching |npv| < 1e-7):
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x2b2bff2ee48e0530),
+                    f64::from_bits(0x3d719799812dea11),
+                    f64::from_bits(0x4000000000000000),
+                    f64::from_bits(0x2b2bff2ee48e0530),
+                ],
+                Some(f64::from_bits(0xbfefffffffffffff))
+            )
+            .unwrap()
+            .to_bits(),
+            0x4157e9ff1e0aa91b
+        );
+        // cb25 I-A (+2^-1026 flat-slope boundary: IA-03 #NUM! vs IA-05 #DIV/0!):
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x80123456789abcde),
+                    f64::from_bits(0x006f3ffffffffa62),
+                ],
+                Some(0.1)
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x80123456789abcde),
+                    f64::from_bits(0x006f3ffffffffa64),
+                ],
+                Some(0.1)
+            ),
+            Err(WorksheetErrorCode::Div0)
+        );
+        // cb25 I-B post-budget v >= 1e-4 accept (IB-12) vs reject (IB-15):
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x3cd203af9ee75616),
+                    f64::from_bits(0xbdd07de9de0c2eba),
+                    f64::from_bits(0x3eb929ce84e00090),
+                    f64::from_bits(0xbf947a17f6a63e20),
+                    f64::from_bits(0x4062bf0a42288f2e),
+                    f64::from_bits(0xc1224e5407adfb50),
+                    f64::from_bits(0x41cdcb1b22bfae16),
+                ],
+                Some(f64::from_bits(0x40b3874000000000))
+            )
+            .unwrap()
+            .to_bits(),
+            0x40b38747385223d0
+        );
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x41e78f90e385635d),
+                    f64::from_bits(0xc2ea6d2c0fe1a5a2),
+                    f64::from_bits(0x43d96801226cb19b),
+                    f64::from_bits(0xc4bb23b0163c891e),
+                    f64::from_bits(0x459164fb98008491),
+                    f64::from_bits(0xc65ac1b8f5ad4bec),
+                    f64::from_bits(0x4716dd977fc8483c),
+                    f64::from_bits(0xc7c0bfb4fd5e0b57),
+                ],
+                Some(f64::from_bits(0x40b4820000000000))
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        // cb25 I-F strict current > before nudge (IF-00):
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0x41ff7a8c48000000),
+                    f64::from_bits(0xbf40060780fdc161),
+                ],
+                Some(f64::from_bits(0x433fffffffffffff))
+            )
+            .unwrap()
+            .to_bits(),
+            0xbfeffffffffffdf7
+        );
+        // Single-sign array enters solver: power overflow -> #DIV/0!, linear -> #NUM!.
+        assert_eq!(
+            irr_kernel(&[100.0; 40], Some(1e10)),
+            Err(WorksheetErrorCode::Div0)
+        );
+        assert_eq!(
+            irr_kernel(&[100.0, 200.0], None),
+            Err(WorksheetErrorCode::Num)
+        );
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.105): nonfinite NPV total (checked
+    /// after the cashflow loop without per-term early exit) and nonfinite secant step
+    /// return `HardNum` immediately instead of retrying, while a later `power`
+    /// underflow/overflow in the same loop still surfaces as `#DIV/0!`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_overflow_is_hard_num_and_checked_after_cashflow_loop() {
+        // I4-dc-j9k-105-dblmax-overflow:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xffefffffffffffff),
+                    f64::from_bits(0x7fefffffffffffff),
+                ],
+                None
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        // I4-dc-j9k-105-long-chain-retry:
+        let long_chain: [f64; 29] = [
+            0xc059000000000000, 0x400af200ac8724c4, 0x402d8edfce37bcce, 0x401866e68fca9d33,
+            0x401832a4ad149aef, 0x402ccca9337c986a, 0x40275bab8575a39c, 0x40264d1545c68247,
+            0x40264c073a3c7a56, 0x402b75449ce57a21, 0x402a90886ae40b34, 0x402cfa99c7468dd5,
+            0x4023f10e7cdebda3, 0x40302a4656857d55, 0x4009f3809258bca8, 0x4018c8a975e8035e,
+            0x4030610340c02580, 0x4017cfd081e37fde, 0x403392b04fccc997, 0x402f28bfc44da26e,
+            0x403116a9fd942f9f, 0x401d5b18cf790812, 0x40233fa7716b93bf, 0x402768ff2fe6d9de,
+            0x3ff7959ea0c65c42, 0x401e137e9d8d8557, 0x401570eb9ea3d556, 0x400d9c414579d845,
+            0x4018d6605f75e2ba,
+        ]
+        .map(f64::from_bits);
+        assert_eq!(
+            irr_kernel(&long_chain, Some(f64::from_bits(0xbfeffffffffe2c99))),
+            Err(WorksheetErrorCode::Num)
+        );
+        // cb25 IE-04: a term overflows at k=32 before power underflows to 0 at k=33 -> #DIV/0!.
+        let mut ie04 = vec![22.0; 36];
+        ie04[0] = -100.0;
+        assert_eq!(
+            irr_kernel(&ie04, Some(f64::from_bits(0xbfeffffffff920c8))),
             Err(WorksheetErrorCode::Div0)
         );
     }

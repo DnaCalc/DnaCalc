@@ -10,6 +10,7 @@ pub mod domain;
 pub mod fractal;
 pub mod hints;
 pub mod oracle;
+pub mod patient_zero;
 pub mod rng;
 pub mod spec_gen;
 pub mod steer;
@@ -29,7 +30,7 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (--func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
@@ -51,6 +52,10 @@ pub struct FuzzConfig {
     pub endpoint: Option<PathBuf>,
     pub bank_rows_out: Option<PathBuf>,
     pub pin_out: Option<PathBuf>,
+    pub patient_zero: Option<PathBuf>,
+    pub resweep: Option<PathBuf>,
+    pub pz_siblings: Vec<String>,
+    pub max_siblings: usize,
     pub dry_run: bool,
     sweep: Option<oracle::SweepPolicy>,
 }
@@ -88,6 +93,10 @@ impl FuzzConfig {
             endpoint: None,
             bank_rows_out: None,
             pin_out: None,
+            patient_zero: None,
+            resweep: None,
+            pz_siblings: Vec::new(),
+            max_siblings: 6,
             dry_run: false,
             sweep: None,
         }
@@ -113,6 +122,10 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut endpoint: Option<PathBuf> = None;
     let mut bank_rows_out: Option<PathBuf> = None;
     let mut pin_out: Option<PathBuf> = None;
+    let mut patient_zero: Option<PathBuf> = None;
+    let mut resweep: Option<PathBuf> = None;
+    let mut pz_siblings: Vec<String> = Vec::new();
+    let mut max_siblings: Option<usize> = None;
     let mut dry_run = false;
 
     let mut it = raw.iter();
@@ -197,21 +210,52 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
             "--endpoint" => endpoint = Some(PathBuf::from(next_val()?)),
             "--bank-rows-out" => bank_rows_out = Some(PathBuf::from(next_val()?)),
             "--pin-out" => pin_out = Some(PathBuf::from(next_val()?)),
+            "--patient-zero" => patient_zero = Some(PathBuf::from(next_val()?)),
+            "--resweep" => resweep = Some(PathBuf::from(next_val()?)),
+            "--pz-siblings" => {
+                for item in next_val()?.split(',') {
+                    let s = item.trim().to_ascii_uppercase();
+                    if !s.is_empty() {
+                        pz_siblings.push(s);
+                    }
+                }
+            }
+            "--max-siblings" => {
+                max_siblings = Some(
+                    next_val()?
+                        .parse()
+                        .map_err(|_| "--max-siblings needs an integer")?,
+                );
+            }
             "--dry-run" => dry_run = true,
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    let function = match (function, all_catalogue) {
-        (Some(f), false) => f,
-        (None, true) => "ALL".to_owned(),
-        (Some(_), true) => return Err("cannot combine --func with --all-catalogue".into()),
-        (None, false) => return Err("--func or --all-catalogue is required".into()),
+    let mode_count = usize::from(all_catalogue)
+        + usize::from(patient_zero.is_some())
+        + usize::from(resweep.is_some());
+    if mode_count > 1 {
+        return Err("cannot combine --all-catalogue, --patient-zero, and --resweep".into());
+    }
+    if all_catalogue && function.is_some() {
+        return Err("cannot combine --func with --all-catalogue".into());
+    }
+    let function = match (function, all_catalogue, patient_zero.is_some(), resweep.is_some()) {
+        (Some(f), false, _, _) => f,
+        (None, true, false, false) => "ALL".to_owned(),
+        (None, false, true, false) => "ALL".to_owned(),
+        (None, false, false, true) => "ALL".to_owned(),
+        _ => return Err("--func, --all-catalogue, --patient-zero, or --resweep is required".into()),
     };
     let mut cfg = FuzzConfig::default_for(&function);
     cfg.all_catalogue = all_catalogue;
     cfg.hints_dir = hints_dir;
     if all_catalogue && out_dir.is_none() {
         cfg.out_dir = PathBuf::from("target/fuzz/all-catalogue");
+    } else if patient_zero.is_some() && out_dir.is_none() {
+        cfg.out_dir = PathBuf::from("target/fuzz/patient-zero");
+    } else if resweep.is_some() && out_dir.is_none() {
+        cfg.out_dir = PathBuf::from("target/fuzz/resweep");
     }
     if all_catalogue && budget.is_none() {
         cfg.budget = 1_000;
@@ -264,6 +308,12 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     cfg.endpoint = endpoint;
     cfg.bank_rows_out = bank_rows_out;
     cfg.pin_out = pin_out;
+    cfg.patient_zero = patient_zero;
+    cfg.resweep = resweep;
+    cfg.pz_siblings = pz_siblings;
+    if let Some(v) = max_siblings {
+        cfg.max_siblings = v;
+    }
     cfg.dry_run = dry_run;
     Ok(cfg)
 }
@@ -784,6 +834,65 @@ pub fn run(raw: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if let Some(pz_path) = &cfg.patient_zero {
+        return match patient_zero::execute_patient_zero(&cfg, pz_path) {
+            Ok(rep) => {
+                let sib_mism: usize = rep.siblings.values().map(|s| s.mismatched).sum();
+                let sib_asked: usize = rep.siblings.values().map(|s| s.asked).sum();
+                println!(
+                    "xtask fuzz --patient-zero {} ({}): neighbourhood={}, same_route={}, frontiers={}, primary {}/{} matched ({} failed), {} siblings ({} asked, {} mismatched), can_close={} ({}), recipe {}",
+                    rep.patient_zero.function,
+                    rep.patient_zero.id,
+                    rep.neighbourhood_cases,
+                    rep.same_route_cases,
+                    rep.frontiers_mapped,
+                    rep.primary.matched,
+                    rep.primary.asked,
+                    rep.primary.failed(),
+                    rep.siblings.len(),
+                    sib_asked,
+                    sib_mism,
+                    rep.can_close,
+                    rep.closure_reason,
+                    rep.recipe_path.display()
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("xtask fuzz --patient-zero: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+    if let Some(recipe_path) = &cfg.resweep {
+        return match patient_zero::execute_resweep(&cfg, recipe_path) {
+            Ok(verdict) => {
+                let sib_failed: usize = verdict.siblings.values().map(|s| s.failed()).sum();
+                println!(
+                    "xtask fuzz --resweep {} ({}): pz_matched={}, primary {}/{} matched ({} failed), {} siblings ({} failed), can_close={} ({})",
+                    verdict.function,
+                    verdict.patient_zero_id,
+                    verdict.patient_zero_matched,
+                    verdict.primary.matched,
+                    verdict.primary.asked,
+                    verdict.primary.failed(),
+                    verdict.siblings.len(),
+                    sib_failed,
+                    verdict.can_close,
+                    verdict.closure_reason,
+                );
+                if verdict.can_close || cfg.dry_run {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask fuzz --resweep: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
     if cfg.all_catalogue {
         if !cfg.dry_run {
             eprintln!("xtask fuzz: --all-catalogue requires --dry-run\n{USAGE}");
