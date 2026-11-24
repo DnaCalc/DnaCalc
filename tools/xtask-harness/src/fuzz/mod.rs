@@ -15,6 +15,7 @@ pub mod patient_zero;
 pub mod rng;
 pub mod spec_gen;
 pub mod steer;
+pub mod storage;
 mod sweep;
 
 use boundary::{Frontier, expand_frontier_windows};
@@ -31,7 +32,7 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz (sweep ... | coverage ... | --func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (sweep ... | coverage ... | --func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json> | --verify-storage <dir> | --audit-bank <witness.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
@@ -55,6 +56,8 @@ pub struct FuzzConfig {
     pub pin_out: Option<PathBuf>,
     pub patient_zero: Option<PathBuf>,
     pub resweep: Option<PathBuf>,
+    pub verify_storage: Option<PathBuf>,
+    pub audit_bank: Option<PathBuf>,
     pub pz_siblings: Vec<String>,
     pub max_siblings: usize,
     pub dry_run: bool,
@@ -96,6 +99,8 @@ impl FuzzConfig {
             pin_out: None,
             patient_zero: None,
             resweep: None,
+            verify_storage: None,
+            audit_bank: None,
             pz_siblings: Vec::new(),
             max_siblings: 6,
             dry_run: false,
@@ -125,6 +130,8 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut pin_out: Option<PathBuf> = None;
     let mut patient_zero: Option<PathBuf> = None;
     let mut resweep: Option<PathBuf> = None;
+    let mut verify_storage: Option<PathBuf> = None;
+    let mut audit_bank: Option<PathBuf> = None;
     let mut pz_siblings: Vec<String> = Vec::new();
     let mut max_siblings: Option<usize> = None;
     let mut dry_run = false;
@@ -213,6 +220,8 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
             "--pin-out" => pin_out = Some(PathBuf::from(next_val()?)),
             "--patient-zero" => patient_zero = Some(PathBuf::from(next_val()?)),
             "--resweep" => resweep = Some(PathBuf::from(next_val()?)),
+            "--verify-storage" => verify_storage = Some(PathBuf::from(next_val()?)),
+            "--audit-bank" => audit_bank = Some(PathBuf::from(next_val()?)),
             "--pz-siblings" => {
                 for item in next_val()?.split(',') {
                     let s = item.trim().to_ascii_uppercase();
@@ -234,19 +243,27 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     }
     let mode_count = usize::from(all_catalogue)
         + usize::from(patient_zero.is_some())
-        + usize::from(resweep.is_some());
+        + usize::from(resweep.is_some())
+        + usize::from(verify_storage.is_some())
+        + usize::from(audit_bank.is_some());
     if mode_count > 1 {
-        return Err("cannot combine --all-catalogue, --patient-zero, and --resweep".into());
+        return Err(
+            "cannot combine --all-catalogue, --patient-zero, --resweep, --verify-storage, and --audit-bank"
+                .into(),
+        );
     }
     if all_catalogue && function.is_some() {
         return Err("cannot combine --func with --all-catalogue".into());
     }
-    let function = match (function, all_catalogue, patient_zero.is_some(), resweep.is_some()) {
-        (Some(f), false, _, _) => f,
-        (None, true, false, false) => "ALL".to_owned(),
-        (None, false, true, false) => "ALL".to_owned(),
-        (None, false, false, true) => "ALL".to_owned(),
-        _ => return Err("--func, --all-catalogue, --patient-zero, or --resweep is required".into()),
+    let function = match (function, mode_count > 0) {
+        (Some(f), _) => f,
+        (None, true) => "ALL".to_owned(),
+        (None, false) => {
+            return Err(
+                "--func, --all-catalogue, --patient-zero, --resweep, --verify-storage, or --audit-bank is required"
+                    .into(),
+            );
+        }
     };
     let mut cfg = FuzzConfig::default_for(&function);
     cfg.all_catalogue = all_catalogue;
@@ -257,6 +274,8 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
         cfg.out_dir = PathBuf::from("target/fuzz/patient-zero");
     } else if resweep.is_some() && out_dir.is_none() {
         cfg.out_dir = PathBuf::from("target/fuzz/resweep");
+    } else if audit_bank.is_some() && out_dir.is_none() {
+        cfg.out_dir = PathBuf::from("target/fuzz/bank-audit");
     }
     if all_catalogue && budget.is_none() {
         cfg.budget = 1_000;
@@ -311,6 +330,8 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     cfg.pin_out = pin_out;
     cfg.patient_zero = patient_zero;
     cfg.resweep = resweep;
+    cfg.verify_storage = verify_storage;
+    cfg.audit_bank = audit_bank;
     cfg.pz_siblings = pz_siblings;
     if let Some(v) = max_siblings {
         cfg.max_siblings = v;
@@ -821,6 +842,9 @@ pub fn write_outputs(
             fs::write(pin_path, encoded).map_err(|e| format!("{}: {e}", pin_path.display()))?;
         }
     }
+    // Always write the canonical dc-ztvv.26.7 storage-policy recipe manifest (recipe.json).
+    let recipe = storage::build_sweep_recipe(cfg, spec, summary, discrepancies, envs);
+    storage::write_sweep_recipe(&cfg.out_dir, &recipe)?;
     Ok(())
 }
 
@@ -840,6 +864,57 @@ pub fn run(raw: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if let Some(dir) = &cfg.verify_storage {
+        return match storage::verify_sweep_storage_policy(dir, cfg.bank_rows_out.as_deref()) {
+            Ok(rep) => {
+                if rep.ok {
+                    println!(
+                        "xtask fuzz --verify-storage {}: PASS ({} discrepancy rows verified, 0 matching rows stored)",
+                        rep.function, rep.discrepancy_rows
+                    );
+                    ExitCode::SUCCESS
+                } else {
+                    eprintln!(
+                        "xtask fuzz --verify-storage {}: FAIL ({} violations, {} matching rows in bank): {:?}",
+                        rep.function,
+                        rep.violations.len(),
+                        rep.matching_rows_in_bank,
+                        rep.violations
+                    );
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask fuzz --verify-storage: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+    if let Some(witness_path) = &cfg.audit_bank {
+        return match storage::plan_bank_retention(witness_path, 24, cfg.seed) {
+            Ok(plan) => match storage::write_retention_plan(&cfg.out_dir, &plan) {
+                Ok(_) => {
+                    println!(
+                        "xtask fuzz --audit-bank {}: {} total rows -> {} keep, {} archive candidates (read-only: 0 rows removed), out {}",
+                        plan.function,
+                        plan.total_rows,
+                        plan.keep_count,
+                        plan.archive_candidate_count,
+                        cfg.out_dir.join("retention-plan.json").display()
+                    );
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("xtask fuzz --audit-bank: {e}");
+                    ExitCode::from(1)
+                }
+            },
+            Err(e) => {
+                eprintln!("xtask fuzz --audit-bank: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
     if let Some(pz_path) = &cfg.patient_zero {
         return match patient_zero::execute_patient_zero(&cfg, pz_path) {
             Ok(rep) => {
