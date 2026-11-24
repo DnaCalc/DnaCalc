@@ -28,16 +28,29 @@ pub struct WorkbookEvents {
     automatic_events: bool,
     /// Why a file's project runs; `None` for source modules a person loaded.
     grant: Option<ProjectGrant>,
+    /// The policy's audit log the project's hosts write to (a granted file project only).
+    audit: Option<calc_vba::policy::AuditHandle>,
+    /// Every procedure run through the command route, in order (dc-vba-command-es70w).
+    invocations: std::cell::RefCell<Vec<InvocationRecord>>,
 }
+
+pub use command::{
+    Denial, InvocationKind, InvocationRecord, Outcome, ProcedureArg, ProcedureEntry,
+    ProcedureKind, ProcedureResult,
+};
+mod command;
 
 struct VbaAutomationHost {
     events_enabled: Cell<bool>,
+    /// The project `Application.Run` resolves its target in (set once the owner exists).
+    owner: std::cell::RefCell<std::rc::Weak<WorkbookEvents>>,
 }
 
 impl VbaAutomationHost {
     fn new() -> Self {
         Self {
             events_enabled: Cell::new(true),
+            owner: Default::default(),
         }
     }
 }
@@ -46,8 +59,11 @@ impl ApplicationHost for VbaAutomationHost {
     fn hwnd(&self) -> isize {
         0
     }
-    fn run(&self, _: &str, _: &[AutoValue]) -> Result<AutoValue, AutoError> {
-        Err(AutoError::not_modelled("_Application.Run", "dc-piw0.5"))
+    fn run(&self, name: &str, arguments: &[AutoValue]) -> Result<AutoValue, AutoError> {
+        match self.owner.borrow().upgrade() {
+            Some(owner) => owner.application_run(name, arguments),
+            None => Err(AutoError::not_modelled("_Application.Run", "dc-piw0.5")),
+        }
     }
     fn events_enabled(&self) -> bool {
         self.events_enabled.get()
@@ -340,7 +356,8 @@ fn prepare_project(
         })
         .collect::<Result<Vec<_>, String>>()?;
     // One WorkbookAutomation instance owns every Excel/Office member call for this project.
-    let automation = Rc::new(WorkbookAutomation::new(Rc::new(VbaAutomationHost::new())));
+    let application = Rc::new(VbaAutomationHost::new());
+    let automation = Rc::new(WorkbookAutomation::new(application.clone()));
     automation.context_changed_from_host(host, name);
     // The grant's policy wraps every host built for this load (CalcVBA's PolicyHost); a stricter
     // policy the thread already holds (Guarded) stays, and the thread's earlier policy is put back
@@ -375,6 +392,7 @@ fn prepare_project(
         )
     };
     let project = loaded?;
+    let audit = _policy.as_ref().and_then(|_| calc_vba::policy::current_audit());
     let mut owner = WorkbookEvents {
         project,
         automation: automation.clone(),
@@ -384,6 +402,8 @@ fn prepare_project(
         file_project,
         automatic_events,
         grant,
+        audit,
+        invocations: Default::default(),
     };
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.
@@ -401,7 +421,9 @@ fn prepare_project(
         owner.project.attach_document(&module.name, &source)?;
         owner.book = Some(source);
     }
-    Ok(Rc::new(owner))
+    let owner = Rc::new(owner);
+    *application.owner.borrow_mut() = Rc::downgrade(&owner);
+    Ok(owner)
 }
 
 impl WorkbookEventHandler for WorkbookEvents {

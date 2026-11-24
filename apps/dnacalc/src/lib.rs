@@ -7,7 +7,8 @@
 //!                                               the file's cached values
 //! dnacalc get    book.xlsx [Sheet!]A1 ...       a cell's formula, cached and calculated value
 //! dnacalc set    book.xlsx [Sheet!]A1 TEXT ...  enter cells as typed, recalculate, save with --out
-//! dnacalc run    book.xlsm --macro Mod.Proc     call a public VBA Function of the file's project
+//! dnacalc run    book.xlsm --macro Mod.Proc     run a public VBA Sub or Function of the file's project
+//! dnacalc run    book.xlsm --all                run every public entry that needs no argument, one session each
 //! ```
 //!
 //! Options on workbook commands: `--json` (one JSON document on stdout), `--macro-level
@@ -38,7 +39,8 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   diff   <book> [--cells]                 recalculate; compare every formula cell with the file's cached values
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
-  run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   call a public VBA Function of the file's project
+  run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   run a public VBA Sub or Function of the file's project
+  run    <book> --all                     run every public entry that needs no argument, each in its own session
 workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
          NOW and TODAY read this machine's clock (UTC)
@@ -68,6 +70,7 @@ pub(crate) struct Cli {
     pub(crate) level: calc_macro_security::MacroSecurity,
     pub(crate) macro_name: Option<String>,
     pub(crate) macro_args: Vec<String>,
+    pub(crate) all_macros: bool,
     pub(crate) locale: String,
 }
 
@@ -84,6 +87,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         level: calc_macro_security::MacroSecurity::Off,
         macro_name: None,
         macro_args: Vec::new(),
+        all_macros: false,
         locale: "en-US".into(),
     };
     let mut books = Vec::new();
@@ -96,6 +100,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         match arg.as_str() {
             "--json" => cli.json = true,
             "--cells" => cli.list_cells = true,
+            "--all" => cli.all_macros = true,
             "--out" => cli.out = Some(value("a file")?),
             "--macro" => cli.macro_name = Some(value("Module.Proc")?),
             "--arg" => cli.macro_args.push(value("a value")?),
