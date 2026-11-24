@@ -30,11 +30,13 @@ use std::{
 
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
+mod cells;
 mod formula;
 mod mutation;
 mod navigation;
 mod report;
 mod report_draw;
+mod structure;
 mod value;
 
 /// The application supplies access, never a copied value reader. `None` means no admitted
@@ -225,6 +227,8 @@ impl WorkbookAutomation {
         );
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
+        Self::register_structure(&mut handlers);
+        Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
