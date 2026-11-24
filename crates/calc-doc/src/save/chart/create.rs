@@ -370,6 +370,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         if a.kind == "valAx" && !secondary {
             bytes.extend(b"<c:majorGridlines/>");
         }
+        if let Some(title) = a.title.as_deref() {
+            bytes.extend(super::axis_title(title, chart.lang.as_deref()));
+        }
         // A value axis of a 100% stacked plot is linked to the percent format Excel gives it
         // (UI30 P10: `0%`, sourceLinked 1, on the secondary value axis too).
         let percent_axis = a.kind == "valAx"
@@ -378,7 +381,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             });
         // Excel links the axis number format to the source only when there is a source (Q10: an
         // empty chart's axes have no `numFmt`; Q0: with series they have `General`).
-        if !excel || chart.plots.iter().any(|p| !p.series.is_empty()) {
+        if let Some(code) = a.number_format.as_deref() {
+            bytes.extend(super::fresh_num_fmt(Some(code)));
+        } else if !excel || chart.plots.iter().any(|p| !p.series.is_empty()) {
             bytes.extend(
                 format!(
                     "<c:numFmt formatCode=\"{}\" sourceLinked=\"1\"/>",

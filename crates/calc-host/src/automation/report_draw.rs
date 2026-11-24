@@ -68,7 +68,9 @@ impl WorkbookAutomation {
                     | ReportItem::ChartShape(part)
                     | ReportItem::SeriesCollection(part)
                     | ReportItem::Series(part, _)
-                    | ReportItem::Axis(part, _),
+                    | ReportItem::Axis(part, _)
+                    | ReportItem::AxisTitle(part, _)
+                    | ReportItem::TickLabels(part, _),
                 ..
             } => Ok(part.clone()),
             _ => Err(geometry::type_mismatch()),

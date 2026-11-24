@@ -150,6 +150,18 @@ impl WorkbookAutomation {
         on("Axis", "ReversePlotOrder", Get, Self::axis_reversed);
         on("Axis", "ReversePlotOrder", Put, Self::axis_put_reversed);
         on("Axis", "Type", Get, Self::axis_type);
+        on("Axis", "HasTitle", Get, Self::axis_has_title);
+        on("Axis", "HasTitle", Put, Self::axis_put_has_title);
+        on("Axis", "AxisTitle", Get, Self::axis_title);
+        on("AxisTitle", "Text", Get, Self::axis_title_text);
+        on("AxisTitle", "Text", Put, Self::axis_title_put_text);
+        on("AxisTitle", "Caption", Get, Self::axis_title_text);
+        on("AxisTitle", "Caption", Put, Self::axis_title_put_text);
+        on("Axis", "TickLabels", Get, Self::axis_tick_labels);
+        on("TickLabels", "NumberFormat", Get, Self::tick_number_format);
+        on("TickLabels", "NumberFormat", Put, Self::tick_put_number_format);
+        on("TickLabels", "NumberFormatLinked", Get, Self::tick_number_format_linked);
+        on("TickLabels", "NumberFormatLinked", Put, Self::tick_put_number_format_linked);
         on("ChartTitle", "Text", Get, Self::chart_title_text);
         on("ChartTitle", "Text", Put, Self::chart_title_put_text);
         // Drawings.
