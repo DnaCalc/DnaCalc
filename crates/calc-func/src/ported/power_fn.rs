@@ -73,12 +73,22 @@ pub(crate) fn ten_to(scale: i32) -> f64 {
 /// resolved the earlier 1-ULP residual — `exp(y·ln x)` was the right function
 /// evaluated at the wrong point for `y < 0`.
 pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> {
+    power_kernel_with_pos_overflow(number, power).map(|(value, _)| value)
+}
+
+/// Same calculation as [`power_kernel`], also reporting whether a negative exponent
+/// overflowed its positive power `|base|^|power|` to `+inf` before reciprocating to `0.0`
+/// (used by `RATE`'s negative-period asymptotic rescue in `dc-j9k.97`).
+pub(crate) fn power_kernel_with_pos_overflow(
+    number: f64,
+    power: f64,
+) -> Result<(f64, bool), WorksheetErrorCode> {
     // 1. zero exponent
     if power == 0.0 {
         return if number == 0.0 {
             Err(WorksheetErrorCode::Num) // POWER(0, 0)
         } else {
-            Ok(1.0)
+            Ok((1.0, false))
         };
     }
     // 2. zero base
@@ -86,7 +96,7 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
         return if power < 0.0 {
             Err(WorksheetErrorCode::Div0) // POWER(0, negative)
         } else {
-            Ok(0.0)
+            Ok((0.0, false))
         };
     }
 
@@ -114,9 +124,13 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
         } else {
             binexp_positive(number, u64::from(magnitude))
         };
+        let mut pos_overflow = false;
         if power < 0.0 {
             if p.abs() < f64::MIN_POSITIVE {
                 return Err(WorksheetErrorCode::Div0); // reciprocal sees tiny magnitude as zero
+            }
+            if p.is_infinite() {
+                pos_overflow = true;
             }
             p = excel_x87_recip(p); // 1/inf -> 0, published below
         }
@@ -124,7 +138,10 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
             return Err(WorksheetErrorCode::Num);
         }
         // Integer path flushes subnormal / -0 / 0 to +0 (Excel: POWER(2,-1023)=0).
-        return Ok(if p.abs() < f64::MIN_POSITIVE { 0.0 } else { p });
+        return Ok((
+            if p.abs() < f64::MIN_POSITIVE { 0.0 } else { p },
+            pos_overflow,
+        ));
     }
 
     // 4. fractional exponent.
@@ -146,9 +163,9 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
             return Err(WorksheetErrorCode::Num); // overflow
         }
         if p == 0.0 {
-            return Ok(0.0);
+            return Ok((0.0, false));
         }
-        return Ok(sign * p); // subnormals ARE published on the y>0 path
+        return Ok((sign * p, false)); // subnormals ARE published on the y>0 path
     }
 
     // y < 0: reciprocal staging (the resolved 1-ULP puzzle).
@@ -156,16 +173,16 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
         return Err(WorksheetErrorCode::Div0); // subnormal/zero positive power (DAZ-style)
     }
     if p.is_infinite() {
-        return Ok(0.0); // 1 / inf
+        return Ok((0.0, true)); // 1 / inf
     }
     let r = excel_x87_recip(p); // RN53(RN64(1/p))
     if r < f64::MIN_POSITIVE {
-        return Ok(0.0); // subnormal quotient flushes to +0
+        return Ok((0.0, false)); // subnormal quotient flushes to +0
     }
     if r.is_infinite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(sign * r)
+    Ok((sign * r, false))
 }
 
 #[cfg(test)]

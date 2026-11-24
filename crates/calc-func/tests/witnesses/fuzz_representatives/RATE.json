@@ -103,8 +103,7 @@
         "0x8010000000000001",
         "0xc076800000000000"
       ],
-      "expected_bits": "0x3fb95810624dd2f2",
-      "calc_func": "error:Div0"
+      "expected_bits": "0x3fb95810624dd2f2"
     },
     {
       "id": "R2-dc-j9k-97-div0-vs-num",

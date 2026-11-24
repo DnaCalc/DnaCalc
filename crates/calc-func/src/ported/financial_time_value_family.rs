@@ -6,7 +6,7 @@ use crate::ported::excel_numeric::{
     excel_pow_x87_direct, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip,
     excel_x87_sub, exp_portable,
 };
-use crate::ported::power_fn::power_kernel;
+use crate::ported::power_fn::{power_kernel, power_kernel_with_pos_overflow};
 use crate::ported::real_policy::excel_underflow_to_zero;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreValue};
@@ -96,14 +96,21 @@ fn alnrel(rate: f64) -> f64 {
 }
 
 fn growth_from_base(base: f64, periods: f64) -> Result<f64, FinancialError> {
-    let factor = match power_kernel(base, periods) {
-        Ok(factor) => factor,
+    growth_from_base_with_pos_overflow(base, periods).map(|(factor, _)| factor)
+}
+
+fn growth_from_base_with_pos_overflow(
+    base: f64,
+    periods: f64,
+) -> Result<(f64, bool), FinancialError> {
+    let (factor, pos_overflow) = match power_kernel_with_pos_overflow(base, periods) {
+        Ok(pair) => pair,
         Err(WorksheetErrorCode::Div0) => return Err(FinancialError::Div0),
         Err(WorksheetErrorCode::Num) => return Err(FinancialError::Num),
         Err(_) => return Err(FinancialError::Value),
     };
     if factor.is_finite() {
-        Ok(factor)
+        Ok((factor, pos_overflow))
     } else {
         Err(FinancialError::Num)
     }
@@ -437,14 +444,14 @@ fn rate_secant(
     if tracing && matches!(timing, PaymentTiming::BeginningOfPeriod) {
         crate::trace::hit(5);
     }
-    let balance = |rate: f64| -> Result<f64, FinancialError> {
+    let balance = |rate: f64| -> Result<(f64, bool), FinancialError> {
         // Use FV's `(pv * factor + pmt * term) + fv` stage at every rate, including rate == 0.0,
         // and reject a nonfinite balance immediately as #NUM! (Excel 16.0.20625.20108, dc-ztvv.21).
-        let (factor, term) = if rate == 0.0 {
+        let (factor, term, pos_overflow) = if rate == 0.0 {
             if tracing {
                 crate::trace::hit(1);
             }
-            (1.0, periods)
+            (1.0, periods, false)
         } else {
             let base = excel_x87_add(1.0, rate);
             if tracing && base <= 0.0 {
@@ -452,8 +459,8 @@ fn rate_secant(
             }
             // The initial guess and final root have separate domain rules. An
             // intermediate integer-period power can cross a negative base.
-            let factor = match growth_from_base(base, periods) {
-                Ok(f) => f,
+            let (factor, pos_overflow) = match growth_from_base_with_pos_overflow(base, periods) {
+                Ok(pair) => pair,
                 Err(e) => {
                     if tracing {
                         crate::trace::hit(3);
@@ -466,25 +473,51 @@ fn rate_secant(
             if tracing && raw_end_term != 0.0 && end_term == 0.0 {
                 crate::trace::hit(4);
             }
-            (factor, excel_x87_mul(end_term, timing.factor(rate)))
+            (factor, excel_x87_mul(end_term, timing.factor(rate)), pos_overflow)
         };
         let total = excel_x87_add(
             payment_balance(present_value, payment_value, factor, term),
             future_value,
         );
         if total.is_finite() {
-            Ok(total)
+            Ok((total, pos_overflow))
         } else {
             Err(FinancialError::Num)
         }
     };
+    let asymptotic_accept = |current: f64, iter: u32| -> bool {
+        if !(current.is_finite() && current > 0.0 && periods < 0.0) {
+            return false;
+        }
+        let end_term_inf = excel_underflow_to_zero(excel_x87_div(-1.0, current));
+        let term_inf = excel_x87_mul(end_term_inf, timing.factor(current));
+        let limit = excel_x87_add(
+            payment_balance(present_value, payment_value, 0.0, term_inf),
+            future_value,
+        );
+        if tracing {
+            crate::trace::observe_boundary("overflow_limit", limit.abs(), RATE_TOLERANCE);
+        }
+        if limit.abs() <= RATE_TOLERANCE {
+            if tracing {
+                crate::trace::hit(14);
+                crate::trace::record_iterations(iter + 1);
+            }
+            true
+        } else {
+            if tracing {
+                crate::trace::hit(15);
+            }
+            false
+        }
+    };
     let mut before = guess;
-    let mut value_before = balance(before)?;
+    let (mut value_before, _) = balance(before)?;
     // A zero balance still needs a nonzero secant slope; a flat zero
     // objective is NUM. The comparison sends either sign of zero upward.
     let offset = if value_before > 0.0 { -0.001 } else { 0.001 };
     let mut current = excel_x87_add(before, offset);
-    let mut value = balance(current)?;
+    let (mut value, mut pos_ovf) = balance(current)?;
     let mut step = f64::INFINITY;
     // Excel 20625 treats negative changes with magnitude less than MIN_NORMAL/16
     // as flat. At the cutoff and on the positive subnormal side, the divisor
@@ -516,7 +549,7 @@ fn rate_secant(
             // rate once in the direction of travel and use that slope on this step.
             let nudge = if current >= before { 0.001 } else { -0.001 };
             before = excel_x87_add(before, nudge);
-            value_before = balance(before)?;
+            (value_before, _) = balance(before)?;
             change = excel_x87_sub(value, value_before);
             if flat_change(change) {
                 if tracing {
@@ -530,6 +563,12 @@ fn rate_secant(
         // The flat-change comparison precedes the division's DAZ input stage.
         let divisor = financial_daz(change);
         if divisor == 0.0 {
+            // When negative-period positive power overflowed to +inf before reciprocating
+            // to 0, Excel applies the same asymptotic limit check on divisor == 0.0
+            // (dc-j9k.97 / cb25 R-B).
+            if pos_ovf && asymptotic_accept(current, iter) {
+                return Ok(current);
+            }
             if tracing {
                 crate::trace::hit(12);
                 crate::trace::record_iterations(iter + 1);
@@ -549,25 +588,8 @@ fn rate_secant(
         // publishes `current` when the step quotient itself overflows (`!quotient.is_finite()`,
         // not when `quotient` is finite and `current - quotient` overflows) and that
         // asymptotic balance is within `1e-7`.
-        if !quotient.is_finite() && current.is_finite() && current > 0.0 && periods < 0.0 {
-            let end_term_inf = excel_underflow_to_zero(excel_x87_div(-1.0, current));
-            let term_inf = excel_x87_mul(end_term_inf, timing.factor(current));
-            let limit = excel_x87_add(
-                payment_balance(present_value, payment_value, 0.0, term_inf),
-                future_value,
-            );
-            if tracing {
-                crate::trace::observe_boundary("overflow_limit", limit.abs(), RATE_TOLERANCE);
-            }
-            if limit.abs() <= RATE_TOLERANCE {
-                if tracing {
-                    crate::trace::hit(14);
-                    crate::trace::record_iterations(iter + 1);
-                }
-                return Ok(current);
-            } else if tracing {
-                crate::trace::hit(15);
-            }
+        if !quotient.is_finite() && asymptotic_accept(current, iter) {
+            return Ok(current);
         }
         let next = excel_x87_sub(current, quotient);
         if !next.is_finite() {
@@ -580,7 +602,7 @@ fn rate_secant(
         step = excel_x87_sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
-        value = balance(current)?;
+        (value, pos_ovf) = balance(current)?;
         if tracing {
             crate::trace::observe_boundary("strict_step", step, RATE_TOLERANCE);
             crate::trace::observe_boundary("strict_value", value.abs(), RATE_TOLERANCE);
@@ -2716,6 +2738,64 @@ mod tests {
                 Some(f64::from_bits(0x3fd198819577be54)),
             ),
             Err(FinancialError::Num)
+        );
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.97): when `divisor == 0.0` with
+    /// negative `nper`, `current > 0`, and positive-power overflow (`pos_power == +inf`),
+    /// Excel runs the same `|limit_inf(current)| <= 1e-7` publication check it runs on
+    /// `!quotient.is_finite()`, while keeping `#DIV/0!` when `pos_power < DBL_MAX`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_97_rate_pos_power_overflow_rescue_at_zero_divisor() {
+        // R2-dc-j9k-97-num-vs-div0: pos_power == +inf rescues divisor == 0.0 -> 0x3fb95810624dd2f2.
+        let rescued = rate(
+            f64::from_bits(0xffefffffffffffff),
+            f64::from_bits(0x8010000000000001),
+            f64::from_bits(0xc076800000000000),
+            0.0,
+            PaymentTiming::EndOfPeriod,
+            None,
+        )
+        .expect("R2-dc-j9k-97-num-vs-div0 finite");
+        assert_eq!(rescued.to_bits(), 0x3fb95810624dd2f2);
+
+        // cb25-RATE-RB-14: pos_power == +inf rescues even when |value| < MIN_POSITIVE.
+        let rb14 = rate(
+            f64::from_bits(0xc0f0000000000000),
+            f64::from_bits(0x8020000000000000),
+            f64::from_bits(0xc024000000000000),
+            f64::from_bits(0x801ff00000000000),
+            PaymentTiming::EndOfPeriod,
+            Some(f64::from_bits(0x3ff0000000000000)),
+        )
+        .expect("cb25-RATE-RB-14 finite");
+        assert_eq!(rb14.to_bits(), 0x3feff7ced916872b);
+
+        // cb25-RATE-RB-18: pos_power == +inf with |limit| > 1e-7 does NOT publish.
+        assert_eq!(
+            rate(
+                f64::from_bits(0xc0f0000000000000),
+                f64::from_bits(0x8010000000000008),
+                f64::from_bits(0xc024000000000000),
+                f64::from_bits(0x3e8ad7f29abcaf48),
+                PaymentTiming::EndOfPeriod,
+                Some(f64::from_bits(0x3fb999999999999a)),
+            ),
+            Err(FinancialError::Num)
+        );
+
+        // sf2 fuzz-RATE-r01-013297: pos_power < DBL_MAX stays #DIV/0!.
+        assert_eq!(
+            rate(
+                f64::from_bits(0xc031cae22accbf82),
+                f64::from_bits(0x83b4092dc31da972),
+                f64::from_bits(0x82834313dabdf041),
+                f64::from_bits(0x80100000000001c3),
+                PaymentTiming::EndOfPeriod,
+                Some(f64::from_bits(0x3fdb8281c1f808b2)),
+            ),
+            Err(FinancialError::Div0)
         );
     }
 }
