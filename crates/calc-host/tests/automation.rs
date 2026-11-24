@@ -4341,34 +4341,28 @@ fn enable_events_is_rechecked_between_automation_event_levels() {
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
-/// dc-oxh8w.8: the printing members register where the committed descriptor describes them. With
-/// the descriptor regenerated on Windows (RUN-ON-WINDOWS, lane cl3) none is pending.
+/// The Windows-generated descriptor supplies every member in the printing batch.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__print_members_register_where_the_descriptor_describes_them() {
     let (_, model) = setup();
     let pending = model.print_members_pending();
     let implemented = model.handlers().implemented();
-    for name in &pending {
-        assert!(!implemented.contains(name), "{name} is pending and also registered");
-    }
-    eprintln!("print members: {} pending the descriptor regeneration", pending.len());
-    if pending.is_empty() {
-        assert!(implemented.contains(&"PageSetup.Orientation (Put)".to_owned()));
-        assert!(implemented.contains(&"HPageBreaks.Add (Method)".to_owned()));
-    }
+    assert!(
+        pending.is_empty(),
+        "printing members missing from the descriptor: {pending:?}"
+    );
+    assert!(implemented.contains(&"PageSetup.Orientation (Put)".to_owned()));
+    assert!(implemented.contains(&"HPageBreaks.Add (Method)".to_owned()));
+    assert!(implemented.contains(&"VPageBreaks.Add (Method)".to_owned()));
 }
 
 /// dc-oxh8w.8: a macro sets up a sheet for printing through the members and reads it back, and the
-/// same state is what the file saves. Runs once the descriptor holds `PageSetup` and the breaks.
+/// same state is what the file saves.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__a_macro_sets_up_printing_through_members() {
     let (host, model) = setup();
-    if !model.print_members_pending().is_empty() {
-        eprintln!("dc-oxh8w.8: descriptor lacks PageSetup/HPageBreaks; member round trip not run");
-        return;
-    }
     let app = model.application();
     let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
     let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
@@ -4384,31 +4378,198 @@ fn dc_oxh8w_8__a_macro_sets_up_printing_through_members() {
     put("PrintArea", AutoValue::text("$A$1:$C$20"));
     put("PrintTitleRows", AutoValue::text("$1:$1"));
     put("CenterFooter", AutoValue::text("Page &P"));
-    assert!(matches!(invoke(&model, &setup, "Orientation", vec![]).unwrap(), AutoValue::I4(2)));
-    assert!(matches!(invoke(&model, &setup, "Zoom", vec![]).unwrap(), AutoValue::Bool(false)));
-    assert!(matches!(invoke(&model, &setup, "FitToPagesTall", vec![]).unwrap(), AutoValue::Bool(false)));
-    assert!(matches!(invoke(&model, &setup, "LeftMargin", vec![]).unwrap(), AutoValue::R8(v) if v == 36.0));
+    assert!(matches!(
+        invoke(&model, &setup, "Orientation", vec![]).unwrap(),
+        AutoValue::I4(2)
+    ));
+    assert!(matches!(
+        invoke(&model, &setup, "Zoom", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    assert!(matches!(
+        invoke(&model, &setup, "FitToPagesTall", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    assert!(
+        matches!(invoke(&model, &setup, "LeftMargin", vec![]).unwrap(), AutoValue::R8(v) if v == 36.0)
+    );
     assert_eq!(text(&model, &setup, "PrintArea"), "$A$1:$C$20");
     assert_eq!(text(&model, &setup, "PrintTitleRows"), "$1:$1");
     assert_eq!(text(&model, &setup, "CenterFooter"), "Page &P");
     // The same state is what the Page Setup UI reads.
     let sheet_id = host.session.borrow().host().sheets()[0].id();
-    let stored = host.session.borrow().host().model().definitions().page_setup(sheet_id);
+    let stored = host
+        .session
+        .borrow()
+        .host()
+        .model()
+        .definitions()
+        .page_setup(sheet_id);
     assert_eq!(stored.get("pageSetup", "orientation"), Some("landscape"));
     // Breaks.
     let h = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
-    let before = range(&model, "A21");
-    let one = obj(invoke_kind(&model, &h, "Add", InvokeKind::Method, vec![AutoValue::Object(before)]).unwrap());
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(1)));
-    assert!(matches!(invoke(&model, &one, "Type", vec![]).unwrap(), AutoValue::I4(-4135)));
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
+    let before = range(&model, "A11");
+    let one = obj(invoke_kind(
+        &model,
+        &h,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::Object(before)],
+    )
+    .unwrap());
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    assert!(matches!(
+        invoke(&model, &one, "Type", vec![]).unwrap(),
+        AutoValue::I4(-4135)
+    ));
     let location = obj(invoke(&model, &one, "Location", vec![]).unwrap());
-    assert_eq!(text(&model, &location, "Address"), "$A$21");
+    assert_eq!(text(&model, &location, "Address"), "$A$11");
+    let v = obj(invoke(&model, &sheet, "VPageBreaks", vec![]).unwrap());
+    let before = range(&model, "C1");
+    invoke_kind(
+        &model,
+        &v,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::Object(before)],
+    )
+    .unwrap();
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_, reopened) = setup_session(reopened);
+    let reopened_sheet =
+        obj(invoke(&reopened, &reopened.application(), "ActiveSheet", vec![]).unwrap());
+    let reopened_setup = obj(invoke(&reopened, &reopened_sheet, "PageSetup", vec![]).unwrap());
+    assert!(matches!(
+        invoke(&reopened, &reopened_setup, "Orientation", vec![]),
+        Ok(AutoValue::I4(2))
+    ));
+    assert_eq!(text(&reopened, &reopened_setup, "PrintArea"), "$A$1:$C$20");
+    for collection in ["HPageBreaks", "VPageBreaks"] {
+        let breaks = obj(invoke(&reopened, &reopened_sheet, collection, vec![]).unwrap());
+        assert!(
+            matches!(
+                invoke(&reopened, &breaks, "Count", vec![]),
+                Ok(AutoValue::I4(1))
+            ),
+            "{collection}"
+        );
+    }
     invoke_kind(&model, &one, "Delete", InvokeKind::Method, vec![]).unwrap();
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
+    invoke_kind(
+        &model,
+        &sheet,
+        "ResetAllPageBreaks",
+        InvokeKind::Method,
+        vec![],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &v, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
     // Bad values are Excel's 1004 / 13.
-    let bad = invoke_kind(&model, &setup, "Orientation", InvokeKind::Put, vec![AutoValue::I4(7)]);
-    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let bad = invoke_kind(
+        &model,
+        &setup,
+        "Orientation",
+        InvokeKind::Put,
+        vec![AutoValue::I4(7)],
+    );
+    assert!(
+        matches!(bad, Err(AutoError::Excel { number: 1004, .. })),
+        "{bad:?}"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8_print_setters_and_add_require_one_argument() {
+    let (_, model, sheet) = blank_report();
+    let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+    let breaks = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
+    let before = AutoValue::Object(range(&model, "A10"));
+    let line = obj(invoke_kind(
+        &model,
+        &breaks,
+        "Add",
+        InvokeKind::Method,
+        vec![before.clone()],
+    )
+    .unwrap());
+    let other = AutoValue::Object(range(&model, "A12"));
+    let cases = [
+        (
+            &setup,
+            "Orientation",
+            InvokeKind::Put,
+            vec![AutoValue::I4(1), AutoValue::I4(2)],
+        ),
+        (&breaks, "Add", InvokeKind::Method, vec![other, before]),
+        (
+            &line,
+            "Type",
+            InvokeKind::Put,
+            vec![AutoValue::I4(-4135), AutoValue::I4(-4105)],
+        ),
+    ];
+    let mut invalid = Vec::new();
+    for (target, member, kind, extra) in cases {
+        for args in [vec![], extra] {
+            let reply = invoke_kind(&model, target, member, kind, args);
+            if !matches!(reply, Err(AutoError::Status(status)) if status == 0x8002_000Eu32 as i32) {
+                invalid.push(format!("{member}: {reply:?}"));
+            }
+        }
+    }
+    assert!(invalid.is_empty(), "{invalid:?}");
+    assert!(matches!(
+        invoke(&model, &setup, "Orientation", vec![]),
+        Ok(AutoValue::I4(1))
+    ));
+    assert!(matches!(
+        invoke(&model, &breaks, "Count", vec![]),
+        Ok(AutoValue::I4(1))
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8_page_setup_accepts_the_user_defined_paper_code() {
+    let (_, model, sheet) = blank_report();
+    let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+    invoke_kind(
+        &model,
+        &setup,
+        "PaperSize",
+        InvokeKind::Put,
+        vec![AutoValue::I4(256)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &setup, "PaperSize", vec![]),
+        Ok(AutoValue::I4(256))
+    ));
 }
 
 // ---- xlc command batch 1 (dc-oxh8w.5): the commands translate to the members tested above ----
