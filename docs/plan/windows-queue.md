@@ -24,6 +24,34 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww13 Windows replay, 2026-11-24
+
+- **dc-b1l.** Excel 16.0.20625.20108 recorded Formula, Formula2 and Value2 for 156
+  legacy criteria entries across eight functions. For `COUNTIF` with range criteria,
+  Formula2 inserted `@` at the root and under `SUM`, and preserved the range under
+  `SUMPRODUCT`. Win64 at `40cdb0bac` matched 34/52 root, 21/52 `SUM` and 52/52
+  `SUMPRODUCT` results. The 49 differences are in `ww13/bank-rows/legacy-*.json`.
+  The workbook and live entries are in `ww13/criteria`. Legacy lifting remains dc-b1l.
+- **dc-8wp.6.** Six Excel books kept row fields `[0, -2, 1, 2]` on create and refresh,
+  and all 1,442 report cells held through reopen. Both count-only reports had zero
+  worksheet errors with source `#N/A`. Each split-field report had 15 `#N/A` cells.
+  Win64 refresh matched 1,012/1,442 cells, including 238/238 for tabular counts and
+  149/280 for outline counts. The raw reports and axis XML are in `ww13/pivot2`.
+  The 430 differences are in `ww13/bank-rows/pivot-crossed.json`. Layout parity
+  remains dc-8wp.6.
+- **dc-j9k.79.** Excel 16.0.20625.20108 on AMD Ryzen 7 4800H answered 66 RATE
+  calls through Touchstone. For the negative modeled initial balance change, the
+  half-cutoff and 0.9-cutoff arms returned `#NUM!`. At the modeled `-2^-1026` cutoff
+  and at 1.1 times its magnitude the answer was `#DIV/0!`. The positive controls
+  returned `#DIV/0!` below the positive normal boundary. The ww12 Win64 judge matched
+  all 66 live answers. Exact inputs and result traces are in `ww13/rate`. Instruction
+  tracing and the shared fractional power differences remain dc-j9k.79.
+- **dc-tey4.5.** The rf1 pin, native ByVal regression, Wasabi replay and five direct
+  Riff Excel calls are covered by ww11. The reviewed Windows run matched 53/53 Wasabi
+  project cases on each backend. CalcVBA's full `scripts/check.ps1` stopped at the
+  native-template `items_after_test_module` Clippy lint. The separate ByVal test
+  passed. The wrapper-only routes and direct Riff syntax results remain dc-tey4.5.
+
 ### ww12 Windows replay, 2026-11-24
 
 - **dc-26wtr.1.1–.1.5.** The XLL route matrix, partial Esc, RTD topic removal and
