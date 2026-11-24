@@ -7,7 +7,7 @@
 //! are recorded as discrepancies and exported to `bank-rows`.
 
 use super::boundary::{
-    Frontier, discover_local_frontiers, expand_frontier_windows, get_axis_bits, predicate_tag,
+    Frontier, discover_local_frontiers, expand_frontier_windows_with_refs, predicate_tag,
     record_excel_window_flips, set_axis_f64,
 };
 use super::cluster::{
@@ -1022,6 +1022,25 @@ fn bisect_shifted_frontiers_excel(
     Ok(())
 }
 
+fn record_window_flips_from_cache(
+    frontiers: &mut [Frontier],
+    window_refs: &[(usize, u64, String)],
+    excel_answers: &HashMap<String, String>,
+) {
+    if window_refs.is_empty() {
+        return;
+    }
+    let probed: Vec<(usize, u64, String)> = window_refs
+        .iter()
+        .filter_map(|(fidx, bits, key)| {
+            excel_answers
+                .get(key)
+                .map(|enc| (*fidx, *bits, enc.clone()))
+        })
+        .collect();
+    record_excel_window_flips(frontiers, &probed);
+}
+
 /// Run a live Excel-compared adaptive smart fuzzing sweep via Touchstone.
 pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let started = Instant::now();
@@ -1098,9 +1117,9 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         // Prepare interactive boundary window probes for any frontiers discovered after earlier rounds
         // so w3 executes them concurrently while w1/w2 process the bulk batch.
         let mut inter_cases: Vec<FuzzCase> = Vec::new();
-        let mut inter_meta: Vec<(usize, u64)> = Vec::new();
+        let mut inter_window_refs: Vec<(usize, u64, String)> = Vec::new();
         if probed_frontier_count < frontiers.len() {
-            let expanded = expand_frontier_windows(
+            let expanded = expand_frontier_windows_with_refs(
                 &frontiers[probed_frontier_count..],
                 cfg.frontier_window,
                 &ctx,
@@ -1108,12 +1127,11 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
                 round,
                 &mut next_id,
             );
-            for (rel_idx, c) in expanded {
-                let fidx = probed_frontier_count + rel_idx;
-                let f = &frontiers[fidx];
-                let bits = get_axis_bits(&c.args, f.axis, f.axis_cell).unwrap_or(0);
+            for (rel_idx, bits, key) in expanded.window_refs {
+                inter_window_refs.push((probed_frontier_count + rel_idx, bits, key));
+            }
+            for (_, c) in expanded.cases {
                 case_hasher.update_case(&c.region, &c.args);
-                inter_meta.push((fidx, bits));
                 inter_cases.push(c);
             }
             probed_frontier_count = frontiers.len();
@@ -1174,16 +1192,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut total_unread,
             &mut total_crashed,
         );
-        if !inter_meta.is_empty() {
-            let probed: Vec<(usize, u64, String)> = inter_meta
-                .into_iter()
-                .zip(inter_agg.rows.iter())
-                .filter_map(|((fidx, bits), j)| {
-                    j.excel_encoded.as_ref().map(|enc| (fidx, bits, enc.clone()))
-                })
-                .collect();
-            record_excel_window_flips(&mut frontiers, &probed);
-        }
+        record_window_flips_from_cache(&mut frontiers, &inter_window_refs, &excel_answers);
 
         // Adapt per-region weights: densify discrepant regions, taper clean ones.
         for (idx, reg) in spec.regions.iter().enumerate() {
@@ -1253,7 +1262,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         }
     }
     if probed_frontier_count < frontiers.len() {
-        let expanded = expand_frontier_windows(
+        let expanded = expand_frontier_windows_with_refs(
             &frontiers[probed_frontier_count..],
             cfg.frontier_window,
             &ctx,
@@ -1262,13 +1271,12 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut next_id,
         );
         let mut final_cases = Vec::new();
-        let mut final_meta = Vec::new();
-        for (rel_idx, c) in expanded {
-            let fidx = probed_frontier_count + rel_idx;
-            let f = &frontiers[fidx];
-            let bits = get_axis_bits(&c.args, f.axis, f.axis_cell).unwrap_or(0);
+        let mut final_window_refs = Vec::new();
+        for (rel_idx, bits, key) in expanded.window_refs {
+            final_window_refs.push((probed_frontier_count + rel_idx, bits, key));
+        }
+        for (_, c) in expanded.cases {
             case_hasher.update_case(&c.region, &c.args);
-            final_meta.push((fidx, bits));
             final_cases.push(c);
         }
         if !final_cases.is_empty() {
@@ -1308,16 +1316,9 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
                 &mut total_unread,
                 &mut total_crashed,
             );
-            let probed: Vec<(usize, u64, String)> = final_meta
-                .into_iter()
-                .zip(agg.rows.iter())
-                .filter_map(|((fidx, bits), j)| {
-                    j.excel_encoded.as_ref().map(|enc| (fidx, bits, enc.clone()))
-                })
-                .collect();
-            record_excel_window_flips(&mut frontiers, &probed);
             round += 1;
         }
+        record_window_flips_from_cache(&mut frontiers, &final_window_refs, &excel_answers);
     }
 
     // Pinpoint Excel's flip via batched 64-point bisection for any shifted non-route frontier.
@@ -1605,7 +1606,239 @@ mod tests {
         let pin_bytes = std::fs::read(&pin_path).expect("pin-out written");
         let pinned = WitnessSet::decode(&pin_bytes).expect("valid pinned WitnessSet");
         assert!(!pinned.witnesses.is_empty());
+        for f in &summary.frontiers {
+            if let (Some(lo), Some(hi)) = (f.excel_lo_bits, f.excel_hi_bits) {
+                assert_eq!(
+                    f64_to_compact(f64::from_bits(hi)),
+                    f64_to_compact(f64::from_bits(lo)) + 1,
+                    "frontier {} recorded non-adjacent Excel bits 0x{lo:016x}..0x{hi:016x}",
+                    f.id
+                );
+            }
+        }
 
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn frontier_window_reuses_cached_seen_answers_and_rejects_unread_holes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-window-cache-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let anchor = -1.0_f64;
+        let hi_val = step_ulps(anchor, 1, true).unwrap();
+        let hi_hex = format!("{:016x}", hi_val.to_bits());
+        let pv_unread_hex = format!("{:016x}", 2000.0_f64.to_bits());
+        let asked_pairs = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let asked_pairs_srv = asked_pairs.clone();
+
+        let _server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-window-cache", "envs": {"e1": {"file_version": "16.0.20625.20108", "cpu": "Fake", "machine": "x86-64"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                let pv_hex = flat[r * width + 2].as_str().unwrap().to_owned();
+                                let g_hex = flat[r * width + 5].as_str().unwrap().to_owned();
+                                asked_pairs_srv
+                                    .lock()
+                                    .unwrap()
+                                    .push((pv_hex.clone(), g_hex.clone()));
+                                for c in 0..width {
+                                    ity.push('n');
+                                    // Corrupt echo on frontier 1's `hi_val` to force RowOutcome::Unread!
+                                    if pv_hex == pv_unread_hex && g_hex == hi_hex && c == 5 {
+                                        iv.push(Value::String(format!("{:016x}", anchor.to_bits())));
+                                    } else {
+                                        iv.push(flat[r * width + c].clone());
+                                    }
+                                }
+                                let g_val = f64::from_bits(u64::from_str_radix(&g_hex, 16).unwrap());
+                                if g_val <= anchor {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#VALUE!".to_owned()));
+                                } else {
+                                    ty.push('n');
+                                    out_v.push(Value::String(format!("{:016x}", 0.05_f64.to_bits())));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let ctx = touchstone_bulk_context();
+        let base_cached = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        let base_unread = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(2000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        let mut frontiers = vec![
+            Frontier {
+                id: "frontier-cached".to_owned(),
+                function: "RATE".to_owned(),
+                axis: 5,
+                axis_cell: None,
+                axis_name: "guess".to_owned(),
+                kind: "error:Value<->number".to_owned(),
+                base_args: base_cached.clone(),
+                dna_lo_bits: anchor.to_bits(),
+                dna_hi_bits: hi_val.to_bits(),
+                dna_lo_outcome: "error:Value".to_owned(),
+                dna_hi_outcome: format!("0x{:016x}", 0.05_f64.to_bits()),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+            },
+            Frontier {
+                id: "frontier-unread-hole".to_owned(),
+                function: "RATE".to_owned(),
+                axis: 5,
+                axis_cell: None,
+                axis_name: "guess".to_owned(),
+                kind: "error:Value<->number".to_owned(),
+                base_args: base_unread,
+                dna_lo_bits: anchor.to_bits(),
+                dna_hi_bits: hi_val.to_bits(),
+                dna_lo_outcome: "error:Value".to_owned(),
+                dna_hi_outcome: format!("0x{:016x}", 0.05_f64.to_bits()),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+            },
+        ];
+
+        // Pre-seed seen_keys + excel_answers with frontier 0's `dna_lo_bits` (`-1.0`), as if
+        // Round 0 already probed that anchor.
+        let mut seen_keys = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let mut pre_args = base_cached;
+        set_axis_f64(&mut pre_args, 5, None, anchor);
+        let pre_key = canonical_case_key("RATE", &pre_args);
+        seen_keys.insert(pre_key.clone());
+        excel_answers.insert(pre_key, "error:Value".to_owned());
+
+        let mut next_id = 0usize;
+        let expanded = expand_frontier_windows_with_refs(
+            &frontiers,
+            2,
+            &ctx,
+            &mut seen_keys,
+            1,
+            &mut next_id,
+        );
+        let cases: Vec<FuzzCase> = expanded.cases.into_iter().map(|(_, c)| c).collect();
+        let agg = ask_single_priority(
+            &client,
+            "RATE",
+            &cases,
+            INTERACTIVE_CHUNK_SIZE,
+            2,
+            Priority::Interactive,
+        )
+        .unwrap();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut discs = Vec::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut asked, mut matched, mut mismatched, mut unread, mut crashed) = (0, 0, 0, 0, 0);
+        ingest_judged_cases(
+            "RATE",
+            &cases,
+            &agg.rows,
+            &mut excel_answers,
+            &mut rstats,
+            &mut known,
+            &mut discs,
+            &mut dparents,
+            &mut fseeds,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut unread,
+            &mut crashed,
+        );
+        record_window_flips_from_cache(&mut frontiers, &expanded.window_refs, &excel_answers);
+
+        // Frontier 0: `-1.0` was NOT re-asked of the broker, yet cached answer recovered the exact flip.
+        let pv0_hex = format!("{:016x}", 1000.0_f64.to_bits());
+        let anchor_hex = format!("{:016x}", anchor.to_bits());
+        assert!(
+            !asked_pairs
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(pv, g)| pv == &pv0_hex && g == &anchor_hex),
+            "cached anchor should not be re-asked of Touchstone"
+        );
+        assert_eq!(frontiers[0].excel_lo_bits, Some(anchor.to_bits()));
+        assert_eq!(frontiers[0].excel_hi_bits, Some(hi_val.to_bits()));
+        assert_eq!(frontiers[0].shifted_ulps, Some(0));
+
+        // Frontier 1: `hi_val` was Unread, leaving a non-adjacent hole that must NOT be recorded.
+        assert_eq!(unread, 1);
+        assert_eq!(frontiers[1].excel_lo_bits, None);
+        assert_eq!(frontiers[1].excel_hi_bits, None);
+        assert_eq!(frontiers[1].shifted_ulps, None);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

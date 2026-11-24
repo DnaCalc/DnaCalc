@@ -424,17 +424,29 @@ pub fn discover_local_frontiers(
     frontiers
 }
 
+/// Result of expanding consecutive-double windows around a slice of frontiers.
+pub struct ExpandedFrontierWindows {
+    /// Newly unseen window cases to freeze and evaluate in Excel.
+    pub cases: Vec<(usize, FuzzCase)>,
+    /// Every valid window point `(rel_frontier_idx, axis_bits, canonical_key)` — including
+    /// points already in `seen_keys` so callers can feed cached Excel answers into
+    /// [`record_excel_window_flips`].
+    pub window_refs: Vec<(usize, u64, String)>,
+}
+
 /// Expand every frontier into a dense window of consecutive Value2-safe doubles
-/// `[lo - half_window ..= lo]` and `[hi ..= hi + half_window]` for Excel comparison.
-pub fn expand_frontier_windows(
+/// `[lo - half_window ..= lo]` and `[hi ..= hi + half_window]`, returning both the newly
+/// unseen cases to ask Excel and the full list of window references (including `seen_keys` hits).
+pub fn expand_frontier_windows_with_refs(
     frontiers: &[Frontier],
     half_window: i64,
     context: &WitnessInvocation,
     seen_keys: &mut HashSet<String>,
     round: usize,
     next_id: &mut usize,
-) -> Vec<(usize, FuzzCase)> {
-    let mut out = Vec::new();
+) -> ExpandedFrontierWindows {
+    let mut cases = Vec::new();
+    let mut window_refs = Vec::new();
     for (fidx, frontier) in frontiers.iter().enumerate() {
         let lo = f64::from_bits(frontier.dna_lo_bits);
         let hi = f64::from_bits(frontier.dna_hi_bits);
@@ -449,18 +461,24 @@ pub fn expand_frontier_windows(
                 pts.push(v);
             }
         }
+        let mut local_bits = HashSet::new();
         for v in pts {
+            let bits = if v == 0.0 { 0u64 } else { v.to_bits() };
+            if !local_bits.insert(bits) {
+                continue;
+            }
             let mut args = frontier.base_args.clone();
             if !set_axis_f64(&mut args, frontier.axis, frontier.axis_cell, v) {
                 continue;
             }
             let key = canonical_case_key(&frontier.function, &args);
+            window_refs.push((fidx, bits, key.clone()));
             if !seen_keys.insert(key) {
                 continue;
             }
             let (prediction, trace, outcome_class) = evaluate_traced(&frontier.function, &args, context);
             *next_id += 1;
-            out.push((
+            cases.push((
                 fidx,
                 FuzzCase {
                     id: format!("fuzz-{}-r{round:02}-{:06}", frontier.function, *next_id),
@@ -474,13 +492,29 @@ pub fn expand_frontier_windows(
             ));
         }
     }
-    out
+    ExpandedFrontierWindows { cases, window_refs }
+}
+
+/// Expand every frontier into a dense window of consecutive Value2-safe doubles
+/// `[lo - half_window ..= lo]` and `[hi ..= hi + half_window]` for local dry-run generation.
+pub fn expand_frontier_windows(
+    frontiers: &[Frontier],
+    half_window: i64,
+    context: &WitnessInvocation,
+    seen_keys: &mut HashSet<String>,
+    round: usize,
+    next_id: &mut usize,
+) -> Vec<(usize, FuzzCase)> {
+    expand_frontier_windows_with_refs(frontiers, half_window, context, seen_keys, round, next_id)
+        .cases
 }
 
 /// Update each frontier with Excel's observed flip inside its probed consecutive window.
-/// When a chaotic window has multiple flips (e.g. oscillatory 200-step boundaries), picks the
-/// flip closest to DNA Calc's `dna_lo_bits` (preferring matching transition direction on ties)
-/// so matching windows accurately report `shifted_ulps = 0`.
+/// Only adjacent Value2-safe pairs (`f64_to_compact(hi) == f64_to_compact(lo) + 1`) qualify so
+/// holes from `Unread` rows or missing probes are never reported as exact Excel flips.
+/// When a chaotic window has multiple adjacent flips (e.g. oscillatory 200-step boundaries),
+/// picks the flip closest to DNA Calc's `dna_lo_bits` (preferring matching transition direction
+/// on ties) so matching windows accurately report `shifted_ulps = 0`.
 pub fn record_excel_window_flips(
     frontiers: &mut [Frontier],
     probed: &[(usize, u64, String)], // (frontier_idx, axis_bits, excel_outcome)
@@ -498,16 +532,21 @@ pub fn record_excel_window_flips(
             continue;
         };
         pts.sort_by_key(|(bits, _)| f64_to_compact(f64::from_bits(*bits)));
-        pts.dedup_by_key(|(bits, _)| *bits);
+        pts.dedup_by_key(|(bits, _)| f64_to_compact(f64::from_bits(*bits)));
         let dna_c = f64_to_compact(f64::from_bits(frontier.dna_lo_bits));
         let dna_lo_tag = predicate_tag(&frontier.dna_lo_outcome);
         let dna_hi_tag = predicate_tag(&frontier.dna_hi_outcome);
         let mut best: Option<(u128, u8, i128, &(u64, String), &(u64, String))> = None;
         for pair in pts.windows(2) {
+            let c0 = f64_to_compact(f64::from_bits(pair[0].0));
+            let c1 = f64_to_compact(f64::from_bits(pair[1].0));
+            if c1 != c0 + 1 {
+                continue;
+            }
             let p0 = predicate_tag(&pair[0].1);
             let p1 = predicate_tag(&pair[1].1);
             if p0 != p1 {
-                let shift = f64_to_compact(f64::from_bits(pair[0].0)) - dna_c;
+                let shift = c0 - dna_c;
                 let dist = shift.unsigned_abs();
                 let dir_pen = u8::from(!(p0 == dna_lo_tag && p1 == dna_hi_tag));
                 if best.is_none_or(|(bd, bp, _, _, _)| (dist, dir_pen) < (bd, bp)) {
@@ -658,5 +697,104 @@ mod tests {
         assert_eq!(frontiers[0].excel_lo_bits, Some(lo));
         assert_eq!(frontiers[0].excel_hi_bits, Some(hi));
         assert_eq!(frontiers[0].shifted_ulps, Some(0));
+    }
+
+    #[test]
+    fn record_excel_window_flips_rejects_non_adjacent_holes() {
+        let lo = (-1.0_f64).to_bits();
+        let hi = step_ulps(-1.0, 1, true).unwrap().to_bits();
+        let hi_plus_1 = step_ulps(-1.0, 2, true).unwrap().to_bits();
+        let lo_minus_1 = step_ulps(-1.0, -1, true).unwrap().to_bits();
+
+        // Case 1: `hi` is missing (hole due to seen_keys skip or Unread row).
+        // `lo` -> `hi_plus_1` spans 2 ULPs, so it must NOT be reported as an exact Excel flip.
+        let mut frontiers = vec![Frontier {
+            id: "f-hole".into(),
+            function: "RATE".into(),
+            axis: 5,
+            axis_cell: None,
+            axis_name: "guess".into(),
+            kind: "error:Value<->number".into(),
+            base_args: vec![],
+            dna_lo_bits: lo,
+            dna_hi_bits: hi,
+            dna_lo_outcome: "error:Value".into(),
+            dna_hi_outcome: "0x3fa999999999999a".into(),
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        }];
+        let probed_with_hole = vec![
+            (0, lo_minus_1, "error:Value".to_owned()),
+            (0, lo, "error:Value".to_owned()),
+            // `hi` omitted!
+            (0, hi_plus_1, "0x3fa999999999999a".to_owned()),
+        ];
+        record_excel_window_flips(&mut frontiers, &probed_with_hole);
+        assert_eq!(
+            frontiers[0].excel_lo_bits, None,
+            "non-adjacent hole across lo..lo+2 must not be recorded as an exact flip"
+        );
+        assert_eq!(frontiers[0].excel_hi_bits, None);
+        assert_eq!(frontiers[0].shifted_ulps, None);
+
+        // Case 2: Hole across zero (-MIN_POSITIVE to +MIN_POSITIVE with 0.0 missing) must be rejected.
+        let neg_min = (-f64::MIN_POSITIVE).to_bits();
+        let pos_min = f64::MIN_POSITIVE.to_bits();
+        let mut zero_frontier = vec![Frontier {
+            id: "f-zero".into(),
+            function: "YIELD".into(),
+            axis: 6,
+            axis_cell: None,
+            axis_name: "basis".into(),
+            kind: "error:Num<->number".into(),
+            base_args: vec![],
+            dna_lo_bits: neg_min,
+            dna_hi_bits: 0u64,
+            dna_lo_outcome: "error:Num".into(),
+            dna_hi_outcome: "0x3fa999999999999a".into(),
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        }];
+        let probed_zero_hole = vec![
+            (0, neg_min, "error:Num".to_owned()),
+            // 0.0 omitted!
+            (0, pos_min, "0x3fa999999999999a".to_owned()),
+        ];
+        record_excel_window_flips(&mut zero_frontier, &probed_zero_hole);
+        assert_eq!(
+            zero_frontier[0].excel_lo_bits, None,
+            "missing 0.0 between -MIN_POSITIVE and +MIN_POSITIVE must not be reported as adjacent"
+        );
+
+        // Case 3: When 0.0 IS present, -MIN_POSITIVE -> 0.0 IS Value2-adjacent and accepted.
+        let probed_zero_complete = vec![
+            (0, neg_min, "error:Num".to_owned()),
+            (0, 0u64, "0x3fa999999999999a".to_owned()),
+            (0, pos_min, "0x3fa999999999999a".to_owned()),
+        ];
+        record_excel_window_flips(&mut zero_frontier, &probed_zero_complete);
+        assert_eq!(zero_frontier[0].excel_lo_bits, Some(neg_min));
+        assert_eq!(zero_frontier[0].excel_hi_bits, Some(0u64));
+        assert_eq!(zero_frontier[0].shifted_ulps, Some(0));
+
+        // Case 4: Window with a non-adjacent hole at lo..lo+2 AND a genuine adjacent flip at lo+2..lo+3
+        // skips the hole and picks the adjacent flip (+2 ULPs).
+        let hi_plus_2 = step_ulps(-1.0, 3, true).unwrap().to_bits();
+        let probed_hole_and_real = vec![
+            (0, lo, "error:Value".to_owned()),
+            // `hi` omitted!
+            (0, hi_plus_1, "0x3fa999999999999a".to_owned()),
+            (0, hi_plus_2, "error:Value".to_owned()),
+        ];
+        record_excel_window_flips(&mut frontiers, &probed_hole_and_real);
+        assert_eq!(frontiers[0].excel_lo_bits, Some(hi_plus_1));
+        assert_eq!(frontiers[0].excel_hi_bits, Some(hi_plus_2));
+        assert_eq!(frontiers[0].shifted_ulps, Some(2));
     }
 }
