@@ -449,15 +449,57 @@ class AdmissionTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.admission.check(bad)
 
+    def test_refuses_entry_invalid_arities_and_overlong_formulas_before_excel(self):
+        # GETPIVOTDATA: Excel accepts 2, 3, or even 4..=254; refuses 0, 1, and odd >= 5 at formula entry
+        # (and Range.Formula2R1C1 = object[,] surfaces entry refusal as OutOfMemoryException).
+        for good_n in (2, 3, 4, 6, 12):
+            k = ",".join(["n"] * good_n)
+            with self.subTest(fn="GETPIVOTDATA", good_n=good_n):
+                self.admission.check(self.group(f="GETPIVOTDATA", k=k, n=1, v=[ONE] * good_n))
+        for bad_n in (0, 1, 5, 7, 9, 11):
+            k = ",".join(["n"] * bad_n)
+            with self.subTest(fn="GETPIVOTDATA", bad_n=bad_n), self.assertRaises(ValueError):
+                self.admission.check(self.group(f="GETPIVOTDATA", k=k, n=1, v=[ONE] * bad_n))
+        # Paired conditional functions: Excel refuses incomplete pairs at formula entry.
+        self.admission.check(self.group(f="COUNTIFS", k="n,n", n=1, v=[ONE] * 2))
+        self.admission.check(self.group(f="IFS", k="b,n", n=1, v=[True, ONE]))
+        self.admission.check(self.group(f="SUMIFS", k="n,n,n", n=1, v=[ONE] * 3))
+        for fn, bad_n in (("COUNTIFS", 1), ("COUNTIFS", 3), ("IFS", 3), ("SUMIFS", 2), ("SUMIFS", 4), ("MAXIFS", 4)):
+            k = ",".join(["n"] * bad_n)
+            with self.subTest(fn=fn, bad_n=bad_n), self.assertRaises(ValueError):
+                self.admission.check(self.group(f=fn, k=k, n=1, v=[ONE] * bad_n))
+        # Excel's 8192-character formula limit: a batch of many 128-cell CHOOSE arrays overflows it.
+        huge_k = ",".join(["a16x8"] * 8)
+        with self.assertRaises(ValueError):
+            self.admission.check(self.group(f="SUM", k=huge_k, n=1, v=[ONE] * (128 * 8)))
+
+    def test_broker_refuses_odd_getpivotdata_before_reaching_worker(self):
+        from touchstone import client as touchstone_client
+        broker, state, stop = start_broker(workers=1, extra={"admission": "policy:admission"})
+        try:
+            conn = touchstone_client.Connection.open(
+                endpoint=state / "endpoint.json", socket_path=state / "none.sock", name="t"
+            )
+            try:
+                with self.assertRaises(touchstone_client.ServiceError) as caught:
+                    conn.submit_rows("GETPIVOTDATA", [[{"type": "number", "bits": ONE}] * 5]).result(timeout=10)
+                self.assertIn("refused", str(caught.exception))
+                self.assertEqual(broker.counters["batches"], 0)
+                self.assertEqual(broker.counters["refused"], 1)
+            finally:
+                conn.close()
+        finally:
+            stop()
+
 
 def start_broker(workers=2, extra=None):
     """A broker over fake workers, in a thread.  Returns (broker, state_dir, stop_function)."""
     import broker as broker_module
     temporary = tempfile.TemporaryDirectory()
     state = Path(temporary.name)
-    options = SimpleNamespace(state=state, workers=workers, local_queue=state / "queue", hosts=[], admission=None,
+    options = SimpleNamespace(state=state, workers=workers, local_queue=state / "queue", hosts=[],
                               worker_command=[sys.executable, str(HERE / "fake_worker.py")],
-                              **{"sweep_orphans": False, **(extra or {})})
+                              **{"admission": None, "sweep_orphans": False, **(extra or {})})
     instance = broker_module.Broker(options)
     instance.cpu_name = lambda: "test cpu"
     failure = []

@@ -5323,4 +5323,330 @@ mod tests {
         assert_eq!(ids.len(), 4);
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
+    #[test]
+    fn sweep_gives_up_after_repeated_failures_records_coverage_and_retries_with_backoff() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-giveup-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port}).to_string(),
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n2\tINT\t5.0\tgross\n",
+        )
+        .unwrap();
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_bg = Arc::clone(&stop);
+        let abs_failures = Arc::new(AtomicUsize::new(0));
+        let abs_failures_bg = Arc::clone(&abs_failures);
+        let broker = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            while !stop_bg.load(Ordering::Relaxed) {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                stream.set_nonblocking(false).unwrap();
+                let mut conn_failed_abs = false;
+                while let Some((kind, body)) = read_frame(&mut stream) {
+                    match kind {
+                        b'H' => {
+                            write_frame(
+                                &mut stream,
+                                b'H',
+                                &json!({
+                                    "v": "touchstone/1",
+                                    "server": "fake-giveup-broker",
+                                    "sweep": true,
+                                    "envs": {
+                                        "e-bulk": {
+                                            "engine": "excel",
+                                            "version": "16.0",
+                                            "build": "20625",
+                                            "file_version": "16.0.20625.20108",
+                                            "machine": "x86-64",
+                                            "os": "Windows",
+                                            "cpu": "Fake AMD Ryzen",
+                                            "mt_calc": "manual:4"
+                                        }
+                                    }
+                                }),
+                            );
+                        }
+                        b'S' => {
+                            let id = body["id"].as_str().unwrap().to_string();
+                            let groups = body["groups"].as_array().unwrap();
+                            let fn_name = groups[0]["f"].as_str().unwrap();
+                            // Fail the first 3 ABS attempts with an Excel OOM error (keeping the
+                            // connection open like the real broker so in-flight submits see excel-error,
+                            // not a premature connection drop), then allow ABS to succeed after backoff.
+                            if fn_name == "ABS"
+                                && (conn_failed_abs || abs_failures_bg.load(Ordering::Relaxed) < 3)
+                            {
+                                if !conn_failed_abs {
+                                    conn_failed_abs = true;
+                                    abs_failures_bg.fetch_add(1, Ordering::Relaxed);
+                                }
+                                write_frame(
+                                    &mut stream,
+                                    b'X',
+                                    &json!({
+                                        "id": id,
+                                        "code": "excel-error",
+                                        "detail": "OutOfMemoryException: Insufficient memory to continue the execution of the program. [formulas small groups]"
+                                    }),
+                                );
+                                continue;
+                            }
+                            let mut answers = Vec::new();
+                            for g in groups {
+                                let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                                let n = g["n"].as_u64().unwrap() as usize;
+                                let flat = g["v"].as_array().unwrap();
+                                let mut ty = String::with_capacity(n);
+                                let mut out_v = Vec::with_capacity(n);
+                                let mut ity = String::with_capacity(n * tokens.len());
+                                let mut iv = Vec::with_capacity(n * tokens.len());
+                                for row_i in 0..n {
+                                    let mut args_json = Vec::with_capacity(tokens.len());
+                                    for (j, &tok) in tokens.iter().enumerate() {
+                                        let cell = &flat[row_i * tokens.len() + j];
+                                        match tok {
+                                            "n" => {
+                                                let h = cell.as_str().unwrap();
+                                                args_json.push(Value::String(format!("0x{h}")));
+                                                ity.push('n');
+                                                iv.push(Value::String(h.to_owned()));
+                                            }
+                                            "s" | "S" => {
+                                                args_json.push(cell.clone());
+                                                ity.push('t');
+                                                iv.push(cell.clone());
+                                            }
+                                            "b" | "B" => {
+                                                args_json.push(cell.clone());
+                                                ity.push('b');
+                                                iv.push(cell.clone());
+                                            }
+                                            "e" => {
+                                                let code = cell.as_str().unwrap();
+                                                let var = excel_error_to_encoded(code)
+                                                    .strip_prefix("error:")
+                                                    .unwrap_or("Value")
+                                                    .to_owned();
+                                                args_json.push(json!({"error": var}));
+                                                ity.push('e');
+                                                iv.push(cell.clone());
+                                            }
+                                            _ => {
+                                                args_json.push(Value::Null);
+                                                ity.push('z');
+                                                iv.push(Value::Null);
+                                            }
+                                        }
+                                    }
+                                    let (dna, _, _) = evaluate_traced(fn_name, &args_json, &ctx);
+                                    if let Some(hex) = dna.strip_prefix("0x") {
+                                        ty.push('n');
+                                        out_v.push(Value::String(hex.to_owned()));
+                                    } else if let Some(err) = dna.strip_prefix("error:") {
+                                        ty.push('e');
+                                        out_v.push(Value::String(
+                                            error_variant_to_excel(err).unwrap_or("#VALUE!").to_owned(),
+                                        ));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#VALUE!".to_owned()));
+                                    }
+                                }
+                                let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                                if let Some(o) = g.get("o") {
+                                    g_out["o"] = o.clone();
+                                } else {
+                                    g_out["i"] = g["i"].clone();
+                                }
+                                answers.push(g_out);
+                            }
+                            write_frame(
+                                &mut stream,
+                                b'A',
+                                &json!({"id": id, "seq": body["seq"], "env": "e-bulk", "w": "w1", "g": answers}),
+                            );
+                            if body["last"] == json!(true) {
+                                write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        });
+
+        let read_json = |path: &Path| -> Value {
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+        };
+
+        // Pass 1 (--runs 2): ABS fails 3 times -> gives up on 00000001 -> moves on to INT on 00000002.
+        let cmd_two = [
+            "sweep",
+            "--runs",
+            "2",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        assert_eq!(super::super::run(&cmd_two), std::process::ExitCode::SUCCESS);
+        assert_eq!(abs_failures.load(Ordering::Relaxed), 3);
+
+        let run1 = out.join("00000001");
+        assert!(run1.join("gave_up.json").is_file(), "00000001 must record gave_up.json");
+        assert!(!run1.join("done.json").exists(), "given-up run must not write done.json");
+        let gave_up = read_json(&run1.join("gave_up.json"));
+        assert_eq!(gave_up["function"], "ABS");
+        assert_eq!(gave_up["attempts"], 3);
+        assert_eq!(gave_up["consecutive_give_ups"], 1);
+        let retry_after = gave_up["retry_after_sequence"].as_u64().unwrap();
+        assert!(retry_after >= 5, "expected backoff retry_after_sequence >= 5, got {retry_after}");
+        assert!(
+            gave_up["reason"]
+                .as_str()
+                .unwrap()
+                .contains("OutOfMemoryException"),
+            "give-up reason must preserve the failure cause: {gave_up}"
+        );
+
+        let run2 = out.join("00000002");
+        assert!(run2.join("done.json").is_file(), "scheduler must move on to INT on 00000002");
+        assert_eq!(read_json(&run2.join("recipe.json"))["function"], "INT");
+
+        // Coverage table after pass 1 must record ABS's give-up reason (with 0 cases swept) and INT's sweep.
+        let cov_after_1 = super::super::coverage::collect_from_records(&[out.clone()], None).unwrap();
+        let abs_cov_1 = cov_after_1
+            .iter()
+            .find(|r| r.function == "ABS")
+            .expect("given-up ABS must be recorded in coverage table");
+        assert_eq!(abs_cov_1.cases_swept, 0);
+        assert!(
+            abs_cov_1.status_note.contains("OutOfMemoryException"),
+            "coverage status_note must record failure reason, got {:?}",
+            abs_cov_1.status_note
+        );
+        assert!(
+            out.join("coverage.tsv").is_file(),
+            "sweep must keep out/coverage.tsv updated"
+        );
+
+        // Pass 2: run enough steps to cross retry_after_sequence and confirm ABS is backed off until then,
+        // then retried and succeeds.
+        let more_runs = (retry_after - 1).to_string();
+        let cmd_more = [
+            "sweep",
+            "--runs",
+            &more_runs,
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        assert_eq!(super::super::run(&cmd_more), std::process::ExitCode::SUCCESS);
+        for seq in 2..retry_after {
+            let rec = read_json(&out.join(format!("{seq:08}/recipe.json")));
+            assert_eq!(
+                rec["function"], "INT",
+                "ABS must remain backed off at sequence {seq} (< {retry_after})"
+            );
+        }
+        let retry_run = out.join(format!("{retry_after:08}"));
+        assert_eq!(
+            read_json(&retry_run.join("recipe.json"))["function"],
+            "ABS",
+            "ABS must be retried once sequence reaches retry_after_sequence ({retry_after})"
+        );
+        assert!(retry_run.join("done.json").is_file(), "retried ABS must complete cleanly");
+
+        stop.store(true, Ordering::Relaxed);
+        broker.join().unwrap();
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sweep_skips_workbook_context_function_without_contacting_broker() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-context-skip-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        // Point at a guaranteed-unconnected port: if the sweep tried to connect, it would fail!
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": 1}).to_string(),
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n1\tGETPIVOTDATA\t10.0\t-\n2\tCUBEMEMBER\t9.0\texact\n",
+        )
+        .unwrap();
+
+        let cmd = [
+            "sweep",
+            "--runs",
+            "2",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        assert_eq!(super::super::run(&cmd), std::process::ExitCode::SUCCESS);
+        let summary1: Value = serde_json::from_slice(
+            &std::fs::read(out.join("00000001/00000001/summary.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(summary1["total_asked"], 0);
+        assert_eq!(
+            summary1["stop_reason"],
+            "skipped:requires-workbook-context:pivot-table"
+        );
+        let cov = super::super::coverage::collect_from_records(&[out.clone()], None).unwrap();
+        let gpd = cov
+            .iter()
+            .find(|r| r.function == "GETPIVOTDATA")
+            .expect("statically skipped GETPIVOTDATA must record its reason in coverage");
+        assert_eq!(gpd.cases_swept, 0);
+        assert_eq!(
+            gpd.status_note,
+            "skipped:requires-workbook-context:pivot-table"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

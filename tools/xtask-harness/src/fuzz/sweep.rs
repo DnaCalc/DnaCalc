@@ -12,6 +12,9 @@ use std::time::Duration;
 
 const USAGE: &str = "cargo xtask fuzz sweep [--plan] [--order <tsv>] [--out <dir>] [--runs <N>] [--seed <N>] [--endpoint <path>] [--bank-rows-out <dir>] [--tracker <dedicated master clone>]";
 const RETRY_DELAY: Duration = Duration::from_secs(15);
+const MAX_FAILED_ATTEMPTS: u64 = 3;
+const BASE_BACKOFF_RUNS: u64 = 4;
+const MAX_BACKOFF_SHIFT: u32 = 7;
 
 #[derive(Debug)]
 struct Options {
@@ -148,11 +151,22 @@ impl Entry {
     }
 }
 
-fn ordered<'a>(entries: &'a [Entry], last: &BTreeMap<String, u64>) -> Vec<&'a Entry> {
+fn ordered<'a>(
+    entries: &'a [Entry],
+    last: &BTreeMap<String, u64>,
+    backoff_until: &BTreeMap<String, u64>,
+    next_sequence: u64,
+) -> Vec<&'a Entry> {
     let mut queue: Vec<_> = entries.iter().collect();
-    // Unvisited functions come first. Thereafter least recently completed leads.
+    // Ready functions come before backed-off ones; within ready, unvisited first, then oldest.
     queue.sort_by_key(|e| {
+        let deferred = backoff_until
+            .get(&e.function)
+            .copied()
+            .filter(|&until| until > next_sequence);
         (
+            deferred.is_some(),
+            deferred.unwrap_or(0),
             last.get(&e.function).copied(),
             Reverse(e.priority),
             e.class_order(),
@@ -160,6 +174,136 @@ fn ordered<'a>(entries: &'a [Entry], last: &BTreeMap<String, u64>) -> Vec<&'a En
         )
     });
     queue
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GaveUp {
+    function: String,
+    attempts: u64,
+    last_attempt: u64,
+    finished_utc: String,
+    reason: String,
+    error: String,
+    consecutive_give_ups: u32,
+    backoff_runs: u64,
+    retry_after_sequence: u64,
+    calc_func_commit: String,
+}
+
+fn backoff_runs_for(consecutive_give_ups: u32) -> u64 {
+    let shift = consecutive_give_ups.saturating_sub(1).min(MAX_BACKOFF_SHIFT);
+    BASE_BACKOFF_RUNS << shift
+}
+
+fn failed_attempts_info(run: &Path) -> Result<(u64, u64, Option<String>), String> {
+    if !run.is_dir() {
+        return Ok((0, 0, None));
+    }
+    let mut count = 0u64;
+    let mut last_attempt = 0u64;
+    let mut last_error = None;
+    for (n, dir) in numbered(run)? {
+        let interrupted = dir.join("interrupted.json");
+        if interrupted.is_file() {
+            count += 1;
+            last_attempt = n;
+            if let Ok(doc) = read_json::<Value>(&interrupted)
+                && let Some(err) = doc["error"].as_str()
+            {
+                last_error = Some(err.to_owned());
+            }
+        }
+    }
+    Ok((count, last_attempt, last_error))
+}
+
+fn is_transient_infra_error(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("connection lost")
+        || lower.contains("timed out")
+        || lower.contains("worker-down")
+        || lower.contains("sweep-deferred")
+        || lower.contains("broken pipe")
+        || lower.contains("connection refused")
+}
+
+fn sanitize_reason(attempts: u64, error: &str) -> String {
+    let compact: String = error
+        .chars()
+        .map(|c| match c {
+            '\t' | '\r' | '\n' => ' ',
+            _ => c,
+        })
+        .collect();
+    let trimmed = compact.trim();
+    let prefix = format!("gave-up:{attempts}-attempts: ");
+    if trimmed.is_empty() {
+        format!("gave-up:{attempts}-attempts")
+    } else if trimmed.len() > 200 {
+        let mut end = 200;
+        while end > 0 && !trimmed.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{prefix}{}...", &trimmed[..end])
+    } else {
+        format!("{prefix}{trimmed}")
+    }
+}
+
+fn record_give_up(
+    run: &Path,
+    sequence: u64,
+    recipe: &Recipe,
+    versions: &Versions,
+    attempts: u64,
+    last_attempt: u64,
+    error: &str,
+    last: &mut BTreeMap<String, u64>,
+    give_ups: &mut BTreeMap<String, u32>,
+    backoff_until: &mut BTreeMap<String, u64>,
+) -> Result<GaveUp, String> {
+    let consecutive_give_ups = give_ups.get(&recipe.function).copied().unwrap_or(0) + 1;
+    let backoff_runs = backoff_runs_for(consecutive_give_ups);
+    let retry_after_sequence = sequence.saturating_add(backoff_runs);
+    let gave_up = GaveUp {
+        function: recipe.function.clone(),
+        attempts,
+        last_attempt,
+        finished_utc: utc_timestamp_now(),
+        reason: sanitize_reason(attempts, error),
+        error: error.to_owned(),
+        consecutive_give_ups,
+        backoff_runs,
+        retry_after_sequence,
+        calc_func_commit: versions.calc_func_commit.clone(),
+    };
+    write_json(&run.join("gave_up.json"), &gave_up)?;
+    last.insert(recipe.function.clone(), sequence);
+    give_ups.insert(recipe.function.clone(), consecutive_give_ups);
+    backoff_until.insert(recipe.function.clone(), retry_after_sequence);
+    eprintln!(
+        "sweep {} seed {} gave up after {} failed attempts (backoff {} runs, retry after seq {}): {}",
+        recipe.function,
+        recipe.seed,
+        attempts,
+        backoff_runs,
+        retry_after_sequence,
+        gave_up.reason
+    );
+    Ok(gave_up)
+}
+
+fn refresh_coverage(options: &Options) -> Result<(), String> {
+    let beads = options
+        .tracker
+        .as_ref()
+        .map(|t| t.join(".beads/issues.jsonl"))
+        .filter(|p| p.is_file());
+    super::coverage::write_sweep_coverage(
+        &options.out,
+        beads.as_deref(),
+        &options.out.join("coverage.tsv"),
+    )
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -642,7 +786,7 @@ fn execute(options: &Options) -> Result<(), String> {
     let entries = parse_order(&order)?;
     let max_priority = entries.iter().map(|e| e.priority).max().unwrap_or(0);
     if options.plan {
-        for e in ordered(&entries, &BTreeMap::new()) {
+        for e in ordered(&entries, &BTreeMap::new(), &BTreeMap::new(), 1) {
             println!(
                 "{}\t{}\t{}\t{}",
                 e.rank,
@@ -664,15 +808,25 @@ fn execute(options: &Options) -> Result<(), String> {
     let mut ran = 0;
     let mut sequence = 1;
     let mut last = BTreeMap::new();
+    let mut give_ups = BTreeMap::new();
+    let mut backoff_until = BTreeMap::new();
     let mut pending = Vec::new();
     for (n, path) in numbered(&options.out)? {
         sequence = n;
         if path.join("done.json").exists() {
             let recipe: Recipe = read_json(&path.join("recipe.json"))?;
-            last.insert(recipe.function, n);
+            last.insert(recipe.function.clone(), n);
+            give_ups.remove(&recipe.function);
+            backoff_until.remove(&recipe.function);
             if !path.join("filed.json").exists() {
                 pending.push(path);
             }
+            sequence += 1;
+        } else if path.join("gave_up.json").exists() {
+            let gave_up: GaveUp = read_json(&path.join("gave_up.json"))?;
+            last.insert(gave_up.function.clone(), n);
+            give_ups.insert(gave_up.function.clone(), gave_up.consecutive_give_ups);
+            backoff_until.insert(gave_up.function, gave_up.retry_after_sequence);
             sequence += 1;
         }
     }
@@ -697,9 +851,40 @@ fn execute(options: &Options) -> Result<(), String> {
         let run = options.out.join(format!("{sequence:08}"));
         let recipe_path = run.join("recipe.json");
         let recipe = if recipe_path.exists() {
-            read_json(&recipe_path)?
+            let existing: Recipe = read_json(&recipe_path)?;
+            let (prior_failed, last_att, last_err) = failed_attempts_info(&run)?;
+            if prior_failed >= MAX_FAILED_ATTEMPTS {
+                let err = last_err.unwrap_or_else(|| "repeated failed attempts".to_owned());
+                record_give_up(
+                    &run,
+                    sequence,
+                    &existing,
+                    &versions,
+                    prior_failed,
+                    last_att,
+                    &err,
+                    &mut last,
+                    &mut give_ups,
+                    &mut backoff_until,
+                )?;
+                refresh_coverage(options)?;
+                sequence += 1;
+                ran += 1;
+                continue;
+            }
+            existing
         } else {
-            let entry = ordered(&entries, &last)[0];
+            let entry = ordered(&entries, &last, &backoff_until, sequence)[0];
+            if backoff_until
+                .get(&entry.function)
+                .is_some_and(|&until| until > sequence)
+            {
+                if options.runs.is_some() {
+                    return Ok(());
+                }
+                std::thread::sleep(RETRY_DELAY);
+                continue;
+            }
             let recipe = next_recipe(sequence, options, entry, &order_hash, max_priority);
             new_dir(&run)?;
             write_json(&recipe_path, &recipe)?;
@@ -707,20 +892,53 @@ fn execute(options: &Options) -> Result<(), String> {
         };
         match attempt_run(options, &run, &recipe, &versions, &bank) {
             Ok(()) => {
-                last.insert(recipe.function, sequence);
+                last.insert(recipe.function.clone(), sequence);
+                give_ups.remove(&recipe.function);
+                backoff_until.remove(&recipe.function);
                 sequence += 1;
                 ran += 1;
+                refresh_coverage(options)?;
                 if options.tracker.is_some() {
                     pending.push(run);
                 }
             }
-            Err(error) if options.runs.is_some() => return Err(error),
             Err(error) => {
+                let (failed_count, last_att, _) = failed_attempts_info(&run)?;
+                if pause.exists() {
+                    if options.runs.is_some() {
+                        return Err(error);
+                    }
+                    std::thread::sleep(RETRY_DELAY);
+                    continue;
+                }
+                if failed_count >= MAX_FAILED_ATTEMPTS {
+                    record_give_up(
+                        &run,
+                        sequence,
+                        &recipe,
+                        &versions,
+                        failed_count,
+                        last_att,
+                        &error,
+                        &mut last,
+                        &mut give_ups,
+                        &mut backoff_until,
+                    )?;
+                    refresh_coverage(options)?;
+                    sequence += 1;
+                    ran += 1;
+                    continue;
+                }
+                if options.runs.is_some() && is_transient_infra_error(&error) {
+                    return Err(error);
+                }
                 eprintln!(
-                    "sweep {} seed {} will retry: {error}",
-                    recipe.function, recipe.seed
+                    "sweep {} seed {} attempt {}/{} failed, will retry: {error}",
+                    recipe.function, recipe.seed, failed_count, MAX_FAILED_ATTEMPTS
                 );
-                std::thread::sleep(RETRY_DELAY);
+                if options.runs.is_none() {
+                    std::thread::sleep(RETRY_DELAY);
+                }
             }
         }
     }
@@ -756,7 +974,7 @@ mod tests {
         let entries = parse_order(table).unwrap();
         let mut last = BTreeMap::new();
         let names = |last: &BTreeMap<String, u64>| {
-            ordered(&entries, last)
+            ordered(&entries, last, &BTreeMap::new(), 1)
                 .into_iter()
                 .map(|entry| entry.function.as_str())
                 .collect::<Vec<_>>()
@@ -769,6 +987,22 @@ mod tests {
         assert_eq!(names(&last), ["SUM", "INT", "ABS"]);
         last.insert("SUM".into(), 3);
         assert_eq!(names(&last), ["INT", "ABS", "SUM"]);
+
+        let mut backoff = BTreeMap::new();
+        backoff.insert("INT".into(), 6);
+        let deferred: Vec<_> = ordered(&entries, &last, &backoff, 4)
+            .into_iter()
+            .map(|e| e.function.as_str())
+            .collect();
+        assert_eq!(deferred, ["ABS", "SUM", "INT"]);
+        let eligible: Vec<_> = ordered(&entries, &last, &backoff, 6)
+            .into_iter()
+            .map(|e| e.function.as_str())
+            .collect();
+        assert_eq!(eligible, ["INT", "ABS", "SUM"]);
+        assert_eq!(backoff_runs_for(1), 4);
+        assert_eq!(backoff_runs_for(2), 8);
+        assert_eq!(backoff_runs_for(3), 16);
     }
 
     #[test]
@@ -823,5 +1057,71 @@ mod tests {
         let issues = new_cluster_issues(&report, Path::new("00000009"), &mut seen).unwrap();
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].title, "Fuzz discrepancy: INDEX number_vs_error:Value");
+    }
+
+    #[test]
+    fn sweep_finalizes_preexisting_over_retried_run_without_new_attempt() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-prefailed-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+        let out = tmp.join("state");
+        let run86 = out.join("00000086");
+        for attempt in 1..=5u64 {
+            let dir = run86.join(format!("{attempt:08}"));
+            fs::create_dir_all(&dir).unwrap();
+            write_json(
+                &dir.join("interrupted.json"),
+                &json!({
+                    "utc": "2026-11-24T19:00:00Z",
+                    "error": "touchstone request failed: excel-error: OutOfMemoryException [formulas small groups]"
+                }),
+            )
+            .unwrap();
+        }
+        write_json(
+            &run86.join("recipe.json"),
+            &Recipe {
+                function: "GETPIVOTDATA".to_owned(),
+                seed: 17168990473040267555,
+                budget: 266,
+                rank: 86,
+                bank_class: "-".to_owned(),
+                order_sha256: "abc".to_owned(),
+            },
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n86\tGETPIVOTDATA\t10.0\t-\n",
+        )
+        .unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        fs::write(&endpoint, json!({"host": "127.0.0.1", "port": 1}).to_string()).unwrap();
+
+        let args = [
+            "--runs",
+            "1",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        assert_eq!(run(&args), ExitCode::SUCCESS);
+        assert!(run86.join("gave_up.json").is_file());
+        assert!(
+            !run86.join("00000006").exists(),
+            "over-retried run must be finalized immediately without launching attempt 6"
+        );
+        let gave_up: GaveUp = read_json(&run86.join("gave_up.json")).unwrap();
+        assert_eq!(gave_up.attempts, 5);
+        assert_eq!(gave_up.last_attempt, 5);
+        assert!(gave_up.reason.contains("OutOfMemoryException"));
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

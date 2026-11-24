@@ -9,9 +9,9 @@ use super::hints::{
 use super::oracle::json_arg_to_touchstone;
 use super::rng::{Rng, hex_f64, is_value2_exact, parse_hex_bits, pow2_f64, step_ulps};
 use calc_catalogue::{
-    ArgumentGroups, Availability, ContextFacility, DeclarationRef, EntryClass, Implementation,
-    LegacyContext, Lifting, LiftingMode, LiftingOrigin, Notation, ParameterClass, ResultForm,
-    parameter_lifting,
+    ArgumentGroups, Availability, ContextFacility, DeclarationRef, EntryClass, EntryKind,
+    HostRouteKind, Implementation, LegacyContext, Lifting, LiftingMode, LiftingOrigin, Notation,
+    ParameterClass, ResultForm, parameter_lifting,
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -131,6 +131,7 @@ pub struct MergedSpec {
     pub function: String,
     pub implementation: Implementation,
     pub availability: Availability,
+    pub host_route: Option<HostRouteKind>,
     pub may_return_reference: bool,
     pub uses_callables: bool,
     pub min_arity: usize,
@@ -198,16 +199,45 @@ impl MergedSpec {
         self.has_hint_file && !self.parsed_error_edges.is_empty()
     }
 
-    /// Static metadata reason to skip a function in the standing sweep (e.g. deferred/unheld
-    /// implementation or higher-order callable/LAMBDA parameters with no Touchstone transport).
+    /// Static metadata reason to skip a function in the standing sweep (deferred/unheld
+    /// implementation, macro-sheet/absent availability, callable/LAMBDA parameters, or
+    /// workbook/host context that the scratch-sheet Touchstone sweep does not provide).
     pub fn sweep_static_skip_reason(&self) -> Option<String> {
         if self.implementation != Implementation::Held {
             return Some(format!("implementation:{:?}", self.implementation));
         }
+        if matches!(
+            self.availability,
+            Availability::MacroSheetOnly | Availability::AbsentOnWindows
+        ) {
+            return Some(format!("availability:{:?}", self.availability));
+        }
         if self.uses_callables {
             return Some("requires-callable-lambda".to_owned());
         }
-        None
+        match self.function.as_str() {
+            "GETPIVOTDATA" => return Some("requires-workbook-context:pivot-table".to_owned()),
+            "CUBEMEMBER"
+            | "CUBEVALUE"
+            | "CUBESET"
+            | "CUBESETCOUNT"
+            | "CUBERANKEDMEMBER"
+            | "CUBEMEMBERPROPERTY"
+            | "CUBEKPIMEMBER" => return Some("requires-workbook-context:olap-cube".to_owned()),
+            "INFO" => return Some("requires-workbook-context:host-info".to_owned()),
+            "CELL" => return Some("requires-workbook-context:cell-metadata".to_owned()),
+            _ => {}
+        }
+        match self.host_route {
+            Some(HostRouteKind::Rtd) => Some("requires-workbook-context:rtd-server".to_owned()),
+            Some(HostRouteKind::Fetch(_)) => {
+                Some("requires-workbook-context:external-fetch".to_owned())
+            }
+            Some(HostRouteKind::Import(_)) => {
+                Some("requires-workbook-context:external-import".to_owned())
+            }
+            None => None,
+        }
     }
 
     pub fn to_json(&self) -> Value {
@@ -859,6 +889,10 @@ pub fn build_merged_spec(function: &str, hints: &HintBank) -> Result<MergedSpec,
         function: name,
         implementation: decl.implementation(),
         availability: decl.availability(),
+        host_route: match decl.kind() {
+            EntryKind::HostRoute { route, .. } => Some(route),
+            _ => None,
+        },
         may_return_reference: decl.result() == ResultForm::MayBeReference,
         uses_callables: decl.uses_context(ContextFacility::Callables),
         min_arity,
@@ -1935,6 +1969,47 @@ mod tests {
             assert!(
                 rate.abs() < 2.0,
                 "error_edge abs(rate) < 2 produced out-of-bounds rate = {rate}"
+            );
+        }
+    }
+
+    #[test]
+    fn sweep_static_skip_covers_workbook_context_and_macro_only_functions() {
+        let hints = HintBank::default();
+        for (name, expected_fragment) in [
+            ("GETPIVOTDATA", "requires-workbook-context:pivot-table"),
+            ("CUBEMEMBER", "requires-workbook-context:olap-cube"),
+            ("CUBEVALUE", "requires-workbook-context:olap-cube"),
+            ("CUBESET", "requires-workbook-context:olap-cube"),
+            ("CUBESETCOUNT", "requires-workbook-context:olap-cube"),
+            ("CUBERANKEDMEMBER", "requires-workbook-context:olap-cube"),
+            ("CUBEMEMBERPROPERTY", "requires-workbook-context:olap-cube"),
+            ("CUBEKPIMEMBER", "requires-workbook-context:olap-cube"),
+            ("RTD", "requires-workbook-context:rtd-server"),
+            ("INFO", "requires-workbook-context:host-info"),
+            ("CELL", "requires-workbook-context:cell-metadata"),
+            ("WEBSERVICE", "requires-workbook-context:external-fetch"),
+            ("IMAGE", "requires-workbook-context:external-fetch"),
+            ("IMPORTCSV", "requires-workbook-context:external-import"),
+            ("IMPORTTEXT", "requires-workbook-context:external-import"),
+            ("CALL", "implementation:NotHeld"),
+            ("REGISTER.ID", "implementation:NotHeld"),
+        ] {
+            let spec = build_merged_spec(name, &hints).unwrap();
+            let reason = spec
+                .sweep_static_skip_reason()
+                .unwrap_or_else(|| panic!("{name} must have a sweep static skip reason"));
+            assert!(
+                reason.contains(expected_fragment),
+                "{name}: expected skip reason containing {expected_fragment:?}, got {reason:?}"
+            );
+        }
+        for name in ["SUM", "ABS", "INT", "VLOOKUP", "RATE", "ADDRESS", "YEARFRAC"] {
+            let spec = build_merged_spec(name, &hints).unwrap();
+            assert_eq!(
+                spec.sweep_static_skip_reason(),
+                None,
+                "{name} should not be statically skipped in the standing sweep"
             );
         }
     }
