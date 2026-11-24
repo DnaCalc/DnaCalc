@@ -81,3 +81,61 @@ measurements are pending. Excel comparisons for the authored report fixture rema
 dc-piw0.4, and the wider comparison work remains with dc-oxh8w.6.
 [Static report-member census](corpus-vba-report-members.md) ·
 [Authored report fixture](../../crates/calc-host/tests/fixtures/macro-report/README.md)
+
+## Per-entry run through the command route (2026-11-25, dc-oxh8w.1)
+
+`dnacalc run <book> --all --macro-level guarded` runs every public Sub and Function of the
+project through the workbook command route, one freshly opened session per entry, and reports
+one outcome per entry: success, VBA run-time error, typed refusal naming the descriptor member
+and its owning bead, or not callable. Entries with a required argument or a ParamArray are
+counted as `needs-arguments`: the run invents no argument fixtures. Policy denials are recorded
+per call whether or not VBA caught the error.
+[Command route](../../crates/calc-host-vba/src/command.rs) ·
+[CLI](../../apps/dnacalc/src/cells.rs)
+
+**Input.** The corpus store of the 3,265-hash cohort is not on this Linux host, so this run
+covers the 4,402 distinct (SHA-256) macro workbooks in the repository: the CalcVBA in-book
+corpus, the calc-doc fixtures, the authored report fixture and the engine's Excel calculation
+probes. It does not replace the cohort run; it is the first per-entry measurement. DNA Calc at
+the dc-oxh8w.1 commit, debug binary SHA-256 `31244f5cc23cc3181918388029c9e97e831fe4ad6ae900150a6b312ab549ad63`,
+each probe in a Bubblewrap sandbox (no network, read-only copy, cleared environment, 120 CPU
+seconds, 4 GiB address space).
+
+| Workbook outcome | Count |
+| --- | ---: |
+| Project admitted, entries run | 283 |
+| `Workbook_SheetCalculate` (or another Workbook_Sheet* procedure) refuses admission (dc-d7cgp) | 3,897 |
+| No VBA project in the file | 110 |
+| Workbook package content type refused | 110 |
+| Class, designer or unbound document module | 1 |
+| Library class not creatable (`New Scripting.Dictionary`) | 1 |
+
+| Entry outcome (283 workbooks) | Count |
+| --- | ---: |
+| Success (Subs 258, Functions 466) | 724 |
+| VBA run-time error (Functions; 91 Object variable not set 516, 424 Object required 274, 5: 2, 7: 1) | 793 |
+| Typed refusal (Subs 267, Functions 266) | 533 |
+| Needs arguments (Subs 1,040, Functions 1,252) | 2,292 |
+| Total entries | 4,342 |
+
+Refusals by missing member, counted by macro entries each would unblock
+([TSV](macro-host-ranking.tsv), every entry in [macro-host-entries.tsv](macro-host-entries.tsv)):
+
+| Missing member or command | Owner | Entries | Workbooks |
+| --- | --- | ---: | ---: |
+| `_Application.Build` | dc-1nbp.5 | 258 | 258 |
+| `_Application.Calculation` | dc-1nbp.5 | 258 | 258 |
+| `_Application.MacroOptions` | dc-1nbp.5 | 9 | 7 |
+| File-project event reads of cached or uncertified cells | dc-snz.15 | 8 | 8 |
+
+The 258 workbooks behind the first two rows are copies of one engine probe project, so the
+ranking counts one project twice over; read it as "two members", not 258 independent macros.
+No Guarded denial was recorded in this set (no entry asks for files, processes or COM). Run-time
+errors 91 and 424 are Functions that read `Application.Caller` or `ThisWorkbook` objects they are
+meant to get from a worksheet call; calling them as commands without a caller fails in Excel too.
+C API (`xlc*`) and XLM routes are not measured here (dc-17spk.16, dc-17spk.19).
+
+Still open (dc-gync0): the 3,265-hash cohort per-entry run (needs the SHA store on this host or a Windows
+run: `dnacalc run <book> --all --macro-level guarded --json` under the same sandbox, steps in
+the lane's RUN-ON-WINDOWS.txt), argument fixtures for the 2,292 `needs-arguments` entries,
+`Workbook_Sheet*` event admission (dc-d7cgp), Application.Run between procedures (dc-80m0f).

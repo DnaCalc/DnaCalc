@@ -229,24 +229,33 @@ fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
     let mut rows = Vec::new();
     for entry in entries {
         let qualified = format!("{}.{}", entry.module, entry.name);
-        if entry.parameters.iter().any(|p| !p.optional && !p.param_array) {
+        let kind = match entry.kind {
+            calc_host_vba::ProcedureKind::Sub => "sub",
+            calc_host_vba::ProcedureKind::Function => "function",
+        };
+        // A ParamArray, or an argument the caller must give, needs a fixture the baseline does
+        // not invent: the entry is counted apart, never as a pass.
+        if entry.parameters.iter().any(|p| !p.optional || p.param_array) {
             skipped += 1;
-            rows.push(json!({"entry": qualified, "invocation": "command",
+            rows.push(json!({"entry": qualified, "procedure": kind, "invocation": "command",
                              "outcome": {"kind": "needs-arguments"}}));
             continue;
         }
+        let missing = Vec::<calc_host_vba::ProcedureArg>::new();
         let mut book = session::open(cli)?;
         let Some(project) = book.project.clone() else {
             return Err(fail("the project was not admitted on reopening"));
         };
-        let record = project.run_procedure(&mut book.session, &qualified, &[]);
+        let record = project.run_procedure(&mut book.session, &qualified, &missing);
         match &record.outcome {
             calc_host_vba::Outcome::Success(_) => success += 1,
             calc_host_vba::Outcome::RuntimeError { .. } => runtime += 1,
             calc_host_vba::Outcome::Refused { .. } => refused += 1,
             _ => other += 1,
         }
-        rows.push(invocation_json(&record));
+        let mut row = invocation_json(&record);
+        row["procedure"] = json!(kind);
+        rows.push(row);
     }
     let report = json!({
         "book": cli.book,

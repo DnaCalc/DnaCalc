@@ -31,6 +31,9 @@ Public Sub CaughtDenial()
  Set o = CreateObject(\"WinHttp.WinHttpRequest.5.1\")
  Application.Range(\"A1\").Value2 = Err.Number
 End Sub
+Public Function WithDefault(Optional ByVal x As Double = 7) As Double
+ WithDefault = x * 2
+End Function
 Public Sub ViaRun()
  Application.Range(\"A2\").Value2 = Application.Run(\"Add2\", 20, 22)
 End Sub
@@ -174,5 +177,17 @@ fn application_run_raises_excels_error_for_a_missing_macro_and_refuses_a_nested_
         let missing = owner.run_procedure(&mut session, "Module1.RunMissing", &[]);
         assert_eq!(missing.outcome, Outcome::Success(ProcedureResult::Empty), "{missing:?}");
         assert!(matches!(cell(&session, 3, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 1004.0));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_omitted_optional_argument_takes_its_declared_default() {
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
+        let none = owner.run_procedure(&mut session, "Module1.WithDefault", &[]);
+        assert_eq!(none.outcome, Outcome::Success(ProcedureResult::Number(14.0)), "{none:?}");
+        let given = owner.run_procedure(&mut session, "Module1.WithDefault", &[ProcedureArg::Number(2.0)]);
+        assert_eq!(given.outcome, Outcome::Success(ProcedureResult::Number(4.0)), "{given:?}");
     }
 }

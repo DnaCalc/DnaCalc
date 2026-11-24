@@ -387,6 +387,8 @@ impl EventSource {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProcedureArg {
     Empty,
+    /// An omitted optional argument (`IsMissing` is True for a Variant parameter).
+    Missing,
     Bool(bool),
     Number(f64),
     Text(String),
@@ -546,15 +548,33 @@ impl super::LoadedProject {
             },
         )
         .map_err(map_error)?;
-        let args: Vec<Variant> = arguments
+        // An omitted trailing optional argument takes its declared default, as VBA's own call does.
+        let parameters = api::Session::procedures(&*self.session)
+            .iter()
+            .find(|p| {
+                p.module.eq_ignore_ascii_case(module) && p.name.eq_ignore_ascii_case(name)
+            })
+            .map(|p| p.parameters.clone())
+            .unwrap_or_default();
+        let mut args: Vec<Variant> = arguments
             .iter()
             .map(|a| match a {
                 ProcedureArg::Empty => Variant::empty(),
+                ProcedureArg::Missing => Variant::from_error_code(-2147352572),
                 ProcedureArg::Bool(b) => Variant::from_bool(*b),
                 ProcedureArg::Number(n) => Variant::from_f64(*n),
                 ProcedureArg::Text(t) => Variant::from_string(t.as_str()),
             })
             .collect();
+        for parameter in parameters.iter().skip(args.len()) {
+            if !parameter.optional || parameter.param_array {
+                break;
+            }
+            args.push(match &parameter.default {
+                Some(default) => default.clone(),
+                None => Variant::from_error_code(-2147352572),
+            });
+        }
         let refused = RefCell::new(None);
         let lease = next_lease();
         let failure: RefCell<Option<api::Error>> = RefCell::new(None);

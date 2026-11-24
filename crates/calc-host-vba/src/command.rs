@@ -226,7 +226,8 @@ impl WorkbookEvents {
         let mut args = Vec::new();
         for argument in arguments {
             args.push(match argument {
-                AutoValue::Empty | AutoValue::Null | AutoValue::Missing => ProcedureArg::Empty,
+                AutoValue::Empty | AutoValue::Null => ProcedureArg::Empty,
+                AutoValue::Missing => ProcedureArg::Missing,
                 AutoValue::Bool(b) => ProcedureArg::Bool(*b),
                 AutoValue::I2(n) => ProcedureArg::Number(f64::from(*n)),
                 AutoValue::I4(n) => ProcedureArg::Number(f64::from(*n)),
