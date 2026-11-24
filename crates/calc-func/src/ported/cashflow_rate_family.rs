@@ -652,31 +652,40 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
         }
         return Err(e);
     }
+    // Excel strips leading zero cashflows before discounting (factoring out base^-start)
+    // while retaining interior and trailing zeros (dc-j9k.102 / cb25).
+    let Some(start) = cashflows.iter().position(|&v| v != 0.0) else {
+        if tracing {
+            crate::trace::hit(1);
+        }
+        return Err(WorksheetErrorCode::Num);
+    };
+    let flows = &cashflows[start..];
     // When the search from the given guess fails, Excel 16.0.20527 retries from the default
     // guess 0.1 (`u = 0.1 / 1.1`), then `u = -0.1`, then `u = 2.0 / 3.0` (`guess = 2.0`),
     // before returning `#NUM!`.
     let u_guess = div(guess, add(1.0, guess));
-    if let Some(r) = irr_u_secant(cashflows, u_guess) {
+    if let Some(r) = irr_u_secant(flows, u_guess) {
         if tracing {
             crate::trace::hit(2);
         }
         return Ok(r);
     }
     if guess != 0.1
-        && let Some(r) = irr_u_secant(cashflows, div(0.1, add(1.0, 0.1)))
+        && let Some(r) = irr_u_secant(flows, div(0.1, add(1.0, 0.1)))
     {
         if tracing {
             crate::trace::hit(3);
         }
         return Ok(r);
     }
-    if let Some(r) = irr_u_secant(cashflows, -0.1) {
+    if let Some(r) = irr_u_secant(flows, -0.1) {
         if tracing {
             crate::trace::hit(4);
         }
         return Ok(r);
     }
-    if let Some(r) = irr_u_secant(cashflows, div(2.0, 3.0)) {
+    if let Some(r) = irr_u_secant(flows, div(2.0, 3.0)) {
         if tracing {
             crate::trace::hit(5);
         }
@@ -1144,6 +1153,46 @@ mod tests {
     fn irr_matches_simple_two_cashflow_identity() {
         let got = irr_kernel(&[-100.0, 121.0], None).unwrap();
         assert_close(got, 0.21);
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.102): IRR strips leading zero cashflows
+    /// before discounting while retaining interior and trailing zeros.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_leading_zero_cashflows_are_stripped_while_interior_zeros_stay_active() {
+        // I1-dc-j9k-102-leading-zero-gross:
+        let gross = irr_kernel(
+            &[
+                0.0,
+                f64::from_bits(0xc0a79bc50cf035b4),
+                f64::from_bits(0x400b4f5a771262fa),
+                0.0,
+            ],
+            Some(f64::from_bits(0xbfd54b4b6ca9f5bc)),
+        )
+        .expect("leading-zero gross rep");
+        assert_eq!(gross.to_bits(), 0xbfeff6bee6887bc9);
+
+        // I1-dc-j9k-102-leading-zero-num-err:
+        let num_err = irr_kernel(
+            &[
+                0.0,
+                f64::from_bits(0xc05e19197dba11b4),
+                f64::from_bits(0x4008a772835ab2dc),
+                0.0,
+            ],
+            Some(f64::from_bits(0xbfd02ad0a38fffb1)),
+        )
+        .expect("leading-zero num-err rep");
+        assert_eq!(num_err.to_bits(), 0xbfef2e4dc255d8a0);
+
+        // cb25-IRR-IC-00: leading zero is a no-op; interior zero keeps period spacing.
+        assert_eq!(
+            irr_kernel(&[0.0, -100.0, 125.0], None).unwrap().to_bits(),
+            0x3fd0000000000000
+        );
+        assert_close(irr_kernel(&[0.0, -100.0, 0.0, 121.0], None).unwrap(), 0.1);
+        assert_eq!(irr_kernel(&[0.0, 0.0, 0.0], None), Err(WorksheetErrorCode::Num));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
