@@ -24,6 +24,61 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww15 Windows replay, 2026-11-24
+
+- **dc-26wtr.1.3–.1.5.** Three private Excel sessions opened copies of the
+  owner's workbook with Office.js fixture 1.0.0.2. The fixture files returned
+  HTTP 200. Promise(1) stayed at `#BUSY!` for 30 seconds. In the second
+  session, Promise(1) and Stream(2) stayed at `#BUSY!` (Value2 -2146826237,
+  CalculationState 2) through all 346 readings over 119.7 seconds. The third
+  session showed the workbook's saved value of 40 until the formula was edited.
+  After the edit, both controls showed `#BUSY!` through all 84 readings over
+  14.9 seconds. Callback, update and mixed-event measurements remain open.
+  See ww15/office-js, ww15/office-retry and ww15/office-startup.
+- **dc-j9k.102–.105 / dc-j9k.97.** On Win64 AMD, the bank at CalcFunc-Evidence
+  76258ccade matched IRR 3,211/3,211 and RATE 4,785/4,787. Fresh Excel
+  16.0.20625.20108 returned the same two RATE values as the archive, differing
+  from Win64 by two and seven ULP. Exact inputs and values are in
+  ww15/bank-rows/rate-live.json. The Windows check passed 1,069 tests and
+  Linux and wasm32 cross-checks. Full milestone sweep stays dc-ztvv.
+- **dc-ztvv.26.2 / dc-ztvv.26.11.** The first 18 completed standing recipes
+  account for 4,603 matches and 2,933 mismatches of 7,536 live calls, with
+  zero unread or crashed. The Function Bank coverage landed in a30c94fec.
+  Broker logs record 484 standing sweep batch entries on w1. In a controlled
+  run a 32-call sweep batch was followed by dispatch of 250 interactive calls
+  across all three workers before the next sweep dispatch. The Win64 scheduler
+  kept the first prediction hash across PAUSE and retry. After one timeout it
+  completed ROUND 468/512 and ABS 480/480, with 44 differences banked and zero
+  unread or crashed. A separate status sample reported w1 running sweep
+  work while w2 and w3 were idle. Master had one entry each for 70 of the 95
+  captured cluster signatures. The standing tracker clone had an unresolved
+  merge conflict. Cluster filing and idle expansion remain dc-ztvv.26.11.
+- **dc-8wp.6.** Four crossed tabular and outline pivots held 1,036 cell readings
+  through refresh and reopen. When the source error occurred only in Units,
+  the Count Units grand total was `#N/A` and the Sum Amount grand total was 26.
+  Both measure grand totals were `#N/A` when Amount also contained an error.
+  The retained Win64 refresh at 40cdb0bac matched 750/1,036, with 286 differences
+  banked. The capture packet is on dna-firehorse at
+  `~/codex-runs/ww15-xbuild/pivot-split-field.zip`. Layout and refresh parity
+  remain dc-8wp.6.
+- **dc-6332.10.** Each retained X2Pool trace had 10,002 unique registration
+  IDs. Excel assigned negative IDs to 2,000 numbered exports and SyncMacro.
+  All Win64 IDs were positive. The signed ranges are in
+  ww15/x2pool/registration-ids.json. Raw ABI comparisons remain open.
+- **dc-1nbp.6.** Excel's native XLL read the cached D1 value of 2 in all six
+  single-range trials. Application Calculate and CalculateFull returned 4
+  in all twelve controls. Win64 at 92feb6b24 matched 14/18 expected reads.
+  For the two macro-type dirty-calculation cases, Win64 returned 2 and Excel
+  returned 4.
+  The ordinary range-only replay failed before emitting either observation
+  because the result was stale. See ww15/e3-xll-confirm and
+  ww15/bank-rows/e3-hidden-xll.json. Cached-read parity remains open.
+- **dc-971p.16.** Excel AutoFit recorded 108 Calibri 11 controls. Each of 36
+  fixed-input groups changed width at one or more of 75%, 100% and 125% zoom.
+  At 100%, the upright `0` measured 14 px unindented under all three Normal
+  fonts and 23, 26 and 41 px indented under Calibri, Arial and Courier New
+  Normal fonts, respectively. See ww15/autofit. Product sizing remains open.
+
 ### ww14 Windows replay, 2026-11-24
 
 - **dc-j9k.68.** The nl25 changes (1a834c367 and 66e0ed8b3) passed 573 Win64
