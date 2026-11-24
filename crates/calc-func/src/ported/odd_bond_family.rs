@@ -383,8 +383,12 @@ fn validate_positive_inputs(values: &[f64]) -> Result<(), OddBondEvalError> {
 /// exponentiation (`binexp_positive`) for non-negative integer exponents, `excel_pow_chain`
 /// otherwise. Identical to `bond_core_family::excel_bond_pow`.
 fn excel_bond_pow(base: f64, exp: f64) -> f64 {
-    if exp >= 0.0 && exp < 1024.0 && exp.fract() == 0.0 {
-        crate::ported::power_fn::binexp_positive(base, exp as u64)
+    if exp.fract() == 0.0 && exp.abs() < u32::MAX as f64 {
+        let p = crate::ported::power_fn::binexp_positive(base, exp.abs() as u64);
+        return if exp >= 0.0 { p } else { excel_x87_div(1.0, p) };
+    }
+    if exp < 0.0 {
+        excel_x87_div(1.0, excel_pow_chain(base, -exp))
     } else {
         excel_pow_chain(base, exp)
     }

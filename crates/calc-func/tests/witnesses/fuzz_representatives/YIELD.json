@@ -104,8 +104,7 @@
         "0x4059000000000000",
         "0x4010000000000000"
       ],
-      "expected_bits": "0xbfb98affd89195c8",
-      "calc_func": "0xbfb98affd89195c9"
+      "expected_bits": "0xbfb98affd89195c8"
     },
     {
       "id": "Y4-dc-j9k-101-newton-numeric",
@@ -118,8 +117,7 @@
         "0x4059000000000000",
         "0x4000000000000000"
       ],
-      "expected_bits": "0x3fb28fe171e72a83",
-      "calc_func": "0x3fb28fe171e72a98"
+      "expected_bits": "0x3fb28fe171e72a83"
     },
     {
       "id": "Y4-dc-j9k-101-newton-gross",
@@ -133,8 +131,7 @@
         "0x4010000000000000",
         "0x0000000000000000"
       ],
-      "expected_bits": "0x3fb6b1653afc012a",
-      "calc_func": "0x3fb6b15d334a3727"
+      "expected_bits": "0x3fb6b1653afc012a"
     }
   ]
 }

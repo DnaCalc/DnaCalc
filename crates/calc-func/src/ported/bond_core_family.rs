@@ -144,7 +144,51 @@ fn addm(s: i64, m: i64) -> Option<i64> {
         .map(|v| v as i64)
 }
 fn d360us(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
-    crate::ported::day_count_common::us_30_360(s, e).map_err(derr)
+    let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    let (ey, em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, e as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    // ATP securities (YIELD, PRICE, DURATION, YIELDDISC, YIELDMAT) use Gregorian dim(1900, 2) = 28
+    // rather than treating fictitious 1900-02-29 (serial 60) as February month-end (cb26 live Excel).
+    let start_last_feb = sm == 2 && sd == dim(sy, sm);
+    let end_last_feb = em == 2 && ed == dim(ey, em);
+    if sd == 31 || start_last_feb {
+        sd = 30;
+    }
+    if ed == 31 {
+        if sd < 30 {
+            let (ny, nm) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
+            return Ok((ny - sy) as f64 * 360.0 + (nm - sm) as f64 * 30.0 + (1 - sd) as f64);
+        }
+        ed = 30;
+    }
+    if end_last_feb && start_last_feb {
+        ed = 30;
+    }
+    Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
+}
+fn d360us_seed(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
+    let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    let (mut ey, mut em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, e as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    let start_last_feb = sm == 2 && sd == dim(sy, sm);
+    let end_last_feb = em == 2 && ed == dim(ey, em);
+    if ed == 31 {
+        if sd < 30 {
+            (ey, em) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
+            ed = 1;
+        } else {
+            ed = 30;
+        }
+    }
+    if sd == 31 || start_last_feb {
+        sd = 30;
+    }
+    if start_last_feb && end_last_feb {
+        ed = 30;
+    }
+    Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
 }
 fn d360eu(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
     let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)
@@ -309,11 +353,15 @@ fn period(c: Ctx) -> Result<Period, BondCoreEvalError> {
 /// See `work/w109/G6-solvers/YIELD_PRICE_FORWARD_KERNEL.md` and
 /// `work/w109/G6-b2b3/agentV_results.md`.
 fn excel_bond_pow(base: f64, exp: f64) -> f64 {
-    if exp >= 0.0 && exp < 1024.0 && exp.fract() == 0.0 {
+    if exp.fract() == 0.0 && exp.abs() < u32::MAX as f64 {
         // R33 on-coupon POWER/PRICE/DURATION controls distinguish the
         // stored-PC64 products. Reuse the shared integer-power loop directly;
         // the worksheet POWER wrapper's base-ten policy is a separate rule.
-        crate::ported::power_fn::binexp_positive(base, exp as u64)
+        let p = crate::ported::power_fn::binexp_positive(base, exp.abs() as u64);
+        return if exp >= 0.0 { p } else { excel_x87_div(1.0, p) };
+    }
+    if exp < 0.0 {
+        excel_x87_div(1.0, crate::ported::excel_numeric::excel_pow_chain(base, -exp))
     } else {
         crate::ported::excel_numeric::excel_pow_chain(base, exp)
     }
@@ -325,9 +373,9 @@ fn pcomp_disc(
     c: Ctx,
     p: Period,
 ) -> Result<(f64, f64, f64, f64, f64), BondCoreEvalError> {
-    let coup = 100.0 * rate / c.frequency as f64;
+    let f = c.frequency as f64;
     let e = dc(p.prev, p.next, c.basis, c.frequency)?;
-    let a = dd(p.prev, c.settlement, c.basis)?;
+    let a = days_between_num(p.prev, c.settlement, c.basis)?;
     // Excel's internal discount/settlement fraction is the DERIVED complement
     // `dsc = E - A` (universal across bases), NOT the direct day-count span
     // settlement→next-coupon. For bases 0/1/4 the two coincide except on
@@ -337,38 +385,47 @@ fn pcomp_disc(
     // days at bases 2/3 — PRICE's internal DSC deliberately diverges from the
     // published COUP* function. (W109 G6-03d; b37/b38 live-Excel, build 20131.)
     let dsc = e - a;
-    if yld <= -(c.frequency as f64) {
+    if yld <= -f {
         return Err(derr(WorksheetErrorCode::Num));
     }
-    let dirty = if p.n == 1 {
-        let den = 1.0 + (yld / c.frequency as f64) * (dsc / e);
+    let r_per = excel_x87_div(rate, f);
+    let coup = excel_x87_mul(100.0, r_per);
+    let accr = excel_x87_mul(100.0, excel_x87_mul(r_per, excel_x87_div(a, e)));
+    if p.n == 1 {
+        let den = 1.0 + (yld / f) * (dsc / e);
         if den <= 0.0 {
             return Err(derr(WorksheetErrorCode::Num));
         }
-        (red + coup) / den
-    } else {
-        let base = 1.0 + yld / c.frequency as f64;
-        if base <= 0.0 {
+        let dirty = (red + coup) / den;
+        let ans = dirty - accr;
+        if !ans.is_finite() {
             return Err(derr(WorksheetErrorCode::Num));
         }
-        let off = dsc / e;
-        let mut pv = 0.0;
-        for k in 0..p.n {
-            let disc = excel_bond_pow(base, off + k as f64);
-            if !disc.is_finite() {
-                return Err(derr(WorksheetErrorCode::Num));
-            }
-            pv += coup / disc;
-        }
-        let redemption_discount = excel_bond_pow(base, off + (p.n - 1) as f64);
-        if !redemption_discount.is_finite() {
+        return Ok((ans, dirty, coup, a, e));
+    }
+    let base = excel_x87_add(1.0, excel_x87_div(yld, f));
+    if base <= 0.0 {
+        return Err(derr(WorksheetErrorCode::Num));
+    }
+    let off = excel_x87_div(dsc, e);
+    let mut pv = 0.0;
+    for k in 0..p.n {
+        let disc = excel_bond_pow(base, excel_x87_add(off, k as f64));
+        if !disc.is_finite() {
             return Err(derr(WorksheetErrorCode::Num));
         }
-        let redemption_value = excel_x87_div(red, redemption_discount);
-        pv + redemption_value
-    };
-    let accr = coup * a / e;
-    Ok((dirty - accr, dirty, coup, a, e))
+        pv = excel_x87_add(pv, excel_x87_div(coup, disc));
+    }
+    let redemption_discount = excel_bond_pow(base, excel_x87_add(off, (p.n - 1) as f64));
+    if !redemption_discount.is_finite() {
+        return Err(derr(WorksheetErrorCode::Num));
+    }
+    let dirty = excel_x87_add(pv, excel_x87_div(red, redemption_discount));
+    let ans = excel_x87_sub(dirty, accr);
+    if !ans.is_finite() {
+        return Err(derr(WorksheetErrorCode::Num));
+    }
+    Ok((ans, dirty, coup, a, e))
 }
 
 pub fn accrintm_kernel(
@@ -614,53 +671,66 @@ pub fn yield_kernel(
         let annualization = excel_x87_div(excel_x87_mul(f, e), dsc);
         return Ok(excel_x87_mul(relative_gain, annualization));
     }
-    // Multi-period solver (dc-iuwct.47 / cb4, Excel 16.0.20527):
-    // 1. Schedule-free par-100 seed `y_0` using years-to-maturity `T` and `tau = f * T`,
-    //    with `d = price - 100.0` hardcoded (never `red`).
-    // 2. Analytic Newton iteration on PRICE's `excel_bond_pow` discount curve for up to 100
-    //    iterations, stopping when `|step| <= 1e-10` and publishing the un-updated iterate `y`.
+    // Multi-period solver (dc-j9k.98..101 / cb26, live Excel 16.0.20625.20108):
+    // 1. Unified 5-basis par-100 x87 seed `y_0` (`whole_years + stub / year_days`,
+    //    `d = price - 100.0` hardcoded, never `red`).
+    // 2. 1-based all-x87 analytic Newton loop on PRICE's `excel_bond_pow` discount curve for up
+    //    to 100 iterations, with `ACCRINT` accrual `100*(rate/f)*(a/e)`, `days_between_num` `a`,
+    //    separate `t_cp` / `(f != 1) t_red` finiteness, subnormal slope flush, and `cIter--`
+    //    `iter == 99 -> #NUM!`.
     let f = c.frequency as f64;
-    let tau = match c.basis {
+    let (sy, sm, sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, c.settlement as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    let (ey, em, ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, c.maturity as f64)
+        .ok_or(derr(WorksheetErrorCode::Value))?;
+    let k_yr = (ey - sy) - i64::from(em < sm || (em == sm && ed < sd));
+    let sk_base = excel_serial_from_ymd(WorkbookDateSystem::System1900, sy + k_yr, sm, 1)
+        .filter(|&v| v >= 1.0)
+        .ok_or(derr(WorksheetErrorCode::Num))? as i64;
+    let s_k = sk_base + (sd - 1);
+    let frac = match c.basis {
         DayCountBasis::Us30_360 => {
             if tracing {
                 crate::trace::hit(4);
             }
-            f * (d360us(c.settlement, c.maturity)? / 360.0)
+            d360us_seed(s_k, c.maturity)? / 360.0
         }
         DayCountBasis::European30_360 => {
             if tracing {
                 crate::trace::hit(4);
             }
-            f * (d360eu(c.settlement, c.maturity)? / 360.0)
+            d360eu(s_k, c.maturity)? / 360.0
         }
-        DayCountBasis::ActualActual | DayCountBasis::Actual360 | DayCountBasis::Actual365 => {
+        DayCountBasis::ActualActual => {
             if tracing {
                 crate::trace::hit(5);
             }
-            let (sy, sm, sd) =
-                ymd_from_excel_serial(WorkbookDateSystem::System1900, c.settlement as f64)
-                    .ok_or(derr(WorksheetErrorCode::Value))?;
-            let (ey, em, ed) =
-                ymd_from_excel_serial(WorkbookDateSystem::System1900, c.maturity as f64)
-                    .ok_or(derr(WorksheetErrorCode::Value))?;
-            let k = (ey - sy) - i64::from(em < sm || (em == sm && ed < sd));
-            let s_k = excel_serial_from_ymd(WorkbookDateSystem::System1900, sy + k, sm, 1)
-                .ok_or(derr(WorksheetErrorCode::Num))? as i64
-                + (sd - 1);
-            let year_days = match c.basis {
-                DayCountBasis::ActualActual => dyear(ey),
-                DayCountBasis::Actual360 => 360.0,
-                DayCountBasis::Actual365 => 365.0,
-                _ => unreachable!(),
-            };
-            f * (k as f64 + (c.maturity - s_k) as f64 / year_days)
+            (c.maturity - s_k) as f64 / dyear(ey)
+        }
+        DayCountBasis::Actual360 => {
+            if tracing {
+                crate::trace::hit(5);
+            }
+            (c.maturity - s_k) as f64 / 360.0
+        }
+        DayCountBasis::Actual365 => {
+            if tracing {
+                crate::trace::hit(5);
+            }
+            (c.maturity - s_k) as f64 / 365.0
         }
     };
-    let d = price - 100.0;
-    let tc = (tau * rate_ * 100.0) / f;
-    let den = (tau * 100.0 + (d * tau) / 2.0) + (d * f) / 4.0;
-    // The stored seed quotient can survive cancellation as Newton approaches zero.
-    let mut y = f * excel_x87_div(tc - d, den);
+    let tau = excel_x87_mul(f, excel_x87_add(k_yr as f64, frac));
+    let d = excel_x87_sub(price, 100.0);
+    let tc = excel_x87_div(excel_x87_mul(excel_x87_mul(tau, rate_), 100.0), f);
+    let den = excel_x87_add(
+        excel_x87_add(
+            excel_x87_mul(tau, 100.0),
+            excel_x87_div(excel_x87_mul(d, tau), 2.0),
+        ),
+        excel_x87_div(excel_x87_mul(d, f), 4.0),
+    );
+    let mut y = excel_x87_mul(f, excel_x87_div(excel_x87_sub(tc, d), den));
     if !y.is_finite() {
         if tracing {
             crate::trace::hit(3);
@@ -669,13 +739,14 @@ pub fn yield_kernel(
     }
 
     let e = dc(p.prev, p.next, c.basis, c.frequency)?;
-    let a = dd(p.prev, c.settlement, c.basis)?;
-    let off = (e - a) / e;
-    let cp = (100.0 * rate_) / f;
-    let accr = (cp * a) / e;
+    let a = days_between_num(p.prev, c.settlement, c.basis)?;
+    let r_per = excel_x87_div(rate_, f);
+    let cp = excel_x87_mul(100.0, r_per);
+    let accr = excel_x87_mul(100.0, excel_x87_mul(r_per, excel_x87_div(a, e)));
+    let off = excel_x87_div(e - a, e);
 
     for iter in 0..100u32 {
-        let base = 1.0 + y / f;
+        let base = excel_x87_add(1.0, excel_x87_div(y, f));
         if tracing {
             crate::trace::observe_boundary("yield_base_zero", base, 0.0);
         }
@@ -692,10 +763,11 @@ pub fn yield_kernel(
             crate::trace::hit(7);
         }
         let (mut pv, mut t_cp) = (0.0_f64, 0.0_f64);
-        for k in 0..p.n {
-            let ex = off + k as f64;
-            let disc = excel_bond_pow(base, ex);
-            let disc1 = excel_bond_pow(base, ex + 1.0);
+        for k in 1..=p.n {
+            let ex_pv = excel_x87_add(off, (k - 1) as f64);
+            let ex1 = excel_x87_add(off, k as f64);
+            let disc = excel_bond_pow(base, ex_pv);
+            let disc1 = excel_bond_pow(base, ex1);
             if !disc.is_finite() || !disc1.is_finite() {
                 if tracing {
                     crate::trace::hit(9);
@@ -703,15 +775,16 @@ pub fn yield_kernel(
                 }
                 return Err(derr(WorksheetErrorCode::Num));
             }
-            pv += cp / disc;
+            pv = excel_x87_add(pv, excel_x87_div(cp, disc));
             t_cp = excel_x87_add(
                 t_cp,
-                excel_x87_div(excel_x87_mul(excel_x87_div(ex, f), cp), disc1),
+                excel_x87_div(excel_x87_mul(excel_x87_div(ex_pv, f), cp), disc1),
             );
         }
-        let rex = off + (p.n - 1) as f64;
-        let r_disc = excel_bond_pow(base, rex);
-        let r_disc1 = excel_bond_pow(base, rex + 1.0);
+        let rex_pv = excel_x87_add(off, (p.n - 1) as f64);
+        let rex1 = excel_x87_add(off, p.n as f64);
+        let r_disc = excel_bond_pow(base, rex_pv);
+        let r_disc1 = excel_bond_pow(base, rex1);
         if !r_disc.is_finite() || !r_disc1.is_finite() {
             if tracing {
                 crate::trace::hit(9);
@@ -719,14 +792,14 @@ pub fn yield_kernel(
             }
             return Err(derr(WorksheetErrorCode::Num));
         }
-        pv += excel_x87_div(red, r_disc);
+        pv = excel_x87_add(pv, excel_x87_div(red, r_disc));
         // Pre-registered rival Y2-B (cb26 16/16 live Excel 16.0.20625.20108): frequency == 1
         // skips the redemption derivative finiteness check while frequency in {2, 4} rejects
         // !t_red.is_finite(); t_cp + t_red == +inf is never checked, so slope = -inf -> step = -0.0.
         let t_red = if c.frequency == 1 {
-            excel_x87_div(excel_x87_mul(rex, red), r_disc1)
+            excel_x87_div(excel_x87_mul(rex_pv, red), r_disc1)
         } else {
-            let v = excel_x87_div(excel_x87_mul(excel_x87_div(rex, f), red), r_disc1);
+            let v = excel_x87_div(excel_x87_mul(excel_x87_div(rex_pv, f), red), r_disc1);
             if !v.is_finite() {
                 if tracing {
                     crate::trace::hit(9);
@@ -749,7 +822,7 @@ pub fn yield_kernel(
         if slope.abs() < f64::MIN_POSITIVE {
             slope = 0.0;
         }
-        let step = ((pv - accr) - price) / slope;
+        let step = excel_x87_div(excel_x87_sub(excel_x87_sub(pv, accr), price), slope);
         if !step.is_finite() {
             if !step.is_nan() && base < 0.0 {
                 if tracing {
@@ -788,7 +861,7 @@ pub fn yield_kernel(
                 Ok(y)
             };
         }
-        y -= step;
+        y = excel_x87_sub(y, step);
     }
     if tracing {
         crate::trace::record_iterations(100);
@@ -2323,5 +2396,73 @@ mod tests {
                 "Y3A ({s:#x}, {m:#x}, r={r:#x})"
             );
         }
+    }
+
+    /// dc-j9k.101 (cb26 live Excel 16.0.20625.20108, Y4 & patient-zero siblings):
+    /// Gregorian dim(1900, 2) == 28 in d360us, days_between_num accrued span in YIELD/PRICE,
+    /// unified 5-basis x87 par-100 seed, ACCRINT accrual 100*(rate/f)*(a/e), 1-based off+k
+    /// coupon loop, exp < 0 reciprocal staging in excel_bond_pow, and all-x87 arithmetic.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_price_yielddisc_yieldmat_y4_exact_bits() {
+        // YIELD fuzz representatives + Y4-A + Y1A finite + Y2B f==1 exact bits
+        let yield_cases: &[(&str, u64, u64, u64, u64, u64, u64, Option<u64>, u64)] = &[
+            ("Y4-1ulp", 0x40e5564000000000, 0x40e6088000000000, 0x0, 0x40628c434b115350, 0x4059000000000000, 0x4010000000000000, None, 0xbfb98affd89195c8),
+            ("Y4-numeric", 0x407a900000000000, 0x4146924080000000, 0x3fbbc7c725bc7504, 0x4062b485c75e100d, 0x4059000000000000, 0x4000000000000000, None, 0x3fb28fe171e72a83),
+            ("Y4-gross", 0x404e000000000000, 0x40e1dd2000000000, 0x3fbe6bebee76e9bf, 0x4060c1ad60248e3a, 0x4059000000000000, 0x4010000000000000, Some(0x0), 0x3fb6b1653afc012a),
+            ("Y4A-01", 0x404e000000000000, 0x40e1dd2000000000, 0x3fa999999999999a, 0x4058a00000000000, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3fa9fe174d19bd37),
+            ("Y4A-03", 0x40e6566000000000, 0x40e6c4c000000000, 0x3fa999999999999a, 0x4058cccccccccccd, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3fab6bb5046f4d53),
+            ("Y4A-05", 0x40e624e000000000, 0x40e6820000000000, 0x0, 0x4058fffffffeaca5, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3d9aa1704e20f764),
+            ("Y4A-06", 0x404e000000000000, 0x4091d40000000000, 0x0, 0x4058fffffffeaca5, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3d92636e8a3cc6ec),
+            ("Y4A-07", 0x40e624e000000000, 0x40e6820000000000, 0x0, 0x4058fffffffeaca5, 0x4059000000000000, 0x4000000000000000, Some(0x4010000000000000), 0x3d9aa1704e20f764),
+            ("Y4A-09", 0x40e53da000000000, 0x40eadd4000000000, 0x3fac779a6b50b0f2, 0x3f94bf0995aaf78f, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x4032b23554420a84),
+            ("Y4A-13", 0x40e6d7c000000000, 0x40e705a000000000, 0x3fcdfa43fe5c91d1, 0x405d0b851eb851eb, 0x4059000000000000, 0x4000000000000000, Some(0x4000000000000000), 0x3fb0363b09c41c7e),
+            ("Y4A-15", 0x40e6d7c000000000, 0x40e705a000000000, 0x3fb8a0902de00d1c, 0x40577eb851eb851e, 0x4059000000000000, 0x4000000000000000, Some(0x4008000000000000), 0x3fc4fdba7bbbab5b),
+            ("Y1A-06", 0x404e000000000000, 0x414691f480000000, 0x0, 0x4058ffef9db22d0e, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3e15361af22fe494),
+            ("Y1A-11", 0x40e5f90000000000, 0x4146924080000000, 0x3fb70a3d70a3d70a, 0x4059000000000000, 0x4059000000000000, 0x4000000000000000, Some(0x0), 0x3fb708d2999e8850),
+            ("Y2B-11", 0x40e57e8000000000, 0x40e9fa0000000000, 0x3fb0624dd2f1a9fc, 0x40d8bf36801c4abf, 0x4054000000000000, 0x3ff0000000000000, Some(0x0), 0xbfefffffffffb81d),
+        ];
+        for &(id, s, m, r, pr, red, f, b, exp) in yield_cases {
+            let got = yield_kernel(
+                f64::from_bits(s), f64::from_bits(m), f64::from_bits(r),
+                f64::from_bits(pr), f64::from_bits(red), f64::from_bits(f),
+                b.map(f64::from_bits),
+            ).unwrap_or_else(|e| panic!("YIELD {id}: unexpected {e:?}"));
+            assert_eq!(got.to_bits(), exp, "YIELD {id}: got {:#018x}, want {exp:#018x}", got.to_bits());
+        }
+
+        // PRICE patient-zero probes (PZP-11, 13, 14, 16, 17, 19, 21, 24)
+        let price_cases: &[(&str, u64, u64, u64, u64, u64, u64, u64, u64)] = &[
+            ("PZP-11", 0x404e000000000000, 0x40e1dd2000000000, 0x3faeb851eb851eb8, 0x3fa999999999999a, 0x4059000000000000, 0x4000000000000000, 0x0, 0x405df6d7d017ad57),
+            ("PZP-13", 0x404e000000000000, 0x406e600000000000, 0x3faeb851eb851eb8, 0x3fa999999999999a, 0x4059000000000000, 0x4000000000000000, 0x0, 0x40591f6a3421bfe0),
+            ("PZP-14", 0x40e6566000000000, 0x40e6c4c000000000, 0x3fa999999999999a, 0x3fa47ae147ae147b, 0x4059000000000000, 0x4000000000000000, 0x0, 0x405991a792f00f42),
+            ("PZP-16", 0x40e6566000000000, 0x40e6698000000000, 0x3fa999999999999a, 0x3fa47ae147ae147b, 0x4059000000000000, 0x4000000000000000, 0x0, 0x4059199bd561ab80),
+            ("PZP-17", 0x40e6538000000000, 0x40e7520000000000, 0x3fb758e219652bd4, 0x3fb94467381d7dbf, 0x4059000000000000, 0x3ff0000000000000, 0x0, 0x405832cce049967e),
+            ("PZP-19", 0x40e6d7c000000000, 0x40e760e000000000, 0x3fb65fd8adab9f56, 0x3fb694467381d7dc, 0x4059000000000000, 0x4000000000000000, 0x4000000000000000, 0x4058f2e48632674c),
+            ("PZP-21", 0x40e6d7c000000000, 0x40e705a000000000, 0x3fb758e219652bd4, 0x3fb9ce075f6fd220, 0x4059000000000000, 0x4000000000000000, 0x4008000000000000, 0x4058c7016d16333d),
+            ("PZP-24", 0x40e6d26000000000, 0x40e7d4c000000000, 0x3fb3f141205bc01a, 0x3fb0aa64c2f837b5, 0x4059000000000000, 0x4000000000000000, 0x3ff0000000000000, 0x405a7ddbe1b0309a),
+        ];
+        for &(id, s, m, r, y, red, f, b, exp) in price_cases {
+            let got = price_kernel(
+                f64::from_bits(s), f64::from_bits(m), f64::from_bits(r),
+                f64::from_bits(y), f64::from_bits(red), f64::from_bits(f),
+                Some(f64::from_bits(b)),
+            ).unwrap_or_else(|e| panic!("PRICE {id}: unexpected {e:?}"));
+            assert_eq!(got.to_bits(), exp, "PRICE {id}: got {:#018x}, want {exp:#018x}", got.to_bits());
+        }
+
+        // YIELDDISC & YIELDMAT Gregorian dim(1900, 2) == 28 probes (PZYD-01, 03; PZYM-03)
+        assert_eq!(
+            yielddisc_kernel(60.0, 2958465.0, 95.0, 100.0, Some(0.0)).unwrap().to_bits(),
+            0x3edb4104cb036fc5
+        );
+        assert_eq!(
+            yielddisc_kernel(60.0, 243.0, 98.0, 100.0, Some(0.0)).unwrap().to_bits(),
+            0x3fa4c851f9b52011
+        );
+        assert_eq!(
+            yieldmat_kernel(60.0, 243.0, 59.0, 0.05, 99.5, Some(0.0)).unwrap().to_bits(),
+            0x3faed9a9e6381cd8
+        );
     }
 }
