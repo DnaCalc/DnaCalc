@@ -309,10 +309,13 @@ fn attempt_run(
     cfg.max_frontiers = 0;
     cfg.fractal_depth = 0;
     cfg.endpoint = options.endpoint.clone();
-    cfg.sweep = Some(super::oracle::SweepPolicy::new(
+    cfg.sweep = Some(super::oracle::SweepPolicy::for_attempt(
         options.out.join("PAUSE"),
-        bank.join(format!("{}-{}-{attempt:08}", recipe.function, recipe.seed)),
-    ));
+        bank,
+        &recipe.function,
+        recipe.seed,
+        attempt,
+    )?);
     write_json(
         &out.join("attempt.json"),
         &Attempt {

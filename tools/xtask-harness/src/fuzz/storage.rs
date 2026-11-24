@@ -18,9 +18,9 @@ use super::{FuzzConfig, FuzzSummary, utc_timestamp_now};
 use calc_verdict::{Sha256, WitnessSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const SWEEP_RECIPE_FORMAT: &str = "dnacalc-fuzz-recipe/1";
@@ -77,6 +77,8 @@ pub struct StoragePolicyAttestation {
     pub discrepancies_only: bool,
     pub discrepancy_rows_exported: usize,
     pub bank_rows_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bank_rows_files: Vec<String>,
 }
 
 /// Canonical per-sweep recipe and version provenance manifest (`recipe.json`).
@@ -312,20 +314,32 @@ pub fn build_sweep_recipe(
         },
         case_list_sha256: summary.case_list_sha256.clone(),
         predictions_sha256: summary.predictions_sha256.clone(),
-        storage_policy: StoragePolicyAttestation {
-            policy: RETENTION_POLICY_NAME.to_owned(),
-            matching_readings_stored: false,
-            discrepancies_only: true,
-            discrepancy_rows_exported: if cfg.bank_rows_out.is_some() {
-                discrepancies.len()
-            } else {
-                0
-            },
-            bank_rows_path: if !discrepancies.is_empty() {
-                cfg.bank_rows_out.as_ref().map(|p| p.display().to_string())
-            } else {
-                None
-            },
+        storage_policy: {
+            let (discrepancy_rows_exported, bank_rows_path, bank_rows_files) =
+                if let Some(path) = &cfg.bank_rows_out {
+                    (
+                        discrepancies.len(),
+                        (!discrepancies.is_empty()).then(|| path.display().to_string()),
+                        Vec::new(),
+                    )
+                } else if let Some(sweep) = &cfg.sweep {
+                    let files: Vec<String> = sweep
+                        .recorded_files()
+                        .into_iter()
+                        .map(|p| p.display().to_string())
+                        .collect();
+                    (sweep.exported_rows(), files.first().cloned(), files)
+                } else {
+                    (0, None, Vec::new())
+                };
+            StoragePolicyAttestation {
+                policy: RETENTION_POLICY_NAME.to_owned(),
+                matching_readings_stored: false,
+                discrepancies_only: true,
+                discrepancy_rows_exported,
+                bank_rows_path,
+                bank_rows_files,
+            }
         },
     }
 }
@@ -402,16 +416,46 @@ pub fn verify_sweep_storage_policy(
 
     let mut discrepancy_rows = 0usize;
     let mut matching_rows_in_bank = 0usize;
-    let resolved_bank = bank_rows_path
-        .map(Path::to_path_buf)
-        .or_else(|| recipe.storage_policy.bank_rows_path.as_ref().map(Into::into));
-    if let Some(bpath) = resolved_bank
-        && bpath.is_file()
-    {
-        let bytes = fs::read(&bpath).map_err(|e| format!("read {}: {e}", bpath.display()))?;
+    let bank_files: Vec<PathBuf> = if let Some(explicit) = bank_rows_path {
+        vec![explicit.to_path_buf()]
+    } else if !recipe.storage_policy.bank_rows_files.is_empty() {
+        recipe
+            .storage_policy
+            .bank_rows_files
+            .iter()
+            .map(PathBuf::from)
+            .collect()
+    } else if let Some(single) = &recipe.storage_policy.bank_rows_path {
+        vec![PathBuf::from(single)]
+    } else {
+        Vec::new()
+    };
+    if recipe.storage_policy.discrepancy_rows_exported > 0 && bank_files.is_empty() {
+        violations.push(
+            "recipe reports discrepancy_rows_exported > 0 but lists no bank_rows_path/bank_rows_files"
+                .to_owned(),
+        );
+    }
+    let mut seen_bank_keys: HashSet<String> = HashSet::new();
+    for bpath in &bank_files {
+        if !bpath.is_file() {
+            if !recipe.storage_policy.bank_rows_files.is_empty() {
+                violations.push(format!("listed bank-rows file missing: {}", bpath.display()));
+            }
+            continue;
+        }
+        let bytes = fs::read(bpath).map_err(|e| format!("read {}: {e}", bpath.display()))?;
         let ws = WitnessSet::decode(&bytes)
             .map_err(|e| format!("decode {}: {e}", bpath.display()))?;
         for w in &ws.witnesses {
+            let key = super::rng::canonical_case_key(&ws.function, &w.args);
+            if !seen_bank_keys.insert(key) {
+                violations.push(format!(
+                    "bank-rows {} contains duplicate witness case {}",
+                    bpath.display(),
+                    w.id
+                ));
+            }
             match w.calc_func.as_deref() {
                 Some(cf) if super::cluster::is_dna_fault(cf) => {
                     violations.push(format!(

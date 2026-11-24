@@ -48,6 +48,9 @@ pub(super) struct SweepPolicy {
     bank_prefix: PathBuf,
     next_chunk: Cell<usize>,
     envs: RefCell<BTreeMap<String, Value>>,
+    banked_keys: RefCell<HashSet<String>>,
+    recorded_files: RefCell<Vec<PathBuf>>,
+    exported_rows: Cell<usize>,
 }
 
 impl SweepPolicy {
@@ -57,7 +60,72 @@ impl SweepPolicy {
             bank_prefix,
             next_chunk: Cell::new(0),
             envs: RefCell::new(BTreeMap::new()),
+            banked_keys: RefCell::new(HashSet::new()),
+            recorded_files: RefCell::new(Vec::new()),
+            exported_rows: Cell::new(0),
         }
+    }
+
+    /// Build a sweep policy for `(function, seed, attempt)` that pre-loads any discrepancy keys
+    /// already written by earlier interrupted attempts of the same `(function, seed)` recipe so
+    /// resuming never writes duplicate bank-row WitnessSets.
+    pub fn for_attempt(
+        pause: PathBuf,
+        bank_dir: &Path,
+        function: &str,
+        seed: u64,
+        attempt: u64,
+    ) -> Result<Self, String> {
+        let mut banked_keys = HashSet::new();
+        let mut recorded_files = Vec::new();
+        let mut exported_rows = 0usize;
+        let recipe_prefix = format!("{function}-{seed}-");
+        if bank_dir.is_dir() {
+            let mut prior_paths: Vec<PathBuf> = std::fs::read_dir(bank_dir)
+                .map_err(|e| format!("read {}: {e}", bank_dir.display()))?
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.is_file()
+                        && path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| n.starts_with(&recipe_prefix) && n.ends_with(".json"))
+                })
+                .collect();
+            prior_paths.sort();
+            for path in prior_paths {
+                let bytes = std::fs::read(&path)
+                    .map_err(|e| format!("read {}: {e}", path.display()))?;
+                let ws = calc_verdict::WitnessSet::decode(&bytes)
+                    .map_err(|e| format!("decode {}: {e}", path.display()))?;
+                for w in &ws.witnesses {
+                    if banked_keys.insert(canonical_case_key(&ws.function, &w.args)) {
+                        exported_rows += 1;
+                    }
+                }
+                recorded_files.push(path);
+            }
+        }
+        Ok(Self {
+            pause,
+            bank_prefix: bank_dir.join(format!("{function}-{seed}-{attempt:08}")),
+            next_chunk: Cell::new(0),
+            envs: RefCell::new(BTreeMap::new()),
+            banked_keys: RefCell::new(banked_keys),
+            recorded_files: RefCell::new(recorded_files),
+            exported_rows: Cell::new(exported_rows),
+        })
+    }
+
+    pub(super) fn exported_rows(&self) -> usize {
+        self.exported_rows.get()
+    }
+
+    pub(super) fn recorded_files(&self) -> Vec<PathBuf> {
+        let mut files = self.recorded_files.borrow().clone();
+        files.sort();
+        files
     }
 
     fn record(
@@ -75,6 +143,14 @@ impl SweepPolicy {
         if differences.is_empty() {
             return Ok(());
         }
+        let mut banked = self.banked_keys.borrow_mut();
+        let fresh: Vec<&DiscrepancyRow> = differences
+            .iter()
+            .filter(|d| banked.insert(canonical_case_key(&cfg.function, &d.case.args)))
+            .collect();
+        if fresh.is_empty() {
+            return Ok(());
+        }
         let index = self.next_chunk.get();
         self.next_chunk.set(index + 1);
         let name = self
@@ -88,7 +164,6 @@ impl SweepPolicy {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let refs: Vec<_> = differences.iter().collect();
         let encoded = super::cluster::encode_witness_set_json(
             &cfg.function,
             &cfg.lane,
@@ -97,12 +172,16 @@ impl SweepPolicy {
             &super::utc_timestamp_now(),
             &all,
             &touchstone_bulk_context(),
-            &refs,
+            &fresh,
         )?;
         let temp = path.with_extension("tmp");
         std::fs::write(&temp, encoded)
             .and_then(|_| std::fs::rename(temp, &path))
-            .map_err(|e| format!("{}: {e}", path.display()))
+            .map_err(|e| format!("{}: {e}", path.display()))?;
+        self.recorded_files.borrow_mut().push(path);
+        self.exported_rows
+            .set(self.exported_rows.get().saturating_add(fresh.len()));
+        Ok(())
     }
 }
 
@@ -2628,6 +2707,108 @@ mod tests {
         );
         assert!(partial.iter().all(|file| file.is_file()));
         assert!(!run.join("00000002/round-00-predictions.jsonl").exists());
+        broker.join().unwrap();
+        std::fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn sweep_resume_dedups_bank_rows_and_recipe_records_exported_files() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-sweep-dedup-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let pause = out.join("PAUSE");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port}).to_string(),
+        )
+        .unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(
+            &order,
+            "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n",
+        )
+        .unwrap();
+        let worker_pause = pause.clone();
+        let broker = std::thread::spawn(move || {
+            serve_fake_fuzz_broker(&listener, true, Some(&worker_pause));
+            serve_fake_fuzz_broker(&listener, true, None);
+        });
+        let command = [
+            "sweep",
+            "--runs",
+            "1",
+            "--order",
+            order.to_str().unwrap(),
+            "--out",
+            out.to_str().unwrap(),
+            "--endpoint",
+            endpoint.to_str().unwrap(),
+        ]
+        .map(str::to_owned);
+        let run = out.join("00000001");
+        assert_eq!(super::super::run(&command), std::process::ExitCode::FAILURE);
+        std::fs::remove_file(&pause).unwrap();
+        assert_eq!(super::super::run(&command), std::process::ExitCode::SUCCESS);
+
+        let summary: Value =
+            serde_json::from_slice(&std::fs::read(run.join("00000002/summary.json")).unwrap())
+                .unwrap();
+        let expected_mismatched = summary["total_mismatched"].as_u64().unwrap() as usize;
+        assert!(expected_mismatched > 0);
+
+        // Every bank-rows WitnessSet across attempt 1 and attempt 2 must have zero duplicate cases.
+        let bank_dir = out.join("bank-rows");
+        let mut seen_keys = HashSet::new();
+        let mut total_bank_rows = 0usize;
+        for entry in std::fs::read_dir(&bank_dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let ws = WitnessSet::decode(&std::fs::read(&path).unwrap()).unwrap();
+            for w in &ws.witnesses {
+                total_bank_rows += 1;
+                let key = canonical_case_key(&ws.function, &w.args);
+                assert!(
+                    seen_keys.insert(key),
+                    "duplicate bank row witness {} in {} across interrupted sweep resume",
+                    w.id,
+                    path.display()
+                );
+            }
+        }
+        assert_eq!(
+            total_bank_rows, expected_mismatched,
+            "total exported bank rows across attempts must equal total_mismatched"
+        );
+
+        // Attempt 2's recipe.json must record the scheduler's exported bank rows so --verify-storage audits them.
+        let recipe: Value =
+            serde_json::from_slice(&std::fs::read(run.join("00000002/recipe.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            recipe["storage_policy"]["discrepancy_rows_exported"].as_u64(),
+            Some(expected_mismatched as u64),
+            "scheduler recipe.json must report exported discrepancy count"
+        );
+        assert!(
+            recipe["storage_policy"]["bank_rows_path"].is_string(),
+            "scheduler recipe.json must record bank_rows_path"
+        );
+
+        let audit = super::super::storage::verify_sweep_storage_policy(
+            &run.join("00000002"),
+            None,
+        )
+        .expect("verify_sweep_storage_policy");
+        assert!(audit.ok, "storage audit violations: {:?}", audit.violations);
+        assert_eq!(audit.discrepancy_rows, expected_mismatched);
+        assert_eq!(audit.matching_rows_in_bank, 0);
+
         broker.join().unwrap();
         std::fs::remove_dir_all(tmp).unwrap();
     }
