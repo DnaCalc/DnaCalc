@@ -5,11 +5,11 @@
 //!
 //! IFS reads each condition as IF does (worksheet logical coercion, an error is the result) and
 //! gives the value of the first TRUE condition's pair; no TRUE condition is #N/A. SWITCH compares
-//! its expression with each case as the `=` operator does ([`super::comparison::order`]), except
-//! that a number whose fifteen-digit reading overflows matches every number (measured for SWITCH,
-//! `reading_overflow_pair`); an error in the expression is the result, the first matching case's
-//! value is the result, then the default, and #N/A when there is none. An omitted selected value
-//! is 0, as IF's is.
+//! its expression with each case using [`super::comparison::order`] after reading blanks and
+//! omitted operands as numeric zero. A number whose fifteen-digit reading overflows matches
+//! every number (see `reading_overflow_pair`). An error in the expression is the result. Otherwise
+//! SWITCH returns the first matching case's value, then the default, and #N/A when there is none.
+//! An omitted selected value is 0, as IF's is.
 
 use super::FunctionId;
 use super::comparison::{Want, order};
@@ -146,15 +146,19 @@ fn switch_index(site: &Site<'_>, arguments: &[CalcValue]) -> Step<Option<usize>>
     if let CoreRef::Error(code) = arguments[0].core_ref() {
         return fail(code);
     }
+    let operand = |value: &CalcValue| match value.core_ref() {
+        CoreRef::Empty | CoreRef::Missing => CalcValue::number(0.0),
+        _ => value.clone(),
+    };
+    let expression = operand(&arguments[0]);
     let has_default = arguments.len().is_multiple_of(2);
     let cases = arguments.len() - usize::from(has_default);
     let mut at = 1;
     while at + 1 < cases {
-        if reading_overflow_pair(&arguments[0], &arguments[at]) {
-            return Ok(Some(at + 1));
-        }
-        let pair = [arguments[0].clone(), arguments[at].clone()];
-        if order(site, &pair, Want::Equality)? == Ordering::Equal {
+        let pair = [expression.clone(), operand(&arguments[at])];
+        if reading_overflow_pair(&pair[0], &pair[1])
+            || order(site, &pair, Want::Equality)? == Ordering::Equal
+        {
             return Ok(Some(at + 1));
         }
         at += 2;
@@ -175,7 +179,6 @@ const READING_OVERFLOW: f64 = f64::from_bits(0x7fef_ffff_ffff_fffc);
 fn reading_overflow_pair(expression: &CalcValue, case: &CalcValue) -> bool {
     let magnitude = |value: &CalcValue| match value.core_ref() {
         CoreRef::Number(n) if !value.is_excel_overflow() && n.is_finite() => Some(n.abs()),
-        CoreRef::Empty | CoreRef::Missing => Some(0.0),
         _ => None,
     };
     match (magnitude(expression), magnitude(case)) {

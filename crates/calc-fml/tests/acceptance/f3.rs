@@ -142,6 +142,28 @@ fn linest_and_logest_fit_paired_matrix_cells() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn switch_compares_blanks_as_numeric_zero() {
+    let mut book = Book::new();
+    for (formula, expected) in [
+        ("=SWITCH(H1,\"\",\"text\",FALSE,\"logical\",0,\"zero\",\"miss\")", "zero"),
+        ("=SWITCH(\"\",H1,\"blank\",\"\",\"empty\",\"miss\")", "empty"),
+        ("=SWITCH(FALSE,,\"missing\",FALSE,\"logical\",\"miss\")", "logical"),
+        ("=SWITCH(,,\"zero\",\"miss\")", "zero"),
+    ] {
+        assert_eq!(book.dynamic(formula), t(expected), "{formula}");
+    }
+    assert_eq!(
+        book.dynamic("=SWITCH(H1,\"\",\"first\",#NUM!,\"second\",\"miss\")"),
+        e(W::Num),
+    );
+    assert_eq!(
+        book.dynamic("=SWITCH(H1,\"\",\"first\",0,{2,3},\"miss\")"),
+        numbers(&[&[2.0, 3.0]]),
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {
     let mut book = data();
     assert_eq!(
