@@ -4,17 +4,17 @@
 # Counts are over argument positions, modes and origins.
 # Entries: 548
 # Positions: 19178
-# elementwise: 15354
+# elementwise: 15336
 # elementwise-when-lifted: 2048
 # first-reference: 88031
-# intersect: 9824
+# intersect: 9809
 # per-reference: 3120
 # refused-when-lifted: 256
 # rejected: 96
 # special-form: 9198
 # unavailable: 4644
-# unmeasured: 16801
-# whole: 195832
+# unmeasured: 16795
+# whole: 195871
 id	spelling	notation	availability	first	last	parameter	whole-result	dynamic/array	dynamic/range	dynamic/reference-array	legacy-root/array	legacy-root/range	legacy-root/reference-array	legacy-aggregate/array	legacy-aggregate/range	legacy-aggregate/reference-array	legacy-array/array	legacy-array/range	legacy-array/reference-array	legacy-array-aggregate/array	legacy-array-aggregate/range	legacy-array-aggregate/reference-array	legacy-unknown/array	legacy-unknown/range	legacy-unknown/reference-array
 6815745	NORM.DIST	Call	Unspecified	1	1	x	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 6815745	NORM.DIST	Call	Unspecified	2	2	mean	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
@@ -3333,7 +3333,7 @@ id	spelling	notation	availability	first	last	parameter	whole-result	dynamic/arra
 589825	INDEX	Call	Unspecified	4	4	area_num	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589826	MATCH	Call	Unspecified	1	1	lookup_value	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589826	MATCH	Call	Unspecified	2	2	lookup_array	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
-589826	MATCH	Call	Unspecified	3	3	match_type	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
+589826	MATCH	Call	Unspecified	3	3	match_type	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
 589827	XMATCH	Call	Unspecified	1	1	lookup_value	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589827	XMATCH	Call	Unspecified	2	2	lookup_array	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
 589827	XMATCH	Call	Unspecified	3	3	match_mode	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
@@ -3346,11 +3346,11 @@ id	spelling	notation	availability	first	last	parameter	whole-result	dynamic/arra
 589828	XLOOKUP	Call	Unspecified	6	6	search_mode	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589829	VLOOKUP	Call	Unspecified	1	1	lookup_value	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589829	VLOOKUP	Call	Unspecified	2	2	table_array	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
-589829	VLOOKUP	Call	Unspecified	3	3	col_index_num	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
+589829	VLOOKUP	Call	Unspecified	3	3	col_index_num	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
 589829	VLOOKUP	Call	Unspecified	4	4	range_lookup	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589830	HLOOKUP	Call	Unspecified	1	1	lookup_value	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589830	HLOOKUP	Call	Unspecified	2	2	table_array	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
-589830	HLOOKUP	Call	Unspecified	3	3	row_index_num	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
+589830	HLOOKUP	Call	Unspecified	3	3	row_index_num	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference
 589830	HLOOKUP	Call	Unspecified	4	4	range_lookup	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589831	LOOKUP	Call	Unspecified	1	1	lookup_value	None	elementwise	elementwise	elementwise	intersect	intersect	first-reference	elementwise	intersect	first-reference	elementwise	elementwise	first-reference	intersect	intersect	first-reference	unmeasured	unmeasured	first-reference
 589831	LOOKUP	Call	Unspecified	2	2	lookup_vector	None	whole	whole	whole	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference	whole	whole	first-reference

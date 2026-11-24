@@ -1015,6 +1015,12 @@ fn matched(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
+    if matches!(
+        arguments.get(2).map(CalcValue::core_ref),
+        Some(CoreRef::Array(array)) if array.shape().rows != 1 || array.shape().cols != 1
+    ) {
+        return Err(site.not_modelled(Some(2)));
+    }
     let key = lookup_key(site, &arguments[0], BlankKey::Zero)?;
     let grid = match shape(&arguments[1], 1) {
         Shape::Error(code) => return Err(Exit::Error(code)),
@@ -1024,7 +1030,24 @@ fn matched(
     let sign = match arguments.get(2) {
         None => 1.0,
         Some(value) if value.is_missing() || value.is_empty() => 0.0,
-        Some(value) => index_number(site, 2, value)?,
+        Some(value) => match value.core_ref() {
+            CoreRef::Reference(reference) => {
+                let [area] = reference.areas() else {
+                    return Err(Exit::Error(WorksheetErrorCode::Ref));
+                };
+                if area.cell_count() != 1 {
+                    return Err(Exit::Error(WorksheetErrorCode::Ref));
+                }
+                let cell = cell_value(site, services, 2, area.first())?;
+                match cell.core_ref() {
+                    CoreRef::Empty => 0.0,
+                    CoreRef::Error(_) => return Err(Exit::Error(WorksheetErrorCode::Ref)),
+                    _ => index_number(site, 2, &cell)
+                        .map_err(|_| Exit::Error(WorksheetErrorCode::Ref))?,
+                }
+            }
+            _ => index_number(site, 2, value)?,
+        },
     };
     text_limit(key)?;
     let not_found = Exit::Error(WorksheetErrorCode::NA);
@@ -1249,13 +1272,23 @@ fn table_lookup(
     services: &mut EvalServices<'_>,
     vertical: bool,
 ) -> Step<CalcValue> {
+    if matches!(
+        arguments[2].core_ref(),
+        CoreRef::Array(array) if array.shape().rows != 1 || array.shape().cols != 1
+    ) {
+        return Err(site.not_modelled(Some(2)));
+    }
     let key = lookup_key(site, &arguments[0], BlankKey::Zero)?;
     let grid = match shape(&arguments[1], 1) {
         Shape::Error(code) => return Err(Exit::Error(code)),
         Shape::Grid(Grid::One(_)) | Shape::Areas | Shape::Blank => None,
         Shape::Grid(grid) => Some(grid),
     };
-    let chosen = index_number(site, 2, &arguments[2])?.trunc();
+    let eager_index = if matches!(arguments[2].core_ref(), CoreRef::Reference(_)) {
+        None
+    } else {
+        Some(index_number(site, 2, &arguments[2])?)
+    };
     let approximate = match arguments.get(3) {
         None => true,
         Some(value) => site.argument(3, coerce::logical(value))?,
@@ -1277,6 +1310,26 @@ fn table_lookup(
     let Some(at) = found else {
         return Err(Exit::Error(WorksheetErrorCode::NA));
     };
+    let raw_index = match eager_index {
+        Some(number) => number,
+        None => {
+            let CoreRef::Reference(reference) = arguments[2].core_ref() else {
+                unreachable!()
+            };
+            let [area] = reference.areas() else {
+                return Err(Exit::Error(WorksheetErrorCode::Ref));
+            };
+            if area.cell_count() != 1 {
+                return Err(site.not_modelled(Some(2)));
+            }
+            let cell = cell_value(site, services, 2, area.first())?;
+            if matches!(cell.core_ref(), CoreRef::Error(_)) {
+                return Err(Exit::Error(WorksheetErrorCode::Ref));
+            }
+            index_number(site, 2, &cell).map_err(|_| Exit::Error(WorksheetErrorCode::Ref))?
+        }
+    };
+    let chosen = crate::ported::text_kernels::date_integer_floor(raw_index);
     let width = if vertical {
         grid.columns()
     } else {

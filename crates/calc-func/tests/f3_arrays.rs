@@ -331,3 +331,108 @@ fn dc_ztvv_26_34_index_selectors_use_date_integer_floor() {
         Value,
     );
 }
+
+/// dc-j9k.110, dc-j9k.111, and cb28 S1d/S2b/S3b/S3c:
+/// - VLOOKUP/HLOOKUP floor `col_index_num`/`row_index_num` with `date_integer_floor`
+///   (T22 at >=1 and flooring -2^31 + eps to -2^31 => #REF!).
+/// - VLOOKUP/HLOOKUP/MATCH accept a reference at arg[2]:
+///   - VLOOKUP/HLOOKUP defer dereferencing a cell reference until after a match (miss => #N/A),
+///     and map cell errors/non-numeric text to #REF! (while inline errors/text stay #DIV/0!/#VALUE!).
+///   - MATCH dereferences a cell reference eagerly, mapping multi-cell/error/text to #REF! and
+///     blank to 0 (exact match), without snapping `-T23` to 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_110_lookup_index_reference_coercion_and_date_integer_floor() {
+    use calc_func::value::CalcValue;
+    use calc_func::value::WorksheetErrorCode::{Div0, Ref};
+    let f = f64::from_bits;
+    let blank = CalcValue::empty();
+
+    // Pinned fuzz reps dc-j9k.110 and dc-j9k.111 (-2^31 + eps floors to -2^31 => #REF!):
+    error(
+        call(
+            "HLOOKUP",
+            vec![
+                blank.clone(),
+                arr(vec![vec![-1.0]]),
+                n(f(0xc1df_ffff_ffff_fbfe)),
+            ],
+        ),
+        Ref,
+    );
+    error(
+        call(
+            "HLOOKUP",
+            vec![
+                blank.clone(),
+                arr(vec![vec![-0.5]]),
+                n(f(0xc1df_ffff_ffff_ffff)),
+                b(true),
+            ],
+        ),
+        Ref,
+    );
+
+    // VLOOKUP / HLOOKUP 1-ULP T22 lock at 1 - T22 (in => col/row 1; out => 0 => #VALUE!):
+    let vtbl = arr(vec![vec![-500.0, 10.0], vec![100.0, 20.0], vec![300.0, 30.0]]);
+    exact(
+        call("VLOOKUP", vec![n(150.0), vtbl.clone(), n(f(0x3fef_ffff_7ff0_0000))]),
+        100.0,
+    );
+    error(
+        call("VLOOKUP", vec![n(150.0), vtbl.clone(), n(f(0x3fef_ffff_7fef_ffff))]),
+        Value,
+    );
+    let htbl = arr(vec![vec![-500.0, 100.0, 300.0], vec![10.0, 20.0, 30.0]]);
+    exact(
+        call("HLOOKUP", vec![n(150.0), htbl.clone(), n(f(0x3fef_ffff_7ff0_0000))]),
+        100.0,
+    );
+    error(
+        call("HLOOKUP", vec![n(150.0), htbl.clone(), n(f(0x3fef_ffff_7fef_ffff))]),
+        Value,
+    );
+
+    // Inline error/text vs cell-reference error/text at arg[2] in VLOOKUP, HLOOKUP, MATCH:
+    let mut sheet = Sheet::new();
+    sheet.column(1, 3, vec![e(Div0), t(""), t("abc"), e(NA), blank.clone()]);
+    let c_div0 = sheet.area(1, 3, 1, 3);
+    let c_empty_str = sheet.area(2, 3, 2, 3);
+    let c_abc = sheet.area(3, 3, 3, 3);
+    let c_na = sheet.area(4, 3, 4, 3);
+    let c_blank = sheet.area(5, 3, 5, 3);
+    let c_multi = sheet.area(1, 3, 2, 3);
+
+    // VLOOKUP miss with reference arg[2] => #N/A; inline => #DIV/0! / #VALUE!
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(-1000.0), vtbl.clone(), c_div0.clone()]), NA);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(-1000.0), vtbl.clone(), c_empty_str.clone()]), NA);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(-1000.0), vtbl.clone(), e(Div0)]), Div0);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(-1000.0), vtbl.clone(), t("")]), Value);
+    // VLOOKUP hit with bad cell reference arg[2] => #REF!
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(150.0), vtbl.clone(), c_div0.clone()]), Ref);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(150.0), vtbl.clone(), c_empty_str.clone()]), Ref);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(150.0), vtbl.clone(), c_abc.clone()]), Ref);
+    error(call_on(&mut sheet, "VLOOKUP", vec![n(150.0), vtbl.clone(), c_na.clone()]), Ref);
+    // HLOOKUP miss => #N/A; hit => #REF!
+    error(call_on(&mut sheet, "HLOOKUP", vec![n(-1000.0), htbl.clone(), c_div0.clone()]), NA);
+    error(call_on(&mut sheet, "HLOOKUP", vec![n(150.0), htbl.clone(), c_div0.clone()]), Ref);
+    error(call_on(&mut sheet, "HLOOKUP", vec![n(150.0), htbl, c_empty_str.clone()]), Ref);
+
+    // MATCH eager cell reference arg[2]: error/text/multi-cell => #REF! even on miss; blank => 0
+    let mcol = col(&[-500.0, 100.0, 300.0]);
+    error(call_on(&mut sheet, "MATCH", vec![n(-1000.0), mcol.clone(), c_na.clone()]), Ref);
+    error(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_na]), Ref);
+    error(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_div0]), Ref);
+    error(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_empty_str]), Ref);
+    error(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_abc]), Ref);
+    error(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_multi]), Ref);
+    exact(call_on(&mut sheet, "MATCH", vec![n(100.0), mcol.clone(), c_blank]), 2.0);
+    // Inline error/text at MATCH arg[2] keep #DIV/0! / #VALUE!:
+    error(call("MATCH", vec![n(100.0), mcol.clone(), e(Div0)]), Div0);
+    error(call("MATCH", vec![n(100.0), mcol, t("")]), Value);
+    // MATCH -T23 stays descending (< 0.0), not snapped to 0:
+    exact(
+        call("MATCH", vec![n(150.0), col(&[300.0, 200.0, 100.0]), n(f(0xbe80_0200_0000_0000))]),
+        2.0,
+    );
+}

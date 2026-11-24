@@ -89,7 +89,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("lookup_value"),
             Parameter::value_or_reference("lookup_array")
                 .legacy(super::LegacyPlace::AggregateAtRoot),
-            Parameter::value("match_type"),
+            Parameter::value_or_reference("match_type"),
         ],
     )
     .with_context(&[super::ContextFacility::NumericMode, super::ContextFacility::Cells])
@@ -140,7 +140,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("lookup_value"),
             Parameter::value_or_reference("table_array")
                 .legacy(super::LegacyPlace::AggregateAtRoot),
-            Parameter::value("col_index_num"),
+            Parameter::value_or_reference("col_index_num"),
             Parameter::value("range_lookup"),
         ],
     )
@@ -155,7 +155,7 @@ pub const ENTRIES: &[WorksheetDeclaration] = &[
             Parameter::value("lookup_value"),
             Parameter::value_or_reference("table_array")
                 .legacy(super::LegacyPlace::AggregateAtRoot),
-            Parameter::value("row_index_num"),
+            Parameter::value_or_reference("row_index_num"),
             Parameter::value("range_lookup"),
         ],
     )
