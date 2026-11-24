@@ -119,3 +119,31 @@ test("Excel.run rejects objects from different contexts before invoking the batc
   }), e => e.code === "InvalidObjectPath");
   assert.strictEqual(entered, false);
 });
+
+test("Excel.run re-roots ctx.workbook after final_release on reused contexts", async () => {
+  const sent = [];
+  const transport = async (json) => {
+    const message = JSON.parse(json);
+    const batch = message.request.AutomationBatch;
+    if (batch) sent.push(batch);
+    const reply = batch
+      ? { AutomationBatch: { batch_id: batch.batch_id, results: batch.ops.map((_, ordinal) => ({ ordinal })) } }
+      : "AutomationReleased";
+    return JSON.stringify({ Reply: { id: message.id, reply } });
+  };
+  let sheet;
+  await Excel.run(async (ctx) => {
+    sheet = ctx.workbook.worksheets.getItem("Sheet1");
+    ctx.trackedObjects.add(sheet);
+    await ctx.sync();
+  }, transport);
+  await Excel.run(sheet, async (ctx) => {
+    ctx.workbook.worksheets.getItem("Sheet1").getRange("A1").clear();
+  });
+  assert.strictEqual(sent.length, 2);
+  assert.strictEqual(sent[0].ops[0].op, "root");
+  assert.strictEqual(sent[1].ops[0].op, "root");
+  assert.strictEqual(sent[1].ops[0].out, sheet.context.workbook._handle);
+  assert.strictEqual(sent[1].ops[1].op, "get");
+  assert.strictEqual(sent[1].ops[1].target, sheet.context.workbook._handle);
+});
