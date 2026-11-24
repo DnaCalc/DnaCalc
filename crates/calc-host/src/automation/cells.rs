@@ -2,7 +2,7 @@
 //! axis edit, any other range through the cell shift, so references adjust as the Insert and Delete
 //! commands of the grid do.
 use super::*;
-use crate::{Axis, AxisChange, AxisEdit, SkinIntent, WorkbookCommand};
+use crate::{SortKey, SortOptions, Axis, AxisChange, AxisEdit, SkinIntent, WorkbookCommand};
 use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
 const XL_SHIFT_DOWN: i64 = -4121;
@@ -16,6 +16,7 @@ impl WorkbookAutomation {
         handlers.on("Range", "Delete", InvokeKind::Method, Self::range_delete);
         handlers.on("Range", "Copy", InvokeKind::Method, Self::range_copy);
         handlers.on("Range", "Cut", InvokeKind::Method, Self::range_cut);
+        handlers.on("Range", "Sort", InvokeKind::Method, Self::range_sort);
     }
 
     fn range_insert(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -126,6 +127,90 @@ impl WorkbookAutomation {
                 None => area.column_count() >= area.row_count() || area.column_count() == 1 && area.row_count() == 1,
             };
             Ok(SkinIntent::Command(WorkbookCommand::ShiftCells { area, down, insert }))
+        })?;
+        Ok(AutoValue::Bool(true))
+    }
+}
+
+impl WorkbookAutomation {
+    /// Range.Sort over a multi-cell range: up to three keys given as ranges (the key's first column),
+    /// Order, Header, MatchCase. Sorting columns, custom lists, data options and a sort of one cell
+    /// (which Excel widens to the current region) refuse typed.
+    fn range_sort(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() > 16 {
+            return Err(geometry::bad_count());
+        }
+        let refuse = |what: &str| Err(AutoError::not_modelled(format!("Range.Sort {what}"), OWNER));
+        let given = |index: usize| !call.arg(index).is_missing();
+        let number = |index: usize, default: i64| -> Result<i64, AutoError> {
+            if given(index) { geometry::integer(call.arg(index)) } else { Ok(default) }
+        };
+        if given(3) || given(8) || given(15) {
+            return refuse("Type, OrderCustom and SubField1");
+        }
+        if number(10, 2)? != 2 {
+            return refuse("Orientation other than xlSortRows");
+        }
+        if number(11, 1)? != 1 || number(12, 0)? != 0 || number(13, 0)? != 0 || number(14, 0)? != 0 {
+            return refuse("SortMethod and DataOption");
+        }
+        let header = match number(7, 2)? {
+            1 => true,
+            2 => false,
+            _ => return refuse("Header xlGuess"),
+        };
+        let case_sensitive = match call.arg(9) {
+            AutoValue::Missing | AutoValue::Empty => false,
+            AutoValue::Bool(value) => *value,
+            _ => return Err(geometry::type_mismatch()),
+        };
+        let mut keys = Vec::new();
+        for (key, order) in [(0usize, 1usize), (2, 4), (5, 6)] {
+            let key = call.arg(key);
+            if key.is_missing() {
+                continue;
+            }
+            let AutoValue::Object(ObjectRef {
+                key: ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. },
+                ..
+            }) = key
+            else {
+                return refuse("with a key that is not a Range");
+            };
+            let descending = match number(order, 1)? {
+                1 => false,
+                2 => true,
+                _ => return Err(AutoError::excel(1004, "Application-defined or object-defined error")),
+            };
+            keys.push((held.clone(), descending));
+        }
+        if keys.is_empty() {
+            return refuse("without Key1");
+        }
+        self.mutate_range(target, call, |session, range| {
+            let area = range.areas()[0];
+            if area.cell_count() == 1 {
+                return Err(AutoError::not_modelled("Range.Sort of one cell (current region)", OWNER));
+            }
+            let mut sort_keys = Vec::new();
+            for (held, descending) in &keys {
+                let key = self.resolve(&mut Access::Session(session, false), held)?;
+                let column = key.areas()[0].first().column();
+                if key.areas()[0].sheet() != area.sheet()
+                    || column < area.first().column()
+                    || column > area.last().column()
+                {
+                    return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+                }
+                sort_keys.push(SortKey { column, descending: *descending });
+            }
+            Ok(SkinIntent::Command(WorkbookCommand::SortRowsWithOptions {
+                area,
+                keys: sort_keys,
+                header,
+                revision: session.host().revision().get(),
+                options: SortOptions { case_sensitive, custom_order: Vec::new() },
+            }))
         })?;
         Ok(AutoValue::Bool(true))
     }
