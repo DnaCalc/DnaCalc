@@ -257,3 +257,77 @@ fn a_lambda_helper_without_a_caller_is_refused() {
     );
     error(call("MAKEARRAY", vec![n(0.0), n(1.0), a_lambda(2)]), Value);
 }
+
+/// dc-ztvv.26.34..43 (cb28 S1d/S2c/S3b): INDEX applies `date_integer_floor`
+/// (`T23` at `ceil <= 0`, `T22` at `ceil >= 1`) to `row_num`, `column_num`, and
+/// `area_num` before checking `< 0`, `< 1`, or bounds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ztvv_26_34_index_selectors_use_date_integer_floor() {
+    use calc_func::value::WorksheetErrorCode::Ref;
+    let one = arr(vec![vec![42.0]]);
+    let two_by_two = arr(vec![vec![10.0, 20.0], vec![30.0, 40.0]]);
+    let f = f64::from_bits;
+
+    // -T23 boundary (ceil == 0): -2^-1022 and -T23 snap to 0; -T23 - 1 ULP is #VALUE!.
+    assert_eq!(
+        array(call("INDEX", vec![one.clone(), n(f(0x8010_0000_0000_0000))])),
+        (1, 1, vec![42.0])
+    );
+    assert_eq!(
+        array(call("INDEX", vec![one.clone(), n(f(0xbe80_0200_0000_0000))])),
+        (1, 1, vec![42.0])
+    );
+    error(call("INDEX", vec![one.clone(), n(f(0xbe80_0200_0000_0001))]), Value);
+
+    // Pinned fuzz reps: row=-2^-1022-3*2^-1074 snaps to 0 (whole column / first cell / area>1 #REF!).
+    let col3 = arr(vec![vec![-10.0], vec![2.0], vec![2.0]]);
+    assert_eq!(
+        array(call("INDEX", vec![col3.clone(), n(f(0x8010_0000_0000_0003))])),
+        (3, 1, vec![-10.0, 2.0, 2.0])
+    );
+    error(
+        call(
+            "INDEX",
+            vec![col3, n(f(0x8010_0000_0000_0003)), n(1.0), n(2.0)],
+        ),
+        Ref,
+    );
+
+    // T22 boundary (ceil >= 1) on row_num, column_num, and area_num:
+    exact(
+        call(
+            "INDEX",
+            vec![two_by_two.clone(), n(f(0x3fff_ffff_bff8_0000)), n(2.0)],
+        ),
+        40.0,
+    );
+    exact(
+        call(
+            "INDEX",
+            vec![two_by_two.clone(), n(2.0), n(f(0x3fff_ffff_bff8_0000))],
+        ),
+        40.0,
+    );
+    error(
+        call(
+            "INDEX",
+            vec![two_by_two, n(f(0x4007_ffff_dffc_0000)), n(1.0)],
+        ),
+        Ref,
+    );
+    exact(
+        call(
+            "INDEX",
+            vec![one.clone(), n(1.0), n(1.0), n(f(0x3fef_ffff_7ff0_0000))],
+        ),
+        42.0,
+    );
+    error(
+        call(
+            "INDEX",
+            vec![one, n(1.0), n(1.0), n(f(0x3fef_ffff_7fef_ffff))],
+        ),
+        Value,
+    );
+}

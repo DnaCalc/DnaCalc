@@ -1430,10 +1430,16 @@ fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     };
     let value_error = Exit::Error(WorksheetErrorCode::Value);
     let ref_error = || Exit::Error(WorksheetErrorCode::Ref);
-    if row < 0.0 || column < 0.0 || area_number.trunc() < 1.0 {
+    // Excel INDEX applies the tolerant date_integer_floor (T23 at ceil <= 0, T22 at ceil >= 1)
+    // to row, column, and area selectors before bounds checks (dc-ztvv.26.34..43 / cb28 S1d/S2c/S3b).
+    let (row, column, area_number) = (
+        crate::ported::text_kernels::date_integer_floor(row),
+        crate::ported::text_kernels::date_integer_floor(column),
+        crate::ported::text_kernels::date_integer_floor(area_number),
+    );
+    if row < 0.0 || column < 0.0 || area_number < 1.0 {
         return Err(value_error);
     }
-    let (row, column, area_number) = (row.trunc(), column.trunc(), area_number.trunc());
     let grid = match source.core_ref() {
         CoreRef::Reference(reference) => {
             let areas = reference.areas();
