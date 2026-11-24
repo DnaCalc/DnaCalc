@@ -5,7 +5,7 @@
 //! mathematical structure (`RATE`, `IRR`, `YIELD`, and any future plug-in) add targeted strategic
 //! regions through [`function_hints`].
 
-use super::rng::{Rng, hex_f64, is_value2_exact, step_ulps};
+use super::rng::{Rng, det_pow, hex_f64, is_value2_exact, pow_u64, pow2_f64, step_ulps};
 use calc_catalogue::{DeclarationRef, ParameterClass};
 use serde_json::{Value, json};
 
@@ -522,7 +522,7 @@ impl DomainSpec {
                 } else if rng.chance(0.25) {
                     let exp = rng.gen_i64_inclusive(-1022, 1023) as i32;
                     let sign = if rng.chance(0.5) { -1.0 } else { 1.0 };
-                    hex_f64(sign * 2.0_f64.powi(exp))
+                    hex_f64(sign * pow2_f64(exp))
                 } else {
                     let v = *rng.pick(SPECIAL_NUMBERS);
                     if rng.chance(0.25) {
@@ -616,7 +616,7 @@ impl DomainSpec {
                     let delta = *rng.pick(&[-4i64, -2, -1, 0, 1, 2, 4]);
                     step_ulps(base, delta, true).unwrap_or(base)
                 } else {
-                    let shift = 2.0_f64.powi(-(rng.gen_i64_inclusive(1, 50) as i32));
+                    let shift = pow2_f64(-(rng.gen_i64_inclusive(1, 50) as i32));
                     let v = base + if rng.chance(0.5) { shift } else { -shift };
                     if is_value2_exact(v) { v } else { base }
                 };
@@ -698,7 +698,7 @@ fn eval_fv_approx(rate: f64, nper: f64, pmt: f64, pv: f64, timing: f64) -> Optio
         if base <= 0.0 && nper.fract() != 0.0 {
             return None;
         }
-        let factor = base.powf(nper);
+        let factor = det_pow(base, nper);
         if !factor.is_finite() {
             return None;
         }
@@ -718,7 +718,7 @@ fn gen_rate_ordinary_loans(rng: &mut Rng) -> Vec<Value> {
     let pmt = if r_target.abs() < 1e-9 {
         -(pv + fv) / nper
     } else {
-        let f = (1.0 + r_target).powf(nper);
+        let f = pow_u64(1.0 + r_target, nper as u64);
         let tf = if timing != 0.0 { 1.0 + r_target } else { 1.0 };
         if f.is_finite() && (f - 1.0).abs() > 1e-12 {
             -(pv * f + fv) * r_target / (tf * (f - 1.0))
@@ -983,7 +983,7 @@ fn gen_rate_convergence_budget(rng: &mut Rng) -> Vec<Value> {
         let nper = *rng.pick(&[120.0, 240.0, 360.0, 480.0, 600.0]);
         let pv = *rng.pick(&[100000.0, 200000.0, 1_000_000.0, 1000.0]);
         let r_true = rng.uniform(0.002, 0.02);
-        let f = (1.0 + r_true).powf(nper);
+        let f = pow_u64(1.0 + r_true, nper as u64);
         let pmt = if f.is_finite() && f > 1.0 {
             -pv * r_true * f / (f - 1.0)
         } else {
@@ -996,7 +996,7 @@ fn gen_rate_convergence_budget(rng: &mut Rng) -> Vec<Value> {
         let nper = rng.gen_i64_inclusive(5, 360) as f64;
         let pv = rng.log_uniform(24, 38, false);
         let r_true = rng.uniform(0.001, 0.15);
-        let f = (1.0 + r_true).powf(nper);
+        let f = pow_u64(1.0 + r_true, nper as u64);
         let tf = if timing != 0.0 { 1.0 + r_true } else { 1.0 };
         let pmt = if f.is_finite() && (f - 1.0).abs() > 1e-12 {
             -pv * f * r_true / (tf * (f - 1.0))
@@ -1135,7 +1135,7 @@ fn gen_irr_scale_and_budget(rng: &mut Rng) -> Vec<Value> {
     match rng.gen_range(6) {
         0 => {
             // 2^15..2^32 scaling: post-budget 1e-4 frontier!
-            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(15, 32) as i32);
+            let factor = pow2_f64(rng.gen_i64_inclusive(15, 32) as i32);
             let flows: Vec<f64> = base
                 .iter()
                 .map(|&x| x * factor * rng.uniform(0.8, 1.2))
@@ -1171,7 +1171,7 @@ fn gen_irr_scale_and_budget(rng: &mut Rng) -> Vec<Value> {
         }
         3 => {
             // Near-overflow cashflows
-            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(950, 1005) as i32);
+            let factor = pow2_f64(rng.gen_i64_inclusive(950, 1005) as i32);
             let flows: Vec<f64> = base
                 .iter()
                 .map(|&x| {
@@ -1184,7 +1184,7 @@ fn gen_irr_scale_and_budget(rng: &mut Rng) -> Vec<Value> {
         }
         4 => {
             // Small-exponent cashflows near DAZ/FTZ
-            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(-1020, -960) as i32);
+            let factor = pow2_f64(rng.gen_i64_inclusive(-1020, -960) as i32);
             let flows: Vec<f64> = base
                 .iter()
                 .map(|&x| {
@@ -1195,7 +1195,7 @@ fn gen_irr_scale_and_budget(rng: &mut Rng) -> Vec<Value> {
             pack_irr(&flows, Some(rng.uniform(-0.8, 2.0)))
         }
         _ => {
-            let factor = 2.0_f64.powi(rng.gen_i64_inclusive(-30, 30) as i32);
+            let factor = pow2_f64(rng.gen_i64_inclusive(-30, 30) as i32);
             let flows: Vec<f64> = base
                 .iter()
                 .map(|&x| x * factor * rng.uniform(0.8, 1.2))
@@ -1223,7 +1223,7 @@ fn gen_irr_flat_and_edges(rng: &mut Rng) -> Vec<Value> {
         }
         2 => {
             // Near -1 root (u = r/(1+r) very negative -> flat u0 + 0.001 == u0)
-            let eps = 2.0_f64.powi(-(rng.gen_i64_inclusive(20, 52) as i32));
+            let eps = pow2_f64(-(rng.gen_i64_inclusive(20, 52) as i32));
             pack_irr(&[-1.0, eps], Some(-1.0 + eps))
         }
         3 => {
@@ -1463,7 +1463,7 @@ fn mutate_f64(v: f64, rng: &mut Rng) -> f64 {
             let bit = rng.gen_range(62);
             f64::from_bits(v.to_bits() ^ (1u64 << bit))
         }
-        _ => v * 2.0_f64.powi(rng.gen_i64_inclusive(-8, 8) as i32),
+        _ => v * pow2_f64(rng.gen_i64_inclusive(-8, 8) as i32),
     };
     if is_value2_exact(candidate) { candidate } else { v }
 }

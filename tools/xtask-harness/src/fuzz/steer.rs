@@ -5,7 +5,7 @@
 //! round toward unexercised/rare routes and narrow predicate boundaries.
 
 use super::domain::{DomainSpec, RegionSpec, mutate_case};
-use super::rng::{Rng, canonical_case_key, parse_hex_bits};
+use super::rng::{Rng, canonical_case_key, det_ln, parse_hex_bits};
 use calc_func::trace::{RouteTrace, route_names, with_trace};
 use calc_verdict::WitnessInvocation;
 use serde_json::{Value, json};
@@ -182,7 +182,7 @@ impl CoverageTracker {
             score += 4.0;
         }
         if trace.min_boundary_margin.is_finite() && trace.min_boundary_margin < 1e-2 {
-            score += (1.0 / (trace.min_boundary_margin + 1e-9)).ln().clamp(0.0, 20.0);
+            score += det_ln(1.0 / (trace.min_boundary_margin + 1e-9)).clamp(0.0, 20.0);
         }
         score
     }

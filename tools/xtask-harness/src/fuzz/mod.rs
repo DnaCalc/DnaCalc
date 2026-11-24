@@ -407,6 +407,18 @@ pub fn render_markdown_report(summary: &FuzzSummary) -> String {
     md
 }
 
+/// Shared budget reservation for boundary windows & Excel bisection, used identically by both
+/// `--dry-run` (`execute_dry_run`) and live runs (`execute_live_run`) so Round 0 matches
+/// bit-for-bit for identical configs.
+pub fn main_round_budget(cfg: &FuzzConfig) -> usize {
+    let per_frontier = (cfg.frontier_window.max(0) as usize)
+        .saturating_mul(2)
+        .saturating_add(8);
+    let boundary_reserve = (cfg.budget / 12)
+        .min(cfg.max_frontiers.saturating_mul(per_frontier));
+    cfg.budget.saturating_sub(boundary_reserve).max(1)
+}
+
 /// Run a deterministic local dry-run (generates strategic cases, runs code-guided steering,
 /// maps DNA Calc frontiers, freezes predictions + SHA-256, and writes spec/report without Excel).
 pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
@@ -424,9 +436,7 @@ pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let mut next_id = 0usize;
     let mut round = 0usize;
 
-    // Reserve ~10% of budget for boundary consecutive-double windows
-    let boundary_reserve = (cfg.budget / 10).min(cfg.max_frontiers * ((cfg.frontier_window as usize * 2) + 2));
-    let main_budget = cfg.budget.saturating_sub(boundary_reserve);
+    let main_budget = main_round_budget(cfg);
 
     while all_cases.len() < main_budget {
         let want = cfg.round_size.min(main_budget - all_cases.len());

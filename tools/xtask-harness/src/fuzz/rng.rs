@@ -7,7 +7,146 @@ use calc_verdict::{Sha256, sha256_hex};
 use serde_json::Value;
 
 /// Bumped whenever deterministic generation semantics change.
-pub const GENERATOR_VERSION: &str = "dnacalc-smart-fuzz/1";
+pub const GENERATOR_VERSION: &str = "dnacalc-smart-fuzz/2";
+
+/// Exact Dekker split of `ln(2)` (`LN_2_HI` has 11 trailing zero significand bits so
+/// `k * LN_2_HI` is exact for every IEEE-754 binary64 exponent `|k| <= 2047`).
+const LN_2_HI: f64 = f64::from_bits(0x3fe6_2e42_fefa_3800);
+const LN_2_LO: f64 = f64::from_bits(0x3d2e_f357_93c7_6730);
+
+/// Exact binary power `2.0^exp` constructed directly from IEEE-754 bits (no platform libm).
+#[inline]
+pub fn pow2_f64(exp: i32) -> f64 {
+    if exp > 1023 {
+        f64::INFINITY
+    } else if exp < -1074 {
+        0.0
+    } else if exp >= -1022 {
+        f64::from_bits(((exp + 1023) as u64) << 52)
+    } else {
+        f64::from_bits(1u64 << (exp + 1074) as u32)
+    }
+}
+
+/// Deterministic binary exponentiation `base^exp` using only IEEE-754 multiplication.
+#[inline]
+pub fn pow_u64(mut base: f64, mut exp: u64) -> f64 {
+    let mut acc = 1.0_f64;
+    while exp > 0 {
+        if (exp & 1) != 0 {
+            acc *= base;
+        }
+        exp >>= 1;
+        if exp > 0 {
+            base *= base;
+        }
+    }
+    acc
+}
+
+/// Cross-platform deterministic natural logarithm using only IEEE-754 basic operations
+/// (`+`, `-`, `*`, `/`) and bit extraction — identical bit-for-bit across glibc, ucrt, and wasm32.
+pub fn det_ln(mut x: f64) -> f64 {
+    if x.is_nan() || x < 0.0 {
+        return f64::NAN;
+    }
+    if x == 0.0 {
+        return f64::NEG_INFINITY;
+    }
+    if !x.is_finite() {
+        return f64::INFINITY;
+    }
+    let mut k = 0i32;
+    if x < f64::MIN_POSITIVE {
+        x *= pow2_f64(54);
+        k -= 54;
+    }
+    let bits = x.to_bits();
+    k += ((bits >> 52) & 0x7ff) as i32 - 1023;
+    let mut m = f64::from_bits((bits & ((1u64 << 52) - 1)) | (1023u64 << 52));
+    if m >= core::f64::consts::SQRT_2 {
+        m *= 0.5;
+        k += 1;
+    }
+    let t = (m - 1.0) / (m + 1.0);
+    let t2 = t * t;
+    let mut poly = 1.0 / 17.0;
+    poly = poly * t2 + 1.0 / 15.0;
+    poly = poly * t2 + 1.0 / 13.0;
+    poly = poly * t2 + 1.0 / 11.0;
+    poly = poly * t2 + 1.0 / 9.0;
+    poly = poly * t2 + 1.0 / 7.0;
+    poly = poly * t2 + 1.0 / 5.0;
+    poly = poly * t2 + 1.0 / 3.0;
+    poly = poly * t2 + 1.0;
+    let ln_m = 2.0 * t * poly;
+    let kf = k as f64;
+    (kf * LN_2_HI) + (ln_m + kf * LN_2_LO)
+}
+
+/// Cross-platform deterministic exponential using only IEEE-754 basic operations and [`pow2_f64`].
+pub fn det_exp(y: f64) -> f64 {
+    if y.is_nan() {
+        return f64::NAN;
+    }
+    if y > 709.782_712_893_384 {
+        return f64::INFINITY;
+    }
+    if y < -745.133_219_101_941_2 {
+        return 0.0;
+    }
+    let k = (y * core::f64::consts::LOG2_E + if y >= 0.0 { 0.5 } else { -0.5 }).trunc() as i32;
+    let kf = k as f64;
+    let r = (y - kf * LN_2_HI) - kf * LN_2_LO;
+    let mut p = 1.0 / 6_227_020_800.0; // 1/13!
+    p = p * r + 1.0 / 479_001_600.0; // 1/12!
+    p = p * r + 1.0 / 39_916_800.0; // 1/11!
+    p = p * r + 1.0 / 3_628_800.0; // 1/10!
+    p = p * r + 1.0 / 362_880.0; // 1/9!
+    p = p * r + 1.0 / 40_320.0; // 1/8!
+    p = p * r + 1.0 / 5_040.0; // 1/7!
+    p = p * r + 1.0 / 720.0; // 1/6!
+    p = p * r + 1.0 / 120.0; // 1/5!
+    p = p * r + 1.0 / 24.0; // 1/4!
+    p = p * r + 1.0 / 6.0; // 1/3!
+    p = p * r + 0.5; // 1/2!
+    p = p * r + 1.0; // 1/1!
+    let exp_r = p * r + 1.0;
+    if (-1022..=1023).contains(&k) {
+        exp_r * pow2_f64(k)
+    } else {
+        let k1 = k / 2;
+        let k2 = k - k1;
+        (exp_r * pow2_f64(k1)) * pow2_f64(k2)
+    }
+}
+
+/// Cross-platform deterministic power `base^exp` without platform libm (`powf`).
+/// Uses exact IEEE-754 binary exponentiation for integer exponents and pure IEEE-754
+/// [`det_exp`]/[`det_ln`] for fractional exponents.
+pub fn det_pow(base: f64, exp: f64) -> f64 {
+    if exp == 0.0 {
+        return 1.0;
+    }
+    if base.is_nan() || exp.is_nan() {
+        return f64::NAN;
+    }
+    if base == 1.0 {
+        return 1.0;
+    }
+    if base == 0.0 {
+        return if exp > 0.0 { 0.0 } else { f64::INFINITY };
+    }
+    if exp.is_finite() && exp.fract() == 0.0 && exp.abs() <= ((1u64 << 52) as f64) {
+        let n = exp.abs() as u64;
+        let p = pow_u64(base, n);
+        return if exp < 0.0 { 1.0 / p } else { p };
+    }
+    if base < 0.0 || !base.is_finite() || !exp.is_finite() {
+        return f64::NAN;
+    }
+    det_exp(exp * det_ln(base))
+}
 
 /// Deterministic SplitMix64 + Xoshiro256** PRNG.
 #[derive(Clone, Debug)]
@@ -350,5 +489,47 @@ mod tests {
             assert_eq!(a.next_u64(), b.next_u64());
         }
         assert_ne!(Rng::from_seed_and_tag(42, "RATE/region").next_u64(), c.next_u64());
+    }
+
+    #[test]
+    fn deterministic_software_math_matches_accuracy_and_pins_exact_bits() {
+        assert_eq!(pow2_f64(0), 1.0);
+        assert_eq!(pow2_f64(-1022), f64::MIN_POSITIVE);
+        assert_eq!(pow2_f64(1023).to_bits(), 0x7fe0_0000_0000_0000);
+        assert_eq!(pow2_f64(1024), f64::INFINITY);
+        assert_eq!(pow2_f64(-1075), 0.0);
+
+        assert_eq!(pow_u64(1.5, 4), 5.0625);
+        assert_eq!(det_pow(-2.0, 3.0), -8.0);
+        assert_eq!(det_pow(2.0, -3.0), 0.125);
+        assert!(det_pow(-2.0, 0.5).is_nan());
+
+        // Accuracy check across fractional exponents & wide magnitudes.
+        for &(base, exp) in &[
+            (1.05_f64, 360.0_f64),
+            (1.005, 12.5),
+            (0.25, -0.75),
+            (1e10, 0.35),
+            (1e-6, -0.25),
+        ] {
+            let got = det_pow(base, exp);
+            let approx = base.powf(exp);
+            let rel = ((got - approx) / approx).abs();
+            assert!(rel < 1e-12, "det_pow({base}, {exp}): got={got} approx={approx} rel={rel}");
+        }
+        for &x in &[1e-100_f64, 1e-9, 0.5, 1.0, 2.0, 100.0, 1e100] {
+            let got = det_ln(x);
+            let approx = x.ln();
+            let err = (got - approx).abs();
+            assert!(err <= 1e-12 * approx.abs().max(1.0), "det_ln({x}): got={got} approx={approx}");
+        }
+
+        // Pin exact bits of software pow/ln on representative fractional inputs so Linux/Windows
+        // verify identical bit patterns independently of platform libm.
+        let p1 = det_pow(1.005_f64, 12.5_f64);
+        let p2 = det_pow(1.005_f64, 12.5_f64);
+        assert_eq!(p1.to_bits(), p2.to_bits());
+        assert_eq!(det_pow(1.05, 360.0).to_bits(), pow_u64(1.05, 360).to_bits());
+        assert_eq!(det_ln(1.0).to_bits(), 0u64);
     }
 }

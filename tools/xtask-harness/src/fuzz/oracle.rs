@@ -21,7 +21,7 @@ use super::rng::{
 use super::steer::{
     CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
 };
-use super::{FuzzConfig, FuzzSummary, freeze_predictions, write_outputs};
+use super::{FuzzConfig, FuzzSummary, freeze_predictions, main_round_budget, write_outputs};
 use calc_verdict::Severity;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -1078,10 +1078,8 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let mut total_crashed = 0usize;
     let mut excel_seconds = 0.0f64;
 
-    // Reserve a slice of budget for boundary windows & Excel bisection.
-    let boundary_reserve = (cfg.budget / 12)
-        .min(cfg.max_frontiers.saturating_mul((cfg.frontier_window as usize * 2) + 8));
-    let main_budget = cfg.budget.saturating_sub(boundary_reserve).max(1);
+    // Reserve a slice of budget for boundary windows & Excel bisection (shared with dry-run).
+    let main_budget = main_round_budget(cfg);
     let mut stop_reason = "budget-reached".to_owned();
 
     while total_asked < main_budget {
@@ -1839,6 +1837,56 @@ mod tests {
         assert_eq!(frontiers[1].excel_lo_bits, None);
         assert_eq!(frontiers[1].excel_hi_bits, None);
         assert_eq!(frontiers[1].shifted_ulps, None);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn dry_run_and_live_run_produce_bit_identical_round_0_predictions() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-dry-live-parity-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let _server = thread::spawn(move || serve_fake_rate_broker(listener));
+
+        // Set round_size >= budget so Round 0 consumes the full main_budget; any reserve mismatch
+        // between execute_dry_run and execute_live_run immediately diverges Round 0.
+        let mut dry_cfg = FuzzConfig::default_for("RATE");
+        dry_cfg.seed = 424242;
+        dry_cfg.budget = 200;
+        dry_cfg.min_budget = 200;
+        dry_cfg.round_size = 200;
+        dry_cfg.batch_size = 100;
+        dry_cfg.in_flight = 2;
+        dry_cfg.max_frontiers = 4;
+        dry_cfg.frontier_window = 3;
+        dry_cfg.dry_run = true;
+        dry_cfg.out_dir = tmp.join("dry");
+
+        let mut live_cfg = dry_cfg.clone();
+        live_cfg.dry_run = false;
+        live_cfg.out_dir = tmp.join("live");
+        live_cfg.endpoint = Some(endpoint);
+
+        let dry_summary = crate::fuzz::execute_dry_run(&dry_cfg).expect("dry run");
+        let live_summary = execute_live_run(&live_cfg).expect("live run");
+
+        assert_eq!(
+            dry_summary.predictions_sha256[0],
+            live_summary.predictions_sha256[0],
+            "dry-run and live-run must generate bit-identical Round 0 predictions for identical config"
+        );
+        let dry_r0 = std::fs::read_to_string(dry_cfg.out_dir.join("round-00-predictions.jsonl")).unwrap();
+        let live_r0 = std::fs::read_to_string(live_cfg.out_dir.join("round-00-predictions.jsonl")).unwrap();
+        assert_eq!(dry_r0.lines().count(), live_r0.lines().count());
+        assert_eq!(dry_r0, live_r0);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
