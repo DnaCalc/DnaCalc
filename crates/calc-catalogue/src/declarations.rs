@@ -728,6 +728,23 @@ pub enum LegacyPlace {
 }
 
 impl LegacyPlace {
+    /// The legacy placement of a call position, resolving repeating [`ArgumentGroups`] before
+    /// falling back to [`Self::for_position`] for ungrouped repeated tails.
+    pub fn for_grouped_position(
+        parameters: &[Parameter],
+        groups: Option<ArgumentGroups>,
+        index: usize,
+    ) -> Self {
+        if index >= parameters.len()
+            && let Some(groups) = groups
+            && let Some(named) = groups.parameter(index)
+            && let Some(parameter) = parameters.get(named)
+        {
+            return parameter.legacy;
+        }
+        Self::for_position(parameters, index)
+    }
+
     /// The legacy placement of a call position, using the final declaration for a repeated tail.
     pub fn for_position(parameters: &[Parameter], index: usize) -> Self {
         let last = parameters.len().saturating_sub(1);

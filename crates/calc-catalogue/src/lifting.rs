@@ -180,6 +180,16 @@ pub fn parameter_lifting(
             | (Some(LegacyContext::Aggregate), LiftingOrigin::Range) => return Some(Intersect),
             _ => {}
         }
+    } else if lifts_in_kernel && !ref_array {
+        // Legacy implicit intersection and unclassified legacy contexts on kernel-lifted
+        // ValueOrReference criteria are unmeasured (dc-b1l); only dynamic, legacy-array, and
+        // legacy-aggregate ordinary-array criteria are measured elementwise.
+        match (admission, origin) {
+            (Some(LegacyContext::Unknown), _)
+            | (Some(LegacyContext::Value), _)
+            | (Some(LegacyContext::Aggregate), LiftingOrigin::Range) => return Some(Unmeasured),
+            _ => {}
+        }
     }
 
     if entry.demand() == ArgumentDemand::BranchOnCondition && index > 0 {
@@ -246,7 +256,7 @@ fn kernel_lifts(entry: DeclarationRef, index: usize) -> bool {
 }
 
 fn legacy_place(entry: DeclarationRef, index: usize) -> LegacyPlace {
-    LegacyPlace::for_position(entry.parameters(), index)
+    LegacyPlace::for_grouped_position(entry.parameters(), entry.groups(), index)
 }
 
 fn intersects_reference(entry: DeclarationRef, index: usize, place: LegacyContext) -> bool {
@@ -388,32 +398,27 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn conditional_criteria_lift_elementwise_including_repeated_groups() {
         let single_cases = [
-            ("COUNTIF", 2, &[0usize][..], &[1usize][..]),
-            ("SUMIF", 3, &[0, 2][..], &[1][..]),
-            ("AVERAGEIF", 3, &[0, 2][..], &[1][..]),
+            ("COUNTIF", 2, &[0usize][..], &[1usize][..], true),
+            ("SUMIF", 3, &[0, 2][..], &[1][..], true),
+            ("AVERAGEIF", 3, &[0, 2][..], &[1][..], false),
         ];
-        for (spelling, max, ranges, criteria) in single_cases {
+        for (spelling, max, ranges, criteria, legacy_lifts_refs) in single_cases {
             let entry = named(spelling).unwrap();
             assert_eq!(entry.arity().max, max);
             for &index in ranges {
-                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
-                    assert_eq!(
-                        parameter_lifting(entry, index, LiftingMode::Dynamic, origin),
-                        Some(Lifting::Whole),
-                        "{spelling} range position {} with {origin:?}",
-                        index + 1,
-                    );
+                for (_, mode) in MODES {
+                    for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
+                        assert_eq!(
+                            parameter_lifting(entry, index, mode, origin),
+                            Some(Lifting::Whole),
+                            "{spelling} range position {} at {mode:?} / {origin:?}",
+                            index + 1,
+                        );
+                    }
                 }
             }
             for &index in criteria {
-                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
-                    assert_eq!(
-                        parameter_lifting(entry, index, LiftingMode::Dynamic, origin),
-                        Some(Lifting::Elementwise),
-                        "{spelling} criterion position {} with {origin:?}",
-                        index + 1,
-                    );
-                }
+                assert_kernel_lifted_modes(entry, spelling, index, legacy_lifts_refs);
             }
         }
 
@@ -429,42 +434,95 @@ mod tests {
         for (spelling, pair_start) in group_cases {
             let entry = named(spelling).unwrap();
             if pair_start == 1 {
-                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
-                    assert_eq!(
-                        parameter_lifting(entry, 0, LiftingMode::Dynamic, origin),
-                        Some(Lifting::Whole),
-                        "{spelling} target range with {origin:?}",
-                    );
+                for (_, mode) in MODES {
+                    for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
+                        assert_eq!(
+                            parameter_lifting(entry, 0, mode, origin),
+                            Some(Lifting::Whole),
+                            "{spelling} target range at {mode:?} / {origin:?}",
+                        );
+                    }
                 }
             }
             // Check named pairs (1..=2) and repeated group pairs (3, 4, last).
             for pair in [0usize, 1, 2, 3, 126] {
                 let range_index = pair_start + pair * 2;
                 let criterion_index = range_index + 1;
-                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
-                    assert_eq!(
-                        parameter_lifting(entry, range_index, LiftingMode::Dynamic, origin),
-                        Some(Lifting::Whole),
-                        "{spelling} criteria_range at {} with {origin:?}",
-                        range_index + 1,
-                    );
-                    assert_eq!(
-                        parameter_lifting(entry, criterion_index, LiftingMode::Dynamic, origin),
-                        Some(Lifting::Elementwise),
-                        "{spelling} criteria at {} with {origin:?}",
-                        criterion_index + 1,
-                    );
+                for (_, mode) in MODES {
+                    for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
+                        assert_eq!(
+                            parameter_lifting(entry, range_index, mode, origin),
+                            Some(Lifting::Whole),
+                            "{spelling} criteria_range at {} at {mode:?} / {origin:?}",
+                            range_index + 1,
+                        );
+                    }
                 }
+                assert_kernel_lifted_modes(entry, spelling, criterion_index, false);
+            }
+        }
+    }
+
+    fn assert_kernel_lifted_modes(
+        entry: DeclarationRef,
+        spelling: &str,
+        index: usize,
+        legacy_lifts_refs: bool,
+    ) {
+        let legacy_ref_array = if legacy_lifts_refs {
+            Lifting::PerReference
+        } else {
+            Lifting::FirstReference
+        };
+        let expected = [
+            (
+                LiftingMode::Dynamic,
+                Lifting::Elementwise,
+                Lifting::Elementwise,
+                Lifting::PerReference,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Value),
+                Lifting::Unmeasured,
+                Lifting::Unmeasured,
+                legacy_ref_array,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Aggregate),
+                Lifting::Elementwise,
+                Lifting::Unmeasured,
+                legacy_ref_array,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Array),
+                Lifting::Elementwise,
+                Lifting::Elementwise,
+                legacy_ref_array,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::ArrayAggregate),
+                Lifting::Unmeasured,
+                Lifting::Unmeasured,
+                legacy_ref_array,
+            ),
+            (
+                LiftingMode::Legacy(LegacyContext::Unknown),
+                Lifting::Unmeasured,
+                Lifting::Unmeasured,
+                legacy_ref_array,
+            ),
+        ];
+        for (mode, array, range, ref_array) in expected {
+            for (origin, want) in [
+                (LiftingOrigin::Array, array),
+                (LiftingOrigin::Range, range),
+                (LiftingOrigin::ReferenceArray, ref_array),
+            ] {
                 assert_eq!(
-                    parameter_lifting(
-                        entry,
-                        criterion_index,
-                        LiftingMode::Dynamic,
-                        LiftingOrigin::ReferenceArray,
-                    ),
-                    Some(Lifting::PerReference),
-                    "{spelling} criteria at {} with ReferenceArray",
-                    criterion_index + 1,
+                    parameter_lifting(entry, index, mode, origin),
+                    Some(want),
+                    "{spelling} criterion position {} at {mode:?} / {origin:?}",
+                    index + 1,
                 );
             }
         }
@@ -472,7 +530,7 @@ mod tests {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn value_slot_follows_repeating_argument_groups() {
+    fn value_slot_and_legacy_place_follow_repeating_argument_groups() {
         static MIXED_GROUP: WorksheetDeclaration = WorksheetDeclaration {
             localized_names: None,
             context_facilities: None,
@@ -485,9 +543,9 @@ mod tests {
             groups: Some(ArgumentGroups::new(1, 2, 0)),
             parameters: &[
                 Parameter::reference("target"),
-                Parameter::reference("range1"),
+                Parameter::reference("range1").legacy(LegacyPlace::IntersectReference),
                 Parameter::value("value1"),
-                Parameter::reference("range2"),
+                Parameter::reference("range2").legacy(LegacyPlace::IntersectReference),
                 Parameter::value("value2"),
             ],
             result: ResultForm::Value,
@@ -496,12 +554,27 @@ mod tests {
         };
         let entry = DeclarationRef::Worksheet(&MIXED_GROUP);
 
-        // Positions 5, 7, 9 are repeated `range1` (Reference, NOT Value);
-        // positions 6, 8, 10 are repeated `value1` (Value).
-        for index in [0usize, 1, 3, 5, 7, 9] {
+        // Positions 5, 7, 9 are repeated `range1` (Reference + IntersectReference, NOT Value);
+        // positions 6, 8, 10 are repeated `value1` (Value + Default).
+        assert_eq!(legacy_place(entry, 0), LegacyPlace::Default);
+        assert_eq!(
+            parameter_lifting(
+                entry,
+                0,
+                LiftingMode::Legacy(LegacyContext::Value),
+                LiftingOrigin::Range,
+            ),
+            Some(Lifting::Whole),
+        );
+        for index in [1usize, 3, 5, 7, 9] {
             assert!(
                 !value_slot(entry, index),
                 "position {index} must map to Reference, not Value"
+            );
+            assert_eq!(
+                legacy_place(entry, index),
+                LegacyPlace::IntersectReference,
+                "position {index} must inherit range1's LegacyPlace via ArgumentGroups"
             );
             assert_eq!(
                 parameter_lifting(entry, index, LiftingMode::Dynamic, LiftingOrigin::Array),
@@ -515,14 +588,29 @@ mod tests {
                     LiftingMode::Legacy(LegacyContext::Value),
                     LiftingOrigin::Range,
                 ),
+                Some(Lifting::Intersect),
+                "legacy root range at grouped IntersectReference position {index}"
+            );
+            assert_eq!(
+                parameter_lifting(
+                    entry,
+                    index,
+                    LiftingMode::Legacy(LegacyContext::Array),
+                    LiftingOrigin::Range,
+                ),
                 Some(Lifting::Whole),
-                "legacy root range at grouped reference position {index}"
+                "legacy array range at grouped IntersectReference position {index}"
             );
         }
         for index in [2usize, 4, 6, 8, 10] {
             assert!(
                 value_slot(entry, index),
                 "position {index} must map to Value"
+            );
+            assert_eq!(
+                legacy_place(entry, index),
+                LegacyPlace::Default,
+                "position {index} must inherit value1's LegacyPlace via ArgumentGroups"
             );
             assert_eq!(
                 parameter_lifting(entry, index, LiftingMode::Dynamic, LiftingOrigin::Array),

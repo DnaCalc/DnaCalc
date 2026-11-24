@@ -3216,8 +3216,21 @@ mod tests {
                             && actual == Lifting::Whole
                         {
                             // Pre-kernel CalcFml admission passed the operand whole; the kernel
-                            // lifts it elementwise (verified end-to-end below).
-                            Lifting::Elementwise
+                            // lifts it elementwise in dynamic and measured legacy array/aggregate-array
+                            // contexts, while legacy scalar, aggregate-range, and unknown contexts
+                            // stay unmeasured (dc-b1l).
+                            match (mode, *origin) {
+                                (LiftingMode::Dynamic, LiftingOrigin::Array | LiftingOrigin::Range)
+                                | (
+                                    LiftingMode::Legacy(LegacyContext::Array),
+                                    LiftingOrigin::Array | LiftingOrigin::Range,
+                                )
+                                | (
+                                    LiftingMode::Legacy(LegacyContext::Aggregate),
+                                    LiftingOrigin::Array,
+                                ) => Lifting::Elementwise,
+                                _ => Lifting::Unmeasured,
+                            }
                         } else {
                             actual
                         };
@@ -3423,9 +3436,16 @@ mod tests {
                 CalcArray::from_rows(vec![vec![n(10.0), na()], vec![na(), na()]]).unwrap()
             ),
         );
-        // Legacy aggregate and array contexts receive the kernel-lifted array intact.
+        // Legacy aggregate-array and array-context calls receive the kernel-lifted array intact.
         assert_eq!(
             eval(r#"=SUM(COUNTIF(A1:A4,{">15","<25"}))"#, FormulaForm::Legacy),
+            n(5.0),
+        );
+        assert_eq!(
+            eval(
+                r#"=SUMPRODUCT(COUNTIF(A1:A4,{">15","<25"}))"#,
+                FormulaForm::Legacy,
+            ),
             n(5.0),
         );
         assert_eq!(
@@ -3433,37 +3453,86 @@ mod tests {
             n(100.0),
         );
 
-        // Catalogue table agrees on every tested criterion and alternating range position,
-        // including repeated group positions beyond the named parameter list.
-        for (spelling, range_indices, criterion_indices) in [
-            ("COUNTIF", &[0usize][..], &[1usize][..]),
-            ("SUMIF", &[0, 2][..], &[1][..]),
-            ("AVERAGEIF", &[0, 2][..], &[1][..]),
-            ("COUNTIFS", &[0, 2, 4, 6][..], &[1, 3, 5, 7][..]),
-            ("SUMIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
-            ("AVERAGEIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
-            ("MAXIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
-            ("MINIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..]),
+        // Catalogue table agrees across all 6 modes and all 3 origins on every tested criterion
+        // and alternating range position, including repeated group positions beyond the named
+        // parameter list.
+        for (spelling, range_indices, criterion_indices, legacy_lifts_refs) in [
+            ("COUNTIF", &[0usize][..], &[1usize][..], true),
+            ("SUMIF", &[0, 2][..], &[1][..], true),
+            ("AVERAGEIF", &[0, 2][..], &[1][..], false),
+            ("COUNTIFS", &[0, 2, 4, 6][..], &[1, 3, 5, 7][..], false),
+            ("SUMIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..], false),
+            ("AVERAGEIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..], false),
+            ("MAXIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..], false),
+            ("MINIFS", &[0, 1, 3, 5][..], &[2, 4, 6, 8][..], false),
         ] {
             let entry = named(spelling).unwrap();
-            for mode in [
-                LiftingMode::Dynamic,
-                LiftingMode::Legacy(LegacyContext::Aggregate),
-                LiftingMode::Legacy(LegacyContext::Array),
+            let legacy_ref = if legacy_lifts_refs {
+                Lifting::PerReference
+            } else {
+                Lifting::FirstReference
+            };
+            for (mode, crit_array, crit_range, ref_array) in [
+                (
+                    LiftingMode::Dynamic,
+                    Lifting::Elementwise,
+                    Lifting::Elementwise,
+                    Lifting::PerReference,
+                ),
+                (
+                    LiftingMode::Legacy(LegacyContext::Value),
+                    Lifting::Unmeasured,
+                    Lifting::Unmeasured,
+                    legacy_ref,
+                ),
+                (
+                    LiftingMode::Legacy(LegacyContext::Aggregate),
+                    Lifting::Elementwise,
+                    Lifting::Unmeasured,
+                    legacy_ref,
+                ),
+                (
+                    LiftingMode::Legacy(LegacyContext::Array),
+                    Lifting::Elementwise,
+                    Lifting::Elementwise,
+                    legacy_ref,
+                ),
+                (
+                    LiftingMode::Legacy(LegacyContext::ArrayAggregate),
+                    Lifting::Unmeasured,
+                    Lifting::Unmeasured,
+                    legacy_ref,
+                ),
+                (
+                    LiftingMode::Legacy(LegacyContext::Unknown),
+                    Lifting::Unmeasured,
+                    Lifting::Unmeasured,
+                    legacy_ref,
+                ),
             ] {
-                for origin in [LiftingOrigin::Array, LiftingOrigin::Range] {
-                    for &index in range_indices {
+                for &index in range_indices {
+                    for (origin, want) in [
+                        (LiftingOrigin::Array, Lifting::Whole),
+                        (LiftingOrigin::Range, Lifting::Whole),
+                        (LiftingOrigin::ReferenceArray, ref_array),
+                    ] {
                         assert_eq!(
                             parameter_lifting(entry, index, mode, origin),
-                            Some(Lifting::Whole),
+                            Some(want),
                             "{spelling} range position {} at {mode:?} / {origin:?}",
                             index + 1,
                         );
                     }
-                    for &index in criterion_indices {
+                }
+                for &index in criterion_indices {
+                    for (origin, want) in [
+                        (LiftingOrigin::Array, crit_array),
+                        (LiftingOrigin::Range, crit_range),
+                        (LiftingOrigin::ReferenceArray, ref_array),
+                    ] {
                         assert_eq!(
                             parameter_lifting(entry, index, mode, origin),
-                            Some(Lifting::Elementwise),
+                            Some(want),
                             "{spelling} criterion position {} at {mode:?} / {origin:?}",
                             index + 1,
                         );

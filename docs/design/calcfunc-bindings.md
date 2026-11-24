@@ -71,7 +71,9 @@ columns. For example, COUNTBLANK takes a range whole and lifts a computed array.
 marked `Parameter::kernel_lifts` (criteria of COUNTIF/SUMIF/AVERAGEIF and the `*IFS` family) are
 declared `ValueOrReference` so references reach the kernel, and the kernel lifts ordinary arrays
 and multi-cell ranges elementwise; the table reports `elementwise` for those positions (including
-repeated `*IFS` group positions) while leaving their alternating `criteria_range` positions
+repeated `*IFS` group positions) in dynamic, legacy-array, and legacy-aggregate ordinary-array
+contexts, and `unmeasured` in legacy scalar, legacy aggregate-range, legacy array-aggregate, and
+legacy unknown contexts (`dc-b1l`), while leaving their alternating `criteria_range` positions
 `whole`. The table describes pre-publication call behavior. Excel build availability, formula
 entry, 3-D references, boxed arrays and callable values have separate rules.
 
@@ -80,10 +82,11 @@ The bulk agreement test in `crates/calc-fml/src/eval/run.rs`
 CalcFml's pre-kernel argument preparation (`admit_arguments`, `admit` and `lift_operand`), not
 directly Excel for kernel-lifted functions. For `kernel_lifts` parameters it proves that CalcFml
 passes arrays and ranges through whole to the kernel (while intercepting reference arrays before
-the kernel as declared); separate end-to-end tests (`catalogue_lifting_tracks_kernel_lifted_parameters`
+the kernel as declared), and that `parameter_lifting` reports `elementwise` only in dynamic and
+measured legacy array/aggregate-array contexts and `unmeasured` for the unmeasured legacy
+contexts (`dc-b1l`); separate end-to-end tests (`catalogue_lifting_tracks_kernel_lifted_parameters`
 and `catalogue_lifting_tracks_lazy_selectors`) exercise actual kernel and lazy evaluation against
-Excel-measured behavior. Legacy implicit-intersection nuances on kernel-lifted range criteria remain
-tracked with other unmeasured legacy cases in `dc-b1l`.
+Excel-measured behavior across all 6 modes and 3 origins.
 
 `elementwise-when-lifted` means a lazy IF or CHOOSE branch participates only when the selector
 lifts. In a legacy aggregate placement, a scalar selector can return a whole range from the
