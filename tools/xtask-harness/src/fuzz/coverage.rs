@@ -418,8 +418,12 @@ struct FunctionAcc {
     unindexed_frontiers: u64,
     open_cluster_refs: BTreeSet<String>,
     /// Standalone clusters with no matching bead in `.beads/issues.jsonl`, tagged with their
-    /// sweep timestamp so a newer clean post-fix sweep supersedes stale pre-fix untracked clusters.
-    untracked_clusters_by_ts: Vec<(String, BTreeSet<String>)>,
+    /// `(timestamp, calc_func_commit)` so a newer clean post-fix sweep on an advanced commit
+    /// supersedes stale pre-fix untracked clusters, while follow-up sweeps on the same commit or
+    /// skipped runs never wipe earlier untracked clusters.
+    untracked_clusters_by_ts: Vec<(String, String, BTreeSet<String>)>,
+    last_effective_ts: String,
+    last_effective_commit: String,
     last_sweep_ts: String,
     last_sweep_date: String,
     last_sweep_commit: String,
@@ -630,7 +634,17 @@ pub fn collect_from_records(
             }
             if !sweep_untracked.is_empty() {
                 acc.untracked_clusters_by_ts
-                    .push((timestamp.clone(), sweep_untracked));
+                    .push((timestamp.clone(), sweep_commit.clone(), sweep_untracked));
+            }
+        }
+
+        let stop_reason = summary["stop_reason"].as_str().unwrap_or("");
+        let effectively_ran =
+            total_asked > total_harness_fault && !stop_reason.starts_with("skipped:");
+        if effectively_ran && timestamp >= acc.last_effective_ts {
+            acc.last_effective_ts = timestamp.clone();
+            if sweep_commit != "-" || acc.last_effective_commit.is_empty() {
+                acc.last_effective_commit = sweep_commit.clone();
             }
         }
 
@@ -643,12 +657,25 @@ pub fn collect_from_records(
         }
     }
 
-    // Include untracked standalone clusters ONLY from the latest sweep timestamp (so a clean
-    // post-fix sweep closes manually-filed pre-fix standalone clusters that had no external_ref),
-    // and union any open fuzz-sweep-cluster beads for functions that were swept.
+    // Retain untracked standalone clusters unless superseded by a newer effective (non-skipped)
+    // post-fix sweep:
+    // - when both sweeps record a calc_func_commit, retain every untracked cluster on the latest
+    //   effective commit (so a smaller follow-up sweep on the same commit never wipes them);
+    // - when commit metadata is absent ("-"), retain untracked clusters from `last_effective_ts`
+    //   (so skipped:* runs never wipe prior clusters, while a clean newer sweep clears them).
     for (function, acc) in &mut by_func {
-        for (ts, refs) in &acc.untracked_clusters_by_ts {
-            if ts == &acc.last_sweep_ts {
+        for (ts, commit, refs) in &acc.untracked_clusters_by_ts {
+            let keep = if acc.last_effective_ts.is_empty() {
+                true
+            } else if !acc.last_effective_commit.is_empty()
+                && acc.last_effective_commit != "-"
+                && commit != "-"
+            {
+                commit == &acc.last_effective_commit
+            } else {
+                ts == &acc.last_effective_ts
+            };
+            if keep {
                 for r in refs {
                     acc.open_cluster_refs.insert(r.clone());
                 }
@@ -709,16 +736,30 @@ fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCov
         .regions_covered
         .max(fresh.regions_covered)
         .min(regions_total);
-    let (last_sweep_date, last_sweep_commit) = if fresh.last_sweep_date >= prev.last_sweep_date {
-        let commit = if fresh.last_sweep_commit != "-" {
-            fresh.last_sweep_commit
+    let (last_sweep_date, last_sweep_commit, open_clusters) =
+        if fresh.last_sweep_date < prev.last_sweep_date {
+            (
+                prev.last_sweep_date.clone(),
+                prev.last_sweep_commit.clone(),
+                prev.open_clusters,
+            )
         } else {
-            prev.last_sweep_commit.clone()
+            let same_known_commit = fresh.last_sweep_commit != "-"
+                && prev.last_sweep_commit != "-"
+                && fresh.last_sweep_commit == prev.last_sweep_commit;
+            let fresh_effectively_ran = fresh.cases_swept > fresh.harness_faults;
+            let open = if !fresh_effectively_ran || same_known_commit {
+                prev.open_clusters.max(fresh.open_clusters)
+            } else {
+                fresh.open_clusters
+            };
+            let commit = if fresh.last_sweep_commit != "-" {
+                fresh.last_sweep_commit
+            } else {
+                prev.last_sweep_commit.clone()
+            };
+            (fresh.last_sweep_date, commit, open)
         };
-        (fresh.last_sweep_date, commit)
-    } else {
-        (prev.last_sweep_date.clone(), prev.last_sweep_commit.clone())
-    };
     FuzzCoverageRow {
         function: fresh.function,
         sweeps: prev.sweeps.saturating_add(fresh.sweeps),
@@ -729,7 +770,7 @@ fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCov
         regions_covered,
         regions_total,
         frontiers_mapped: prev.frontiers_mapped.max(fresh.frontiers_mapped),
-        open_clusters: fresh.open_clusters,
+        open_clusters,
         last_sweep_date,
         last_sweep_commit,
     }
@@ -1450,6 +1491,162 @@ mod tests {
         assert_eq!(offset.cases_swept, 64);
         assert_eq!(offset.failed, 64);
         assert_eq!(offset.harness_faults, 64);
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn coverage_preserves_untracked_clusters_on_same_commit_skipped_sweep_and_out_of_order_merge() {
+        let base = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-cov-rw8-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+
+        // 1. Two sweeps on the SAME calc_func_commit: the smaller follow-up sweep finds 0 clusters,
+        //    so earlier untracked clusters on the same commit must NOT be wiped.
+        let same_dir = base.join("same-commit");
+        let s1 = same_dir.join("run1");
+        let s2 = same_dir.join("run2");
+        fs::create_dir_all(&s1).unwrap();
+        fs::create_dir_all(&s2).unwrap();
+        fs::write(
+            s1.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "NPV",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 100,
+                "total_matched": 95,
+                "total_mismatched": 5,
+                "total_harness_fault": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "npv-same-1",
+                "finished_utc": "2026-11-24T10:00:00Z",
+                "calc_func_commit": "aaaa1111bbbb2222",
+                "clusters": [{"id": "C01", "key": "npv-untracked-bug", "count": 5}]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            s2.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "NPV",
+                "seed": 2,
+                "dry_run": false,
+                "total_asked": 20,
+                "total_matched": 20,
+                "total_mismatched": 0,
+                "total_harness_fault": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "npv-same-2",
+                "finished_utc": "2026-11-24T11:00:00Z",
+                "calc_func_commit": "aaaa1111bbbb2222",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        // 2. A newer `skipped:dna-fault:*` sweep (0 real Excel comparisons) must NOT wipe prior untracked clusters.
+        let skip_dir = base.join("skipped-followup");
+        let k1 = skip_dir.join("run1");
+        let k2 = skip_dir.join("run2");
+        fs::create_dir_all(&k1).unwrap();
+        fs::create_dir_all(&k2).unwrap();
+        fs::write(
+            k1.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "OFFSET",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 50,
+                "total_matched": 48,
+                "total_mismatched": 2,
+                "total_harness_fault": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "case_list_sha256": "off-real-1",
+                "finished_utc": "2026-11-23T10:00:00Z",
+                "calc_func_commit": "1111aaaa2222bbbb",
+                "clusters": [{"id": "C01", "key": "offset-real-bug", "count": 2}]
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            k2.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "OFFSET",
+                "seed": 2,
+                "dry_run": false,
+                "total_asked": 64,
+                "total_matched": 0,
+                "total_mismatched": 0,
+                "total_harness_fault": 64,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "stop_reason": "skipped:dna-fault:WitnessReferencePosition",
+                "case_list_sha256": "off-skip-2",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "calc_func_commit": "3333cccc4444dddd",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let rows = collect_from_records(&[same_dir, skip_dir], None).unwrap();
+        let npv = rows.iter().find(|r| r.function == "NPV").unwrap();
+        assert_eq!(
+            npv.open_clusters, 1,
+            "follow-up sweep on the same commit must not wipe prior untracked clusters"
+        );
+        let off = rows.iter().find(|r| r.function == "OFFSET").unwrap();
+        assert_eq!(
+            off.open_clusters, 1,
+            "skipped:dna-fault:* sweep must not wipe prior untracked clusters"
+        );
+
+        // 3. Out-of-order `--merge` (merging an older record into a newer TSV row) must NOT overwrite open_clusters.
+        let prev_newer = FuzzCoverageRow {
+            function: "IRR".to_owned(),
+            sweeps: 2,
+            cases_swept: 200,
+            matched: 200,
+            failed: 0,
+            harness_faults: 0,
+            regions_covered: 4,
+            regions_total: 6,
+            frontiers_mapped: 3,
+            open_clusters: 0,
+            last_sweep_date: "2026-11-24".to_owned(),
+            last_sweep_commit: "2222222222".to_owned(),
+        };
+        let fresh_older = FuzzCoverageRow {
+            function: "IRR".to_owned(),
+            sweeps: 1,
+            cases_swept: 100,
+            matched: 90,
+            failed: 10,
+            harness_faults: 0,
+            regions_covered: 3,
+            regions_total: 6,
+            frontiers_mapped: 2,
+            open_clusters: 3,
+            last_sweep_date: "2026-11-22".to_owned(),
+            last_sweep_commit: "1111111111".to_owned(),
+        };
+        let merged = merge_coverage_row(&prev_newer, fresh_older);
+        assert_eq!(merged.last_sweep_date, "2026-11-24");
+        assert_eq!(merged.last_sweep_commit, "2222222222");
+        assert_eq!(
+            merged.open_clusters, 0,
+            "merging an older sweep record must not overwrite newer open_clusters"
+        );
 
         let _ = fs::remove_dir_all(&base);
     }

@@ -260,27 +260,58 @@ pub fn extract_texture_catalogue(
             (TextureKind::BoundaryRepresentative, format!("bnd:{}:{}:{}", f.axis_name, f.kind, f.depth))
         };
 
+        let is_excel_only = matches!(
+            f.transition_kind.as_str(),
+            "excel_only_predicate_flip" | "discrepancy_onset"
+        );
+        let lo_bits = if is_excel_only {
+            f.excel_lo_bits.unwrap_or(f.dna_lo_bits)
+        } else {
+            f.dna_lo_bits
+        };
+        let hi_bits = if is_excel_only {
+            f.excel_hi_bits.unwrap_or(f.dna_hi_bits)
+        } else {
+            f.dna_hi_bits
+        };
         for (side, bits, outcome) in [
-            ("lo", f.dna_lo_bits, &f.dna_lo_outcome),
-            ("hi", f.dna_hi_bits, &f.dna_hi_outcome),
+            ("lo", lo_bits, &f.dna_lo_outcome),
+            ("hi", hi_bits, &f.dna_hi_outcome),
         ] {
             let mut args = f.base_args.clone();
             if !set_axis_f64(&mut args, f.axis, f.axis_cell, f64::from_bits(bits)) {
                 continue;
             }
             let (pred, trace, _) = evaluate_traced(func, &args, &ctx);
-            let why = format!(
-                "{side} side of {} {} frontier on {} (depth={}, scale={}, lo=0x{:016x} {}, hi=0x{:016x} {})",
-                f.transition_kind,
-                f.kind,
-                f.axis_name,
-                f.depth,
-                f.scale,
-                f.dna_lo_bits,
-                f.dna_lo_outcome,
-                f.dna_hi_bits,
-                f.dna_hi_outcome,
-            );
+            let why = if is_excel_only {
+                format!(
+                    "{side} side of {} {} frontier on {} (depth={}, scale={}, excel_lo=0x{:016x} {}, excel_hi=0x{:016x} {}, dna_lo={}, dna_hi={})",
+                    f.transition_kind,
+                    f.kind,
+                    f.axis_name,
+                    f.depth,
+                    f.scale,
+                    lo_bits,
+                    f.excel_lo_outcome.as_deref().unwrap_or("-"),
+                    hi_bits,
+                    f.excel_hi_outcome.as_deref().unwrap_or("-"),
+                    f.dna_lo_outcome,
+                    f.dna_hi_outcome,
+                )
+            } else {
+                format!(
+                    "{side} side of {} {} frontier on {} (depth={}, scale={}, lo=0x{:016x} {}, hi=0x{:016x} {})",
+                    f.transition_kind,
+                    f.kind,
+                    f.axis_name,
+                    f.depth,
+                    f.scale,
+                    f.dna_lo_bits,
+                    f.dna_lo_outcome,
+                    f.dna_hi_bits,
+                    f.dna_hi_outcome,
+                )
+            };
             let entry = TextureCase {
                 id: deterministic_texture_id(func, kind, &args),
                 function: func.clone(),
@@ -709,5 +740,91 @@ mod tests {
         assert!(val.drifted.is_empty());
 
         let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn texture_catalogue_formats_excel_only_frontier_without_claiming_dna_flip() {
+        use super::super::rng::hex_f64;
+
+        let dna_lo = 1.0_f64.to_bits();
+        let dna_hi = 2.0_f64.to_bits();
+        let excel_lo = 10.0_f64.to_bits();
+        let excel_hi = super::super::rng::step_ulps(10.0, 1, true).unwrap().to_bits();
+        let frontier = Frontier {
+            id: "frontier-ABS-001".to_owned(),
+            function: "ABS".to_owned(),
+            axis: 0,
+            axis_cell: None,
+            axis_name: "number".to_owned(),
+            kind: "excel_only:number<->error:Num".to_owned(),
+            base_args: vec![hex_f64(10.0)],
+            dna_lo_bits: dna_lo,
+            dna_hi_bits: dna_hi,
+            dna_lo_outcome: hex_f64(10.0).as_str().unwrap().to_owned(),
+            dna_hi_outcome: hex_f64(10.0).as_str().unwrap().to_owned(),
+            excel_lo_bits: Some(excel_lo),
+            excel_hi_bits: Some(excel_hi),
+            excel_lo_outcome: Some(hex_f64(10.0).as_str().unwrap().to_owned()),
+            excel_hi_outcome: Some("error:Num".to_owned()),
+            shifted_ulps: None,
+            depth: 0,
+            scale: "coarse_discrepancy".to_owned(),
+            transition_kind: "excel_only_predicate_flip".to_owned(),
+            parent_id: None,
+        };
+        let mut cfg = FuzzConfig::default_for("ABS");
+        cfg.budget = 20;
+        cfg.round_size = 20;
+        cfg.dry_run = true;
+        cfg.max_frontiers = 0;
+        cfg.out_dir = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-texture-excel-only-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&cfg.out_dir);
+        let mut summary = execute_dry_run(&cfg).expect("dry run");
+        summary.frontiers = vec![frontier];
+        let spec = DomainSpec::for_function("ABS").unwrap();
+        let cat = extract_texture_catalogue(
+            &cfg,
+            &spec,
+            &summary,
+            &[],
+            &HashMap::new(),
+            "test-commit",
+            32,
+        );
+        let frontier_entries: Vec<&TextureCase> = cat
+            .entries
+            .iter()
+            .filter(|e| e.recipe.region == "frontier:number")
+            .collect();
+        assert_eq!(
+            frontier_entries.len(),
+            2,
+            "expected lo and hi shifted-frontier entries for excel-only frontier, got {frontier_entries:?}"
+        );
+        for entry in &frontier_entries {
+            assert!(
+                entry.why.contains(&format!("excel_lo=0x{excel_lo:016x}"))
+                    && entry.why.contains(&format!("excel_hi=0x{excel_hi:016x}")),
+                "excel-only frontier texture `why` must report excel_lo/excel_hi bits, got: {}",
+                entry.why
+            );
+            assert!(
+                !entry.why.contains(&format!("lo=0x{dna_lo:016x}")),
+                "excel-only frontier texture `why` must not report dna_lo_bits as the frontier coordinate: {}",
+                entry.why
+            );
+        }
+        let arg_bits: BTreeSet<u64> = frontier_entries
+            .iter()
+            .filter_map(|e| super::super::rng::parse_hex_bits(&e.args[0]))
+            .collect();
+        assert!(
+            arg_bits.contains(&excel_lo) && arg_bits.contains(&excel_hi),
+            "excel-only frontier texture entries must probe excel_lo/excel_hi bits, got {arg_bits:?}"
+        );
+        let _ = fs::remove_dir_all(&cfg.out_dir);
     }
 }

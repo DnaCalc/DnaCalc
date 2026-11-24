@@ -14,7 +14,7 @@ use super::cluster::{
     DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, dna_fault_kind,
     is_dna_fault, judge_pair,
 };
-use super::domain::{DomainSpec, ParamKind};
+use super::domain::DomainSpec;
 use super::fractal::{
     FractalConfig, FractalDiscoveryStats, coarse_discrepancy_probe_points, fractal_discover_local,
 };
@@ -47,6 +47,7 @@ pub(super) struct SweepPolicy {
     pause: PathBuf,
     bank_prefix: PathBuf,
     next_chunk: Cell<usize>,
+    next_witness_id: Cell<usize>,
     envs: RefCell<BTreeMap<String, Value>>,
     banked_keys: RefCell<HashSet<String>>,
     recorded_files: RefCell<Vec<PathBuf>>,
@@ -59,6 +60,7 @@ impl SweepPolicy {
             pause,
             bank_prefix,
             next_chunk: Cell::new(0),
+            next_witness_id: Cell::new(1),
             envs: RefCell::new(BTreeMap::new()),
             banked_keys: RefCell::new(HashSet::new()),
             recorded_files: RefCell::new(Vec::new()),
@@ -79,6 +81,7 @@ impl SweepPolicy {
         let mut banked_keys = HashSet::new();
         let mut recorded_files = Vec::new();
         let mut exported_rows = 0usize;
+        let mut max_witness_seq = 0usize;
         let recipe_prefix = format!("{function}-{seed}-");
         if bank_dir.is_dir() {
             let mut prior_paths: Vec<PathBuf> = std::fs::read_dir(bank_dir)
@@ -100,6 +103,14 @@ impl SweepPolicy {
                 let ws = calc_verdict::WitnessSet::decode(&bytes)
                     .map_err(|e| format!("decode {}: {e}", path.display()))?;
                 for w in &ws.witnesses {
+                    if let Some(seq) = w
+                        .id
+                        .rsplit('-')
+                        .next()
+                        .and_then(|s| s.parse::<usize>().ok())
+                    {
+                        max_witness_seq = max_witness_seq.max(seq);
+                    }
                     if banked_keys.insert(canonical_case_key(&ws.function, &w.args)) {
                         exported_rows += 1;
                     }
@@ -107,10 +118,12 @@ impl SweepPolicy {
                 recorded_files.push(path);
             }
         }
+        let next_witness_id = max_witness_seq.max(exported_rows) + 1;
         Ok(Self {
             pause,
             bank_prefix: bank_dir.join(format!("{function}-{seed}-{attempt:08}")),
             next_chunk: Cell::new(0),
+            next_witness_id: Cell::new(next_witness_id),
             envs: RefCell::new(BTreeMap::new()),
             banked_keys: RefCell::new(banked_keys),
             recorded_files: RefCell::new(recorded_files),
@@ -164,7 +177,8 @@ impl SweepPolicy {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let encoded = super::cluster::encode_witness_set_json(
+        let start_id = self.next_witness_id.get();
+        let encoded = super::cluster::encode_witness_set_json_from(
             &cfg.function,
             &cfg.lane,
             &cfg.out_dir.join("attempt.json").display().to_string(),
@@ -173,11 +187,13 @@ impl SweepPolicy {
             &all,
             &touchstone_bulk_context(),
             &fresh,
+            start_id,
         )?;
         let temp = path.with_extension("tmp");
         std::fs::write(&temp, encoded)
             .and_then(|_| std::fs::rename(temp, &path))
             .map_err(|e| format!("{}: {e}", path.display()))?;
+        self.next_witness_id.set(start_id.saturating_add(fresh.len()));
         self.recorded_files.borrow_mut().push(path);
         self.exported_rows
             .set(self.exported_rows.get().saturating_add(fresh.len()));
@@ -1514,9 +1530,10 @@ pub fn fractal_refine_coarse_discrepancies_excel(
         return Ok(0);
     }
 
-    // Collect all present numeric axes for each exemplar (up to 10 axes per exemplar so 5-9 arg
-    // functions like RATE, YIELD, PV, FV, PMT, ODDFPRICE escalate along pv/fv/type/guess/rate/pr/basis).
-    const MAX_COARSE_AXES_PER_EXEMPLAR: usize = 10;
+    // Collect all present numeric axes for each exemplar across all MAX_FUZZ_ARITY (12) parameters,
+    // plus additional cells (r >= 1, c >= 1) of ArrayNumeric and CellRange arguments.
+    const MAX_COARSE_TARGETS_PER_EXEMPLAR: usize = 16;
+    const ARRAY_PROBE_CELLS: &[(usize, usize)] = &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)];
     #[derive(Clone)]
     struct TargetAxis {
         base_args: Vec<Value>,
@@ -1528,32 +1545,77 @@ pub fn fractal_refine_coarse_discrepancies_excel(
     let mut targets: Vec<TargetAxis> = Vec::new();
     for ex in &exemplars {
         let mut added = 0usize;
+        let mut first_cell_by_param: Vec<Option<(usize, usize)>> = vec![None; spec.params.len()];
+        // Pass 1: one target per numeric parameter across ALL parameters (up to MAX_FUZZ_ARITY = 12)
+        // so high-index axes (10, 11) are never starved by earlier array parameters.
+        // Inspect the actual exemplar argument shape so scalar arguments passed to variadic
+        // ArrayNumeric functions (e.g. SUM, AVERAGE, MIN, MAX) are probed as scalars, while 2D
+        // arrays and CellRanges are probed cell-by-cell.
         for (i, p) in spec.params.iter().enumerate() {
-            if added >= MAX_COARSE_AXES_PER_EXEMPLAR {
+            if added >= MAX_COARSE_TARGETS_PER_EXEMPLAR {
                 break;
             }
-            let cell = if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
-                [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0)]
-                    .into_iter()
-                    .find(|&rc| get_axis_bits(&ex.case.args, i, Some(rc)).is_some())
-                    .or(Some((0, 0)))
-            } else {
-                None
-            };
-            if let Some(bits) = get_axis_bits(&ex.case.args, i, cell) {
-                let axis_name = match cell {
-                    None => p.name.clone(),
-                    Some((r, 0)) => format!("{}[{r}]", p.name),
-                    Some((r, c)) => format!("{}[{r},{c}]", p.name),
+            if let Some(bits) = get_axis_bits(&ex.case.args, i, None) {
+                targets.push(TargetAxis {
+                    base_args: ex.case.args.clone(),
+                    axis: i,
+                    cell: None,
+                    axis_name: p.name.clone(),
+                    anchor_bits: bits,
+                });
+                added += 1;
+            } else if let Some(rc) = ARRAY_PROBE_CELLS
+                .iter()
+                .copied()
+                .find(|&rc| get_axis_bits(&ex.case.args, i, Some(rc)).is_some())
+            {
+                let Some(bits) = get_axis_bits(&ex.case.args, i, Some(rc)) else {
+                    continue;
+                };
+                first_cell_by_param[i] = Some(rc);
+                let axis_name = match rc {
+                    (r, 0) => format!("{}[{r}]", p.name),
+                    (r, c) => format!("{}[{r},{c}]", p.name),
                 };
                 targets.push(TargetAxis {
                     base_args: ex.case.args.clone(),
                     axis: i,
-                    cell,
+                    cell: Some(rc),
                     axis_name,
                     anchor_bits: bits,
                 });
                 added += 1;
+            }
+        }
+        // Pass 2: additional numeric cells (r >= 1, c >= 1) inside ArrayNumeric / CellRange args.
+        for (i, p) in spec.params.iter().enumerate() {
+            if added >= MAX_COARSE_TARGETS_PER_EXEMPLAR {
+                break;
+            }
+            if first_cell_by_param[i].is_none() {
+                continue;
+            }
+            for &rc in ARRAY_PROBE_CELLS {
+                if added >= MAX_COARSE_TARGETS_PER_EXEMPLAR {
+                    break;
+                }
+                if first_cell_by_param[i] == Some(rc) {
+                    continue;
+                }
+                if let Some(bits) = get_axis_bits(&ex.case.args, i, Some(rc)) {
+                    let axis_name = match rc {
+                        (r, 0) => format!("{}[{r}]", p.name),
+                        (r, c) => format!("{}[{r},{c}]", p.name),
+                    };
+                    targets.push(TargetAxis {
+                        base_args: ex.case.args.clone(),
+                        axis: i,
+                        cell: Some(rc),
+                        axis_name,
+                        anchor_bits: bits,
+                    });
+                    added += 1;
+                }
             }
         }
     }
@@ -4710,6 +4772,555 @@ mod tests {
             f.excel_hi_bits,
             Some(step_ulps(secret_cut, 1, true).unwrap().to_bits())
         );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn bisect_shifted_frontiers_skips_dna_fault_predicate_flip_frontiers() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-bisect-fault-skip-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let query_count = Arc::new(AtomicUsize::new(0));
+        let query_count_srv = Arc::clone(&query_count);
+        let broker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, _body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-fault-skip", "envs": {"e1": {"engine": "excel"}}}),
+                    ),
+                    b'S' => {
+                        query_count_srv.fetch_add(1, Ordering::SeqCst);
+                        panic!("DNA-side fault:* predicate_flip frontier must never submit to Excel");
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let mut cfg = FuzzConfig::default_for("ABS");
+        cfg.out_dir = tmp.join("out");
+        let lo = 1.0_f64.to_bits();
+        let hi = step_ulps(1.0, 1, true).unwrap().to_bits();
+        let mut frontiers = vec![
+            Frontier {
+                id: "frontier-ABS-f1".to_owned(),
+                function: "ABS".to_owned(),
+                axis: 0,
+                axis_cell: None,
+                axis_name: "number".to_owned(),
+                kind: "number<->fault:NotImplemented".to_owned(),
+                base_args: vec![hex_f64(1.0)],
+                dna_lo_bits: lo,
+                dna_hi_bits: hi,
+                dna_lo_outcome: "0x3ff0000000000000".to_owned(),
+                dna_hi_outcome: "fault:NotImplemented".to_owned(),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "predicate_flip".to_owned(),
+                parent_id: None,
+            },
+            Frontier {
+                id: "frontier-ABS-f2".to_owned(),
+                function: "ABS".to_owned(),
+                axis: 0,
+                axis_cell: None,
+                axis_name: "number".to_owned(),
+                kind: "fault:WitnessReferencePosition<->error:Ref".to_owned(),
+                base_args: vec![hex_f64(1.0)],
+                dna_lo_bits: lo,
+                dna_hi_bits: hi,
+                dna_lo_outcome: "fault:WitnessReferencePosition".to_owned(),
+                dna_hi_outcome: "error:Ref".to_owned(),
+                excel_lo_bits: None,
+                excel_hi_bits: None,
+                excel_lo_outcome: None,
+                excel_hi_outcome: None,
+                shifted_ulps: None,
+                depth: 0,
+                scale: "ulp".to_owned(),
+                transition_kind: "predicate_flip".to_owned(),
+                parent_id: None,
+            },
+        ];
+
+        // expand_frontier_windows_with_refs must emit 0 cases for fault:* frontiers.
+        let mut seen = HashSet::new();
+        let mut next_id = 1;
+        let expanded = expand_frontier_windows_with_refs(
+            &frontiers,
+            4,
+            &touchstone_bulk_context(),
+            &mut seen,
+            0,
+            &mut next_id,
+        );
+        assert!(
+            expanded.cases.is_empty() && expanded.window_refs.is_empty(),
+            "fault:* frontiers must not expand frontier windows"
+        );
+
+        let mut excel_answers = HashMap::new();
+        let mut hasher = StreamCaseHasher::new("ABS");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut discrepancies = Vec::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (
+            mut generated,
+            mut asked,
+            mut matched,
+            mut mismatched,
+            mut harness_fault,
+            mut unread,
+            mut crashed,
+        ) = (0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
+        let mut excel_s = 0.0;
+
+        bisect_shifted_frontiers_excel(
+            &cfg,
+            &client,
+            &mut frontiers,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discrepancies,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            0,
+        )
+        .expect("bisect_shifted_frontiers_excel succeeded");
+
+        drop(client);
+        broker.join().unwrap();
+        assert_eq!(query_count.load(Ordering::SeqCst), 0);
+        assert_eq!(asked, 0);
+        assert!(frontiers.iter().all(|f| f.excel_lo_bits.is_none()));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn coarse_discrepancy_escalation_covers_axis_11_and_array_row_1() {
+        // Part A: 12-argument SUM where Excel returns #NUM! iff arg[11] > 50.0.
+        let listener_a = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port_a = listener_a.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-coarse-all-axes-{port_a}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let ep_a = tmp.join("ep-a.json");
+        std::fs::write(
+            &ep_a,
+            json!({"host": "127.0.0.1", "port": port_a, "token": "t"}).to_string(),
+        )
+        .unwrap();
+        let cut_a = 50.0_f64;
+        let _srv_a = thread::spawn(move || {
+            let (mut stream, _) = listener_a.accept().unwrap();
+            let ctx = touchstone_bulk_context();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-sum12", "envs": {"e1": {"engine": "excel"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_owned();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let width = g["k"].as_str().unwrap().split(',').count();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                let mut args_json = Vec::with_capacity(width);
+                                for c in 0..width {
+                                    let h = flat[r * width + c].as_str().unwrap();
+                                    ity.push('n');
+                                    iv.push(Value::String(h.to_owned()));
+                                    args_json.push(Value::String(format!("0x{h}")));
+                                }
+                                let x11 = f64::from_bits(
+                                    u64::from_str_radix(flat[r * width + 11].as_str().unwrap(), 16)
+                                        .unwrap(),
+                                );
+                                if x11 > cut_a {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#NUM!".to_owned()));
+                                } else {
+                                    let (dna, _, _) = evaluate_traced("SUM", &args_json, &ctx);
+                                    ty.push('n');
+                                    out_v.push(Value::String(
+                                        dna.strip_prefix("0x").unwrap_or("0000000000000000").to_owned(),
+                                    ));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client_a = connect_client(Some(&ep_a)).unwrap();
+        let spec_a = DomainSpec::for_function("SUM").unwrap();
+        let ctx = touchstone_bulk_context();
+        let mut cfg_a = FuzzConfig::default_for("SUM");
+        cfg_a.out_dir = tmp.join("out-a");
+        let mut disc_args_a: Vec<Value> = (0..12).map(|_| hex_f64(1.0)).collect();
+        disc_args_a[11] = hex_f64(100.0);
+        let (pred_a, trace_a, oc_a) = evaluate_traced("SUM", &disc_args_a, &ctx);
+        let mut discrepancies_a = vec![DiscrepancyRow {
+            case: FuzzCase {
+                id: "fuzz-SUM-r00-000001".to_owned(),
+                region: "special_values".to_owned(),
+                round: 0,
+                args: disc_args_a.clone(),
+                prediction: pred_a,
+                trace: trace_a,
+                outcome_class: oc_a,
+            },
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|sum12".to_owned(),
+        }];
+        let mut frontiers_a = Vec::new();
+        let mut fstats_a = FractalDiscoveryStats::default();
+        let mut seen_a = HashSet::new();
+        let mut excel_a = HashMap::new();
+        let key_a = canonical_case_key("SUM", &disc_args_a);
+        seen_a.insert(key_a.clone());
+        excel_a.insert(key_a, "error:Num".to_owned());
+        let mut hasher_a = StreamCaseHasher::new("SUM");
+        let (mut ph_a, mut envs_a, mut w_a, mut rs_a, mut kc_a, mut dp_a, mut fs_a) = (
+            Vec::new(),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let (mut nid, mut generated_a, mut ask, mut mat, mut mis, mut hf, mut unr, mut cr) =
+            (1, 0, 0, 0, 0, 0, 0, 0);
+        let mut hfs = BTreeMap::new();
+        let mut es = 0.0;
+        let added_a = fractal_refine_coarse_discrepancies_excel(
+            &cfg_a,
+            &spec_a,
+            &client_a,
+            &mut frontiers_a,
+            &mut fstats_a,
+            &mut seen_a,
+            &mut excel_a,
+            &mut hasher_a,
+            &mut ph_a,
+            &mut envs_a,
+            &mut w_a,
+            &mut rs_a,
+            &mut kc_a,
+            &mut discrepancies_a,
+            &mut dp_a,
+            &mut fs_a,
+            &mut nid,
+            &mut generated_a,
+            &mut ask,
+            &mut mat,
+            &mut mis,
+            &mut hf,
+            &mut hfs,
+            &mut unr,
+            &mut cr,
+            &mut es,
+            1,
+            1,
+        )
+        .expect("SUM axis 11 escalation");
+        assert!(
+            added_a >= 1 && frontiers_a.iter().any(|f| f.axis == 11),
+            "coarse escalation must cover axis 11 (of 12) on SUM, got frontiers: {frontiers_a:?}"
+        );
+
+        // Part B: ArrayNumeric IRR with 3 rows where Excel returns #NUM! iff cell (1, 0) > 50.0.
+        let listener_b = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port_b = listener_b.local_addr().unwrap().port();
+        let ep_b = tmp.join("ep-b.json");
+        std::fs::write(
+            &ep_b,
+            json!({"host": "127.0.0.1", "port": port_b, "token": "t"}).to_string(),
+        )
+        .unwrap();
+        let cut_b = 50.0_f64;
+        let _srv_b = thread::spawn(move || {
+            let (mut stream, _) = listener_b.accept().unwrap();
+            let ctx = touchstone_bulk_context();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-irr-row1", "envs": {"e1": {"engine": "excel"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_owned();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                // Group token is "a3x1" (flattened 3 hex strings per row).
+                                let h0 = flat[r * 3].as_str().unwrap();
+                                let h1 = flat[r * 3 + 1].as_str().unwrap();
+                                let h2 = flat[r * 3 + 2].as_str().unwrap();
+                                for h in [h0, h1, h2] {
+                                    ity.push('n');
+                                    iv.push(Value::String(h.to_owned()));
+                                }
+                                let v1 = f64::from_bits(u64::from_str_radix(h1, 16).unwrap());
+                                if v1 > cut_b {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#NUM!".to_owned()));
+                                } else {
+                                    let args_json = vec![json!([
+                                        [format!("0x{h0}")],
+                                        [format!("0x{h1}")],
+                                        [format!("0x{h2}")]
+                                    ])];
+                                    let (dna, _, _) = evaluate_traced("IRR", &args_json, &ctx);
+                                    if let Some(hex) = dna.strip_prefix("0x") {
+                                        ty.push('n');
+                                        out_v.push(Value::String(hex.to_owned()));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#NUM!".to_owned()));
+                                    }
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client_b = connect_client(Some(&ep_b)).unwrap();
+        let spec_b = DomainSpec::for_function("IRR").unwrap();
+        let mut cfg_b = FuzzConfig::default_for("IRR");
+        cfg_b.out_dir = tmp.join("out-b");
+        let disc_args_b = vec![json!([[hex_f64(-100.0)], [hex_f64(60.0)], [hex_f64(60.0)]])];
+        let (pred_b, trace_b, oc_b) = evaluate_traced("IRR", &disc_args_b, &ctx);
+        let mut discrepancies_b = vec![DiscrepancyRow {
+            case: FuzzCase {
+                id: "fuzz-IRR-r00-000001".to_owned(),
+                region: "irr_multi_flow_ordinary".to_owned(),
+                round: 0,
+                args: disc_args_b.clone(),
+                prediction: pred_b,
+                trace: trace_b,
+                outcome_class: oc_b,
+            },
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|irr_row1".to_owned(),
+        }];
+        let mut frontiers_b = Vec::new();
+        let mut fstats_b = FractalDiscoveryStats::default();
+        let mut seen_b = HashSet::new();
+        let mut excel_b = HashMap::new();
+        let key_b = canonical_case_key("IRR", &disc_args_b);
+        seen_b.insert(key_b.clone());
+        excel_b.insert(key_b, "error:Num".to_owned());
+        let mut hasher_b = StreamCaseHasher::new("IRR");
+        let (mut ph_b, mut envs_b, mut w_b, mut rs_b, mut kc_b, mut dp_b, mut fs_b) = (
+            Vec::new(),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        let (mut nid2, mut gen2, mut ask2, mut mat2, mut mis2, mut hf2, mut unr2, mut cr2) =
+            (1, 0, 0, 0, 0, 0, 0, 0);
+        let mut hfs2 = BTreeMap::new();
+        let mut es2 = 0.0;
+        let added_b = fractal_refine_coarse_discrepancies_excel(
+            &cfg_b,
+            &spec_b,
+            &client_b,
+            &mut frontiers_b,
+            &mut fstats_b,
+            &mut seen_b,
+            &mut excel_b,
+            &mut hasher_b,
+            &mut ph_b,
+            &mut envs_b,
+            &mut w_b,
+            &mut rs_b,
+            &mut kc_b,
+            &mut discrepancies_b,
+            &mut dp_b,
+            &mut fs_b,
+            &mut nid2,
+            &mut gen2,
+            &mut ask2,
+            &mut mat2,
+            &mut mis2,
+            &mut hf2,
+            &mut hfs2,
+            &mut unr2,
+            &mut cr2,
+            &mut es2,
+            1,
+            1,
+        )
+        .expect("IRR cell (1,0) escalation");
+        assert!(
+            added_b >= 1 && frontiers_b.iter().any(|f| f.axis == 0 && f.axis_cell == Some((1, 0))),
+            "coarse escalation must probe ArrayNumeric cell (1, 0), got frontiers: {frontiers_b:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sweep_resume_assigns_unique_witness_ids_across_chunks() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-chunk-ids-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let out_dir = tmp.join("out");
+        let bank_dir = tmp.join("bank-rows");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        let mut cfg = FuzzConfig::default_for("ABS");
+        cfg.lane = "fz4".to_owned();
+        cfg.out_dir = out_dir.clone();
+        let mut envs = BTreeMap::new();
+        envs.insert(
+            "e1".to_owned(),
+            json!({"file_version": "16.0.20625.20108", "cpu": "Fake", "machine": "x86-64"}),
+        );
+        let make_row = |x: f64| DiscrepancyRow {
+            case: FuzzCase {
+                id: format!("fuzz-ABS-{x}"),
+                region: "special_values".to_owned(),
+                round: 0,
+                args: vec![hex_f64(x)],
+                prediction: hex_f64(x.abs()).as_str().unwrap().to_owned(),
+                trace: calc_func::trace::RouteTrace::default(),
+                outcome_class: "number".to_owned(),
+            },
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|test".to_owned(),
+        };
+
+        // Attempt 1 writes chunk 0000 and chunk 0001.
+        let p1 = SweepPolicy::for_attempt(tmp.join("PAUSE"), &bank_dir, "ABS", 42, 1).unwrap();
+        p1.record(&cfg, &envs, &[make_row(1.0), make_row(2.0)]).unwrap();
+        p1.record(&cfg, &envs, &[make_row(3.0)]).unwrap();
+
+        // Attempt 2 resumes and writes chunk 0000 for attempt 2.
+        let p2 = SweepPolicy::for_attempt(tmp.join("PAUSE"), &bank_dir, "ABS", 42, 2).unwrap();
+        p2.record(&cfg, &envs, &[make_row(4.0)]).unwrap();
+
+        let mut ids = HashSet::new();
+        for path in p2.recorded_files() {
+            let ws = WitnessSet::decode(&std::fs::read(&path).unwrap()).unwrap();
+            for w in ws.witnesses {
+                assert!(
+                    ids.insert(w.id.clone()),
+                    "duplicate witness id {} across scheduler chunk files (in {})",
+                    w.id,
+                    path.display()
+                );
+            }
+        }
+        assert_eq!(ids.len(), 4);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

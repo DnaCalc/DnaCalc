@@ -526,7 +526,9 @@ pub fn build_patient_zero_suite(
         if primary_cases.len() >= 1 + pz_cfg.neighbourhood_budget {
             break;
         }
-        let cell = if matches!(param.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
+        let cell = if get_axis_bits(&seed.args, axis, None).is_some() {
+            None
+        } else if matches!(param.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
             [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0)]
                 .into_iter()
                 .find(|&rc| get_axis_bits(&seed.args, axis, Some(rc)).is_some())
@@ -1289,6 +1291,30 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
                 cases_path.display(),
                 persisted.function,
                 recipe.function
+            ));
+        }
+        let expected_sha = recipe.cases_sha256.as_deref().ok_or_else(|| {
+            format!(
+                "{}: resweep recipe lists cases_file {:?} but is missing cases_sha256",
+                recipe_path.display(),
+                cases_rel
+            )
+        })?;
+        let mut cases_hasher = StreamCaseHasher::new(&persisted.function);
+        for c in &persisted.primary_cases {
+            cases_hasher.update_case(&c.region, &c.args);
+        }
+        for (sfunc, scases) in &persisted.sibling_cases {
+            for c in scases {
+                cases_hasher.update_case(&format!("{sfunc}:{}", c.region), &c.args);
+            }
+        }
+        let computed_sha = cases_hasher.finish_hex();
+        if persisted.cases_sha256 != expected_sha || computed_sha != expected_sha {
+            return Err(format!(
+                "{}: resweep cases_sha256 mismatch (computed {computed_sha}, cases file {}, recipe {expected_sha})",
+                cases_path.display(),
+                persisted.cases_sha256
             ));
         }
         let ctx = touchstone_bulk_context();
@@ -2247,6 +2273,23 @@ mod tests {
         let recipe_dir = tmp.join("recipe");
         fs::create_dir_all(&recipe_dir).unwrap();
         let recipe_path = recipe_dir.join("resweep-recipe.json");
+        let primary_cases = vec![
+            PersistedResweepCase {
+                id: "pz-VALUE-000001".to_owned(),
+                region: "pz:seed".to_owned(),
+                args: vec![json!("123")],
+            },
+            PersistedResweepCase {
+                id: "pz-VALUE-000002".to_owned(),
+                region: "pz:locale".to_owned(),
+                args: vec![json!("1\u{00a0}234.5")],
+            },
+        ];
+        let mut cases_hasher = StreamCaseHasher::new("VALUE");
+        for c in &primary_cases {
+            cases_hasher.update_case(&c.region, &c.args);
+        }
+        let cases_sha = cases_hasher.finish_hex();
         let recipe = ResweepRecipe {
             format: RESWEEP_RECIPE_FORMAT.to_owned(),
             generator_version: GENERATOR_VERSION.to_owned(),
@@ -2276,26 +2319,15 @@ mod tests {
             initial_sibling_discrepancies: BTreeMap::new(),
             initial_clusters: vec![],
             cases_file: Some("resweep-cases.json".to_owned()),
-            cases_sha256: None,
+            cases_sha256: Some(cases_sha.clone()),
         };
         fs::write(&recipe_path, serde_json::to_string_pretty(&recipe).unwrap()).unwrap();
         let cases_doc = ResweepCaseList {
             format: RESWEEP_CASES_FORMAT.to_owned(),
             function: "VALUE".to_owned(),
-            primary_cases: vec![
-                PersistedResweepCase {
-                    id: "pz-VALUE-000001".to_owned(),
-                    region: "pz:seed".to_owned(),
-                    args: vec![json!("123")],
-                },
-                PersistedResweepCase {
-                    id: "pz-VALUE-000002".to_owned(),
-                    region: "pz:locale".to_owned(),
-                    args: vec![json!("1\u{00a0}234.5")],
-                },
-            ],
+            primary_cases,
             sibling_cases: BTreeMap::new(),
-            cases_sha256: "test".to_owned(),
+            cases_sha256: cases_sha,
         };
         fs::write(
             recipe_dir.join("resweep-cases.json"),
@@ -2314,6 +2346,134 @@ mod tests {
             verdict.closure_reason.contains("1 harness_fault"),
             "closure_reason must report harness_fault count, got {:?}",
             verdict.closure_reason
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn execute_resweep_rejects_tampered_or_truncated_cases_hash() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-resweep-hash-check-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+        let recipe_dir = tmp.join("recipe");
+        fs::create_dir_all(&recipe_dir).unwrap();
+
+        let primary_cases = vec![
+            PersistedResweepCase {
+                id: "pz-ABS-000001".to_owned(),
+                region: "pz:seed".to_owned(),
+                args: vec![hex_f64(-5.0)],
+            },
+            PersistedResweepCase {
+                id: "pz-ABS-000002".to_owned(),
+                region: "pz:neighbourhood:number".to_owned(),
+                args: vec![hex_f64(-4.0)],
+            },
+        ];
+        let mut hasher = StreamCaseHasher::new("ABS");
+        for c in &primary_cases {
+            hasher.update_case(&c.region, &c.args);
+        }
+        let valid_sha = hasher.finish_hex();
+
+        let recipe_path = recipe_dir.join("resweep-recipe.json");
+        let cases_path = recipe_dir.join("resweep-cases.json");
+        let make_recipe = |sha: Option<String>| ResweepRecipe {
+            format: RESWEEP_RECIPE_FORMAT.to_owned(),
+            generator_version: GENERATOR_VERSION.to_owned(),
+            created_utc: "2026-11-24T12:00:00Z".to_owned(),
+            lane: "fz4".to_owned(),
+            function: "ABS".to_owned(),
+            patient_zero: PatientZeroSeed {
+                id: "pz-abs".to_owned(),
+                function: "ABS".to_owned(),
+                args: vec![hex_f64(-5.0)],
+                expected: None,
+                cluster_key: None,
+            },
+            target_route_mask: "0x0".to_owned(),
+            target_predicate: "number".to_owned(),
+            target_outcome_class: "number".to_owned(),
+            siblings: vec![],
+            seed: 1,
+            neighbourhood_budget: 2,
+            same_route_budget: 0,
+            sibling_budget: 0,
+            fractal_depth: 0,
+            max_frontiers: 0,
+            frontier_window: 0,
+            initial_primary_asked: 2,
+            initial_primary_discrepancies: 1,
+            initial_sibling_discrepancies: BTreeMap::new(),
+            initial_clusters: vec![],
+            cases_file: Some("resweep-cases.json".to_owned()),
+            cases_sha256: sha,
+        };
+        let mut cfg = FuzzConfig::default_for("ABS");
+        cfg.dry_run = true;
+        cfg.out_dir = tmp.join("out");
+
+        // 1. Truncated primary_cases (even empty, with stale valid_sha in both files) must be rejected.
+        fs::write(
+            &recipe_path,
+            serde_json::to_string_pretty(&make_recipe(Some(valid_sha.clone()))).unwrap(),
+        )
+        .unwrap();
+        let truncated_doc = ResweepCaseList {
+            format: RESWEEP_CASES_FORMAT.to_owned(),
+            function: "ABS".to_owned(),
+            primary_cases: vec![],
+            sibling_cases: BTreeMap::new(),
+            cases_sha256: valid_sha.clone(),
+        };
+        fs::write(&cases_path, serde_json::to_string_pretty(&truncated_doc).unwrap()).unwrap();
+        let err1 = execute_resweep(&cfg, &recipe_path)
+            .expect_err("execute_resweep must reject truncated resweep-cases.json");
+        assert!(
+            err1.contains("cases_sha256"),
+            "expected cases_sha256 error on truncated cases, got: {err1}"
+        );
+
+        // 2. Re-hashed truncated cases file whose hash disagrees with recipe.cases_sha256 must be rejected.
+        let trunc_hasher = StreamCaseHasher::new("ABS");
+        let trunc_sha = trunc_hasher.finish_hex();
+        let rehashed_trunc = ResweepCaseList {
+            format: RESWEEP_CASES_FORMAT.to_owned(),
+            function: "ABS".to_owned(),
+            primary_cases: vec![],
+            sibling_cases: BTreeMap::new(),
+            cases_sha256: trunc_sha,
+        };
+        fs::write(&cases_path, serde_json::to_string_pretty(&rehashed_trunc).unwrap()).unwrap();
+        let err2 = execute_resweep(&cfg, &recipe_path)
+            .expect_err("execute_resweep must reject cases_sha256 mismatch against recipe");
+        assert!(
+            err2.contains("cases_sha256"),
+            "expected cases_sha256 mismatch error, got: {err2}"
+        );
+
+        // 3. Recipe listing cases_file without cases_sha256 must be rejected.
+        fs::write(
+            &recipe_path,
+            serde_json::to_string_pretty(&make_recipe(None)).unwrap(),
+        )
+        .unwrap();
+        let valid_doc = ResweepCaseList {
+            format: RESWEEP_CASES_FORMAT.to_owned(),
+            function: "ABS".to_owned(),
+            primary_cases,
+            sibling_cases: BTreeMap::new(),
+            cases_sha256: valid_sha,
+        };
+        fs::write(&cases_path, serde_json::to_string_pretty(&valid_doc).unwrap()).unwrap();
+        let err3 = execute_resweep(&cfg, &recipe_path)
+            .expect_err("execute_resweep must reject recipe with cases_file but missing cases_sha256");
+        assert!(
+            err3.contains("cases_sha256"),
+            "expected missing cases_sha256 error, got: {err3}"
         );
 
         let _ = fs::remove_dir_all(&tmp);

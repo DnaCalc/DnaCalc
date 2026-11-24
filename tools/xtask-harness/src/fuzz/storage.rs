@@ -423,14 +423,29 @@ pub fn verify_sweep_storage_policy(
     } else {
         Vec::new()
     };
-    let known_bank_names: HashSet<String> = bank_files
+    let known_bank_paths: HashSet<PathBuf> = bank_files
         .iter()
-        .filter(|p| p.parent().is_some_and(|parent| parent == out_dir))
-        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()))
+        .map(|p| fs::canonicalize(p).unwrap_or_else(|_| p.clone()))
         .collect();
 
-    // Enforce an explicit allowlist of sweep output files + inspect unexpected files and
-    // summary.json so matching Excel readings cannot hide under arbitrary filenames.
+    fn collect_files_recursive(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
+        let mut children: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        children.sort();
+        for path in children {
+            if path.is_dir() {
+                collect_files_recursive(&path, out);
+            } else if path.is_file() {
+                out.push(path);
+            }
+        }
+    }
+
+    // Enforce an explicit allowlist of sweep output files (including recursive subdirectories) +
+    // inspect unexpected files and summary.json so matching Excel readings cannot hide anywhere
+    // under out_dir.
     const ALLOWED_EXACT: &[&str] = &[
         "recipe.json",
         "summary.json",
@@ -450,67 +465,67 @@ pub fn verify_sweep_storage_policy(
         "resweep-cases.json",
         "resweep-verdict.json",
     ];
-    if let Ok(entries) = fs::read_dir(out_dir) {
-        let mut sorted_entries: Vec<PathBuf> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.is_file())
-            .collect();
-        sorted_entries.sort();
-        for path in sorted_entries {
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_ascii_lowercase())
-                .unwrap_or_default();
-            if name == "summary.json" {
-                if let Ok(raw_summary) = fs::read_to_string(&path)
-                    && let Ok(val) = serde_json::from_str::<Value>(&raw_summary)
-                    && (val.get("excel_answers").is_some()
-                        || val.get("matched_readings").is_some()
-                        || val.get("all_answers").is_some())
-                {
-                    violations.push("summary.json embeds forbidden matching Excel readings".to_owned());
-                }
-                continue;
-            }
-            if ALLOWED_EXACT.contains(&name.as_str())
-                || name.ends_with("-predictions.jsonl")
-                || known_bank_names.contains(&name)
+    let mut sorted_entries: Vec<PathBuf> = Vec::new();
+    collect_files_recursive(out_dir, &mut sorted_entries);
+    for path in sorted_entries {
+        let rel = path.strip_prefix(out_dir).unwrap_or(&path);
+        let rel_display = rel.to_string_lossy().replace('\\', "/");
+        let is_top_level = rel.components().count() == 1;
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        let canon = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+        if is_top_level && name == "summary.json" {
+            if let Ok(raw_summary) = fs::read_to_string(&path)
+                && let Ok(val) = serde_json::from_str::<Value>(&raw_summary)
+                && (val.get("excel_answers").is_some()
+                    || val.get("matched_readings").is_some()
+                    || val.get("all_answers").is_some())
             {
-                continue;
+                violations.push("summary.json embeds forbidden matching Excel readings".to_owned());
             }
-            // Any file outside the sweep output allowlist is a storage-policy violation; inspect
-            // its contents for clearer diagnostics when it holds WitnessSet or Excel readings.
-            let mut detail = format!("unexpected file outside sweep output allowlist: {name}");
-            if let Ok(bytes) = fs::read(&path) {
-                if let Ok(ws) = WitnessSet::decode(&bytes) {
-                    let exact_matches = ws
-                        .witnesses
-                        .iter()
-                        .filter(|w| {
-                            w.calc_func.as_deref().is_some_and(|cf| {
-                                super::cluster::judge_pair(&w.expected, cf).0
-                                    == calc_verdict::Severity::Exact
-                            })
+            continue;
+        }
+        if known_bank_paths.contains(&canon)
+            || (is_top_level
+                && (ALLOWED_EXACT.contains(&name.as_str())
+                    || name.ends_with("-predictions.jsonl")))
+        {
+            continue;
+        }
+        // Any file outside the sweep output allowlist (including nested subdirectories) is a
+        // storage-policy violation; inspect its contents for clearer diagnostics when it holds
+        // WitnessSet or Excel readings.
+        let mut detail = format!("unexpected file outside sweep output allowlist: {rel_display}");
+        if let Ok(bytes) = fs::read(&path) {
+            if let Ok(ws) = WitnessSet::decode(&bytes) {
+                let exact_matches = ws
+                    .witnesses
+                    .iter()
+                    .filter(|w| {
+                        w.calc_func.as_deref().is_some_and(|cf| {
+                            super::cluster::judge_pair(&w.expected, cf).0
+                                == calc_verdict::Severity::Exact
                         })
-                        .count();
-                    if exact_matches > 0 {
-                        detail = format!(
-                            "forbidden WitnessSet file in sweep output contains {exact_matches} matching rows: {name}"
-                        );
-                    }
-                } else if let Ok(val) = serde_json::from_slice::<Value>(&bytes)
-                    && (val.get("excel_answers").is_some()
-                        || val.get("matched_readings").is_some()
-                        || val.get("all_answers").is_some())
-                {
+                    })
+                    .count();
+                if exact_matches > 0 {
                     detail = format!(
-                        "forbidden matching-readings JSON found in sweep output: {name}"
+                        "forbidden WitnessSet file in sweep output contains {exact_matches} matching rows: {rel_display}"
                     );
                 }
+            } else if let Ok(val) = serde_json::from_slice::<Value>(&bytes)
+                && (val.get("excel_answers").is_some()
+                    || val.get("matched_readings").is_some()
+                    || val.get("all_answers").is_some())
+            {
+                detail = format!(
+                    "forbidden matching-readings JSON found in sweep output: {rel_display}"
+                );
             }
-            violations.push(detail);
         }
+        violations.push(detail);
     }
     if recipe.storage_policy.discrepancy_rows_exported > 0 && bank_files.is_empty() {
         violations.push(
@@ -519,17 +534,23 @@ pub fn verify_sweep_storage_policy(
         );
     }
     let mut seen_bank_keys: HashSet<String> = HashSet::new();
+    let mut seen_bank_ids: HashSet<String> = HashSet::new();
     for bpath in &bank_files {
         if !bpath.is_file() {
-            if !recipe.storage_policy.bank_rows_files.is_empty() {
-                violations.push(format!("listed bank-rows file missing: {}", bpath.display()));
-            }
+            violations.push(format!("listed bank-rows file missing: {}", bpath.display()));
             continue;
         }
         let bytes = fs::read(bpath).map_err(|e| format!("read {}: {e}", bpath.display()))?;
         let ws = WitnessSet::decode(&bytes)
             .map_err(|e| format!("decode {}: {e}", bpath.display()))?;
         for w in &ws.witnesses {
+            if !seen_bank_ids.insert(w.id.clone()) {
+                violations.push(format!(
+                    "bank-rows {} contains duplicate witness id {}",
+                    bpath.display(),
+                    w.id
+                ));
+            }
             let key = super::rng::canonical_case_key(&ws.function, &w.args);
             if !seen_bank_keys.insert(key) {
                 violations.push(format!(
@@ -1011,6 +1032,79 @@ mod tests {
                     .iter()
                     .any(|v| v.contains("DNA-side harness fault")),
             "verify_sweep_storage_policy(out_dir, None) must audit scheduler bank_rows_files and catch fault:* rows: {sched_audit:?}"
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn storage_policy_rejects_missing_bank_paths_and_nested_subdirectory_files() {
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-storage-rw8-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+
+        let mut cfg = FuzzConfig::default_for("PV");
+        cfg.seed = 20261124;
+        cfg.budget = 20;
+        cfg.round_size = 20;
+        cfg.max_frontiers = 1;
+        cfg.fractal_depth = 0;
+        cfg.frontier_window = 1;
+        cfg.dry_run = true;
+        cfg.out_dir = tmp.join("out");
+        let _ = execute_dry_run(&cfg).expect("dry run");
+
+        // 1. Explicit --bank-rows pointing to a nonexistent file must fail audit.
+        let missing_explicit = tmp.join("does-not-exist-explicit.json");
+        let exp_audit =
+            verify_sweep_storage_policy(&cfg.out_dir, Some(&missing_explicit)).expect("explicit audit");
+        assert!(
+            !exp_audit.ok
+                && exp_audit
+                    .violations
+                    .iter()
+                    .any(|v| v.contains("missing")),
+            "missing explicit --bank-rows must fail storage policy audit: {exp_audit:?}"
+        );
+
+        // 2. Standalone recipe.storage_policy.bank_rows_path pointing to a missing file must fail audit.
+        let mut recipe: SweepRecipe =
+            serde_json::from_str(&fs::read_to_string(cfg.out_dir.join("recipe.json")).unwrap())
+                .unwrap();
+        let missing_standalone = tmp.join("does-not-exist-standalone.json");
+        recipe.storage_policy.discrepancy_rows_exported = 1;
+        recipe.storage_policy.bank_rows_path = Some(missing_standalone.display().to_string());
+        recipe.storage_policy.bank_rows_files.clear();
+        write_sweep_recipe(&cfg.out_dir, &recipe).unwrap();
+        let sa_audit = verify_sweep_storage_policy(&cfg.out_dir, None).expect("standalone audit");
+        assert!(
+            !sa_audit.ok
+                && sa_audit
+                    .violations
+                    .iter()
+                    .any(|v| v.contains("missing")),
+            "missing standalone bank_rows_path must fail storage policy audit: {sa_audit:?}"
+        );
+
+        // Restore clean recipe for subdir check.
+        recipe.storage_policy.discrepancy_rows_exported = 0;
+        recipe.storage_policy.bank_rows_path = None;
+        write_sweep_recipe(&cfg.out_dir, &recipe).unwrap();
+
+        // 3. Unexpected file hidden in a subdirectory of out_dir must fail audit.
+        let nested_dir = cfg.out_dir.join("nested");
+        fs::create_dir_all(&nested_dir).unwrap();
+        fs::write(
+            nested_dir.join("readings.json"),
+            r#"{"excel_answers": [1, 2, 3]}"#,
+        )
+        .unwrap();
+        let sub_audit = verify_sweep_storage_policy(&cfg.out_dir, None).expect("subdir audit");
+        assert!(
+            !sub_audit.ok,
+            "unexpected file inside subdirectory of out_dir must fail storage audit: {sub_audit:?}"
         );
 
         let _ = fs::remove_dir_all(&tmp);

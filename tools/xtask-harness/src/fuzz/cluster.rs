@@ -430,6 +430,33 @@ pub fn encode_witness_set_json(
     invocation: &WitnessInvocation,
     rows: &[&DiscrepancyRow],
 ) -> Result<String, String> {
+    encode_witness_set_json_from(
+        function,
+        lane,
+        source_path,
+        selection,
+        timestamp_utc,
+        envs,
+        invocation,
+        rows,
+        1,
+    )
+}
+
+/// Same as [`encode_witness_set_json`] with an explicit 1-based starting witness sequence number
+/// so multi-chunk scheduler exports assign globally unique witness IDs across chunks and resumes.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_witness_set_json_from(
+    function: &str,
+    lane: &str,
+    source_path: &str,
+    selection: &str,
+    timestamp_utc: &str,
+    envs: &BTreeMap<String, Value>,
+    invocation: &WitnessInvocation,
+    rows: &[&DiscrepancyRow],
+    start_index: usize,
+) -> Result<String, String> {
     // Verify bank rule invariant: every exported row must actually differ!
     // Also deduplicate by canonical (function, args) key so bank-rows never receives duplicate rows.
     let mut seen_canonical: HashSet<String> = HashSet::with_capacity(rows.len());
@@ -493,11 +520,12 @@ pub fn encode_witness_set_json(
             env_to_rid.insert(row.env_id.clone(), rid);
         }
     }
+    let start = start_index.max(1);
     let mut witnesses: Vec<Value> = Vec::with_capacity(unique_rows.len());
     for (idx, row) in unique_rows.iter().enumerate() {
         let rid = &env_to_rid[&row.env_id];
         witnesses.push(json!({
-            "id": format!("{lane}-{function}-{:05}", idx + 1),
+            "id": format!("{lane}-{function}-{:05}", start + idx),
             "reading": rid,
             "args": row.case.args,
             "expected_bits": row.expected,
