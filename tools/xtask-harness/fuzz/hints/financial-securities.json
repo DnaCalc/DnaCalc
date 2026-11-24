@@ -1,0 +1,1588 @@
+{
+  "family": "financial-securities",
+  "version": 1,
+  "functions": {
+    "PRICE": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 44617, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": [
+            {"value": 60, "why": "1900 fictitious Feb 29 leap-year bug day", "source": "crates/calc-func/src/ported/day_count_common.rs:31"},
+            {"value": 1, "why": "minimum accepted serial in bond dser", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"},
+            {"value": 2958465, "why": "maximum 1900-system serial 9999-12-31", "source": "crates/calc-func/src/ported/bond_core_family.rs:54"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 45899, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": [
+            {"value": 45899, "why": "day 30/29 maturity preserves day across short months without clamping to month-end", "source": "crates/calc-func/src/ported/bond_core_family.rs:272"}
+          ]
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0005, 0.05, 0.06, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "zero-coupon bond boundary", "source": "crates/calc-func/src/ported/bond_core_family.rs:129"}
+          ]
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.04, 0.05, 0.06, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "zero yield lower bound in PRICE", "source": "crates/calc-func/src/ported/bond_core_family.rs:501"}
+          ]
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 1, 80, 100, 105, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": [
+            {"value": 1, "why": "annual coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"},
+            {"value": 2, "why": "semiannual coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"},
+            {"value": 4, "why": "quarterly coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 0, "why": "US 30/360 and default when omitted", "source": "crates/calc-func/src/ported/bond_core_family.rs:88"},
+            {"value": 2, "why": "Actual/360 uses derived dsc=E-A diverging from COUPDAYSNC", "source": "crates/calc-func/src/ported/bond_core_family.rs:333"},
+            {"value": 3, "why": "Actual/365 uses derived dsc=E-A diverging from COUPDAYSNC", "source": "crates/calc-func/src/ported/bond_core_family.rs:333"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "one coupon period left (n == 1)", "how": "settlement within one coupon period of maturity uses simple discount (red+coup)/(1+(yld/f)*(dsc/E))", "source": "crates/calc-func/src/ported/bond_core_family.rs:341"},
+        {"name": "multi-period on-coupon integer exponents", "how": "off = dsc/E = 1 gives integer exponents using binexp_positive", "source": "crates/calc-func/src/ported/bond_core_family.rs:292"},
+        {"name": "multi-period off-coupon fractional exponents", "how": "off fractional uses excel_pow_chain", "source": "crates/calc-func/src/ported/bond_core_family.rs:298"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:257"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"},
+        {"when": "rate < 0 || yld < 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:120"},
+        {"when": "trunc(frequency) not in {1, 2, 4}", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:102"},
+        {"when": "trunc(basis) < 0 || trunc(basis) > 4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:93"}
+      ],
+      "notes": "Truncates dates/frequency/basis; uses E-A for dsc; counts coupon dates n periods from maturity."
+    },
+    "YIELD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 44242, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": [
+            {"value": 60, "why": "1900 leap-year bug day", "source": "crates/calc-func/src/ported/day_count_common.rs:31"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 45658, 46753, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.0875, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "zero coupon triggers negative-base subnormal slope exit check", "source": "crates/calc-func/src/ported/bond_core_family.rs:697"}
+          ]
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 1, 50, 95, 99.99999713897711, 100, 100.000002861023, 146.42997054598746, 500],
+          "ranges": [[1e-300, 1000000]],
+          "edges": [
+            {"value": 100, "why": "par price gives d=0 in par-100 seed where |step|<=1e-10 returns seed without updating", "source": "crates/calc-func/src/ported/bond_core_family.rs:650"}
+          ]
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 1, 80, 100, 105, 150, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": [
+            {"value": 100, "why": "seed uses hardcoded 100.0 instead of redemption", "source": "crates/calc-func/src/ported/bond_core_family.rs:610"}
+          ]
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": [
+            {"value": 1, "why": "annual coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"},
+            {"value": 2, "why": "semiannual coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"},
+            {"value": 4, "why": "quarterly coupon", "source": "crates/calc-func/src/ported/bond_core_family.rs:101"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 0, "why": "validates optional basis before required slots", "source": "crates/calc-func/src/catalogue/bonds.rs:160"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}",
+        "pr > 0",
+        "redemption > 0"
+      ],
+      "regimes": [
+        {"name": "one coupon left (n == 1)", "how": "maturity within one coupon period uses closed-form algebraic yield", "source": "crates/calc-func/src/ported/bond_core_family.rs:572"},
+        {"name": "30/360 last-day zero dsc", "how": "n == 1 with dsc == 0 returns 0.0", "source": "crates/calc-func/src/ported/bond_core_family.rs:589"},
+        {"name": "multi-period Newton solver", "how": "n > 1 starts at schedule-free par-100 seed, runs up to 100 Newton steps, stops on |step| <= 1e-10 returning un-updated y", "source": "crates/calc-func/src/ported/bond_core_family.rs:608"},
+        {"name": "negative-base integer exponent", "how": "on-coupon off.fract()==0 allows base = 1 + y/f < 0 to continue Newton", "source": "crates/calc-func/src/ported/bond_core_family.rs:675"}
+      ],
+      "error_edges": [
+        {"when": "trunc(basis) < 0 || trunc(basis) > 4", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/bonds.rs:66"},
+        {"when": "settlement < 0 || settlement > 2958465 || maturity < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"},
+        {"when": "settlement >= maturity || rate < 0 || pr <= 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:513"},
+        {"when": "trunc(frequency) not in {1, 2, 4}", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:102"},
+        {"when": "base == 0 || (base < 0 && off.fract() != 0)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:675"}
+      ],
+      "notes": "Validates basis before required args; returns pre-step iterate y when |step| <= 1e-10 or y_100 after 100 iterations."
+    },
+    "DURATION": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": [
+            {"value": 60, "why": "1900 leap-year bug day", "source": "crates/calc-func/src/ported/day_count_common.rs:31"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "coupon",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.06, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "zero-coupon bond duration equals maturity fraction", "source": "handbook DURATION notes"}
+          ]
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.0675, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "redemption timing binade boundary", "how": "redemption weight uses stored (off + n) - 1.0 which diverges from off + (n - 1) across binades", "source": "crates/calc-func/src/ported/bond_core_family.rs:801"},
+        {"name": "single coupon period (n == 1)", "how": "runs same weighted ratio as n > 1 rather than constant off/f", "source": "crates/calc-func/src/ported/bond_core_family.rs:789"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || coupon < 0 || yld < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:257"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:93"}
+      ],
+      "notes": "Uses derived dsc=E-A and diff360_us(..., false) for accrued A; stores running sums and ratio from x87 PC64."
+    },
+    "MDURATION": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "coupon",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.06, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.0675, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "yld == 0 makes MDURATION equal DURATION", "source": "handbook MDURATION"}
+          ]
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "DURATION / (1 + yld / f)", "how": "computes DURATION then divides by 1 + yld/f in x87 PC64", "source": "crates/calc-func/src/ported/bond_core_family.rs:818"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || coupon < 0 || yld < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:257"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:93"}
+      ],
+      "notes": "Inherits all DURATION schedule and day-count edges; final divide uses excel_x87_div."
+    },
+    "PRICEMAT": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 45458, 2958464],
+          "ranges": [[2, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [3, 61, 46022, 2958465],
+          "ranges": [[3, 2958465]],
+          "edges": [
+            {"value": 31, "why": "day-31 end tested before Feb-end start in basis 0 numerator rule", "source": "handbook FN-PRICEMAT-002"}
+          ]
+        },
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 45292, 45716, 2958463],
+          "ranges": [[1, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0525, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.061, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "yld = 0 allowed and removes discounting", "source": "handbook PRICEMAT"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "issue < settlement",
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 multi-year vs within-year", "how": "days_in_year_for_mat uses average calendar year length when issue..settlement exceeds 1 year, else 365/366", "source": "crates/calc-func/src/ported/bond_core_family.rs:196"},
+        {"name": "basis 0 numerator day-count rule", "how": "uses diff360_us(..., false) and computes dsm = dim - a", "source": "crates/calc-func/src/ported/bond_core_family.rs:406"}
+      ],
+      "error_edges": [
+        {"when": "!(issue < settlement && settlement < maturity)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:398"},
+        {"when": "rate < 0 || yld < 0 || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:395"},
+        {"when": "settlement, maturity, or issue < 1 or > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"}
+      ],
+      "notes": "Evaluates x87 PC64 double-rounded operations; dsm is computed as dim - a."
+    },
+    "YIELDMAT": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 45458, 2958464],
+          "ranges": [[2, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [3, 61, 46022, 2958465],
+          "ranges": [[3, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 45292, 2958463],
+          "ranges": [[1, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0525, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 50, 98.59811340546048, 100, 150],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "issue < settlement",
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 multi-year vs within-year", "how": "days_in_year_for_mat switches at > 1 year between issue and settlement", "source": "crates/calc-func/src/ported/bond_core_family.rs:196"}
+      ],
+      "error_edges": [
+        {"when": "!(issue < settlement && settlement < maturity)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:434"},
+        {"when": "rate < 0 || pr <= 0 || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:431"},
+        {"when": "settlement, maturity, or issue < 1 or > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"}
+      ],
+      "notes": "Groups ((1 + DIM/B*rate) - term2) / term2 * (B / (DIM - A)) in x87 PC64; uses dd (us_30_360) for DIM and A."
+    },
+    "YIELDDISC": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": [
+            {"value": 0, "why": "serial 0 accepted by YIELDDISC", "source": "crates/calc-func/src/ported/bond_core_family.rs:466"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 60, 61, 44562, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 50, 95, 100, 120],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 50, 100, 150, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 0, "why": "validates basis before reading required args", "source": "crates/calc-func/src/catalogue/bonds.rs:185"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 actual/actual year length", "how": "uses excel_actual_actual_year for year length B", "source": "crates/calc-func/src/ported/bond_core_family.rs:479"}
+      ],
+      "error_edges": [
+        {"when": "trunc(basis) < 0 || trunc(basis) > 4", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/bonds.rs:66"},
+        {"when": "settlement >= maturity || pr <= 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:468"},
+        {"when": "settlement < 0 || maturity < 0 || settlement > 2958465 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Validates basis before required arguments; accepts serial 0; evaluates ((red-pr)/pr)*(B/dim) in x87 PC64."
+    },
+    "ACCRINT": {
+      "args": [
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 42845, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "first_interest",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 43009, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": [
+            {"value": 43009, "why": "month-end flag on first_interest determines coupon grid", "source": "crates/calc-func/src/ported/bond_core_family.rs:1001"}
+          ]
+        },
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 43320, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.037, 0.05, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "par",
+          "kind": "number",
+          "specials": [1e-300, 100, 997.5, 1000, 10000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": [
+            {"value": 1000, "why": "default when par is omitted", "source": "crates/calc-func/src/catalogue/bonds.rs:192"}
+          ]
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        },
+        {
+          "name": "calc_method",
+          "kind": "logical",
+          "specials": [true, false],
+          "ranges": [],
+          "edges": [
+            {"value": true, "why": "default; period-aware walk summed backward from settlement", "source": "crates/calc-func/src/ported/bond_core_family.rs:991"},
+            {"value": false, "why": "flat fraction, skipping whole interior periods when issue < pcd", "source": "crates/calc-func/src/ported/bond_core_family.rs:995"}
+          ]
+        }
+      ],
+      "relations": [
+        "issue < first_interest",
+        "issue < settlement",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "calc_method FALSE with issue < pcd", "how": "skips whole grid periods between issue's grid period and pcd, potentially returning negative accrual", "source": "crates/calc-func/src/ported/bond_core_family.rs:1015"},
+        {"name": "calc_method TRUE with settlement <= first_interest", "how": "walks backward from pcd to issue adding 1.0 per whole period", "source": "crates/calc-func/src/ported/bond_core_family.rs:1035"},
+        {"name": "calc_method TRUE with settlement > first_interest", "how": "forward-collects periods then sums in reverse order", "source": "crates/calc-func/src/ported/bond_core_family.rs:1067"}
+      ],
+      "error_edges": [
+        {"when": "issue >= first_interest || issue >= settlement", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:983"},
+        {"when": "rate < 0 || par <= 0 || trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:977"},
+        {"when": "issue, first_interest, or settlement < 1 or > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"}
+      ],
+      "notes": "Allows settlement > first_interest; normalizes settlement period by canonical CoupDays(pcd, first_interest); final coupon*a uses x87 multiply."
+    },
+    "ACCRINTM": {
+      "args": [
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 45292, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 45566, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": [
+            {"value": 1, "why": "issue == settlement is accepted and returns 0.0", "source": "crates/calc-func/src/ported/bond_core_family.rs:374"}
+          ]
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.05, 0.08, 0.1, 1],
+          "ranges": [[1e-300, 1]],
+          "edges": [
+            {"value": 0, "why": "ACCRINTM requires strictly positive rate; 0 is #NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:374"}
+          ]
+        },
+        {
+          "name": "par",
+          "kind": "number",
+          "specials": [1e-300, 100, 1000, 10000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": [
+            {"value": 1000, "why": "default when par is omitted", "source": "crates/calc-func/src/catalogue/bonds.rs:200"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "issue <= settlement",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "equal dates", "how": "issue == settlement returns 0.0", "source": "crates/calc-func/src/ported/bond_core_family.rs:374"},
+        {"name": "basis 1 multi-year", "how": "uses excel_actual_actual_fraction", "source": "crates/calc-func/src/ported/bond_core_family.rs:222"}
+      ],
+      "error_edges": [
+        {"when": "issue > settlement", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:379"},
+        {"when": "rate <= 0 || par <= 0 || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/bond_core_family.rs:376"},
+        {"when": "issue or settlement < 1 or > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/bond_core_family.rs:110"}
+      ],
+      "notes": "Takes 4 or 5 args (par is optional); requires rate > 0 unlike ACCRINT."
+    },
+    "COUPDAYBS": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 33, 59, 60, 61, 45490, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": [
+            {"value": 0, "why": "serial 0 accepted by COUP* functions", "source": "crates/calc-func/src/ported/coupon_family.rs:207"},
+            {"value": 60, "why": "1900 fictitious Feb 29 day", "source": "crates/calc-func/src/ported/coupon_family.rs:68"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 60, 61, 400, 45519, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": [
+            {"value": 45519, "why": "day 29/30 maturity keeps day in longer months; month-end preserves month-end", "source": "crates/calc-func/src/ported/coupon_family.rs:236"}
+          ]
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "settlement on coupon date", "how": "returns 0 because schedule rolls forward", "source": "crates/calc-func/src/ported/coupon_family.rs:276"},
+        {"name": "no coupon before 1900", "how": "previous coupon clamps to serial 0", "source": "crates/calc-func/src/ported/coupon_family.rs:278"},
+        {"name": "basis 0 day-31 end before Feb-end start adjustment", "how": "CouponAccrued rule checks ed==31 before normalizing Feb-end start", "source": "crates/calc-func/src/ported/coupon_family.rs:96"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "Validates settlement/maturity dates before reading frequency and basis."
+    },
+    "COUPDAYS": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 35748, 44043, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 60, 61, 35976, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 1, "why": "Actual/Actual walks backward clamping at each step (Feb reduces earlier days) instead of anchored maturity schedule", "source": "crates/calc-func/src/ported/coupon_family.rs:306"},
+            {"value": 3, "why": "Actual/365 returns 365/frequency (fractional 182.5 or 91.25)", "source": "crates/calc-func/src/ported/coupon_family.rs:146"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 clamping walk", "how": "steps backward one period at a time without month-end preservation until previous <= settlement, then steps 1 period with month-end preservation", "source": "crates/calc-func/src/ported/coupon_family.rs:314"},
+        {"name": "bases 0, 2, 3, 4 constant", "how": "returns 360/f (bases 0, 2, 4) or 365/f (basis 3)", "source": "crates/calc-func/src/ported/coupon_family.rs:142"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "On basis 1, COUPDAYS can differ from COUPNCD - COUPPCD when stepping through February."
+    },
+    "COUPDAYSNC": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 33, 60, 61, 39923, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 400, 456, 50919, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 0, "why": "US 30/360 returns CouponPeriod(prev, next) - COUPDAYBS", "source": "crates/calc-func/src/ported/coupon_family.rs:338"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 0 period minus accrued", "how": "normalizes both coupon endpoints (31 and Feb-end -> 30) and subtracts COUPDAYBS", "source": "crates/calc-func/src/ported/coupon_family.rs:345"},
+        {"name": "bases 1, 2, 3, 4 direct count", "how": "counts days directly from settlement to COUPNCD", "source": "crates/calc-func/src/ported/coupon_family.rs:353"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "On basis 0 can differ from COUPDAYS - COUPDAYBS around Feb-end coupons and pre-1900 periods; on bases 2/3 differs from PRICE's internal dsc = E - A."
+    },
+    "COUPNCD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 60, 61, 45899, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "month-end vs day 28..30 maturity", "how": "counts n periods back from maturity; only month-end maturity snaps earlier coupons to month-end", "source": "crates/calc-func/src/ported/coupon_family.rs:257"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "Returns date serial in the active workbook date system (1900 or 1904)."
+    },
+    "COUPNUM": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 33, 34, 60, 61, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": [
+            {"value": 0, "why": "settlement 0 always puts previous coupon at 0 giving #NUM!", "source": "handbook FN-COUPNUM-001"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 367, 400, 45899, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "previous coupon before 1900", "how": "returns #NUM! when period.previous == 0", "source": "crates/calc-func/src/ported/coupon_family.rs:377"}
+      ],
+      "error_edges": [
+        {"when": "period.previous == 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:377"},
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "Unlike the other COUP functions, COUPNUM returns #NUM! when the coupon date preceding settlement falls before 1900-01-01."
+    },
+    "COUPPCD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 33, 59, 60, 61, 44617, 2958464],
+          "ranges": [[0, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 60, 61, 400, 45899, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "previous coupon before 1900", "how": "clamps period.previous to 0 instead of returning negative serial", "source": "crates/calc-func/src/ported/coupon_family.rs:278"}
+      ],
+      "error_edges": [
+        {"when": "settlement >= maturity || settlement < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:193"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/coupon_family.rs:171"}
+      ],
+      "notes": "Returns settlement itself when settlement lands on a coupon date; returns serial 0 when previous coupon falls before 1900."
+    },
+    "DISC": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 50, 95, 100, 110],
+          "ranges": [[1e-300, 1000000]],
+          "edges": [
+            {"value": 100, "why": "pr > redemption gives negative discount rate", "source": "handbook DISC"}
+          ]
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 50, 100, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 multi-year", "how": "uses excel_actual_actual_year for (days, year)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:172"}
+      ],
+      "error_edges": [
+        {"when": "pr <= 0 || redemption <= 0 || settlement >= maturity", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:193"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:56"},
+        {"when": "trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:43"}
+      ],
+      "notes": "Evaluates (1 - pr/redemption)*(B/D) in x87 PC64."
+    },
+    "INTRATE": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "investment",
+          "kind": "number",
+          "specials": [1e-300, 100, 1000, 1000000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 100, 1000, 1050, 1000000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 multi-year", "how": "uses excel_actual_actual_year for (days, year)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:172"}
+      ],
+      "error_edges": [
+        {"when": "investment <= 0 || redemption <= 0 || settlement >= maturity", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:220"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:56"},
+        {"when": "trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:43"}
+      ],
+      "notes": "Evaluates ((redemption - investment)/investment)*(B/D) in x87 PC64."
+    },
+    "RECEIVED": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "investment",
+          "kind": "number",
+          "specials": [1e-300, 100, 1000, 1000000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "discount",
+          "kind": "number",
+          "specials": [1e-300, 0.05, 0.1, 0.5, 0.99],
+          "ranges": [[1e-300, 1]],
+          "edges": [
+            {"value": 1, "why": "pole when discount*days/year >= 1", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:255"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "discount * (days / year) < 1",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 1 multi-year", "how": "uses excel_actual_actual_year for (days, year)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:172"}
+      ],
+      "error_edges": [
+        {"when": "1 - (discount * days) / year <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:255"},
+        {"when": "investment <= 0 || discount <= 0 || settlement >= maturity", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:245"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:56"},
+        {"when": "trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:43"}
+      ],
+      "notes": "Evaluates investment / (1 - (discount*D)/B) in x87 PC64; rejects non-positive denominator."
+    },
+    "PRICEDISC": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 61, 44013, 2958464],
+          "ranges": [[1, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 44562, 2958465],
+          "ranges": [[2, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "discount",
+          "kind": "number",
+          "specials": [1e-300, 0.05, 0.1, 0.5, 1, 2],
+          "ranges": [[1e-300, 1]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 50, 100, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "negative price allowed", "how": "returns negative price without error when discount*D/B > 1", "source": "handbook PRICEDISC"}
+      ],
+      "error_edges": [
+        {"when": "discount <= 0 || redemption <= 0 || settlement >= maturity", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:275"},
+        {"when": "settlement < 1 || maturity < 1 || settlement > 2958465 || maturity > 2958465", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:56"},
+        {"when": "trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:43"}
+      ],
+      "notes": "Evaluates redemption - ((discount*redemption)*D)/B in x87 PC64; allows negative prices."
+    },
+    "TBILLEQ": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 33297, 52656, 2958099],
+          "ranges": [[0, 2958099]],
+          "edges": [
+            {"value": 52656, "why": "2044-02-29 rollover makes 1-year limit 2045-03-01 (366 days)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:297"},
+            {"value": 33297, "why": "1991-02-28 limit is 1992-02-28 (365 days)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:298"}
+          ]
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 182, 183, 184, 365, 366, 53022, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "discount",
+          "kind": "number",
+          "specials": [1e-300, 0.05, 0.09, 0.5, 0.99],
+          "ranges": [[1e-300, 1]],
+          "edges": [
+            {"value": 0.99, "why": "near price <= 0 boundary when dsm is near 365", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:402"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "maturity <= DATE(year(settlement)+1, month(settlement), day(settlement))",
+        "discount * (maturity - settlement) < 360"
+      ],
+      "regimes": [
+        {"name": "short bill (dsm <= 182)", "how": "returns 365 * discount / (360 - discount * dsm)", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:378"},
+        {"name": "long bill (dsm > 182)", "how": "switches to bond-equivalent quadratic using excel_sqrt_staged", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:378"},
+        {"name": "366-day leap bill (dsm == 366)", "how": "uses year = 366 so t = 1 instead of 366/365", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:405"}
+      ],
+      "error_edges": [
+        {"when": "discount <= 0 || settlement >= maturity || maturity > one_year_out", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:372"},
+        {"when": "360 - discount * dsm <= 0 || price <= 0 || disc < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:382"},
+        {"when": "settlement < 0 || settlement > 2958465 || maturity < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Switches from linear formula to quadratic at dsm > 182; 1-year limit uses DATE(y+1,m,d) rollover."
+    },
+    "TBILLPRICE": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 52656, 2958099],
+          "ranges": [[0, 2958099]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 30, 182, 365, 366, 53022, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "discount",
+          "kind": "number",
+          "specials": [1e-300, 0.06, 0.09, 0.99, 12],
+          "ranges": [[1e-300, 1]],
+          "edges": [
+            {"value": 12, "why": "at 30 days gives price == 0 triggering #NUM!", "source": "handbook TBILLPRICE"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "maturity <= DATE(year(settlement)+1, month(settlement), day(settlement))",
+        "discount * (maturity - settlement) < 360"
+      ],
+      "regimes": [
+        {"name": "plain binary64 100*(1 - discount*dsm/360)", "how": "single formula across all valid 1..=366 day spans", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:328"}
+      ],
+      "error_edges": [
+        {"when": "discount <= 0 || settlement >= maturity || maturity > one_year_out || price <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:322"},
+        {"when": "settlement < 0 || settlement > 2958465 || maturity < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Rejects non-positive calculated price (1 - discount*dsm/360 <= 0) with #NUM!."
+    },
+    "TBILLYIELD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 39538, 2958099],
+          "ranges": [[0, 2958099]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [1, 62, 365, 366, 39600, 2958465],
+          "ranges": [[1, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 50, 98.45, 100, 110],
+          "ranges": [[1e-300, 1000]],
+          "edges": [
+            {"value": 100, "why": "pr > 100 produces negative yield without error", "source": "handbook TBILLYIELD"}
+          ]
+        }
+      ],
+      "relations": [
+        "settlement < maturity",
+        "maturity <= DATE(year(settlement)+1, month(settlement), day(settlement))"
+      ],
+      "regimes": [
+        {"name": "grouped x87 PC64 ratio", "how": "((100 - pr) / pr) * (360 / dsm) in x87 PC64", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:357"}
+      ],
+      "error_edges": [
+        {"when": "pr <= 0 || settlement >= maturity || maturity > one_year_out", "excel": "#NUM!", "source": "crates/calc-func/src/ported/discount_bill_yearfrac_family.rs:348"},
+        {"when": "settlement < 0 || settlement > 2958465 || maturity < 0 || maturity > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Evaluates ((100 - pr)/pr) * (360/dsm) in x87 PC64."
+    },
+    "ODDFPRICE": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 39763, 44013, 2958463],
+          "ranges": [[2, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [4, 61, 44256, 44562, 2958465],
+          "ranges": [[4, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 39736, 43831, 2958462],
+          "ranges": [[1, 2958462]],
+          "edges": []
+        },
+        {
+          "name": "first_coupon",
+          "kind": "date-serial",
+          "specials": [3, 61, 39873, 44197, 2958465],
+          "ranges": [[3, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.05, 0.0785, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.04, 0.0625, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 80, 100, 125, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "issue < settlement",
+        "settlement < first_coupon",
+        "first_coupon <= maturity",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "short odd first coupon (DFC < E)", "how": "single-period accrual/discount closed form", "source": "crates/calc-func/src/ported/odd_bond_family.rs:424"},
+        {"name": "long odd first coupon (DFC >= E)", "how": "walks backward from first_coupon summing per-period fractions dci/nl", "source": "crates/calc-func/src/ported/odd_bond_family.rs:438"}
+      ],
+      "error_edges": [
+        {"when": "!(issue < settlement && settlement < first_coupon && first_coupon <= maturity)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:528"},
+        {"when": "rate < 0 || yld < 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:519"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:51"},
+        {"when": "settlement, maturity, issue, or first_coupon < 1 or > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Validates frequency before basis; uses binexp_positive for integer exponents < 1024 and excel_pow_chain otherwise."
+    },
+    "ODDFYIELD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 39763, 44334, 2958463],
+          "ranges": [[2, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [4, 61, 44256, 48790, 2958465],
+          "ranges": [[4, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "issue",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 39736, 43411, 2958462],
+          "ranges": [[1, 2958462]],
+          "edges": []
+        },
+        {
+          "name": "first_coupon",
+          "kind": "date-serial",
+          "specials": [3, 61, 39873, 44407, 2958464],
+          "ranges": [[3, 2958464]],
+          "edges": [
+            {"value": 39873, "why": "first_coupon must lie on maturity's coupon grid (COUPPCD(first_coupon, maturity, freq, basis) == first_coupon)", "source": "crates/calc-func/src/ported/odd_bond_family.rs:689"}
+          ]
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.015, 0.0575, 0.0785, 1, 2],
+          "ranges": [[0, 2]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 31.1121, 84.5, 100, 113.597717474079, 500],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 80, 100, 125, 200],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "issue < settlement",
+        "settlement < first_coupon",
+        "first_coupon < maturity",
+        "COUPPCD(first_coupon, maturity, frequency, basis) == first_coupon",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "Newton solver on ODDFPRICE", "how": "par-100 seed and up to 100 Newton steps using regular-coupon derivative; returns pre-step y when |step| <= 1e-10 or y_100", "source": "crates/calc-func/src/ported/odd_bond_family.rs:702"},
+        {"name": "negative yield allowed", "how": "allows y < 0 as long as 1 + y/frequency > 0", "source": "crates/calc-func/src/ported/odd_bond_family.rs:730"}
+      ],
+      "error_edges": [
+        {"when": "!(issue < settlement && settlement < first_coupon && first_coupon < maturity)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:676"},
+        {"when": "COUPPCD(first_coupon, maturity, frequency, basis) != first_coupon", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:689"},
+        {"when": "rate < 0 || pr <= 0 || redemption <= 0 || 1 + y/frequency <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:692"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:51"},
+        {"when": "settlement, maturity, issue, or first_coupon < 1 or > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Requires strict first_coupon < maturity and grid alignment via COUPPCD; checks frequency before optional basis."
+    },
+    "ODDLPRICE": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 39485, 2958464],
+          "ranges": [[2, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [3, 61, 39614, 2958465],
+          "ranges": [[3, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "last_interest",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 39370, 2958463],
+          "ranges": [[1, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0375, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "yld",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0405, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 80, 100, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "last_interest < settlement",
+        "settlement < maturity",
+        "quasi-coupon periods from last_interest to maturity <= 64",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 0 split 30/360", "how": "NL and DCI use days360_us_both (clamping both Feb-end and day 31 to 30) while accrued A uses standard us_30_360", "source": "crates/calc-func/src/ported/odd_bond_family.rs:593"}
+      ],
+      "error_edges": [
+        {"when": "!(last_interest < settlement && settlement < maturity) || nc > 64 || dscnl <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:571"},
+        {"when": "rate < 0 || yld < 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:563"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:51"},
+        {"when": "settlement, maturity, or last_interest < 1 or > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Walks forward from last_interest to maturity up to 64 quasi-periods; validates frequency before optional basis."
+    },
+    "ODDLYIELD": {
+      "args": [
+        {
+          "name": "settlement",
+          "kind": "date-serial",
+          "specials": [2, 60, 61, 39485, 2958464],
+          "ranges": [[2, 2958464]],
+          "edges": []
+        },
+        {
+          "name": "maturity",
+          "kind": "date-serial",
+          "specials": [3, 61, 39614, 2958465],
+          "ranges": [[3, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "last_interest",
+          "kind": "date-serial",
+          "specials": [1, 59, 60, 39370, 2958463],
+          "ranges": [[1, 2958463]],
+          "edges": []
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.0375, 0.1, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "pr",
+          "kind": "number",
+          "specials": [1e-300, 50, 99.87828601472134, 100, 120],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "redemption",
+          "kind": "number",
+          "specials": [1e-300, 80, 100, 1000],
+          "ranges": [[1e-300, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "frequency",
+          "kind": "integer",
+          "specials": [1, 2, 4],
+          "ranges": [[1, 4]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "last_interest < settlement",
+        "settlement < maturity",
+        "quasi-coupon periods from last_interest to maturity <= 64",
+        "frequency in {1, 2, 4}",
+        "basis in {0, 1, 2, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "basis 0 split 30/360", "how": "NL and DCI use days360_us_both while accrued A uses standard us_30_360", "source": "crates/calc-func/src/ported/odd_bond_family.rs:815"}
+      ],
+      "error_edges": [
+        {"when": "!(last_interest < settlement && settlement < maturity) || nc > 64 || dscnl <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:794"},
+        {"when": "rate < 0 || pr <= 0 || redemption <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:786"},
+        {"when": "trunc(frequency) not in {1, 2, 4} || trunc(basis) not in 0..=4", "excel": "#NUM!", "source": "crates/calc-func/src/ported/odd_bond_family.rs:51"},
+        {"when": "settlement, maturity, or last_interest < 1 or > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Direct algebraic inversion of ODDLPRICE; walks forward up to 64 quasi-periods; validates frequency before optional basis."
+    }
+  }
+}
