@@ -4944,6 +4944,16 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(matches!(invoke(&model, &value, "Type", vec![]).unwrap(), AutoValue::I4(2)));
     assert!(matches!(invoke(&model, &value, "MaximumScaleIsAuto", vec![]).unwrap(), AutoValue::Bool(true)));
     let put = |name: &str, v: AutoValue| invoke_kind(&model, &value, name, InvokeKind::Put, vec![v]);
+    // Automatic scale for 10, 30, 50 reads as the axis the chart draws (dc-oxh8w.13).
+    for (name, expected) in [("MinimumScale", 0.0), ("MaximumScale", 60.0), ("MajorUnit", 10.0)] {
+        let read = invoke(&model, &value, name, vec![]);
+        assert!(matches!(read, Ok(AutoValue::R8(v)) if v == expected), "{name}: {read:?}");
+    }
+    // False from automatic freezes the shown value.
+    put("MajorUnitIsAuto", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &value, "MajorUnitIsAuto", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &value, "MajorUnit", vec![]).unwrap(), AutoValue::R8(v) if v == 10.0));
+    put("MajorUnitIsAuto", AutoValue::Bool(true)).unwrap();
     put("MinimumScale", AutoValue::R8(0.0)).unwrap();
     put("MaximumScale", AutoValue::I4(100)).unwrap();
     put("MajorUnit", AutoValue::R8(25.0)).unwrap();
