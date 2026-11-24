@@ -4849,6 +4849,7 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(xml.contains("<c:min val=\"0\"/>"), "{xml}");
     assert!(xml.contains("<c:majorUnit val=\"25\"/>"), "{xml}");
     assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
+}
 
 /// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
