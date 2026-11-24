@@ -44,6 +44,35 @@ fn matrix(rows: usize, cols: usize, cells: Vec<V>) -> V {
 }
 
 #[test]
+fn classic_script_uses_global_this_and_sloppy_mode() {
+    let addin = load(
+        "var eight = 010; this.CustomFunctions.associate('RUN', () => this.eight);",
+        serde_json::json!([{"id":"RUN","name":"RUN","parameters":[],"result":{}}]),
+        false,
+        ExecLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(call(&addin, "Probe.RUN", &[]).unwrap(), V::number(8.));
+}
+
+#[test]
+fn explicit_module_source_uses_module_syntax() {
+    let metadata = FunctionsMetadata::parse(
+        "Probe",
+        r#"{"functions":[{"id":"RUN","name":"RUN","parameters":[],"result":{}}]}"#,
+    )
+    .unwrap();
+    let addin = JsAddin::load(
+        engine(ExecLimits::default()),
+        "probe.mjs",
+        "export const answer = 42; CustomFunctions.associate('RUN', () => answer);",
+        &metadata,
+    )
+    .unwrap();
+    assert_eq!(call(&addin, "Probe.RUN", &[]).unwrap(), V::number(42.));
+}
+
+#[test]
 fn registers_office_ids_and_publishes_descriptors() {
     let addin = load(
         "let n = 0; CustomFunctions.associate('COUNTER', () => ++n);",

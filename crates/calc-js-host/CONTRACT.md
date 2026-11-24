@@ -2,7 +2,8 @@
 
 This crate attaches Office.js custom functions to CalcFml's `CallableTable`.
 Pass the namespace from the manifest, the contents of `functions.json`, and a
-JavaScript module containing the add-in's `CustomFunctions.associate` calls.
+classic JavaScript script containing the add-in's `CustomFunctions.associate`
+calls. Use a source ID ending in `.mjs` to load an ECMAScript module.
 Use the metadata's ID for the association and namespace plus name in formulas.
 The owner retains the `JsAddin` while it publishes its table. Dropping the
 owner revokes execution through previously published tables.
@@ -26,6 +27,7 @@ The QuickJS heap limit applies to the full runtime and the wall deadline
 uses QuickJS's interpreter interrupt plus checks during value conversion.
 The host also bounds decoded results. Limits apply at module initialization
 and invocation. Exhausting a limit produces an execution diagnostic.
+A completed worksheet value survives deadline cleanup.
 
 Promise completion and cancellation belong in the adapter's
 `UserFunction::begin_call` path and an extension to `JsEngine` for pending
