@@ -4397,3 +4397,174 @@ mod xlc {
         assert!(matches!(run(&spy, "xlcDefineName", vec![AutoValue::text("N")]), Err(XlcError::NotModelled { .. })));
     }
 }
+
+fn sheet_names(host: &Host) -> Vec<String> {
+    host.session
+        .borrow()
+        .host()
+        .model()
+        .sheets()
+        .iter()
+        .map(|s| s.name().text().to_string_lossy())
+        .collect()
+}
+fn worksheets(model: &WorkbookAutomation) -> ObjectRef {
+    let book = obj(invoke(model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    obj(invoke(model, &book, "Worksheets", vec![]).unwrap())
+}
+
+/// dc-oxh8w.4: Worksheets.Add, Worksheet.Name put and Worksheet.Delete are one member each in calc-host.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__worksheets_add_rename_delete() {
+    let (host, model) = setup();
+    let sheets = worksheets(&model);
+    let before = sheet_names(&host);
+    let first = before[0].clone();
+    // Add with no arguments: before the active sheet, named SheetN, and it becomes active.
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let after = sheet_names(&host);
+    assert_eq!(after.len(), before.len() + 1);
+    assert_eq!(after[1..], before[..], "inserted before the active (first) sheet");
+    assert!(after[0].starts_with("Sheet"), "{after:?}");
+    assert_eq!(text(&model, &added, "Name"), after[0]);
+    let active = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    assert_eq!(text(&model, &active, "Name"), after[0]);
+    // Add(After:=name) places after that sheet.
+    let tail = invoke_kind(
+        &model,
+        &sheets,
+        "Add",
+        InvokeKind::Method,
+        vec![
+            AutoValue::Missing,
+            invoke(&model, &sheets, "Item", vec![AutoValue::text(&first)]).unwrap(),
+        ],
+    )
+    .unwrap();
+    let names = sheet_names(&host);
+    assert_eq!(names[2], text(&model, &obj(tail), "Name"));
+    assert_eq!(names[1], first);
+    // Count above one and chart sheets are refused typed, nothing changes.
+    for args in [
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(2)],
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
+    ] {
+        let n = sheet_names(&host).len();
+        assert!(matches!(
+            invoke_kind(&model, &sheets, "Add", InvokeKind::Method, args),
+            Err(AutoError::NotModelled { .. })
+        ));
+        assert_eq!(sheet_names(&host).len(), n);
+    }
+    // Name put renames; a duplicate (any case) is Excel's 1004.
+    invoke_kind(&model, &added, "Name", InvokeKind::Put, vec![AutoValue::text("Data")]).unwrap();
+    assert_eq!(sheet_names(&host)[0], "Data");
+    let error = invoke_kind(&model, &added, "Name", InvokeKind::Put, vec![AutoValue::text(&first.to_uppercase())])
+        .unwrap_err();
+    assert!(matches!(error, AutoError::Excel { number: 1004, .. }), "{error:?}");
+    // Delete removes the sheet.
+    let count = sheet_names(&host).len();
+    invoke_kind(&model, &added, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(sheet_names(&host).len(), count - 1);
+    assert!(!sheet_names(&host).contains(&"Data".to_string()));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__worksheet_move_and_the_last_sheet_stays() {
+    let (host, model) = setup();
+    let sheets = worksheets(&model);
+    let item = |n: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(n)]).unwrap());
+    for _ in 0..2 {
+        invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    }
+    let names = sheet_names(&host);
+    assert!(names.len() >= 3);
+    // Move the first sheet after the last: it is last, the others close up.
+    let last = item(names.len() as i32);
+    invoke_kind(&model, &item(1), "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(last)]).unwrap();
+    let moved = sheet_names(&host);
+    assert_eq!(moved.last(), names.first());
+    assert_eq!(moved[..moved.len() - 1], names[1..]);
+    // Move the (new) last sheet before the first.
+    invoke_kind(&model, &item(moved.len() as i32), "Move", InvokeKind::Method, vec![AutoValue::Object(item(1))]).unwrap();
+    assert_eq!(sheet_names(&host), names);
+    // Deleting down to one sheet works; deleting the last one is Excel's 1004.
+    while sheet_names(&host).len() > 1 {
+        invoke_kind(&model, &item(1), "Delete", InvokeKind::Method, vec![]).unwrap();
+    }
+    let error = invoke_kind(&model, &item(1), "Delete", InvokeKind::Method, vec![]).unwrap_err();
+    assert!(matches!(error, AutoError::Excel { number: 1004, .. }), "{error:?}");
+    assert_eq!(sheet_names(&host).len(), 1);
+}
+
+fn cell_text(model: &WorkbookAutomation, address: &str) -> AutoValue {
+    invoke(model, &range(model, address), "Value2", vec![]).unwrap()
+}
+
+/// dc-oxh8w.4: Range.Insert and Range.Delete, with Shift given and omitted, and on whole rows and columns.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__range_insert_and_delete_shift_cells_and_references() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    let sheet = host.session.borrow().host().sheets()[0].id();
+    let name = sheet_names(&host)[0].clone();
+    let mut put = |address: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+    };
+    for (row, value) in [(1, 1.), (2, 2.), (3, 3.), (4, 4.)] {
+        put(&format!("Z{row}"), AutoValue::R8(value));
+    }
+    let sum = format!("=SUM(Z1:Z4)");
+    enter(&host, CellKey::new(sheet, 6, 26).unwrap(), &sum);
+    let _ = &name;
+    let call = |address: &str, member: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), member, InvokeKind::Method, args)
+    };
+    // A one-column range with Shift:=xlShiftDown pushes Z2.. down by its height; the SUM follows.
+    call("Z2", "Insert", vec![AutoValue::I4(-4121)]).unwrap();
+    assert!(matches!(cell_text(&model, "Z2"), AutoValue::Empty));
+    assert!(matches!(cell_text(&model, "Z3"), AutoValue::R8(2.)));
+    assert!(matches!(cell_text(&model, "Z5"), AutoValue::R8(4.)));
+    // Delete with Shift omitted on a single cell shifts up and brings it back.
+    call("Z2", "Delete", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "Z2"), AutoValue::R8(2.)));
+    // A taller-than-wide range with Shift omitted shifts cells to the right / left.
+    put("A20", AutoValue::R8(7.));
+    put("B20", AutoValue::R8(8.));
+    call("A20:A21", "Insert", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "A20"), AutoValue::Empty));
+    assert!(matches!(cell_text(&model, "B20"), AutoValue::R8(7.)));
+    assert!(matches!(cell_text(&model, "C20"), AutoValue::R8(8.)));
+    call("A20:A21", "Delete", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "A20"), AutoValue::R8(7.)));
+    // A Shift constant for the other operation is Excel's 1004.
+    let error = call("A20", "Insert", vec![AutoValue::I4(-4162)]).unwrap_err();
+    assert!(matches!(error, AutoError::Excel { number: 1004, .. }), "{error:?}");
+    // Whole rows ignore Shift and shift the sheet's rows.
+    put("A30", AutoValue::R8(9.));
+    call("30:31", "Insert", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "A32"), AutoValue::R8(9.)));
+    call("30:31", "Delete", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "A30"), AutoValue::R8(9.)));
+    // Whole columns likewise.
+    put("AB1", AutoValue::R8(5.));
+    call("AB:AC", "Insert", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "AD1"), AutoValue::R8(5.)));
+    call("AB:AC", "Delete", vec![]).unwrap();
+    assert!(matches!(cell_text(&model, "AB1"), AutoValue::R8(5.)));
+    // CopyOrigin from the right or below is not modelled yet and changes nothing.
+    assert!(matches!(
+        call("A20", "Insert", vec![AutoValue::I4(-4121), AutoValue::I4(1)]),
+        Err(AutoError::NotModelled { .. })
+    ));
+    assert!(matches!(cell_text(&model, "A20"), AutoValue::R8(7.)));
+}
