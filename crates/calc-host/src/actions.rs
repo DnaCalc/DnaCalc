@@ -397,6 +397,25 @@ pub enum WorkbookCommand {
         /// Whether values run in reverse order along the axis.
         reversed: bool,
     },
+    /// Set an axis's title text and tick-label number format (dc-oxh8w.12).
+    ChartAxisLabels {
+        /// Worksheet that owns the target.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the target.
+        part: String,
+        /// Chart axis ID.
+        axis: u32,
+        /// Whether `title` replaces the axis title (`None` there removes it).
+        set_title: bool,
+        /// The literal axis title text.
+        title: Option<String>,
+        /// Whether `number_format` replaces the tick-label format (`None` there links it to the source).
+        set_number_format: bool,
+        /// The tick-label number format code.
+        number_format: Option<String>,
+    },
     /// Add, edit or remove a series from a plot.
     ChartSeries {
         /// Worksheet that owns the target.
@@ -839,6 +858,18 @@ pub(crate) fn prepare(
             reversed,
         } => crate::chart::prepare_axis(
             host, sheet, revision, &part, axis, minimum, maximum, major_unit, reversed,
+        ),
+        WorkbookCommand::ChartAxisLabels {
+            sheet,
+            revision,
+            part,
+            axis,
+            set_title,
+            title,
+            set_number_format,
+            number_format,
+        } => crate::chart::prepare_axis_labels(
+            host, sheet, revision, &part, axis, set_title.then_some(title), set_number_format.then_some(number_format),
         ),
         WorkbookCommand::ChartSeries {
             sheet,

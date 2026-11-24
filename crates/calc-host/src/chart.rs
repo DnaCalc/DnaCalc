@@ -1545,6 +1545,42 @@ fn validate_axis_view(
     };
     chart_scale(low, high, Some(axis)).map(|_| ())
 }
+/// Axis title and tick-label format edits (dc-oxh8w.12): the retained writer saves both.
+pub(crate) fn prepare_axis_labels(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    id: u32,
+    title: Option<Option<String>>,
+    number_format: Option<Option<String>>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host, sheet, part)?;
+    let axis = chart
+        .axes
+        .iter_mut()
+        .find(|a| a.id == id)
+        .ok_or("The axis identity changed; reopen its controls (dc-971p.46)")?;
+    if let Some(title) = title {
+        axis.title = title;
+    }
+    if let Some(format) = number_format {
+        axis.number_format = format;
+    }
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
 pub(crate) fn prepare_log_axis(
     host: &HostState,
     sheet: SheetId,

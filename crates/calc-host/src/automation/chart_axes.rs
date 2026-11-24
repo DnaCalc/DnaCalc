@@ -33,7 +33,7 @@ impl WorkbookAutomation {
     fn axis_key(target: &ObjectRef) -> Result<u8, AutoError> {
         match &target.key {
             ObjectKey::Report {
-                item: ReportItem::Axis(_, kind),
+                item: ReportItem::Axis(_, kind) | ReportItem::AxisTitle(_, kind) | ReportItem::TickLabels(_, kind),
                 ..
             } => Ok(*kind),
             _ => Err(geometry::type_mismatch()),
@@ -255,5 +255,98 @@ impl WorkbookAutomation {
     pub(super) fn axis_type(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         Ok(AutoValue::I4(i32::from(Self::axis_key(target)?)))
+    }
+
+    // --- titles and tick labels (dc-oxh8w.12) ---------------------------------------------------
+
+    fn axis_labels(&self, target: &ObjectRef, call: &Call<'_>, title: Option<Option<String>>, format: Option<Option<String>>) -> Reply {
+        let (_, sheet, _) = Self::report_key(target)?;
+        let part = Self::chart_token(target)?;
+        let id = self.axis_read(target, "Title", |a| a.id)?;
+        self.command(call, |s| {
+            Ok(WorkbookCommand::ChartAxisLabels {
+                sheet,
+                revision: s.host().revision().get(),
+                part: part.clone(),
+                axis: id,
+                set_title: title.is_some(),
+                title: title.clone().flatten(),
+                set_number_format: format.is_some(),
+                number_format: format.clone().flatten(),
+            })
+        })
+    }
+
+    pub(super) fn axis_has_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::Bool(self.axis_read(target, "HasTitle", |a| a.title.is_some())?))
+    }
+    pub(super) fn axis_put_has_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let has = self.axis_read(target, "HasTitle", |a| a.title.is_some())?;
+        if on == has {
+            return Ok(AutoValue::Empty);
+        }
+        self.axis_labels(target, call, Some(on.then(|| "Axis Title".to_owned())), None)
+    }
+    pub(super) fn axis_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        if !self.axis_read(target, "AxisTitle", |a| a.title.is_some())? {
+            return Err(AutoError::excel(-2147024809, "This object has no title."));
+        }
+        let part = Self::chart_token(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        Ok(report(workbook, sheet, "AxisTitle", ReportItem::AxisTitle(part, Self::axis_key(target)?)))
+    }
+    pub(super) fn axis_title_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        match self.axis_read(target, "Text", |a| a.title.clone())? {
+            Some(t) => Ok(AutoValue::text(&t)),
+            None => Err(AutoError::excel(-2147024809, "This object has no title.")),
+        }
+    }
+    pub(super) fn axis_title_put_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let text = super::report::text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        if self.axis_read(target, "Text", |a| a.title.is_none())? {
+            return Err(AutoError::excel(-2147024809, "This object has no title."));
+        }
+        if text.chars().count() > 255 {
+            return Err(AutoError::excel(-2147467259, "Method 'Text' of object 'AxisTitle' failed"));
+        }
+        self.axis_labels(target, call, Some(Some(text)), None)
+    }
+    pub(super) fn axis_tick_labels(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let part = Self::chart_token(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        Ok(report(workbook, sheet, "TickLabels", ReportItem::TickLabels(part, Self::axis_key(target)?)))
+    }
+    pub(super) fn tick_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let code = self.axis_read(target, "NumberFormat", |a| a.number_format.clone())?;
+        Ok(AutoValue::text(code.as_deref().unwrap_or("General")))
+    }
+    pub(super) fn tick_number_format_linked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::Bool(self.axis_read(target, "NumberFormatLinked", |a| a.number_format.is_none())?))
+    }
+    pub(super) fn tick_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let code = super::report::text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let kind = self.axis_read(target, "NumberFormat", |a| a.kind.clone())?;
+        if kind != "valAx" || !matches!(code.as_str(), "0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%" | "General") {
+            return Err(AutoError::not_modelled(
+                format!("TickLabels.NumberFormat = {code:?} (only the retained value-axis codes read back)"),
+                "dc-oxh8w.12",
+            ));
+        }
+        let value = (code != "General").then_some(code);
+        self.axis_labels(target, call, None, Some(value))
+    }
+    pub(super) fn tick_put_number_format_linked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        if !on {
+            return Err(AutoError::not_modelled("TickLabels.NumberFormatLinked = False (keeps the displayed format)", "dc-oxh8w.12"));
+        }
+        self.axis_labels(target, call, None, Some(None))
     }
 }
