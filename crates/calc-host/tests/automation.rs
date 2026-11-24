@@ -5087,3 +5087,61 @@ fn dc_oxh8w_4__range_sort_orders_rows_by_key_columns() {
     assert!(matches!(sort(args), Err(AutoError::NotModelled { .. })));
     assert_eq!(cell_text(&model, "B2").as_text().unwrap(), "c");
 }
+
+/// dc-oxh8w.15: Range.Find / FindNext / FindPrevious are one member each in calc-host: the search starts
+/// after `After` (default the range's first cell) and wraps; LookIn, LookAt, SearchOrder, SearchDirection and
+/// MatchCase apply, are saved between calls, and a miss is Nothing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_15__range_find_next_previous() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["apple", "pie", "x"], &["Apple pie", "fig", "12.5"], &["banana", "APPLE", "=1+1"]]);
+    let area = range(&model, "A1:C3");
+    let find = |name: &str, args: Vec<AutoValue>| invoke_kind(&model, &area, name, InvokeKind::Method, args);
+    let found = |name: &str, args: Vec<AutoValue>| -> String {
+        match find(name, args).unwrap() {
+            AutoValue::Object(hit) => text(&model, &hit, "Address"),
+            other => format!("{other:?}"),
+        }
+    };
+    let cell = |address: &str| AutoValue::Object(range(&model, address));
+    let t = |s: &str| AutoValue::text(s);
+    let m = || AutoValue::Missing;
+    // Defaults: formulas, part of the cell, by rows, next, any case. The first cell searched is after A1.
+    assert_eq!(found("Find", vec![t("apple")]), "$A$2");
+    assert_eq!(found("FindNext", vec![cell("A2")]), "$B$3");
+    assert_eq!(found("FindNext", vec![cell("B3")]), "$A$1", "wraps to the first cell");
+    assert_eq!(found("FindPrevious", vec![cell("A1")]), "$B$3", "backwards from A1 wraps to the end");
+    // Whole cell, then match case: only A1 matches, and a lone match is found even from itself.
+    assert_eq!(found("Find", vec![t("apple"), m(), m(), AutoValue::I4(1)]), "$B$3");
+    let case = vec![t("apple"), m(), m(), AutoValue::I4(1), m(), m(), AutoValue::Bool(true)];
+    assert_eq!(found("Find", case), "$A$1");
+    // Wildcards, and the saved settings: LookAt stays part, MatchCase resets to the argument.
+    assert_eq!(found("Find", vec![t("a*e"), m(), m(), AutoValue::I4(1), m(), m(), AutoValue::Bool(false)]), "$A$2");
+    assert_eq!(found("Find", vec![t("*pie"), m(), m(), AutoValue::I4(2)]), "$B$1");
+    // By columns: A1, A2, A3, B1, ... so the first apple after A1 is A2 and then B3.
+    let by_columns = vec![t("apple"), m(), m(), AutoValue::I4(2), AutoValue::I4(2)];
+    assert_eq!(found("Find", by_columns), "$A$2");
+    assert_eq!(found("FindNext", vec![cell("A2")]), "$B$3");
+    // LookIn values searches what the cells show; formulas the text of the entry.
+    let values = |what: &str, at: i64| vec![t(what), m(), AutoValue::I4(at as i32), AutoValue::I4(1), AutoValue::I4(1)];
+    assert_eq!(found("Find", values("2", -4163)), "$C$3");
+    assert_eq!(found("Find", values("2", -4123)), format!("{:?}", AutoValue::Empty));
+    assert_eq!(found("Find", values("=1+1", -4123)), "$C$3");
+    // Nothing for a miss; a missing What is Excel's error; After must be one cell of the range.
+    assert_eq!(found("Find", vec![t("zzz")]), format!("{:?}", AutoValue::Empty));
+    assert!(matches!(find("Find", vec![]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(find("Find", vec![t("apple"), cell("E5")]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(find("Find", vec![t("apple"), cell("A1:B2")]), Err(AutoError::Excel { number: 1004, .. })));
+    // Comments and formats are refused typed.
+    assert!(matches!(
+        find("Find", vec![t("a"), m(), AutoValue::I4(-4144)]),
+        Err(AutoError::NotModelled { .. })
+    ));
+}

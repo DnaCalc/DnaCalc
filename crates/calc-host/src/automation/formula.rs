@@ -91,13 +91,7 @@ impl WorkbookAutomation {
                                 _ => text,
                             }
                         }
-                        None => String::new(),
-                        Some(CellInput::Number(n)) => number_text_15(n.get()),
-                        Some(CellInput::Text(t)) => t.text().to_string_lossy(),
-                        Some(CellInput::Logical(b)) => {
-                            if *b { "TRUE" } else { "FALSE" }.to_owned()
-                        }
-                        Some(CellInput::Error(code)) => code.excel_spelling().to_owned(),
+                        other => constant_entry_text(other),
                     }))
                 })
                 .collect::<Result<Vec<_>, AutoError>>()?;
@@ -138,7 +132,7 @@ impl WorkbookAutomation {
         })
     }
 
-    fn text_of_cell(
+    pub(super) fn text_of_cell(
         host: &crate::HostState,
         cell: &crate::ProjectedCell,
         at: CellKey,
@@ -230,7 +224,7 @@ impl WorkbookAutomation {
 
     /// An argument as the text a user would type: text as it is, numbers by their shortest
     /// round-trip decimal, logicals as TRUE/FALSE, Empty as nothing (a clear).
-    fn entry_of(value: &AutoValue) -> Result<String, AutoError> {
+    pub(super) fn entry_of(value: &AutoValue) -> Result<String, AutoError> {
         Ok(match value {
             AutoValue::Empty | AutoValue::Missing => String::new(),
             AutoValue::Text(t) => t.to_string_lossy(),
@@ -314,6 +308,26 @@ impl WorkbookAutomation {
 }
 
 /// The model of a session read, when the access is one.
+/// What `Range.Formula` answers for a cell that holds no formula (see `range_formula`).
+pub(super) fn constant_entry_text(input: Option<&CellInput>) -> String {
+    match input {
+        None => String::new(),
+        Some(CellInput::Number(n)) => number_text_15(n.get()),
+        Some(CellInput::Text(t)) => t.text().to_string_lossy(),
+        Some(CellInput::Logical(b)) => if *b { "TRUE" } else { "FALSE" }.to_owned(),
+        Some(CellInput::Error(code)) => code.excel_spelling().to_owned(),
+        Some(CellInput::Formula(_)) => unreachable!("a formula is spelled by the caller"),
+    }
+}
+
+/// The text of a cell's formula as `Range.Formula` gives it (canonical case, no spaces around `:`).
+pub(super) fn formula_entry_text(input: Option<&CellInput>) -> String {
+    match input {
+        Some(CellInput::Formula(_)) => normalise_formula(&crate::search::entry_text(input)),
+        other => constant_entry_text(other),
+    }
+}
+
 fn access_model<'a>(access: &'a Access<'_>) -> Option<&'a calc_doc_model::ModelRoot> {
     match access {
         Access::Session(session, _) => Some(session.host().model()),
