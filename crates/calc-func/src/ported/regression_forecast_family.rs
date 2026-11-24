@@ -1225,6 +1225,16 @@ fn forecast_pair_kernel(
     Ok(CalcValue::number(a + b * x))
 }
 
+fn forecast_scalar(value: &CalcValue) -> CoreRef<'_> {
+    // The catalogue reads cell references into arrays before invoking the kernel.
+    value
+        .as_array()
+        .filter(|array| array.shape().rows == 1 && array.shape().cols == 1)
+        .and_then(|array| array.get(0, 0))
+        .unwrap_or(value)
+        .core_ref()
+}
+
 pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
     // Excel 20527 reports VALUE for a nonnumeric scalar new_x with two numeric 2x2 histories,
     // even when new_x or the optional constant argument contains a worksheet error.
@@ -1235,16 +1245,16 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
         })
     };
     if numeric_matrix(1) && args.first().is_some_and(|v| {
-        matches!(v.core_ref(), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
+        matches!(forecast_scalar(v), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
     }) {
         return Err(WorksheetErrorCode::Ref);
     }
     if numeric_matrix(0) && numeric_matrix(1) && args.get(2).is_some_and(|v| {
-        matches!(v.core_ref(), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
+        matches!(forecast_scalar(v), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
     }) {
         return Err(WorksheetErrorCode::Value);
     }
-    let (known_y, known_x) = match paired_trend_matrices(args) {
+    let (known_y, known_x) = match paired_forecast_matrices(args, true) {
         Some(pair) => pair,
         None => shape_first_inputs(args, RegressionInput::Forecast)?,
     };
@@ -1258,9 +1268,12 @@ pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, Worksh
     trend_kernel(&known_y, &known_x, &new_x, use_const)
 }
 
-/// Excel 20527 treats numeric 2x2 histories as four row-major paired observations when
-/// forecasting a 2x2 matrix or numeric scalar. Controls agree with equivalent column histories.
-fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedPredictorInput)> {
+/// Excel 20527 pairs numeric 2x2 histories in row-major order when TREND or GROWTH
+/// forecasts a numeric 2x2 matrix. TREND also has a captured numeric scalar case.
+fn paired_forecast_matrices(
+    args: &[CalcValue],
+    allow_scalar_prediction: bool,
+) -> Option<(NumericVector, PreparedPredictorInput)> {
     let matrix_values = |index: usize| {
         let array = args.get(index)?.as_array()?;
         let shape = array.shape();
@@ -1271,7 +1284,11 @@ fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedP
     };
     let y = matrix_values(0)?;
     let x = matrix_values(1)?;
-    if !args.get(2).is_some_and(|arg| matches!(arg.core_ref(), CoreRef::Number(_))) {
+    let scalar_prediction = allow_scalar_prediction
+        && args
+            .get(2)
+            .is_some_and(|arg| matches!(forecast_scalar(arg), CoreRef::Number(_)));
+    if !scalar_prediction {
         matrix_values(2)?;
     }
     Some((
@@ -1284,7 +1301,10 @@ fn paired_trend_matrices(args: &[CalcValue]) -> Option<(NumericVector, PreparedP
 }
 
 pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = shape_first_inputs(args, RegressionInput::Forecast)?;
+    let (known_y, known_x) = match paired_forecast_matrices(args, false) {
+        Some(pair) => pair,
+        None => shape_first_inputs(args, RegressionInput::Forecast)?,
+    };
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))

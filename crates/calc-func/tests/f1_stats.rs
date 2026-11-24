@@ -781,6 +781,22 @@ fn trend_scalar_history_with_matrix_predictors_returns_ref() {
     }
 }
 
+/// Excel 20527 returns the same paired-history results when a scalar argument is a cell.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_matrix_histories_keep_scalar_cell_shape() {
+    let y = arr(vec![vec![2.0, 4.0], vec![6.0, 8.0]]);
+    let x = arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(5.0), t("bad"), e(NA)]);
+    let number = sheet.area(1, 1, 1, 1);
+    let text = sheet.area(2, 1, 2, 1);
+    let held_error = sheet.area(3, 1, 3, 1);
+    close(call_on(&mut sheet, "TREND", vec![y.clone(), x.clone(), number.clone()]), 10.0, 1e-12);
+    error(call_on(&mut sheet, "TREND", vec![y, x.clone(), text, e(Ref)]), Value);
+    error(call_on(&mut sheet, "TREND", vec![held_error, x, number]), Ref);
+}
+
 /// Excel 20527 cell-backed argument and independent error-priority controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -3488,10 +3504,10 @@ fn linest_scales_covariance_before_the_intercept_error_sum() {
     }
 }
 
-/// Excel 20527: a numeric 2x2 TREND history is read as four paired observations.
+/// Excel 20527 reads numeric 2x2 forecast histories as four paired observations.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn trend_paired_matrix_history() {
+fn regression_paired_matrix_history() {
     let bits = [
         0x404a_af0c_9431_a3c1, 0x4031_f571_8006_0f5d,
         0x403f_c8e2_4131_fbf4, 0x4058_4b0e_fa94_f509,
@@ -3501,9 +3517,15 @@ fn trend_paired_matrix_history() {
         0x4026_1adb_6780_82b8, 0xc040_5dc0_a2ba_76e0,
     ].map(f64::from_bits);
     let matrix = |i| arr(vec![vec![bits[i], bits[i + 1]], vec![bits[i + 2], bits[i + 3]]]);
-    let (rows, cols, cells) = array(call("TREND", vec![matrix(0), matrix(4), matrix(8), b(false)]));
-    assert_eq!((rows, cols), (2, 2));
-    assert_eq!(cells[0].to_bits(), 0x4033_859c_5529_f914);
+    for (function, expected) in [
+        ("TREND", 0x4033_859c_5529_f914),
+        ("GROWTH", 0x4007_8cfc_4660_753f),
+    ] {
+        let (rows, cols, cells) =
+            array(call(function, vec![matrix(0), matrix(4), matrix(8), b(false)]));
+        assert_eq!((rows, cols), (2, 2), "{function}");
+        assert_eq!(cells[0].to_bits(), expected, "{function}");
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
