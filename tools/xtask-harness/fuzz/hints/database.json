@@ -1,0 +1,3303 @@
+{
+  "family": "database",
+  "version": 1,
+  "functions": {
+    "DAVERAGE": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "numeric_only_and_error_propagation",
+          "how": "averages numeric cells in matched records, skipping text/logical/blank and propagating first error",
+          "source": "crates/calc-func/src/catalogue/database.rs:284"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "zero numeric cells in matched records",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/database.rs:301"
+        }
+      ],
+      "notes": "Averages numeric field values in records matching criteria; #DIV/0! if none."
+    },
+    "DCOUNT": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Name",
+            "Missing",
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted or blank field counts matching records across the database",
+              "source": "crates/calc-func/src/catalogue/database.rs:75"
+            },
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "optional_field_record_count",
+          "how": "counts numeric field cells in matched records (or counts all matched records if field omitted)",
+          "source": "crates/calc-func/src/catalogue/database.rs:255"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        }
+      ],
+      "notes": "Counts numeric cells in field column of matching records, or matching records if field omitted."
+    },
+    "DCOUNTA": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Name",
+            "Missing",
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted or blank field counts matching records across the database",
+              "source": "crates/calc-func/src/catalogue/database.rs:75"
+            },
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "non_blank_and_optional_field",
+          "how": "counts every non-blank cell (numbers, text, logicals, errors) in field column, or matching records if field omitted",
+          "source": "handbook FN-DCOUNTA-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        }
+      ],
+      "notes": "Counts non-blank cells (including errors and text) in field column, or matching records if field omitted."
+    },
+    "DGET": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "unique_match_and_blank_to_zero",
+          "how": "returns single matching record's field cell, converting a blank cell to 0.0",
+          "source": "handbook FN-DGET-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "zero records match criteria",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:261"
+        },
+        {
+          "when": "two or more records match criteria",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/database.rs:270"
+        }
+      ],
+      "notes": "Extracts single matching record's field cell (0 if blank); #VALUE! for 0 matches, #NUM! for >1."
+    },
+    "DMAX": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "empty_match_returns_zero",
+          "how": "returns maximum matched number, or 0.0 when no numeric cells match",
+          "source": "crates/calc-func/src/catalogue/database.rs:310"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        }
+      ],
+      "notes": "Returns maximum numeric value in field column of matching records, or 0 if none."
+    },
+    "DMIN": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "empty_match_returns_zero",
+          "how": "returns minimum matched number, or 0.0 when no numeric cells match",
+          "source": "crates/calc-func/src/catalogue/database.rs:311"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        }
+      ],
+      "notes": "Returns minimum numeric value in field column of matching records, or 0 if none."
+    },
+    "DPRODUCT": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "empty_match_returns_zero",
+          "how": "multiplies matched numbers sequentially, returning 0.0 when no numeric cells match",
+          "source": "crates/calc-func/src/catalogue/database.rs:313"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "product of matched numbers overflows binary64",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/database.rs:318"
+        }
+      ],
+      "notes": "Multiplies numeric field values of matching records; returns 0 if none match."
+    },
+    "DSTDEV": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "x87_moment_and_centered_variance",
+          "how": "computes sample standard deviation (n-1 divisor) via x87 PC64 moments with centered fallback",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "fewer than 2 numeric cells match criteria",
+          "excel": "#DIV/0!",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "notes": "Sample standard deviation of numeric field values in matching records (#DIV/0! if <2 numbers)."
+    },
+    "DSTDEVP": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "x87_moment_and_centered_variance",
+          "how": "computes population standard deviation (n divisor) via x87 PC64 moments with centered fallback",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "zero numeric cells match criteria",
+          "excel": "#DIV/0!",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "notes": "Population standard deviation of numeric field values in matching records (#DIV/0! if 0 numbers)."
+    },
+    "DSUM": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "sequential_left_fold_sum",
+          "how": "adds numeric field cells in record order from 0.0",
+          "source": "crates/calc-func/src/catalogue/database.rs:293"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "sum of matched numbers overflows binary64",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/database.rs:295"
+        }
+      ],
+      "notes": "Sums numeric field values in matching records sequentially from 0."
+    },
+    "DVAR": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "x87_moment_and_centered_variance",
+          "how": "computes sample variance (n-1 divisor) via x87 PC64 moments with centered fallback",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "fewer than 2 numeric cells match criteria",
+          "excel": "#DIV/0!",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "notes": "Sample variance of numeric field values in matching records (#DIV/0! if <2 numbers)."
+    },
+    "DVARP": {
+      "args": [
+        {
+          "name": "database",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                30,
+                85
+              ],
+              [
+                "Bob",
+                25,
+                90
+              ],
+              [
+                "Alex",
+                30,
+                75
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age",
+                "Score"
+              ],
+              [
+                "Alice",
+                null,
+                85
+              ],
+              [
+                "Bob",
+                "text",
+                true
+              ],
+              [
+                "Carol",
+                40,
+                "#N/A"
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Alice",
+                30
+              ]
+            ],
+            [
+              [
+                "Name",
+                "Age"
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ]
+              ],
+              "why": "database with only 1 row (no record row below header) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age",
+                  "Score"
+                ],
+                [
+                  "Alice",
+                  null,
+                  85
+                ],
+                [
+                  "Bob",
+                  "text",
+                  true
+                ],
+                [
+                  "Carol",
+                  40,
+                  "#N/A"
+                ]
+              ],
+              "why": "mixed types, blanks, and errors in field column test numeric filtering vs error propagation",
+              "source": "crates/calc-func/src/catalogue/database.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "field",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            3,
+            1.9,
+            0,
+            -1,
+            10,
+            "Age",
+            "age",
+            "Score",
+            "Missing",
+            null,
+            "#N/A"
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": "age",
+              "why": "field header text matches database header case-insensitively",
+              "source": "crates/calc-func/src/catalogue/database.rs:80"
+            },
+            {
+              "value": 0,
+              "why": "field column index < 1 or > database width returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted field returns #VALUE! when field is required",
+              "source": "crates/calc-func/src/catalogue/database.rs:88"
+            }
+          ]
+        },
+        {
+          "name": "criteria",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                "Name",
+                "Age"
+              ],
+              [
+                "Al",
+                ">20"
+              ]
+            ],
+            [
+              [
+                "Age",
+                "Score"
+              ],
+              [
+                ">=25",
+                "<90"
+              ],
+              [
+                null,
+                "=90"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                null
+              ]
+            ],
+            [
+              [
+                "MissingCol"
+              ],
+              [
+                ">0"
+              ]
+            ],
+            [
+              [
+                "Age"
+              ]
+            ],
+            [
+              [
+                "Name"
+              ],
+              [
+                ""
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Name",
+                  "Age"
+                ],
+                [
+                  "Al",
+                  ">20"
+                ]
+              ],
+              "why": "un-operatored text in database criteria matches case-insensitive prefix ('Al' matches 'Alice')",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:934"
+            },
+            {
+              "value": [
+                [
+                  "Age"
+                ]
+              ],
+              "why": "criteria reference with only 1 row (missing condition row) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:232"
+            },
+            {
+              "value": [
+                [
+                  "MissingCol"
+                ],
+                [
+                  ">0"
+                ]
+              ],
+              "why": "criteria header absent from database header row returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/database.rs:122"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "entry_reference_only_and_criteria_prefix",
+          "how": "database requires a worksheet reference at formula entry; both database and criteria require >=2 rows and valid field labels (#VALUE! otherwise); criteria uses OR across rows, AND across columns, and prefix match for un-operatored text",
+          "source": "handbook FN-DCOUNTA-001"
+        },
+        {
+          "name": "x87_moment_and_centered_variance",
+          "how": "computes population variance (n divisor) via x87 PC64 moments with centered fallback",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/database.rs:88"
+        },
+        {
+          "when": "zero numeric cells match criteria",
+          "excel": "#DIV/0!",
+          "source": "handbook FN-DSTDEV-001"
+        }
+      ],
+      "notes": "Population variance of numeric field values in matching records (#DIV/0! if 0 numbers)."
+    }
+  }
+}
