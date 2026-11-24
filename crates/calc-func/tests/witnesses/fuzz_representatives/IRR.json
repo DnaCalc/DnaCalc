@@ -102,8 +102,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Div0",
-      "calc_func": "0x433fffffffffffff"
+      "expected_bits": "error:Div0"
     },
     {
       "id": "I2-dc-j9k-103-div0-vs-num",
@@ -133,8 +132,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x4202a05f061cc558"
+      "expected_bits": "error:Num"
     },
     {
       "id": "I3-dc-j9k-104-near-neg1-vs-num",
@@ -150,8 +148,7 @@
         ],
         "0x433fffffffffffff"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0xbfeffffffffffff9"
+      "expected_bits": "error:Num"
     },
     {
       "id": "I3-dc-j9k-104-huge-vs-moderate-root",
@@ -175,8 +172,7 @@
           ]
         ]
       ],
-      "expected_bits": "0xbfd3e7d32e6d11fa",
-      "calc_func": "0x428a678e216b07e2"
+      "expected_bits": "0xbfd3e7d32e6d11fa"
     },
     {
       "id": "I3-dc-j9k-104-finite-vs-num",
@@ -198,8 +194,7 @@
         ],
         "0xbfefffffffffffff"
       ],
-      "expected_bits": "0x4157e9ff1e0aa91b",
-      "calc_func": "error:Num"
+      "expected_bits": "0x4157e9ff1e0aa91b"
     },
     {
       "id": "I4-dc-j9k-105-dblmax-overflow",
@@ -214,8 +209,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x0000000000000000"
+      "expected_bits": "error:Num"
     },
     {
       "id": "I4-dc-j9k-105-long-chain-retry",
@@ -312,8 +306,7 @@
         ],
         "0xbfeffffffffe2c99"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x3fb8386eb7b058e0"
+      "expected_bits": "error:Num"
     }
   ]
 }
