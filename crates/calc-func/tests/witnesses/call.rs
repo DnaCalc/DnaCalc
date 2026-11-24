@@ -23,11 +23,16 @@ impl PreparedArguments for Given {
     }
 }
 
+const SHEET_S: SheetId = SheetId::from_parts(1, 0);
+const SHEET_Q: SheetId = SheetId::from_parts(3, 0);
+
 // A relocated row preserves the scalar cells' values and reference identity. The capture
 // did not record their absolute addresses. Calls needing those addresses are declined, except
 // that an attested bulk layout fixes the sheet and column (not the row) for the functions
-// that read only those (the third field).
-struct InputCells(BTreeMap<(u32, u32), CalcValue>, bool, bool, bool);
+// that read only those (the third field). Explicit rRxC ranges live on sheet Q (sheet 3),
+// matching Touchstone's EvaluateSpecial layout; unwritten cells on Q are blank worksheet cells
+// when `self.4` is true (e.g. SUMIF/AVERAGEIF extending a smaller sum_range/average_range).
+struct InputCells(BTreeMap<(u32, u32, u32), CalcValue>, bool, bool, bool, bool);
 impl CellReader for InputCells {
     fn reference_positions_known(&self) -> bool {
         self.2
@@ -42,12 +47,21 @@ impl CellReader for InputCells {
         area: GridArea,
         visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
     ) -> Result<(), Unreadable> {
-        if area.sheet() != SheetId::from_parts(1, 0) {
+        let sheet_num = if area.sheet() == SHEET_S {
+            1u32
+        } else if area.sheet() == SHEET_Q && self.4 {
+            3u32
+        } else {
             return Err(Unreadable);
-        }
+        };
+        let empty = CalcValue::empty();
         for row in area.first().row()..=area.last().row() {
             for column in area.first().column()..=area.last().column() {
-                let value = self.0.get(&(row, column)).ok_or(Unreadable)?;
+                let value = match self.0.get(&(sheet_num, row, column)) {
+                    Some(v) => v,
+                    None if sheet_num == 3 => &empty,
+                    None => return Err(Unreadable),
+                };
                 if visit(
                     CellKey::new(area.sheet(), row, column).expect("bounded input cell"),
                     value,
@@ -61,12 +75,21 @@ impl CellReader for InputCells {
         Ok(())
     }
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
-        (self.1
-            && area.sheet() == SheetId::from_parts(1, 0)
-            && (area.first().row()..=area.last().row()).all(|r| {
-                (area.first().column()..=area.last().column()).all(|c| self.0.contains_key(&(r, c)))
-            }))
-        .then(SubtotalExclusions::default)
+        if !self.1 {
+            return None;
+        }
+        if area.sheet() == SHEET_S {
+            (area.first().row()..=area.last().row())
+                .all(|r| {
+                    (area.first().column()..=area.last().column())
+                        .all(|c| self.0.contains_key(&(1, r, c)))
+                })
+                .then(SubtotalExclusions::default)
+        } else if area.sheet() == SHEET_Q && self.4 {
+            Some(SubtotalExclusions::default())
+        } else {
+            None
+        }
     }
 }
 
@@ -190,14 +213,23 @@ fn dereference(value: CalcValue, inputs: &InputCells) -> Option<CalcValue> {
     let [area] = reference.areas() else {
         return None;
     };
-    if area.sheet() != SheetId::from_parts(1, 0) {
+    let sheet_num = if area.sheet() == SHEET_S {
+        1u32
+    } else if area.sheet() == SHEET_Q && inputs.4 {
+        3u32
+    } else {
         return None;
-    }
+    };
     let mut rows = Vec::new();
     for r in area.first().row()..=area.last().row() {
         let mut row = Vec::new();
         for c in area.first().column()..=area.last().column() {
-            row.push(inputs.0.get(&(r, c))?.clone());
+            let cell = match inputs.0.get(&(sheet_num, r, c)) {
+                Some(v) => v.clone(),
+                None if sheet_num == 3 => CalcValue::empty(),
+                None => return None,
+            };
+            row.push(cell);
         }
         rows.push(row);
     }
@@ -205,6 +237,40 @@ fn dereference(value: CalcValue, inputs: &InputCells) -> Option<CalcValue> {
         return rows.pop()?.pop();
     }
     CalcArray::from_rows(rows).map(CalcValue::array)
+}
+
+fn flush_value2(value: &mut CalcValue) {
+    match value.core_ref() {
+        CoreRef::Number(number)
+            if number.is_subnormal() || (number == 0.0 && number.is_sign_negative()) =>
+        {
+            *value = CalcValue::number(0.0);
+        }
+        CoreRef::Array(array) => {
+            let shape = array.shape();
+            let mut changed = false;
+            let mut rows = Vec::with_capacity(shape.rows);
+            for r in 0..shape.rows {
+                let mut row = Vec::with_capacity(shape.cols);
+                for c in 0..shape.cols {
+                    let mut cell = array.get(r, c).unwrap().clone();
+                    if let Some(number) = cell.as_number()
+                        && (number.is_subnormal()
+                            || (number == 0.0 && number.is_sign_negative()))
+                    {
+                        cell = CalcValue::number(0.0);
+                        changed = true;
+                    }
+                    row.push(cell);
+                }
+                rows.push(row);
+            }
+            if changed {
+                *value = CalcValue::array(CalcArray::from_rows(rows).expect("same shape"));
+            }
+        }
+        _ => {}
+    }
 }
 
 pub fn calculate(
@@ -289,24 +355,20 @@ pub fn calculate_with_reference_text(
             c.input_transport.as_deref(),
             Some("cell_value2_bulk" | "cell_value2")
         )
-    }) && values
-        .iter()
-        .all(|value| !matches!(value.core_ref(), CoreRef::Array(_)));
+    });
     if value2_transport {
-        // Excel's Value2 cell write stores signed subnormals and negative zero as +0.
+        // Excel's Value2 cell write stores signed subnormals and negative zero as +0
+        // across scalars, CHOOSE arrays, and rRxC ranges (Program.cs:403, 430, 850).
         // Q1-subnormal-inputs.json, dc-1943: 179 affected bank calls replayed.
         for value in &mut values {
-            if let Some(number) = value.as_number()
-                && (number.is_subnormal() || number == 0.0)
-            {
-                *value = CalcValue::number(0.0);
-            }
+            flush_value2(value);
         }
     }
     let mut prepared = values.clone();
     let mut grid = BTreeMap::new();
-    let mut next_column = 1u32;
+    let mut range_column = 1u32;
     let mut has_reference = false;
+    let mut has_range = false;
     for (position, arg) in args.iter().enumerate() {
         if arg.get("range").is_none() {
             continue;
@@ -318,34 +380,34 @@ pub fn calculate_with_reference_text(
         for r in 0..shape.rows {
             for c in 0..shape.cols {
                 grid.insert(
-                    (r as u32 + 1, next_column + c as u32),
+                    (3, r as u32 + 1, range_column + c as u32),
                     array.get(r, c).unwrap().clone(),
                 );
             }
         }
-        let sheet = SheetId::from_parts(1, 0);
-        let first = CellKey::new(sheet, 1, next_column).unwrap();
+        let first = CellKey::new(SHEET_Q, 1, range_column).unwrap();
         let last = CellKey::new(
-            sheet,
+            SHEET_Q,
             shape.rows as u32,
-            next_column + shape.cols as u32 - 1,
+            range_column + shape.cols as u32 - 1,
         )
         .unwrap();
         prepared[position] =
             CalcValue::reference(ReferenceLike::area(GridArea::new(first, last).unwrap()));
-        next_column += shape.cols as u32 + 1;
+        range_column += shape.cols as u32;
         has_reference = true;
+        has_range = true;
     }
     // An attested Touchstone/1 bulk layout places the argument cells on sheet S from column B
     // (their row stays unknown); without it the cells' place is not known at all.
     let bulk_layout = cell_transport
-        && args.iter().all(|arg| arg.get("range").is_none())
+        && !has_range
         && context.is_some_and(|c| c.cell_layout.as_deref() == Some("touchstone/1-bulk"));
     let first_column = if bulk_layout { 2 } else { 1 };
     let mut bulk_sheet = BulkSheet { errors: BTreeMap::new() };
     if cell_transport {
         for (position, value) in values.iter().enumerate() {
-            grid.insert((1, position as u32 + first_column), value.clone());
+            grid.insert((1, 1, position as u32 + first_column), value.clone());
             if let CoreRef::Error(code) = value.core_ref() {
                 bulk_sheet.errors.insert(position as u32 + first_column, code);
             }
@@ -357,18 +419,18 @@ pub fn calculate_with_reference_text(
             ) {
                 has_reference = true;
                 *argument = CalcValue::reference(ReferenceLike::area(GridArea::cell(
-                    CellKey::new(SheetId::from_parts(1, 0), 1, position as u32 + first_column)
+                    CellKey::new(SHEET_S, 1, position as u32 + first_column)
                         .expect("argument fits the grid"),
                 )));
             }
         }
     }
-    // The attested Touchstone bulk worker builds numeric arrays with CHOOSE and places
-    // every scalar/blank/error argument in a worksheet cell on sheet S (`RC[...]`). Preserve
-    // that cell-reference origin for non-array reference/value-or-reference parameters without
-    // claiming known row/column positions (arrays shift column offsets).
+    // The attested Touchstone worker places every scalar/blank/error argument in a worksheet cell
+    // on sheet S — both beside CHOOSE arrays (`RC[...]` in EvaluateBatch, Program.cs:237) and
+    // beside rRxC ranges (`S!$<col>$1` in EvaluateSpecial, Program.cs:417-442). Preserve that
+    // cell-reference origin on sheet S without colliding with ranges on sheet Q or claiming known
+    // row/column positions.
     let mixed_bulk_scalar_cells = !cell_transport
-        && args.iter().all(|arg| arg.get("range").is_none())
         && values.iter().any(|v| matches!(v.core_ref(), CoreRef::Array(_)))
         && context.is_some_and(|c| {
             c.input_transport.as_deref() == Some("cell_value2_bulk")
@@ -376,16 +438,16 @@ pub fn calculate_with_reference_text(
         });
     if mixed_bulk_scalar_cells {
         for (position, argument) in prepared.iter_mut().enumerate() {
-            if !matches!(values[position].core_ref(), CoreRef::Array(_))
+            if args[position].get("range").is_none()
+                && !matches!(values[position].core_ref(), CoreRef::Array(_))
                 && matches!(
                     target.parameter_class(position),
                     Some(ParameterClass::Reference | ParameterClass::ValueOrReference)
                 )
             {
                 let column = position as u32 + 1;
-                grid.insert((1, column), values[position].clone());
-                let cell = CellKey::new(SheetId::from_parts(1, 0), 1, column)
-                    .expect("argument fits the grid");
+                grid.insert((1, 1, column), values[position].clone());
+                let cell = CellKey::new(SHEET_S, 1, column).expect("argument fits the grid");
                 *argument = CalcValue::reference(ReferenceLike::area(GridArea::cell(cell)));
                 has_reference = true;
             }
@@ -399,9 +461,9 @@ pub fn calculate_with_reference_text(
     let mode = NumericMode::Fast;
     let visible_constants = context
         .is_some_and(|c| c.input_sheet_state.as_deref() == Some("visible-constant-inputs"))
-        || args.iter().any(|arg| arg.get("range").is_some());
+        || has_range;
     let row_free = bulk_layout && matches!(target.spelling(), "SHEET" | "ISFORMULA" | "FORMULATEXT" | "COLUMN");
-    let mut cells = InputCells(grid, visible_constants, row_free, bulk_layout);
+    let mut cells = InputCells(grid, visible_constants, row_free, bulk_layout, has_range);
     // A capture can know its separators without knowing its complete locale.
     // Preserve only those facts; VALUE and date parsing still require a profile.
     let separators = context.and_then(|c| {
@@ -741,7 +803,8 @@ mod tests {
             assert_eq!(calculate(name, &[y.clone(), err.clone()], None, Some(&attested), true), "error:Ref");
             assert_eq!(calculate(name, &[err.clone(), y.clone()], None, Some(&attested), true), "error:Value");
             assert_eq!(calculate(name, &[y.clone(), err.clone()], None, Some(&unknown), true), "error:Div0");
-            assert_eq!(calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&attested), true), "error:Div0");
+            assert_eq!(calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&attested), true), "error:Ref");
+            assert_eq!(calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&unknown), true), "error:Div0");
         }
     }
 
@@ -1002,6 +1065,126 @@ mod tests {
         assert_eq!(
             calculate("NUMBERVALUE", &feb29, None, Some(&leap_year), true),
             n(45351.0)
+        );
+    }
+
+    /// rw7 items 2 & 3:
+    /// - EvaluateSpecial passes scalar args beside rRxC ranges as S!$<col>$1 cell references.
+    /// - Value2 writes flush subnormals and -0.0 inside arrays and ranges as well as scalars.
+    /// - Sheet Q cells past a smaller SUMIF/AVERAGEIF sum_range/average_range are empty, not unreadable.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn range_with_scalar_transport_value2_flushing_and_sumif_empty_cells() {
+        let attested = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let value2_only = WitnessInvocation {
+            input_transport: Some("cell_value2".into()),
+            ..Default::default()
+        };
+        let n = |x: f64| format!("0x{:016x}", x.to_bits());
+
+        // 1. Scalar blank/error arguments beside an rRxC range keep cell-reference identity
+        //    under attested touchstone/1-bulk transport (matching Program.cs EvaluateSpecial).
+        let r_avg = json!({"range": [[n(10.0)], [n(20.0)]]});
+        assert_eq!(
+            calculate("AVERAGE", &[r_avg.clone(), Value::Null, Value::Null], None, Some(&attested), true),
+            n(15.0),
+            "AVERAGE(range, blank, blank) must ignore blank cell refs on sheet S"
+        );
+        assert_eq!(
+            calculate("AVERAGE", &[r_avg, Value::Null, Value::Null], None, None, true),
+            n(7.5),
+            "without attested bulk transport, direct Empty args count as 0"
+        );
+        let y = json!([[n(1.0)], [n(2.0)], [n(3.0)], [n(4.0)], [n(5.0)]]);
+        let err = json!({"error": "Div0"});
+        for name in ["LINEST", "LOGEST"] {
+            assert_eq!(
+                calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&attested), true),
+                "error:Ref",
+                "{name}(range, err) under attested bulk transport passes err via S!$C$1"
+            );
+            assert_eq!(
+                calculate(name, &[json!({"range": y.clone()}), err.clone()], None, Some(&value2_only), true),
+                "error:Div0",
+                "{name}(range, err) without touchstone/1-bulk keeps direct error"
+            );
+        }
+
+        // 2. Value2 subnormal and -0.0 flushing applies inside arrays and ranges.
+        let neg_zero = "0x8000000000000000";
+        let subnormal = "0x0000000000000001";
+        let pos_zero = "0x0000000000000000";
+        let arr_sub = json!([[subnormal, neg_zero]]);
+        let rng_sub = json!({"range": [[subnormal, neg_zero]]});
+        for inv in [&attested, &value2_only] {
+            assert_eq!(
+                calculate("INDEX", &[arr_sub.clone(), json!(n(1.0)), json!(n(1.0))], None, Some(inv), true),
+                pos_zero,
+                "Value2 transport must flush subnormals inside arrays to +0.0"
+            );
+            assert_eq!(
+                calculate("INDEX", &[arr_sub.clone(), json!(n(1.0)), json!(n(2.0))], None, Some(inv), true),
+                pos_zero,
+                "Value2 transport must flush -0.0 inside arrays to +0.0"
+            );
+            assert_eq!(
+                calculate("INDEX", &[rng_sub.clone(), json!(n(1.0)), json!(n(1.0))], None, Some(inv), true),
+                pos_zero,
+                "Value2 transport must flush subnormals inside ranges to +0.0"
+            );
+            assert_eq!(
+                calculate("INDEX", &[rng_sub.clone(), json!(n(1.0)), json!(n(2.0))], None, Some(inv), true),
+                pos_zero,
+                "Value2 transport must flush -0.0 inside ranges to +0.0"
+            );
+        }
+        // Without Value2 transport, exact bits are preserved.
+        assert_eq!(
+            calculate("INDEX", &[arr_sub, json!(n(1.0)), json!(n(1.0))], None, None, true),
+            subnormal
+        );
+
+        // 3. SUMIF and AVERAGEIF extending a smaller sum_range/average_range on sheet Q read
+        //    unwritten cells as empty instead of fault:ReferenceUnreadable (and scalar criteria
+        //    on sheet S never collides with extended ranges on sheet Q).
+        let criteria_range = json!({"range": [[n(1.0), n(2.0)], [n(3.0), n(4.0)]]});
+        let small_sum_range = json!({"range": [[n(10.0)]]});
+        assert_eq!(
+            calculate(
+                "SUMIF",
+                &[criteria_range.clone(), json!(">0"), small_sum_range.clone()],
+                None,
+                Some(&attested),
+                true,
+            ),
+            n(10.0),
+            "SUMIF with 1x1 sum_range extended to 2x2 must treat unwritten Q cells as empty"
+        );
+        assert_eq!(
+            calculate(
+                "SUMIF",
+                &[criteria_range.clone(), json!("=4"), small_sum_range.clone()],
+                None,
+                Some(&attested),
+                true,
+            ),
+            pos_zero,
+            "SUMIF matching only an unwritten extended Q cell must return 0"
+        );
+        assert_eq!(
+            calculate(
+                "AVERAGEIF",
+                &[criteria_range, json!(">0"), small_sum_range],
+                None,
+                Some(&attested),
+                true,
+            ),
+            n(10.0),
+            "AVERAGEIF ignores empty cells in extended average_range on sheet Q"
         );
     }
 }

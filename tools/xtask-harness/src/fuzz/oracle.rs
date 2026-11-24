@@ -1532,8 +1532,11 @@ pub fn fractal_refine_coarse_discrepancies_excel(
             if added >= MAX_COARSE_AXES_PER_EXEMPLAR {
                 break;
             }
-            let cell = if p.kind == ParamKind::ArrayNumeric {
-                Some((0, 0))
+            let cell = if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
+                [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0)]
+                    .into_iter()
+                    .find(|&rc| get_axis_bits(&ex.case.args, i, Some(rc)).is_some())
+                    .or(Some((0, 0)))
             } else {
                 None
             };
@@ -4519,6 +4522,193 @@ mod tests {
             submissions.load(Ordering::SeqCst),
             0,
             "100% DNA-faulting runs must send 0 Touchstone submissions to Excel"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn coarse_discrepancy_escalation_probes_cells_inside_cell_range_arguments() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-cellrange-coarse-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let secret_cut = 0.125_f64;
+        let _broker = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => {
+                        write_frame(
+                            &mut stream,
+                            b'H',
+                            &json!({"v": "touchstone/1", "server": "fake-range-coarse", "envs": {"e1": {"engine": "excel"}}}),
+                        );
+                    }
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_owned();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                // Group tokens are ["r1x1", "s"]
+                                assert_eq!(tokens, vec!["r1x1", "s"]);
+                                let cell_obj = flat[r * 2].as_object().unwrap();
+                                let h = cell_obj["bits"].as_str().unwrap();
+                                let crit = flat[r * 2 + 1].as_str().unwrap();
+                                ity.push('n');
+                                iv.push(Value::String(h.to_owned()));
+                                ity.push('t');
+                                iv.push(Value::String(crit.to_owned()));
+                                let x = f64::from_bits(u64::from_str_radix(h, 16).unwrap());
+                                if x > secret_cut {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#NUM!".to_owned()));
+                                } else {
+                                    let args_json = vec![
+                                        json!({"range": [[format!("0x{h}")]]}),
+                                        Value::String(crit.to_owned()),
+                                    ];
+                                    let (dna, _, _) = evaluate_traced("AVERAGEIF", &args_json, &ctx);
+                                    if let Some(hex) = dna.strip_prefix("0x") {
+                                        ty.push('n');
+                                        out_v.push(Value::String(hex.to_owned()));
+                                    } else {
+                                        ty.push('e');
+                                        out_v.push(Value::String("#DIV/0!".to_owned()));
+                                    }
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let spec = DomainSpec::for_function("AVERAGEIF").unwrap();
+        let ctx = touchstone_bulk_context();
+        let mut cfg = FuzzConfig::default_for("AVERAGEIF");
+        cfg.out_dir = tmp.join("out");
+
+        let disc_args = vec![json!({"range": [[hex_f64(0.5)]]}), json!(">0")];
+        let (pred, trace, oc) = evaluate_traced("AVERAGEIF", &disc_args, &ctx);
+        let disc_case = FuzzCase {
+            id: "fuzz-AVERAGEIF-r00-000001".to_owned(),
+            region: "special_values".to_owned(),
+            round: 0,
+            args: disc_args.clone(),
+            prediction: pred,
+            trace,
+            outcome_class: oc,
+        };
+        let mut discrepancies = vec![DiscrepancyRow {
+            case: disc_case,
+            expected: "error:Num".to_owned(),
+            severity: Severity::Structural,
+            ulp: None,
+            env_id: "e1".to_owned(),
+            cluster_key: "error:Num_vs_number|coarse".to_owned(),
+        }];
+        let mut frontiers = Vec::new();
+        let mut fractal_stats = FractalDiscoveryStats::default();
+        let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let disc_key = canonical_case_key("AVERAGEIF", &disc_args);
+        seen.insert(disc_key.clone());
+        excel_answers.insert(disc_key, "error:Num".to_owned());
+        let mut hasher = StreamCaseHasher::new("AVERAGEIF");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (
+            mut next_id,
+            mut generated,
+            mut asked,
+            mut matched,
+            mut mismatched,
+            mut harness_fault,
+            mut unread,
+            mut crashed,
+        ) = (1, 0, 0, 0, 0, 0, 0, 0);
+        let mut harness_faults: BTreeMap<String, usize> = BTreeMap::new();
+        let mut excel_s = 0.0;
+
+        let added = fractal_refine_coarse_discrepancies_excel(
+            &cfg,
+            &spec,
+            &client,
+            &mut frontiers,
+            &mut fractal_stats,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discrepancies,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut harness_fault,
+            &mut harness_faults,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            1,
+            2,
+        )
+        .expect("coarse escalation on CellRange succeeded");
+
+        assert!(added >= 1, "expected coarse escalation to probe CellRange cell (0,0)");
+        let f = frontiers
+            .iter()
+            .find(|f| f.axis == 0 && f.axis_cell == Some((0, 0)) && f.scale == "coarse_discrepancy")
+            .expect("CellRange (0,0) coarse_discrepancy frontier must be discovered");
+        assert_eq!(f.excel_lo_bits, Some(secret_cut.to_bits()));
+        assert_eq!(
+            f.excel_hi_bits,
+            Some(step_ulps(secret_cut, 1, true).unwrap().to_bits())
         );
         let _ = std::fs::remove_dir_all(&tmp);
     }

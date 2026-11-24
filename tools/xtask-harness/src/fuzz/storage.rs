@@ -969,6 +969,50 @@ mod tests {
             "judge_pair must flag matching row despite case difference: {bad_bank:?}"
         );
 
+        // 4. Scheduler chunk bank-rows listed in recipe.storage_policy.bank_rows_files are
+        //    audited even when verify_sweep_storage_policy is called with bank_rows_path = None,
+        //    and a DNA-side fault:* row inside a scheduler chunk is caught.
+        let sched_chunk = tmp.join("sched-bank-chunk-0001.json");
+        let fault_ws = json!({
+            "format": calc_verdict::WITNESS_SET_FORMAT,
+            "function": "OFFSET",
+            "lane": "fz3",
+            "selection": "scheduler chunk",
+            "readings": [{
+                "id": "r0",
+                "source": "test",
+                "excel_build": "16.0",
+                "platform": "Windows",
+                "bitness": "64-bit",
+                "cpu": "Fake",
+                "env_id": "e1",
+                "lane": "fz3",
+                "timestamp": "2026-11-24T12:00:00Z"
+            }],
+            "witnesses": [{
+                "id": "w-dna-fault",
+                "reading": "r0",
+                "args": ["0x3ff0000000000000"],
+                "expected_bits": "error:Ref",
+                "calc_func": "fault:WitnessReferencePosition"
+            }]
+        });
+        fs::write(&sched_chunk, serde_json::to_string_pretty(&fault_ws).unwrap()).unwrap();
+        let mut sched_recipe = recipe;
+        sched_recipe.storage_policy.discrepancy_rows_exported = 1;
+        sched_recipe.storage_policy.bank_rows_path = None;
+        sched_recipe.storage_policy.bank_rows_files = vec![sched_chunk.display().to_string()];
+        write_sweep_recipe(&cfg.out_dir, &sched_recipe).unwrap();
+        let sched_audit = verify_sweep_storage_policy(&cfg.out_dir, None).expect("sched audit");
+        assert!(
+            !sched_audit.ok
+                && sched_audit
+                    .violations
+                    .iter()
+                    .any(|v| v.contains("DNA-side harness fault")),
+            "verify_sweep_storage_policy(out_dir, None) must audit scheduler bank_rows_files and catch fault:* rows: {sched_audit:?}"
+        );
+
         let _ = fs::remove_dir_all(&tmp);
     }
 }

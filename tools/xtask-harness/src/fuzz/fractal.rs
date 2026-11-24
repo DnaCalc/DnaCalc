@@ -441,9 +441,12 @@ pub fn bisect_signature_axis_cell(
 fn collect_probe_axes(spec: &DomainSpec) -> Vec<(usize, Option<(usize, usize)>)> {
     let mut axes = Vec::new();
     for (i, p) in spec.params.iter().enumerate() {
-        if p.kind == ParamKind::ArrayNumeric {
+        if matches!(p.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
             for r in 0..3 {
                 axes.push((i, Some((r, 0))));
+            }
+            if p.kind == ParamKind::CellRange {
+                axes.push((i, Some((0, 1))));
             }
         } else {
             axes.push((i, None));
@@ -1214,5 +1217,45 @@ mod tests {
                 "fractal_discover_local emitted a DNA-fault frontier: {f:?}"
             );
         }
+    }
+
+    #[test]
+    fn fractal_discovery_probes_cells_inside_cell_range_arguments() {
+        use serde_json::json;
+
+        let spec = DomainSpec::for_function("AVERAGEIF").unwrap();
+        assert_eq!(
+            spec.params[0].kind,
+            ParamKind::CellRange,
+            "expected AVERAGEIF range parameter to be CellRange"
+        );
+        let ctx = touchstone_bulk_context();
+        // AVERAGEIF({"range": [[1.0]]}, ">0"): sweeping cell (0,0) across 0.0 flips
+        // error:Div0 (0.0) <-> number (+MIN_POSITIVE).
+        let seed_args = vec![json!({"range": [[hex_f64(1.0)]]}), json!(">0")];
+        let (pred, trace, oc) = evaluate_traced("AVERAGEIF", &seed_args, &ctx);
+        let seeds = vec![FuzzCase {
+            id: "seed-averageif".to_owned(),
+            region: "special_values".to_owned(),
+            round: 0,
+            args: seed_args,
+            prediction: pred,
+            trace,
+            outcome_class: oc,
+        }];
+        let res = fractal_discover_local(&spec, &seeds, &ctx, &FractalConfig::new(4, 0));
+        let found = res.frontiers.iter().any(|f| {
+            f.axis == 0
+                && f.axis_cell == Some((0, 0))
+                && f.dna_lo_bits == 0.0_f64.to_bits()
+                && f.dna_hi_bits == f64::MIN_POSITIVE.to_bits()
+                && f.dna_lo_outcome == "error:Div0"
+                && f.dna_hi_outcome.starts_with("0x")
+        });
+        assert!(
+            found,
+            "expected fractal_discover_local to probe CellRange cell (0,0) and find 0.0<->+MIN_POSITIVE flip; got {:?}",
+            res.frontiers
+        );
     }
 }

@@ -17,7 +17,7 @@
   var FUZZ_MAP = (typeof FUZZ !== 'undefined' && FUZZ) ? FUZZ : {};
   function parseFuzz(raw) {
     if (!raw || !raw.length) return null;
-    return { swept: raw[0], matched: raw[1], failed: raw[2], regionsCovered: raw[3], regionsTotal: raw[4], frontiers: raw[5], openClusters: raw[6], lastDate: raw[7], sweeps: raw[8] || 1, commit: raw[9] || '-' };
+    return { swept: raw[0], matched: raw[1], failed: raw[2], regionsCovered: raw[3], regionsTotal: raw[4], frontiers: raw[5], openClusters: raw[6], lastDate: raw[7], sweeps: raw[8] || 1, commit: raw[9] || '-', harnessFaults: raw[10] || 0 };
   }
   var data = BANK.map(function (r) {
     var cat = FIX[r[0]] || r[5] || 'Add-ins';
@@ -47,7 +47,7 @@
 
   // ---------- masthead totals and timeline ----------
   var total = d3.sum(data, function (d) { return d.rows; }), matched = d3.sum(data, function (d) { return d.matched; });
-  var fuzzedFns = data.filter(function (d) { return !!d.fuzz; }).length;
+  var fuzzedFns = data.filter(function (d) { return d.fuzz && d.fuzz.swept > 0; }).length;
   document.getElementById('totals').innerHTML = [
     [fmt(data.length), 'functions'], [fmt(total), 'Excel answers'], [(matched / total * 100).toFixed(2) + '%', 'matched exactly'],
     [fmt(data.filter(function (d) { return d.cls === 'exact'; }).length), 'with no miss at all'],
@@ -250,8 +250,8 @@
     if (state.day === LAST) h += '<p class="state">' + esc(CLASS_TEXT[d.cls]) + '</p>';
     if (d.state) h += '<p class="state">Handbook: <b>' + esc(d.state) + '</b></p>';
     h += '<h2 class="chart-subheading">Fuzz coverage</h2>';
-    if (d.fuzz) {
-      h += '<div class="kv"><span>cases swept</span><b>' + fmt(d.fuzz.swept) + '</b><span>matched / failed</span><b>' + fmt(d.fuzz.matched) + ' / ' + fmt(d.fuzz.failed) + '</b><span>regions covered</span><b>' + fmt(d.fuzz.regionsCovered) + ' / ' + fmt(d.fuzz.regionsTotal) + '</b><span>frontiers mapped</span><b>' + fmt(d.fuzz.frontiers) + '</b><span>open clusters</span><b>' + fmt(d.fuzz.openClusters) + '</b><span>last sweep</span><b>' + esc(d.fuzz.lastDate) + '</b></div>';
+    if (d.fuzz && d.fuzz.swept > 0) {
+      h += '<div class="kv"><span>cases swept</span><b>' + fmt(d.fuzz.swept) + '</b><span>matched / failed</span><b>' + fmt(d.fuzz.matched) + ' / ' + fmt(d.fuzz.failed) + '</b><span>harness faults</span><b>' + fmt(d.fuzz.harnessFaults) + '</b><span>regions covered</span><b>' + fmt(d.fuzz.regionsCovered) + ' / ' + fmt(d.fuzz.regionsTotal) + '</b><span>frontiers mapped</span><b>' + fmt(d.fuzz.frontiers) + '</b><span>open clusters</span><b>' + fmt(d.fuzz.openClusters) + '</b><span>last sweep</span><b>' + esc(d.fuzz.lastDate) + '</b></div>';
     } else {
       h += '<p class="desc chart-muted">No live fuzz sweep recorded yet.</p>';
     }
