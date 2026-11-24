@@ -676,8 +676,8 @@ class Broker:
             if slot.state != "idle":
                 continue
             batch = None
-            if slot.serial:
-                batch = self.batcher.next_batch(allow_isolated=slot is isolation, sweep_queue=self.batcher.sweep_serial)
+            if slot.serial and self.batcher.sweep_serial:
+                batch = self.batcher.next_serial_batch(sweep=True)
             if batch is None:
                 batch = self.batcher.next_batch(allow_isolated=slot is isolation, sweep_queue=self.batcher.sweep)
             if batch is not None:
