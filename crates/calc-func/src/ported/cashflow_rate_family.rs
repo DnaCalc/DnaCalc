@@ -471,6 +471,7 @@ fn irr_daz(value: f64) -> f64 {
 enum IrrStep {
     Ok(f64),
     RetryNum,
+    HardNum,
     HardDiv0,
 }
 
@@ -528,18 +529,15 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                 return Err(IrrStep::HardDiv0);
             }
             let term = irr_daz(div(flow, divisor));
-            if !term.is_finite() {
-                if tracing {
-                    crate::trace::hit(9);
-                }
-                return Err(IrrStep::RetryNum);
+            if tracing && !term.is_finite() {
+                crate::trace::hit(9);
             }
             total = add(total, term);
         }
         if total.is_finite() {
             Ok(total)
         } else {
-            Err(IrrStep::RetryNum)
+            Err(IrrStep::HardNum)
         }
     };
     let publish = |u: f64, min_v: f64| -> IrrStep {
@@ -616,7 +614,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
                 crate::trace::hit(14);
                 crate::trace::record_iterations(iter + 1);
             }
-            return IrrStep::RetryNum;
+            return IrrStep::HardNum;
         }
         step = sub(next, current).abs();
         (before, value_before) = (current, value);
@@ -719,6 +717,7 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
                 return Ok(r);
             }
             IrrStep::HardDiv0 => return Err(WorksheetErrorCode::Div0),
+            IrrStep::HardNum => return Err(WorksheetErrorCode::Num),
             IrrStep::RetryNum => continue,
         }
     }
@@ -1398,6 +1397,49 @@ mod tests {
         assert_eq!(
             irr_kernel(&[100.0, 200.0], None),
             Err(WorksheetErrorCode::Num)
+        );
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.105): nonfinite NPV total (checked
+    /// after the cashflow loop without per-term early exit) and nonfinite secant step
+    /// return `HardNum` immediately instead of retrying, while a later `power`
+    /// underflow/overflow in the same loop still surfaces as `#DIV/0!`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_overflow_is_hard_num_and_checked_after_cashflow_loop() {
+        // I4-dc-j9k-105-dblmax-overflow:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xffefffffffffffff),
+                    f64::from_bits(0x7fefffffffffffff),
+                ],
+                None
+            ),
+            Err(WorksheetErrorCode::Num)
+        );
+        // I4-dc-j9k-105-long-chain-retry:
+        let long_chain: [f64; 29] = [
+            0xc059000000000000, 0x400af200ac8724c4, 0x402d8edfce37bcce, 0x401866e68fca9d33,
+            0x401832a4ad149aef, 0x402ccca9337c986a, 0x40275bab8575a39c, 0x40264d1545c68247,
+            0x40264c073a3c7a56, 0x402b75449ce57a21, 0x402a90886ae40b34, 0x402cfa99c7468dd5,
+            0x4023f10e7cdebda3, 0x40302a4656857d55, 0x4009f3809258bca8, 0x4018c8a975e8035e,
+            0x4030610340c02580, 0x4017cfd081e37fde, 0x403392b04fccc997, 0x402f28bfc44da26e,
+            0x403116a9fd942f9f, 0x401d5b18cf790812, 0x40233fa7716b93bf, 0x402768ff2fe6d9de,
+            0x3ff7959ea0c65c42, 0x401e137e9d8d8557, 0x401570eb9ea3d556, 0x400d9c414579d845,
+            0x4018d6605f75e2ba,
+        ]
+        .map(f64::from_bits);
+        assert_eq!(
+            irr_kernel(&long_chain, Some(f64::from_bits(0xbfeffffffffe2c99))),
+            Err(WorksheetErrorCode::Num)
+        );
+        // cb25 IE-04: a term overflows at k=32 before power underflows to 0 at k=33 -> #DIV/0!.
+        let mut ie04 = vec![22.0; 36];
+        ie04[0] = -100.0;
+        assert_eq!(
+            irr_kernel(&ie04, Some(f64::from_bits(0xbfeffffffff920c8))),
+            Err(WorksheetErrorCode::Div0)
         );
     }
 

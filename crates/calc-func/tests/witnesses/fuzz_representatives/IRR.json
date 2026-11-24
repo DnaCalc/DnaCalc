@@ -209,8 +209,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x0000000000000000"
+      "expected_bits": "error:Num"
     },
     {
       "id": "I4-dc-j9k-105-long-chain-retry",
@@ -307,8 +306,7 @@
         ],
         "0xbfeffffffffe2c99"
       ],
-      "expected_bits": "error:Num",
-      "calc_func": "0x3fb8386eb7b058e0"
+      "expected_bits": "error:Num"
     }
   ]
 }
