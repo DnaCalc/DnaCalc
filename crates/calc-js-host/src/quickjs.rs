@@ -79,6 +79,7 @@ struct Realm {
     context: Context,
     _runtime: Runtime,
     deadline: Rc<Cell<Option<Instant>>>,
+    interrupted: Rc<Cell<bool>>,
 }
 
 impl Realm {
@@ -87,10 +88,16 @@ impl Realm {
         end: Instant,
         invoke: impl FnOnce() -> Result<CalcValue, JsHostError>,
     ) -> Result<CalcValue, JsHostError> {
+        struct Clear<'a>(&'a Cell<Option<Instant>>);
+        impl Drop for Clear<'_> {
+            fn drop(&mut self) {
+                self.0.set(None);
+            }
+        }
+        self.interrupted.set(false);
         self.deadline.set(Some(end));
-        let result = invoke();
-        self.deadline.set(None);
-        result
+        let _clear = Clear(&self.deadline);
+        invoke()
     }
 }
 
@@ -135,9 +142,19 @@ impl JsEngine for QuickJs {
         let runtime = Runtime::new().map_err(registration_error)?;
         runtime.set_memory_limit(self.limits.heap_bytes);
         let deadline = Rc::new(Cell::new(Some(end)));
-        let interrupt = Rc::clone(&deadline);
+        let interrupted = Rc::new(Cell::new(false));
+        let interrupt_deadline = Rc::clone(&deadline);
+        let interrupt_flag = Rc::clone(&interrupted);
         runtime.set_interrupt_handler(Some(Box::new(move || {
-            interrupt.get().is_some_and(|end| Instant::now() >= end)
+            if interrupt_deadline
+                .get()
+                .is_some_and(|end| Instant::now() >= end)
+            {
+                interrupt_flag.set(true);
+                true
+            } else {
+                false
+            }
         })));
         let context = Context::full(&runtime).map_err(registration_error)?;
         let result = context.with(|ctx| {
@@ -162,14 +179,23 @@ impl JsEngine for QuickJs {
             helpers.get::<_, Function>("seal")?.call::<_, ()>(())?;
             Ok(Ok(Persistent::save(&ctx, helpers)))
         });
-        check_time(end)?;
-        let helpers = result.map_err(registration_error)??;
         deadline.set(None);
+        let helpers = match result {
+            Ok(Ok(helpers)) => helpers,
+            Ok(Err(error)) => return Err(error),
+            Err(error) => {
+                if interrupted.get() {
+                    return Err(JsHostError::Timeout);
+                }
+                return Err(registration_error(error));
+            }
+        };
         self.realm = Some(Realm {
             helpers,
             context,
             _runtime: runtime,
             deadline,
+            interrupted,
         });
         Ok(())
     }
@@ -214,6 +240,8 @@ impl JsEngine for QuickJs {
                         ctx: &ctx,
                         helpers,
                         end,
+                        deadline: &realm.deadline,
+                        interrupted: &realm.interrupted,
                         output_bytes: self.limits.heap_bytes,
                     };
                     bridge.invoke(spec, arguments, invocation)
@@ -222,7 +250,9 @@ impl JsEngine for QuickJs {
                     if matches!(error, Error::Exception) {
                         ctx.catch();
                     }
-                    check_time(end)?;
+                    if realm.interrupted.get() {
+                        return Err(JsHostError::Timeout);
+                    }
                     Err(JsHostError::Execution(error.to_string()))
                 })
             })
@@ -236,14 +266,6 @@ fn end_time(limits: ExecLimits) -> Result<Instant, JsHostError> {
         .ok_or(JsHostError::Timeout)
 }
 
-fn check_time(end: Instant) -> Result<(), JsHostError> {
-    if Instant::now() >= end {
-        Err(JsHostError::Timeout)
-    } else {
-        Ok(())
-    }
-}
-
 fn registration_error(error: Error) -> JsHostError {
     JsHostError::Registration(error.to_string())
 }
@@ -252,10 +274,24 @@ struct Bridge<'a, 'js> {
     ctx: &'a Ctx<'js>,
     helpers: Object<'js>,
     end: Instant,
+    deadline: &'a Cell<Option<Instant>>,
+    interrupted: &'a Cell<bool>,
     output_bytes: usize,
 }
 
 impl<'js> Bridge<'_, 'js> {
+    fn without_deadline<T>(&self, run: impl FnOnce() -> T) -> T {
+        struct Restore<'a>(&'a Cell<Option<Instant>>, Option<Instant>);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.1);
+            }
+        }
+        let saved = self.deadline.replace(None);
+        let _restore = Restore(self.deadline, saved);
+        run()
+    }
+
     fn invoke(
         &mut self,
         spec: &FunctionSpec,
@@ -280,15 +316,12 @@ impl<'js> Bridge<'_, 'js> {
         }
         args.push_arg(self.invocation(invocation)?)?;
         let called = function.call_arg(args);
-        if let Err(timeout) = check_time(self.end) {
-            if matches!(called, Err(Error::Exception)) {
-                self.ctx.catch();
-            }
-            return Ok(Err(timeout));
-        }
         let value: Value = match called {
             Err(Error::Exception) => {
                 let thrown = self.ctx.catch();
+                if self.interrupted.get() {
+                    return Ok(Err(JsHostError::Timeout));
+                }
                 return Ok(match self.returned_error(&thrown)? {
                     Some(code) => Ok(CalcValue::error(code)),
                     None => Err(JsHostError::Execution(
@@ -296,7 +329,13 @@ impl<'js> Bridge<'_, 'js> {
                     )),
                 });
             }
-            result => result?,
+            Err(error) => {
+                if self.interrupted.get() {
+                    return Ok(Err(JsHostError::Timeout));
+                }
+                return Err(error);
+            }
+            Ok(value) => value,
         };
         if value.is_promise() {
             return Ok(Err(JsHostError::Deferred {
@@ -326,6 +365,7 @@ impl<'js> Bridge<'_, 'js> {
 
     fn input(&self, value: &CalcValue, may_be_matrix: bool) -> rquickjs::Result<Value<'js>> {
         if Instant::now() >= self.end {
+            self.interrupted.set(true);
             return Err(conversion("argument conversion exceeded the time limit"));
         }
         let ctx = self.ctx.clone();
@@ -401,9 +441,6 @@ impl<'js> Bridge<'_, 'js> {
     }
 
     fn scalar(&mut self, value: Value<'js>) -> rquickjs::Result<CalcValue> {
-        if Instant::now() >= self.end {
-            return Err(conversion("result conversion exceeded the time limit"));
-        }
         self.charge(size_of::<CalcValue>())?;
         if let Some(n) = value.as_number() {
             return Ok(if n.is_finite() {
@@ -417,7 +454,8 @@ impl<'js> Bridge<'_, 'js> {
         }
         if value.is_string() {
             let to_units: Function = self.helpers.get("toUnits")?;
-            let units: TypedArray<u16> = to_units.call((value, EXCEL_TEXT_MAX_UTF16_CODE_UNITS))?;
+            let units: TypedArray<u16> =
+                self.without_deadline(|| to_units.call((value, EXCEL_TEXT_MAX_UTF16_CODE_UNITS)))?;
             let units: &[u16] = units.as_ref();
             self.charge(std::mem::size_of_val(units))?;
             return Ok(CalcValue::text(ExcelText::from_utf16_code_units(
@@ -435,7 +473,7 @@ impl<'js> Bridge<'_, 'js> {
 
     fn returned_error(&self, value: &Value<'js>) -> rquickjs::Result<Option<W>> {
         let error_code: Function = self.helpers.get("errorCode")?;
-        let code: Value = error_code.call((value.clone(),))?;
+        let code: Value = self.without_deadline(|| error_code.call((value.clone(),)))?;
         let Some(code) = code.as_string() else {
             return Ok(None);
         };
@@ -480,16 +518,104 @@ fn conversion(message: &'static str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{FunctionOptions, FunctionResult};
+    use std::time::Duration;
+
+    fn spec(id: &str, dimensionality: Dimensionality) -> FunctionSpec {
+        FunctionSpec {
+            id: id.into(),
+            name: id.into(),
+            description: String::new(),
+            help_url: None,
+            parameters: Vec::new(),
+            result: FunctionResult {
+                description: String::new(),
+                dimensionality,
+            },
+            options: FunctionOptions::default(),
+        }
+    }
 
     /// Native-only: QuickJS runs in a native runtime.
     #[test]
-    fn deadline_cleanup_preserves_a_completed_invocation() {
+    fn completed_invoke_sync_results_survive_an_elapsed_deadline() {
         let mut engine = QuickJs::new(ExecLimits::default());
-        engine.load_module("test", "").unwrap();
-        let realm = engine.realm().unwrap();
-        let value = CalcValue::number(42.);
-        let result = realm.with_invocation_deadline(Instant::now(), || Ok(value.clone()));
-        assert_eq!(result, Ok(value));
-        assert_eq!(realm.deadline.get(), None);
+        engine
+            .load_module(
+                "probe",
+                r#"
+                CustomFunctions.associate('NUM', () => 42);
+                CustomFunctions.associate('TEXT', () => 'hello');
+                CustomFunctions.associate('MATRIX', () => [[1, 'two'], [true, null]]);
+                CustomFunctions.associate('ERR_RET', () => new CustomFunctions.Error(CustomFunctions.ErrorCode.divisionByZero));
+                CustomFunctions.associate('ERR_THROW', () => { throw new CustomFunctions.Error(CustomFunctions.ErrorCode.invalidName); });
+                CustomFunctions.associate('BAD', () => ({}));
+                CustomFunctions.associate('SPIN', () => { for (;;) {} });
+                CustomFunctions.associate('GETTER_SPIN', () => {
+                    const a = [[]];
+                    Object.defineProperty(a, 0, { get() { for (;;) {} } });
+                    return a;
+                });
+                "#,
+            )
+            .unwrap();
+
+        let invocation = JsInvocation {
+            function_name: "Probe.TEST".into(),
+            ..Default::default()
+        };
+
+        // Force Instant::now() >= end before Bridge::invoke finishes, matching the race where
+        // the clock ticks past end as a completed JS call returns.
+        engine.limits.time = Duration::ZERO;
+
+        assert_eq!(
+            engine.invoke_sync(&spec("NUM", Dimensionality::Scalar), &[], &invocation),
+            Ok(CalcValue::number(42.)),
+        );
+        assert_eq!(
+            engine.invoke_sync(&spec("TEXT", Dimensionality::Scalar), &[], &invocation),
+            Ok(CalcValue::text(ExcelText::from_interop_assignment("hello"))),
+        );
+        assert_eq!(
+            engine.invoke_sync(&spec("MATRIX", Dimensionality::Matrix), &[], &invocation),
+            Ok(CalcValue::array(
+                CalcArray::new(
+                    ArrayShape { rows: 2, cols: 2 },
+                    vec![
+                        CalcValue::number(1.),
+                        CalcValue::text(ExcelText::from_interop_assignment("two")),
+                        CalcValue::logical(true),
+                        CalcValue::empty(),
+                    ],
+                )
+                .unwrap()
+            )),
+        );
+        assert_eq!(
+            engine.invoke_sync(&spec("ERR_RET", Dimensionality::Scalar), &[], &invocation),
+            Ok(CalcValue::error(W::Div0)),
+        );
+        assert_eq!(
+            engine.invoke_sync(&spec("ERR_THROW", Dimensionality::Scalar), &[], &invocation),
+            Ok(CalcValue::error(W::Name)),
+        );
+        assert!(matches!(
+            engine.invoke_sync(&spec("BAD", Dimensionality::Scalar), &[], &invocation),
+            Err(JsHostError::Execution(_)),
+        ));
+        assert_eq!(engine.realm().unwrap().deadline.get(), None);
+
+        // Truly non-terminating guest execution and matrix getters must still time out.
+        engine.limits.time = Duration::from_millis(50);
+        assert_eq!(
+            engine.invoke_sync(&spec("SPIN", Dimensionality::Scalar), &[], &invocation),
+            Err(JsHostError::Timeout),
+        );
+        assert_eq!(
+            engine.invoke_sync(&spec("GETTER_SPIN", Dimensionality::Matrix), &[], &invocation),
+            Err(JsHostError::Timeout),
+        );
+        assert_eq!(engine.realm().unwrap().deadline.get(), None);
     }
 }
