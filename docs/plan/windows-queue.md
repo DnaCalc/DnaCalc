@@ -44,6 +44,60 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   The lane's evidence is in ww14/ets-parity.tsv, ww14/oracle-*-data,
   ww14/nl25-intake and ww14/bank-rows.
 
+
+- **dc-6332.10.** Fresh traced and untraced X2Pool runs returned 3 and 10002 in
+  Excel 16.0.20625.20108 and Win64 Formula Explorer at 0f791f297. With the same
+  fixture and tracer, all 10,002 registration descriptors and 20,010 startup
+  callback positions matched after normalizing the staged XLL path and the two
+  generated helper names. Each of 10,005 frees matched its producing
+  registration or window-handle callback, its post-free operand and return code.
+  Both endpoint native entries matched and both tracers detached cleanly.
+  Excel returned 2,001 negative registration IDs. The host's IDs were all
+  positive. The raw IDs, HWNDs and callback packets are retained. Wider xlOil,
+  spill and third-party ribbon comparisons remain with their existing owners.
+- **dc-17spk.7 / dc-snz.23.** The owned CAD1 DLL exposed no ribbon in Guarded.
+  Unguarded showed Run COM sample. The button set A1 to 72 and the label to
+  Clicked. A1 was still absent from the page before the click despite a
+  successful startup write. All five fixture registration keys were removed
+  and checked. The unchanged managed RTD fixture generates class names at
+  runtime, so its strict replay needs a fixture with predetermined HKCU paths.
+- **dc-1nbp.3.1 / dc-1nbp.6.** The Win64 page matched 6/6 formula values and
+  20/45 checks. Its B3 Change still carried Hello, on before calculation and
+  the page delivered an extra calculation pair. Excel's UI Undo restored the
+  original data in both Range branches. After insertion and Undo the held
+  object returned from A3 to A2 with value 20. After deletion and Undo the old
+  object continued to return 0x800A01A8 for Address and Empty for Value2,
+  while a fresh A2 read 20. In 24 E3 trials, E1-only Calculate read the old
+  cached 2 from D1 with one UDF entry. Dirty Application.Calculate ran the
+  hidden readers only in the volatile arm. CalculateFull and
+  CalculateFullRebuild entered all three readers once. Both formula entry
+  orders and MTR off/on agreed for the nonvolatile cases. In E4, the UDF
+  entered from Worksheet_Change raised 1004 on write and left E1 at 0.
+  VBA error-after-write continuations for Change and Save/SaveAs stalled at
+  private-desktop dialogs. See ww14/range-undo-retry, e3-controls, e4-udf and
+  appevents.
+- **dc-971p.16 / dc-971p.62 / dc-971p.43.** Excel saved F20 as the frozen
+  origin and I23 as the bottom-right pane origin. Deleting the last frozen
+  row or column reduced that split from three to two and moved the bottom-right
+  origin to I22 or H23. Both persisted on reopen. The 180 Excel AutoFit
+  readings show constant steps in 24 of 40 repeated-character series. At 11 pt
+  and 96 DPI the tested digit series have fitted intercepts of 7 or 9 pixels
+  when upright and 11 or 13 when italic. The retained styles-absent ink audit
+  found 68 nonblank text-box differences at 75/100% and four one-pixel
+  references on blank cells across the two painters. Exact sizing and ink
+  remain open. See ww14/scrolled-pane-retry, autofit-width and ink-audit.
+- **dc-ymjf.3.** Touchstone echoed all 5,042 distinct DATE input triples
+  exactly. Excel 16.0.20625.20108 and Win64 matched every 20527 result
+  and all 5,067 historical rows from 20430 differ on their original input.
+  The Handbook's FN-DATE-002 still cites its 22-row example set.
+  See ww14/date-drift for the larger comparison. The build-drift publication
+  remains dc-ymjf.3.
+
+The Windows evidence archive under
+`dnacalc-evidence/excel/ww14-windows-20261124T074918Z/` was checked against
+46 source files totaling 42,843,895 bytes. It contains the paired X2Pool
+traces, DATE replies and selected numerical and workbook results.
+
 ### ww13 Windows replay, 2026-11-24
 
 - **dc-b1l.** Excel 16.0.20625.20108 recorded Formula, Formula2 and Value2 for 156
