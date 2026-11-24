@@ -1,0 +1,8648 @@
+{
+  "family": "statistics-descriptive-regression",
+  "version": 1,
+  "functions": {
+    "AVERAGE": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "adjust_final_sum",
+          "how": "adds sequentially then adjusts final sum before dividing by count",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:202"
+        },
+        {
+          "name": "held_numbers_only",
+          "how": "coerces direct args; skips held text/logicals/blanks; held nested arrays give #N/A",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:180"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #DIV/0! when count == 0; direct text/logicals coerce while held non-numbers are skipped."
+    },
+    "AVERAGEA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "a_suffix_coercion",
+          "how": "held text in reference or array reads as 0; held TRUE=1, FALSE=0; blanks skipped",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:758"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #DIV/0! when count == 0; applies adjust_final_sum before division."
+    },
+    "MIN": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_returns_zero",
+          "how": "returns 0.0 when no numeric values exist",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:299"
+        },
+        {
+          "name": "overflow_nan_order",
+          "how": "preserves and orders qualified Excel overflow numbers",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:271"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Skips held text/logicals/blanks; returns 0 when empty; held nested array returns #N/A."
+    },
+    "MAX": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_returns_zero",
+          "how": "returns 0.0 when no numeric values exist",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:299"
+        },
+        {
+          "name": "overflow_nan_order",
+          "how": "preserves and orders qualified Excel overflow numbers",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:271"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Skips held text/logicals/blanks; returns 0 when empty; held nested array returns #N/A."
+    },
+    "MINA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "ref_vs_array_values",
+          "how": "held text=0, TRUE=1, FALSE=0 in references, while array literals skip text/logicals",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:754"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns 0 when empty; reference text/logicals count as 0/1 while array literals skip them."
+    },
+    "MAXA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "ref_vs_array_values",
+          "how": "held text=0, TRUE=1, FALSE=0 in references, while array literals skip text/logicals",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:754"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns 0 when empty; reference text/logicals count as 0/1 while array literals skip them."
+    },
+    "COUNT": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "direct_vs_held",
+          "how": "counts direct numbers/logicals/omitted/numeric-text; held cells count numbers only; never returns arg errors",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:334"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Reads through held nested arrays; ignores reference errors; counts yearless date text when direct."
+    },
+    "COUNTA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "non_blank_count",
+          "how": "counts every direct arg (even omitted) and every non-blank held cell (including \"\" and errors)",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:379"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Reads through held nested arrays; never propagates cell errors."
+    },
+    "COUNTBLANK": {
+      "args": [
+        {
+          "name": "range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_area_blank_or_empty_text",
+          "how": "counts Empty and \"\" cells; multi-area union or omitted/scalar returns #VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:438"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Single-area reference required; counts both empty cells and empty-string \"\" formula results."
+    },
+    "AVERAGEIF": {
+      "args": [
+        {
+          "name": "range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "average_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shaped_average_range",
+          "how": "shapes average_range from top-left cell to range size; #DIV/0! when 0 numeric matches",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:6"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Multi-area reference is #VALUE!; omitted average_range averages range."
+    },
+    "AVERAGEIFS": {
+      "args": [
+        {
+          "name": "average_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria1",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria2",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "exact_shape_match",
+          "how": "all ranges must share average_range shape or #VALUE!; #DIV/0! on 0 numeric matches",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:7"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Pairs (criteria_range, criteria) repeat; criteria arrays lift elementwise."
+    },
+    "COUNTIF": {
+      "args": [
+        {
+          "name": "range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "criteria_matching",
+          "how": "criteria coerced once; wildcards */? with ~ escape; >255 chars is #VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:21"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Single-area reference required; criteria arrays lift elementwise."
+    },
+    "COUNTIFS": {
+      "args": [
+        {
+          "name": "criteria_range1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria1",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria2",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "aligned_criteria_pairs",
+          "how": "requires equal shape across all criteria_range arguments (#VALUE! otherwise)",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:7"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Pairs (criteria_range, criteria) repeat; criteria arrays lift elementwise."
+    },
+    "MAXIFS": {
+      "args": [
+        {
+          "name": "max_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria1",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria2",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_match_returns_zero",
+          "how": "returns 0.0 when no numeric cell matches all criteria",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:63"
+        }
+      ],
+      "error_edges": [],
+      "notes": "All ranges must match target shape (#VALUE! otherwise); returns 0 if no numeric matches."
+    },
+    "MINIFS": {
+      "args": [
+        {
+          "name": "min_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria1",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria2",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "empty_match_returns_zero",
+          "how": "returns 0.0 when no numeric cell matches all criteria",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:63"
+        }
+      ],
+      "error_edges": [],
+      "notes": "All ranges must match target shape (#VALUE! otherwise); returns 0 if no numeric matches."
+    },
+    "AVEDEV": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_mean_abs_dev",
+          "how": "computes mean and mean(|v - mean|) in plain binary64; empty list is #NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:331"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #NUM! on zero numbers; skips held non-numbers."
+    },
+    "DEVSQ": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_square_subnormal_flush",
+          "how": "squares (v - mean) with x87_mul and flushes subnormal squares to 0",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:346"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Checks direct arguments before held errors; empty numeric list returns #NUM!."
+    },
+    "GEOMEAN": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "equal_positive_shortcut",
+          "how": "all-equal positive values return values[0] directly",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:363"
+        },
+        {
+          "name": "x87_product_root",
+          "how": "normal product uses excel_root_x87(product, n); overflow/underflow falls back to CRT exp(mean(ln))",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:372"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Empty list or any value <= 0 returns #NUM!."
+    },
+    "HARMEAN": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_reciprocal_sum",
+          "how": "stores x87 reciprocals, x87 running sum, x87 count quotient, and final x87 reciprocal",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:388"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Checks direct args first; any value <= 0 or reciprocal overflow is #NUM!; empty is #N/A."
+    },
+    "MEDIAN": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ],
+            [
+              1.0,
+              1.0000000000000002
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "even_midpoint_subnormal_retaining",
+          "how": "even count computes lo + (hi-lo)/2 (flushing half < DBL_MIN) and retains subnormals",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:412"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Direct args coerced before held errors; empty list returns #NUM!."
+    },
+    "MODE": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "mode_skip_direct_text_logical",
+          "how": "skips direct text/logicals (unlike SUM/AVERAGE) and treats direct/1-cell blank as #VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:773"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #NA when all numbers are unique (max frequency < 2); MODE.MULT spills column of ties."
+    },
+    "MODE.SNGL": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "mode_skip_direct_text_logical",
+          "how": "skips direct text/logicals (unlike SUM/AVERAGE) and treats direct/1-cell blank as #VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:773"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #NA when all numbers are unique (max frequency < 2); MODE.MULT spills column of ties."
+    },
+    "MODE.MULT": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "mode_skip_direct_text_logical",
+          "how": "skips direct text/logicals (unlike SUM/AVERAGE) and treats direct/1-cell blank as #VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:773"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #NA when all numbers are unique (max frequency < 2); MODE.MULT spills column of ties."
+    },
+    "LARGE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "k",
+          "kind": "number",
+          "specials": [
+            0,
+            0.5,
+            1,
+            1.5,
+            2,
+            3,
+            4,
+            5,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "validates unrounded k >= 1 and k <= len before truncating",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:112"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "k >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "unrounded_k_validation",
+          "how": "validates unrounded k in [1, n] before truncating rank; preserves overflow NaNs",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:115"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "k < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:112"
+        }
+      ],
+      "notes": "Validates unrounded k in [1, n] before truncating; LARGE indexes (n + 1 - k).trunc()."
+    },
+    "SMALL": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "k",
+          "kind": "number",
+          "specials": [
+            0,
+            0.5,
+            1,
+            1.5,
+            2,
+            3,
+            4,
+            5,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "validates unrounded k >= 1 and k <= len before truncating",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:112"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "k >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "unrounded_k_validation",
+          "how": "validates unrounded k in [1, n] before truncating rank; preserves overflow NaNs",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:115"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "k < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:112"
+        }
+      ],
+      "notes": "Validates unrounded k in [1, n] before truncating; LARGE indexes (n + 1 - k).trunc()."
+    },
+    "RANK": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            5.0,
+            99.0
+          ],
+          "ranges": [
+            [
+              -100.0,
+              100.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "ref",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            "TRUE",
+            "FALSE"
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "order == 0 or omitted selects descending rank; nonzero selects ascending",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:142"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "spelled_logical_order",
+          "how": "accepts spelled logical text TRUE/FALSE in order; #N/A if number absent from ref",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:145"
+        }
+      ],
+      "error_edges": [],
+      "notes": "ref must be a reference; missing number returns #N/A."
+    },
+    "RANK.EQ": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            5.0,
+            99.0
+          ],
+          "ranges": [
+            [
+              -100.0,
+              100.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "ref",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            "TRUE",
+            "FALSE"
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "order == 0 or omitted selects descending rank; nonzero selects ascending",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:142"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "spelled_logical_order",
+          "how": "accepts spelled logical text TRUE/FALSE in order; #N/A if number absent from ref",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:145"
+        }
+      ],
+      "error_edges": [],
+      "notes": "ref must be a reference; missing number returns #N/A."
+    },
+    "RANK.AVG": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            5.0,
+            99.0
+          ],
+          "ranges": [
+            [
+              -100.0,
+              100.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "ref",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            "TRUE",
+            "FALSE"
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "order == 0 or omitted selects descending rank; nonzero selects ascending",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:142"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "spelled_logical_order",
+          "how": "accepts spelled logical text TRUE/FALSE in order; #N/A if number absent from ref",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:145"
+        }
+      ],
+      "error_edges": [],
+      "notes": "ref must be a reference; missing number returns #N/A."
+    },
+    "PERCENTILE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "k",
+          "kind": "number",
+          "specials": [
+            -0.1,
+            0.0,
+            0.25,
+            0.5,
+            0.75,
+            1.0,
+            1.1
+          ],
+          "ranges": [
+            [
+              0.0,
+              1.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "closed lower endpoint returning min",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+            },
+            {
+              "value": 1.0,
+              "why": "closed upper endpoint returning max",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= k <= 1"
+      ],
+      "regimes": [
+        {
+          "name": "inclusive_linear_interp",
+          "how": "rank = 1 + k*(n - 1) linearly interpolated on sorted array",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:13"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "k < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+        },
+        {
+          "when": "k > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+        }
+      ],
+      "notes": "Empty array or k outside [0, 1] returns #NUM!."
+    },
+    "PERCENTILE.INC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "k",
+          "kind": "number",
+          "specials": [
+            -0.1,
+            0.0,
+            0.25,
+            0.5,
+            0.75,
+            1.0,
+            1.1
+          ],
+          "ranges": [
+            [
+              0.0,
+              1.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "closed lower endpoint returning min",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+            },
+            {
+              "value": 1.0,
+              "why": "closed upper endpoint returning max",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= k <= 1"
+      ],
+      "regimes": [
+        {
+          "name": "inclusive_linear_interp",
+          "how": "rank = 1 + k*(n - 1) linearly interpolated on sorted array",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:13"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "k < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+        },
+        {
+          "when": "k > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:6"
+        }
+      ],
+      "notes": "Empty array or k outside [0, 1] returns #NUM!."
+    },
+    "PERCENTILE.EXC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "k",
+          "kind": "number",
+          "specials": [
+            0.0,
+            0.1,
+            0.2,
+            0.25,
+            0.5,
+            0.75,
+            0.8,
+            0.9,
+            1.0
+          ],
+          "ranges": [
+            [
+              0.01,
+              0.99
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "k <= 1/(n+1) returns #NUM!",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:23"
+            },
+            {
+              "value": 1.0,
+              "why": "k >= n/(n+1) returns #NUM!",
+              "source": "crates/calc-func/src/ported/percentile_common.rs:23"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 < k < 1"
+      ],
+      "regimes": [
+        {
+          "name": "exclusive_linear_interp",
+          "how": "rank = k*(n + 1) requires 1 <= rank <= n",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:22"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "k <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:23"
+        },
+        {
+          "when": "k >= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentile_common.rs:23"
+        }
+      ],
+      "notes": "Requires 1/(n+1) <= k <= n/(n+1); single-element array always #NUM!."
+    },
+    "QUARTILE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "quart",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            3,
+            4,
+            4.5,
+            5
+          ],
+          "ranges": [
+            [
+              0,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.5,
+              "why": "negative fraction rejected with #NUM! before truncation",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:215"
+            },
+            {
+              "value": 4,
+              "why": "maximum inclusive quartile",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= quart <= 4"
+      ],
+      "regimes": [
+        {
+          "name": "delegates_percentile_inc",
+          "how": "coerces quart first, rejects < 0, truncates to 0..=4, calls PERCENTILE.INC(array, q/4)",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:213"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "quart < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:215"
+        },
+        {
+          "when": "quart >= 5",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:220"
+        }
+      ],
+      "notes": "Rejects negative fractional quart before truncating; maps q in 0..=4 to q/4."
+    },
+    "QUARTILE.INC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "quart",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            1,
+            2,
+            3,
+            4,
+            4.5,
+            5
+          ],
+          "ranges": [
+            [
+              0,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.5,
+              "why": "negative fraction rejected with #NUM! before truncation",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:215"
+            },
+            {
+              "value": 4,
+              "why": "maximum inclusive quartile",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= quart <= 4"
+      ],
+      "regimes": [
+        {
+          "name": "delegates_percentile_inc",
+          "how": "coerces quart first, rejects < 0, truncates to 0..=4, calls PERCENTILE.INC(array, q/4)",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:213"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "quart < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:215"
+        },
+        {
+          "when": "quart >= 5",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:220"
+        }
+      ],
+      "notes": "Rejects negative fractional quart before truncating; maps q in 0..=4 to q/4."
+    },
+    "QUARTILE.EXC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "quart",
+          "kind": "integer",
+          "specials": [
+            0,
+            0.9,
+            1,
+            2,
+            3,
+            3.9,
+            4
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "quart == 0 is #NUM! in exclusive mode",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+            },
+            {
+              "value": 4,
+              "why": "quart == 4 is #NUM! in exclusive mode",
+              "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "1 <= quart <= 3"
+      ],
+      "regimes": [
+        {
+          "name": "delegates_percentile_exc",
+          "how": "requires trunc(quart) in 1..=3 and delegates to PERCENTILE.EXC(array, q/4)",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "quart < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:219"
+        },
+        {
+          "when": "quart >= 4",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:220"
+        }
+      ],
+      "notes": "Admits truncated quart in 1..=3 only; requires at least 3 data points for quart 1 or 3."
+    },
+    "PERCENTRANK": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -5.0,
+            0.0,
+            1.0,
+            2.0,
+            2.5,
+            4.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              15
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "significance <= 0 returns #NUM! (except singleton arrays return 1 before checking)",
+              "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "significance >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "singleton_returns_one",
+          "how": "len == 1 with x == array[0] returns 1.0 before significance check",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+        },
+        {
+          "name": "decimal_places_trunc",
+          "how": "truncates rank to significance decimal places, not significant digits",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:63"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "significance < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:29"
+        }
+      ],
+      "notes": "x outside [min, max] or empty array returns #N/A; significance truncates decimal places."
+    },
+    "PERCENTRANK.INC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -5.0,
+            0.0,
+            1.0,
+            2.0,
+            2.5,
+            4.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              15
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "significance <= 0 returns #NUM! (except singleton arrays return 1 before checking)",
+              "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "significance >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "singleton_returns_one",
+          "how": "len == 1 with x == array[0] returns 1.0 before significance check",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+        },
+        {
+          "name": "decimal_places_trunc",
+          "how": "truncates rank to significance decimal places, not significant digits",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:63"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "significance < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:29"
+        }
+      ],
+      "notes": "x outside [min, max] or empty array returns #N/A; significance truncates decimal places."
+    },
+    "PERCENTRANK.EXC": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -5.0,
+            0.0,
+            1.0,
+            2.0,
+            2.5,
+            4.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              15
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "significance <= 0 returns #NUM! (except singleton arrays return 1 before checking)",
+              "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "significance >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "singleton_returns_one",
+          "how": "len == 1 with x == array[0] returns 1.0 before significance check",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:26"
+        },
+        {
+          "name": "decimal_places_trunc",
+          "how": "truncates rank to significance decimal places, not significant digits",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:63"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "significance < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/percentrank_common.rs:29"
+        }
+      ],
+      "notes": "x outside [min, max] or empty array returns #N/A; significance truncates decimal places."
+    },
+    "VAR": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); numeric only; variance."
+    },
+    "VAR.S": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); numeric only; variance."
+    },
+    "VAR.P": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); numeric only; variance."
+    },
+    "VARP": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); numeric only; variance."
+    },
+    "VARA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); A-suffix includes ref text/logicals; variance."
+    },
+    "VARPA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); A-suffix includes ref text/logicals; variance."
+    },
+    "STDEV": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); numeric only; sqrt staged."
+    },
+    "STDEV.S": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); numeric only; sqrt staged."
+    },
+    "STDEV.P": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); numeric only; sqrt staged."
+    },
+    "STDEVP": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); numeric only; sqrt staged."
+    },
+    "STDEVA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); A-suffix includes ref text/logicals; sqrt staged."
+    },
+    "STDEVPA": {
+      "args": [
+        {
+          "name": "value1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "raw_moments_x87",
+          "how": "computes raw moments with x87 PC64 stores",
+          "source": "crates/calc-func/src/ported/variance_common.rs:35"
+        },
+        {
+          "name": "centered_fallback",
+          "how": "switches to two-pass centered sum when !finite, cancellation > 0.99, or variance*1000 <= |mean|",
+          "source": "crates/calc-func/src/ported/variance_common.rs:60"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, 0 -> #DIV/0!); A-suffix includes ref text/logicals; sqrt staged."
+    },
+    "KURT": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_two_pass_fourth",
+          "how": "requires n >= 4 and sumsq > 0 (#DIV/0! otherwise); stores every x87 step of z^4",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:24"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #DIV/0! when n < 4 or all values are equal."
+    },
+    "SKEW": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_sample_skew",
+          "how": "stores every x87 step of z^3 and prefactor n/((n-1)(n-2))",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:46"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires n >= 3 and nonzero variance (#DIV/0! otherwise)."
+    },
+    "SKEW.P": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_pop_skew",
+          "how": "evaluates population skewness in binary64",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:65"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires n >= 3 and nonzero variance (#DIV/0! otherwise)."
+    },
+    "TRIMMEAN": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "percent",
+          "kind": "number",
+          "specials": [
+            -0.1,
+            0.0,
+            0.2,
+            0.4,
+            0.5,
+            0.9999999999,
+            1.0,
+            1.1
+          ],
+          "ranges": [
+            [
+              0.0,
+              0.999999
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "trims 0 elements",
+              "source": "crates/calc-func/src/ported/moment_stats_family.rs:128"
+            },
+            {
+              "value": 1.0,
+              "why": "percent == 1.0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/moment_stats_family.rs:126"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= percent < 1"
+      ],
+      "regimes": [
+        {
+          "name": "input_order_sum",
+          "how": "sums kept values in original input order (not sorted order) after discarding floor(percent*n)/2 from each tail",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:141"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "percent < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:128"
+        },
+        {
+          "when": "percent >= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:128"
+        }
+      ],
+      "notes": "Rejects percent >= 1 or < 0 with #NUM!; sums untrimmed elements in original order."
+    },
+    "STANDARDIZE": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -10.0,
+            0.0,
+            1.0,
+            10.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+100,
+              1e+100
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "mean",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -1.0,
+            0.0,
+            5.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+100,
+              1e+100
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "standard_dev",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            1.0,
+            2.5,
+            1e+100
+          ],
+          "ranges": [
+            [
+              2.2250738585072014e-308,
+              1e+100
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "standard_dev <= 0 returns #NUM!",
+              "source": "crates/calc-func/src/ported/standardize_fn.rs:4"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "standard_dev > 0"
+      ],
+      "regimes": [
+        {
+          "name": "binary64_zscore_flush",
+          "how": "computes (x - mean) / standard_dev in binary64, rejects overflow (#NUM!), flushes subnormals to +0",
+          "source": "crates/calc-func/src/ported/standardize_fn.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "standard_dev <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/standardize_fn.rs:5"
+        }
+      ],
+      "notes": "Returns #NUM! when standard_dev <= 0 or (x - mean)/standard_dev overflows."
+    },
+    "FISHER": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            -0.9999999999999999,
+            -0.5,
+            -1e-16,
+            0.0,
+            1e-16,
+            0.5,
+            0.9999999999999999,
+            1.0
+          ],
+          "ranges": [
+            [
+              -0.9999999999999999,
+              0.9999999999999999
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "|x| >= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/fisher_fn.rs:4"
+            },
+            {
+              "value": 1.0,
+              "why": "|x| >= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/fisher_fn.rs:4"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "-1 < x < 1"
+      ],
+      "regimes": [
+        {
+          "name": "x87_ratio_log",
+          "how": "computes 0.5 * LN((1+x)/(1-x)) with x87_add/sub/div stores (differs from ATANH for small x)",
+          "source": "crates/calc-func/src/ported/fisher_fn.rs:12"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "x <= -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/fisher_fn.rs:4"
+        },
+        {
+          "when": "x >= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/fisher_fn.rs:4"
+        }
+      ],
+      "notes": "Evaluates 0.5*LN((1+x)/(1-x)) across all |x| < 1 without cubic small-x branch."
+    },
+    "FISHERINV": {
+      "args": [
+        {
+          "name": "y",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -20.0,
+            -1.0,
+            -1e-17,
+            0.0,
+            1e-17,
+            1.0,
+            20.0,
+            355.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -500.0,
+              500.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 355.0,
+              "why": "EXP(2*y) overflows to +Inf and saturates to +1.0",
+              "source": "crates/calc-func/src/ported/fisherinv_fn.rs:11"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "exp2y_ratio",
+          "how": "computes (EXP(2*y) - 1) / (EXP(2*y) + 1), saturating +Inf to +1.0",
+          "source": "crates/calc-func/src/ported/fisherinv_fn.rs:7"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Saturates large positive y to +1.0 and large negative y to -1.0."
+    },
+    "PROB": {
+      "args": [
+        {
+          "name": "x_range",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "prob_range",
+          "kind": "array",
+          "specials": [
+            [
+              0.1,
+              0.2,
+              0.3,
+              0.4
+            ],
+            [
+              0.5,
+              0.5
+            ],
+            [
+              0.2,
+              0.9
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "lower_limit",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            1.0,
+            2.0,
+            3.0,
+            5.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "upper_limit",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "lower_limit <= upper_limit"
+      ],
+      "regimes": [
+        {
+          "name": "sum_tolerance_ulps",
+          "how": "validates sum(prob_range) in [1 - 4 ULP, 1 + 22 ULP] rather than per-term [0, 1]",
+          "source": "crates/calc-func/src/ported/lookup_prob_frequency_family.rs:27"
+        },
+        {
+          "name": "singleton_nonnumeric_div0",
+          "how": "single text/logical item returns #DIV/0! after validating limits",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:690"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Mismatched lengths return #N/A; non-numeric list elements return #VALUE! (except singletons -> #DIV/0!)."
+    },
+    "FREQUENCY": {
+      "args": [
+        {
+          "name": "data_array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              5.0
+            ],
+            [
+              -2.0,
+              -1.0,
+              0.0,
+              1.0,
+              2.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1000000000000.0,
+              1000000000001.0,
+              1000000000002.0
+            ],
+            [
+              1.0,
+              2.0,
+              2.0,
+              3.0,
+              3.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "bins_array",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              2.0,
+              2.0,
+              4.0
+            ],
+            [
+              0.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "first_bin_tie_and_empty_zero_bin",
+          "how": "ignores errors/non-numbers in bins_array, falls back to {0}, repeated bin counts in first place",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:581"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Spills bins.len() + 1 rows; ignores non-numeric data even when direct scalar."
+    },
+    "COVAR": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_binary64_cov",
+          "how": "skips non-numeric pairs; two-pass centered sum / (n or n-1)",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:27"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, <1 -> #DIV/0!); mismatched shapes return #N/A."
+    },
+    "COVARIANCE.P": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_binary64_cov",
+          "how": "skips non-numeric pairs; two-pass centered sum / (n or n-1)",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:27"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Population (n, <1 -> #DIV/0!); mismatched shapes return #N/A."
+    },
+    "COVARIANCE.S": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_pass_binary64_cov",
+          "how": "skips non-numeric pairs; two-pass centered sum / (n or n-1)",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:27"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Sample (n-1, <2 -> #DIV/0!); mismatched shapes return #N/A."
+    },
+    "CORREL": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_pop_normalized_corr",
+          "how": "normalizes centered sum_xy, sum_x2, sum_y2 by n on x87 before sqrt",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:83"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires >= 2 numeric pairs and nonzero variance in both arrays (#DIV/0! otherwise)."
+    },
+    "PEARSON": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_pop_normalized_corr",
+          "how": "normalizes centered sum_xy, sum_x2, sum_y2 by n on x87 before sqrt",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:83"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires >= 2 numeric pairs and nonzero variance in both arrays (#DIV/0! otherwise)."
+    },
+    "RSQ": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "sample_normalized_r_squared",
+          "how": "squares sample-normalized (n-1) correlation on x87",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:117"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Uses n-1 normalization (unlike CORREL/PEARSON); note argument order (known_ys, known_xs)."
+    },
+    "SLOPE": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_centered_ols",
+          "how": "two-pass centered sum(dx*dy)/sum(dx^2) in binary64",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:93"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires >= 2 numeric pairs and nonzero x variance (#DIV/0! otherwise)."
+    },
+    "INTERCEPT": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "mean_y_minus_slope_mean_x",
+          "how": "evaluates mean_y - slope * mean_x in binary64",
+          "source": "crates/calc-func/src/ported/paired_stats_common.rs:111"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires >= 2 numeric pairs and nonzero x variance (#DIV/0! otherwise)."
+    },
+    "STEYX": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "sse_clamp_min_3_pairs",
+          "how": "requires >= 3 pairs (#DIV/0! below 3) and clamps negative SSE in (-1e-12, 0) to 0",
+          "source": "crates/calc-func/src/ported/moment_stats_family.rs:94"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns #DIV/0! when < 3 pairs or sum_x2 == 0; mismatched shapes return #N/A."
+    },
+    "FORECAST": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            0.0,
+            1.5,
+            5.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000.0,
+              1000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_sample_mean_ols",
+          "how": "coerces scalar pairs and evaluates binary64 sample-mean OLS",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:304"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Empty pairs or zero x-variance returns #DIV/0!; mismatched sizes return #N/A."
+    },
+    "FORECAST.LINEAR": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            0.0,
+            1.5,
+            5.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000.0,
+              1000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_sample_mean_ols",
+          "how": "coerces scalar pairs and evaluates binary64 sample-mean OLS",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:304"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Empty pairs or zero x-variance returns #DIV/0!; mismatched sizes return #N/A."
+    },
+    "LINEST": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "const",
+          "kind": "logical",
+          "specials": [
+            true,
+            false
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": true,
+              "why": "const=TRUE fits intercept; FALSE forces intercept = 0",
+              "source": "crates/calc-func/src/ported/regression_forecast_family.rs:803"
+            }
+          ]
+        },
+        {
+          "name": "stats",
+          "kind": "logical",
+          "specials": [
+            false,
+            true
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": true,
+              "why": "stats=TRUE spills 5-row regression statistics table",
+              "source": "crates/calc-func/src/ported/regression_forecast_family.rs:998"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shape_before_non_numeric",
+          "how": "shape disagreement returns #REF! before non-numeric #VALUE!",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:191"
+        },
+        {
+          "name": "one_obs_stats",
+          "how": "single observation with const=TRUE and stats=TRUE returns F=#NUM! and zeros",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:971"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Householder QR stores each step from x87; coefficients returned in reverse predictor order."
+    },
+    "LOGEST": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "const",
+          "kind": "logical",
+          "specials": [
+            true,
+            false
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "stats",
+          "kind": "logical",
+          "specials": [
+            false,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "log_y_qr_fit",
+          "how": "takes x87 LN(known_ys) (#NUM! if <= 0) then runs QR linear fit",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:871"
+        },
+        {
+          "name": "subnormal_coeff_retaining",
+          "how": "retains subnormal values in coefficient row while stats rows flush subnormals",
+          "source": "crates/calc-func/src/catalogue/statistics.rs:655"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Any known_y <= 0 returns #NUM!; exponents returned as exp(beta) in reverse order."
+    },
+    "TREND": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              2.0,
+              4.0,
+              6.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              1.0,
+              3.0,
+              2.0,
+              5.0,
+              7.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "new_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ],
+            [
+              5.0
+            ],
+            [
+              10.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "const",
+          "kind": "logical",
+          "specials": [
+            true,
+            false
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "paired_2x2_rule",
+          "how": "numeric 2x2 known_ys/known_xs treated as 4 row-major pairs",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:1260"
+        },
+        {
+          "name": "x87_linear_prediction",
+          "how": "predicts sum(b_j*x_j) + intercept on x87",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:829"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Omitted known_xs uses 1..=n; omitted new_xs predicts at known_xs."
+    },
+    "GROWTH": {
+      "args": [
+        {
+          "name": "known_ys",
+          "kind": "array",
+          "specials": [
+            [
+              1.0
+            ],
+            [
+              1.0,
+              2.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              0.5,
+              1.0,
+              2.0,
+              5.0
+            ],
+            [
+              5.0,
+              5.0,
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "known_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "new_xs",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0
+            ],
+            [
+              2.0,
+              2.0,
+              2.0
+            ],
+            [
+              1.0
+            ],
+            [
+              4.0
+            ],
+            [
+              5.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "const",
+          "kind": "logical",
+          "specials": [
+            true,
+            false
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_exp_product_prediction",
+          "how": "predicts exp(intercept) * prod(exp(b_j*x_j)) on x87 and flushes subnormals to +0",
+          "source": "crates/calc-func/src/ported/regression_forecast_family.rs:844"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Any known_y <= 0 returns #NUM!; flushes subnormal predictions to +0."
+    },
+    "FORECAST.ETS": {
+      "args": [
+        {
+          "name": "target_date",
+          "kind": "number",
+          "specials": [
+            0.0,
+            0.5,
+            4.0,
+            5.0,
+            8.0,
+            9.0,
+            13.0,
+            100.0
+          ],
+          "ranges": [
+            [
+              1.0,
+              100.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              10.0,
+              12.0,
+              14.0,
+              16.0
+            ],
+            [
+              10.0,
+              12.0,
+              15.0,
+              13.0,
+              16.0,
+              19.0,
+              17.0,
+              20.0
+            ],
+            [
+              100.0,
+              120.0,
+              110.0,
+              130.0,
+              105.0,
+              125.0,
+              115.0,
+              135.0,
+              110.0,
+              130.0,
+              120.0,
+              140.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "timeline",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0,
+              9.0,
+              10.0,
+              11.0,
+              12.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "seasonality",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            8784,
+            8785
+          ],
+          "ranges": [
+            [
+              0,
+              12
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 forces nonseasonal; 1 (default) auto-detects; max 8784",
+              "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+            }
+          ]
+        },
+        {
+          "name": "data_completion",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 fills missing timeline points with 0; 1 (default) linearly interpolates",
+              "source": "crates/calc-func/src/catalogue/statistics/ets.rs:216"
+            }
+          ]
+        },
+        {
+          "name": "aggregation",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= seasonality <= 8784",
+        "0 <= data_completion <= 1",
+        "1 <= aggregation <= 7"
+      ],
+      "regimes": [
+        {
+          "name": "prehistory_interpolation",
+          "how": "within (-0.999, 0) steps before first timestamp interpolates; < -0.999 returns #NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1756"
+        },
+        {
+          "name": "horizon_snap_001",
+          "how": "snaps targets within 0.001 step of a timeline point",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1858"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "seasonality < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        },
+        {
+          "when": "seasonality > 8784",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        },
+        {
+          "when": "data_completion < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1733"
+        },
+        {
+          "when": "data_completion > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1733"
+        },
+        {
+          "when": "aggregation < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1734"
+        },
+        {
+          "when": "aggregation > 7",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1734"
+        }
+      ],
+      "notes": "Timeline length mismatch is #NA; >30% missing steps is #NUM!; <2 points is #DIV/0!."
+    },
+    "FORECAST.ETS.CONFINT": {
+      "args": [
+        {
+          "name": "target_date",
+          "kind": "number",
+          "specials": [
+            4.0,
+            5.0,
+            8.5,
+            9.0,
+            13.0
+          ],
+          "ranges": [
+            [
+              1.0,
+              100.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              10.0,
+              12.0,
+              14.0,
+              16.0
+            ],
+            [
+              10.0,
+              12.0,
+              15.0,
+              13.0,
+              16.0,
+              19.0,
+              17.0,
+              20.0
+            ],
+            [
+              100.0,
+              120.0,
+              110.0,
+              130.0,
+              105.0,
+              125.0,
+              115.0,
+              135.0,
+              110.0,
+              130.0,
+              120.0,
+              140.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "timeline",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0,
+              9.0,
+              10.0,
+              11.0,
+              12.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "confidence_level",
+          "kind": "number",
+          "specials": [
+            -0.1,
+            0.0,
+            0.5,
+            0.9,
+            0.95,
+            0.99,
+            1.0
+          ],
+          "ranges": [
+            [
+              0.0,
+              0.9999
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "confidence_level == 0 returns 0; >= 1 or < 0 returns #NUM!",
+              "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1729"
+            }
+          ]
+        },
+        {
+          "name": "seasonality",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            4,
+            8784
+          ],
+          "ranges": [
+            [
+              0,
+              12
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "data_completion",
+          "kind": "integer",
+          "specials": [
+            0,
+            1
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "aggregation",
+          "kind": "integer",
+          "specials": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= confidence_level < 1",
+        "0 <= seasonality <= 8784",
+        "0 <= data_completion <= 1",
+        "1 <= aggregation <= 7"
+      ],
+      "regimes": [
+        {
+          "name": "target_before_last_num",
+          "how": "target <= last timestamp is #NUM! except interior of final step on short ascending timelines",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1773"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "confidence_level < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1729"
+        },
+        {
+          "when": "confidence_level >= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1729"
+        },
+        {
+          "when": "seasonality < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        },
+        {
+          "when": "seasonality > 8784",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        }
+      ],
+      "notes": "Defaults confidence_level=0.95; confidence_level==0 returns 0 after validating domain."
+    },
+    "FORECAST.ETS.SEASONALITY": {
+      "args": [
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              10.0,
+              12.0,
+              14.0,
+              16.0
+            ],
+            [
+              10.0,
+              12.0,
+              15.0,
+              13.0,
+              16.0,
+              19.0,
+              17.0,
+              20.0
+            ],
+            [
+              100.0,
+              120.0,
+              110.0,
+              130.0,
+              105.0,
+              125.0,
+              115.0,
+              135.0,
+              110.0,
+              130.0,
+              120.0,
+              140.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "timeline",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0,
+              9.0,
+              10.0,
+              11.0,
+              12.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "data_completion",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "aggregation",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            4,
+            7,
+            8
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= data_completion <= 1",
+        "1 <= aggregation <= 7"
+      ],
+      "regimes": [
+        {
+          "name": "acf_period_detection",
+          "how": "returns detected seasonal period (0 if nonseasonal); <= 4 points always nonseasonal",
+          "source": "handbook FN-FORECAST.ETS-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "data_completion < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1733"
+        },
+        {
+          "when": "data_completion > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1733"
+        },
+        {
+          "when": "aggregation < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1734"
+        },
+        {
+          "when": "aggregation > 7",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1734"
+        }
+      ],
+      "notes": "Requires aligned 1-D values and timeline (>= 2 points, <= 30% missing steps)."
+    },
+    "FORECAST.ETS.STAT": {
+      "args": [
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              10.0,
+              12.0,
+              14.0,
+              16.0
+            ],
+            [
+              10.0,
+              12.0,
+              15.0,
+              13.0,
+              16.0,
+              19.0,
+              17.0,
+              20.0
+            ],
+            [
+              100.0,
+              120.0,
+              110.0,
+              130.0,
+              105.0,
+              125.0,
+              115.0,
+              135.0,
+              110.0,
+              130.0,
+              120.0,
+              140.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "timeline",
+          "kind": "array",
+          "specials": [
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0,
+              4.0,
+              5.0,
+              6.0,
+              7.0,
+              8.0,
+              9.0,
+              10.0,
+              11.0,
+              12.0
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "statistic_type",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "ranges": [
+            [
+              1,
+              8
+            ]
+          ],
+          "edges": [
+            {
+              "value": 8,
+              "why": "statistic_type == 8 returns detected timeline step directly",
+              "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1835"
+            }
+          ]
+        },
+        {
+          "name": "seasonality",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            4,
+            8784,
+            8785
+          ],
+          "ranges": [
+            [
+              0,
+              12
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "data_completion",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "aggregation",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            4,
+            7,
+            8
+          ],
+          "ranges": [
+            [
+              1,
+              7
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1 <= statistic_type <= 8",
+        "0 <= seasonality <= 8784",
+        "0 <= data_completion <= 1",
+        "1 <= aggregation <= 7"
+      ],
+      "regimes": [
+        {
+          "name": "step_size_shortcut",
+          "how": "statistic_type == 8 returns timeline step without fitting",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1835"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "statistic_type < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1728"
+        },
+        {
+          "when": "statistic_type > 8",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1728"
+        },
+        {
+          "when": "seasonality < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        },
+        {
+          "when": "seasonality > 8784",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/statistics/ets.rs:1732"
+        }
+      ],
+      "notes": "statistic_type 1..=8 (alpha, beta, gamma, MASE, SMAPE, MAE, RMSE, step size)."
+    }
+  }
+}
