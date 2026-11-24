@@ -12,7 +12,7 @@ use super::boundary::{
 };
 use super::cluster::{
     DiscrepancyRow, RegionStats, RowOutcome, build_clusters, cluster_key_for, dna_fault_kind,
-    judge_pair,
+    is_dna_fault, judge_pair,
 };
 use super::domain::{DomainSpec, ParamKind};
 use super::fractal::{
@@ -1040,6 +1040,9 @@ fn select_closest_flip_bracket(
     let dna_hi_tag = predicate_tag(&frontier.dna_hi_outcome);
     let mut best: Option<(u128, u8, u128, usize)> = None;
     for (idx, w) in pts.windows(2).enumerate() {
+        if is_dna_fault(&w[0].1) || is_dna_fault(&w[1].1) {
+            continue;
+        }
         let p0 = predicate_tag(&w[0].1);
         let p1 = predicate_tag(&w[1].1);
         if p0 == p1 {
@@ -1114,7 +1117,12 @@ fn bisect_shifted_frontiers_excel(
     let shifted_indices: Vec<usize> = frontiers
         .iter()
         .enumerate()
-        .filter(|(_, f)| f.transition_kind == "predicate_flip" && f.excel_lo_bits.is_none())
+        .filter(|(_, f)| {
+            f.transition_kind == "predicate_flip"
+                && f.excel_lo_bits.is_none()
+                && !is_dna_fault(&f.dna_lo_outcome)
+                && !is_dna_fault(&f.dna_hi_outcome)
+        })
         .map(|(i, _)| i)
         .take(16)
         .collect();
@@ -1407,6 +1415,13 @@ fn select_closest_discrepancy_bracket(
     let anchor_c = f64_to_compact(f64::from_bits(anchor_bits));
     let mut best: Option<(u8, u128, u128, usize, bool)> = None;
     for (idx, w) in pts.windows(2).enumerate() {
+        if is_dna_fault(&w[0].1)
+            || is_dna_fault(&w[1].1)
+            || is_dna_fault(&w[0].2)
+            || is_dna_fault(&w[1].2)
+        {
+            continue;
+        }
         let pred_flip = predicate_tag(&w[0].1) != predicate_tag(&w[1].1);
         let disc_flip = (judge_pair(&w[0].1, &w[0].2).0 == Severity::Exact)
             != (judge_pair(&w[1].1, &w[1].2).0 == Severity::Exact);
@@ -1813,7 +1828,9 @@ pub fn fractal_refine_coarse_discrepancies_excel(
         let mut args_hi = tgt.base_args.clone();
         set_axis_f64(&mut args_hi, tgt.axis, tgt.cell, f64::from_bits(hi_b));
         let (dna_hi, _, _) = evaluate_traced(&cfg.function, &args_hi, &ctx);
-        let dna_pred_flip = predicate_tag(&dna_lo) != predicate_tag(&dna_hi);
+        let dna_pred_flip = !is_dna_fault(&dna_lo)
+            && !is_dna_fault(&dna_hi)
+            && predicate_tag(&dna_lo) != predicate_tag(&dna_hi);
         let matched_dna_flip = pred_flip && dna_pred_flip;
         let kind = if matched_dna_flip {
             format!("{}<->{}", predicate_tag(&lo_o), predicate_tag(&hi_o))
@@ -2094,19 +2111,6 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             }
         }
 
-        // Discover initial fractal frontiers after Round 0 so Round 1 overlaps them onto w3!
-        if round == 0 && cfg.max_frontiers > 0 && frontiers.is_empty() {
-            let initial_cap = (cfg.max_frontiers / 2).max(1);
-            let fres = fractal_discover_local(
-                &spec,
-                &frontier_seeds,
-                &ctx,
-                &FractalConfig::new(initial_cap, cfg.fractal_depth),
-            );
-            frontiers = fres.frontiers;
-            fractal_stats = fres.stats;
-        }
-
         let new_total = new_c1 + new_c2;
         if new_total == 0 {
             dry_streak += 1;
@@ -2119,11 +2123,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             known_clusters.len(),
             all_worker_calls,
         );
-        if round == 0
-            && cfg.sweep.is_some()
-            && total_asked > 0
-            && total_harness_fault == total_asked
-        {
+        if round == 0 && total_asked > 0 && total_harness_fault == total_asked {
             let top_fault = harness_faults
                 .iter()
                 .max_by_key(|&(_, count)| *count)
@@ -2132,6 +2132,19 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             round += 1;
             break;
         }
+
+        // Discover initial fractal frontiers after Round 0 so Round 1 overlaps them onto w3!
+        if round == 0 && cfg.max_frontiers > 0 && frontiers.is_empty() {
+            let initial_cap = (cfg.max_frontiers / 2).max(1);
+            let fres = fractal_discover_local(
+                &spec,
+                &frontier_seeds,
+                &ctx,
+                &FractalConfig::new(initial_cap, cfg.fractal_depth),
+            );
+            frontiers = fres.frontiers;
+            fractal_stats = fres.stats;
+        }
         round += 1;
         if total_asked >= cfg.min_budget && dry_streak >= cfg.dry_rounds && round >= 2 {
             stop_reason = format!("dry-for-{}-rounds", cfg.dry_rounds);
@@ -2139,145 +2152,112 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         }
     }
 
-    // Final fractal frontier discovery (including discrepancy seeds!) + interactive consecutive windows.
-    if frontiers.len() < cfg.max_frontiers {
-        let fres = fractal_discover_local(
-            &spec,
-            &frontier_seeds,
-            &ctx,
-            &FractalConfig::new(cfg.max_frontiers, cfg.fractal_depth),
-        );
-        fractal_stats.local_evals += fres.stats.local_evals;
-        fractal_stats.decade_brackets_found += fres.stats.decade_brackets_found;
-        fractal_stats.binade_brackets_found += fres.stats.binade_brackets_found;
-        let more = fres.frontiers;
-        let existing: HashSet<String> = frontiers
-            .iter()
-            .map(|f| {
-                format!(
+    if !stop_reason.starts_with("skipped:dna-fault:") {
+        // Final fractal frontier discovery (including discrepancy seeds!) + interactive consecutive windows.
+        if frontiers.len() < cfg.max_frontiers {
+            let fres = fractal_discover_local(
+                &spec,
+                &frontier_seeds,
+                &ctx,
+                &FractalConfig::new(cfg.max_frontiers, cfg.fractal_depth),
+            );
+            fractal_stats.local_evals += fres.stats.local_evals;
+            fractal_stats.decade_brackets_found += fres.stats.decade_brackets_found;
+            fractal_stats.binade_brackets_found += fres.stats.binade_brackets_found;
+            let more = fres.frontiers;
+            let existing: HashSet<String> = frontiers
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}|{:?}|{:016x}|{:016x}|{}",
+                        f.axis, f.axis_cell, f.dna_lo_bits, f.dna_hi_bits, f.kind
+                    )
+                })
+                .collect();
+            for mut f in more {
+                if frontiers.len() >= cfg.max_frontiers {
+                    break;
+                }
+                let k = format!(
                     "{}|{:?}|{:016x}|{:016x}|{}",
                     f.axis, f.axis_cell, f.dna_lo_bits, f.dna_hi_bits, f.kind
-                )
-            })
-            .collect();
-        for mut f in more {
-            if frontiers.len() >= cfg.max_frontiers {
-                break;
+                );
+                if !existing.contains(&k) {
+                    f.id = format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1);
+                    fractal_stats.ulp_frontiers_pinpointed += 1;
+                    fractal_stats.record_frontier(&f);
+                    frontiers.push(f);
+                }
             }
-            let k = format!(
-                "{}|{:?}|{:016x}|{:016x}|{}",
-                f.axis, f.axis_cell, f.dna_lo_bits, f.dna_hi_bits, f.kind
+        }
+        if probed_frontier_count < frontiers.len() {
+            let expanded = expand_frontier_windows_with_refs(
+                &frontiers[probed_frontier_count..],
+                cfg.frontier_window,
+                &ctx,
+                &mut seen_keys,
+                round,
+                &mut next_id,
             );
-            if !existing.contains(&k) {
-                f.id = format!("frontier-{}-{:03}", spec.function, frontiers.len() + 1);
-                fractal_stats.ulp_frontiers_pinpointed += 1;
-                fractal_stats.record_frontier(&f);
-                frontiers.push(f);
+            let mut final_cases = Vec::new();
+            let mut final_window_refs = Vec::new();
+            for (rel_idx, bits, key) in expanded.window_refs {
+                final_window_refs.push((probed_frontier_count + rel_idx, bits, key));
             }
-        }
-    }
-    if probed_frontier_count < frontiers.len() {
-        let expanded = expand_frontier_windows_with_refs(
-            &frontiers[probed_frontier_count..],
-            cfg.frontier_window,
-            &ctx,
-            &mut seen_keys,
-            round,
-            &mut next_id,
-        );
-        let mut final_cases = Vec::new();
-        let mut final_window_refs = Vec::new();
-        for (rel_idx, bits, key) in expanded.window_refs {
-            final_window_refs.push((probed_frontier_count + rel_idx, bits, key));
-        }
-        for (_, c) in expanded.cases {
-            case_hasher.update_case(&c.region, &c.args);
-            final_cases.push(c);
-        }
-        if !final_cases.is_empty() {
-            total_generated += final_cases.len();
-            let bpath = cfg
-                .out_dir
-                .join(format!("round-{round:02}-boundary-predictions.jsonl"));
-            pred_hashes.push(freeze_predictions(&bpath, &cfg.function, &final_cases)?);
-            let agg = ask_single_priority(
-                &client,
-                &cfg.function,
-                &final_cases,
-                INTERACTIVE_CHUNK_SIZE,
-                2,
-                Priority::Interactive,
-                Some(cfg),
-            )?;
-            excel_seconds += agg.excel_seconds;
-            for (k, v) in agg.envs {
-                all_envs.entry(k).or_insert(v);
+            for (_, c) in expanded.cases {
+                case_hasher.update_case(&c.region, &c.args);
+                final_cases.push(c);
             }
-            for (w, c) in agg.worker_calls {
-                *all_worker_calls.entry(w).or_insert(0) += c;
+            if !final_cases.is_empty() {
+                total_generated += final_cases.len();
+                let bpath = cfg
+                    .out_dir
+                    .join(format!("round-{round:02}-boundary-predictions.jsonl"));
+                pred_hashes.push(freeze_predictions(&bpath, &cfg.function, &final_cases)?);
+                let agg = ask_single_priority(
+                    &client,
+                    &cfg.function,
+                    &final_cases,
+                    INTERACTIVE_CHUNK_SIZE,
+                    2,
+                    Priority::Interactive,
+                    Some(cfg),
+                )?;
+                excel_seconds += agg.excel_seconds;
+                for (k, v) in agg.envs {
+                    all_envs.entry(k).or_insert(v);
+                }
+                for (w, c) in agg.worker_calls {
+                    *all_worker_calls.entry(w).or_insert(0) += c;
+                }
+                let _ = ingest_judged_cases(
+                    &cfg.function,
+                    &final_cases,
+                    &agg.rows,
+                    &mut excel_answers,
+                    &mut region_stats,
+                    &mut known_clusters,
+                    &mut discrepancies,
+                    &mut discrepancy_parents,
+                    &mut frontier_seeds,
+                    &mut total_asked,
+                    &mut total_matched,
+                    &mut total_mismatched,
+                    &mut total_harness_fault,
+                    &mut harness_faults,
+                    &mut total_unread,
+                    &mut total_crashed,
+                );
+                round += 1;
             }
-            let _ = ingest_judged_cases(
-                &cfg.function,
-                &final_cases,
-                &agg.rows,
-                &mut excel_answers,
-                &mut region_stats,
-                &mut known_clusters,
-                &mut discrepancies,
-                &mut discrepancy_parents,
-                &mut frontier_seeds,
-                &mut total_asked,
-                &mut total_matched,
-                &mut total_mismatched,
-                &mut total_harness_fault,
-                &mut harness_faults,
-                &mut total_unread,
-                &mut total_crashed,
-            );
-            round += 1;
+            record_window_flips_from_cache(&mut frontiers, &final_window_refs, &excel_answers);
         }
-        record_window_flips_from_cache(&mut frontiers, &final_window_refs, &excel_answers);
-    }
 
-    // Pinpoint Excel's flip via batched 64-point bisection for any shifted predicate_flip frontier.
-    bisect_shifted_frontiers_excel(
-        cfg,
-        &client,
-        &mut frontiers,
-        &mut seen_keys,
-        &mut excel_answers,
-        &mut case_hasher,
-        &mut pred_hashes,
-        &mut all_envs,
-        &mut all_worker_calls,
-        &mut region_stats,
-        &mut known_clusters,
-        &mut discrepancies,
-        &mut discrepancy_parents,
-        &mut frontier_seeds,
-        &mut next_id,
-        &mut total_generated,
-        &mut total_asked,
-        &mut total_matched,
-        &mut total_mismatched,
-        &mut total_harness_fault,
-        &mut harness_faults,
-        &mut total_unread,
-        &mut total_crashed,
-        &mut excel_seconds,
-        round,
-    )?;
-
-    // Escalate coarse discrepancies via Decade+Binade Excel probing + 64-point bisection when
-    // discrepancies were found in regions not already covered by a predicted DNA Calc frontier.
-    if cfg.max_frontiers > 0 && !discrepancies.is_empty() {
-        let coarse_cap = (cfg.max_frontiers / 4).clamp(1, 4);
-        let _ = fractal_refine_coarse_discrepancies_excel(
+        // Pinpoint Excel's flip via batched 64-point bisection for any shifted predicate_flip frontier.
+        bisect_shifted_frontiers_excel(
             cfg,
-            &spec,
             &client,
             &mut frontiers,
-            &mut fractal_stats,
             &mut seen_keys,
             &mut excel_answers,
             &mut case_hasher,
@@ -2300,8 +2280,43 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &mut total_crashed,
             &mut excel_seconds,
             round,
-            coarse_cap,
         )?;
+
+        // Escalate coarse discrepancies via Decade+Binade Excel probing + 64-point bisection when
+        // discrepancies were found in regions not already covered by a predicted DNA Calc frontier.
+        if cfg.max_frontiers > 0 && !discrepancies.is_empty() {
+            let coarse_cap = (cfg.max_frontiers / 4).clamp(1, 4);
+            let _ = fractal_refine_coarse_discrepancies_excel(
+                cfg,
+                &spec,
+                &client,
+                &mut frontiers,
+                &mut fractal_stats,
+                &mut seen_keys,
+                &mut excel_answers,
+                &mut case_hasher,
+                &mut pred_hashes,
+                &mut all_envs,
+                &mut all_worker_calls,
+                &mut region_stats,
+                &mut known_clusters,
+                &mut discrepancies,
+                &mut discrepancy_parents,
+                &mut frontier_seeds,
+                &mut next_id,
+                &mut total_generated,
+                &mut total_asked,
+                &mut total_matched,
+                &mut total_mismatched,
+                &mut total_harness_fault,
+                &mut harness_faults,
+                &mut total_unread,
+                &mut total_crashed,
+                &mut excel_seconds,
+                round,
+                coarse_cap,
+            )?;
+        }
     }
 
     let clusters = build_clusters(&cfg.function, &discrepancies);
@@ -4363,6 +4378,148 @@ mod tests {
         assert!(j["dna_lo_bits"].is_null(), "Excel-only frontier JSON must not fabricate dna_lo_bits: {j}");
         assert!(j["dna_hi_bits"].is_null(), "Excel-only frontier JSON must not fabricate dna_hi_bits: {j}");
         assert!(j["shifted_ulps"].is_null(), "Excel-only frontier JSON must have shifted_ulps=null: {j}");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn dna_fault_skipped_run_never_reaches_fractal_or_excel_even_with_max_frontiers() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-dna-fault-skip-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let submissions = Arc::new(AtomicUsize::new(0));
+        let sub_srv = Arc::clone(&submissions);
+        let broker = thread::spawn(move || {
+            // Serve 2 runs: sweep mode and standalone mode, both 100% DNA-faulting OFFSET,
+            // plus a 3rd partially faulting OFFSET run (with hints) through the standard fake broker.
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                while let Some((kind, body)) = read_frame(&mut stream) {
+                    match kind {
+                        b'H' => {
+                            write_frame(
+                                &mut stream,
+                                b'H',
+                                &json!({
+                                    "v": "touchstone/1",
+                                    "server": "fake-fault-guard-broker",
+                                    "sweep": true,
+                                    "envs": {}
+                                }),
+                            );
+                        }
+                        b'S' | b'B' => {
+                            sub_srv.fetch_add(1, Ordering::SeqCst);
+                            let id = body["id"].as_str().unwrap_or("x").to_owned();
+                            write_frame(
+                                &mut stream,
+                                b'X',
+                                &json!({"id": id, "message": "unexpected submission on skipped:dna-fault run"}),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            serve_fake_fuzz_broker(&listener, true, None);
+        });
+
+        // Case 1: Sweep mode with max_frontiers > 0 and fractal_depth > 0.
+        // Budget 70 with max_frontiers = 8 yields main_round_budget = 65 -> Round 0 want = 64
+        // (100% WitnessReferencePosition faults on OFFSET without hints).
+        let mut cfg = FuzzConfig::default_for("OFFSET");
+        cfg.seed = 20261124;
+        cfg.budget = 70;
+        cfg.min_budget = 70;
+        cfg.round_size = 64;
+        cfg.batch_size = 32;
+        cfg.in_flight = 1;
+        cfg.max_frontiers = 8;
+        cfg.fractal_depth = 1;
+        cfg.frontier_window = 4;
+        cfg.hints_dir = Some(tmp.join("no-hints"));
+        cfg.endpoint = Some(endpoint.clone());
+        cfg.out_dir = tmp.join("offset-sweep");
+        cfg.sweep = Some(SweepPolicy::new(tmp.join("PAUSE"), tmp.join("bank/OFFSET")));
+
+        let sweep_summary = execute_live_run(&cfg).expect("OFFSET sweep run");
+        assert!(
+            sweep_summary.stop_reason.starts_with("skipped:dna-fault:"),
+            "expected skipped:dna-fault:* stop_reason, got {}",
+            sweep_summary.stop_reason
+        );
+        assert_eq!(
+            sweep_summary.fractal_stats.local_evals, 0,
+            "skipped:dna-fault run must never reach fractal_discover_local"
+        );
+        assert!(
+            sweep_summary.frontiers.is_empty(),
+            "skipped:dna-fault run must emit 0 frontiers, got {:?}",
+            sweep_summary.frontiers
+        );
+        assert!(
+            sweep_summary.worker_calls.is_empty(),
+            "skipped:dna-fault run must spend 0 Excel calls, got {:?}",
+            sweep_summary.worker_calls
+        );
+        assert_eq!(sweep_summary.total_matched, 0);
+        assert_eq!(sweep_summary.total_mismatched, 0);
+        assert!(sweep_summary.total_asked > 0);
+        assert_eq!(sweep_summary.total_harness_fault, sweep_summary.total_asked);
+
+        // Case 2: Standalone mode (sweep = None) with max_frontiers > 0 also skips cleanly.
+        let mut standalone_cfg = cfg.clone();
+        standalone_cfg.sweep = None;
+        standalone_cfg.out_dir = tmp.join("offset-standalone");
+        let standalone_summary = execute_live_run(&standalone_cfg).expect("OFFSET standalone run");
+        assert!(
+            standalone_summary.stop_reason.starts_with("skipped:dna-fault:"),
+            "expected standalone skipped:dna-fault:*, got {}",
+            standalone_summary.stop_reason
+        );
+        assert_eq!(standalone_summary.fractal_stats.local_evals, 0);
+        assert!(standalone_summary.frontiers.is_empty());
+        assert!(standalone_summary.worker_calls.is_empty());
+
+        // Case 3: Partially faulting OFFSET (with default hints) and max_frontiers > 0
+        // never emits any DNA-fault frontier or chases a fault edge on Excel.
+        let mut partial_cfg = cfg.clone();
+        partial_cfg.hints_dir = None;
+        partial_cfg.out_dir = tmp.join("offset-partial");
+        partial_cfg.sweep = Some(SweepPolicy::new(tmp.join("PAUSE"), tmp.join("bank/OFFSET-p")));
+        let partial_summary = execute_live_run(&partial_cfg).expect("OFFSET partial run");
+        assert!(
+            partial_summary.total_matched > 0 && partial_summary.total_harness_fault > 0,
+            "expected partially faulting OFFSET with hints (matched={}, fault={})",
+            partial_summary.total_matched,
+            partial_summary.total_harness_fault
+        );
+        for f in &partial_summary.frontiers {
+            assert!(
+                !is_dna_fault(&f.dna_lo_outcome)
+                    && !is_dna_fault(&f.dna_hi_outcome)
+                    && !f.kind.contains("fault:"),
+                "partially faulting run emitted a DNA-fault frontier: {f:?}"
+            );
+        }
+
+        broker.join().unwrap();
+        assert_eq!(
+            submissions.load(Ordering::SeqCst),
+            0,
+            "100% DNA-faulting runs must send 0 Touchstone submissions to Excel"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

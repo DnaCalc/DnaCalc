@@ -7,6 +7,7 @@
 //! 3. When Excel disagrees on a boundary window, supports parallel batched 64-point bisection
 //!    (matching `tools/excel-service/client.py:bisect_edge`) to pinpoint Excel's exact flip.
 
+use super::cluster::is_dna_fault;
 use super::domain::DomainSpec;
 use super::rng::{
     Rng, canonical_case_key, compact_to_f64, f64_to_compact, f64_to_ordered, hex_f64,
@@ -187,6 +188,9 @@ pub fn bisect_local_axis_cell(
     };
     let mut ea = eval_at(a);
     let mut eb = eval_at(b);
+    if is_dna_fault(&ea.0) || is_dna_fault(&eb.0) {
+        return None;
+    }
     let ka = key_of(&ea);
     if ka == key_of(&eb) {
         return None;
@@ -203,6 +207,9 @@ pub fn bisect_local_axis_cell(
             break;
         };
         let em = eval_at(mid);
+        if is_dna_fault(&em.0) {
+            return None;
+        }
         if key_of(&em) == ka {
             a = mid;
             ea = em;
@@ -332,6 +339,9 @@ pub fn discover_local_frontiers(
                 break;
             }
             let seed = &seeds[seed_idx];
+            if is_dna_fault(&seed.prediction) {
+                continue;
+            }
             // Pick the next numeric axis (scalar or array cell) in round-robin order.
             let mut chosen_axis = None;
             for offset in 0..probe_axes.len() {
@@ -367,6 +377,9 @@ pub fn discover_local_frontiers(
                 let mut args = seed.args.clone();
                 set_axis_f64(&mut args, axis, cell, cand);
                 let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
+                if is_dna_fault(&res) {
+                    continue;
+                }
                 if predicate_tag(&res) != base_pred {
                     bracket = Some((cand, false));
                     break;
@@ -384,6 +397,9 @@ pub fn discover_local_frontiers(
                     let mut args = seed.args.clone();
                     set_axis_f64(&mut args, axis, cell, cand);
                     let (res, trace, _) = evaluate_traced(&spec.function, &args, context);
+                    if is_dna_fault(&res) {
+                        continue;
+                    }
                     if predicate_tag(&res) != base_pred {
                         bracket = Some((cand, false));
                         break;
@@ -411,6 +427,9 @@ pub fn discover_local_frontiers(
             ) else {
                 continue;
             };
+            if is_dna_fault(&lo_out) || is_dna_fault(&hi_out) {
+                continue;
+            }
             let kind = if predicate_tag(&lo_out) != predicate_tag(&hi_out) {
                 format!("{}<->{}", predicate_tag(&lo_out), predicate_tag(&hi_out))
             } else {
@@ -492,6 +511,9 @@ pub fn expand_frontier_windows_with_refs(
     let mut cases = Vec::new();
     let mut window_refs = Vec::new();
     for (fidx, frontier) in frontiers.iter().enumerate() {
+        if is_dna_fault(&frontier.dna_lo_outcome) || is_dna_fault(&frontier.dna_hi_outcome) {
+            continue;
+        }
         let lo = f64::from_bits(frontier.dna_lo_bits);
         let hi = f64::from_bits(frontier.dna_hi_bits);
         let mut pts = Vec::new();
@@ -575,6 +597,9 @@ pub fn record_excel_window_flips(
         let Some(frontier) = frontiers.get_mut(idx) else {
             continue;
         };
+        if is_dna_fault(&frontier.dna_lo_outcome) || is_dna_fault(&frontier.dna_hi_outcome) {
+            continue;
+        }
         pts.sort_by_key(|(bits, _)| f64_to_compact(f64::from_bits(*bits)));
         pts.dedup_by_key(|(bits, _)| f64_to_compact(f64::from_bits(*bits)));
         let dna_c = f64_to_compact(f64::from_bits(frontier.dna_lo_bits));
@@ -582,6 +607,9 @@ pub fn record_excel_window_flips(
         let dna_hi_tag = predicate_tag(&frontier.dna_hi_outcome);
         let mut best: Option<(u128, u8, i128, &(u64, String), &(u64, String))> = None;
         for pair in pts.windows(2) {
+            if is_dna_fault(&pair[0].1) || is_dna_fault(&pair[1].1) {
+                continue;
+            }
             let c0 = f64_to_compact(f64::from_bits(pair[0].0));
             let c1 = f64_to_compact(f64::from_bits(pair[1].0));
             if c1 != c0 + 1 {
@@ -852,5 +880,52 @@ mod tests {
         assert_eq!(frontiers[0].excel_lo_bits, Some(hi_plus_1));
         assert_eq!(frontiers[0].excel_hi_bits, Some(hi_plus_2));
         assert_eq!(frontiers[0].shifted_ulps, Some(2));
+    }
+
+    #[test]
+    fn dna_fault_transitions_are_ignored_by_local_bisection_and_discovery() {
+        use super::super::cluster::is_dna_fault;
+
+        let ctx = touchstone_bulk_context();
+        let base_args = vec![
+            json!({"range": [["0x3ff0000000000000"]]}),
+            hex_f64(0.0),
+            hex_f64(0.0),
+        ];
+        assert!(
+            bisect_local_axis_cell("OFFSET", &base_args, 1, None, -1000.0, 0.0, &ctx, false)
+                .is_none(),
+            "bisect_local_axis_cell must reject brackets with fault:* endpoints"
+        );
+
+        let spec = DomainSpec::for_function("OFFSET").unwrap();
+        let err_args = vec![
+            json!({"range": [["0x3ff0000000000000"]]}),
+            hex_f64(-1000.0),
+            hex_f64(0.0),
+        ];
+        let mut seeds = Vec::new();
+        for (idx, args) in [base_args, err_args].into_iter().enumerate() {
+            let (pred, trace, oc) = evaluate_traced("OFFSET", &args, &ctx);
+            seeds.push(FuzzCase {
+                id: format!("seed-offset-{idx}"),
+                region: "boundary_test".to_owned(),
+                round: 0,
+                args,
+                prediction: pred,
+                trace,
+                outcome_class: oc,
+            });
+        }
+        let mut rng = Rng::from_seed_and_tag(7, "OFFSET");
+        let frontiers = discover_local_frontiers(&spec, &seeds, &ctx, 8, &mut rng);
+        for f in &frontiers {
+            assert!(
+                !is_dna_fault(&f.dna_lo_outcome)
+                    && !is_dna_fault(&f.dna_hi_outcome)
+                    && !f.kind.contains("fault:"),
+                "discover_local_frontiers emitted a DNA-fault frontier: {f:?}"
+            );
+        }
     }
 }

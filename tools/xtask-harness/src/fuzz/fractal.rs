@@ -19,6 +19,7 @@
 //! corners and interactions) deterministically before Excel is asked.
 
 use super::boundary::{Frontier, get_axis_bits, predicate_tag, set_axis_f64};
+use super::cluster::is_dna_fault;
 use super::domain::{DomainSpec, ParamKind};
 use super::rng::{
     compact_to_f64, f64_to_compact, is_value2_exact, parse_hex_bits, pow_u64, pow2_f64, step_ulps,
@@ -90,6 +91,7 @@ pub struct BoundarySignature {
     pub route_mask: u64,
     pub iter_bucket: &'static str,
     pub outcome_class: String,
+    pub is_fault: bool,
 }
 
 impl BoundarySignature {
@@ -99,11 +101,16 @@ impl BoundarySignature {
             route_mask: trace.route_mask,
             iter_bucket: iteration_regime_bucket(trace.iterations),
             outcome_class: outcome_class.to_owned(),
+            is_fault: is_dna_fault(prediction),
         }
     }
 
     /// Highest-priority signal that changed between `self` and `other`, if any.
+    /// Transitions involving a DNA-side harness fault (`fault:*`) are never boundaries.
     pub fn diff(&self, other: &Self) -> Option<TransitionKind> {
+        if self.is_fault || other.is_fault {
+            return None;
+        }
         if self.predicate != other.predicate {
             Some(TransitionKind::PredicateFlip)
         } else if self.route_mask != other.route_mask {
@@ -396,6 +403,9 @@ pub fn bisect_signature_axis_cell(
     };
     let mut ea = eval_at(a);
     let mut eb = eval_at(b);
+    if ea.1.is_fault || eb.1.is_fault {
+        return None;
+    }
     let ka = ea.1.key_for(kind);
     if ka == eb.1.key_for(kind) {
         return None;
@@ -412,6 +422,9 @@ pub fn bisect_signature_axis_cell(
             break;
         };
         let em = eval_at(mid);
+        if em.1.is_fault {
+            return None;
+        }
         if em.1.key_for(kind) == ka {
             a = mid;
             ea = em;
@@ -587,7 +600,7 @@ fn refine_axis_multiscale(
                 binade_brackets.push((tk, pair[0].0, pair[1].0));
             }
         }
-        if binade_brackets.is_empty() {
+        if binade_brackets.is_empty() && !binade_evals.iter().any(|(_, sig)| sig.is_fault) {
             binade_brackets.push((dec_tk, dec_lo, dec_hi));
         }
         binade_brackets.sort_by_key(|(tk, lo, _)| {
@@ -616,7 +629,12 @@ fn refine_axis_multiscale(
             else {
                 continue;
             };
-            let actual_tk = lo_sig.diff(&hi_sig).unwrap_or(bin_tk);
+            if lo_sig.is_fault || hi_sig.is_fault {
+                continue;
+            }
+            let Some(actual_tk) = lo_sig.diff(&hi_sig) else {
+                continue;
+            };
             if !allow_non_predicate && actual_tk != TransitionKind::PredicateFlip {
                 continue;
             }
@@ -1120,5 +1138,81 @@ mod tests {
             res.frontiers.iter().any(|f| f.depth >= 1 && f.parent_id.is_some()),
             "expected depth>=1 edge-of-edge child frontiers on PV"
         );
+    }
+
+    #[test]
+    fn dna_fault_transitions_are_ignored_by_signature_bisection_and_fractal() {
+        use super::super::cluster::is_dna_fault;
+        use serde_json::json;
+
+        let ok_sig = BoundarySignature::from_eval("0x3ff0000000000000", &RouteTrace::default(), "number");
+        let err_sig = BoundarySignature::from_eval("error:Ref", &RouteTrace::default(), "error:Ref");
+        let fault_a = BoundarySignature::from_eval(
+            "fault:WitnessReferencePosition",
+            &RouteTrace::default(),
+            "fault",
+        );
+        let fault_b = BoundarySignature::from_eval(
+            "fault:NotImplemented",
+            &RouteTrace::default(),
+            "fault",
+        );
+        assert_eq!(ok_sig.diff(&fault_a), None, "number<->fault must not be a transition");
+        assert_eq!(err_sig.diff(&fault_a), None, "error<->fault must not be a transition");
+        assert_eq!(fault_a.diff(&fault_b), None, "fault<->fault must not be a transition");
+
+        // OFFSET(range, row_offset, col_offset): row_offset = 0 -> fault:WitnessReferencePosition,
+        // row_offset = -1000 -> error:Ref. Neither bisection nor fractal discovery may emit a fault frontier.
+        let ctx = touchstone_bulk_context();
+        let base_args = vec![
+            json!({"range": [["0x3ff0000000000000"]]}),
+            hex_f64(0.0),
+            hex_f64(0.0),
+        ];
+        let mut evals = 0usize;
+        let bisected = bisect_signature_axis_cell(
+            "OFFSET",
+            &base_args,
+            1,
+            None,
+            -1000.0,
+            0.0,
+            TransitionKind::PredicateFlip,
+            &ctx,
+            &mut evals,
+        );
+        assert!(
+            bisected.is_none(),
+            "bisect_signature_axis_cell must reject brackets with fault:* endpoints, got {bisected:?}"
+        );
+
+        let spec = DomainSpec::for_function("OFFSET").unwrap();
+        let err_args = vec![
+            json!({"range": [["0x3ff0000000000000"]]}),
+            hex_f64(-1000.0),
+            hex_f64(0.0),
+        ];
+        let mut seeds = Vec::new();
+        for (idx, args) in [base_args, err_args].into_iter().enumerate() {
+            let (pred, trace, oc) = evaluate_traced("OFFSET", &args, &ctx);
+            seeds.push(FuzzCase {
+                id: format!("seed-offset-{idx}"),
+                region: "boundary_test".to_owned(),
+                round: 0,
+                args,
+                prediction: pred,
+                trace,
+                outcome_class: oc,
+            });
+        }
+        let res = fractal_discover_local(&spec, &seeds, &ctx, &FractalConfig::new(8, 1));
+        for f in &res.frontiers {
+            assert!(
+                !is_dna_fault(&f.dna_lo_outcome)
+                    && !is_dna_fault(&f.dna_hi_outcome)
+                    && !f.kind.contains("fault:"),
+                "fractal_discover_local emitted a DNA-fault frontier: {f:?}"
+            );
+        }
     }
 }
