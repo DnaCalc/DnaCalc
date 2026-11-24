@@ -264,10 +264,10 @@ impl WorkbookEvents {
                 "Wrong number of arguments or invalid property assignment",
             )),
             Err(ProcedureError::Backend(why)) if why.contains("reentry") => {
-                // CalcVBA's dynamic call is not reentrant (dc-pd7vy).
+                // CalcVBA's dynamic call is not reentrant (dc-80m0f).
                 Err(AutoError::not_modelled(
                     "_Application.Run of a project procedure from a running procedure",
-                    "dc-pd7vy",
+                    "dc-80m0f",
                 ))
             }
             Err(other) => Err(AutoError::excel(1004, format!("Application.Run: {other:?}"))),

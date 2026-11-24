@@ -165,10 +165,10 @@ fn application_run_raises_excels_error_for_a_missing_macro_and_refuses_a_nested_
     for backend in backends() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
         // A procedure running another by Application.Run is a typed refusal until CalcVBA's call is
-        // reentrant (dc-pd7vy); it is not a wrong value.
+        // reentrant (dc-80m0f); it is not a wrong value.
         let via = owner.run_procedure(&mut session, "Module1.ViaRun", &[]);
         assert!(
-            matches!(&via.outcome, Outcome::Refused { owner, .. } if owner == "dc-pd7vy"),
+            matches!(&via.outcome, Outcome::Refused { owner, .. } if owner == "dc-80m0f"),
             "{via:?}"
         );
         let missing = owner.run_procedure(&mut session, "Module1.RunMissing", &[]);
