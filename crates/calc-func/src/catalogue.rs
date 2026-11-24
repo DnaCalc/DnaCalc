@@ -660,7 +660,11 @@ impl<'c> FunctionCallTarget<'c> {
         if index >= self.entry.arity.max || self.entry.parameters.is_empty() {
             return None;
         }
-        Some(LegacyPlace::for_position(self.entry.parameters, index))
+        Some(LegacyPlace::for_grouped_position(
+            self.entry.parameters,
+            self.entry.groups,
+            index,
+        ))
     }
 
     /// Whether a legacy call runs once for each reference in an array of references.
@@ -872,5 +876,67 @@ mod shared_declaration_equivalence {
             ));
         }
         assert_eq!(actual, expected);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn legacy_place_resolves_repeating_argument_groups() {
+        static GROUPED_PARAMETERS: [super::Parameter; 3] = [
+            super::Parameter {
+                name: "head",
+                class: super::ParameterClass::Value,
+                entry: super::EntryClass::Any,
+                legacy: super::LegacyPlace::Default,
+                kernel_lifts: false,
+            },
+            super::Parameter {
+                name: "pair_a",
+                class: super::ParameterClass::Value,
+                entry: super::EntryClass::Any,
+                legacy: super::LegacyPlace::IntersectReference,
+                kernel_lifts: false,
+            },
+            super::Parameter {
+                name: "pair_b",
+                class: super::ParameterClass::Value,
+                entry: super::EntryClass::Any,
+                legacy: super::LegacyPlace::ArrayAlways,
+                kernel_lifts: false,
+            },
+        ];
+        let mut entry = super::FAMILIES[0].entries[0];
+        entry.arity = super::CallableArityShape { min: 1, max: 255 };
+        entry.groups = Some(super::ArgumentGroups::new(1, 2, 0));
+        entry.parameters = &GROUPED_PARAMETERS;
+        let target = super::FunctionCallTarget { entry: &entry };
+        assert_eq!(target.legacy_place(0), Some(super::LegacyPlace::Default));
+        assert_eq!(
+            target.legacy_place(1),
+            Some(super::LegacyPlace::IntersectReference)
+        );
+        assert_eq!(
+            target.legacy_place(2),
+            Some(super::LegacyPlace::ArrayAlways)
+        );
+        assert_eq!(
+            target.legacy_place(3),
+            Some(super::LegacyPlace::IntersectReference)
+        );
+        assert_eq!(
+            target.legacy_place(4),
+            Some(super::LegacyPlace::ArrayAlways)
+        );
+        for item in super::catalogue().entries() {
+            for index in [0, 1, 2, 3, 4, 5, 6, 254] {
+                if let Some(got) = item.legacy_place(index) {
+                    let want = super::LegacyPlace::for_grouped_position(
+                        item.entry.parameters,
+                        item.entry.groups,
+                        index,
+                    );
+                    assert_eq!(got, want, "{} arg {index}", item.spelling());
+                }
+            }
+        }
     }
 }

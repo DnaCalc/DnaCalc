@@ -4125,6 +4125,23 @@ fn report_evidence_checkout(checkout: &Path, refuse_behind: bool) -> Result<(), 
     Ok(())
 }
 
+fn refuses_stale_evidence(request: &Request) -> bool {
+    request.report.is_none()
+        && (matches!(request.verb, Verb::Judge | Verb::Pin)
+            || (request.verb == Verb::Refresh && request.refresh_context))
+}
+
+fn apply_refresh_context(
+    checkout: &Path,
+    request: &Request,
+    only: Option<&str>,
+    sets: &mut [(PathBuf, WitnessSet)],
+) -> Result<usize, String> {
+    report_evidence_checkout(checkout, refuses_stale_evidence(request))?;
+    let (full, _) = load_full(checkout, only)?;
+    restore_pinned_context(sets, &full)
+}
+
 fn run_request(request: &Request) -> Result<ExitCode, String> {
     if request.verb == Verb::Compare {
         return run_trace_comparison(request);
@@ -4150,8 +4167,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         return study_discrepancies(&checkout, request);
     }
 
-    let refuse_stale_evidence =
-        request.report.is_none() && matches!(request.verb, Verb::Judge | Verb::Pin);
+    let refuse_stale_evidence = refuses_stale_evidence(request);
 
     // The readings of the bank asked for.
     let mut original_pins = None;
@@ -4189,9 +4205,7 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
             };
             let mut sets = pinned_sets(&ws.root, only)?;
             if request.refresh_context {
-                report_evidence_checkout(&checkout, false)?;
-                let (full, _) = load_full(&checkout, only)?;
-                let restored = restore_pinned_context(&mut sets, &full)?;
+                let restored = apply_refresh_context(&checkout, request, only, &mut sets)?;
                 println!(
                     "xtask witness: restored source-attested invocation facts for {restored} original pinned rows"
                 );
@@ -6546,6 +6560,101 @@ mod tests {
             dirty.warnings.iter().any(|w| w.contains("uncommitted")),
             "{:?}",
             dirty.warnings
+        );
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn refresh_context_refuses_behind_origin_evidence() {
+        let base = std::env::temp_dir().join(format!(
+            "dnacalc-witness-refresh-context-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        let origin = base.join("origin.git");
+        let work_a = base.join("work_a");
+        let work_b = base.join("work_b");
+        fs::create_dir_all(&base).unwrap();
+
+        let git = |dir: &Path, args: &[&str]| {
+            let out = Command::new("git")
+                .current_dir(dir)
+                .env("GIT_AUTHOR_NAME", "test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "git {args:?} failed: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+
+        assert!(
+            Command::new("git")
+                .args(["init", "--bare", "-b", "master"])
+                .arg(&origin)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .args(["clone"])
+                .arg(&origin)
+                .arg(&work_a)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::write(work_a.join("discrepancies-manifest.tsv"), "path\n").unwrap();
+        git(&work_a, &["add", "discrepancies-manifest.tsv"]);
+        git(&work_a, &["commit", "-m", "initial"]);
+        git(&work_a, &["push", "-u", "origin", "master"]);
+        assert!(
+            Command::new("git")
+                .args(["clone"])
+                .arg(&origin)
+                .arg(&work_b)
+                .status()
+                .unwrap()
+                .success()
+        );
+
+        fs::write(
+            work_a.join("discrepancies-manifest.tsv"),
+            "path\nreadings/excel-20527/discrepancies/new.json\n",
+        )
+        .unwrap();
+        git(&work_a, &["commit", "-am", "advance origin"]);
+        git(&work_a, &["push", "origin", "master"]);
+
+        let refresh_ctx =
+            parse_args(&["refresh".into(), "--context".into()]).unwrap();
+        let refresh_plain = parse_args(&["refresh".into()]).unwrap();
+        let judge_write = parse_args(&["judge".into(), "--bank".into(), "full".into()]).unwrap();
+        let judge_report = parse_args(&[
+            "judge".into(),
+            "--bank".into(),
+            "full".into(),
+            "--report".into(),
+            "out.json".into(),
+        ])
+        .unwrap();
+        assert!(refuses_stale_evidence(&refresh_ctx));
+        assert!(!refuses_stale_evidence(&refresh_plain));
+        assert!(refuses_stale_evidence(&judge_write));
+        assert!(!refuses_stale_evidence(&judge_report));
+
+        let mut sets = Vec::new();
+        let err = apply_refresh_context(&work_b, &refresh_ctx, None, &mut sets).unwrap_err();
+        assert!(
+            err.contains("behind origin"),
+            "expected behind-origin refusal from refresh --context, got: {err}"
         );
 
         let _ = fs::remove_dir_all(&base);

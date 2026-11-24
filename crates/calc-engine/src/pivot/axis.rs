@@ -2222,16 +2222,19 @@ pub(super) fn render_axes(
     // Excel's captured err-values and m8-axes (C10..C12) carry source errors into Count/CountNums
     // subtotals and grand totals when the same source field has an error-propagating aggregation;
     // when a field only counts (err-keys), Count and CountNums keep their numeric counts.
-    let propagates_source_error = |measure: usize, kind: &str| {
+    // Non-count custom subtotals apply only to custom-subtotal rows, not to grand totals of an
+    // unrelated count-only source field.
+    let propagates_source_error = |measure: usize, kind: &str, on_custom_subtotal: bool| {
         if !matches!(kind, "count" | "countNums") {
             return true;
         }
         let field = table.data_fields[measure].field;
         table.data_fields.iter().any(|data| {
             data.field == field && !matches!(data.subtotal.as_str(), "count" | "countNums")
-        }) || custom_subtotals
-            .iter()
-            .any(|&(_, _, _, calculation)| !matches!(calculation, "count" | "countNums"))
+        }) || (on_custom_subtotal
+            && custom_subtotals
+                .iter()
+                .any(|&(_, _, _, calculation)| !matches!(calculation, "count" | "countNums")))
     };
     let mut r = header;
     if multiple_rows {
@@ -2327,7 +2330,7 @@ pub(super) fn render_axes(
                         }
                     } else if crossed_row_values
                         && (subtotal_kind.is_some() || entry.kind == "grand")
-                        && propagates_source_error(measure, kind)
+                        && propagates_source_error(measure, kind, subtotal_kind.is_some())
                         && let Some(error) = total.source_error()
                     {
                         CalcValue::error(error)
@@ -2429,7 +2432,11 @@ pub(super) fn render_axes(
                 } else if let Some(total) = totals.get(&(usize::MAX, entry.path.clone(), m)) {
                     let error = common_error.or_else(|| {
                         if crossed_row_values
-                            && propagates_source_error(m, &table.data_fields[m].subtotal)
+                            && propagates_source_error(
+                                m,
+                                &table.data_fields[m].subtotal,
+                                false,
+                            )
                         {
                             total.source_error()
                         } else {

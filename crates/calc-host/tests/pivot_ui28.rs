@@ -4293,6 +4293,41 @@ fn crossed_row_values_inner_subtotals_and_count_errors() {
             .core_ref();
     assert!(matches!(sum_grand, CoreRef::Error(_)));
     assert!(matches!(count_grand, CoreRef::Number(n) if n.to_bits() == 2.0f64.to_bits()));
+
+    // 4. Split fields with a non-count custom subtotal enabled on the outer row field:
+    //    Sum Amount (field 4) + Count Units (field 5, has #N/A) with Sum + Count custom subtotals.
+    //    The Count Units Grand Total row (and Count Units detail Grand Total column) must stay
+    //    numeric rather than inheriting error propagation from the row field's Sum custom subtotal.
+    let mut split_custom = split_table.clone();
+    split_custom.row_fields = vec![0, 1, -2];
+    for (flag, kind) in [("sumSubtotal", "sum"), ("countASubtotal", "countA")] {
+        split_custom.fields[0]
+            .attributes
+            .insert(flag.into(), "1".into());
+        split_custom.fields[0].items.push(PivotFieldItem {
+            index: None,
+            kind: kind.into(),
+            hidden: false,
+            missing: false,
+            calculated: false,
+        });
+    }
+    let split_custom_layout = calc_engine::pivot::layout(&split_custom, &err_cache).unwrap();
+    let split_custom_last = split_custom_layout.table.area.last();
+    let split_custom_sum_grand = split_custom_layout.cells
+        [&CellKey::new(sheet, split_custom_last.row() - 1, split_custom_last.column()).unwrap()]
+        .core_ref();
+    let split_custom_count_grand = split_custom_layout.cells
+        [&CellKey::new(sheet, split_custom_last.row(), split_custom_last.column()).unwrap()]
+        .core_ref();
+    assert!(
+        matches!(split_custom_sum_grand, CoreRef::Error(_)),
+        "Sum Amount grand total should propagate #N/A: {split_custom_sum_grand:?}"
+    );
+    assert!(
+        matches!(split_custom_count_grand, CoreRef::Number(n) if n.to_bits() == 2.0f64.to_bits()),
+        "Count Units grand total must stay numeric when Sum is only a custom subtotal: {split_custom_count_grand:?}"
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

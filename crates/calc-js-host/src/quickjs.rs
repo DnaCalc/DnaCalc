@@ -82,21 +82,29 @@ struct Realm {
     interrupted: Rc<Cell<bool>>,
 }
 
+struct ClearDeadline<'a>(&'a Cell<Option<Instant>>);
+
+impl<'a> ClearDeadline<'a> {
+    fn arm(deadline: &'a Cell<Option<Instant>>, end: Instant) -> Self {
+        deadline.set(Some(end));
+        Self(deadline)
+    }
+}
+
+impl Drop for ClearDeadline<'_> {
+    fn drop(&mut self) {
+        self.0.set(None);
+    }
+}
+
 impl Realm {
     fn with_invocation_deadline(
         &self,
         end: Instant,
         invoke: impl FnOnce() -> Result<CalcValue, JsHostError>,
     ) -> Result<CalcValue, JsHostError> {
-        struct Clear<'a>(&'a Cell<Option<Instant>>);
-        impl Drop for Clear<'_> {
-            fn drop(&mut self) {
-                self.0.set(None);
-            }
-        }
         self.interrupted.set(false);
-        self.deadline.set(Some(end));
-        let _clear = Clear(&self.deadline);
+        let _clear = ClearDeadline::arm(&self.deadline, end);
         invoke()
     }
 }
@@ -141,7 +149,7 @@ impl JsEngine for QuickJs {
         let end = end_time(self.limits)?;
         let runtime = Runtime::new().map_err(registration_error)?;
         runtime.set_memory_limit(self.limits.heap_bytes);
-        let deadline = Rc::new(Cell::new(Some(end)));
+        let deadline = Rc::new(Cell::new(None));
         let interrupted = Rc::new(Cell::new(false));
         let interrupt_deadline = Rc::clone(&deadline);
         let interrupt_flag = Rc::clone(&interrupted);
@@ -159,27 +167,29 @@ impl JsEngine for QuickJs {
         let context = Context::full(&runtime).map_err(registration_error)?;
         let result = context.with(|ctx| {
             let helpers: Object = ctx.eval(OFFICE_API)?;
-            if id.ends_with(".mjs") {
-                let loaded = Module::evaluate(ctx.clone(), id, source)?;
-                match loaded.result::<()>() {
-                    Some(result) => result?,
-                    None => {
-                        return Ok(Err(JsHostError::Deferred {
-                            reason: "asynchronous JavaScript module initialization",
-                            owner: "dc-26wtr.6",
-                        }));
+            {
+                let _clear = ClearDeadline::arm(&deadline, end);
+                if id.ends_with(".mjs") {
+                    let loaded = Module::evaluate(ctx.clone(), id, source)?;
+                    match loaded.result::<()>() {
+                        Some(result) => result?,
+                        None => {
+                            return Ok(Err(JsHostError::Deferred {
+                                reason: "asynchronous JavaScript module initialization",
+                                owner: "dc-26wtr.6",
+                            }));
+                        }
                     }
+                } else {
+                    let mut options = EvalOptions::default();
+                    options.strict = false;
+                    options.filename = Some(id.to_owned());
+                    ctx.eval_with_options::<(), _>(source, options)?;
                 }
-            } else {
-                let mut options = EvalOptions::default();
-                options.strict = false;
-                options.filename = Some(id.to_owned());
-                ctx.eval_with_options::<(), _>(source, options)?;
             }
             helpers.get::<_, Function>("seal")?.call::<_, ()>(())?;
             Ok(Ok(Persistent::save(&ctx, helpers)))
         });
-        deadline.set(None);
         let helpers = match result {
             Ok(Ok(helpers)) => helpers,
             Ok(Err(error)) => return Err(error),
@@ -617,5 +627,54 @@ mod tests {
             Err(JsHostError::Timeout),
         );
         assert_eq!(engine.realm().unwrap().deadline.get(), None);
+    }
+
+    /// Native-only: QuickJS runs in a native runtime.
+    #[test]
+    fn load_module_disarms_deadline_before_sealing_and_times_out_spinning_init() {
+        let mut engine = QuickJs::new(ExecLimits {
+            time: Duration::ZERO,
+            ..ExecLimits::default()
+        });
+        engine
+            .load_module(
+                "zero-deadline",
+                r#"
+                CustomFunctions.associate('OK', () => 7);
+                CustomFunctions.associate('LATE_ASSOC', () => {
+                    CustomFunctions.associate('AFTER', () => 1);
+                    return 0;
+                });
+                "#,
+            )
+            .unwrap();
+        assert_eq!(engine.realm().unwrap().deadline.get(), None);
+
+        engine.limits.time = Duration::from_millis(50);
+        let invocation = JsInvocation {
+            function_name: "Probe.TEST".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            engine.invoke_sync(&spec("OK", Dimensionality::Scalar), &[], &invocation),
+            Ok(CalcValue::number(7.)),
+        );
+        assert!(matches!(
+            engine.invoke_sync(
+                &spec("LATE_ASSOC", Dimensionality::Scalar),
+                &[],
+                &invocation,
+            ),
+            Err(JsHostError::Execution(_)),
+        ));
+
+        let mut spinner = QuickJs::new(ExecLimits {
+            time: Duration::from_millis(50),
+            ..ExecLimits::default()
+        });
+        assert_eq!(
+            spinner.load_module("spin", "for (;;) {}"),
+            Err(JsHostError::Timeout),
+        );
     }
 }
