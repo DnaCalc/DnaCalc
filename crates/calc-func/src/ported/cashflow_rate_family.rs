@@ -467,6 +467,13 @@ fn irr_daz(value: f64) -> f64 {
     }
 }
 
+#[derive(Clone, Copy)]
+enum IrrStep {
+    Ok(f64),
+    RetryNum,
+    HardDiv0,
+}
+
 /// IRR: the secant method in `u = rate / (1 + rate) = 1 - 1 / (1 + rate)`.
 ///
 /// The coordinate `u` is an affine shift of the discount factor `v = 1 - u = 1 / (1 + rate)`,
@@ -481,21 +488,21 @@ fn irr_daz(value: f64) -> f64 {
 /// and proceeds in the same iteration when `y1 != y0`. Up to 200 iterations, stopping when
 /// `|u2 - u1| < 1e-7` and `|y2| < 1e-7`, with an after-budget `<= 1e-4` check. Intermediate
 /// iterates may cross `1 - u < 0`, while publication requires `1 - u > 0` and `1 / (1 - u) - 1 > -1`.
-fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
+fn irr_u_secant(cashflows: &[f64], u_start: f64) -> IrrStep {
     use crate::ported::excel_numeric::{
         excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub,
     };
     let tracing = crate::trace::is_active();
     if !u_start.is_finite() {
-        return None;
+        return IrrStep::RetryNum;
     }
-    let npv = |u: f64| {
+    let npv = |u: f64| -> Result<f64, IrrStep> {
         let v = sub(1.0, u);
         if v == 0.0 {
             if tracing {
                 crate::trace::hit(7);
             }
-            return None;
+            return Err(IrrStep::HardDiv0);
         }
         if tracing && v < 0.0 {
             crate::trace::hit(19);
@@ -505,7 +512,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
             if tracing {
                 crate::trace::hit(7);
             }
-            return None;
+            return Err(IrrStep::HardDiv0);
         }
         let mut total = 0.0;
         let mut power = 1.0;
@@ -518,20 +525,24 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
                 if tracing {
                     crate::trace::hit(8);
                 }
-                return None;
+                return Err(IrrStep::HardDiv0);
             }
             let term = irr_daz(div(flow, divisor));
             if !term.is_finite() {
                 if tracing {
                     crate::trace::hit(9);
                 }
-                return None;
+                return Err(IrrStep::RetryNum);
             }
             total = add(total, term);
         }
-        total.is_finite().then_some(total)
+        if total.is_finite() {
+            Ok(total)
+        } else {
+            Err(IrrStep::RetryNum)
+        }
     };
-    let publish = |u: f64| {
+    let publish = |u: f64| -> IrrStep {
         let v = sub(1.0, u);
         if tracing {
             crate::trace::observe_boundary("irr_publish_v", v, 0.0);
@@ -540,21 +551,31 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
             if tracing {
                 crate::trace::hit(19);
             }
-            return None;
+            return IrrStep::RetryNum;
         }
         let rate = sub(div(1.0, v), 1.0);
         let ok = rate.is_finite() && rate > -1.0;
         if tracing && !ok {
             crate::trace::hit(19);
         }
-        ok.then_some(rate)
+        if ok {
+            IrrStep::Ok(rate)
+        } else {
+            IrrStep::RetryNum
+        }
     };
 
     let mut before = u_start;
-    let mut value_before = npv(before)?;
+    let mut value_before = match npv(before) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let offset = if value_before > 0.0 { -0.001 } else { 0.001 };
     let mut current = add(before, offset);
-    let mut value = npv(current)?;
+    let mut value = match npv(current) {
+        Ok(v) => v,
+        Err(e) => return e,
+    };
     let mut step = f64::INFINITY;
     for iter in 0..200u32 {
         let mut change = sub(value, value_before);
@@ -564,7 +585,10 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
                 crate::trace::hit(if current > before { 10 } else { 11 });
             }
             before = add(before, nudge);
-            value_before = npv(before)?;
+            value_before = match npv(before) {
+                Ok(v) => v,
+                Err(e) => return e,
+            };
             change = sub(value, value_before);
             if change == 0.0 {
                 if tracing {
@@ -579,7 +603,7 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
                 crate::trace::hit(13);
                 crate::trace::record_iterations(iter + 1);
             }
-            return None;
+            return IrrStep::HardDiv0;
         }
         let numerator = irr_daz(mul(value, sub(current, before)));
         let next = sub(current, div(numerator, divisor));
@@ -588,12 +612,15 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
                 crate::trace::hit(14);
                 crate::trace::record_iterations(iter + 1);
             }
-            return None;
+            return IrrStep::RetryNum;
         }
         step = sub(next, current).abs();
         (before, value_before) = (current, value);
         current = next;
-        value = npv(current)?;
+        value = match npv(current) {
+            Ok(v) => v,
+            Err(e) => return e,
+        };
         if tracing {
             crate::trace::observe_boundary("irr_strict_step", step, 1e-7);
             crate::trace::observe_boundary("irr_strict_value", value.abs(), 1e-7);
@@ -620,11 +647,13 @@ fn irr_u_secant(cashflows: &[f64], u_start: f64) -> Option<f64> {
     // cash flows of 7e10 cannot bring the balance under 1e-7, and Excel 16.0.20527 answers
     // the iterate at budget for IRR({-70000,12000,15000,18000,21000,26000}*2^20) (dcztvv_r24
     // D3378); from 2^25 on #NUM!.
-    let published = (step <= 1e-4 && value.abs() <= 1e-4)
-        .then(|| publish(current))
-        .flatten();
+    let published = if step <= 1e-4 && value.abs() <= 1e-4 {
+        publish(current)
+    } else {
+        IrrStep::RetryNum
+    };
     if tracing {
-        crate::trace::hit(if published.is_some() { 17 } else { 18 });
+        crate::trace::hit(if matches!(published, IrrStep::Ok(_)) { 17 } else { 18 });
     }
     published
 }
@@ -661,35 +690,30 @@ pub(crate) fn irr_kernel(cashflows: &[f64], guess: Option<f64>) -> Result<f64, W
         return Err(WorksheetErrorCode::Num);
     };
     let flows = &cashflows[start..];
-    // When the search from the given guess fails, Excel 16.0.20527 retries from the default
-    // guess 0.1 (`u = 0.1 / 1.1`), then `u = -0.1`, then `u = 2.0 / 3.0` (`guess = 2.0`),
-    // before returning `#NUM!`.
+    // When the search from the given guess fails with a retryable #NUM!, Excel 16.0.20527
+    // retries from the default guess 0.1 (`u = 0.1 / 1.1`), then `u = -0.1`, then `u = 2.0 / 3.0`
+    // (`guess = 2.0`), before returning `#NUM!`. `#DIV/0!` propagates immediately (dc-j9k.103).
     let u_guess = div(guess, add(1.0, guess));
-    if let Some(r) = irr_u_secant(flows, u_guess) {
-        if tracing {
-            crate::trace::hit(2);
+    let attempts = [
+        (Some(u_guess), 2u32),
+        ((guess != 0.1).then(|| div(0.1, add(1.0, 0.1))), 3u32),
+        (Some(-0.1), 4u32),
+        (Some(div(2.0, 3.0)), 5u32),
+    ];
+    for (u_start, route_bit) in attempts {
+        let Some(u_start) = u_start else {
+            continue;
+        };
+        match irr_u_secant(flows, u_start) {
+            IrrStep::Ok(r) => {
+                if tracing {
+                    crate::trace::hit(route_bit);
+                }
+                return Ok(r);
+            }
+            IrrStep::HardDiv0 => return Err(WorksheetErrorCode::Div0),
+            IrrStep::RetryNum => continue,
         }
-        return Ok(r);
-    }
-    if guess != 0.1
-        && let Some(r) = irr_u_secant(flows, div(0.1, add(1.0, 0.1)))
-    {
-        if tracing {
-            crate::trace::hit(3);
-        }
-        return Ok(r);
-    }
-    if let Some(r) = irr_u_secant(flows, -0.1) {
-        if tracing {
-            crate::trace::hit(4);
-        }
-        return Ok(r);
-    }
-    if let Some(r) = irr_u_secant(flows, div(2.0, 3.0)) {
-        if tracing {
-            crate::trace::hit(5);
-        }
-        return Ok(r);
     }
     if tracing {
         crate::trace::hit(6);
@@ -1193,6 +1217,31 @@ mod tests {
         );
         assert_close(irr_kernel(&[0.0, -100.0, 0.0, 121.0], None).unwrap(), 0.1);
         assert_eq!(irr_kernel(&[0.0, 0.0, 0.0], None), Err(WorksheetErrorCode::Num));
+    }
+
+    /// Excel 16.0.20625.20108 (sf2/cb25, dc-j9k.103): `#DIV/0!` inside `irr_u_secant`
+    /// propagates immediately instead of falling through the guess-retry ladder.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_div0_propagates_without_retry() {
+        // I2-dc-j9k-103-div0-vs-num:
+        assert_eq!(
+            irr_kernel(
+                &[
+                    f64::from_bits(0xab2bff2ee48e0530),
+                    f64::from_bits(0x4000000000000000),
+                ],
+                None
+            ),
+            Err(WorksheetErrorCode::Div0)
+        );
+        // Trailing zeros still advance power*=base and trigger #DIV/0! on overflow (cb25 IE-05):
+        let mut long_flows = vec![22.0; 46];
+        long_flows[0] = -100.0;
+        assert_eq!(
+            irr_kernel(&long_flows, Some(f64::from_bits(0x41a7d78400000000))),
+            Err(WorksheetErrorCode::Div0)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
