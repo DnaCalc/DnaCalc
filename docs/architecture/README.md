@@ -14,6 +14,7 @@ Current documents (start with the summary):
   add-ins and JavaScript, and the CalcVBA hosting interface (draft for the owner).
 - `FUNCTION_CATALOGUE.md`: what the function catalogue declares, the name space, entry checking and
   localised names.
+- `ASYNC_IN_CELLS.md` and `ASYNC_PARITY_TEST_SUITE.md`: the shared asynchronous/pushed-value substrate across XLL async, COM RTD, JS async, and JS streaming, and its three-tier Excel parity test suite.
 
 `review-2026-10/` keeps the record of how the synthesis was reached: the foundation risk audit
 (`risk-*.md`), library research, ideas recovered from the early Foundation plans, four independent

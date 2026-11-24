@@ -3,6 +3,7 @@
 Status: reworked architecture design for epic `dc-26wtr` (originally `dc-26wtr.2`, reworked in `dc-26wtr.10` on 2026-11-24 after independent review `rw2`), reconciled with Excel measurements in `docs/research/async-mechanisms-excel.md` (`ww8/async-03`, `ww8/async-04-ui`, `ww8/async-05-display`, `ww8/async-06-cold`, `ww9/rtd-events`, `ww9/rtd-f9`, `ww9/rtd-product`, `ww10/af2`, `ww11/office-js`), `crates/calc-engine/tests/fixtures/excel-calc-probes/P07/README.md` (`P07-ui3-safe`, `P07-core-safe`, `save-ui`), `dc-snz.23.4`, and current `master`. Design document only; no code changes.
 
 Companion documents:
+- `docs/architecture/ASYNC_PARITY_TEST_SUITE.md` — parity test suite design (`dc-26wtr.3`): 58 scripted scenarios across XLL async, RTD, JS async, JS streaming, cross-mechanism interference, and security/unload/shell boundaries.
 - `docs/research/async-mechanisms-excel.md` — Windows Excel measurements for native XLL async (`ww8`, `ww10`), COM RTD (`ww9`), and Office.js custom functions (`ww11`), plus remaining experiment setup.
 - `docs/architecture/RECALC_CONTRACT.md` — command/pass/invocation identities, SliceV1 async completion (§3.4), observation fences (§5), supersession (§6), and save semantics (§8).
 - `docs/architecture/API_FACES.md` — external faces over one core and the embedded `calc-js-host` seam (§5.5).
