@@ -1374,6 +1374,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
             INTERACTIVE_CHUNK_SIZE,
             2,
             Priority::Interactive,
+            Some(cfg),
         )?;
         *excel_seconds += agg.excel_seconds;
         for (k, v) in agg.envs {
@@ -1491,6 +1492,7 @@ pub fn fractal_refine_coarse_discrepancies_excel(
                 INTERACTIVE_CHUNK_SIZE,
                 2,
                 Priority::Interactive,
+                Some(cfg),
             )?;
             *excel_seconds += agg.excel_seconds;
             for (k, v) in agg.envs {

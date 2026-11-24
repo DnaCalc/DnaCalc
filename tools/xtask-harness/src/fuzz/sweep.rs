@@ -183,6 +183,7 @@ struct Attempt<'a> {
     round_size: usize,
     min_budget: usize,
     max_frontiers: usize,
+    fractal_depth: usize,
     frontier_window: i64,
     dry_rounds: usize,
     lane: &'a str,
@@ -306,6 +307,7 @@ fn attempt_run(
     cfg.batch_size = 32;
     cfg.in_flight = 3;
     cfg.max_frontiers = 0;
+    cfg.fractal_depth = 0;
     cfg.endpoint = options.endpoint.clone();
     cfg.sweep = Some(super::oracle::SweepPolicy::new(
         options.out.join("PAUSE"),
@@ -323,6 +325,7 @@ fn attempt_run(
             round_size: cfg.round_size,
             min_budget: cfg.min_budget,
             max_frontiers: cfg.max_frontiers,
+            fractal_depth: cfg.fractal_depth,
             frontier_window: cfg.frontier_window,
             dry_rounds: cfg.dry_rounds,
             lane: &cfg.lane,
