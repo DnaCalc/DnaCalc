@@ -14,6 +14,8 @@ impl WorkbookAutomation {
     pub(super) fn register_cells(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Insert", InvokeKind::Method, Self::range_insert);
         handlers.on("Range", "Delete", InvokeKind::Method, Self::range_delete);
+        handlers.on("Range", "Copy", InvokeKind::Method, Self::range_copy);
+        handlers.on("Range", "Cut", InvokeKind::Method, Self::range_cut);
     }
 
     fn range_insert(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -21,6 +23,47 @@ impl WorkbookAutomation {
     }
     fn range_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.shift_range(target, call, false)
+    }
+
+    fn range_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.copy_range(target, call, false)
+    }
+    fn range_cut(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.copy_range(target, call, true)
+    }
+
+    /// Copy or Cut with a Destination: the copy and paste of the grid (values, formulas relocated, formats;
+    /// a cut also moves references). Without a Destination Excel fills the clipboard, which the host has none of.
+    fn copy_range(&self, target: &ObjectRef, call: &Call<'_>, cut: bool) -> Reply {
+        if call.args.len() > 1 {
+            return Err(geometry::bad_count());
+        }
+        let AutoValue::Object(destination) = call.arg(0) else {
+            return if call.arg(0).is_missing() {
+                Err(AutoError::not_modelled(
+                    format!("Range.{} to the clipboard", if cut { "Cut" } else { "Copy" }),
+                    OWNER,
+                ))
+            } else {
+                Err(geometry::type_mismatch())
+            };
+        };
+        let held = match &destination.key {
+            ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. } => held.clone(),
+            _ => return Err(geometry::type_mismatch()),
+        };
+        self.mutate_range(target, call, |session, range| {
+            let to = self.resolve(&mut Access::Session(session, false), &held)?;
+            if to.area_count() != 1 {
+                return Err(AutoError::not_modelled("Range.Copy to several areas", OWNER));
+            }
+            Ok(SkinIntent::Copy {
+                from: range.areas()[0],
+                to: to.areas()[0],
+                cut,
+            })
+        })?;
+        Ok(AutoValue::Bool(true))
     }
 
     /// Insert or Delete: whole rows or columns shift the sheet's axis, other ranges shift cells along the

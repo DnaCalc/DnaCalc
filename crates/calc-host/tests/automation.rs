@@ -4717,3 +4717,82 @@ fn dc_oxh8w_4__range_insert_and_delete_shift_cells_and_references() {
     ));
     assert!(matches!(cell_text(&model, "A20"), AutoValue::R8(7.)));
 }
+
+/// dc-oxh8w.4: Names.Add defines a workbook name, redefining an existing one, and returns the Name.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__names_add_defines_and_redefines_a_workbook_name() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+    let sheet = sheet_names(&host)[0].clone();
+    let add = |name: &str, refers: &str| {
+        invoke_kind(
+            &model,
+            &names,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::text(name), AutoValue::text(refers)],
+        )
+    };
+    let name = obj(add("Totals", &format!("={sheet}!$B$2:$B$4")).unwrap());
+    assert_eq!(text(&model, &name, "Name"), "Totals");
+    assert_eq!(text(&model, &name, "RefersTo"), format!("={sheet}!$B$2:$B$4"));
+    assert!(matches!(invoke(&model, &names, "Count", vec![]).unwrap(), AutoValue::I4(1)));
+    // Redefining keeps one name.
+    assert!(matches!(add("totals", "=1"), Err(AutoError::NotModelled { .. })));
+    let again = obj(add("Totals", &format!("={sheet}!$C$1")).unwrap());
+    assert_eq!(text(&model, &again, "RefersTo"), format!("={sheet}!$C$1"));
+    assert!(matches!(invoke(&model, &names, "Count", vec![]).unwrap(), AutoValue::I4(1)));
+    // An invalid name is Excel's 1004; sheet-scoped names and non-formula RefersTo are typed refusals.
+    let error = add("1bad name", "=1").unwrap_err();
+    assert!(matches!(error, AutoError::Excel { number: 1004, .. }), "{error:?}");
+    assert!(matches!(add(&format!("{sheet}!Local"), "=1"), Err(AutoError::NotModelled { .. })));
+    assert!(matches!(add("Plain", "text"), Err(AutoError::NotModelled { .. })));
+    assert!(matches!(invoke(&model, &names, "Count", vec![]).unwrap(), AutoValue::I4(1)));
+}
+
+/// dc-oxh8w.4: Range.Copy and Range.Cut with a Destination relocate formulas; a cut moves references.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__range_copy_and_cut_to_a_destination() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    let sheet = host.session.borrow().host().sheets()[0].id();
+    let put = |address: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+    };
+    put("A1", AutoValue::R8(2.));
+    put("A2", AutoValue::R8(3.));
+    enter(&host, CellKey::new(sheet, 1, 2).unwrap(), "=A1*10");
+    enter(&host, CellKey::new(sheet, 5, 5).unwrap(), "=A1+1");
+    let call = |from: &str, member: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, from), member, InvokeKind::Method, args)
+    };
+    // Copy to a single destination cell takes the source's shape; the formula relocates.
+    call("A1:B2", "Copy", vec![AutoValue::Object(range(&model, "D10"))]).unwrap();
+    assert!(matches!(cell_text(&model, "D10"), AutoValue::R8(2.)));
+    assert!(matches!(cell_text(&model, "D11"), AutoValue::R8(3.)));
+    assert!(matches!(cell_text(&model, "E10"), AutoValue::R8(20.)));
+    // Cut moves the cells; the formula that read A1 follows it.
+    call("A1", "Cut", vec![AutoValue::Object(range(&model, "H1"))]).unwrap();
+    assert!(matches!(cell_text(&model, "A1"), AutoValue::Empty));
+    assert!(matches!(cell_text(&model, "H1"), AutoValue::R8(2.)));
+    assert!(matches!(cell_text(&model, "E5"), AutoValue::R8(3.)));
+    // No destination means the clipboard, which is refused typed.
+    assert!(matches!(call("A2", "Copy", vec![]), Err(AutoError::NotModelled { .. })));
+}
