@@ -9,12 +9,81 @@ from client import from_bits
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_CALLS = 20000
+MAX_FORMULA_CHARS = 8192
 ERRORS = {"#NULL!": 2000, "#DIV/0!": 2007, "#VALUE!": 2015, "#REF!": 2023,
           "#NAME?": 2029, "#NUM!": 2036, "#N/A": 2042}
 REGRESSION = {"LINEST", "LOGEST"}
+# Functions whose paired-argument arities Excel refuses at formula entry; passing a refused
+# formula inside a SAFEARRAY to Range.Formula2R1C1 makes Excel COM return E_OUTOFMEMORY.
+EVEN_PAIR_FUNCTIONS = {"COUNTIFS", "IFS"}
+ODD_PAIR_FUNCTIONS = {"SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS"}
 # Pure numeric questions are needed before their worksheet kernels exist.
 ETS = {"FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY",
        "FORECAST.ETS.STAT"}
+
+
+def check_formula_arity(name, arity):
+    """Refuse arities that Excel refuses at formula entry (and would fail Range.Formula2R1C1)."""
+    if name == "GETPIVOTDATA":
+        if arity < 2 or arity > 254 or (arity >= 5 and arity % 2 == 1):
+            raise ValueError(
+                "GETPIVOTDATA requires 2, 3, or an even number of arguments (4..=254); "
+                "odd arities >= 5 are refused by Excel formula entry"
+            )
+    elif name in EVEN_PAIR_FUNCTIONS:
+        if arity < 2 or arity % 2 == 1:
+            raise ValueError(f"{name} requires an even number of arguments (>= 2)")
+    elif name in ODD_PAIR_FUNCTIONS:
+        if arity < 3 or arity % 2 == 0:
+            raise ValueError(f"{name} requires an odd number of arguments (>= 3)")
+
+
+def _choose_arg_chars(rows, cols, at):
+    """Exact character count of Program.cs Formula() CHOOSE({1,2;...},RC[...]) expansion."""
+    # "CHOOSE({" + indices + "}," + cells + ")"
+    count = rows * cols
+    # sum of digit lengths for 1..=count plus separators (count - 1 commas/semicolons)
+    idx_chars = sum(len(str(k)) for k in range(1, count + 1)) + max(0, count - 1)
+    cell_chars = sum(4 + len(str(at + k + 1)) for k in range(count)) + max(0, count - 1)
+    return 10 + idx_chars + cell_chars
+
+
+def check_group_formula_limits(name, tokens, widths, values, n, result_index=None):
+    """Refuse groups whose generated R1C1 formula exceeds Excel's 8192-character limit."""
+    check_formula_arity(name, len(tokens))
+    # Fixed overhead: "=" + name + "(" + commas + ")" + optional INDEX(...,r,c)
+    base_len = 1 + len(name) + 2 + max(0, len(tokens) - 1)
+    if result_index is not None:
+        base_len += 8 + len(str(result_index[0])) + len(str(result_index[1]))
+    at = 0
+    literal_positions = []
+    for tok, w in zip(tokens, widths):
+        if tok[0] == "a":
+            r, c = (int(x) for x in tok[1:].split("x"))
+            base_len += _choose_arg_chars(r, c, at)
+        elif tok == "S":
+            literal_positions.append(at)
+        elif tok == "B":
+            base_len += 5  # worst case FALSE
+        else:
+            base_len += 4 + len(str(at + 1))  # "RC[N]"
+        at += w
+    if not literal_positions:
+        if base_len > MAX_FORMULA_CHARS:
+            raise ValueError(
+                f"generated Excel formula ({base_len} chars) exceeds {MAX_FORMULA_CHARS}-character limit"
+            )
+        return
+    width = sum(widths)
+    for i in range(n):
+        row_len = base_len
+        for pos in literal_positions:
+            text = values[i * width + pos]
+            row_len += 2 + len(text) + text.count('"')
+        if row_len > MAX_FORMULA_CHARS:
+            raise ValueError(
+                f"generated Excel formula ({row_len} chars) exceeds {MAX_FORMULA_CHARS}-character limit"
+            )
 
 
 def catalogue_names(root):
@@ -97,6 +166,7 @@ def validate(request, names, request_id):
     for row in rows:
         if not isinstance(row, list) or len(row) > 32:
             raise ValueError("expected rows of at most 32 scalar arguments")
+        check_formula_arity(name, len(row))
         total += len(row)
         for arg in row:
             if isinstance(arg, dict) and arg.get("type") == "array":
@@ -283,6 +353,7 @@ class Admission:
                     if any(not isinstance(v, str) or len(v.encode('utf-8')) > 65536 for v in column):
                         raise ValueError("file content must be UTF-8 text of at most 65536 bytes")
             at += w
+        check_group_formula_limits(name, tokens, widths, values, n, index)
 
     @classmethod
     def _range_cell(cls, cell):

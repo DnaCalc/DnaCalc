@@ -1127,6 +1127,7 @@ mod tests {
                 open_clusters: 3,
                 last_sweep_date: "2026-11-24".to_owned(),
                 last_sweep_commit: "abcdef1234".to_owned(),
+                status_note: "-".to_owned(),
             },
             crate::fuzz::coverage::FuzzCoverageRow {
                 function: "NORM.S.INV".to_owned(),
@@ -1141,6 +1142,7 @@ mod tests {
                 open_clusters: 0,
                 last_sweep_date: "2026-11-23".to_owned(),
                 last_sweep_commit: "1234567890".to_owned(),
+                status_note: "-".to_owned(),
             },
         ];
         fs::write(&tsv_path, crate::fuzz::coverage::format_tsv(&rows)).unwrap();
@@ -1168,6 +1170,7 @@ mod tests {
             open_clusters: 0,
             last_sweep_date: "2026-11-24".to_owned(),
             last_sweep_commit: "abcdef1234".to_owned(),
+            status_note: "skipped:volatile".to_owned(),
         });
         fs::write(&tsv_path, crate::fuzz::coverage::format_tsv(&with_zero)).unwrap();
         let html_zero = fuzz_section(&base).unwrap();

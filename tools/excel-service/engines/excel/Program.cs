@@ -209,6 +209,55 @@ static class Program
     static string HexOf(double d) => BitConverter.DoubleToUInt64Bits(d).ToString("x16");
     static bool IsHex16(string s) => s.Length == 16;
 
+    const int MaxFormulaChars = 8192;
+
+    sealed class RefusedFormulaException : Exception
+    {
+        public RefusedFormulaException(string message) : base(message) { }
+    }
+
+    static readonly HashSet<string> EvenPairFunctions = new(StringComparer.OrdinalIgnoreCase) { "COUNTIFS", "IFS" };
+    static readonly HashSet<string> OddPairFunctions = new(StringComparer.OrdinalIgnoreCase) { "SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS" };
+
+    /// <summary>
+    /// Refuses formula shapes Excel rejects at entry (which make Range.Formula2R1C1 = object[,]
+    /// throw E_OUTOFMEMORY / OutOfMemoryException) before touching Excel COM.
+    /// </summary>
+    static void ValidateGroupArity(string function, int arity)
+    {
+        if (string.Equals(function, "GETPIVOTDATA", StringComparison.OrdinalIgnoreCase))
+        {
+            if (arity < 2 || arity > 254 || (arity >= 5 && arity % 2 == 1))
+                throw new RefusedFormulaException($"GETPIVOTDATA requires 2, 3, or an even number of arguments (4..=254); got {arity}");
+        }
+        else if (EvenPairFunctions.Contains(function))
+        {
+            if (arity < 2 || arity % 2 == 1)
+                throw new RefusedFormulaException($"{function} requires an even number of arguments (>= 2); got {arity}");
+        }
+        else if (OddPairFunctions.Contains(function))
+        {
+            if (arity < 3 || arity % 2 == 0)
+                throw new RefusedFormulaException($"{function} requires an odd number of arguments (>= 3); got {arity}");
+        }
+    }
+
+    static void ValidateBatchFormulas(List<Group> groups, bool spill)
+    {
+        foreach (var g in groups)
+        {
+            ValidateGroupArity(g.F, g.Tokens.Length);
+            bool perRow = g.Tokens.Any(tk => tk == "S" || tk == "B");
+            int checkRows = perRow ? g.N : Math.Min(1, g.N);
+            for (int i = 0; i < checkRows; i++)
+            {
+                string f = spill ? SpillFormula(g, g.Row0 + i) : Formula(g, i);
+                if (f.Length > MaxFormulaChars)
+                    throw new RefusedFormulaException($"{g.F} generated formula of {f.Length} chars (limit {MaxFormulaChars})");
+            }
+        }
+    }
+
     static string Formula(Group g, int row)
     {
         // Builds the R1C1 formula of one call (row = index within the group), as the v1 witness request did.
@@ -319,6 +368,13 @@ static class Program
             result["timing"] = timing;
             Send('R', Json.Write(result));
         }
+        catch (RefusedFormulaException e)
+        {
+            Interlocked.Exchange(ref DeadlineTicks, 0);
+            result["error"] = "refused";
+            result["detail"] = e.Message;
+            Send('R', Json.Write(result));
+        }
         catch (Exception e)
         {
             Interlocked.Exchange(ref DeadlineTicks, 0);
@@ -371,6 +427,7 @@ static class Program
         foreach (Dictionary<string, object> raw in groupList)
         {
             string[] tokens = ((string)raw["k"]).Length == 0 ? Array.Empty<string>() : ((string)raw["k"]).Split(',');
+            ValidateGroupArity((string)raw["f"], tokens.Length);
             int width = tokens.Sum(TokenWidth), count = (int)(long)raw["n"];
             var values = (List<object>)raw["v"];
             var types = new StringBuilder(); var results = new List<object>();
@@ -802,6 +859,7 @@ static class Program
         int smallRows = layout.Where(g => g.N < SmallGroup).Sum(g => g.N);
         int totalRows = row - 1;
         if (totalRows > 1000000) throw new InvalidOperationException("batch-too-large");
+        ValidateBatchFormulas(groups, false);
         dynamic sheet = X.SheetS;
         var written = new List<Block>();
 
@@ -862,7 +920,8 @@ static class Program
         // 2. formulas: one array assignment for all small groups, one fill assignment per large group
         if (smallRows > 0)
         {
-            Stage = "formulas small groups";
+            var smallFns = string.Join(",", layout.Where(g => g.N < SmallGroup).Select(g => g.F).Distinct());
+            Stage = "formulas small groups (" + smallFns + ")";
             var fs = new object[smallRows, 1];
             foreach (var g in layout.Where(g => g.N < SmallGroup))
                 for (int i = 0; i < g.N; i++) fs[g.Row0 - 1 + i, 0] = Formula(g, i);
@@ -1036,6 +1095,7 @@ static class Program
         }
         int totalRows = row - 1;
         if (totalRows > 1000) throw new InvalidOperationException("batch-too-large-for-spill");
+        ValidateBatchFormulas(groups, true);
         dynamic sheet = X.SheetS, grid = X.SheetA;
         var written = new List<Block>();
         WriteGroupArguments(sheet, groups, written);

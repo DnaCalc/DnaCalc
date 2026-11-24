@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const USAGE: &str = "cargo xtask fuzz coverage --records <dir> [--records <dir>...] [--beads <issues.jsonl>] [--out <tsv>] [--merge]";
 pub const FUZZ_STATUS_PATH: &str = "crates/calc-func/fuzz-status.tsv";
-pub const FUZZ_STATUS_HEADER: &str = "function\tsweeps\tcases_swept\tmatched\tfailed\tharness_faults\tregions_covered\tregions_total\tfrontiers_mapped\topen_clusters\tlast_sweep_date\tlast_sweep_commit";
+pub const FUZZ_STATUS_HEADER: &str = "function\tsweeps\tcases_swept\tmatched\tfailed\tharness_faults\tregions_covered\tregions_total\tfrontiers_mapped\topen_clusters\tlast_sweep_date\tlast_sweep_commit\tstatus_note";
 
 /// One per-function row in `crates/calc-func/fuzz-status.tsv`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,6 +31,29 @@ pub struct FuzzCoverageRow {
     pub open_clusters: u64,
     pub last_sweep_date: String,
     pub last_sweep_commit: String,
+    pub status_note: String,
+}
+
+fn sanitize_status_note(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|c| match c {
+            '\t' | '\r' | '\n' => ' ',
+            _ => c,
+        })
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        "-".to_owned()
+    } else if trimmed.len() > 240 {
+        let mut end = 240;
+        while end > 0 && !trimmed.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &trimmed[..end])
+    } else {
+        trimmed.to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -111,6 +134,7 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
     let idx_clusters = col("open_clusters")?;
     let idx_date = col("last_sweep_date")?;
     let idx_commit = col("last_sweep_commit")?;
+    let idx_status_note = headers.iter().position(|h| *h == "status_note");
 
     let mut rows = Vec::new();
     let mut seen = BTreeSet::new();
@@ -159,6 +183,13 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
                 line_no + 2
             ));
         }
+        let status_note = match idx_status_note {
+            Some(idx) => fields
+                .get(idx)
+                .map(|s| sanitize_status_note(s))
+                .unwrap_or_else(|| "-".to_owned()),
+            None => "-".to_owned(),
+        };
         rows.push(FuzzCoverageRow {
             function,
             sweeps: u64_at(idx_sweeps, "sweeps")?,
@@ -172,6 +203,7 @@ pub fn parse_tsv(contents: &str) -> Result<Vec<FuzzCoverageRow>, String> {
             open_clusters: u64_at(idx_clusters, "open_clusters")?,
             last_sweep_date: str_at(idx_date, "last_sweep_date")?,
             last_sweep_commit: str_at(idx_commit, "last_sweep_commit")?,
+            status_note,
         });
     }
     rows.sort_by(|a, b| a.function.cmp(&b.function));
@@ -186,7 +218,7 @@ pub fn format_tsv(rows: &[FuzzCoverageRow]) -> String {
     out.push('\n');
     for r in &sorted {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             r.function,
             r.sweeps,
             r.cases_swept,
@@ -199,6 +231,7 @@ pub fn format_tsv(rows: &[FuzzCoverageRow]) -> String {
             r.open_clusters,
             r.last_sweep_date,
             r.last_sweep_commit,
+            sanitize_status_note(&r.status_note),
         ));
     }
     out
@@ -273,6 +306,11 @@ impl BeadsIndex {
     }
 }
 
+enum DiscoveredEntry {
+    Summary(DiscoveredRecord),
+    GaveUp(PathBuf),
+}
+
 struct DiscoveredRecord {
     summary_path: PathBuf,
     spec_path: Option<PathBuf>,
@@ -282,7 +320,7 @@ struct DiscoveredRecord {
     done_finished_utc: Option<String>,
 }
 
-fn discover_records(dir: &Path, out: &mut Vec<DiscoveredRecord>) -> Result<(), String> {
+fn discover_records(dir: &Path, out: &mut Vec<DiscoveredEntry>) -> Result<(), String> {
     if !dir.is_dir() {
         return Err(format!("{}: not a directory", dir.display()));
     }
@@ -308,14 +346,19 @@ fn discover_records(dir: &Path, out: &mut Vec<DiscoveredRecord>) -> Result<(), S
         let frontiers_path = attempt_dir.join("frontiers.json");
         let attempt_path = attempt_dir.join("attempt.json");
         let recipe_path = attempt_dir.join("recipe.json");
-        out.push(DiscoveredRecord {
+        out.push(DiscoveredEntry::Summary(DiscoveredRecord {
             summary_path,
             spec_path: spec_path.is_file().then_some(spec_path),
             frontiers_path: frontiers_path.is_file().then_some(frontiers_path),
             attempt_path: attempt_path.is_file().then_some(attempt_path),
             recipe_path: recipe_path.is_file().then_some(recipe_path),
             done_finished_utc: done["finished_utc"].as_str().map(str::to_owned),
-        });
+        }));
+        return Ok(());
+    }
+    let gave_up_path = dir.join("gave_up.json");
+    if gave_up_path.is_file() {
+        out.push(DiscoveredEntry::GaveUp(gave_up_path));
         return Ok(());
     }
     let summary_path = dir.join("summary.json");
@@ -324,17 +367,17 @@ fn discover_records(dir: &Path, out: &mut Vec<DiscoveredRecord>) -> Result<(), S
         let frontiers_path = dir.join("frontiers.json");
         let attempt_path = dir.join("attempt.json");
         let recipe_path = dir.join("recipe.json");
-        out.push(DiscoveredRecord {
+        out.push(DiscoveredEntry::Summary(DiscoveredRecord {
             summary_path,
             spec_path: spec_path.is_file().then_some(spec_path),
             frontiers_path: frontiers_path.is_file().then_some(frontiers_path),
             attempt_path: attempt_path.is_file().then_some(attempt_path),
             recipe_path: recipe_path.is_file().then_some(recipe_path),
             done_finished_utc: None,
-        });
+        }));
     } else if dir.join("recipe.json").is_file() {
-        // Incomplete scheduler run directory (has recipe.json without done.json or direct
-        // summary.json): skip its numbered attempt subdirectories until done.json exists.
+        // Incomplete scheduler run directory (has recipe.json without done.json, gave_up.json, or
+        // direct summary.json): skip its numbered attempt subdirectories until finalized.
         return Ok(());
     }
     let mut subdirs = Vec::new();
@@ -427,6 +470,7 @@ struct FunctionAcc {
     last_sweep_ts: String,
     last_sweep_date: String,
     last_sweep_commit: String,
+    status_note: String,
 }
 
 /// Scan sweep record directories and aggregate per-function fuzz coverage rows.
@@ -446,7 +490,46 @@ pub fn collect_from_records(
     let mut seen_runs: BTreeSet<(String, u64, String, u64)> = BTreeSet::new();
     let mut by_func: BTreeMap<String, FunctionAcc> = BTreeMap::new();
 
-    for rec in discovered {
+    for entry in discovered {
+        let rec = match entry {
+            DiscoveredEntry::GaveUp(gave_up_path) => {
+                let text = fs::read_to_string(&gave_up_path)
+                    .map_err(|e| format!("{}: {e}", gave_up_path.display()))?;
+                let doc: Value = serde_json::from_str(&text)
+                    .map_err(|e| format!("{}: {e}", gave_up_path.display()))?;
+                let function = doc["function"]
+                    .as_str()
+                    .ok_or_else(|| format!("{}: missing function", gave_up_path.display()))?
+                    .to_ascii_uppercase();
+                let timestamp = doc["finished_utc"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| {
+                        format!("{}T00:00:00Z", date_from_mtime(&gave_up_path))
+                    });
+                let sweep_date = date_from_timestamp(&timestamp)
+                    .unwrap_or_else(|| date_from_mtime(&gave_up_path));
+                let sweep_commit = doc["calc_func_commit"]
+                    .as_str()
+                    .map(short_commit)
+                    .unwrap_or_else(|| "-".to_owned());
+                let reason = doc["reason"]
+                    .as_str()
+                    .or_else(|| doc["error"].as_str())
+                    .unwrap_or("gave-up");
+                let acc = by_func.entry(function).or_default();
+                if timestamp >= acc.last_sweep_ts {
+                    acc.last_sweep_ts = timestamp;
+                    acc.last_sweep_date = sweep_date;
+                    if sweep_commit != "-" || acc.last_sweep_commit.is_empty() {
+                        acc.last_sweep_commit = sweep_commit;
+                    }
+                    acc.status_note = sanitize_status_note(reason);
+                }
+                continue;
+            }
+            DiscoveredEntry::Summary(rec) => rec,
+        };
         let text = fs::read_to_string(&rec.summary_path)
             .map_err(|e| format!("{}: {e}", rec.summary_path.display()))?;
         let summary: Value = serde_json::from_str(&text)
@@ -460,10 +543,8 @@ pub fn collect_from_records(
             continue;
         }
         let total_asked = summary["total_asked"].as_u64().unwrap_or(0);
-        // Statically skipped functions (total_asked == 0, e.g. skipped:volatile) swept zero
-        // cases and must not inflate fuzz-status.tsv or fuzzed-function counts. Round-0
-        // DNA-fault skipped runs have total_asked > 0 and continue to be recorded honestly.
-        if total_asked == 0 {
+        let stop_reason = summary["stop_reason"].as_str().unwrap_or("");
+        if total_asked == 0 && !stop_reason.starts_with("skipped:") {
             continue;
         }
         let function = summary["function"]
@@ -475,7 +556,9 @@ pub fn collect_from_records(
             .as_str()
             .unwrap_or("")
             .to_owned();
-        if !case_hash.is_empty() && !seen_runs.insert((function.clone(), seed, case_hash, total_asked))
+        if total_asked > 0
+            && !case_hash.is_empty()
+            && !seen_runs.insert((function.clone(), seed, case_hash, total_asked))
         {
             continue;
         }
@@ -550,11 +633,13 @@ pub fn collect_from_records(
             .unwrap_or_else(|| "-".to_owned());
 
         let acc = by_func.entry(function.clone()).or_default();
-        acc.sweeps += 1;
-        acc.cases_swept += total_asked;
-        acc.matched += total_matched;
-        acc.failed += total_failed;
-        acc.harness_faults += total_harness_fault;
+        if total_asked > 0 {
+            acc.sweeps += 1;
+            acc.cases_swept += total_asked;
+            acc.matched += total_matched;
+            acc.failed += total_failed;
+            acc.harness_faults += total_harness_fault;
+        }
 
         if let Some(regions) = summary["regions"].as_object() {
             for (name, stats) in regions {
@@ -638,7 +723,6 @@ pub fn collect_from_records(
             }
         }
 
-        let stop_reason = summary["stop_reason"].as_str().unwrap_or("");
         let effectively_ran =
             total_asked > total_harness_fault && !stop_reason.starts_with("skipped:");
         if effectively_ran && timestamp >= acc.last_effective_ts {
@@ -654,6 +738,11 @@ pub fn collect_from_records(
             if sweep_commit != "-" || acc.last_sweep_commit.is_empty() {
                 acc.last_sweep_commit = sweep_commit;
             }
+            acc.status_note = if stop_reason.starts_with("skipped:") {
+                sanitize_status_note(stop_reason)
+            } else {
+                "-".to_owned()
+            };
         }
     }
 
@@ -712,10 +801,25 @@ pub fn collect_from_records(
                 } else {
                     acc.last_sweep_commit
                 },
+                status_note: if acc.status_note.is_empty() {
+                    "-".to_owned()
+                } else {
+                    acc.status_note
+                },
             }
         })
         .collect();
     Ok(rows)
+}
+
+/// Write a per-sweep coverage table for `sweep_dir` atomically.
+pub(super) fn write_sweep_coverage(
+    sweep_dir: &Path,
+    beads_path: Option<&Path>,
+    out: &Path,
+) -> Result<(), String> {
+    let rows = collect_from_records(&[sweep_dir.to_path_buf()], beads_path)?;
+    write_atomic(out, &format_tsv(&rows))
 }
 
 fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
@@ -736,12 +840,13 @@ fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCov
         .regions_covered
         .max(fresh.regions_covered)
         .min(regions_total);
-    let (last_sweep_date, last_sweep_commit, open_clusters) =
+    let (last_sweep_date, last_sweep_commit, open_clusters, status_note) =
         if fresh.last_sweep_date < prev.last_sweep_date {
             (
                 prev.last_sweep_date.clone(),
                 prev.last_sweep_commit.clone(),
                 prev.open_clusters,
+                prev.status_note.clone(),
             )
         } else {
             let same_known_commit = fresh.last_sweep_commit != "-"
@@ -758,7 +863,7 @@ fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCov
             } else {
                 prev.last_sweep_commit.clone()
             };
-            (fresh.last_sweep_date, commit, open)
+            (fresh.last_sweep_date, commit, open, fresh.status_note)
         };
     FuzzCoverageRow {
         function: fresh.function,
@@ -773,6 +878,7 @@ fn merge_coverage_row(prev: &FuzzCoverageRow, fresh: FuzzCoverageRow) -> FuzzCov
         open_clusters,
         last_sweep_date,
         last_sweep_commit,
+        status_note,
     }
 }
 
@@ -819,6 +925,8 @@ pub(super) fn run(raw: &[String]) -> ExitCode {
     };
     match execute(&options) {
         Ok(rows) => {
+            let swept_functions = rows.iter().filter(|r| r.cases_swept > 0).count();
+            let skipped_or_failed = rows.len().saturating_sub(swept_functions);
             let swept: u64 = rows.iter().map(|r| r.cases_swept).sum();
             let matched: u64 = rows.iter().map(|r| r.matched).sum();
             let failed: u64 = rows.iter().map(|r| r.failed).sum();
@@ -826,8 +934,9 @@ pub(super) fn run(raw: &[String]) -> ExitCode {
             let frontiers: u64 = rows.iter().map(|r| r.frontiers_mapped).sum();
             let clusters: u64 = rows.iter().map(|r| r.open_clusters).sum();
             println!(
-                "xtask fuzz coverage: {} functions, {} cases swept ({} matched, {} failed, {} harness_faults), {} frontiers, {} open clusters -> {}",
-                rows.len(),
+                "xtask fuzz coverage: {} functions swept ({} skipped/gave-up), {} cases swept ({} matched, {} failed, {} harness_faults), {} frontiers, {} open clusters -> {}",
+                swept_functions,
+                skipped_or_failed,
                 swept,
                 matched,
                 failed,
@@ -1204,6 +1313,7 @@ mod tests {
             open_clusters: 0,
             last_sweep_date: "2026-11-22".to_owned(),
             last_sweep_commit: "1111222233".to_owned(),
+            status_note: "-".to_owned(),
         };
         fs::write(&merged_tsv, format_tsv(&[existing_row.clone()])).unwrap();
         let merge_args = [
@@ -1248,6 +1358,7 @@ mod tests {
             open_clusters: 1,
             last_sweep_date: "2026-11-23".to_owned(),
             last_sweep_commit: "1111111111".to_owned(),
+            status_note: "-".to_owned(),
         };
         fs::write(&merged_tsv, format_tsv(&[prev_rate])).unwrap();
 
@@ -1480,10 +1591,13 @@ mod tests {
         .unwrap();
 
         let rows = collect_from_records(&[base.clone()], None).unwrap();
-        assert!(
-            !rows.iter().any(|r| r.function == "RAND"),
-            "0-case statically skipped function RAND must not inflate fuzz-status.tsv: {rows:?}"
-        );
+        let rand = rows
+            .iter()
+            .find(|r| r.function == "RAND")
+            .expect("0-case statically skipped RAND must record its skip reason in status_note");
+        assert_eq!(rand.sweeps, 0);
+        assert_eq!(rand.cases_swept, 0);
+        assert_eq!(rand.status_note, "skipped:volatile");
         let offset = rows
             .iter()
             .find(|r| r.function == "OFFSET")
@@ -1491,6 +1605,7 @@ mod tests {
         assert_eq!(offset.cases_swept, 64);
         assert_eq!(offset.failed, 64);
         assert_eq!(offset.harness_faults, 64);
+        assert_eq!(offset.status_note, "skipped:dna-fault:WitnessReferencePosition");
 
         let _ = fs::remove_dir_all(&base);
     }
@@ -1625,6 +1740,7 @@ mod tests {
             open_clusters: 0,
             last_sweep_date: "2026-11-24".to_owned(),
             last_sweep_commit: "2222222222".to_owned(),
+            status_note: "-".to_owned(),
         };
         let fresh_older = FuzzCoverageRow {
             function: "IRR".to_owned(),
@@ -1639,6 +1755,7 @@ mod tests {
             open_clusters: 3,
             last_sweep_date: "2026-11-22".to_owned(),
             last_sweep_commit: "1111111111".to_owned(),
+            status_note: "gave-up:3-attempts: old error".to_owned(),
         };
         let merged = merge_coverage_row(&prev_newer, fresh_older);
         assert_eq!(merged.last_sweep_date, "2026-11-24");
