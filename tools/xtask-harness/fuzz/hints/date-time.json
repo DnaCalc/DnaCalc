@@ -1,0 +1,1396 @@
+{
+  "family": "date-time",
+  "version": 1,
+  "functions": {
+    "DATE": {
+      "args": [
+        {
+          "name": "year",
+          "kind": "integer",
+          "specials": [0, 1, 89, 100, 1899, 1900, 1904, 1999, 2000, 2024, 2100, 9999, 10000, -1],
+          "ranges": [[0, 9999]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "years 0..1899 add 1900 so year 0 maps to 1900",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:113"
+            },
+            {
+              "value": 1899,
+              "why": "highest year that adds 1900 (1899 + 1900 = 3799)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:113"
+            },
+            {
+              "value": 1900,
+              "why": "first direct 4-digit year; 1900 leap-year artefact",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:113"
+            },
+            {
+              "value": 9999,
+              "why": "maximum accepted year before #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:109"
+            },
+            {
+              "value": 10000,
+              "why": "rejected with #NUM! even when negative month/day would roll back below 10000",
+              "source": "handbook FN-DATE-002"
+            }
+          ]
+        },
+        {
+          "name": "month",
+          "kind": "integer",
+          "specials": [-32768, -32767, -15, -1, 0, 1, 2, 3, 12, 13, 14, 32766, 32767],
+          "ranges": [[-32766, 32766]],
+          "edges": [
+            {
+              "value": -32767,
+              "why": "lower boundary of accepted month interval [-32767, 32767)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:115"
+            },
+            {
+              "value": 0,
+              "why": "rolls back to December of previous year",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 13,
+              "why": "rolls forward to January of next year",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 32767,
+              "why": "exclusive upper bound; month >= 32767 returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:115"
+            }
+          ]
+        },
+        {
+          "name": "day",
+          "kind": "integer",
+          "specials": [-32769, -32768, -15, 0, 1, 28, 29, 30, 31, 35, 32767, 32768],
+          "ranges": [[-32768, 32767]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "day 0 rolls back to last day of previous month; DATE(1900,1,0) gives serial 0",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:57"
+            },
+            {
+              "value": 29,
+              "why": "DATE(1900,2,29) yields fictitious serial 60 in 1900 system",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 32767,
+              "why": "day values outside [-32768, 32767] clamp to 32767",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:120"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "1900 <= normalized_year <= 9999",
+        "0 <= resulting_1900_serial <= 2958465"
+      ],
+      "regimes": [
+        {
+          "name": "short_year_offset",
+          "how": "0 <= year < 1900 adds 1900 before month normalization",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:113"
+        },
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        },
+        {
+          "name": "1904_date_system",
+          "how": "subtracts 1462 from 1900 serial; dates before 1904-01-01 return #NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:140"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "year < 0 or year >= 10000",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:109"
+        },
+        {
+          "when": "month < -32767 or month >= 32767",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:115"
+        },
+        {
+          "when": "normalized serial < 0 or > 2958465 (or < 0 in 1904 system)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:135"
+        }
+      ],
+      "notes": "Normalizing constructor; 1900-02-29 is serial 60 in 1900 system; year >= 10000 rejected in build 20527 before rollover."
+    },
+    "TIME": {
+      "args": [
+        {
+          "name": "hour",
+          "kind": "integer",
+          "specials": [-1, 0, 1, 12, 23, 24, 25, 32767, 32768],
+          "ranges": [[-32767, 32767]],
+          "edges": [
+            {
+              "value": 24,
+              "why": "wraps modulo 24 hours to 0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 25,
+              "why": "TIME(25,0,0) divides total_seconds/86400 before frac, differing by 11 ULP from 1/24",
+              "source": "handbook FN-TIME-001"
+            },
+            {
+              "value": 32767,
+              "why": "maximum accepted truncated hour magnitude",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:157"
+            }
+          ]
+        },
+        {
+          "name": "minute",
+          "kind": "integer",
+          "specials": [-60, -1, 0, 1, 30, 59, 60, 1440, 32767, 32768],
+          "ranges": [[-32767, 32767]],
+          "edges": [
+            {
+              "value": 32767,
+              "why": "maximum accepted truncated minute magnitude",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:157"
+            }
+          ]
+        },
+        {
+          "name": "second",
+          "kind": "integer",
+          "specials": [-60, -1, 0, 1, 30, 59, 60, 32767, 32768],
+          "ranges": [[-32767, 32767]],
+          "edges": [
+            {
+              "value": 32767,
+              "why": "maximum accepted truncated second magnitude",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:157"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "hour * 3600 + minute * 60 + second >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "wrap_modulo_day",
+          "how": "computes (total_seconds / 86400.0).rem_euclid(1.0) after truncating each argument",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:156"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "abs(trunc(arg)) > 32767 for any argument",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:157"
+        },
+        {
+          "when": "total_seconds < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:161"
+        }
+      ],
+      "notes": "Truncates each argument, rejects |arg| > 32767 or negative total seconds, wraps total_seconds / 86400 modulo 1."
+    },
+    "YEAR": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 59, 60, 61, 366, 1462, 45351, 2958465, 2958465.999994213, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "serial 0 returns 1900 (1900-01-00)",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 60,
+              "why": "fictitious 1900-02-29 returns 1900",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 crosses 2958466.0 and triggers #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5 / 86400 before flooring to day serial",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        }
+      ],
+      "notes": "Adds 0.5/86400 before flooring; maps 1904 system serials by +1462 when non-negative."
+    },
+    "MONTH": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 31, 32, 59, 60, 61, 45351, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "serial 0 returns month 1 (1900-01-00)",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 60,
+              "why": "fictitious 1900-02-29 returns month 2",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 crosses 2958466.0 and returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5 / 86400 before flooring to day serial",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        }
+      ],
+      "notes": "Returns 1..12 after half-second pre-rounding."
+    },
+    "DAY": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 31, 32, 59, 60, 61, 45351, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "serial 0 returns 0 (phantom 1900-01-00)",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 60,
+              "why": "serial 60 returns 29 (fictitious 1900-02-29)",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 reaches 2958466.0 and returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5 / 86400 before flooring to day serial",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:174"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:171"
+        }
+      ],
+      "notes": "Diagnostic decomposer for serial 0 (returns 0) and serial 60 (returns 29)."
+    },
+    "HOUR": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "time-fraction",
+          "specials": [-0.5, 0, 0.5, 0.999994212962963, 0.999999, 45000.5, 2958465.5, 2958465.999999, 2958466],
+          "ranges": [[0, 2958465.999994]],
+          "edges": [
+            {
+              "value": 0.999999,
+              "why": "adding 0.5/86400 rounds 23:59:59.9136 up to 00:00:00 so HOUR returns 0",
+              "source": "handbook FN-HOUR-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 reaches 2958466.0 and returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5/86400 to serial before taking fractional part * 24",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:182"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+        }
+      ],
+      "notes": "Returns 0..23; large date serials reduce fractional precision of the time part."
+    },
+    "MINUTE": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "time-fraction",
+          "specials": [-0.1, 0, 0.5, 0.500005787037037, 0.999999, 45000.25, 2958465.999999],
+          "ranges": [[0, 2958465.999994]],
+          "edges": [
+            {
+              "value": 0.500005787037037,
+              "why": "0.5 + 0.5/86400 rounds 12:00:00.5 up to 12:00:01 (minute 0; 12:00:59.5 rolls minute)",
+              "source": "handbook FN-MINUTE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 reaches 2958466.0 and returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5/86400 before decomposing fractional day into hour/minute/second",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:182"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+        }
+      ],
+      "notes": "Returns 0..59 after half-second pre-rounding."
+    },
+    "SECOND": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "time-fraction",
+          "specials": [-0.1, 0, 0.5, 0.5000173611111111, 0.999999, 45000.75, 2958465.999999],
+          "ranges": [[0, 2958465.999994]],
+          "edges": [
+            {
+              "value": 0.5000173611111111,
+              "why": "0.5 + 1.5/86400 rounds 12:00:01.5 according to binary64 evaluation",
+              "source": "handbook FN-MINUTE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "serial + 0.5/86400 reaches 2958466.0 and returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5/86400 and evaluates ((minutes - minute) * 60.0).floor().rem_euclid(60.0)",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:191"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:183"
+        }
+      ],
+      "notes": "Returns 0..59 after half-second pre-rounding."
+    },
+    "DAYS": {
+      "args": [
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 1462, 45000, 2958465, 2958465.9, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 60,
+              "why": "includes fictitious 1900-02-29 when span crosses serial 60",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 2958466,
+              "why": "exclusive upper bound; serial >= 2958466 returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:196"
+            }
+          ]
+        },
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 1462, 45000, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "lowest valid 1900 serial; DAYS(DATE(1904,1,1), 0) = 1462",
+              "source": "handbook FN-DATE-001"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "end_date >= start_date (signed difference otherwise)"
+      ],
+      "regimes": [
+        {
+          "name": "truncated_difference",
+          "how": "truncates both serials (no half-second round) and returns trunc(end_date) - trunc(start_date)",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:200"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "end_date < 0 or end_date >= 2958466 or start_date < 0 or start_date >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:197"
+        }
+      ],
+      "notes": "end_date is argument 1; negative when end_date < start_date; text arguments route through DATEVALUE."
+    },
+    "DAYS360": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 45351, 45716, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 60,
+              "why": "maps serial 60 to 1900-02-29 in 30/360 day adjustment",
+              "source": "handbook FN-DAYS360-001"
+            },
+            {
+              "value": 45351,
+              "why": "2024-02-29: US/NASD adjusts end-of-Feb start day 29->30 while leaving non-leap end Feb-28 unadjusted",
+              "source": "handbook FN-DAYS360-001"
+            }
+          ]
+        },
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 45351, 45716, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 45716,
+              "why": "2025-02-28: paired with 2024-02-29 gives 358 under US/NASD vs 359 under European",
+              "source": "handbook FN-DAYS360-001"
+            }
+          ]
+        },
+        {
+          "name": "method",
+          "kind": "logical",
+          "specials": [false, true],
+          "ranges": [],
+          "edges": [
+            {
+              "value": false,
+              "why": "US (NASD) method: adjusts Feb-end and rolls end_day==31 when start_day<30",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:350"
+            },
+            {
+              "value": true,
+              "why": "European method: only clamps day 31 to 30",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:343"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "start_date <= end_date (signed difference otherwise)"
+      ],
+      "regimes": [
+        {
+          "name": "us_nasd_method",
+          "how": "method FALSE/omitted: adjusts day 31 or Feb-end start to 30; if ed==31 and sd<30 rolls to 1st of next month",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:350"
+        },
+        {
+          "name": "european_method",
+          "how": "method TRUE: clamps start_day 31->30 and end_day 31->30",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:343"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_date < 0 or end_date < 0 or non-finite",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:321"
+        }
+      ],
+      "notes": "Truncates serials; propagates errors in any argument before parsing dates."
+    },
+    "DATEDIF": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 36922, 36950, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 36922,
+              "why": "2001-01-31: with end_date 2001-03-01 and unit MD returns -2",
+              "source": "handbook FN-DATEDIF-001"
+            }
+          ]
+        },
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 59, 60, 61, 36950, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "unit",
+          "kind": "text",
+          "specials": ["Y", "M", "D", "YM", "YD", "MD", "y", "md", " MD ", "X", ""],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "MD",
+              "why": "can return negative day counts (e.g. -2) when crossing a shorter preceding month",
+              "source": "handbook FN-DATEDIF-001"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "trunc(start_date) <= trunc(end_date)"
+      ],
+      "regimes": [
+        {
+          "name": "unit_Y_M_D",
+          "how": "complete years, complete months, or exact truncated days between start_date and end_date",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:410"
+        },
+        {
+          "name": "unit_YM_YD_MD",
+          "how": "remainder months, days ignoring years, or days ignoring months/years (MD uses previous month length)",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:426"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "trunc(end_date) < trunc(start_date) or start_date < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:402"
+        },
+        {
+          "when": "unit outside trimmed case-insensitive {Y, M, D, YM, YD, MD}",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:378"
+        }
+      ],
+      "notes": "Truncates serials; unit matching is trimmed and case-insensitive."
+    },
+    "DATEVALUE": {
+      "args": [
+        {
+          "name": "date_text",
+          "kind": "text",
+          "specials": [
+            "1900-01-01",
+            "1900-02-29",
+            "1/30/2008",
+            "30-Jan-2008",
+            "2024-03-04 13:45",
+            "3/4",
+            "1/1/29",
+            "1/1/30",
+            "1899-12-31",
+            "9999-12-31",
+            "10000-01-01",
+            "12:30 PM",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "1/1/29",
+              "why": "two-digit year < 30 maps to 2029",
+              "source": "crates/calc-func/src/value_text.rs:621"
+            },
+            {
+              "value": "1/1/30",
+              "why": "two-digit year >= 30 maps to 1930",
+              "source": "crates/calc-func/src/value_text.rs:621"
+            },
+            {
+              "value": "1900-02-29",
+              "why": "accepted as serial 60 in 1900 system",
+              "source": "crates/calc-func/src/value_text.rs:630"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "locale_short_date_order",
+          "how": "numeric date parsing follows host profile short_date_order (YMD/MDY/DMY)",
+          "source": "crates/calc-func/src/value_text.rs:706"
+        },
+        {
+          "name": "year_omitted_clock",
+          "how": "omitted year uses the calculation clock's year",
+          "source": "crates/calc-func/src/value_text.rs:729"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "unparseable text, pure number text, or date outside 1900..=9999 (or < 1904 in 1904 system)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:296"
+        }
+      ],
+      "notes": "Ignores time component by flooring parsed DateTime serial; locale- and clock-dependent."
+    },
+    "TIMEVALUE": {
+      "args": [
+        {
+          "name": "time_text",
+          "kind": "text",
+          "specials": [
+            "0:00",
+            "6:45 PM",
+            "18:45",
+            "12:",
+            "1:30:",
+            "12:00:00.5",
+            "25:30",
+            "22-Aug-2008 6:35 AM",
+            "1900-01-01 12:00",
+            "12",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "22-Aug-2008 6:35 AM",
+              "why": "parses full serial then subtracts floor, losing 16 low mantissa bits (16384 ULP below exact)",
+              "source": "handbook FN-TIMEVALUE-001"
+            },
+            {
+              "value": "25:30",
+              "why": "time-only strings >= 24h wrap modulo 24h to 0.0625",
+              "source": "handbook FN-TIMEVALUE-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_plus_time_fraction",
+          "how": "parses full DateTime serial and returns serial - serial.floor()",
+          "source": "crates/calc-func/src/catalogue/dates.rs:302"
+        },
+        {
+          "name": "trailing_colon_time",
+          "how": "accepts trailing colon forms like \"12:\" and \"1:30:\"",
+          "source": "crates/calc-func/src/value_text.rs:816"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "unparseable text, plain number text, or extended time component overflow",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:303"
+        }
+      ],
+      "notes": "Returns fractional day in [0, 1); date-qualified strings lose mantissa bits to the date floor."
+    },
+    "EDATE": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 31, 59, 60, 61, 45351, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 60,
+              "why": "EDATE(60, 12) returns 425 (1901-02-28)",
+              "source": "handbook FN-DATE-001"
+            }
+          ]
+        },
+        {
+          "name": "months",
+          "kind": "integer",
+          "specials": [-120000, -12, -1, 0, 1, 12, 120000],
+          "ranges": [[-97200, 97200]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1900 <= resulting_year <= 9999"
+      ],
+      "regimes": [
+        {
+          "name": "month_end_clamp",
+          "how": "clamps day to days_in_month(target_year, target_month)",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:236"
+        },
+        {
+          "name": "strict_arg_coercion",
+          "how": "logical argument returns #VALUE!, missing argument returns #N/A",
+          "source": "crates/calc-func/src/catalogue/dates.rs:67"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_date < 0 or >= 2958466, or shifted year outside 1900..=9999",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:233"
+        },
+        {
+          "when": "logical in start_date or months",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:69"
+        },
+        {
+          "when": "omitted start_date or months",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/dates.rs:70"
+        }
+      ],
+      "notes": "Truncates start_date and months; rejects logicals with #VALUE! and missing args with #N/A."
+    },
+    "EOMONTH": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 31, 59, 60, 61, 45351, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 60,
+              "why": "EOMONTH(60, 0) returns 59 (1900-02-28) rather than 60",
+              "source": "handbook FN-DATE-001"
+            }
+          ]
+        },
+        {
+          "name": "months",
+          "kind": "integer",
+          "specials": [-120000, -12, -1, 0, 1, 12, 120000],
+          "ranges": [[-97200, 97200]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1900 <= resulting_year <= 9999"
+      ],
+      "regimes": [
+        {
+          "name": "strict_arg_coercion",
+          "how": "logical argument returns #VALUE!, missing argument returns #N/A",
+          "source": "crates/calc-func/src/catalogue/dates.rs:67"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_date < 0 or >= 2958466, or shifted year outside 1900..=9999",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:245"
+        },
+        {
+          "when": "logical in start_date or months",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:69"
+        }
+      ],
+      "notes": "Truncates start_date and months; returns last real day of shifted month."
+    },
+    "WEEKDAY": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 59, 60, 61, 45000, 2958465, 2958465.999994213, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 60,
+              "why": "WEEKDAY(60, 2) returns 3 (Wednesday); weekday before 1900-03-01 is off by 1 from real calendar",
+              "source": "handbook FN-DATE-001"
+            },
+            {
+              "value": 2958465.999994213,
+              "why": "half-second pre-rounding pushes serial to 2958466 -> #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:282"
+            }
+          ]
+        },
+        {
+          "name": "return_type",
+          "kind": "integer",
+          "specials": [0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+          "ranges": [[1, 3], [11, 17]],
+          "edges": [
+            {
+              "value": 3,
+              "why": "0-based Monday=0..Sunday=6 instead of 1-based",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:265"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_second_pre_round",
+          "how": "adds 0.5/86400 to serial before flooring",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:282"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or serial_number + 0.5/86400 >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:279"
+        },
+        {
+          "when": "return_type outside {1, 2, 3, 11..17}",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:270"
+        }
+      ],
+      "notes": "Uses date_integer_floor on return_type; explicit missing placeholder reads as 0."
+    },
+    "WEEKNUM": {
+      "args": [
+        {
+          "name": "serial_number",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 59, 60, 61, 43831, 45000, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "serial 0 (1900-01-00) returns week 1 (except return_type 21 -> 52)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:307"
+            }
+          ]
+        },
+        {
+          "name": "return_type",
+          "kind": "integer",
+          "specials": [-1, 0, 1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 21, 22],
+          "ranges": [[1, 2], [11, 17], [21, 21]],
+          "edges": [
+            {
+              "value": 21,
+              "why": "switches to ISO 8601 week numbering (same as ISOWEEKNUM)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:301"
+            },
+            {
+              "value": 3,
+              "why": "invalid for WEEKNUM (unlike WEEKDAY); returns #NUM!",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:304"
+            },
+            {
+              "value": 22,
+              "why": "undocumented return_type < 1 or >= 22 reads stateful WeekState from prior call or #NUM!",
+              "source": "handbook FN-WEEKNUM-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "iso_week_21",
+          "how": "return_type 21 delegates to ISO 8601 week calculation",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:301"
+        },
+        {
+          "name": "undocumented_week_state",
+          "how": "return_type < 1 or >= 22 depends on prior WEEKNUM/ISOWEEKNUM WeekState in Excel",
+          "source": "crates/calc-func/src/catalogue/dates.rs:328"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "serial_number < 0 or >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:299"
+        },
+        {
+          "when": "logical in serial_number or return_type",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:69"
+        },
+        {
+          "when": "return_type == 3 or undocumented without prior WeekState",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:304"
+        }
+      ],
+      "notes": "Truncates serial_number without half-second round; undocumented return_types vary across calls in Excel."
+    },
+    "ISOWEEKNUM": {
+      "args": [
+        {
+          "name": "date",
+          "kind": "date-serial",
+          "specials": [-1, 0, 1, 2, 59, 60, 61, 43831, 45000, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "1900-01-00 (Saturday) falls in ISO year 1899 and returns week 52",
+              "source": "handbook FN-ISOWEEKNUM-001"
+            },
+            {
+              "value": 1,
+              "why": "1900-01-01 (Sunday) falls in ISO year 1899 and returns week 52",
+              "source": "handbook FN-ISOWEEKNUM-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "date < 0 or date >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:315"
+        }
+      ],
+      "notes": "Truncates date without half-second pre-rounding; updates WeekState to Monday-start (2)."
+    },
+    "WORKDAY": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465, 2958466],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": -0.5,
+              "why": "negative fraction rejected before truncation",
+              "source": "crates/calc-func/src/catalogue/kit.rs:156"
+            }
+          ]
+        },
+        {
+          "name": "days",
+          "kind": "integer",
+          "specials": [-1000, -1, -0.5, 0, 0.5, 1, 5, 250, 2500000],
+          "ranges": [[-2113189, 2113189]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "floor(days)==0 returns truncated start_date even if it falls on weekend or holiday",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:536"
+            }
+          ]
+        },
+        {
+          "name": "holidays",
+          "kind": "array",
+          "specials": [[], [45005], [45005, 45006], [-1]],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= result_serial <= 2958465"
+      ],
+      "regimes": [
+        {
+          "name": "floor_days",
+          "how": "uses days.floor() (negative fraction -0.5 becomes -1)",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:535"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_date < 0 or >= 2958466, or result serial outside 0..=2958465",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:543"
+        },
+        {
+          "when": "logical in start_date or days",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:181"
+        },
+        {
+          "when": "omitted required start_date or days",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/dates.rs:87"
+        }
+      ],
+      "notes": "Blank cell reference in start_date reads as serial 0; holiday arrays/ranges skip text, logicals and blanks."
+    },
+    "WORKDAY.INTL": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "days",
+          "kind": "integer",
+          "specials": [-100, -1, 0, 1, 5, 250],
+          "ranges": [[-2958465, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "weekend",
+          "kind": "any",
+          "specials": [0, 1, 2, 7, 8, 11, 17, 18, "0000011", "1111110", "1111111", "0000000", "invalid", true, false],
+          "ranges": [[1, 7], [11, 17]],
+          "edges": [
+            {
+              "value": "1111111",
+              "why": "all 7 days marked weekend returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/dates.rs:121"
+            },
+            {
+              "value": false,
+              "why": "logical FALSE coerces to 0 -> #NUM!; TRUE coerces to 1",
+              "source": "handbook FN-NETWORKDAYS.INTL-001"
+            }
+          ]
+        },
+        {
+          "name": "holidays",
+          "kind": "array",
+          "specials": [[], [45005]],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= result_serial <= 2958465"
+      ],
+      "regimes": [
+        {
+          "name": "reads_start_date_before_weekend",
+          "how": "evaluates start_date and days before decoding weekend",
+          "source": "crates/calc-func/src/catalogue/dates.rs:182"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "invalid weekend code or error value in weekend",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:115"
+        },
+        {
+          "when": "weekend mask \"1111111\" (all days off)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:121"
+        },
+        {
+          "when": "start_date or days is logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:181"
+        }
+      ],
+      "notes": "Validates start_date/days before weekend; an error value in weekend returns #NUM! rather than propagating."
+    },
+    "NETWORKDAYS": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "holidays",
+          "kind": "array",
+          "specials": [[], [45005], [45005, 45006]],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "start_date <= end_date (negative count when start_date > end_date)"
+      ],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "start_date or end_date < 0 or >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/kit.rs:156"
+        },
+        {
+          "when": "logical in start_date or end_date",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:206"
+        },
+        {
+          "when": "omitted required start_date or end_date",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/dates.rs:87"
+        }
+      ],
+      "notes": "Inclusive of both endpoints; blank cell reference reads as serial 0."
+    },
+    "NETWORKDAYS.INTL": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 1, 59, 60, 61, 45000, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "weekend",
+          "kind": "any",
+          "specials": [0, 1, 2, 7, 8, 11, 17, 18, "0000011", "1111110", "1111111", "0000000", "invalid", true, false],
+          "ranges": [[1, 7], [11, 17]],
+          "edges": [
+            {
+              "value": "1111111",
+              "why": "returns 0 (unlike WORKDAY.INTL which returns #VALUE!)",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:561"
+            }
+          ]
+        },
+        {
+          "name": "holidays",
+          "kind": "array",
+          "specials": [[], [45005]],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "start_date <= end_date (negative count when start_date > end_date)"
+      ],
+      "regimes": [
+        {
+          "name": "decodes_weekend_first",
+          "how": "evaluates weekend before reading start_date and end_date",
+          "source": "crates/calc-func/src/catalogue/dates.rs:201"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "invalid weekend code (0, 8..10, >17, etc.)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:134"
+        },
+        {
+          "when": "error value in weekend",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:116"
+        },
+        {
+          "when": "logical in start_date or end_date",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:206"
+        }
+      ],
+      "notes": "Decodes weekend before dates; error in weekend gives #VALUE! (WORKDAY.INTL gives #NUM!)."
+    },
+    "YEARFRAC": {
+      "args": [
+        {
+          "name": "start_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 54, 59, 60, 61, 1805, 45351, 45716, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": [
+            {
+              "value": 59,
+              "why": "basis 1 spans across serial 60 include fictitious 1900-02-29 in numerator while 1900 has real 365 days",
+              "source": "handbook FN-YEARFRAC-001"
+            }
+          ]
+        },
+        {
+          "name": "end_date",
+          "kind": "date-serial",
+          "specials": [-1, -0.5, 0, 54, 59, 60, 61, 1805, 45351, 45716, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [-1, 0, 1, 2, 3, 4, 5],
+          "ranges": [[0, 4]],
+          "edges": [
+            {
+              "value": 0,
+              "why": "US (NASD) 30/360 with Feb-end and day-31 roll rules",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:647"
+            },
+            {
+              "value": 1,
+              "why": "Actual/actual: <=1 year checks Feb-29 in span (366 vs 365); >1 year divides by average year length",
+              "source": "crates/calc-func/src/ported/day_count_common.rs:165"
+            },
+            {
+              "value": 4,
+              "why": "European 30/360",
+              "source": "crates/calc-func/src/ported/date_kernels.rs:651"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "symmetric in start_date and end_date (always non-negative)"
+      ],
+      "regimes": [
+        {
+          "name": "basis_0_us_30_360",
+          "how": "us_30_360(lo, hi) / 360.0",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:647"
+        },
+        {
+          "name": "basis_1_actual_actual",
+          "how": "within 1 year uses 366 if same leap year or Feb 29 in span else 365; multi-year averages real days per year",
+          "source": "crates/calc-func/src/ported/day_count_common.rs:165"
+        },
+        {
+          "name": "basis_2_3_4",
+          "how": "2: days/360, 3: days/365, 4: eu_30_360/360",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:649"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_date < 0 or end_date < 0 or >= 2958466",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:626"
+        },
+        {
+          "when": "basis < 0 or basis >= 5 (after trunc)",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/date_kernels.rs:652"
+        },
+        {
+          "when": "logical in start_date, end_date, or basis",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/dates.rs:375"
+        }
+      ],
+      "notes": "Swaps start and end so result is non-negative; truncates all three arguments."
+    },
+    "NOW": {
+      "args": [],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "syntactic_volatility",
+          "how": "marks formula volatile with PtgAttrSemi even inside untaken branches",
+          "source": "handbook FN-NOW-001"
+        },
+        {
+          "name": "1904_date_system",
+          "how": "subtracts 1462 from 1900 clock serial",
+          "source": "crates/calc-func/src/catalogue/dates.rs:381"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Zero arguments; depends on workbook clock and date system."
+    },
+    "TODAY": {
+      "args": [],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "syntactic_volatility",
+          "how": "marks formula volatile with PtgAttrSemi even inside untaken branches",
+          "source": "handbook FN-NOW-001"
+        },
+        {
+          "name": "floor_clock",
+          "how": "returns floor(now) in workbook date system",
+          "source": "crates/calc-func/src/catalogue/dates.rs:385"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Zero arguments; equals INT(NOW())."
+    }
+  }
+}
