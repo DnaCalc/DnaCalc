@@ -81,7 +81,7 @@ fn act(s: i64, e: i64) -> f64 {
     (e - s) as f64
 }
 fn basis(v: f64) -> Result<DayCountBasis, BondCoreEvalError> {
-    if !v.is_finite() {
+    if !v.is_finite() || v < 0.0 {
         return Err(derr(WorksheetErrorCode::Num));
     }
     match v.trunc() as i64 {
@@ -146,32 +146,11 @@ fn addm(s: i64, m: i64) -> Option<i64> {
 fn d360us(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
     let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)
         .ok_or(derr(WorksheetErrorCode::Value))?;
-    let (ey, em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, e as f64)
-        .ok_or(derr(WorksheetErrorCode::Value))?;
-    // ATP securities (YIELD, PRICE, DURATION, YIELDDISC, YIELDMAT) use Gregorian dim(1900, 2) = 28
-    // rather than treating fictitious 1900-02-29 (serial 60) as February month-end (cb26 live Excel).
-    let start_last_feb = sm == 2 && sd == dim(sy, sm);
-    let end_last_feb = em == 2 && ed == dim(ey, em);
-    if sd == 31 || start_last_feb {
-        sd = 30;
-    }
-    if ed == 31 {
-        if sd < 30 {
-            let (ny, nm) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
-            return Ok((ny - sy) as f64 * 360.0 + (nm - sm) as f64 * 30.0 + (1 - sd) as f64);
-        }
-        ed = 30;
-    }
-    if end_last_feb && start_last_feb {
-        ed = 30;
-    }
-    Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
-}
-fn d360us_seed(s: i64, e: i64) -> Result<f64, BondCoreEvalError> {
-    let (sy, sm, mut sd) = ymd_from_excel_serial(WorkbookDateSystem::System1900, s as f64)
-        .ok_or(derr(WorksheetErrorCode::Value))?;
     let (mut ey, mut em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, e as f64)
         .ok_or(derr(WorksheetErrorCode::Value))?;
+    // ATP securities (YIELD, PRICE, DURATION, YIELDDISC, YIELDMAT) use Gregorian dim(1900, 2) = 28
+    // rather than treating fictitious 1900-02-29 (serial 60) as February month-end (cb26 live Excel),
+    // and check ed == 31 before promoting start_last_feb -> sd = 30 (nl27 patient-zero re-sweep).
     let start_last_feb = sm == 2 && sd == dim(sy, sm);
     let end_last_feb = em == 2 && ed == dim(ey, em);
     if ed == 31 {
@@ -693,7 +672,7 @@ pub fn yield_kernel(
             if tracing {
                 crate::trace::hit(4);
             }
-            d360us_seed(s_k, c.maturity)? / 360.0
+            d360us(s_k, c.maturity)? / 360.0
         }
         DayCountBasis::European30_360 => {
             if tracing {
@@ -776,10 +755,15 @@ pub fn yield_kernel(
                 return Err(derr(WorksheetErrorCode::Num));
             }
             pv = excel_x87_add(pv, excel_x87_div(cp, disc));
-            t_cp = excel_x87_add(
-                t_cp,
-                excel_x87_div(excel_x87_mul(excel_x87_div(ex_pv, f), cp), disc1),
-            );
+            let denom = excel_x87_mul(f, disc1);
+            if !denom.is_finite() {
+                if tracing {
+                    crate::trace::hit(9);
+                    crate::trace::record_iterations(iter + 1);
+                }
+                return Err(derr(WorksheetErrorCode::Num));
+            }
+            t_cp = excel_x87_add(t_cp, excel_x87_div(excel_x87_mul(ex_pv, cp), denom));
         }
         let rex_pv = excel_x87_add(off, (p.n - 1) as f64);
         let rex1 = excel_x87_add(off, p.n as f64);
@@ -795,11 +779,20 @@ pub fn yield_kernel(
         pv = excel_x87_add(pv, excel_x87_div(red, r_disc));
         // Pre-registered rival Y2-B (cb26 16/16 live Excel 16.0.20625.20108): frequency == 1
         // skips the redemption derivative finiteness check while frequency in {2, 4} rejects
-        // !t_red.is_finite(); t_cp + t_red == +inf is never checked, so slope = -inf -> step = -0.0.
+        // !r_denom.is_finite() (f * r_disc1 overflow, nl27 pz-Y3) and !t_red.is_finite();
+        // t_cp + t_red == +inf is never checked, so slope = -inf -> step = -0.0.
         let t_red = if c.frequency == 1 {
             excel_x87_div(excel_x87_mul(rex_pv, red), r_disc1)
         } else {
-            let v = excel_x87_div(excel_x87_mul(excel_x87_div(rex_pv, f), red), r_disc1);
+            let r_denom = excel_x87_mul(f, r_disc1);
+            if !r_denom.is_finite() {
+                if tracing {
+                    crate::trace::hit(9);
+                    crate::trace::record_iterations(iter + 1);
+                }
+                return Err(derr(WorksheetErrorCode::Num));
+            }
+            let v = excel_x87_div(excel_x87_mul(rex_pv, red), r_denom);
             if !v.is_finite() {
                 if tracing {
                     crate::trace::hit(9);
@@ -2463,6 +2456,95 @@ mod tests {
         assert_eq!(
             yieldmat_kernel(60.0, 243.0, 59.0, 0.05, 99.5, Some(0.0)).unwrap().to_bits(),
             0x3faed9a9e6381cd8
+        );
+    }
+
+    /// nl27 patient-zero live re-sweep discoveries (Excel 16.0.20625.20108):
+    /// 1. YIELD derivative denominator scales by `f * disc1` / `f * r_disc1` and returns #NUM!
+    ///    when `f * r_disc1` overflows DBL_MAX (flips at log2(|base^29|) = 1022 for f=4, 1023 for f=2).
+    /// 2. d360us checks ed == 31 before start_last_feb -> sd = 30 (Gregorian 1900-02-28 -> 9999-12-31 = 2915941).
+    /// 3. Negative sub-unit basis (e.g. -MIN_POS) returns #NUM! across bond_core_family kernels.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn patient_zero_resweep_y3_denom_overflow_d360us_and_neg_basis() {
+        let num_err = Err(BondCoreEvalError::Domain(WorksheetErrorCode::Num));
+        let red = f64::from_bits(0x3f1fef0875adf64f);
+        let tiny_r = f64::from_bits(0x0010000000000005);
+        // f=4: pr=1.024e9 finite (4*|b^29| < DBL_MAX), pr=1.025e9 & nl27-YIELD-00001 -> #NUM!
+        assert_eq!(
+            yield_kernel(45292.0, 47849.0, tiny_r, 1.024e9, red, 4.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0xc242e7987f4592cd
+        );
+        assert_eq!(
+            yield_kernel(45292.0, 47849.0, tiny_r, 1.025e9, red, 4.0, Some(0.0)),
+            num_err
+        );
+        assert_eq!(
+            yield_kernel(
+                f64::from_bits(0x40e61d9fffffffff),
+                47849.0,
+                tiny_r,
+                f64::from_bits(0x41d003878a4a1991),
+                red,
+                4.0,
+                Some(0.0),
+            ),
+            num_err
+        );
+        // f=2: log2(|b^29|)=1022.8 finite, 1023.2 -> #NUM!
+        assert_eq!(
+            yield_kernel(45292.0, 50406.0, 0.0, 1.121700e9, red, 2.0, Some(0.0)).is_ok(),
+            true
+        );
+        assert_eq!(
+            yield_kernel(45292.0, 50406.0, 0.0, 1.132476e9, red, 2.0, Some(0.0)),
+            num_err
+        );
+        // YIELDDISC & YIELDMAT 1900-02-28 (59) -> 9999-12-31 (2958465), basis 0
+        assert_eq!(
+            yielddisc_kernel(
+                59.0,
+                2958465.0,
+                f64::from_bits(0x4062b485c75e100d),
+                100.0,
+                Some(0.0),
+            )
+            .unwrap()
+            .to_bits(),
+            0xbf0578ff3dd90f37
+        );
+        assert_eq!(
+            yieldmat_kernel(
+                60.0,
+                2958465.0,
+                59.0,
+                f64::from_bits(0x3fbbc7c725bc7504),
+                f64::from_bits(0x4062b485c75e100d),
+                Some(0.0),
+            )
+            .unwrap()
+            .to_bits(),
+            0x3fb28ed2799a424f
+        );
+        // Negative sub-unit basis (-MIN_POS) -> #NUM!
+        let neg_min = -f64::MIN_POSITIVE;
+        assert_eq!(
+            price_kernel(45292.0, 47849.0, 0.05, 0.05, 100.0, 4.0, Some(neg_min)),
+            num_err
+        );
+        assert_eq!(
+            duration_kernel(45292.0, 47849.0, 0.05, 0.05, 4.0, Some(neg_min)),
+            num_err
+        );
+        assert_eq!(
+            mduration_kernel(45292.0, 47849.0, 0.05, 0.05, 4.0, Some(neg_min)),
+            num_err
+        );
+        assert_eq!(
+            yieldmat_kernel(45292.0, 47849.0, 45000.0, 0.05, 100.0, Some(neg_min)),
+            num_err
         );
     }
 }
