@@ -1071,6 +1071,187 @@ fn ets_seasonality_autoperiod_hills_and_tie_break() {
     exact(call("FORECAST.ETS.SEASONALITY", vec![col(&d630), col(&timeline)]), 0.0);
 }
 
+/// Excel 20527 / 20625 AUTOPERIOD two-regime spectral competition, short-window
+/// p=3/4/5 validation, R-1 right-padding trim, doubled-cycle tail rescue, and
+/// valley subharmonic recovery (Carbon cb24, dc-j9k.68): 12 sx1 bank cases and
+/// 2 live Touchstone 16.0.20625.20108 controls that failed before the five rules.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_seasonality_cb24_five_rules_match_excel() {
+    let cases: [(f64, &[u64]); 14] = [
+        // sx1/run2-ets-outlier-raw.jsonl batches[17][74] (n=32, Excel=3, before=4)
+        (
+            3.0,
+            &[
+                0xbfc79d977aa1d008, 0xbfe56b57c1eaafee, 0x400232bfadb41be0, 0x3ffcf43c25af5940,
+                0xbfeea969c08ead00, 0x3fd6d5dec0a48fac, 0x400750e772b9a613, 0x3fd684da07e2307b,
+                0xc0081e10759df347, 0xbfeede9ece17fbdc, 0xbfcd321c3ae2a4e6, 0xc001329236024185,
+                0xc003c9b2c3dc6f73, 0x3fec03137ba02eca, 0x3fcd3cb16cc1f758, 0xbffe66d14ddb7194,
+                0xbff7372c79bee4fc, 0x3fe82a7a17708a8c, 0xc001fb929c59602e, 0xc004bd0db9c70840,
+                0xbfe1bd305fe74974, 0xbff3b06e6673509a, 0xc001fdfd2136f8d3, 0x3fa1da58393ba4f4,
+                0x4005188993c60629, 0xbf8f15ba63e31be0, 0xbff2c7c06363543d, 0x4004c6ff70566e44,
+                0x3fefcf07204248aa, 0xbff554064c993404, 0x3fff747dd12ab100, 0x40000e60f7700664,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[14][109] (n=28, Excel=3, before=0)
+        (
+            3.0,
+            &[
+                0x3fe74d56dcaa1561, 0x3fb945380de8fd00, 0xbfe69a7e683532e2, 0xbff7b9bf2efe6be0,
+                0x3fce10749e6fe950, 0xbfffbebf6d629106, 0xc00b84b8b0a2d808, 0xbfd0894e4ea07f5a,
+                0xbfd9afbd5d39b44c, 0xbfdd56c0a33029aa, 0x3fe4e71dc5ecc3eb, 0x40036a207152036c,
+                0x3fee74b6d2cd4d5b, 0x3fbad1ac6b793d80, 0x40019c418b94573c, 0x4009f4dbd6ec2e74,
+                0x3fe6d85471656764, 0x3ff3584176950400, 0x400bccb3b58669e0, 0x3fd72ba941a78b08,
+                0xbfbfd86ad4b63330, 0x400254044e814fa4, 0x3ffcad2063c1721e, 0xbffad696538204c2,
+                0xbff80b5a714d93f2, 0x3fee0c9c0c400bd1, 0xbff2bb90e319859a, 0xc0131f8508318483,
+            ],
+        ),
+        // sx1/run3-ets-acf-raw.jsonl batches[7][48] (n=17, Excel=0, before=5)
+        (
+            0.0,
+            &[
+                0xbfc2fb93024e8e0c, 0x3ff00c89c94c11aa, 0x3fe340e716a7373c, 0xc0028efda0a4476f,
+                0x3fe4c91ccdd898e1, 0x3fd653d852257610, 0xbfc885620a3091f0, 0x3fc23e97d3fe06ba,
+                0xbffea2b648062cea, 0x3fb6b768a5047d54, 0x3fcffe8ce424b992, 0x3fdc37f9abfcb41a,
+                0x3fe7e1c00993befe, 0xc0077cab7362ebd4, 0xbfe3b71553db6ad4, 0xbfd817f3ecef8f8a,
+                0xbfdf903b2934b12a,
+            ],
+        ),
+        // sx1/run3-ets-acf-raw.jsonl batches[3][126] (n=18, Excel=0, before=4)
+        (
+            0.0,
+            &[
+                0xc022688fd64d8e72, 0x4031c2664d14f727, 0xc031e2c3d399a3c5, 0xc0153512b721912a,
+                0xc032391ce8ed9480, 0x3ff4d8d72ec06814, 0x3fc01ef098608380, 0xc0122ad30e3b3295,
+                0xc0334cd56e0d17ac, 0x402a598afc7582ab, 0x3fe1d7e686b653b9, 0x3fe7f33479f60164,
+                0xc024eb67cfa3ee00, 0x40158fd71c512fd4, 0x4026e351c5972f28, 0xc0245a654fb2fc46,
+                0xc01e7e0013cfb249, 0x400a37c2dea33d3b,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[17][202] (n=32, Excel=0, before=6)
+        (
+            0.0,
+            &[
+                0xbfed40dd65656056, 0xbfe5172eaa05bedd, 0x3fd47f29fd607028, 0xbfd8c9dfe278c809,
+                0x3fdca810d2099f2c, 0xbff20b77f63fcdca, 0xbff5ec4c2c7d17ee, 0xbff08e8f9d10cc29,
+                0xbf99ad2f1ccd7ee0, 0xbff7884dad9f2b8b, 0x40079fb4b4c000a8, 0xc001eda0b63b4fd1,
+                0xbffb779035d4ac25, 0x3fad3b67217def60, 0x3ff22566534a3c82, 0xc007b55abe42f678,
+                0x3ff87a4f8df111cc, 0xbff79d6c789c40f5, 0x3fe8597c66e452da, 0xbfc443eed9f96060,
+                0xbfe216994888d930, 0xbfeab4c4ee4fd5f7, 0xbfb7b8fd46b6dbee, 0xbfda40bfd052c56c,
+                0x3ff54ed65f89e925, 0x3ffd14dfcb35a6b8, 0xc005e21e1b262e44, 0xbfe038544759922f,
+                0x3fe08969a89c3ec3, 0x3fc0ba0439ca8df0, 0x3fc5bdd81d732940, 0xbff4202707aa4a80,
+            ],
+        ),
+        // sx1/run3-ets-acf-raw.jsonl batches[6][64] (n=16, Excel=4, before=0, R-1 trim)
+        (
+            4.0,
+            &[
+                0x3fe684e1ab5d946e, 0x3fea37e7282a1042, 0xbfe9a57950ae6eb5, 0x3fb11da4276606e8,
+                0xbfc46d35d34d3379, 0x4000c4d45cce5aa3, 0x3fd55692396959e5, 0x3ff0a36f9acefb0e,
+                0xc003239c3e85f226, 0x3fe7f96ab9f7757e, 0x3ff1d16b6d2ef91e, 0x3fdbcf63d0d501cd,
+                0xbff86f50bf1564c4, 0x3fcc9a8dea82dd91, 0x3fed92f0aa35e8e0, 0xbfc74d9d6eb6c266,
+            ],
+        ),
+        // sx1/run4-ets-phase-replies.jsonl $[3].rows[10] (n=14, Excel=5, before=0, R-1 trim)
+        (
+            5.0,
+            &[
+                0x3fe6db71488f54a7, 0xbff8ef80c2dc1e53, 0xbfe1be6c16de3d1d, 0x3fdc76617658634a,
+                0x3fbf139859f6119b, 0x3ff63c04bdc500cb, 0x3fe5ef04e754e519, 0xbfff395866312e02,
+                0x3fd05f05fa3cb752, 0x3ff455085269eb41, 0xbf77c6248ecaff72, 0x3fd4edf363ba1511,
+                0xbff3ab32cb519c1c, 0x3fb72afc1889c11d,
+            ],
+        ),
+        // sx1/run3-ets-acf-raw.jsonl batches[6][155] (n=16, Excel=5, before=0, doubled-cycle rescue)
+        (
+            5.0,
+            &[
+                0x3ff89677e80e7700, 0x4002c56817e4f77a, 0xbff0fed3a5711f54, 0xc00659472582ca34,
+                0x3fe8d368b824069f, 0x3ff072d9be4567c3, 0x3fd51e3b471eacd0, 0x3fdd9839cece4e14,
+                0xbff1d07703e06144, 0x3fe2b4c0edb47d53, 0x400295fecb038adc, 0x3fe23d834ed1cbab,
+                0xbff0de52c03363ef, 0xbfe424094d9fccb8, 0x3ffb8b8e2e8095aa, 0x3ff26834a3cc0012,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[11][138] (n=26, Excel=5, before=0, doubled-cycle rescue)
+        (
+            5.0,
+            &[
+                0xbfffcbc01c499d95, 0xbff0e0ad48472077, 0xbfe77b420b581d8f, 0x4008474f3aca765c,
+                0x3ffcfe1aa67243c9, 0xbfd5239d7d488878, 0xbfe1dbca4699dd12, 0xbffd31bd0f162b81,
+                0x3ff8dc4544426d3a, 0x4005feb5f1865798, 0xbfe84bdf9133285e, 0xbfe3ae1ce786f031,
+                0x3fe888b44f6ab820, 0x3fc4a7df1604e560, 0xc0082ba8cfea7c32, 0xbfd30f6dd274b562,
+                0x40024ceead7475b2, 0x401035c4abaa61e6, 0xbfb28b095cfa6adc, 0xc0089a22402be44e,
+                0xc003535f88306bcd, 0x3ffdfcfed2331b0d, 0x400255aa26023686, 0x3fe6d3d732fd2828,
+                0xbfe9839eafbb03f4, 0xbfd9ee7050d4be32,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[13][202] (n=27, Excel=9, before=4, valley subharmonic)
+        (
+            9.0,
+            &[
+                0x3fef3369113393e0, 0xbfd12a52e82cea98, 0xbfd6c1dbd5a6aa40, 0x3ff9bb0de170aa9f,
+                0x3ff4713368af7de4, 0xbfe22b9008184b29, 0xbfeeb8b6def6d8df, 0xbff4b63d27d6bac9,
+                0x3ff4804712e6d229, 0x3ff073fe5b351a02, 0xbff2cb2624df466f, 0xc0024460bf5b8121,
+                0x40008eb931ed256e, 0x3fe2234d5cfbfa05, 0xbfe171fe9af94362, 0x3fdf81f1215ae09c,
+                0x3ff584124db54192, 0x3fffaf7fa887197b, 0x3fe4604ea886f56d, 0xc0015237334d47a8,
+                0xbff5fa43f6a54aa6, 0x3ffa50d93a555cca, 0x3fe6256f329c53ea, 0xbfde3a421ac3b647,
+                0xc00b7b93460974f4, 0xbfef87e7c7f144ea, 0x3ffaee2630928d91,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[3][55] (n=21, Excel=7, before=3, valley subharmonic)
+        (
+            7.0,
+            &[
+                0x3ff137c85a97c51f, 0xbfc175b2ae1f97e0, 0xc0097cbc8005bbaa, 0xbfe888160451d175,
+                0x3ffdf73c8e95a2e2, 0xbfee0a3a40e37a22, 0xc00802cfaa8b482a, 0x3fecbc2c3dceab36,
+                0x3fee03933bb2827b, 0xbffb361beea38cf8, 0x3f8ed1606953bfc8, 0x4000f664ac283f72,
+                0xbffb39246f4c28c8, 0xc004117154bbc201, 0x4004c8264a4d00f0, 0x4003d832993af73e,
+                0xc003b806e1b960e2, 0xc007cf0e6e25a853, 0x40045dd9d1183eab, 0xbfee1117e15f3006,
+                0xbff010d2cc747496,
+            ],
+        ),
+        // sx1/run2-ets-outlier-raw.jsonl batches[2][176] (n=20, Excel=6, before=5, valley subharmonic)
+        (
+            6.0,
+            &[
+                0xc00c0e4bc131046c, 0xc000159439b41bbe, 0xbff8a5708bedd11a, 0x3fc47536575b5e38,
+                0x3ff365190e264ab4, 0xbff1099c6a7b6dfd, 0xc012666781134e18, 0xbfd7e2d97d32712a,
+                0x3ff2565b9347554c, 0x40013acfaea99353, 0x3ff6458ad967f25a, 0xbfeda2d47f6a92de,
+                0xc0059fa44be2322a, 0x40038a377ea95360, 0x3ff596f6f482bb06, 0x3fe32bec4de5c2f6,
+                0xbfd67f724efbf23c, 0xbff412c5bd31ac20, 0x3fe8a2ff6bf4eab3, 0x4005ded9979926c6,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 cb24-s1-090 (n=22, Excel=8, before=7, ACF>=6 suppresses outlier)
+        (
+            8.0,
+            &[
+                0x3fe5eb47e1f10344, 0x4000e322f20fcdeb, 0x3ff1dab196023fb4, 0x3fb1752e5f23561e,
+                0xbff3fbd5c5fd7bba, 0xbfd52312c417a07e, 0xbfda722a4393b90c, 0x3fed5cd43f565320,
+                0x4000c60e3a9903d7, 0x3ffecfef95f5558d, 0x3ffed7506f53a8e1, 0x3ffa452bb58ec6d7,
+                0xbfd9dbb03fe8da0a, 0x3fe13b2d91246aaf, 0x3fe4d4e661e21978, 0x3ff612d6bf357f07,
+                0x40118c768d55d4f8, 0x400591248eecc60f, 0xbfe1d725927aad3e, 0x3fe76f9a32f791f8,
+                0xbfc0fa9ee6b74b40, 0x3fdd498691b5a24e,
+            ],
+        ),
+        // Touchstone 16.0.20625.20108 cb24-s1-120 (n=18, Excel=4, before=0, R-1 trim / rescue)
+        (
+            4.0,
+            &[
+                0x3fb0fecddbd3f7a0, 0x3fe464eefc8dfe7b, 0xbfe00bcb9eb55138, 0xbff2b627d939b197,
+                0xbff81fb9e0c5374a, 0xc0005cc3d778cf6c, 0x3fe9c8a16cb9a0e2, 0x3ff884320cc4a7a0,
+                0xc010489a37526b9e, 0x3ff2227b32bab3a0, 0x4006d9dd8dec03a7, 0xbfdf3b861feade8b,
+                0xc016cd6432c9281a, 0x3ff0b2ee182ca77a, 0xbfc0d3ff1d70aad0, 0x3fd8cd0e3249fdd7,
+                0xbff5bf5d5f8ee552, 0xbffb9380cb438c65,
+            ],
+        ),
+    ];
+    for (expected, bits) in cases {
+        let history: Vec<f64> = bits.iter().map(|&b| f64::from_bits(b)).collect();
+        let timeline: Vec<f64> = (1..=history.len()).map(|v| v as f64).collect();
+        exact(call("FORECAST.ETS.SEASONALITY", vec![col(&history), col(&timeline)]), expected);
+    }
+}
+
 /// Excel 20527 period-two histories of 6 and 7 observations search the full
 /// SEASONAL_PARAMETERS grid (dc-iuwct.54; only n=5 is restricted to the five
 /// SHORT_TWO_PARAMETERS candidates).

@@ -9,7 +9,8 @@
 
 use super::domain::DomainSpec;
 use super::rng::{
-    Rng, canonical_case_key, f64_to_ordered, hex_f64, ordered_to_f64, parse_hex_bits, step_ulps,
+    Rng, canonical_case_key, compact_to_f64, f64_to_compact, f64_to_ordered, hex_f64,
+    parse_hex_bits, step_ulps,
 };
 use super::steer::{FuzzCase, evaluate_traced};
 use calc_verdict::WitnessInvocation;
@@ -158,25 +159,15 @@ pub fn bisect_local_axis_cell(
     }
 
     for _ in 0..64 {
-        let oa = f64_to_ordered(a);
-        let ob = f64_to_ordered(b);
-        if ob <= oa + 1 {
+        let ca = f64_to_compact(a);
+        let cb = f64_to_compact(b);
+        if cb <= ca + 1 {
             break;
         }
-        let mid_ord = oa + (ob - oa) / 2;
-        let mut mid = ordered_to_f64(mid_ord);
-        if mid.is_subnormal() || (mid == 0.0 && mid.is_sign_negative()) {
-            mid = 0.0;
-            let oz = f64_to_ordered(0.0);
-            if oz <= oa || oz >= ob {
-                // Collapsed across the subnormal band: snap to ±MIN_POSITIVE boundary.
-                let next_a = step_ulps(a, 1, true)?;
-                if f64_to_ordered(next_a) >= ob {
-                    break;
-                }
-                mid = next_a;
-            }
-        }
+        let mid_c = ca + (cb - ca) / 2;
+        let Some(mid) = compact_to_f64(mid_c) else {
+            break;
+        };
         let em = eval_at(mid);
         if key_of(&em) == ka {
             a = mid;
@@ -487,6 +478,9 @@ pub fn expand_frontier_windows(
 }
 
 /// Update each frontier with Excel's observed flip inside its probed consecutive window.
+/// When a chaotic window has multiple flips (e.g. oscillatory 200-step boundaries), picks the
+/// flip closest to DNA Calc's `dna_lo_bits` (preferring matching transition direction on ties)
+/// so matching windows accurately report `shifted_ulps = 0`.
 pub fn record_excel_window_flips(
     frontiers: &mut [Frontier],
     probed: &[(usize, u64, String)], // (frontier_idx, axis_bits, excel_outcome)
@@ -503,19 +497,30 @@ pub fn record_excel_window_flips(
         let Some(frontier) = frontiers.get_mut(idx) else {
             continue;
         };
-        pts.sort_by_key(|(bits, _)| f64_to_ordered(f64::from_bits(*bits)));
+        pts.sort_by_key(|(bits, _)| f64_to_compact(f64::from_bits(*bits)));
         pts.dedup_by_key(|(bits, _)| *bits);
+        let dna_c = f64_to_compact(f64::from_bits(frontier.dna_lo_bits));
+        let dna_lo_tag = predicate_tag(&frontier.dna_lo_outcome);
+        let dna_hi_tag = predicate_tag(&frontier.dna_hi_outcome);
+        let mut best: Option<(u128, u8, i128, &(u64, String), &(u64, String))> = None;
         for pair in pts.windows(2) {
-            if predicate_tag(&pair[0].1) != predicate_tag(&pair[1].1) {
-                frontier.excel_lo_bits = Some(pair[0].0);
-                frontier.excel_hi_bits = Some(pair[1].0);
-                frontier.excel_lo_outcome = Some(pair[0].1.clone());
-                frontier.excel_hi_outcome = Some(pair[1].1.clone());
-                let shift = f64_to_ordered(f64::from_bits(pair[0].0)) as i128
-                    - f64_to_ordered(f64::from_bits(frontier.dna_lo_bits)) as i128;
-                frontier.shifted_ulps = i64::try_from(shift).ok();
-                break;
+            let p0 = predicate_tag(&pair[0].1);
+            let p1 = predicate_tag(&pair[1].1);
+            if p0 != p1 {
+                let shift = f64_to_compact(f64::from_bits(pair[0].0)) - dna_c;
+                let dist = shift.unsigned_abs();
+                let dir_pen = u8::from(!(p0 == dna_lo_tag && p1 == dna_hi_tag));
+                if best.is_none_or(|(bd, bp, _, _, _)| (dist, dir_pen) < (bd, bp)) {
+                    best = Some((dist, dir_pen, shift, &pair[0], &pair[1]));
+                }
             }
+        }
+        if let Some((_, _, shift, lo, hi)) = best {
+            frontier.excel_lo_bits = Some(lo.0);
+            frontier.excel_hi_bits = Some(hi.0);
+            frontier.excel_lo_outcome = Some(lo.1.clone());
+            frontier.excel_hi_outcome = Some(hi.1.clone());
+            frontier.shifted_ulps = i64::try_from(shift).ok();
         }
     }
 }
@@ -595,5 +600,63 @@ mod tests {
         assert_eq!(lo_out, "error:Num");
         assert!(hi_out.starts_with("0x"), "expected number, got {hi_out}");
         assert!(f64_to_ordered(f64::from_bits(lo)) < f64_to_ordered(f64::from_bits(hi)));
+    }
+
+    #[test]
+    fn compact_bisection_across_zero_lands_on_min_positive_and_zero() {
+        let ctx = touchstone_bulk_context();
+        let base = vec![
+            hex_f64(44927.0),
+            hex_f64(46753.0),
+            hex_f64(0.05),
+            hex_f64(95.0),
+            hex_f64(100.0),
+            hex_f64(2.0),
+            hex_f64(0.0),
+        ];
+        // YIELD basis < 0 is #NUM!, basis == 0 is valid; compact bisection must hit
+        // exact Value2-adjacent -MIN_POSITIVE and 0.0.
+        let (lo, lo_out, hi, hi_out) =
+            bisect_local_axis("YIELD", &base, 6, -1.0, 0.0, &ctx, false).expect("basis flip");
+        assert_eq!(lo, (-f64::MIN_POSITIVE).to_bits());
+        assert_eq!(lo_out, "error:Num");
+        assert_eq!(hi, 0u64);
+        assert!(hi_out.starts_with("0x"), "got {hi_out}");
+    }
+
+    #[test]
+    fn record_excel_window_flips_prefers_closest_flip_on_oscillatory_window() {
+        let lo = 0xc1e3_b4f2_ebf9_c628_u64;
+        let hi = 0xc1e3_b4f2_ebf9_c627_u64;
+        let mut frontiers = vec![Frontier {
+            id: "f1".into(),
+            function: "RATE".into(),
+            axis: 1,
+            axis_cell: None,
+            axis_name: "pmt".into(),
+            kind: "error:Num<->number".into(),
+            base_args: vec![],
+            dna_lo_bits: lo,
+            dna_hi_bits: hi,
+            dna_lo_outcome: "error:Num".into(),
+            dna_hi_outcome: "0x3f7113e771f30824".into(),
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        }];
+        let probed = vec![
+            (0, 0xc1e3_b4f2_ebf9_c62a, "error:Num".to_owned()),
+            (0, 0xc1e3_b4f2_ebf9_c629, "0x3f7113e771f30826".to_owned()),
+            (0, lo, "error:Num".to_owned()),
+            (0, hi, "0x3f7113e771f30824".to_owned()),
+            (0, 0xc1e3_b4f2_ebf9_c626, "0x3f7113e771f30823".to_owned()),
+            (0, 0xc1e3_b4f2_ebf9_c625, "error:Num".to_owned()),
+        ];
+        record_excel_window_flips(&mut frontiers, &probed);
+        assert_eq!(frontiers[0].excel_lo_bits, Some(lo));
+        assert_eq!(frontiers[0].excel_hi_bits, Some(hi));
+        assert_eq!(frontiers[0].shifted_ulps, Some(0));
     }
 }
