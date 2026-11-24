@@ -218,7 +218,7 @@ pub fn echo_matches_arg(sent: &Arg, echoed: &Answer) -> bool {
     }
 }
 
-fn connect_client(endpoint: Option<&Path>) -> Result<Client, String> {
+pub(crate) fn connect_client(endpoint: Option<&Path>) -> Result<Client, String> {
     let client = match endpoint {
         None => Client::connect(),
         Some(path) => {
@@ -244,17 +244,17 @@ fn connect_client(endpoint: Option<&Path>) -> Result<Client, String> {
 }
 
 #[derive(Clone, Debug)]
-struct JudgedRow {
-    outcome: RowOutcome,
-    excel_encoded: Option<String>,
-    env_id: String,
+pub(crate) struct JudgedRow {
+    pub outcome: RowOutcome,
+    pub excel_encoded: Option<String>,
+    pub env_id: String,
 }
 
-struct BatchReplyAggregate {
-    rows: Vec<JudgedRow>,
-    envs: BTreeMap<String, Value>,
-    worker_calls: BTreeMap<String, usize>,
-    excel_seconds: f64,
+pub(crate) struct BatchReplyAggregate {
+    pub rows: Vec<JudgedRow>,
+    pub envs: BTreeMap<String, Value>,
+    pub worker_calls: BTreeMap<String, usize>,
+    pub excel_seconds: f64,
 }
 
 struct PendingChunk {
@@ -509,7 +509,7 @@ fn ask_bulk_and_interactive(
 }
 
 /// Ask a single slice of cases with one priority (e.g. interactive boundary bisection).
-fn ask_single_priority(
+pub(crate) fn ask_single_priority(
     client: &Client,
     function: &str,
     cases: &[FuzzCase],
@@ -588,7 +588,7 @@ fn ask_single_priority(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn ingest_judged_cases(
+pub(crate) fn ingest_judged_cases(
     function: &str,
     cases: &[FuzzCase],
     judged: &[JudgedRow],
