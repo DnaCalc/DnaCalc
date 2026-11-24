@@ -7,139 +7,260 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Sort columns in priority order, with an independent direction per column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SortKey {
+    /// One-based worksheet column to compare.
     pub column: u32,
+    /// Whether to put larger values first.
     pub descending: bool,
 }
 
 /// Optional first-key custom order or bounded case-sensitive text keys.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SortOptions {
+    /// Whether case affects supported text comparisons.
     pub case_sensitive: bool,
+    /// Explicit text order for the first sort key. An empty list uses the default ordering.
     pub custom_order: Vec<String>,
 }
 
+/// Change to a worksheet or its tab.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SheetChange {
-    Add { name: String },
-    Rename { name: String },
-    Move { position: u32 },
+    /// Append a worksheet.
+    Add {
+        /// Name of the new worksheet.
+        name: String,
+    },
+    /// Rename the selected worksheet.
+    Rename {
+        /// New worksheet name.
+        name: String,
+    },
+    /// Change the selected worksheet's tab position.
+    Move {
+        /// One-based destination position in workbook sheet order.
+        position: u32,
+    },
+    /// Remove the selected worksheet.
     Remove,
+    /// Hide the selected worksheet.
     Hide,
+    /// Make the selected worksheet visible.
     Show,
 }
 
+/// Edit to a worksheet's conditional formatting rules.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConditionalChange {
     /// Add a cell, formula, statistical or duplicate condition with a solid fill.
     Condition {
+        /// Rule kind understood by the conditional formatting builder.
         kind: String,
+        /// Worksheet ranges to which the rule applies, expressed as reference text.
         applies: String,
+        /// Solid fill color as an RGB string.
         color: String,
+        /// Formula or operand text in the order required by the rule.
         formulas: Vec<String>,
+        /// Comparison operator for rules that take one.
         operator: String,
+        /// Threshold used by ranking rules.
         rank: u32,
+        /// Whether a ranking threshold is interpreted as a percentage.
         percent: bool,
+        /// Whether a match stops evaluation of lower-priority rules.
         stop: bool,
     },
+    /// Append a preset rule with a solid fill.
     Add {
+        /// Rule kind understood by the conditional formatting builder.
         kind: String,
+        /// Worksheet ranges to which the rule applies, expressed as reference text.
         applies: String,
+        /// Solid fill color as an RGB string.
         color: String,
     },
+    /// Change the selected rule's ranges, formulas and stop behavior.
     Update {
+        /// Worksheet ranges to which the rule applies, expressed as reference text.
         applies: String,
+        /// Formula or operand text in the order required by the rule.
         formulas: Vec<String>,
+        /// Whether a match stops evaluation of lower-priority rules.
         stop: bool,
     },
+    /// Move the selected rule in priority order.
     Move {
+        /// Whether to move toward higher priority.
         up: bool,
     },
+    /// Delete the selected rule.
     Remove,
 }
-/// Authored workbook commands. The session is the sole dispatch route for all clients.
+/// Authored workbook commands submitted through [`crate::HostSession::dispatch`].
+///
+/// Add a worksheet to an in-memory workbook and check the new sheet count.
+///
+/// ```
+/// use std::sync::Arc;
+/// use calc_host::{
+///     HostOptions, HostSession, MemorySource, OpenPolicy, SheetChange, SkinIntent,
+///     WorkbookCommand, blank_package,
+/// };
+///
+/// let mut session = HostSession::open(
+///     Arc::new(MemorySource::new(blank_package())),
+///     &OpenPolicy::default(),
+///     HostOptions::default(),
+/// ).unwrap();
+/// let before = session.host().model().sheets().len();
+/// let outcome = session.dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+///     sheet: None,
+///     change: SheetChange::Add { name: "Forecast".into() },
+/// }));
+/// assert!(outcome.accepted());
+/// assert_eq!(session.host().model().sheets().len(), before + 1);
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WorkbookCommand {
+    /// Refresh the workbook's supported data sources and dependent model state.
     RefreshAll {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
     },
+    /// Request a refresh of a named workbook connection.
     RefreshConnection {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Name of the workbook connection.
         name: String,
     },
+    /// Create a PivotTable with one row field and one value field.
     PivotCreate {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Source area with field names in its first row.
         source: GridArea,
+        /// Reference text for the upper-left cell of the PivotTable output.
         destination: String,
+        /// Zero-based source field index for row labels.
         row: u32,
+        /// Zero-based source field index to aggregate.
         value: u32,
+        /// Aggregation token such as `sum`, `count`, or `average`.
         subtotal: String,
     },
+    /// Create a PivotTable with ordered row, column and value fields.
     PivotCreateLayout {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Source area with field names in its first row.
         source: GridArea,
+        /// Reference text for the upper-left cell of the PivotTable output.
         destination: String,
+        /// Zero-based source field indices for the row labels.
         rows: Vec<u32>,
+        /// Zero-based source field indices for the column labels.
         columns: Vec<u32>,
+        /// Pairs of zero-based source field index and aggregation token.
         values: Vec<(u32, String)>,
     },
+    /// Refresh a PivotTable from its source.
     PivotRefresh {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
     },
+    /// Recompute the PivotTable layout from its existing cache records.
     PivotSetLayout {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Row field indices in display order. The value `-2` represents the data fields.
         rows: Vec<i32>,
+        /// Column field indices in display order. The value `-2` represents the data fields.
         columns: Vec<i32>,
     },
+    /// Set the PivotTable cache to retain zero unused items.
     PivotForgetMissingItems {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
     },
+    /// Set the PivotTable cache's unused-item retention limit.
     PivotSetMissingItemsLimit {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Explicit limit of zero or 32,500. Use `None` to clear the setting.
         limit: Option<u32>,
     },
+    /// Change worksheet print settings.
     PageSetup {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Print settings edit.
         change: crate::PageSetupChange,
     },
     /// Add, change or delete one drawing object of a sheet (dc-piw0.3).
     Shape {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Drawing object edit.
         change: crate::ShapeChange,
     },
     /// Add, change or delete a sparkline (dc-zjsg.7).
     Sparkline {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Sparkline edit.
         change: crate::SparklineChange,
     },
     /// Name and place a chart this session made (`ChartObject.Name`, `.Left/.Top/.Width/.Height`);
     /// positions in points, `None` keeps the value (dc-piw0.2).
     ChartFrame {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// New drawing name, or `None` to preserve it.
         name: Option<String>,
+        /// Left, top, width and height in points, or `None` to preserve them.
         place: Option<[crate::Points; 4]>,
     },
     /// A chart without data at a place in points (`ChartObjects.Add`, `Shapes.AddChart2`); the
     /// drawing identity is the next free one of the sheet (dc-piw0.2).
     ChartCreateEmpty {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Chart type identifier.
         kind: String,
+        /// Left, top, width and height in points.
         place: [crate::Points; 4],
         /// `Some`: the chart has this title (`AddChart2`); `None`: no title.
         title: Option<String>,
+        /// Whether the chart starts with a visible legend.
         legend: bool,
         /// The first `c16:uniqueId` counter of the chart's series (Excel Q17/Q18: 0 for `AddChart2`; for
         /// `ChartObjects.Add` the series count of Excel's automatic source at Add time).
@@ -149,196 +270,359 @@ pub enum WorkbookCommand {
     /// `headers`: how many leading cells of each series hold its name (a range when more than one);
     /// `categories`: how many leading series lines (rows when `rows`) hold the categories.
     ChartSource {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// New source range.
         area: GridArea,
+        /// Whether each series runs along a row. Otherwise series run along columns.
         rows: bool,
+        /// Number of leading cells in each series that supply its name.
         headers: u32,
+        /// Number of leading series lines that supply category labels.
         categories: u32,
     },
+    /// Create a chart from a worksheet range.
     ChartCreate {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Range supplying the chart data and any labels.
         area: GridArea,
+        /// Chart type identifier.
         kind: String,
+        /// Whether each series runs along a row. Otherwise series run along columns.
         rows: bool,
+        /// Whether the source includes series names.
         headers: bool,
+        /// Whether the source includes category labels.
         categories: bool,
     },
+    /// Change the color of a chart series.
     ChartSeriesStyle {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Zero-based position of the plot within the chart.
         plot: u32,
+        /// Series index stored in the chart.
         series: u32,
+        /// Six-digit RGB color, or `None` for automatic coloring.
         fill: Option<String>,
     },
+    /// Change the text style of a chart element.
     ChartElementTextStyle {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Identifier of the chart element to edit.
         target: String,
+        /// Text styling for the selected element.
         style: calc_doc_model::ChartTextStyle,
     },
+    /// Change the default text style of a chart.
     ChartTextStyle {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Default text styling for the chart.
         style: calc_doc_model::ChartTextStyle,
     },
+    /// Change the chart type of a plot.
     ChartType {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Zero-based position of the plot within the chart.
         plot: u32,
+        /// New chart type identifier.
         kind: String,
+        /// Whether to stack series for the selected type.
         stacked: bool,
     },
+    /// Set the legend position.
     ChartLegend {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Legend position token. Use `l`, `r`, `t`, `b`, or `tr`.
         position: String,
     },
+    /// Set or clear logarithmic scaling on a value axis.
     ChartLogAxis {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Chart axis ID.
         axis: u32,
+        /// Logarithm base as numeric text, or `None` for linear scaling.
         base: Option<String>,
     },
+    /// Set the limits, major interval and direction of a value axis.
     ChartAxis {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Chart axis ID.
         axis: u32,
+        /// Finite minimum as numeric text, or `None` for automatic scaling.
         minimum: Option<String>,
+        /// Finite maximum as numeric text, or `None` for automatic scaling.
         maximum: Option<String>,
+        /// Major interval as numeric text, or `None` for automatic spacing.
         major_unit: Option<String>,
+        /// Whether values run in reverse order along the axis.
         reversed: bool,
     },
+    /// Add, edit or remove a series from a plot.
     ChartSeries {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Zero-based position of the plot within the chart.
         plot: u32,
+        /// Existing chart series index, or `None` to add a series.
         series: Option<u32>,
+        /// Optional series name text.
         name: Option<String>,
+        /// Optional source reference for the categories or X values.
         categories: Option<String>,
+        /// Optional source reference for the series values.
         values: Option<String>,
+        /// Whether to remove the identified series.
         remove: bool,
     },
+    /// Change the title or legend visibility of a chart.
     ChartProperties {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// New title text when `set_title` is true. Use `None` to clear it.
         title: Option<String>,
+        /// Whether to apply the title edit.
         set_title: bool,
+        /// New legend visibility, or `None` to preserve it.
         legend: Option<bool>,
     },
     /// Append the worksheets of an OOXML template as one undoable transaction.
     InsertTemplate {
+        /// OOXML template package bytes.
         bytes: std::sync::Arc<[u8]>,
+        /// Optional template name.
         name: Option<String>,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
     },
+    /// Apply a review action at a worksheet cell.
     ReviewAction {
+        /// Cell to which the review entry is attached.
         at: CellKey,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Review operation to apply.
         action: crate::ReviewAction,
     },
+    /// Replace the text of an existing review entry.
     Review {
+        /// Cell to which the review entry is attached.
         at: CellKey,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Index of the review entry to edit.
         index: u32,
+        /// Replacement text.
         text: String,
     },
+    /// Apply a defined-name edit.
     Name(crate::NameEdit),
+    /// Change the filter for a worksheet table.
     TableFilter {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Package part path identifying the target.
         part: String,
+        /// Filter edit for the identified table.
         change: crate::FilterChange,
     },
+    /// Apply a worksheet table edit.
     Table {
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Table operation to apply.
         change: crate::TableChange,
     },
+    /// Change the worksheet's range filter.
     AutoFilter {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Worksheet range-filter edit.
         change: crate::FilterChange,
     },
+    /// Apply direct formatting to the specified ranges.
     FormatCells {
+        /// Ranges receiving the formatting.
         areas: Vec<GridArea>,
+        /// Formatting properties to change.
         patch: crate::FormatPatch,
     },
+    /// Apply a worksheet tab change.
     Sheet {
+        /// Target worksheet ID for an existing tab.
         sheet: Option<SheetId>,
+        /// Worksheet operation to apply.
         change: SheetChange,
     },
+    /// Change a worksheet's row or column outline.
     Outline {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Whether the outline covers rows. Otherwise it covers columns.
         rows: bool,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Outline operation to apply.
         change: crate::OutlineChange,
     },
+    /// Change the size or visibility of consecutive rows or columns.
     AxisFormat {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Whether to format rows. Otherwise format columns.
         rows: bool,
+        /// One-based index of the first affected row or column.
         first: u32,
+        /// Number of consecutive rows or columns to format.
         count: u32,
+        /// Row height in points or column width in characters, encoded as binary64 bits.
+        /// Zero hides the bands. A positive size shows them unless `hidden` overrides it.
+        /// Use `None` to preserve sizes.
         size_bits: Option<u64>,
+        /// Explicit hidden state. Use `None` to leave visibility to the size edit.
         hidden: Option<bool>,
     },
+    /// Apply content-fit sizes while preserving each band's visibility.
     FitContents {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Whether to resize rows. Otherwise resize columns.
         rows: bool,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Pairs of band index and fitted size encoded as binary64 bits.
         sizes: Vec<(u32, u64)>,
     },
+    /// Set the number of leading rows and columns that stay visible while scrolling.
     FreezePanes {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Number of leading rows to freeze.
         rows: u32,
+        /// Number of leading columns to freeze.
         columns: u32,
     },
+    /// Set the worksheet's split panes. Zero in both dimensions clears an existing split.
     SplitPanes {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Horizontal split position in twentieths of a point, encoded as binary64 bits.
         x: u64,
+        /// Vertical split position in twentieths of a point, encoded as binary64 bits.
         y: u64,
+        /// Row coordinate of the split's top-left visible cell.
         row: u32,
+        /// Column coordinate of the split's top-left visible cell.
         column: u32,
     },
+    /// Apply a conditional formatting edit on a worksheet.
     Conditional {
+        /// Worksheet that owns the target.
         sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Rule index for an edit to an existing rule.
         index: Option<u32>,
+        /// Conditional formatting operation to apply.
         change: ConditionalChange,
     },
+    /// Replace matching cell content.
     Replace {
+        /// Search criteria and scope.
         options: crate::search::SearchOptions,
+        /// Text to substitute for each match.
         replacement: String,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Restrict replacement to this cell, or use `None` to replace throughout the search scope.
         only: Option<CellKey>,
     },
+    /// Sort rows by ordered column keys with optional text comparison settings.
     SortRowsWithOptions {
+        /// Range whose rows will be sorted.
         area: GridArea,
+        /// Sort keys in comparison priority order.
         keys: Vec<SortKey>,
+        /// Whether the first row stays in place as a header.
         header: bool,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
+        /// Text comparison options.
         options: SortOptions,
     },
+    /// Sort rows by ordered column keys using the default options.
     SortRows {
+        /// Range whose rows will be sorted.
         area: GridArea,
+        /// Sort keys in comparison priority order.
         keys: Vec<SortKey>,
+        /// Whether the first row stays in place as a header.
         header: bool,
+        /// Workbook revision against which this command was prepared.
         revision: u64,
     },
+    /// Apply a prepared paste plan.
     Paste(crate::paste::PastePlan),
+    /// Insert or delete cells and shift neighboring cells along the selected axis.
     ShiftCells {
+        /// Range selecting the cells to insert or delete.
         area: GridArea,
+        /// Whether to shift along rows. Otherwise shift along columns.
         down: bool,
+        /// Whether to insert cells. Otherwise delete cells.
         insert: bool,
     },
 }
