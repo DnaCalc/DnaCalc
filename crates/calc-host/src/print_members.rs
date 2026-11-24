@@ -432,7 +432,8 @@ pub fn write(
         )),
         "PaperSize" => {
             let code = want_int(value)?;
-            if !(1..=118).contains(&code) {
+            // xlPaperUser is distinct from the standard DEVMODE paper codes.
+            if !matches!(code, 1..=118 | 256) {
                 return Err(PrintError::Refused);
             }
             Ok(attribute("pageSetup", "paperSize", Some(code.to_string())))

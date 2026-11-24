@@ -248,3 +248,26 @@ These issues repeat across most of the repository and are summarized once here r
    - *Suggested fix:* Point `initializeData` to a relative filename or `%TEMP%\PackConfig.log`.
 9. **`Archive/CompilerV35.dna` (obsolete CLR 2.0):** `Archive/CompilerV35.dna:1` declares `RuntimeVersion="v2.0" CompilerVersion="v3.5"`.
    - *Suggested fix:* Keep clearly labeled as an obsolete .NET 2.0/3.5 archival test.
+
+## Windows builds (2026-11-25, dc-z05nj.2)
+
+Built upstream commit `ba5732c7d67d65fbc8610f714371f178aa0e5a8d` on
+GOVERT-OMEN with .NET SDK 11.0.100. Each of the 94 project/framework pairs
+was built once with the original project references and once with the
+current stable Excel-DNA package versions pinned. NuGet resolved stable
+1.9.0 for AddIn, Integration, IntelliSense, Registration,
+Registration.VisualBasic and Testing. Interop and Interop.DAO were pinned to
+16.0.0. The original sample clone was kept read-only. [NuGet AddIn versions](https://www.nuget.org/packages/ExcelDna.AddIn/1.9.0)
+
+Both passes produced 87 successes and 7 failures. Each pass had 10
+successful builds with warnings. The two Windows build columns in
+[exceldna-samples.tsv](exceldna-samples.tsv) contain per-framework exits,
+resolved package versions, warnings, errors and packed and unpacked XLL
+paths. Build logs and XLL paths are relative to the ww17 run directory.
+
+| Sample and framework | Observed in both passes |
+|---|---|
+| Archive/Async/AsyncFunctions, net45 | CS0234 and CS0246 for the legacy Excel-DNA and Reactive references. |
+| ArrayMapCs, net472 and net6.0-windows | CS0138 at Functions.cs:4. The directive imports the XlCall type as a namespace. |
+| ComServer and DnaComServer, net6.0-windows | Excel-DNA's typelib packaging task stopped when it tried to start dscom. It was absent from PATH on this host. |
+| DynamicCompiledVB, net472 and net6.0-windows | BC36924 at RegistrationHelper.vb:12. The expression type uses the embedded interop Range type as a generic argument. The build stops before the previously reported dynamic compilation issue. |

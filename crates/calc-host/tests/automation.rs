@@ -4341,34 +4341,28 @@ fn enable_events_is_rechecked_between_automation_event_levels() {
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
-/// dc-oxh8w.8: the printing members register where the committed descriptor describes them. With
-/// the descriptor regenerated on Windows (RUN-ON-WINDOWS, lane cl3) none is pending.
+/// The Windows-generated descriptor supplies every member in the printing batch.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__print_members_register_where_the_descriptor_describes_them() {
     let (_, model) = setup();
     let pending = model.print_members_pending();
     let implemented = model.handlers().implemented();
-    for name in &pending {
-        assert!(!implemented.contains(name), "{name} is pending and also registered");
-    }
-    eprintln!("print members: {} pending the descriptor regeneration", pending.len());
-    if pending.is_empty() {
-        assert!(implemented.contains(&"PageSetup.Orientation (Put)".to_owned()));
-        assert!(implemented.contains(&"HPageBreaks.Add (Method)".to_owned()));
-    }
+    assert!(
+        pending.is_empty(),
+        "printing members missing from the descriptor: {pending:?}"
+    );
+    assert!(implemented.contains(&"PageSetup.Orientation (Put)".to_owned()));
+    assert!(implemented.contains(&"HPageBreaks.Add (Method)".to_owned()));
+    assert!(implemented.contains(&"VPageBreaks.Add (Method)".to_owned()));
 }
 
 /// dc-oxh8w.8: a macro sets up a sheet for printing through the members and reads it back, and the
-/// same state is what the file saves. Runs once the descriptor holds `PageSetup` and the breaks.
+/// same state is what the file saves.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_8__a_macro_sets_up_printing_through_members() {
     let (host, model) = setup();
-    if !model.print_members_pending().is_empty() {
-        eprintln!("dc-oxh8w.8: descriptor lacks PageSetup/HPageBreaks; member round trip not run");
-        return;
-    }
     let app = model.application();
     let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
     let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
@@ -4384,31 +4378,198 @@ fn dc_oxh8w_8__a_macro_sets_up_printing_through_members() {
     put("PrintArea", AutoValue::text("$A$1:$C$20"));
     put("PrintTitleRows", AutoValue::text("$1:$1"));
     put("CenterFooter", AutoValue::text("Page &P"));
-    assert!(matches!(invoke(&model, &setup, "Orientation", vec![]).unwrap(), AutoValue::I4(2)));
-    assert!(matches!(invoke(&model, &setup, "Zoom", vec![]).unwrap(), AutoValue::Bool(false)));
-    assert!(matches!(invoke(&model, &setup, "FitToPagesTall", vec![]).unwrap(), AutoValue::Bool(false)));
-    assert!(matches!(invoke(&model, &setup, "LeftMargin", vec![]).unwrap(), AutoValue::R8(v) if v == 36.0));
+    assert!(matches!(
+        invoke(&model, &setup, "Orientation", vec![]).unwrap(),
+        AutoValue::I4(2)
+    ));
+    assert!(matches!(
+        invoke(&model, &setup, "Zoom", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    assert!(matches!(
+        invoke(&model, &setup, "FitToPagesTall", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    assert!(
+        matches!(invoke(&model, &setup, "LeftMargin", vec![]).unwrap(), AutoValue::R8(v) if v == 36.0)
+    );
     assert_eq!(text(&model, &setup, "PrintArea"), "$A$1:$C$20");
     assert_eq!(text(&model, &setup, "PrintTitleRows"), "$1:$1");
     assert_eq!(text(&model, &setup, "CenterFooter"), "Page &P");
     // The same state is what the Page Setup UI reads.
     let sheet_id = host.session.borrow().host().sheets()[0].id();
-    let stored = host.session.borrow().host().model().definitions().page_setup(sheet_id);
+    let stored = host
+        .session
+        .borrow()
+        .host()
+        .model()
+        .definitions()
+        .page_setup(sheet_id);
     assert_eq!(stored.get("pageSetup", "orientation"), Some("landscape"));
     // Breaks.
     let h = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
-    let before = range(&model, "A21");
-    let one = obj(invoke_kind(&model, &h, "Add", InvokeKind::Method, vec![AutoValue::Object(before)]).unwrap());
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(1)));
-    assert!(matches!(invoke(&model, &one, "Type", vec![]).unwrap(), AutoValue::I4(-4135)));
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
+    let before = range(&model, "A11");
+    let one = obj(invoke_kind(
+        &model,
+        &h,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::Object(before)],
+    )
+    .unwrap());
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(1)
+    ));
+    assert!(matches!(
+        invoke(&model, &one, "Type", vec![]).unwrap(),
+        AutoValue::I4(-4135)
+    ));
     let location = obj(invoke(&model, &one, "Location", vec![]).unwrap());
-    assert_eq!(text(&model, &location, "Address"), "$A$21");
+    assert_eq!(text(&model, &location, "Address"), "$A$11");
+    let v = obj(invoke(&model, &sheet, "VPageBreaks", vec![]).unwrap());
+    let before = range(&model, "C1");
+    invoke_kind(
+        &model,
+        &v,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::Object(before)],
+    )
+    .unwrap();
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_, reopened) = setup_session(reopened);
+    let reopened_sheet =
+        obj(invoke(&reopened, &reopened.application(), "ActiveSheet", vec![]).unwrap());
+    let reopened_setup = obj(invoke(&reopened, &reopened_sheet, "PageSetup", vec![]).unwrap());
+    assert!(matches!(
+        invoke(&reopened, &reopened_setup, "Orientation", vec![]),
+        Ok(AutoValue::I4(2))
+    ));
+    assert_eq!(text(&reopened, &reopened_setup, "PrintArea"), "$A$1:$C$20");
+    for collection in ["HPageBreaks", "VPageBreaks"] {
+        let breaks = obj(invoke(&reopened, &reopened_sheet, collection, vec![]).unwrap());
+        assert!(
+            matches!(
+                invoke(&reopened, &breaks, "Count", vec![]),
+                Ok(AutoValue::I4(1))
+            ),
+            "{collection}"
+        );
+    }
     invoke_kind(&model, &one, "Delete", InvokeKind::Method, vec![]).unwrap();
-    assert!(matches!(invoke(&model, &h, "Count", vec![]).unwrap(), AutoValue::I4(0)));
+    assert!(matches!(
+        invoke(&model, &h, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
+    invoke_kind(
+        &model,
+        &sheet,
+        "ResetAllPageBreaks",
+        InvokeKind::Method,
+        vec![],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &v, "Count", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
     // Bad values are Excel's 1004 / 13.
-    let bad = invoke_kind(&model, &setup, "Orientation", InvokeKind::Put, vec![AutoValue::I4(7)]);
-    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let bad = invoke_kind(
+        &model,
+        &setup,
+        "Orientation",
+        InvokeKind::Put,
+        vec![AutoValue::I4(7)],
+    );
+    assert!(
+        matches!(bad, Err(AutoError::Excel { number: 1004, .. })),
+        "{bad:?}"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8_print_setters_and_add_require_one_argument() {
+    let (_, model, sheet) = blank_report();
+    let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+    let breaks = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
+    let before = AutoValue::Object(range(&model, "A10"));
+    let line = obj(invoke_kind(
+        &model,
+        &breaks,
+        "Add",
+        InvokeKind::Method,
+        vec![before.clone()],
+    )
+    .unwrap());
+    let other = AutoValue::Object(range(&model, "A12"));
+    let cases = [
+        (
+            &setup,
+            "Orientation",
+            InvokeKind::Put,
+            vec![AutoValue::I4(1), AutoValue::I4(2)],
+        ),
+        (&breaks, "Add", InvokeKind::Method, vec![other, before]),
+        (
+            &line,
+            "Type",
+            InvokeKind::Put,
+            vec![AutoValue::I4(-4135), AutoValue::I4(-4105)],
+        ),
+    ];
+    let mut invalid = Vec::new();
+    for (target, member, kind, extra) in cases {
+        for args in [vec![], extra] {
+            let reply = invoke_kind(&model, target, member, kind, args);
+            if !matches!(reply, Err(AutoError::Status(status)) if status == 0x8002_000Eu32 as i32) {
+                invalid.push(format!("{member}: {reply:?}"));
+            }
+        }
+    }
+    assert!(invalid.is_empty(), "{invalid:?}");
+    assert!(matches!(
+        invoke(&model, &setup, "Orientation", vec![]),
+        Ok(AutoValue::I4(1))
+    ));
+    assert!(matches!(
+        invoke(&model, &breaks, "Count", vec![]),
+        Ok(AutoValue::I4(1))
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_8_page_setup_accepts_the_user_defined_paper_code() {
+    let (_, model, sheet) = blank_report();
+    let setup = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+    invoke_kind(
+        &model,
+        &setup,
+        "PaperSize",
+        InvokeKind::Put,
+        vec![AutoValue::I4(256)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &setup, "PaperSize", vec![]),
+        Ok(AutoValue::I4(256))
+    ));
 }
 
 // ---- xlc command batch 1 (dc-oxh8w.5): the commands translate to the members tested above ----
@@ -4563,6 +4724,8 @@ mod xlc {
         assert_eq!(text(&model, &app, "StatusBar"), "Working");
         done(run(&*model, "xlcMessage", vec![AutoValue::R8(0.0), AutoValue::text("ignored")]));
         assert!(matches!(invoke(&model, &app, "StatusBar", vec![]), Ok(AutoValue::Bool(false))));
+        // The Windows C2 capture cleared an existing message when the text operand was omitted.
+        done(run(&*model, "xlcMessage", vec![AutoValue::Bool(true), AutoValue::text("Working")]));
         done(run(&*model, "xlcMessage", vec![AutoValue::Bool(true)]));
         assert!(matches!(invoke(&model, &app, "StatusBar", vec![]), Ok(AutoValue::Bool(false))));
 
@@ -4586,50 +4749,373 @@ mod xlc {
         assert!(matches!(run(&*model, "xlcClear", vec![AutoValue::R8(9.0)]), Err(XlcError::Operand(_))));
     }
 
-    /// Each command calls the member Excel's object model has; a member this profile has not
-    /// implemented refuses typed, and the command passes the refusal through.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn documented_optional_operands_refuse_before_dispatch() {
+        let (_, model) = setup();
+        let spy = spy(&model);
+        let text = AutoValue::text;
+        let i4 = AutoValue::I4;
+        let mut wrong = Vec::new();
+        for (symbol, mut operands) in [
+            ("xlcRun", vec![text("TestCommand"), i4(1)]),
+            (
+                "xlcColumnWidth",
+                vec![i4(12), text("R1C2"), i4(0), i4(3), i4(10)],
+            ),
+            ("xlcInsert", vec![i4(3), i4(1)]),
+            (
+                "xlcDefineName",
+                vec![
+                    text("Total"),
+                    text("=R1C1"),
+                    i4(1),
+                    i4(1),
+                    i4(1),
+                    i4(1),
+                    i4(1),
+                ],
+            ),
+            ("xlcSelect", vec![text("R1C1:R3C3"), text("R2C2")]),
+            ("xlcRowHeight", vec![i4(20), text("R2C1"), i4(0), i4(3)]),
+        ] {
+            let result = run(&spy, symbol, operands.clone());
+            if !matches!(
+                result,
+                Err(XlcError::NotModelled {
+                    owner: "dc-oxh8w.9",
+                    ..
+                })
+            ) {
+                wrong.push(format!("{symbol}: {result:?}"));
+            }
+            operands.push(i4(1));
+            assert_eq!(
+                run(&spy, symbol, operands).unwrap_err(),
+                XlcError::Operand("too many operands")
+            );
+        }
+        assert!(wrong.is_empty(), "{wrong:?}");
+        assert!(spy.calls.borrow().is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn formula_commands_accept_i2_constants() {
+        let (_, model) = setup();
+        done(run(
+            &*model,
+            "xlcFormula",
+            vec![AutoValue::I2(-17), AutoValue::text("R1C3")],
+        ));
+        done(run(
+            &*model,
+            "xlcFormulaFill",
+            vec![AutoValue::I2(21), AutoValue::text("R2C3:R3C3")],
+        ));
+        assert_eq!(number(&model, "C1").to_bits(), (-17.0_f64).to_bits());
+        assert_eq!(number(&model, "C2").to_bits(), 21.0_f64.to_bits());
+        assert_eq!(number(&model, "C3").to_bits(), 21.0_f64.to_bits());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn clear_and_shift_require_exact_enum_values() {
+        let (_, model) = setup();
+        let spy = spy(&model);
+        let mut wrong = Vec::new();
+        value2(&model, "A1", AutoValue::R8(5.0));
+        for (symbol, operand) in [
+            ("xlcClear", AutoValue::R8(3.9)),
+            ("xlcInsert", AutoValue::R4(3.9)),
+            ("xlcEditDelete", AutoValue::R8(2.1)),
+            ("xlcInsert", AutoValue::R8(f64::NAN)),
+            ("xlcClear", AutoValue::R8(f64::INFINITY)),
+        ] {
+            let result = run(&spy, symbol, vec![operand]);
+            if !matches!(result, Err(XlcError::Operand("type_num" | "shift_num"))) {
+                wrong.push(format!("{symbol}: {result:?}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:?}");
+        assert!(spy.calls.borrow().is_empty());
+        assert_eq!(number(&model, "A1"), 5.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn implicit_relative_references_receive_the_relative_refusal() {
+        let (_, model) = setup();
+        let spy = spy(&model);
+        let expected = XlcError::NotModelled {
+            what: "a sheet-qualified or relative text reference",
+            owner: "dc-oxh8w.9",
+        };
+        for operand in [
+            "RC", "R", "c", "R1C", "rC1", "R1C1:RC", "RC1:R2C2", "R1:R", "C2:c",
+        ] {
+            assert_eq!(
+                run(&spy, "xlcSelect", vec![AutoValue::text(operand)]).unwrap_err(),
+                expected,
+                "{operand}",
+            );
+        }
+        assert_eq!(
+            run(&spy, "xlcSelect", vec![AutoValue::text("R0C")]).unwrap_err(),
+            XlcError::Operand("text reference"),
+        );
+        assert!(spy.calls.borrow().is_empty());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn status_bar_refuses_unmeasured_coercion_without_changing_text() {
+        let (_, model) = setup();
+        let app = model.application();
+        let put = |value| invoke_kind(&model, &app, "StatusBar", InvokeKind::Put, vec![value]);
+        put(AutoValue::text("Working")).unwrap();
+        for value in [AutoValue::Bool(true), AutoValue::I4(1), AutoValue::Null] {
+            assert!(matches!(
+                put(value),
+                Err(AutoError::NotModelled {
+                    owner: "dc-oxh8w.9",
+                    ..
+                })
+            ));
+            assert_eq!(text(&model, &app, "StatusBar"), "Working");
+        }
+        put(AutoValue::Bool(false)).unwrap();
+        assert!(matches!(
+            invoke(&model, &app, "StatusBar", vec![]),
+            Ok(AutoValue::Bool(false))
+        ));
+    }
+
+    /// Assert the complete descriptor call sequence and the workbook profile's reply for each case.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn commands_call_the_members_and_pass_refusals_through() {
         let (_host, model) = setup();
         let text = AutoValue::text;
-        let cases: Vec<(&str, Vec<AutoValue>, &[&str])> = vec![
-            ("xlcSelect", vec![text("R2C3:R4C5")], &["_Application.Range Get('C2:E4')", "Range.Select Method()"]),
-            ("xlcClear", vec![AutoValue::R8(1.0)], &["_Application.Selection Get()", "Range.Clear Method()"]),
-            ("xlcClear", vec![AutoValue::R8(2.0)], &["_Application.Selection Get()", "Range.ClearFormats Method()"]),
-            ("xlcClear", vec![AutoValue::R8(4.0)], &["_Application.Selection Get()", "Range.ClearComments Method()"]),
-            ("xlcFormatNumber", vec![text("0.00")], &["_Application.Selection Get()", "Range.NumberFormat Put('0.00')"]),
-            ("xlcColumnWidth", vec![AutoValue::R8(12.0), text("R1C2")], &["_Application.Range Get('B1')", "Range.ColumnWidth Put(R8(12.0))"]),
-            ("xlcRowHeight", vec![AutoValue::R8(30.0)], &["_Application.Selection Get()", "Range.RowHeight Put(R8(30.0))"]),
-            ("xlcInsert", vec![AutoValue::R8(1.0)], &["_Application.Selection Get()", "Range.Insert Method(I4(-4161))"]),
-            ("xlcInsert", vec![AutoValue::R8(2.0)], &["_Application.Selection Get()", "Range.Insert Method(I4(-4121))"]),
-            ("xlcInsert", vec![AutoValue::R8(3.0)], &["_Application.Selection Get()", "Range.EntireRow Get()", "Range.Insert Method()"]),
-            ("xlcInsert", vec![AutoValue::R8(4.0)], &["_Application.Selection Get()", "Range.EntireColumn Get()", "Range.Insert Method()"]),
-            ("xlcEditDelete", vec![AutoValue::R8(1.0)], &["_Application.Selection Get()", "Range.Delete Method(I4(-4159))"]),
-            ("xlcEditDelete", vec![AutoValue::R8(2.0)], &["_Application.Selection Get()", "Range.Delete Method(I4(-4162))"]),
-            ("xlcEditDelete", vec![AutoValue::R8(4.0)], &["_Application.Selection Get()", "Range.EntireColumn Get()", "Range.Delete Method()"]),
-            ("xlcCopy", vec![text("R1C1")], &["_Application.Range Get('A1')", "Range.Copy Method()"]),
-            ("xlcCopy", vec![text("R1C1"), text("R3C3")], &["_Application.Range Get('A1')", "_Application.Range Get('C3')", "Range.Copy Method(obj)"]),
-            ("xlcCut", vec![text("R1C1"), text("R3C3")], &["_Application.Range Get('A1')", "_Application.Range Get('C3')", "Range.Cut Method(obj)"]),
-            ("xlcPaste", vec![text("R5C1")], &["_Application.ActiveSheet Get()", "_Application.Range Get('A5')", "_Worksheet.Paste Method(obj)"]),
-            ("xlcPaste", vec![], &["_Application.ActiveSheet Get()", "_Worksheet.Paste Method()"]),
-            ("xlcDefineName", vec![text("Total"), text("=R1C1:R3C1")], &["_Application.Names Get()", "Names.Add Method('Total',_,_,_,_,_,_,_,_,'=R1C1:R3C1')"]),
-            ("xlcDeleteName", vec![text("Total")], &["_Application.Names Get()", "Names.Item Method('Total')"]),
-            ("xlcSave", vec![], &["_Application.ActiveWorkbook Get()", "_Workbook.Save Method()"]),
+        let unmodelled = |what| AutoError::not_modelled(what, "dc-1nbp.5");
+        let metadata_shift = |member| {
+            AutoError::not_modelled(
+                format!(
+                    "Range.{member}: Shifting cells with merged, array, table, rule, chart, hidden or unloaded metadata is not modelled (dc-971p); nothing changed"
+                ),
+                "dc-0f1k.24",
+            )
+        };
+        let cases: Vec<(&str, Vec<AutoValue>, &[&str], Option<AutoError>)> = vec![
+            (
+                "xlcSelect",
+                vec![text("R2C3:R4C5")],
+                &["_Application.Range Get('C2:E4')", "Range.Select Method()"],
+                Some(unmodelled("Range.Select")),
+            ),
+            (
+                "xlcClear",
+                vec![AutoValue::R8(1.0)],
+                &["_Application.Selection Get()", "Range.Clear Method()"],
+                Some(unmodelled("Range.Clear")),
+            ),
+            (
+                "xlcClear",
+                vec![AutoValue::R8(2.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.ClearFormats Method()",
+                ],
+                Some(unmodelled("Range.ClearFormats")),
+            ),
+            (
+                "xlcClear",
+                vec![AutoValue::R8(4.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.ClearComments Method()",
+                ],
+                Some(unmodelled("Range.ClearComments")),
+            ),
+            (
+                "xlcFormatNumber",
+                vec![text("0.00")],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.NumberFormat Put('0.00')",
+                ],
+                None,
+            ),
+            (
+                "xlcColumnWidth",
+                vec![AutoValue::R8(12.0), text("R1C2")],
+                &[
+                    "_Application.Range Get('B1')",
+                    "Range.ColumnWidth Put(R8(12.0))",
+                ],
+                Some(unmodelled("Range.ColumnWidth")),
+            ),
+            (
+                "xlcRowHeight",
+                vec![AutoValue::R8(30.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.RowHeight Put(R8(30.0))",
+                ],
+                Some(unmodelled("Range.RowHeight")),
+            ),
+            (
+                "xlcInsert",
+                vec![AutoValue::R8(1.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.Insert Method(I4(-4161))",
+                ],
+                None,
+            ),
+            (
+                "xlcInsert",
+                vec![AutoValue::R8(2.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.Insert Method(I4(-4121))",
+                ],
+                Some(metadata_shift("Insert")),
+            ),
+            (
+                "xlcInsert",
+                vec![AutoValue::R8(3.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.EntireRow Get()",
+                    "Range.Insert Method()",
+                ],
+                None,
+            ),
+            (
+                "xlcInsert",
+                vec![AutoValue::R8(4.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.EntireColumn Get()",
+                    "Range.Insert Method()",
+                ],
+                None,
+            ),
+            (
+                "xlcEditDelete",
+                vec![AutoValue::R8(1.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.Delete Method(I4(-4159))",
+                ],
+                None,
+            ),
+            (
+                "xlcEditDelete",
+                vec![AutoValue::R8(2.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.Delete Method(I4(-4162))",
+                ],
+                Some(metadata_shift("Delete")),
+            ),
+            (
+                "xlcEditDelete",
+                vec![AutoValue::R8(4.0)],
+                &[
+                    "_Application.Selection Get()",
+                    "Range.EntireColumn Get()",
+                    "Range.Delete Method()",
+                ],
+                None,
+            ),
+            (
+                "xlcCopy",
+                vec![text("R1C1")],
+                &["_Application.Range Get('A1')", "Range.Copy Method()"],
+                Some(AutoError::not_modelled(
+                    "Range.Copy to the clipboard",
+                    "dc-0f1k.24",
+                )),
+            ),
+            (
+                "xlcCopy",
+                vec![text("R1C1"), text("R3C3")],
+                &[
+                    "_Application.Range Get('A1')",
+                    "_Application.Range Get('C3')",
+                    "Range.Copy Method(obj)",
+                ],
+                None,
+            ),
+            (
+                "xlcCut",
+                vec![text("R1C1"), text("R3C3")],
+                &[
+                    "_Application.Range Get('A1')",
+                    "_Application.Range Get('C3')",
+                    "Range.Cut Method(obj)",
+                ],
+                None,
+            ),
+            (
+                "xlcPaste",
+                vec![text("R5C1")],
+                &[
+                    "_Application.ActiveSheet Get()",
+                    "_Application.Range Get('A5')",
+                    "_Worksheet.Paste Method(obj)",
+                ],
+                Some(unmodelled("_Worksheet.Paste")),
+            ),
+            (
+                "xlcPaste",
+                vec![],
+                &[
+                    "_Application.ActiveSheet Get()",
+                    "_Worksheet.Paste Method()",
+                ],
+                Some(unmodelled("_Worksheet.Paste")),
+            ),
+            (
+                "xlcDefineName",
+                vec![text("Total"), text("=R1C1:R3C1")],
+                &[
+                    "_Application.Names Get()",
+                    "Names.Add Method('Total',_,_,_,_,_,_,_,_,'=R1C1:R3C1')",
+                ],
+                Some(AutoError::not_modelled(
+                    "Names.Add RefersToR1C1",
+                    "dc-hsa5.6",
+                )),
+            ),
+            (
+                "xlcDeleteName",
+                vec![text("Total")],
+                &["_Application.Names Get()", "Names.Item Method('Total')"],
+                Some(AutoError::excel(1004, "")),
+            ),
+            (
+                "xlcSave",
+                vec![],
+                &[
+                    "_Application.ActiveWorkbook Get()",
+                    "_Workbook.Save Method()",
+                ],
+                Some(unmodelled("_Workbook.Save")),
+            ),
         ];
-        for (symbol, operands, expected) in cases {
+        for (symbol, operands, calls, error) in cases {
             let spy = spy(&model);
             let result = run(&spy, symbol, operands);
-            let calls = spy.calls.borrow();
-            // A call after a refused one is never made: the sequence ends at the first failure.
-            assert!(calls.len() <= expected.len() && calls.iter().zip(expected).all(|(a, b)| a == b), "{symbol}: {calls:?}");
-            match result {
-                Ok(_) => assert_eq!(calls.len(), expected.len(), "{symbol}: {calls:?}"),
-                Err(XlcError::Model(error)) => {
-                    assert!(calls.len() <= expected.len(), "{symbol}");
-                    assert!(matches!(error, AutoError::NotModelled { .. } | AutoError::Excel { .. } | AutoError::Status(_)), "{symbol}: {error:?}");
-                }
-                Err(other) => panic!("{symbol}: {other:?} after {calls:?}"),
+            assert_eq!(&*spy.calls.borrow(), calls, "{symbol}");
+            match error {
+                Some(error) => assert_eq!(result.unwrap_err(), XlcError::Model(error), "{symbol}"),
+                None => assert!(
+                    matches!(result, Ok(AutoValue::Bool(true))),
+                    "{symbol}: {result:?}"
+                ),
             }
         }
     }
