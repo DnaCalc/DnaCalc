@@ -314,8 +314,12 @@ fn nearest_digits_with(
         return Ok(0.0);
     }
     let limit = f64::from(i32::MAX);
-    // An integer within +/-2147483647, so the conversion is exact.
-    let digits = decimal::truncate(places).clamp(-limit, limit) as i32;
+    // An integer within +/-2147483647, so the conversion is exact. Excel's ROUND
+    // snaps num_digits symmetrically toward the next integer within T22 = 2^-22 + 2^-33
+    // (dc-ztvv.26.63 / cb28 S1e, S3b), matching FIXED/DOLLAR.
+    let digits = crate::ported::text_kernels::date_integer_floor(places.abs())
+        .copysign(places)
+        .clamp(-limit, limit) as i32;
     let reading = reading(number, false);
     let kept = digits.wrapping_add(reading.magnitude()).wrapping_add(1);
     if kept < 0 {

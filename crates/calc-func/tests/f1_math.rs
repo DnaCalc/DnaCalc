@@ -780,3 +780,44 @@ fn dc_j9k_88_cb17_round_q64_and_complex_text() {
         text(call(func, vec![t(a), t(b)]), expected);
     }
 }
+
+/// dc-ztvv.26.63 (cb28 S1e/S3b): ROUND's num_digits uses symmetric `date_integer_floor`
+/// (`T22 = 2^-22 + 2^-33` on `|places|`, keeping sign), while ROUNDUP/ROUNDDOWN/TRUNC
+/// keep plain truncation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ztvv_26_63_round_places_uses_symmetric_date_integer_floor() {
+    #[rustfmt::skip]
+    let rows: &[(u64, u64, u64)] = &[
+        // fuzz-ROUND-r01-000136: ROUND(283, -1 + 2^-52) -> 280
+        (0x4071_b000_0000_0000, 0xbfefffff_fffffffe, 0x4071_8000_0000_0000),
+        // 1-ULP lock at +(1 - T22) in vs out:
+        (0x4071_b70a_3d70_a3d7, 0x3fefffff_7ff00000, 0x4071_b666_6666_6666),
+        (0x4071_b70a_3d70_a3d7, 0x3fefffff_7fefffff, 0x4071_b000_0000_0000),
+        // 1-ULP lock at -(1 - T22) in vs out:
+        (0x4071_b000_0000_0000, 0xbfefffff_7ff00000, 0x4071_8000_0000_0000),
+        (0x4071_b000_0000_0000, 0xbfefffff_7fefffff, 0x4071_b000_0000_0000),
+        // -100 + T22 and i32::MAX - T22:
+        (0x5500_2c5b_86d5_f67c, 0xc058_ffff_ff80_0000, 0x5500_0077_80e2_2b0d),
+        (0x3ff2_0000_0000_0000, 0x41df_ffff_ffbf_ffff, 0x0000_0000_0000_0000),
+        // -T23 snaps toward 0, not -1:
+        (0x4071_b000_0000_0000, 0xbe80_0200_0000_0000, 0x4071_b000_0000_0000),
+    ];
+    for &(x_bits, places_bits, expected) in rows {
+        let got = number(call(
+            "ROUND",
+            vec![n(f64::from_bits(x_bits)), n(f64::from_bits(places_bits))],
+        ));
+        assert_eq!(
+            got.to_bits(),
+            expected,
+            "ROUND({x_bits:#018x}, {places_bits:#018x}): got {:#018x}, expected {expected:#018x}",
+            got.to_bits()
+        );
+    }
+    // Sibling controls: ROUNDUP, ROUNDDOWN, TRUNC do not snap num_digits by T22.
+    let near_neg_one = f64::from_bits(0xbfefffff_fffffffe);
+    for func in ["ROUNDUP", "ROUNDDOWN", "TRUNC"] {
+        exact(call(func, vec![n(283.0), n(near_neg_one)]), 283.0);
+    }
+}
