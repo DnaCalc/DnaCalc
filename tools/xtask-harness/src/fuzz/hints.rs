@@ -338,6 +338,290 @@ pub fn validate_hint_file(source_label: &str, file: &HintFile) -> Result<(), Str
                     ));
                 }
             }
+            for (idx, sv) in arg.specials.iter().enumerate() {
+                let Some(w) = hint_value_to_witness(sv, arg.kind) else {
+                    return Err(format!(
+                        "{source_label}: {name}.{} special[{idx}] cannot be converted to a Value2/Touchstone witness: {sv}",
+                        arg.name
+                    ));
+                };
+                super::oracle::json_arg_to_touchstone(&w).map_err(|e| {
+                    format!(
+                        "{source_label}: {name}.{} special[{idx}] failed Touchstone encoding ({w}): {e}",
+                        arg.name
+                    )
+                })?;
+            }
+            for (idx, edge) in arg.edges.iter().enumerate() {
+                let Some(w) = hint_value_to_witness(&edge.value, arg.kind) else {
+                    return Err(format!(
+                        "{source_label}: {name}.{} edge[{idx}] value cannot be converted to a Value2/Touchstone witness: {}",
+                        arg.name, edge.value
+                    ));
+                };
+                super::oracle::json_arg_to_touchstone(&w).map_err(|e| {
+                    format!(
+                        "{source_label}: {name}.{} edge[{idx}] failed Touchstone encoding ({w}): {e}",
+                        arg.name
+                    )
+                })?;
+            }
+        }
+        for (idx, rel) in fhint.relations.iter().enumerate() {
+            if rel.trim().is_empty() {
+                return Err(format!(
+                    "{source_label}: {name} relation[{idx}] must not be empty"
+                ));
+            }
+        }
+        for (idx, ee) in fhint.error_edges.iter().enumerate() {
+            if ee.when.trim().is_empty() {
+                return Err(format!(
+                    "{source_label}: {name} error_edges[{idx}].when must not be empty"
+                ));
+            }
+        }
+        let mut param_names: Vec<String> = decl
+            .parameters()
+            .iter()
+            .map(|p| p.name.to_owned())
+            .collect();
+        for arg in &fhint.args {
+            let norm = normalize_hint_param_name(&arg.name);
+            if !param_names
+                .iter()
+                .any(|p| normalize_hint_param_name(p) == norm)
+            {
+                param_names.push(arg.name.clone());
+            }
+        }
+        let parsed_rels = parse_relations(&fhint.relations, &param_names);
+        validate_conjunctive_relations(source_label, &name, &param_names, &parsed_rels)?;
+    }
+    Ok(())
+}
+
+fn validate_conjunctive_relations(
+    source_label: &str,
+    func_name: &str,
+    param_names: &[String],
+    rels: &[ParsedRelation],
+) -> Result<(), String> {
+    #[derive(Default)]
+    struct Bounds {
+        lo: Option<(f64, bool)>,
+        hi: Option<(f64, bool)>,
+        eq: Option<f64>,
+        ne: Vec<f64>,
+        abs_lo: Option<(f64, bool)>,
+        abs_hi: Option<(f64, bool)>,
+        abs_eq: Option<f64>,
+        abs_ne: Vec<f64>,
+    }
+
+    fn tighten_lo(slot: &mut Option<(f64, bool)>, v: f64, strict: bool) {
+        match *slot {
+            None => *slot = Some((v, strict)),
+            Some((cur, cur_strict)) => {
+                if v > cur || (v == cur && strict && !cur_strict) {
+                    *slot = Some((v, strict));
+                }
+            }
+        }
+    }
+
+    fn tighten_hi(slot: &mut Option<(f64, bool)>, v: f64, strict: bool) {
+        match *slot {
+            None => *slot = Some((v, strict)),
+            Some((cur, cur_strict)) => {
+                if v < cur || (v == cur && strict && !cur_strict) {
+                    *slot = Some((v, strict));
+                }
+            }
+        }
+    }
+
+    let mut per_param: BTreeMap<usize, Bounds> = BTreeMap::new();
+    for &rel in rels {
+        match (rel.lhs, rel.rhs) {
+            (RelOperand::Param(i), RelOperand::Param(j)) if i == j => {
+                if matches!(rel.op, RelOp::Lt | RelOp::Gt | RelOp::Ne) {
+                    let pname = param_names.get(i).map_or("?", String::as_str);
+                    return Err(format!(
+                        "{source_label}: {func_name} has unsatisfiable self-relation on parameter {pname:?}"
+                    ));
+                }
+            }
+            (RelOperand::AbsParam(i), RelOperand::AbsParam(j)) if i == j => {
+                if matches!(rel.op, RelOp::Lt | RelOp::Gt | RelOp::Ne) {
+                    let pname = param_names.get(i).map_or("?", String::as_str);
+                    return Err(format!(
+                        "{source_label}: {func_name} has unsatisfiable abs self-relation on parameter {pname:?}"
+                    ));
+                }
+            }
+            (RelOperand::Param(i), RelOperand::Const(c)) => {
+                let b = per_param.entry(i).or_default();
+                match rel.op {
+                    RelOp::Gt => tighten_lo(&mut b.lo, c, true),
+                    RelOp::Ge => tighten_lo(&mut b.lo, c, false),
+                    RelOp::Lt => tighten_hi(&mut b.hi, c, true),
+                    RelOp::Le => tighten_hi(&mut b.hi, c, false),
+                    RelOp::Eq => {
+                        if let Some(prev) = b.eq
+                            && prev != c
+                        {
+                            let pname = param_names.get(i).map_or("?", String::as_str);
+                            return Err(format!(
+                                "{source_label}: {func_name} has contradictory equality relations on {pname:?}: == {prev} and == {c}"
+                            ));
+                        }
+                        b.eq = Some(c);
+                        tighten_lo(&mut b.lo, c, false);
+                        tighten_hi(&mut b.hi, c, false);
+                    }
+                    RelOp::Ne => b.ne.push(c),
+                }
+            }
+            (RelOperand::Const(c), RelOperand::Param(j)) => {
+                let op = flip_op(rel.op);
+                let b = per_param.entry(j).or_default();
+                match op {
+                    RelOp::Gt => tighten_lo(&mut b.lo, c, true),
+                    RelOp::Ge => tighten_lo(&mut b.lo, c, false),
+                    RelOp::Lt => tighten_hi(&mut b.hi, c, true),
+                    RelOp::Le => tighten_hi(&mut b.hi, c, false),
+                    RelOp::Eq => {
+                        if let Some(prev) = b.eq
+                            && prev != c
+                        {
+                            let pname = param_names.get(j).map_or("?", String::as_str);
+                            return Err(format!(
+                                "{source_label}: {func_name} has contradictory equality relations on {pname:?}: == {prev} and == {c}"
+                            ));
+                        }
+                        b.eq = Some(c);
+                        tighten_lo(&mut b.lo, c, false);
+                        tighten_hi(&mut b.hi, c, false);
+                    }
+                    RelOp::Ne => b.ne.push(c),
+                }
+            }
+            (RelOperand::AbsParam(i), RelOperand::Const(c)) => {
+                let b = per_param.entry(i).or_default();
+                match rel.op {
+                    RelOp::Gt => tighten_lo(&mut b.abs_lo, c, true),
+                    RelOp::Ge => tighten_lo(&mut b.abs_lo, c, false),
+                    RelOp::Lt => tighten_hi(&mut b.abs_hi, c, true),
+                    RelOp::Le => tighten_hi(&mut b.abs_hi, c, false),
+                    RelOp::Eq => {
+                        if let Some(prev) = b.abs_eq
+                            && prev != c
+                        {
+                            let pname = param_names.get(i).map_or("?", String::as_str);
+                            return Err(format!(
+                                "{source_label}: {func_name} has contradictory abs equality relations on {pname:?}: == {prev} and == {c}"
+                            ));
+                        }
+                        b.abs_eq = Some(c);
+                        tighten_lo(&mut b.abs_lo, c, false);
+                        tighten_hi(&mut b.abs_hi, c, false);
+                    }
+                    RelOp::Ne => b.abs_ne.push(c),
+                }
+            }
+            (RelOperand::Const(c), RelOperand::AbsParam(j)) => {
+                let op = flip_op(rel.op);
+                let b = per_param.entry(j).or_default();
+                match op {
+                    RelOp::Gt => tighten_lo(&mut b.abs_lo, c, true),
+                    RelOp::Ge => tighten_lo(&mut b.abs_lo, c, false),
+                    RelOp::Lt => tighten_hi(&mut b.abs_hi, c, true),
+                    RelOp::Le => tighten_hi(&mut b.abs_hi, c, false),
+                    RelOp::Eq => {
+                        if let Some(prev) = b.abs_eq
+                            && prev != c
+                        {
+                            let pname = param_names.get(j).map_or("?", String::as_str);
+                            return Err(format!(
+                                "{source_label}: {func_name} has contradictory abs equality relations on {pname:?}: == {prev} and == {c}"
+                            ));
+                        }
+                        b.abs_eq = Some(c);
+                        tighten_lo(&mut b.abs_lo, c, false);
+                        tighten_hi(&mut b.abs_hi, c, false);
+                    }
+                    RelOp::Ne => b.abs_ne.push(c),
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for (idx, b) in per_param {
+        let pname = param_names.get(idx).map_or("?", String::as_str);
+        if let (Some((lo, lo_s)), Some((hi, hi_s))) = (b.lo, b.hi)
+            && (lo > hi || (lo == hi && (lo_s || hi_s)))
+        {
+            return Err(format!(
+                "{source_label}: {func_name} has contradictory conjunctive relations on {pname:?} (lo={lo}, hi={hi})"
+            ));
+        }
+        if let Some(eq) = b.eq
+            && b.ne.contains(&eq)
+        {
+            return Err(format!(
+                "{source_label}: {func_name} has contradictory relations on {pname:?} (== {eq} and != {eq})"
+            ));
+        }
+        if let Some((abs_hi, abs_hi_s)) = b.abs_hi
+            && (abs_hi < 0.0 || (abs_hi == 0.0 && abs_hi_s))
+        {
+            return Err(format!(
+                "{source_label}: {func_name} has unsatisfiable abs upper bound on {pname:?} ({abs_hi})"
+            ));
+        }
+        if let (Some((alo, alo_s)), Some((ahi, ahi_s))) = (b.abs_lo, b.abs_hi)
+            && (alo > ahi || (alo == ahi && (alo_s || ahi_s)))
+        {
+            return Err(format!(
+                "{source_label}: {func_name} has contradictory conjunctive abs relations on {pname:?} (lo={alo}, hi={ahi})"
+            ));
+        }
+        if let Some(aeq) = b.abs_eq
+            && (aeq < 0.0 || b.abs_ne.contains(&aeq))
+        {
+            return Err(format!(
+                "{source_label}: {func_name} has contradictory abs equality relations on {pname:?} ({aeq})"
+            ));
+        }
+        // Check cross-contradiction between signed bounds [lo, hi] and |x| <= abs_hi.
+        if let Some((ahi, ahi_s)) = b.abs_hi {
+            if let Some((lo, lo_s)) = b.lo
+                && (lo > ahi || (lo == ahi && (lo_s || ahi_s)))
+            {
+                return Err(format!(
+                    "{source_label}: {func_name} has contradictory relations on {pname:?} (lo={lo} vs abs_hi={ahi})"
+                ));
+            }
+            if let Some((hi, hi_s)) = b.hi
+                && (hi < -ahi || (hi == -ahi && (hi_s || ahi_s)))
+            {
+                return Err(format!(
+                    "{source_label}: {func_name} has contradictory relations on {pname:?} (hi={hi} vs -abs_hi={})",
+                    -ahi
+                ));
+            }
+        }
+        // Check cross-contradiction between signed bounds [lo, hi] and |x| >= abs_lo.
+        if let (Some((alo, alo_s)), Some((lo, lo_s)), Some((hi, hi_s))) = (b.abs_lo, b.lo, b.hi) {
+            let lo_inside = lo > -alo || (lo == -alo && (lo_s || alo_s));
+            let hi_inside = hi < alo || (hi == alo && (hi_s || alo_s));
+            if lo_inside && hi_inside {
+                return Err(format!(
+                    "{source_label}: {func_name} has contradictory relations on {pname:?} ([{lo}, {hi}] inside |x| < {alo})"
+                ));
+            }
         }
     }
     Ok(())
@@ -536,10 +820,11 @@ impl RelOp {
     }
 }
 
-/// Operand of a parsed binary relation: either a parameter index or a numeric constant.
+/// Operand of a parsed binary relation: either a parameter index, `abs(param)`, or a numeric constant.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RelOperand {
     Param(usize),
+    AbsParam(usize),
     Const(f64),
 }
 
@@ -628,41 +913,135 @@ fn flip_op(op: RelOp) -> RelOp {
     }
 }
 
-fn emit_abs_relation(out: &mut Vec<ParsedRelation>, param: RelOperand, op: RelOp, bound: f64) {
+fn emit_abs_relation(
+    out: &mut Vec<ParsedRelation>,
+    param_idx: usize,
+    op: RelOp,
+    bound: f64,
+    split_or: bool,
+) {
     if !bound.is_finite() {
         return;
     }
+    let param = RelOperand::Param(param_idx);
+    let abs_param = RelOperand::AbsParam(param_idx);
     match op {
         RelOp::Gt => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Gt, rhs: RelOperand::Const(bound) });
-            if bound >= 0.0 {
-                out.push(ParsedRelation { lhs: param, op: RelOp::Lt, rhs: RelOperand::Const(-bound) });
+            if bound < 0.0 {
+                return;
+            }
+            if split_or {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Gt,
+                    rhs: RelOperand::Const(bound),
+                });
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Lt,
+                    rhs: RelOperand::Const(-bound),
+                });
+            } else if bound == 0.0 {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Ne,
+                    rhs: RelOperand::Const(0.0),
+                });
+            } else {
+                out.push(ParsedRelation {
+                    lhs: abs_param,
+                    op: RelOp::Gt,
+                    rhs: RelOperand::Const(bound),
+                });
             }
         }
         RelOp::Ge => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Ge, rhs: RelOperand::Const(bound) });
-            if bound >= 0.0 {
-                out.push(ParsedRelation { lhs: param, op: RelOp::Le, rhs: RelOperand::Const(-bound) });
+            if bound <= 0.0 {
+                return;
+            }
+            if split_or {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Ge,
+                    rhs: RelOperand::Const(bound),
+                });
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Le,
+                    rhs: RelOperand::Const(-bound),
+                });
+            } else {
+                out.push(ParsedRelation {
+                    lhs: abs_param,
+                    op: RelOp::Ge,
+                    rhs: RelOperand::Const(bound),
+                });
             }
         }
         RelOp::Lt if bound > 0.0 => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Gt, rhs: RelOperand::Const(-bound) });
-            out.push(ParsedRelation { lhs: param, op: RelOp::Lt, rhs: RelOperand::Const(bound) });
+            // `abs(x) < bound` is a conjunction `-bound < x < bound`; emit a single atomic
+            // AbsParam constraint in both conjunctive (`relations`) and disjunctive (`error_edges`)
+            // modes so neither side is enforced in isolation or clobbered by sequential updates.
+            out.push(ParsedRelation {
+                lhs: abs_param,
+                op: RelOp::Lt,
+                rhs: RelOperand::Const(bound),
+            });
         }
         RelOp::Le if bound >= 0.0 => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Ge, rhs: RelOperand::Const(-bound) });
-            out.push(ParsedRelation { lhs: param, op: RelOp::Le, rhs: RelOperand::Const(bound) });
+            if bound == 0.0 {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Eq,
+                    rhs: RelOperand::Const(0.0),
+                });
+            } else {
+                out.push(ParsedRelation {
+                    lhs: abs_param,
+                    op: RelOp::Le,
+                    rhs: RelOperand::Const(bound),
+                });
+            }
         }
         RelOp::Eq if bound >= 0.0 => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Eq, rhs: RelOperand::Const(bound) });
-            if bound > 0.0 {
-                out.push(ParsedRelation { lhs: param, op: RelOp::Eq, rhs: RelOperand::Const(-bound) });
+            if bound == 0.0 {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Eq,
+                    rhs: RelOperand::Const(0.0),
+                });
+            } else if split_or {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Eq,
+                    rhs: RelOperand::Const(bound),
+                });
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Eq,
+                    rhs: RelOperand::Const(-bound),
+                });
+            } else {
+                out.push(ParsedRelation {
+                    lhs: abs_param,
+                    op: RelOp::Eq,
+                    rhs: RelOperand::Const(bound),
+                });
             }
         }
         RelOp::Ne if bound >= 0.0 => {
-            out.push(ParsedRelation { lhs: param, op: RelOp::Ne, rhs: RelOperand::Const(bound) });
-            if bound > 0.0 {
-                out.push(ParsedRelation { lhs: param, op: RelOp::Ne, rhs: RelOperand::Const(-bound) });
+            if bound == 0.0 {
+                out.push(ParsedRelation {
+                    lhs: param,
+                    op: RelOp::Ne,
+                    rhs: RelOperand::Const(0.0),
+                });
+            } else {
+                out.push(ParsedRelation {
+                    lhs: abs_param,
+                    op: RelOp::Ne,
+                    rhs: RelOperand::Const(bound),
+                });
             }
         }
         _ => {}
@@ -760,20 +1139,28 @@ fn parse_relation_expr_impl(expr: &str, arg_names: &[String], split_or: bool) ->
                     last_lhs = Some((lhs, lhs_abs));
                 }
                 if lhs_abs
-                    && matches!(lhs, RelOperand::Param(_))
+                    && let RelOperand::Param(i) = lhs
                     && let RelOperand::Const(c) = rhs
                 {
-                    emit_abs_relation(&mut out, lhs, ops[pair_idx], c);
+                    emit_abs_relation(&mut out, i, ops[pair_idx], c, split_or);
                 } else if rhs_abs
-                    && matches!(rhs, RelOperand::Param(_))
+                    && let RelOperand::Param(j) = rhs
                     && let RelOperand::Const(c) = lhs
                 {
-                    emit_abs_relation(&mut out, rhs, flip_op(ops[pair_idx]), c);
+                    emit_abs_relation(&mut out, j, flip_op(ops[pair_idx]), c, split_or);
                 } else if matches!(lhs, RelOperand::Param(_)) || matches!(rhs, RelOperand::Param(_)) {
+                    let lhs_op = match lhs {
+                        RelOperand::Param(i) if lhs_abs => RelOperand::AbsParam(i),
+                        other => other,
+                    };
+                    let rhs_op = match rhs {
+                        RelOperand::Param(j) if rhs_abs => RelOperand::AbsParam(j),
+                        other => other,
+                    };
                     out.push(ParsedRelation {
-                        lhs,
+                        lhs: lhs_op,
                         op: ops[pair_idx],
-                        rhs,
+                        rhs: rhs_op,
                     });
                 }
             }
@@ -1061,6 +1448,92 @@ mod tests {
         assert!(
             parsed_error_edges * 2 >= total_error_edges,
             "expected >=50% of committed error_edges to parse (got {parsed_error_edges}/{total_error_edges})"
+        );
+    }
+
+    #[test]
+    fn validate_hint_file_rejects_bad_specials_edges_and_contradictory_relations() {
+        let inf_special = SAMPLE_YIELD_HINTS.replace(
+            "\"specials\": [0, 1e-300]",
+            "\"specials\": [\"0x7ff0000000000000\"]",
+        );
+        assert!(
+            HintBank::parse_file_str("inf-special.json", &inf_special).is_err(),
+            "validate_hint_file must reject +Inf hex literal in specials"
+        );
+
+        let nan_edge = SAMPLE_YIELD_HINTS.replace(
+            "\"edges\": [{\"value\": 60,",
+            "\"edges\": [{\"value\": \"0x7ff8000000000000\",",
+        );
+        assert!(
+            HintBank::parse_file_str("nan-edge.json", &nan_edge).is_err(),
+            "validate_hint_file must reject NaN hex literal in edges"
+        );
+
+        let jagged_special = SAMPLE_YIELD_HINTS.replace(
+            "\"specials\": [0, 1e-300]",
+            "\"specials\": [[[1, 2], [3]]]",
+        );
+        assert!(
+            HintBank::parse_file_str("jagged.json", &jagged_special).is_err(),
+            "validate_hint_file must reject jagged array in specials"
+        );
+
+        let bad_edge_obj = SAMPLE_YIELD_HINTS.replace(
+            "\"edges\": [{\"value\": 60,",
+            "\"edges\": [{\"value\": {\"unsupported\": 1},",
+        );
+        assert!(
+            HintBank::parse_file_str("bad-obj.json", &bad_edge_obj).is_err(),
+            "validate_hint_file must reject unsupported object in edges"
+        );
+
+        let contradictory = SAMPLE_YIELD_HINTS.replace(
+            "\"relations\": [\"settlement < maturity\"]",
+            "\"relations\": [\"rate > 10\", \"rate < 5\"]",
+        );
+        assert!(
+            HintBank::parse_file_str("contradictory.json", &contradictory).is_err(),
+            "validate_hint_file must reject contradictory conjunctive relations on a parameter"
+        );
+
+        let contradictory_eq = SAMPLE_YIELD_HINTS.replace(
+            "\"relations\": [\"settlement < maturity\"]",
+            "\"relations\": [\"rate == 1\", \"rate == 2\"]",
+        );
+        assert!(
+            HintBank::parse_file_str("contradictory-eq.json", &contradictory_eq).is_err(),
+            "validate_hint_file must reject contradictory equality relations"
+        );
+
+        // parse_relations must not emit contradictory conjunctive bounds for abs(x) > c or == c.
+        let names = vec!["x".to_owned()];
+        let abs_gt = parse_relations(&["abs(x) > 10".to_owned()], &names);
+        assert_eq!(
+            abs_gt.len(),
+            1,
+            "conjunctive abs(x) > 10 must emit a single non-contradictory relation, got {abs_gt:?}"
+        );
+        let abs_eq = parse_relations(&["abs(x) == 5".to_owned()], &names);
+        assert_eq!(
+            abs_eq.len(),
+            1,
+            "conjunctive abs(x) == 5 must emit a single non-contradictory relation, got {abs_eq:?}"
+        );
+
+        // parse_error_edge_triggers must not split conjunctive abs(x) < c / <= c into incomplete disjuncts.
+        let abs_lt_ee = parse_error_edge_triggers(&["abs(x) < 10".to_owned()], &names);
+        assert_eq!(
+            abs_lt_ee.len(),
+            1,
+            "error_edges abs(x) < 10 must emit a single atomic trigger, got {abs_lt_ee:?}"
+        );
+        let abs_le_ee = parse_error_edge_triggers(&["abs(x) <= 10".to_owned()], &names);
+        assert_eq!(
+            abs_le_ee.len(),
+            1,
+            "error_edges abs(x) <= 10 must emit a single atomic trigger, got {abs_le_ee:?}"
         );
     }
 }

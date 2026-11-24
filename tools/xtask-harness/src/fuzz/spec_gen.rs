@@ -768,26 +768,48 @@ pub fn build_merged_spec(function: &str, hints: &HintBank) -> Result<MergedSpec,
             if let Some(ah) = matched_hint {
                 hinted = true;
                 kind = ah.kind;
+                let is_ref_only =
+                    class == ParameterClass::Reference || entry_class == EntryClass::Reference;
+                let witness_kind = if is_ref_only {
+                    HintArgKind::Reference
+                } else {
+                    kind
+                };
                 if !ah.ranges.is_empty() {
                     valid_ranges = ah.ranges.clone();
                 }
                 let mut seen: BTreeSet<String> = BTreeSet::new();
                 let mut merged_specials = Vec::new();
                 for sv in &ah.specials {
-                    if let Some(w) = hint_value_to_witness(sv, kind)
-                        && seen.insert(w.to_string())
-                    {
-                        merged_specials.push(w);
+                    if let Some(w) = hint_value_to_witness(sv, witness_kind) {
+                        let w = if is_ref_only || kind == HintArgKind::Reference {
+                            wrap_as_reference(w)
+                        } else {
+                            w
+                        };
+                        if seen.insert(w.to_string()) {
+                            merged_specials.push(w);
+                        }
                     }
                 }
                 for eh in &ah.edges {
-                    if let Some(w) = hint_value_to_witness(&eh.value, kind)
-                        && seen.insert(w.to_string())
-                    {
-                        merged_specials.push(w);
+                    if let Some(w) = hint_value_to_witness(&eh.value, witness_kind) {
+                        let w = if is_ref_only || kind == HintArgKind::Reference {
+                            wrap_as_reference(w)
+                        } else {
+                            w
+                        };
+                        if seen.insert(w.to_string()) {
+                            merged_specials.push(w);
+                        }
                     }
                 }
                 for sv in specials {
+                    let sv = if is_ref_only || kind == HintArgKind::Reference {
+                        wrap_as_reference(sv)
+                    } else {
+                        sv
+                    };
                     if seen.insert(sv.to_string()) {
                         merged_specials.push(sv);
                     }
@@ -926,6 +948,14 @@ fn sample_outside_range(lo: f64, hi: f64, kind: HintArgKind, rng: &mut Rng) -> f
     value2_safe_f64(candidate).unwrap_or(if below { -1.0 } else { 1.0 })
 }
 
+fn wrap_as_reference(val: Value) -> Value {
+    match val {
+        Value::Object(ref map) if map.contains_key("range") => val,
+        Value::Array(grid) => json!({ "range": grid }),
+        scalar => json!({ "range": [[scalar]] }),
+    }
+}
+
 fn gen_cell_range(rows: usize, cols: usize, rng: &mut Rng, mode: u8) -> Value {
     let rows = rows.clamp(1, 32);
     let cols = cols.clamp(1, (128 / rows).max(1).min(32));
@@ -934,6 +964,9 @@ fn gen_cell_range(rows: usize, cols: usize, rng: &mut Rng, mode: u8) -> Value {
 
 fn gen_arg_value(arg: &GenericArgSpec, rng: &mut Rng, mode: u8) -> Value {
     if arg.is_reference_only() || arg.kind == HintArgKind::Reference {
+        if !arg.specials.is_empty() && (mode == 0 || rng.chance(0.45)) {
+            return wrap_as_reference(rng.pick(&arg.specials).clone());
+        }
         let (rows, cols) = match mode {
             0 => (1 + rng.gen_range(4), 1),
             1 => (1 + rng.gen_range(3), 1 + rng.gen_range(3)),
@@ -943,6 +976,9 @@ fn gen_arg_value(arg: &GenericArgSpec, rng: &mut Rng, mode: u8) -> Value {
     }
     match arg.kind {
         HintArgKind::Array => {
+            if !arg.specials.is_empty() && (mode == 0 || rng.chance(0.45)) {
+                return rng.pick(&arg.specials).clone();
+            }
             let (rows, cols) = match mode {
                 0 => (1 + rng.gen_range(4), 1),
                 1 => (1 + rng.gen_range(3), 1 + rng.gen_range(3)),
@@ -1087,17 +1123,162 @@ fn enforce_relation(
             apply_param_const(args, arg_specs, i, op, c, rng);
         }
         (RelOperand::Const(c), RelOperand::Param(j)) => {
-            let flipped = match op {
-                RelOp::Lt => RelOp::Gt,
-                RelOp::Le => RelOp::Ge,
-                RelOp::Gt => RelOp::Lt,
-                RelOp::Ge => RelOp::Le,
-                RelOp::Eq => RelOp::Eq,
-                RelOp::Ne => RelOp::Ne,
-            };
-            apply_param_const(args, arg_specs, j, flipped, c, rng);
+            apply_param_const(args, arg_specs, j, flip_rel_op(op), c, rng);
+        }
+        (RelOperand::AbsParam(i), RelOperand::Const(c)) => {
+            apply_abs_param_const(args, arg_specs, i, op, c, rng);
+        }
+        (RelOperand::Const(c), RelOperand::AbsParam(j)) => {
+            apply_abs_param_const(args, arg_specs, j, flip_rel_op(op), c, rng);
+        }
+        (RelOperand::AbsParam(i), RelOperand::Param(j)) => {
+            if let Some(b) = read_arg_f64(args, j) {
+                apply_abs_param_const(args, arg_specs, i, op, b, rng);
+            }
+        }
+        (RelOperand::Param(i), RelOperand::AbsParam(j)) => {
+            if let Some(a) = read_arg_f64(args, i) {
+                apply_abs_param_const(args, arg_specs, j, flip_rel_op(op), a, rng);
+            }
+        }
+        (RelOperand::AbsParam(i), RelOperand::AbsParam(j)) => {
+            if i != j
+                && let Some(b) = read_arg_f64(args, j)
+            {
+                apply_abs_param_const(args, arg_specs, i, op, b.abs(), rng);
+            }
         }
         (RelOperand::Const(_), RelOperand::Const(_)) => {}
+    }
+}
+
+fn flip_rel_op(op: RelOp) -> RelOp {
+    match op {
+        RelOp::Lt => RelOp::Gt,
+        RelOp::Le => RelOp::Ge,
+        RelOp::Gt => RelOp::Lt,
+        RelOp::Ge => RelOp::Le,
+        RelOp::Eq => RelOp::Eq,
+        RelOp::Ne => RelOp::Ne,
+    }
+}
+
+fn apply_abs_param_const(
+    args: &mut [Value],
+    arg_specs: &[GenericArgSpec],
+    idx: usize,
+    op: RelOp,
+    c: f64,
+    rng: &mut Rng,
+) {
+    if idx >= args.len() || !c.is_finite() {
+        return;
+    }
+    let cur = read_arg_f64(args, idx).unwrap_or(0.0);
+    let abs_cur = cur.abs();
+    let is_int = matches!(
+        arg_specs[idx].kind,
+        HintArgKind::Integer | HintArgKind::DateSerial
+    );
+    let delta = if is_int {
+        rng.gen_i64_inclusive(1, 20) as f64
+    } else {
+        rng.log_uniform(-12, 3, false)
+    };
+    let sign = if rng.chance(0.5) { 1.0 } else { -1.0 };
+    let next = match op {
+        RelOp::Lt => {
+            if c <= 0.0 {
+                return;
+            }
+            if abs_cur < c {
+                cur
+            } else {
+                let mag = if is_int {
+                    let hi = (c.ceil() - 1.0).clamp(0.0, 1_000_000.0) as i64;
+                    rng.gen_i64_inclusive(0, hi) as f64
+                } else {
+                    let candidate = c * rng.next_f64() * 0.999_999;
+                    if candidate < c {
+                        candidate
+                    } else {
+                        step_ulps(c, -1, true).unwrap_or(0.0).max(0.0)
+                    }
+                };
+                if mag == 0.0 { 0.0 } else { sign * mag }
+            }
+        }
+        RelOp::Le => {
+            if c < 0.0 {
+                return;
+            }
+            if abs_cur <= c {
+                cur
+            } else if c == 0.0 {
+                0.0
+            } else if rng.chance(0.3) {
+                sign * if is_int { c.floor() } else { c }
+            } else {
+                let mag = if is_int {
+                    let hi = c.floor().clamp(0.0, 1_000_000.0) as i64;
+                    rng.gen_i64_inclusive(0, hi) as f64
+                } else {
+                    c * rng.next_f64()
+                };
+                if mag == 0.0 { 0.0 } else { sign * mag }
+            }
+        }
+        RelOp::Gt => {
+            if abs_cur > c {
+                cur
+            } else {
+                let base = c.max(0.0);
+                let mag = if is_int {
+                    base.floor() + delta
+                } else {
+                    base + delta
+                };
+                sign * mag
+            }
+        }
+        RelOp::Ge => {
+            if abs_cur >= c {
+                cur
+            } else {
+                let base = c.max(0.0);
+                let mag = if rng.chance(0.3) {
+                    if is_int { base.ceil() } else { base }
+                } else if is_int {
+                    base.ceil() + delta
+                } else {
+                    base + delta
+                };
+                if mag == 0.0 { 0.0 } else { sign * mag }
+            }
+        }
+        RelOp::Eq => {
+            if c < 0.0 {
+                return;
+            }
+            if abs_cur == c {
+                cur
+            } else if c == 0.0 {
+                0.0
+            } else {
+                sign * c
+            }
+        }
+        RelOp::Ne => {
+            if c >= 0.0 && abs_cur == c {
+                let mag = if is_int { c.floor() + delta } else { c + delta };
+                sign * mag
+            } else {
+                cur
+            }
+        }
+    };
+    if let Some(safe) = value2_safe_f64(next) {
+        args[idx] = hex_f64(safe);
     }
 }
 
@@ -1196,7 +1377,15 @@ pub fn generate_spec_region(merged: &MergedSpec, region: SpecRegionKind, rng: &m
                 let arg = &merged.args[i];
                 if !arg.edges.is_empty() && rng.chance(0.5) {
                     let edge = rng.pick(&arg.edges);
-                    if let Some(w) = hint_value_to_witness(&edge.value, arg.kind) {
+                    let wkind = if arg.is_reference_only() {
+                        HintArgKind::Reference
+                    } else {
+                        arg.kind
+                    };
+                    if let Some(w) = hint_value_to_witness(&edge.value, wkind) {
+                        if arg.is_reference_only() || arg.kind == HintArgKind::Reference {
+                            return wrap_as_reference(w);
+                        }
                         if rng.chance(0.35)
                             && let Some(bits) = parse_hex_bits(&w)
                         {
@@ -1594,5 +1783,159 @@ mod tests {
             validate_generated_args(&four_args, sortby.min_arity, sortby.max_arity, sortby.groups).is_err(),
             "SORTBY must reject incomplete 4-arg form"
         );
+    }
+
+    #[test]
+    fn array_and_reference_hint_specials_are_emitted_end_to_end() {
+        use super::super::domain::{DomainSpec, RegionKind};
+
+        let bank = super::super::hints::load_default_hints().expect("load default hints");
+        let empty_range = json!({ "range": [[Value::Null]] });
+
+        // All 7 functions with empty-array `[]` specials in committed hint files must actually
+        // emit `{"range": [[null]]}` via DomainSpec::generate.
+        for (func, arg_idx) in [
+            ("WORKDAY", 2usize),
+            ("WORKDAY.INTL", 3usize),
+            ("NETWORKDAYS", 2usize),
+            ("NETWORKDAYS.INTL", 3usize),
+            ("Z.TEST", 0usize),
+            ("ZTEST", 0usize),
+            ("ARRAYTOTEXT", 0usize),
+        ] {
+            let spec = DomainSpec::for_function_with_hints(func, &bank).unwrap();
+            let mut rng = Rng::from_seed_and_tag(20261124, func);
+            let mut saw_empty = false;
+            for _ in 0..300 {
+                let args = spec.generate(RegionKind::SpecHintAnchorsAndEdges, &mut rng);
+                validate_generated_args(&args, spec.min_arity, spec.max_arity, spec.merged.groups)
+                    .unwrap();
+                if args.get(arg_idx) == Some(&empty_range) {
+                    saw_empty = true;
+                    break;
+                }
+            }
+            assert!(
+                saw_empty,
+                "{func} arg[{arg_idx}] never emitted empty-array special {empty_range} via DomainSpec::generate"
+            );
+        }
+
+        // Reference parameter with hint specials must emit them as CellRange via DomainSpec::generate.
+        let ref_hint_json = r#"{
+  "family": "test-ref",
+  "version": 1,
+  "functions": {
+    "SUMIF": {
+      "args": [
+        {"name": "range", "kind": "reference", "specials": [[[10, 20], [30, 40]], []], "ranges": [], "edges": []}
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": ""
+    }
+  }
+}"#;
+        let file = HintBank::parse_file_str("test-ref.json", ref_hint_json).unwrap();
+        let ref_bank = HintBank::from_files(vec![("test-ref.json".into(), file)]).unwrap();
+        let sumif = DomainSpec::for_function_with_hints("SUMIF", &ref_bank).unwrap();
+        let expected_matrix = json!({
+            "range": [
+                [hex_f64(10.0), hex_f64(20.0)],
+                [hex_f64(30.0), hex_f64(40.0)]
+            ]
+        });
+        let mut rng = Rng::from_seed(77);
+        let mut saw_matrix = false;
+        let mut saw_blank = false;
+        for _ in 0..100 {
+            let args = sumif.generate(RegionKind::SpecHintAnchorsAndEdges, &mut rng);
+            validate_generated_args(&args, sumif.min_arity, sumif.max_arity, sumif.merged.groups)
+                .unwrap();
+            if args[0] == expected_matrix {
+                saw_matrix = true;
+            }
+            if args[0] == empty_range {
+                saw_blank = true;
+            }
+        }
+        assert!(saw_matrix, "SUMIF reference special 2x2 matrix was never emitted");
+        assert!(saw_blank, "SUMIF reference special [] was never emitted");
+    }
+
+    #[test]
+    fn abs_relations_and_error_edges_enforce_accurately() {
+        // 1. Conjunctive abs(rate) > 10 and abs(pr) == 5 must never contradict each other.
+        let conj_json = r#"{
+  "family": "test-abs-conj",
+  "version": 1,
+  "functions": {
+    "YIELD": {
+      "args": [
+        {"name": "rate", "kind": "number", "specials": [], "ranges": [[-50, 50]], "edges": []},
+        {"name": "pr", "kind": "number", "specials": [], "ranges": [[-20, 20]], "edges": []},
+        {"name": "redemption", "kind": "number", "specials": [], "ranges": [[-100, 100]], "edges": []}
+      ],
+      "relations": ["abs(rate) > 10", "abs(pr) == 5", "abs(redemption) < 2"],
+      "regimes": [],
+      "error_edges": [],
+      "notes": ""
+    }
+  }
+}"#;
+        let file = HintBank::parse_file_str("abs-conj.json", conj_json).unwrap();
+        let bank = HintBank::from_files(vec![("abs-conj.json".into(), file)]).unwrap();
+        let merged = build_merged_spec("YIELD", &bank).unwrap();
+        let mut rng = Rng::from_seed(123);
+        let mut saw_pos_rate = false;
+        let mut saw_neg_rate = false;
+        for _ in 0..80 {
+            let args = generate_spec_region(&merged, SpecRegionKind::GenericDomain, &mut rng);
+            let rate = f64::from_bits(parse_hex_bits(&args[2]).unwrap());
+            let pr = f64::from_bits(parse_hex_bits(&args[3]).unwrap());
+            let red = f64::from_bits(parse_hex_bits(&args[4]).unwrap());
+            assert!(rate.abs() > 10.0, "expected |rate| > 10, got {rate}");
+            if rate > 10.0 {
+                saw_pos_rate = true;
+            }
+            if rate < -10.0 {
+                saw_neg_rate = true;
+            }
+            assert!(
+                (pr.abs() - 5.0).abs() == 0.0,
+                "expected |pr| == 5, got {pr}"
+            );
+            assert!(red.abs() < 2.0, "expected |redemption| < 2, got {red}");
+        }
+        assert!(saw_pos_rate && saw_neg_rate, "expected both positive and negative branches of |rate| > 10");
+
+        // 2. Error edge `abs(rate) < 2` must enforce BOTH -2 < rate < 2 on every generated trigger.
+        let ee_json = r##"{
+  "family": "test-abs-ee",
+  "version": 1,
+  "functions": {
+    "YIELD": {
+      "args": [
+        {"name": "rate", "kind": "number", "specials": [], "ranges": [[-1000, 1000]], "edges": []}
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [{"when": "abs(rate) < 2", "excel": "#NUM!", "source": "test"}],
+      "notes": ""
+    }
+  }
+}"##;
+        let ee_file = HintBank::parse_file_str("abs-ee.json", ee_json).unwrap();
+        let ee_bank = HintBank::from_files(vec![("abs-ee.json".into(), ee_file)]).unwrap();
+        let ee_merged = build_merged_spec("YIELD", &ee_bank).unwrap();
+        for _ in 0..80 {
+            let args = generate_spec_region(&ee_merged, SpecRegionKind::HintErrorEdges, &mut rng);
+            let rate = f64::from_bits(parse_hex_bits(&args[2]).unwrap());
+            assert!(
+                rate.abs() < 2.0,
+                "error_edge abs(rate) < 2 produced out-of-bounds rate = {rate}"
+            );
+        }
     }
 }
