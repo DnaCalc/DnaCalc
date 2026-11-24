@@ -120,6 +120,28 @@ fn sort_and_unique_coerce_optional_logical_arguments() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn linest_and_logest_fit_paired_matrix_cells() {
+    let mut book = Book::new();
+    for (formula, slope, intercept) in [
+        ("=LINEST({3,5;7,9},{1,2;3,4},TRUE)", 2.0, 1.0),
+        ("=LINEST({3,5;7,9})", 2.0, 1.0),
+        (
+            "=LOGEST({3,5;7,9},{1,2;3,4})",
+            f64::from_bits(0x3ff7_01ea_96de_6646),
+            f64::from_bits(0x4001_e377_9b97_f4a6),
+        ),
+    ] {
+        assert_eq!(book.dynamic(formula), numbers(&[&[slope, intercept]]), "{formula}");
+    }
+    assert_eq!(book.dynamic("=LINEST({3,5;7,9},{1;2;3;4})"), e(W::Ref));
+    assert_eq!(
+        book.dynamic("=LOGEST({3,\"5\";7,9},{1,2;3,4})"),
+        e(W::Value),
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sequence_filter_sort_unique() {
     let mut book = data();
     assert_eq!(
