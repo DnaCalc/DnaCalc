@@ -1,0 +1,25 @@
+source_set	format	clean_labelled	triage_conflict	xlm_excluded	eligible_vba_only	unstaged	probed	project_admitted	package_refused	module_kind_refused	document_identity_refused	project_read_refused	external_project_refused	prep_error_with_unavailable_refs	other_project_refused	project_missing	host_error	no_json	process_signalled	timeout	macro_entries_measured	member_refusals_measured	c_api_refusals_measured
+_downloads	xlsm	1	0	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+closedxml	xlsm	2	0	0	2	0	2	1	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+euses	xls	298	0	0	298	0	298	213	2	19	0	14	0	38	8	0	0	0	4	0	0	0	0
+fuse-vba	xls	2024	0	1	2023	12	2011	1642	6	84	1	73	0	76	115	0	1	0	13	0	0	0	0
+github-vba-20261114	xlsm	1	0	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+github-vba-tools-20261114	xlsm	1	0	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+libreoffice	xls	46	0	0	46	0	46	22	1	4	0	0	0	10	8	0	0	0	1	0	0	0	0
+libreoffice	xlsm	11	0	0	11	0	11	6	0	5	0	0	0	0	0	0	0	0	0	0	0	0	0
+mendeley-vba-20261114	xlsm	4	0	0	4	0	4	3	0	0	0	0	0	0	1	0	0	0	0	0	0	0	0
+new-github	xla	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+new-github	xlam	21	7	0	14	0	14	0	14	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+new-github	xls	14	5	0	9	0	9	6	0	2	0	0	0	0	1	0	0	0	0	0	0	0	0
+new-github	xlsb	16	0	0	16	0	16	6	4	1	1	0	0	0	4	0	0	0	0	0	0	0	0
+new-github	xlsm	301	92	0	209	0	209	82	1	41	1	11	0	13	49	0	0	0	11	0	0	0	0
+new-github	xltm	3	0	0	3	0	3	3	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+new-zenodo	xlam	1	0	0	1	0	1	0	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+new-zenodo	xlsb	2	0	0	2	0	2	0	1	0	0	0	0	0	0	0	0	0	1	0	0	0	0
+new-zenodo	xlsm	79	0	0	79	0	79	13	0	10	0	4	0	4	10	0	0	0	38	0	0	0	0
+poi	xls	44	0	0	44	0	44	30	1	3	0	2	0	3	3	0	0	0	2	0	0	0	0
+poi	xlsb	1	0	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+poi	xlsm	9	0	0	9	0	9	7	0	0	0	1	0	0	1	0	0	0	0	0	0	0	0
+r2-windows-corpus	xlsb	176	0	1	175	0	175	10	0	150	0	0	0	10	5	0	0	0	0	0	0	0	0
+r2-windows-corpus	xlsm	316	0	0	316	0	316	18	0	270	0	0	0	18	10	0	0	0	0	0	0	0	0
+TOTAL		3372	105	2	3265	13	3252	2065	31	589	3	105	0	172	216	0	1	0	70	0	0	0	0

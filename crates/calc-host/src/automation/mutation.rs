@@ -490,6 +490,41 @@ impl WorkbookAutomation {
     ) -> Reply {
         self.mutate_pre(target, call, |_, _| Ok(PreWrite::Same), intent)
     }
+    /// Runs a started calculation to its end, as Excel's synchronous automation call does.
+    pub(super) fn settle(
+        session: &mut HostSession,
+        mut progress: Option<HostProgress>,
+        call: &Call<'_>,
+    ) -> Result<(), AutoError> {
+        loop {
+            match progress {
+                Some(HostProgress::Failed(ref e)) => {
+                    return Err(AutoError::not_modelled(
+                        format!("{} calculation failed: {e}", call.label()),
+                        OWNER,
+                    ));
+                }
+                Some(HostProgress::Waiting { .. } | HostProgress::Cancelled) => {
+                    return Err(AutoError::not_modelled(
+                        format!("{} synchronous calculation is unfinished", call.label()),
+                        OWNER,
+                    ));
+                }
+                _ => {}
+            }
+            if !session.has_pending_calculation() {
+                break;
+            }
+            progress = Some(session.advance_calculation());
+        }
+        if session.has_unfinished_calculation() {
+            return Err(AutoError::not_modelled(
+                format!("{} synchronous calculation is unfinished", call.label()),
+                OWNER,
+            ));
+        }
+        Ok(())
+    }
     fn mutate_pre(
         &self,
         target: &ObjectRef,
@@ -524,33 +559,7 @@ impl WorkbookAutomation {
                 }
                 progress = receipt.recalc;
             }
-            loop {
-                match progress {
-                    Some(HostProgress::Failed(ref e)) => {
-                        return Err(AutoError::not_modelled(
-                            format!("{} calculation failed: {e}", call.label()),
-                            OWNER,
-                        ));
-                    }
-                    Some(HostProgress::Waiting { .. } | HostProgress::Cancelled) => {
-                        return Err(AutoError::not_modelled(
-                            format!("{} synchronous calculation is unfinished", call.label()),
-                            OWNER,
-                        ));
-                    }
-                    _ => {}
-                }
-                if !session.has_pending_calculation() {
-                    break;
-                }
-                progress = Some(session.advance_calculation());
-            }
-            if session.has_unfinished_calculation() {
-                return Err(AutoError::not_modelled(
-                    format!("{} synchronous calculation is unfinished", call.label()),
-                    OWNER,
-                ));
-            }
+            Self::settle(session, progress, call)?;
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })
