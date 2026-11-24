@@ -1,0 +1,5826 @@
+{
+  "family": "dynamic-arrays-lambda",
+  "version": 1,
+  "functions": {
+    "BYCOL": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array precedes LAMBDA validation",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:302"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "held errors inside arrays/references pass through to the LAMBDA",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:319"
+            }
+          ]
+        },
+        {
+          "name": "lambda",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!",
+            "#DIV/0!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 1,
+              "why": "non-LAMBDA or wrong-arity LAMBDA returns #VALUE!; omitted arg (1-arg call) returns #CALC!",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:305"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_column_ref",
+          "how": "passes each column as a worksheet reference for single-area ref input, or 1-column array for literal array input",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:12"
+        },
+        {
+          "name": "singleton_array_result_spills_1xN",
+          "how": "spills 1xCols row; admits 1x1 LAMBDA array result, rejects larger arrays with #CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:33"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "missing lambda argument (1-arg call)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:306"
+        },
+        {
+          "when": "lambda argument is not a 1-arg LAMBDA (including scalar error)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
+        },
+        {
+          "when": "lambda returns multi-cell array (>1x1)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:543"
+        }
+      ],
+      "notes": "Applies 1-arg LAMBDA to each column and spills a 1-row array."
+    },
+    "BYROW": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array precedes LAMBDA validation",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:302"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "held errors inside arrays/references pass through to the LAMBDA",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:319"
+            }
+          ]
+        },
+        {
+          "name": "lambda",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!",
+            "#DIV/0!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 1,
+              "why": "non-LAMBDA or wrong-arity LAMBDA returns #VALUE!; omitted arg (1-arg call) returns #CALC!",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:305"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_row_ref",
+          "how": "passes each row as a worksheet reference for single-area ref input, or 1-row array for literal array input",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:12"
+        },
+        {
+          "name": "singleton_array_result_spills_Nx1",
+          "how": "spills Rowsx1 column; admits 1x1 LAMBDA array result, rejects larger arrays with #CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:33"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "missing lambda argument (1-arg call)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:306"
+        },
+        {
+          "when": "lambda argument is not a 1-arg LAMBDA (including scalar error)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
+        },
+        {
+          "when": "lambda returns multi-cell array (>1x1)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:543"
+        }
+      ],
+      "notes": "Applies 1-arg LAMBDA to each row and spills a 1-column array."
+    },
+    "CHOOSECOLS": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "col_num1",
+          "kind": "integer",
+          "specials": [
+            -4,
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            10,
+            [
+              1,
+              -1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ],
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ],
+            [
+              -3,
+              -1
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1,
+              "why": "negative col_num selects from the right end",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:186"
+            },
+            {
+              "value": 0,
+              "why": "0 or out-of-bounds selector returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
+            }
+          ]
+        },
+        {
+          "name": "col_num2",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            10,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ],
+            [
+              -3,
+              -1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "array_selector_flattening",
+          "how": "flattens array col_num arguments in row-major order and preserves duplicate/reordered columns",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:222"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "col_num1 == 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
+        },
+        {
+          "when": "abs(col_num1) > cols",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:193"
+        }
+      ],
+      "notes": "Selects 1-based columns (negative from right), flattening array selectors row-major."
+    },
+    "CHOOSEROWS": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "row_num1",
+          "kind": "integer",
+          "specials": [
+            -4,
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            10,
+            [
+              1,
+              -1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ],
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ],
+            [
+              -3,
+              -1
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1,
+              "why": "negative row_num selects from the bottom row",
+              "source": "handbook FN-CHOOSEROWS-001"
+            },
+            {
+              "value": 0,
+              "why": "0 or out-of-bounds selector returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
+            }
+          ]
+        },
+        {
+          "name": "row_num2",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            10,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              3
+            ],
+            [
+              -3,
+              -1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "array_selector_flattening",
+          "how": "flattens array row_num arguments in row-major order and preserves duplicate/reordered rows",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:222"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "row_num1 == 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:180"
+        },
+        {
+          "when": "abs(row_num1) > rows",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:193"
+        }
+      ],
+      "notes": "Selects 1-based rows (negative from bottom), flattening array selectors row-major."
+    },
+    "DROP": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            -5,
+            -1,
+            0,
+            1,
+            1.5,
+            2,
+            5,
+            null
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 drops no rows; dropping all rows yields #CALC!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:356"
+            },
+            {
+              "value": 1.5,
+              "why": "fractional non-integer count returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:136"
+            }
+          ]
+        },
+        {
+          "name": "columns",
+          "kind": "integer",
+          "specials": [
+            -5,
+            -1,
+            0,
+            1,
+            1.5,
+            2,
+            5,
+            null
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_reference_return",
+          "how": "single-area reference input returns a worksheet reference; array literal returns an array value",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:155"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "all rows or all columns dropped (result empty)",
+          "excel": "#CALC!",
+          "source": "handbook FN-FILTER-001"
+        },
+        {
+          "when": "fractional rows or columns",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:136"
+        }
+      ],
+      "notes": "Drops rows/columns from start (positive) or end (negative); returns reference for single-area ref."
+    },
+    "EXPAND": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error or 1-cell reference error propagates before padding",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:856"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "errors inside multi-cell arrays/references are preserved as cells",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:851"
+            }
+          ]
+        },
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            0,
+            -1,
+            1,
+            2,
+            3,
+            5,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              6
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "rows < 1 or rows < input height returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:422"
+            }
+          ]
+        },
+        {
+          "name": "columns",
+          "kind": "integer",
+          "specials": [
+            0,
+            -1,
+            1,
+            2,
+            3,
+            5,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              6
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "pad_with",
+          "kind": "any",
+          "specials": [
+            0,
+            "",
+            "pad",
+            true,
+            null,
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted pad_with defaults to #N/A",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:434"
+            },
+            {
+              "value": [
+                1,
+                2
+              ],
+              "why": "array value in pad_with returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:427"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "rows < 1 or columns < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:159"
+        },
+        {
+          "when": "target rows < array rows or target columns < array cols",
+          "excel": "#VALUE!",
+          "source": "handbook FN-FILTER-001"
+        },
+        {
+          "when": "pad_with is an array",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:427"
+        }
+      ],
+      "notes": "Pads array to target dimensions using pad_with (default #N/A); shrinking returns #VALUE!."
+    },
+    "FILTER": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "include",
+          "kind": "array",
+          "specials": [
+            [
+              true,
+              false,
+              true
+            ],
+            [
+              [
+                true
+              ],
+              [
+                false
+              ],
+              [
+                true
+              ]
+            ],
+            [
+              1,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0
+            ],
+            [
+              false,
+              false,
+              false
+            ],
+            [
+              1,
+              null,
+              -1
+            ],
+            [
+              true,
+              "#N/A",
+              false
+            ],
+            [
+              "bad",
+              true,
+              false
+            ],
+            [
+              [
+                true,
+                false
+              ],
+              [
+                false,
+                true
+              ]
+            ],
+            []
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "why": "all-false/zero/blank mask triggers if_empty or #CALC!",
+              "source": "handbook FN-FILTER-001"
+            },
+            {
+              "value": [
+                [
+                  true,
+                  false
+                ],
+                [
+                  false,
+                  true
+                ]
+              ],
+              "why": "2D include mask returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:666"
+            }
+          ]
+        },
+        {
+          "name": "if_empty",
+          "kind": "any",
+          "specials": [
+            "none",
+            0,
+            "",
+            null,
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank/empty if_empty supplied returns empty string ''; omitted returns #CALC!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:217"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "row_vs_col_filter_axis",
+          "how": "1-column include filters rows; 1-row include filters columns; mismatched length or 2D mask is #VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:630"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "no elements match include and if_empty is omitted",
+          "excel": "#CALC!",
+          "source": "handbook FN-FILTER-001"
+        },
+        {
+          "when": "include is 2D or length mismatches array along filtered axis",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:666"
+        }
+      ],
+      "notes": "Filters rows or columns by 1D boolean/numeric mask; returns if_empty or #CALC! when empty."
+    },
+    "GROUPBY": {
+      "args": [
+        {
+          "name": "row_fields",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                "Region"
+              ],
+              [
+                "East"
+              ],
+              [
+                "east"
+              ],
+              [
+                "West"
+              ],
+              [
+                "East"
+              ]
+            ],
+            [
+              [
+                "A",
+                1
+              ],
+              [
+                "A",
+                2
+              ],
+              [
+                "B",
+                1
+              ],
+              [
+                "a",
+                1
+              ]
+            ],
+            [
+              [
+                1
+              ],
+              [
+                null
+              ],
+              [
+                "#N/A"
+              ],
+              [
+                true
+              ],
+              [
+                "x"
+              ]
+            ],
+            [
+              "a",
+              "b"
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  "Region"
+                ],
+                [
+                  "East"
+                ],
+                [
+                  "east"
+                ],
+                [
+                  "West"
+                ],
+                [
+                  "East"
+                ]
+              ],
+              "why": "groups text case-insensitively and displays the first spelling encountered",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:7"
+            }
+          ]
+        },
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                "Sales"
+              ],
+              [
+                10
+              ],
+              [
+                20
+              ],
+              [
+                30
+              ],
+              [
+                40
+              ]
+            ],
+            [
+              [
+                10,
+                1
+              ],
+              [
+                20,
+                2
+              ],
+              [
+                30,
+                3
+              ],
+              [
+                40,
+                4
+              ]
+            ],
+            [
+              [
+                1
+              ],
+              [
+                null
+              ],
+              [
+                "#DIV/0!"
+              ],
+              [
+                2
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "function",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 1,
+              "why": "non-callable function argument returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:110"
+            }
+          ]
+        },
+        {
+          "name": "field_headers",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted detects header when values[0][0] is text and values[1][0] is number",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:480"
+            }
+          ]
+        },
+        {
+          "name": "total_depth",
+          "kind": "integer",
+          "specials": [
+            -3,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            null
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2,
+              "why": "depth +-2 requires >=2 row fields and field_relationship==0, else #VALUE!",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:607"
+            }
+          ]
+        },
+        {
+          "name": "sort_order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            -2,
+            10,
+            [
+              2,
+              -1
+            ],
+            null
+          ],
+          "ranges": [
+            [
+              -4,
+              4
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "filter_array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                true
+              ],
+              [
+                true
+              ],
+              [
+                false
+              ],
+              [
+                true
+              ]
+            ],
+            [
+              [
+                false
+              ],
+              [
+                false
+              ],
+              [
+                false
+              ],
+              [
+                false
+              ]
+            ],
+            [
+              true,
+              false,
+              true,
+              false
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  false
+                ],
+                [
+                  false
+                ],
+                [
+                  false
+                ],
+                [
+                  false
+                ]
+              ],
+              "why": "all-false filter_array returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:202"
+            }
+          ]
+        },
+        {
+          "name": "field_relationship",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "held_array_in_group_cell",
+          "how": "an array returned by the aggregate LAMBDA stays held inside its result cell (spills #VALUE! if unboxed)",
+          "source": "handbook FN-GROUPBY-001"
+        },
+        {
+          "name": "group_kind_sort_order",
+          "how": "sorts groups as numbers < text < logicals < errors < blanks",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:209"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field_headers < 0 or field_headers > 3",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:489"
+        },
+        {
+          "when": "total_depth < -2 or total_depth > 2",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:607"
+        },
+        {
+          "when": "field_relationship < 0 or field_relationship > 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:604"
+        },
+        {
+          "when": "sort_order == 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:148"
+        }
+      ],
+      "notes": "Groups rows by row_fields and aggregates values via function value/LAMBDA/HSTACK."
+    },
+    "HSTACK": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#VALUE!",
+              "why": "direct scalar error in any argument stops the call with that error",
+              "source": "handbook FN-HSTACK-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "na_padding_for_shorter_arrays",
+          "how": "shorter arrays are padded below with #N/A to match the tallest input",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1129"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Stacks arrays horizontally; pads shorter inputs with #N/A; all-callable args form a function row."
+    },
+    "ISOMITTED": {
+      "args": [
+        {
+          "name": "argument",
+          "kind": "any",
+          "specials": [
+            null,
+            0,
+            1,
+            "",
+            false,
+            true,
+            "#N/A",
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "returns TRUE only for an omitted LAMBDA parameter (Missing), FALSE for blank cell or value",
+              "source": "handbook FN-ISOMITTED-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "no_array_lifting",
+          "how": "does not lift over array arguments; returns FALSE for any supplied array or reference",
+          "source": "handbook FN-ISOMITTED-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Checks whether a LAMBDA parameter was omitted in the call."
+    },
+    "MAKEARRAY": {
+      "args": [
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "rows < 1 or non-integer returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:371"
+            }
+          ]
+        },
+        {
+          "name": "cols",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "lambda",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#REF!",
+              "why": "non-LAMBDA final argument (even an error) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:29"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "rows >= 1",
+        "cols >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "scalar_only_callback_result",
+          "how": "passes 1-based (row, col) to 2-arg LAMBDA; array result from LAMBDA returns #VALUE!",
+          "source": "handbook FN-MAKEARRAY-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "rows < 1 or cols < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:371"
+        },
+        {
+          "when": "lambda is not a 2-arg LAMBDA or returns an array",
+          "excel": "#VALUE!",
+          "source": "handbook FN-MAKEARRAY-001"
+        }
+      ],
+      "notes": "Constructs a rows x cols array via 2-arg LAMBDA(row, col)."
+    },
+    "MAP": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct first-source scalar error returns #N/A before LAMBDA validation",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:205"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "held errors inside arrays/references reach the LAMBDA",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:213"
+            }
+          ]
+        },
+        {
+          "name": "lambda_or_array2",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!",
+            [
+              10,
+              20
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 1,
+              "why": "non-LAMBDA final arg or scalar in 2nd+ source returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:215"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_item_passing",
+          "how": "single-area reference passes one-cell references into LAMBDA; array literal passes element values",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:9"
+        },
+        {
+          "name": "ragged_shape_na_padding",
+          "how": "output takes max rows x max cols; positions missing from any input become #N/A without calling LAMBDA",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "final arg is not a LAMBDA of matching arity",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
+        },
+        {
+          "when": "LAMBDA call returns an array (>1x1 or 1x1 array)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:33"
+        }
+      ],
+      "notes": "Maps N arrays/refs via N-arg LAMBDA; later sources must be arrays/references."
+    },
+    "PERCENTOF": {
+      "args": [
+        {
+          "name": "data_subset",
+          "kind": "array",
+          "specials": [
+            1,
+            [
+              1,
+              2
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              "text",
+              true
+            ],
+            [
+              1,
+              "#N/A"
+            ],
+            "1",
+            true,
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                1,
+                "#N/A"
+              ],
+              "why": "errors held inside arrays or references map to #NUM!",
+              "source": "crates/calc-func/src/catalogue/group_pivot.rs:44"
+            },
+            {
+              "value": "1",
+              "why": "direct scalar text/logical coerces like SUM",
+              "source": "handbook FN-PERCENTOF-001"
+            }
+          ]
+        },
+        {
+          "name": "data_all",
+          "kind": "array",
+          "specials": [
+            4,
+            0,
+            [
+              1,
+              2,
+              3,
+              4
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              1,
+              "#N/A"
+            ],
+            "a",
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 0,
+              "why": "SUM(data_all) == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/catalogue/group_pivot.rs:49"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_error_and_coercion",
+          "how": "direct scalars coerce (text/logical) and propagate direct errors; references/arrays count numbers only and turn held errors into #NUM!",
+          "source": "handbook FN-PERCENTOF-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "SUM(data_all) == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/group_pivot.rs:49"
+        },
+        {
+          "when": "error held inside data_subset or data_all array/reference",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/group_pivot.rs:44"
+        }
+      ],
+      "notes": "Computes SUM(data_subset) / SUM(data_all); used standalone or as GROUPBY/PIVOTBY function."
+    },
+    "PIVOTBY": {
+      "args": [
+        {
+          "name": "row_fields",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                "Region"
+              ],
+              [
+                "East"
+              ],
+              [
+                "east"
+              ],
+              [
+                "West"
+              ],
+              [
+                "East"
+              ]
+            ],
+            [
+              [
+                "A",
+                1
+              ],
+              [
+                "A",
+                2
+              ],
+              [
+                "B",
+                1
+              ],
+              [
+                "a",
+                1
+              ]
+            ],
+            [
+              [
+                1
+              ],
+              [
+                null
+              ],
+              [
+                "#N/A"
+              ],
+              [
+                true
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "col_fields",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                "Item"
+              ],
+              [
+                "Apples"
+              ],
+              [
+                "Pears"
+              ],
+              [
+                "Apples"
+              ],
+              [
+                "Pears"
+              ]
+            ],
+            [
+              [
+                "C1",
+                "S1"
+              ],
+              [
+                "C1",
+                "S2"
+              ],
+              [
+                "C2",
+                "S1"
+              ],
+              [
+                "C2",
+                "S2"
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                "Sales"
+              ],
+              [
+                10
+              ],
+              [
+                20
+              ],
+              [
+                30
+              ],
+              [
+                40
+              ]
+            ],
+            [
+              [
+                10,
+                1
+              ],
+              [
+                20,
+                2
+              ],
+              [
+                30,
+                3
+              ],
+              [
+                40,
+                4
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "function",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "field_headers",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "row_total_depth",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            null
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "row_sort_order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            -2,
+            null
+          ],
+          "ranges": [
+            [
+              -4,
+              4
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "col_total_depth",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            null
+          ],
+          "ranges": [
+            [
+              -2,
+              2
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "col_sort_order",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2,
+            -2,
+            null
+          ],
+          "ranges": [
+            [
+              -4,
+              4
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "filter_array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                true
+              ],
+              [
+                true
+              ],
+              [
+                false
+              ],
+              [
+                true
+              ]
+            ],
+            [
+              [
+                false
+              ],
+              [
+                false
+              ],
+              [
+                false
+              ],
+              [
+                false
+              ]
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "relative_to",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0=col, 1/3=row, 2=grand total, 4=col for 2-arg functions like PERCENTOF",
+              "source": "crates/calc-func/src/catalogue/grouping.rs:895"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "held_array_in_pivot_cell",
+          "how": "an array returned by the aggregate LAMBDA stays held inside its cell",
+          "source": "handbook FN-GROUPBY-001"
+        },
+        {
+          "name": "multi_value_blank_totals",
+          "how": "with multiple value columns and one function, total and subtotal columns are blank",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:906"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "field_headers < 0 or field_headers > 3",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:489"
+        },
+        {
+          "when": "relative_to < 0 or relative_to > 4",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:862"
+        },
+        {
+          "when": "row_sort_order == 0 or col_sort_order == 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/grouping.rs:148"
+        }
+      ],
+      "notes": "2D pivot table over row_fields and col_fields with configurable depths, sorting, and relative_to."
+    },
+    "REDUCE": {
+      "args": [
+        {
+          "name": "initial_value",
+          "kind": "any",
+          "specials": [
+            0,
+            1,
+            "",
+            null,
+            [
+              1,
+              2
+            ],
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted initial_value starts accumulator at 1st item (as ref if range) and iterates from 2nd",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:247"
+            }
+          ]
+        },
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "lambda",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "array_accumulator_allowed",
+          "how": "REDUCE allows its LAMBDA accumulator to hold and return a multi-cell array or reference",
+          "source": "handbook FN-REDUCE-001"
+        },
+        {
+          "name": "range_vs_literal_item_passing",
+          "how": "single-area reference passes one-cell references into LAMBDA; array literal passes values",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:9"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "lambda is not a 2-arg LAMBDA (including error value)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
+        }
+      ],
+      "notes": "Folds array row-major via 2-arg LAMBDA(acc, val); accumulator may hold arrays or references."
+    },
+    "SCAN": {
+      "args": [
+        {
+          "name": "initial_value",
+          "kind": "any",
+          "specials": [
+            0,
+            1,
+            "",
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted initial_value outputs 1st item's value as first element and folds from 2nd",
+              "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:248"
+            }
+          ]
+        },
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "lambda",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "multi_cell_result_rejected",
+          "how": "admits 1x1 array result from LAMBDA but rejects multi-cell array results with #CALC!",
+          "source": "handbook FN-REDUCE-001"
+        },
+        {
+          "name": "range_vs_literal_item_passing",
+          "how": "single-area reference passes one-cell references into LAMBDA; array literal passes values",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:9"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "lambda is not a 2-arg LAMBDA (including error value)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:146"
+        },
+        {
+          "when": "lambda returns multi-cell array (>1x1)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/lambda_helpers.rs:540"
+        }
+      ],
+      "notes": "Scans array row-major emitting intermediate accumulator values in matching shape."
+    },
+    "SEQUENCE": {
+      "args": [
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            0.5,
+            1,
+            1.9,
+            2,
+            4,
+            10,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "rows flooring to 0 returns #CALC!; negative returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1072"
+            },
+            {
+              "value": 0.5,
+              "why": "fractional dimensions truncate via date_integer_floor",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1069"
+            }
+          ]
+        },
+        {
+          "name": "columns",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            0.5,
+            1,
+            2,
+            4,
+            10,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "start",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            1,
+            -5,
+            0.5,
+            1e+307,
+            -1e+307,
+            null
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1e+307,
+              "why": "large start + step puts #NUM! only in overflowing cells while keeping earlier finite cells",
+              "source": "handbook FN-SEQUENCE-001"
+            }
+          ]
+        },
+        {
+          "name": "step",
+          "kind": "number",
+          "specials": [
+            0,
+            1,
+            -1,
+            0.5,
+            1e+307,
+            null
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "rows >= 1",
+        "columns >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "stored_addition_and_per_cell_overflow",
+          "how": "advances row-major by stored binary64 addition; overflowing cells become #NUM! without failing earlier cells",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1099"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "rows < 0 or columns < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1066"
+        },
+        {
+          "when": "trunc(rows) == 0 or trunc(columns) == 0",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:1072"
+        }
+      ],
+      "notes": "Generates rows x columns arithmetic progression; blank cell dim reads as 0 (#CALC!), omitted defaults to 1."
+    },
+    "SORTBY": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A",
+            [
+              "時",
+              "時時",
+              "時々",
+              "時a"
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                "時",
+                "時時",
+                "時々",
+                "時a"
+              ],
+              "why": "uses Excel collation including Japanese iteration marks and ties preserve input order",
+              "source": "handbook FN-SORTBY-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "errors inside arrays sort last after logicals rather than failing the call",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:290"
+            }
+          ]
+        },
+        {
+          "name": "by_array1",
+          "kind": "array",
+          "specials": [
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              [
+                3
+              ],
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              "Σ",
+              "ς",
+              "σ"
+            ],
+            [
+              1,
+              "a",
+              true
+            ],
+            [
+              1,
+              "#N/A",
+              2
+            ],
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#REF!",
+              "why": "scalar error argument in by_array or sort_order fails the whole call",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:495"
+            }
+          ]
+        },
+        {
+          "name": "sort_order1",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            1.5,
+            null,
+            "#REF!"
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "by_array2",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "sort_order2",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            null
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "total_kind_order_and_stable_merge",
+          "how": "sorts blank < 15-digit number < collation text < logical < error via stable merge sort",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "by_array1 shape does not match array rows/columns or mixes row and column axes",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:530"
+        },
+        {
+          "when": "sort_order1 != 1 and sort_order1 != -1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:262"
+        }
+      ],
+      "notes": "Pairs (by_array, sort_order) after first by_array; sorts stably by Excel total kind order."
+    },
+    "TAKE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            -5,
+            -1,
+            0,
+            1,
+            1.5,
+            2,
+            5,
+            null
+          ],
+          "ranges": [
+            [
+              -3,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "count == 0 returns #CALC!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:335"
+            }
+          ]
+        },
+        {
+          "name": "columns",
+          "kind": "integer",
+          "specials": [
+            -5,
+            -1,
+            0,
+            1,
+            1.5,
+            2,
+            5,
+            null
+          ],
+          "ranges": [
+            [
+              -3,
+              3
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_reference_return",
+          "how": "single-area reference input returns a worksheet reference; array literal returns an array value",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:155"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "rows == 0 or columns == 0",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:335"
+        },
+        {
+          "when": "fractional rows or columns",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:136"
+        }
+      ],
+      "notes": "Takes leading (positive) or trailing (negative) rows/columns; returns reference for single-area ref."
+    },
+    "TOCOL": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "ignore",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "0=keep all, 1=ignore blanks, 2=ignore errors, 3=ignore blanks and errors",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:450"
+            }
+          ]
+        },
+        {
+          "name": "scan_by_column",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= ignore <= 3"
+      ],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "multi_area_3d_flattening",
+          "how": "flattens multi-area 3-D references sheet by sheet into one column",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:76"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "ignore < 0 or ignore > 3",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:470"
+        },
+        {
+          "when": "all cells excluded by ignore mode",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:488"
+        }
+      ],
+      "notes": "Flattens array or 3-D reference into a single column with optional blank/error filtering."
+    },
+    "TOROW": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "ignore",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            1.5,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "0=keep all, 1=ignore blanks, 2=ignore errors, 3=ignore blanks and errors",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:450"
+            }
+          ]
+        },
+        {
+          "name": "scan_by_column",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= ignore <= 3"
+      ],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "multi_area_3d_flattening",
+          "how": "flattens multi-area 3-D references sheet by sheet into one row",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:76"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "ignore < 0 or ignore > 3",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:470"
+        },
+        {
+          "when": "all cells excluded by ignore mode",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:506"
+        }
+      ],
+      "notes": "Flattens array or 3-D reference into a single row with optional blank/error filtering."
+    },
+    "TRANSPOSE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "blank cell inside a reference transposes as 0.0 (whereas literal array keeps Empty)",
+              "source": "crates/calc-func/src/catalogue/host_facts.rs:506"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal_blank_to_zero",
+          "how": "blank cells in a worksheet reference become 0.0; non-reference input passes through; 1x1 returns scalar",
+          "source": "handbook FN-TRANSPOSE-001"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "input is an out-of-range @ implicit intersection reference",
+          "excel": "#VALUE!",
+          "source": "handbook FN-TRANSPOSE-001"
+        }
+      ],
+      "notes": "Swaps rows and columns of an array or reference; converts referenced blanks to 0."
+    },
+    "TRIMRANGE": {
+      "args": [
+        {
+          "name": "range",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                null,
+                null,
+                null
+              ],
+              [
+                null,
+                1,
+                2
+              ],
+              [
+                null,
+                null,
+                null
+              ]
+            ],
+            [
+              [
+                null,
+                "",
+                null
+              ]
+            ],
+            [
+              [
+                null,
+                null
+              ],
+              [
+                null,
+                null
+              ]
+            ],
+            [
+              1,
+              2,
+              null
+            ],
+            42,
+            "#N/A",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  null,
+                  ""
+                ]
+              ],
+              "why": "blank cells are trimmed while empty string '' is kept as a value",
+              "source": "crates/calc-func/src/catalogue/offset.rs:204"
+            },
+            {
+              "value": [
+                [
+                  null,
+                  null
+                ],
+                [
+                  null,
+                  null
+                ]
+              ],
+              "why": "all-blank range or array returns #REF!",
+              "source": "handbook FN-TRIMRANGE-001"
+            }
+          ]
+        },
+        {
+          "name": "trim_rows",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            2.9,
+            3,
+            4,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2.9,
+              "why": "fractional trim mode returns #VALUE! (must be integer 0..=3)",
+              "source": "crates/calc-func/src/catalogue/offset.rs:221"
+            }
+          ]
+        },
+        {
+          "name": "trim_cols",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            2.9,
+            3,
+            4,
+            null
+          ],
+          "ranges": [
+            [
+              0,
+              3
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "0 <= trim_rows <= 3",
+        "0 <= trim_cols <= 3"
+      ],
+      "regimes": [
+        {
+          "name": "range_vs_literal_reference_return",
+          "how": "returns a trimmed worksheet reference for single-area ref, trimmed array for array literal, or scalar passthrough",
+          "source": "crates/calc-func/src/catalogue/offset.rs:230"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "trim_rows < 0 or trim_rows > 3 or trim_cols < 0 or trim_cols > 3",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:223"
+        },
+        {
+          "when": "range contains no non-blank cells",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:274"
+        },
+        {
+          "when": "range is a multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:243"
+        }
+      ],
+      "notes": "Trims leading/trailing empty cells from range/array; modes 0=none, 1=leading, 2=trailing, 3=both."
+    },
+    "UNIQUE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A",
+            [
+              0.3,
+              0.30000000000000004,
+              0.0,
+              -0.0
+            ],
+            [
+              "a",
+              "A",
+              "b"
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                "a",
+                "A",
+                "b"
+              ],
+              "why": "text deduplicates case-insensitively keeping the first spelling",
+              "source": "handbook FN-UNIQUE-001"
+            },
+            {
+              "value": [
+                0.3,
+                0.30000000000000004,
+                0.0,
+                -0.0
+              ],
+              "why": "numbers compare by exact binary64 value (+0 equals -0, 0.3 != 0.1+0.2)",
+              "source": "handbook FN-UNIQUE-001"
+            }
+          ]
+        },
+        {
+          "name": "by_col",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "exactly_once",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": true,
+              "why": "keeps only rows/cols occurring once; if none remain returns #CALC!",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:707"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "held_reference_array_dedup",
+          "how": "arrays of references (from OFFSET/INDIRECT) deduplicate same-sheet refs by top row and render #VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:610"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "exactly_once is TRUE and all rows/columns appear more than once",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:707"
+        }
+      ],
+      "notes": "Returns unique rows/columns preserving first spelling; exact binary64 number equality."
+    },
+    "VSTACK": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#N/A",
+              "why": "direct scalar error in array argument stops the call before reshaping/spilling",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "error inside an array or reference cell stays as a cell element",
+              "source": "handbook FN-HSTACK-001"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells inside arrays/ranges test range-vs-literal blank preservation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types inside array test total type ordering and spill fidelity",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
+              1
+            ],
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#VALUE!",
+              "why": "direct scalar error in any argument stops the call with that error",
+              "source": "handbook FN-HSTACK-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        },
+        {
+          "name": "na_padding_for_narrower_arrays",
+          "how": "narrower arrays are padded on the right with #N/A to match the widest input",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:540"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Stacks arrays vertically; pads narrower inputs with #N/A."
+    },
+    "WRAPCOLS": {
+      "args": [
+        {
+          "name": "vector",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ],
+              [
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              "a",
+              "#DIV/0!"
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            42,
+            "#N/A",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  1,
+                  2
+                ],
+                [
+                  3,
+                  4
+                ]
+              ],
+              "why": "2D vector returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:561"
+            }
+          ]
+        },
+        {
+          "name": "wrap_count",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            10,
+            [
+              2,
+              3
+            ],
+            1.5
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "wrap_count < 1 returns #NUM!",
+              "source": "handbook FN-WRAPCOLS-001"
+            }
+          ]
+        },
+        {
+          "name": "pad_with",
+          "kind": "any",
+          "specials": [
+            0,
+            "",
+            "pad",
+            null,
+            "#N/A",
+            "#VALUE!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#VALUE!",
+              "why": "error in pad_with is ignored when vector divides evenly by wrap_count",
+              "source": "handbook FN-WRAPCOLS-001"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "wrap_count >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "wrap_count < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:551"
+        },
+        {
+          "when": "vector is 2D (>1 row and >1 col)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:561"
+        }
+      ],
+      "notes": "Wraps 1D vector into columns of height wrap_count, padding incomplete trailing column with pad_with."
+    },
+    "WRAPROWS": {
+      "args": [
+        {
+          "name": "vector",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ],
+              [
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              "a",
+              "#DIV/0!"
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            42,
+            "#N/A",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                [
+                  1,
+                  2
+                ],
+                [
+                  3,
+                  4
+                ]
+              ],
+              "why": "2D vector returns #VALUE!",
+              "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:561"
+            }
+          ]
+        },
+        {
+          "name": "wrap_count",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            10,
+            [
+              2,
+              3
+            ],
+            1.5
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "wrap_count < 1 returns #NUM!",
+              "source": "handbook FN-WRAPCOLS-001"
+            }
+          ]
+        },
+        {
+          "name": "pad_with",
+          "kind": "any",
+          "specials": [
+            0,
+            "",
+            "pad",
+            null,
+            "#N/A",
+            "#VALUE!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#VALUE!",
+              "why": "error in pad_with is ignored when vector divides evenly by wrap_count",
+              "source": "handbook FN-WRAPCOLS-001"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "wrap_count >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "range_vs_literal",
+          "how": "reference reads cell values into an array (blank cells as Empty); direct scalar error precedes array/reference cell errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:37"
+        },
+        {
+          "name": "spill_shape_and_mixed_types",
+          "how": "spills 1xN, Nx1, or MxN output preserving empty cells, mixed types, and held errors inside arrays",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "wrap_count < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:551"
+        },
+        {
+          "when": "vector is 2D (>1 row and >1 col)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/dynamic_array_reshape_family.rs:561"
+        }
+      ],
+      "notes": "Wraps 1D vector into rows of width wrap_count, padding incomplete trailing row with pad_with."
+    }
+  }
+}

@@ -3527,6 +3527,17 @@
             ],
             [
               [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ],
+            [
+              [
                 3,
                 20
               ],
@@ -3552,9 +3563,75 @@
               ]
             ],
             [
+              [
+                1,
+                null
+              ],
+              [
+                null,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [
+              1,
+              null,
+              2
+            ],
+            [
+              1,
+              "a",
+              true,
+              null
+            ],
+            [
+              "a",
+              "A",
+              "b",
+              "ß",
+              "ss"
+            ],
+            [
+              0,
+              -0.0,
+              0.3,
+              0.30000000000000004
+            ],
+            [
+              1,
+              "#DIV/0!",
+              2
+            ],
+            [
+              [
+                1,
+                "#N/A"
+              ],
+              [
+                2,
+                3
+              ]
+            ],
+            [
               1
             ],
-            null
+            [
+              [
+                1
+              ]
+            ],
+            [],
+            null,
+            "#N/A",
+            [
+              "時",
+              "時時",
+              "時々",
+              "時a"
+            ]
           ],
           "ranges": [],
           "edges": [
@@ -3566,6 +3643,44 @@
               ],
               "why": "by_col=FALSE sorts rows vertically; by_col=TRUE sorts columns horizontally",
               "source": "crates/calc-func/src/catalogue/arrays.rs:442"
+            },
+            {
+              "value": [
+                1,
+                null,
+                2
+              ],
+              "why": "empty cells sort first (before numbers, text, logicals, errors) and keep empty representation",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:286"
+            },
+            {
+              "value": [
+                1,
+                "a",
+                true,
+                null
+              ],
+              "why": "mixed types sort in fixed kind order: blank < number < text < logical < error",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+            },
+            {
+              "value": [
+                1,
+                "#DIV/0!",
+                2
+              ],
+              "why": "errors inside arrays/multi-cell refs sort last by error code; 1-cell ref error or scalar error propagates directly",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:434"
+            },
+            {
+              "value": [
+                "時",
+                "時時",
+                "時々",
+                "時a"
+              ],
+              "why": "Han iteration mark 々 sorts before Latin letters and before doubled character",
+              "source": "handbook FN-SORT-001"
             }
           ]
         },
@@ -3674,6 +3789,16 @@
           "name": "15digit_number_and_collation_text",
           "how": "compares numbers by Excel 15-digit rule and text ignoring case under host collation",
           "source": "crates/calc-func/src/catalogue/arrays.rs:14"
+        },
+        {
+          "name": "range_vs_literal",
+          "how": "1-cell reference error acts as scalar error; multi-cell ref and array literal keep held errors and empty cells",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:434"
+        },
+        {
+          "name": "spill_shape_and_empty_cells",
+          "how": "preserves input dimensions (1xN, Nx1, MxN) across vertical row sort or horizontal by_col sort",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:384"
         }
       ],
       "error_edges": [
