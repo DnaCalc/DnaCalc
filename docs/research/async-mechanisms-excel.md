@@ -169,3 +169,36 @@ value. Both calls returned status 0 with a zeroed output operand in the two comp
 and again after Esc cancelled a third site. The completed chain held 41/42. In the cancelled
 case both cells held #CALC! and state 2 after the two late returns. The wrapper retained the
 observations and reported baseline reset drift. See `ww12/xll-duplicate-final/`.
+
+### ww13 Windows follow-up, 2026-11-24
+
+Excel 16.0.20625.20108 ran on AMD Ryzen 7 4800H. The private desktop guards recorded zero
+windows on the user's desktop.
+
+- **dc-26wtr.1.1.** In Manual, `Save` with `CalculateBeforeSave=true` began at state 2
+  with the old 7/8 values. It called the XLL with 11 and returned after `xlAsyncReturn`,
+  with 11/12 at state 0. In the F9 overwrite arm, the COM setter began during the XLL
+  call and returned after the callback and CalculationEnded. The cell stayed 123
+  afterward. This establishes the setter's blocking order. The edit itself was not
+  observed before release. Cold PrintWindow again completed after the callback.
+  See `ww13/xll` and `ww13/xll-edit`. The latter's receipt rejected the JSON-lines
+  output as a single JSON object after the measurements had been written.
+- **dc-26wtr.1.1.** The inline `xlAsyncReturn` fixture produced 67/68 with a plain
+  operand and 68/69 with `xlbitDLLFree`. In both flagged entries Excel called
+  `xlAutoFree12` with the same operand pointer on the same thread, before
+  `xlAsyncReturn` returned status 0. See `ww13/xll-abi-traced/{native.tsv,results.json}`.
+  Other return types, the in-flight state and display, and the remaining save cases
+  stay open.
+- **dc-26wtr.1.2.** On the first open, both `ConnectData` calls received
+  `GetNewValues=True`. Returning False for one topic gave it 0 while the True topic
+  showed 1. Both reached 44. The workbook reopened in a fresh Manual process at
+  state 2 with 44 in both cells. Calculate reconnected with `GetNewValues=False` on
+  both calls. The provider returned False and True respectively. The first sampled
+  cells after Calculate both showed 42 after `RefreshData`. Manual held 42 and
+  Automatic showed 44. See `ww13/rtd` and `ww13/rtd-reopen`. The fixture keys were
+  removed and verified absent. Fault, interruption, persisted throttle and wrapper
+  cases remain open.
+- **dc-26wtr.1.3–.1.5.** The Office.js catalog returned `#NAME?` in two fresh private
+  sessions, including the scalar Promise control in the second session. Those runs
+  provide no Promise, stream or mixed-provider timing result. See `ww13/office-js`
+  and `ww13/office-retry`.

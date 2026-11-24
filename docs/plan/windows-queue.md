@@ -44,13 +44,32 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   half-cutoff and 0.9-cutoff arms returned `#NUM!`. At the modeled `-2^-1026` cutoff
   and at 1.1 times its magnitude the answer was `#DIV/0!`. The positive controls
   returned `#DIV/0!` below the positive normal boundary. The ww12 Win64 judge matched
-  all 66 live answers. Exact inputs and result traces are in `ww13/rate`. Instruction
-  tracing and the shared fractional power differences remain dc-j9k.79.
+  all 66 live answers. A Win64 trace at `40cdb0bac` separately recorded one iteration
+  and the divisor DAZ path at the exact negative cutoff. Below it, the trace took the
+  negative flat-change nudge and returned `#NUM!`. Exact inputs and traces are in
+  `ww13/rate`. Excel instruction tracing and shared fractional power remain dc-j9k.79.
 - **dc-tey4.5.** The rf1 pin, native ByVal regression, Wasabi replay and five direct
   Riff Excel calls are covered by ww11. The reviewed Windows run matched 53/53 Wasabi
   project cases on each backend. CalcVBA's full `scripts/check.ps1` stopped at the
   native-template `items_after_test_module` Clippy lint. The separate ByVal test
   passed. The wrapper-only routes and direct Riff syntax results remain dc-tey4.5.
+- **dc-26wtr.1.1–.1.5.** The Manual XLL Save calculated before writing. The inline
+  return and DLLFree controls completed, with same-thread `xlAutoFree12`. A fresh
+  RTD reopen passed `GetNewValues=False` on both topics. The Office.js catalog
+  returned `#NAME?` on both fresh attempts. See [the async measurements](../research/async-mechanisms-excel.md).
+- **dc-6332.10.** The final retained ww12 trace has 6,899 `xlfRegister` entries and
+  6,898 returns. It never completed the registration stream or produced endpoint
+  results. The earlier untraced endpoints still stand. See `ww13/x2pool-audit.txt`.
+- **dc-1nbp.6.** Excel's held A2 moved to A3 with value 20 when row 1 was inserted.
+  Deleting the held row returned `0x800A01A8` for Address and Empty for Value2.
+  Renaming the sheet kept the held value on the original object. Reusing the name
+  resolved to 99 on the new sheet. Both Excel and the retained Win64 COM build
+  returned distinct IUnknown identities for separate A2 lookups. DNA Calc refused
+  both structural edits with `0x800A03EC` (dc-1nbp.5). In Excel, the BeforeSave sink
+  wrote 2 in memory. Cancel kept the old file at 1 or suppressed the new SaveAs path.
+  Allowing the save wrote 2. See `ww13/range`, `ww13/range-dna`, `ww13/save` and
+  `ww13/bank-rows/range-structural-edit.json`. The UI Undo and remaining E3–E5 arms
+  stay dc-1nbp.6.
 
 ### ww12 Windows replay, 2026-11-24
 
