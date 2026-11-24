@@ -118,8 +118,7 @@
           ]
         ]
       ],
-      "expected_bits": "error:Div0",
-      "calc_func": "error:Num"
+      "expected_bits": "error:Div0"
     },
     {
       "id": "I3-dc-j9k-104-huge-root-vs-num",
