@@ -1658,4 +1658,34 @@ mod tests {
         assert_eq!(eval("BETA.DIST", &[f(0.5), n(HALF_DBL_MIN), n(HALF_DBL_MIN), b(true)]), Ok(HALF));
         assert_eq!(eval("BETA.DIST", &[f(0.5), n(HALF_DBL_MIN_M1), n(HALF_DBL_MIN_M1), b(true)]), Err(WorksheetErrorCode::Div0));
     }
+
+    /// Excel 16.0.20625.20108 (Carbon cb27 Suite 1 slice `S1c`, frozen SHA-256 964e2f89, dc-j9k.70):
+    /// `beta_newton_lower` tracks `best_x` strictly (`err_df < best_err`, never `<=`); inclusive
+    /// `<=` misses all six controls by 6..70 ULP while strict `<` matches bit-for-bit.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb27_beta_inv_strict_best_x_tracking_matches_excel() {
+        for &(p, a, b, expected) in &[
+            (0x1de0_3555_483e_620d_u64, 0x4022_0e03_d862_2520_u64, 0x4037_dfc6_5d46_ba22_u64, 0x3bfd_a9c0_f87f_7053_u64),
+            (0x3fd6_40a0_9004_2cba, 0x3f9e_8510_8520_2739, 0x3f91_f8b2_60a8_1df8, 0x3fba_5d1c_4c2c_3d69),
+            (0x1732_b404_f85d_297d, 0x4021_fbb4_03e2_bb31, 0x402f_848e_8444_f6a1, 0x3b43_5315_6989_d5fb),
+            (0x16e1_9787_931a_ac56, 0x4026_992d_bdf9_a33a, 0x4024_5091_25e7_a26b, 0x3c33_98e6_5c13_2b53),
+            (0x1760_d407_b0f5_58ac, 0x401c_ec99_e261_0085, 0x4005_b667_57c0_1ba4, 0x3a48_7582_314f_0a02),
+            (0x1a22_596f_f09d_c9d8, 0x400a_05ef_6e09_7bc7, 0x4029_e6c7_5fda_f8a3, 0x3422_60ae_ec18_da23),
+        ] {
+            let got = beta_inv_kernel(
+                f64::from_bits(p),
+                f64::from_bits(a),
+                f64::from_bits(b),
+                0.0,
+                1.0,
+            )
+            .unwrap()
+            .to_bits();
+            assert_eq!(
+                got, expected,
+                "cb27 S1c BETA.INV({p:#018x}, {a:#018x}, {b:#018x}): got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+    }
 }

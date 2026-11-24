@@ -252,12 +252,19 @@ pub fn discover_local_frontiers(
     let mut frontiers = Vec::new();
     let mut seen_frontiers: HashSet<String> = HashSet::new();
 
-    // Candidate numeric axes: all scalar numeric params PLUS first 3 rows of numeric arrays (e.g. IRR values[0..3]).
+    // Candidate numeric axes: all scalar numeric params PLUS first 3 rows of numeric arrays/ranges
+    // (e.g. IRR values[0..3], SUMIF/AVERAGEIF/VLOOKUP range cells).
     let mut probe_axes: Vec<(usize, Option<(usize, usize)>)> = Vec::new();
     for (i, p) in spec.params.iter().enumerate() {
-        if p.kind == super::domain::ParamKind::ArrayNumeric {
+        if matches!(
+            p.kind,
+            super::domain::ParamKind::ArrayNumeric | super::domain::ParamKind::CellRange
+        ) {
             for r in 0..3 {
                 probe_axes.push((i, Some((r, 0))));
+            }
+            if p.kind == super::domain::ParamKind::CellRange {
+                probe_axes.push((i, Some((0, 1))));
             }
         } else {
             probe_axes.push((i, None));
@@ -927,5 +934,34 @@ mod tests {
                 "discover_local_frontiers emitted a DNA-fault frontier: {f:?}"
             );
         }
+    }
+
+    #[test]
+    fn discover_local_frontiers_probes_cells_inside_cell_range_arguments() {
+        let spec = DomainSpec::for_function("AVERAGEIF").unwrap();
+        let ctx = touchstone_bulk_context();
+        let seed_args = vec![json!({"range": [[hex_f64(1.0)]]}), json!(">0")];
+        let (pred, trace, oc) = evaluate_traced("AVERAGEIF", &seed_args, &ctx);
+        let seeds = vec![FuzzCase {
+            id: "seed-averageif".to_owned(),
+            region: "special_values".to_owned(),
+            round: 0,
+            args: seed_args,
+            prediction: pred,
+            trace,
+            outcome_class: oc,
+        }];
+        let mut rng = Rng::from_seed_and_tag(11, "AVERAGEIF");
+        let frontiers = discover_local_frontiers(&spec, &seeds, &ctx, 4, &mut rng);
+        let found = frontiers.iter().any(|f| {
+            f.axis == 0
+                && f.axis_cell == Some((0, 0))
+                && f.dna_lo_bits == 0.0_f64.to_bits()
+                && f.dna_hi_bits == f64::MIN_POSITIVE.to_bits()
+        });
+        assert!(
+            found,
+            "expected discover_local_frontiers to probe CellRange cell (0,0); got {frontiers:?}"
+        );
     }
 }

@@ -777,7 +777,10 @@ fn hash_name(function: &str) -> String {
 
 fn fuzz_section(root: &Path) -> Result<String, String> {
     let table = source(root, FUZZ_STATUS)?;
-    let rows = crate::fuzz::coverage::parse_tsv(&table)?;
+    let rows: Vec<_> = crate::fuzz::coverage::parse_tsv(&table)?
+        .into_iter()
+        .filter(|r| r.cases_swept > 0)
+        .collect();
     let mut html = String::from("<h2>Per-function fuzz coverage</h2>");
     if rows.is_empty() {
         html.push_str(
@@ -1107,6 +1110,33 @@ mod tests {
         assert!(html.contains(r#"href="/fun/function-bank.html#NORM-S-INV">NORM.S.INV</a>"#));
         assert!(html.contains("<td>1,200</td><td>1,150</td><td>50</td><td>5</td><td>7 / 8</td><td>12</td><td>3</td><td>2026-11-24</td>"));
         assert!(html.contains("<td>500</td><td>500</td><td>0</td><td>0</td><td>6 / 6</td><td>4</td><td>0</td><td>2026-11-23</td>"));
+
+        // A 0-case row (e.g. statically skipped function) must NOT inflate the fuzzed function count.
+        let mut with_zero = rows;
+        with_zero.push(crate::fuzz::coverage::FuzzCoverageRow {
+            function: "RAND".to_owned(),
+            sweeps: 1,
+            cases_swept: 0,
+            matched: 0,
+            failed: 0,
+            harness_faults: 0,
+            regions_covered: 0,
+            regions_total: 0,
+            frontiers_mapped: 0,
+            open_clusters: 0,
+            last_sweep_date: "2026-11-24".to_owned(),
+            last_sweep_commit: "abcdef1234".to_owned(),
+        });
+        fs::write(&tsv_path, crate::fuzz::coverage::format_tsv(&with_zero)).unwrap();
+        let html_zero = fuzz_section(&base).unwrap();
+        assert!(
+            html_zero.contains("2 functions · 16 frontiers"),
+            "0-case skipped row must not inflate fuzzed function count: {html_zero}"
+        );
+        assert!(
+            !html_zero.contains("#RAND"),
+            "0-case skipped row must not render in /status swept table: {html_zero}"
+        );
 
         let _ = fs::remove_dir_all(&base);
     }

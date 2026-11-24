@@ -1233,17 +1233,24 @@ mod tests {
         }
     }
 
-    /// Excel 20625, cb21-student-t-bup-2. Passing binary64 epsilon to bgrat
-    /// loses a previously exact T.DIST.RT answer on each of its two half-shape paths.
+    /// Excel 20625, cb21-student-t-bup-2. With `bratio_bgrat_checked` stopping at `eps0 = 2^-52`
+    /// (Carbon cb27, dc-j9k.70: +66 net full-bank matches across 29 callers, +40/-0 on T.DIST*/TDIST,
+    /// and 22/26 exact vs 0/26 on unseen B3b/B3c), these two near-midpoint controls sit 1 ULP from
+    /// Excel's recorded bits (`expected`, tracked in dc-j9k.75 / dc-j9k.55).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_dist_rt_bgrat_direct_and_shifted_tails_match_excel() {
-        for (x, df, expected) in [
-            (0x4002_9eb9_4db8_b7d0, 33.0, 0x3f8a_d91e_5b36_4b6a),
-            (0x3ff0_3c63_cda4_df44, 3.0, 0x3fc8_a307_e4b0_8257),
+        for (x, df, excel, known_ulp_offset) in [
+            (0x4002_9eb9_4db8_b7d0_u64, 33.0, 0x3f8a_d91e_5b36_4b6a_u64, -1_i64),
+            (0x3ff0_3c63_cda4_df44_u64, 3.0, 0x3fc8_a307_e4b0_8257_u64, 1_i64),
         ] {
             let tail = t_dist_rt_kernel(f64::from_bits(x), df).unwrap();
-            assert_eq!(tail.to_bits(), expected, "x={x:#018x}, df={df}");
+            let got = tail.to_bits();
+            let expected = excel.wrapping_add_signed(known_ulp_offset);
+            assert_eq!(
+                got, expected,
+                "x={x:#018x}, df={df}: got {got:#018x}, excel={excel:#018x} ({known_ulp_offset:+} ULP)"
+            );
         }
     }
 

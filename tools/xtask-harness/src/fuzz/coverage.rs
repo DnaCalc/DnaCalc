@@ -456,10 +456,10 @@ pub fn collect_from_records(
             continue;
         }
         let total_asked = summary["total_asked"].as_u64().unwrap_or(0);
-        let skipped = summary["stop_reason"]
-            .as_str()
-            .is_some_and(|r| r.starts_with("skipped:"));
-        if total_asked == 0 && !skipped {
+        // Statically skipped functions (total_asked == 0, e.g. skipped:volatile) swept zero
+        // cases and must not inflate fuzz-status.tsv or fuzzed-function counts. Round-0
+        // DNA-fault skipped runs have total_asked > 0 and continue to be recorded honestly.
+        if total_asked == 0 {
             continue;
         }
         let function = summary["function"]
@@ -1378,6 +1378,78 @@ mod tests {
             fv.open_clusters, 1,
             "tracked open bead in issues.jsonl must remain open until closed"
         );
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn statically_skipped_zero_case_functions_are_excluded_from_coverage() {
+        let base = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-cov-skip-zero-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&base);
+        let rand_dir = base.join("rand-skipped");
+        let off_dir = base.join("offset-dna-fault");
+        fs::create_dir_all(&rand_dir).unwrap();
+        fs::create_dir_all(&off_dir).unwrap();
+
+        // Statically skipped volatile function (0 cases asked): must NOT appear in fuzz-status.tsv.
+        fs::write(
+            rand_dir.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "RAND",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 0,
+                "total_matched": 0,
+                "total_mismatched": 0,
+                "total_harness_fault": 0,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "stop_reason": "skipped:volatile",
+                "case_list_sha256": "rand-empty",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        // Round-0 DNA-fault skipped function (64 cases asked, 64 harness faults): MUST still appear.
+        fs::write(
+            off_dir.join("summary.json"),
+            serde_json::to_string_pretty(&json!({
+                "function": "OFFSET",
+                "seed": 1,
+                "dry_run": false,
+                "total_asked": 64,
+                "total_matched": 0,
+                "total_mismatched": 0,
+                "total_harness_fault": 64,
+                "total_unread": 0,
+                "total_crashed": 0,
+                "stop_reason": "skipped:dna-fault:WitnessReferencePosition",
+                "case_list_sha256": "offset-r0",
+                "finished_utc": "2026-11-24T12:00:00Z",
+                "clusters": []
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let rows = collect_from_records(&[base.clone()], None).unwrap();
+        assert!(
+            !rows.iter().any(|r| r.function == "RAND"),
+            "0-case statically skipped function RAND must not inflate fuzz-status.tsv: {rows:?}"
+        );
+        let offset = rows
+            .iter()
+            .find(|r| r.function == "OFFSET")
+            .expect("64-case DNA-fault skipped OFFSET must still be recorded");
+        assert_eq!(offset.cases_swept, 64);
+        assert_eq!(offset.failed, 64);
+        assert_eq!(offset.harness_faults, 64);
 
         let _ = fs::remove_dir_all(&base);
     }

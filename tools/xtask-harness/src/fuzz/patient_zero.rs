@@ -526,8 +526,11 @@ pub fn build_patient_zero_suite(
         if primary_cases.len() >= 1 + pz_cfg.neighbourhood_budget {
             break;
         }
-        let cell = if param.kind == ParamKind::ArrayNumeric {
-            Some((0, 0))
+        let cell = if matches!(param.kind, ParamKind::ArrayNumeric | ParamKind::CellRange) {
+            [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0)]
+                .into_iter()
+                .find(|&rc| get_axis_bits(&seed.args, axis, Some(rc)).is_some())
+                .or(Some((0, 0)))
         } else {
             None
         };
@@ -1519,8 +1522,11 @@ pub fn execute_resweep(cfg: &FuzzConfig, recipe_path: &Path) -> Result<ResweepVe
         (
             false,
             format!(
-                "primary-region-not-clean ({} mismatched, {} unread, {} crashed)",
-                primary_counts.mismatched, primary_counts.unread, primary_counts.crashed
+                "primary-region-not-clean ({} mismatched, {} harness_fault, {} unread, {} crashed)",
+                primary_counts.mismatched,
+                primary_counts.harness_fault,
+                primary_counts.unread,
+                primary_counts.crashed,
             ),
         )
     } else if siblings_failed > 0 {
@@ -2159,6 +2165,156 @@ mod tests {
         assert!(phase2.can_close, "clean verbatim resweep should close: {}", phase2.closure_reason);
         assert_eq!(phase2.primary.asked, phase1.primary.asked);
         assert_eq!(phase2.siblings["PV"].asked, initial.siblings["PV"].asked);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resweep_closure_reason_reports_harness_fault_count() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-pz-hf-reason-{port}"));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        let _broker = thread::spawn(move || {
+            let ctx = touchstone_bulk_context();
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => {
+                        write_frame(
+                            &mut stream,
+                            b'H',
+                            &json!({"v": "touchstone/1", "server": "fake-pz-hf", "envs": {"e1": {"engine": "excel"}}}),
+                        );
+                    }
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_owned();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                let text = flat[r].as_str().unwrap();
+                                ity.push('t');
+                                iv.push(Value::String(text.to_owned()));
+                                let (dna, _, _) =
+                                    evaluate_traced("VALUE", &[Value::String(text.to_owned())], &ctx);
+                                if let Some(hex) = dna.strip_prefix("0x") {
+                                    ty.push('n');
+                                    out_v.push(Value::String(hex.to_owned()));
+                                } else {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#VALUE!".to_owned()));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        // Persisted resweep suite for VALUE:
+        // - patient_zero ("123") matches Excel (123.0)
+        // - second primary case ("1,234") triggers DNA-side fault:NotImplemented (locale required)
+        let recipe_dir = tmp.join("recipe");
+        fs::create_dir_all(&recipe_dir).unwrap();
+        let recipe_path = recipe_dir.join("resweep-recipe.json");
+        let recipe = ResweepRecipe {
+            format: RESWEEP_RECIPE_FORMAT.to_owned(),
+            generator_version: GENERATOR_VERSION.to_owned(),
+            created_utc: "2026-11-24T12:00:00Z".to_owned(),
+            lane: "fz3".to_owned(),
+            function: "VALUE".to_owned(),
+            patient_zero: PatientZeroSeed {
+                id: "pz-value-hf".to_owned(),
+                function: "VALUE".to_owned(),
+                args: vec![json!("123")],
+                expected: None,
+                cluster_key: None,
+            },
+            target_route_mask: "0x0".to_owned(),
+            target_predicate: "number".to_owned(),
+            target_outcome_class: "number".to_owned(),
+            siblings: vec![],
+            seed: 1,
+            neighbourhood_budget: 2,
+            same_route_budget: 0,
+            sibling_budget: 0,
+            fractal_depth: 0,
+            max_frontiers: 0,
+            frontier_window: 0,
+            initial_primary_asked: 2,
+            initial_primary_discrepancies: 1,
+            initial_sibling_discrepancies: BTreeMap::new(),
+            initial_clusters: vec![],
+            cases_file: Some("resweep-cases.json".to_owned()),
+            cases_sha256: None,
+        };
+        fs::write(&recipe_path, serde_json::to_string_pretty(&recipe).unwrap()).unwrap();
+        let cases_doc = ResweepCaseList {
+            format: RESWEEP_CASES_FORMAT.to_owned(),
+            function: "VALUE".to_owned(),
+            primary_cases: vec![
+                PersistedResweepCase {
+                    id: "pz-VALUE-000001".to_owned(),
+                    region: "pz:seed".to_owned(),
+                    args: vec![json!("123")],
+                },
+                PersistedResweepCase {
+                    id: "pz-VALUE-000002".to_owned(),
+                    region: "pz:locale".to_owned(),
+                    args: vec![json!("1\u{00a0}234.5")],
+                },
+            ],
+            sibling_cases: BTreeMap::new(),
+            cases_sha256: "test".to_owned(),
+        };
+        fs::write(
+            recipe_dir.join("resweep-cases.json"),
+            serde_json::to_string_pretty(&cases_doc).unwrap(),
+        )
+        .unwrap();
+
+        let mut cfg = FuzzConfig::default_for("VALUE");
+        cfg.endpoint = Some(endpoint);
+        cfg.out_dir = tmp.join("resweep-out");
+        let verdict = execute_resweep(&cfg, &recipe_path).expect("resweep VALUE");
+        assert!(!verdict.can_close);
+        assert_eq!(verdict.primary.mismatched, 0);
+        assert_eq!(verdict.primary.harness_fault, 1);
+        assert!(
+            verdict.closure_reason.contains("1 harness_fault"),
+            "closure_reason must report harness_fault count, got {:?}",
+            verdict.closure_reason
+        );
 
         let _ = fs::remove_dir_all(&tmp);
     }
