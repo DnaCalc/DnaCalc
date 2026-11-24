@@ -107,6 +107,8 @@ pub enum ReportItem {
     SeriesCollection(String),
     /// One series of a chart (chart part, zero-based place across the plots).
     Series(String, u32),
+    /// One axis of a chart: chart part and `XlAxisType` (1 category, 2 value). (dc-oxh8w.11)
+    Axis(String, u8),
     /// A chart as a member of `Shapes` (`Shapes.AddChart2`, `Shapes(n)`), by chart part.
     ChartShape(String),
     /// The worksheet's shapes collection.

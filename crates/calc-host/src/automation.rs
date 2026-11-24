@@ -39,6 +39,7 @@ mod mutation;
 mod navigation;
 mod print;
 mod report;
+mod chart_axes;
 mod report_draw;
 mod structure;
 mod value;
