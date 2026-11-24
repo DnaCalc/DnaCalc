@@ -256,7 +256,10 @@ fn map_auto_error(model: &dyn ObjectModel, error: AutoError) -> api::TypedFault 
             fault(1004, description)
         }
         AutoError::Excel { number, description } => fault(*number, description.clone()),
-        AutoError::PolicyDenied { number, .. } => fault(*number, error.description()),
+        AutoError::PolicyDenied { number, capability, subject } => {
+            crate::events::record_object_denial(capability, subject.clone());
+            fault(*number, error.description())
+        }
         AutoError::Status(hr) => {
             let number = match *hr {
                 DISP_E_TYPEMISMATCH => 13,

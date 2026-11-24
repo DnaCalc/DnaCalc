@@ -13,10 +13,10 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 pub use calcvba_lib::{Prediction, PredictionSource};
-use calcvba_hal::{AuditHandle, HostServices, PolicyHost};
+use calcvba_hal::{HostServices, PolicyHost};
 // CalcVBA keeps `PolicyMode::Safe` for DNA Calc's Guarded until the post-vx1 rename (dc-8ovd).
 pub use calcvba_hal::{
-    AuditSnapshot, Capability, CapabilitySet, Decision, POLICY_DENIED_CODE, PolicyMode,
+    AuditHandle, AuditSnapshot, Capability, CapabilitySet, Decision, POLICY_DENIED_CODE, PolicyMode,
 };
 
 struct Active {
@@ -111,6 +111,11 @@ pub(crate) fn compilation_scope(
 /// The policy in force on this thread.
 pub fn thread_policy() -> Option<PolicyMode> {
     ACTIVE.with(|active| active.borrow().as_ref().map(|a| a.mode))
+}
+
+/// The audit log of the policy in force on this thread, to drain later from another scope.
+pub fn current_audit() -> Option<AuditHandle> {
+    ACTIVE.with(|active| active.borrow().as_ref().map(|a| a.audit.clone()))
 }
 
 /// Take the requests logged on this thread since the last drain (empty with no policy set).
