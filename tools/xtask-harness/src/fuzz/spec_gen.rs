@@ -3,7 +3,8 @@
 
 use super::hints::{
     EdgeHint, ErrorEdgeHint, HintArgKind, HintBank, ParsedRelation, RegimeHint, RelOp, RelOperand,
-    hint_value_to_witness, parse_relations, value2_safe_f64,
+    hint_value_to_witness, normalize_hint_param_name, parse_error_edge_triggers, parse_relations,
+    value2_safe_f64,
 };
 use super::oracle::json_arg_to_touchstone;
 use super::rng::{Rng, hex_f64, is_value2_exact, parse_hex_bits, pow2_f64, step_ulps};
@@ -736,13 +737,34 @@ pub fn build_merged_spec(function: &str, hints: &HintBank) -> Result<MergedSpec,
         let mut hinted = false;
 
         if let Some(lh) = loaded_hint {
-            let pnorm = normalize_name(&pname);
-            let matched_hint = lh
-                .hint
-                .args
-                .iter()
-                .find(|ah| normalize_name(&ah.name) == pnorm)
-                .or_else(|| lh.hint.args.get(i).filter(|_| i < named_len));
+            let pnorm = normalize_hint_param_name(&pname);
+            // Match strictly by normalized parameter name (no silent positional fallback).
+            // For repeating/variadic slots (`i >= named_len`), prefer a numbered hint like
+            // `logical2`/`criteria2` matching the slot's 1-based repeat index, falling back to
+            // the declared repeating parameter name `pnorm`.
+            let numbered_name = (i >= named_len).then(|| {
+                let stem = pnorm.trim_end_matches(|c: char| c.is_ascii_digit());
+                let rep_num = if let Some(g) = decl.groups() {
+                    1 + (i.saturating_sub(g.from)) / g.size
+                } else {
+                    i + 1
+                };
+                format!("{stem}{rep_num}")
+            });
+            let matched_hint = numbered_name
+                .as_deref()
+                .and_then(|nn| {
+                    lh.hint
+                        .args
+                        .iter()
+                        .find(|ah| normalize_hint_param_name(&ah.name) == nn)
+                })
+                .or_else(|| {
+                    lh.hint
+                        .args
+                        .iter()
+                        .find(|ah| normalize_hint_param_name(&ah.name) == pnorm)
+                });
             if let Some(ah) = matched_hint {
                 hinted = true;
                 kind = ah.kind;
@@ -809,7 +831,7 @@ pub fn build_merged_spec(function: &str, hints: &HintBank) -> Result<MergedSpec,
 
     let parsed_relations = parse_relations(&relations, &arg_names);
     let error_whens: Vec<String> = error_edges.iter().map(|e| e.when.clone()).collect();
-    let parsed_error_edges = parse_relations(&error_whens, &arg_names);
+    let parsed_error_edges = parse_error_edge_triggers(&error_whens, &arg_names);
 
     Ok(MergedSpec {
         function: name,

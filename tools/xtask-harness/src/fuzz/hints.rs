@@ -247,6 +247,52 @@ impl HintBank {
     }
 }
 
+/// Normalize a parameter name for matching hint entries against `calc-catalogue` declarations.
+pub fn normalize_hint_param_name(s: &str) -> String {
+    s.trim()
+        .trim_matches(|c| matches!(c, '[' | ']' | '(' | ')' | '`' | '"' | '\''))
+        .to_ascii_lowercase()
+        .replace([' ', '-'], "_")
+}
+
+fn strip_trailing_digits(s: &str) -> &str {
+    s.trim_end_matches(|c: char| c.is_ascii_digit())
+}
+
+/// Check whether a hint argument name matches a parameter declared on `decl` in `calc-catalogue`
+/// (exact normalized match, or numbered repeat of a variadic/grouped parameter such as `logical2`
+/// for `logical1` when `decl.arity().max > decl.parameters().len()`).
+pub fn hint_param_matches_decl(decl: calc_catalogue::DeclarationRef, arg_name: &str) -> bool {
+    let norm = normalize_hint_param_name(arg_name);
+    if norm.is_empty() {
+        return false;
+    }
+    let params = decl.parameters();
+    if params
+        .iter()
+        .any(|p| normalize_hint_param_name(p.name) == norm)
+    {
+        return true;
+    }
+    // Allow numbered repeats (e.g. `logical2`, `criteria_range2`, `criteria2`) on variadic/grouped
+    // declarations when the stem matches a repeating parameter in `decl.parameters()`.
+    if decl.arity().max > params.len() && !params.is_empty() {
+        let stem = strip_trailing_digits(&norm);
+        if !stem.is_empty() && stem.len() < norm.len() {
+            let repeat_start = decl
+                .groups()
+                .map_or(params.len().saturating_sub(1), |g| g.from.min(params.len() - 1));
+            if params[repeat_start..]
+                .iter()
+                .any(|p| strip_trailing_digits(&normalize_hint_param_name(p.name)) == stem)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Validate a single parsed [`HintFile`] against schema rules and `calc-catalogue`.
 pub fn validate_hint_file(source_label: &str, file: &HintFile) -> Result<(), String> {
     if file.version != HINT_SCHEMA_VERSION {
@@ -260,15 +306,22 @@ pub fn validate_hint_file(source_label: &str, file: &HintFile) -> Result<(), Str
     }
     for (raw_name, fhint) in &file.functions {
         let name = raw_name.trim().to_ascii_uppercase();
-        if calc_catalogue::named(&name).is_none() {
+        let Some(decl) = calc_catalogue::named(&name) else {
             return Err(format!(
                 "{source_label}: function {raw_name:?} is not a named call in calc-catalogue"
             ));
-        }
+        };
         for arg in &fhint.args {
             if arg.name.trim().is_empty() {
                 return Err(format!(
                     "{source_label}: {name} has an argument hint with an empty name"
+                ));
+            }
+            if !hint_param_matches_decl(decl, &arg.name) {
+                let valid: Vec<&str> = decl.parameters().iter().map(|p| p.name).collect();
+                return Err(format!(
+                    "{source_label}: {name} has unknown parameter hint {:?} (calc-catalogue parameters: {:?})",
+                    arg.name, valid
                 ));
             }
             for &[lo, hi] in &arg.ranges {
@@ -343,6 +396,38 @@ pub fn value2_safe_f64(v: f64) -> Option<f64> {
     Some(v)
 }
 
+fn hint_cell_to_witness(cell: &Value, kind: HintArgKind) -> Option<Value> {
+    match cell {
+        Value::Null => Some(Value::Null),
+        Value::Bool(b) => Some(Value::Bool(*b)),
+        Value::Number(n) => {
+            let f = value2_safe_f64(n.as_f64()?)?;
+            Some(hex_f64(f))
+        }
+        Value::String(s) => {
+            if let Some(bits) = parse_hex_bits(cell) {
+                let safe = value2_safe_f64(f64::from_bits(bits))?;
+                return Some(hex_f64(safe));
+            }
+            if !matches!(kind, HintArgKind::Text | HintArgKind::Criteria)
+                && let Some(err_var) = normalize_excel_error_literal(s)
+            {
+                return Some(json!({ "error": err_var }));
+            }
+            Some(Value::String(s.clone()))
+        }
+        Value::Object(map) => {
+            if let Some(code) = map.get("error").and_then(Value::as_str) {
+                let norm = normalize_excel_error_literal(code).unwrap_or(code);
+                Some(json!({ "error": norm }))
+            } else {
+                None
+            }
+        }
+        Value::Array(_) => None,
+    }
+}
+
 /// Convert a JSON value from a hint file's `specials` or `edges[i].value` into a WitnessSet /
 /// Touchstone-compatible argument JSON value.
 pub fn hint_value_to_witness(value: &Value, kind: HintArgKind) -> Option<Value> {
@@ -354,8 +439,9 @@ pub fn hint_value_to_witness(value: &Value, kind: HintArgKind) -> Option<Value> 
             Some(hex_f64(f))
         }
         Value::String(s) => {
-            if parse_hex_bits(value).is_some() {
-                return Some(value.clone());
+            if let Some(bits) = parse_hex_bits(value) {
+                let safe = value2_safe_f64(f64::from_bits(bits))?;
+                return Some(hex_f64(safe));
             }
             if !matches!(kind, HintArgKind::Text | HintArgKind::Criteria)
                 && let Some(err_var) = normalize_excel_error_literal(s)
@@ -380,15 +466,17 @@ pub fn hint_value_to_witness(value: &Value, kind: HintArgKind) -> Option<Value> 
         }
         Value::Array(items) => {
             if items.is_empty() {
-                return None;
+                // Represent an empty array/holiday list hint as a 1x1 blank worksheet range,
+                // which encodes cleanly in both Touchstone `r1x1` and DNA Calc witness replay.
+                return Some(json!({ "range": [[Value::Null]] }));
             }
-            // Convert 1D or 2D numeric arrays into rectangular 2D hex-f64 arrays for Touchstone.
+            let mut rows: Vec<Vec<Value>> = Vec::with_capacity(items.len());
+            let mut all_numeric = true;
             if items[0].is_array() {
                 let cols = items[0].as_array()?.len();
                 if cols == 0 {
-                    return None;
+                    return Some(json!({ "range": [[Value::Null]] }));
                 }
-                let mut rows = Vec::with_capacity(items.len());
                 for row in items {
                     let cells = row.as_array()?;
                     if cells.len() != cols {
@@ -396,29 +484,31 @@ pub fn hint_value_to_witness(value: &Value, kind: HintArgKind) -> Option<Value> 
                     }
                     let mut out_row = Vec::with_capacity(cols);
                     for cell in cells {
-                        let f = json_number_or_hex(cell)?;
-                        out_row.push(hex_f64(f));
+                        let converted = hint_cell_to_witness(cell, kind)?;
+                        if parse_hex_bits(&converted).is_none() {
+                            all_numeric = false;
+                        }
+                        out_row.push(converted);
                     }
-                    rows.push(Value::Array(out_row));
+                    rows.push(out_row);
                 }
-                Some(Value::Array(rows))
             } else {
-                let mut rows = Vec::with_capacity(items.len());
                 for cell in items {
-                    let f = json_number_or_hex(cell)?;
-                    rows.push(Value::Array(vec![hex_f64(f)]));
+                    let converted = hint_cell_to_witness(cell, kind)?;
+                    if parse_hex_bits(&converted).is_none() {
+                        all_numeric = false;
+                    }
+                    rows.push(vec![converted]);
                 }
-                Some(Value::Array(rows))
+            }
+            let grid: Vec<Value> = rows.into_iter().map(Value::Array).collect();
+            if all_numeric && kind != HintArgKind::Reference {
+                Some(Value::Array(grid))
+            } else {
+                Some(json!({ "range": grid }))
             }
         }
     }
-}
-
-fn json_number_or_hex(v: &Value) -> Option<f64> {
-    if let Some(bits) = parse_hex_bits(v) {
-        return value2_safe_f64(f64::from_bits(bits));
-    }
-    value2_safe_f64(v.as_f64()?)
 }
 
 /// Comparison operator inside a parsed hint relation or `error_edges[i].when` clause.
@@ -461,41 +551,167 @@ pub struct ParsedRelation {
     pub rhs: RelOperand,
 }
 
-fn normalize_param_ident(s: &str) -> String {
-    s.trim()
-        .trim_matches(|c| matches!(c, '[' | ']' | '(' | ')' | '`' | '"' | '\''))
-        .to_ascii_lowercase()
-        .replace([' ', '-'], "_")
+fn strip_fn_wrapper<'a>(token: &'a str, wrappers: &[&str]) -> (&'a str, bool) {
+    let mut cur = token.trim();
+    let mut had_abs = false;
+    loop {
+        let lower = cur.to_ascii_lowercase();
+        let mut unwrapped = false;
+        for w in wrappers {
+            if lower.starts_with(w) && cur.ends_with(')') {
+                let inner = &cur[w.len()..cur.len() - 1];
+                // Ensure parentheses inside `inner` stay balanced so `abs(a) + abs(b)` isn't mis-stripped.
+                let mut depth = 0i32;
+                let mut balanced = true;
+                for ch in inner.chars() {
+                    match ch {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth < 0 {
+                                balanced = false;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if balanced && depth == 0 {
+                    if *w == "abs(" {
+                        had_abs = true;
+                    }
+                    cur = inner.trim();
+                    unwrapped = true;
+                    break;
+                }
+            }
+        }
+        if !unwrapped {
+            break;
+        }
+    }
+    (cur, had_abs)
 }
 
-fn resolve_operand(token: &str, arg_names: &[String]) -> Option<RelOperand> {
-    let trimmed = token
-        .trim()
-        .trim_matches(|c| matches!(c, '(' | ')' | '`'));
+fn resolve_operand_with_abs(token: &str, arg_names: &[String]) -> Option<(RelOperand, bool)> {
+    let trimmed = token.trim();
     if trimmed.is_empty() {
         return None;
     }
-    if let Ok(num) = trimmed.parse::<f64>()
+    let (inner, is_abs) = strip_fn_wrapper(trimmed, &["abs(", "trunc(", "int(", "floor(", "ceil(", "round("]);
+    let clean = inner.trim().trim_matches(|c| matches!(c, '(' | ')' | '`'));
+    if clean.is_empty() {
+        return None;
+    }
+    if let Ok(num) = clean.parse::<f64>()
         && num.is_finite()
     {
-        return Some(RelOperand::Const(num));
+        return Some((RelOperand::Const(if is_abs { num.abs() } else { num }), false));
     }
-    let norm = normalize_param_ident(trimmed);
+    let norm = normalize_hint_param_name(clean);
     for (idx, name) in arg_names.iter().enumerate() {
-        if normalize_param_ident(name) == norm {
-            return Some(RelOperand::Param(idx));
+        if normalize_hint_param_name(name) == norm {
+            return Some((RelOperand::Param(idx), is_abs));
         }
     }
     None
 }
 
-/// Parse simple binary and chained comparisons (`a < b`, `issue < settlement < maturity`,
-/// `rate >= 0`, `0 < prob < 1`, `x != 0`) against `arg_names`.
-/// Free-text clauses that cannot be parsed as numeric comparisons are silently skipped.
-pub fn parse_relation_expr(expr: &str, arg_names: &[String]) -> Vec<ParsedRelation> {
+fn flip_op(op: RelOp) -> RelOp {
+    match op {
+        RelOp::Lt => RelOp::Gt,
+        RelOp::Le => RelOp::Ge,
+        RelOp::Gt => RelOp::Lt,
+        RelOp::Ge => RelOp::Le,
+        RelOp::Eq => RelOp::Eq,
+        RelOp::Ne => RelOp::Ne,
+    }
+}
+
+fn emit_abs_relation(out: &mut Vec<ParsedRelation>, param: RelOperand, op: RelOp, bound: f64) {
+    if !bound.is_finite() {
+        return;
+    }
+    match op {
+        RelOp::Gt => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Gt, rhs: RelOperand::Const(bound) });
+            if bound >= 0.0 {
+                out.push(ParsedRelation { lhs: param, op: RelOp::Lt, rhs: RelOperand::Const(-bound) });
+            }
+        }
+        RelOp::Ge => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Ge, rhs: RelOperand::Const(bound) });
+            if bound >= 0.0 {
+                out.push(ParsedRelation { lhs: param, op: RelOp::Le, rhs: RelOperand::Const(-bound) });
+            }
+        }
+        RelOp::Lt if bound > 0.0 => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Gt, rhs: RelOperand::Const(-bound) });
+            out.push(ParsedRelation { lhs: param, op: RelOp::Lt, rhs: RelOperand::Const(bound) });
+        }
+        RelOp::Le if bound >= 0.0 => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Ge, rhs: RelOperand::Const(-bound) });
+            out.push(ParsedRelation { lhs: param, op: RelOp::Le, rhs: RelOperand::Const(bound) });
+        }
+        RelOp::Eq if bound >= 0.0 => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Eq, rhs: RelOperand::Const(bound) });
+            if bound > 0.0 {
+                out.push(ParsedRelation { lhs: param, op: RelOp::Eq, rhs: RelOperand::Const(-bound) });
+            }
+        }
+        RelOp::Ne if bound >= 0.0 => {
+            out.push(ParsedRelation { lhs: param, op: RelOp::Ne, rhs: RelOperand::Const(bound) });
+            if bound > 0.0 {
+                out.push(ParsedRelation { lhs: param, op: RelOp::Ne, rhs: RelOperand::Const(-bound) });
+            }
+        }
+        _ => {}
+    }
+}
+
+fn split_clauses(expr: &str, split_or: bool) -> Vec<String> {
+    let mut parts: Vec<String> = expr
+        .split([';', ','])
+        .flat_map(|s| s.split("&&"))
+        .map(str::to_owned)
+        .collect();
+    if split_or {
+        parts = parts
+            .into_iter()
+            .flat_map(|s| s.split("||").map(str::to_owned).collect::<Vec<_>>())
+            .collect();
+    }
     let mut out = Vec::new();
-    // Split compound clauses joined by `and` / `&&` / `,` / `;`
-    for clause in expr.split([';', ',']).flat_map(|s| s.split("&&")).flat_map(|s| s.split(" and ")) {
+    for part in parts {
+        // Split on case-insensitive word-delimited ` and ` (and ` or ` when `split_or`).
+        let mut cur = String::new();
+        let words: Vec<&str> = part.split_whitespace().collect();
+        for w in words {
+            let lw = w.to_ascii_lowercase();
+            let is_sep = lw == "and" || (split_or && lw == "or");
+            if is_sep {
+                if !cur.trim().is_empty() {
+                    out.push(cur.trim().to_owned());
+                    cur.clear();
+                }
+            } else {
+                if !cur.is_empty() {
+                    cur.push(' ');
+                }
+                cur.push_str(w);
+            }
+        }
+        if !cur.trim().is_empty() {
+            out.push(cur.trim().to_owned());
+        }
+    }
+    out
+}
+
+fn parse_relation_expr_impl(expr: &str, arg_names: &[String], split_or: bool) -> Vec<ParsedRelation> {
+    let mut out = Vec::new();
+    let mut last_lhs: Option<(RelOperand, bool)> = None;
+    for clause in split_clauses(expr, split_or) {
         let chars: Vec<char> = clause.chars().collect();
         let mut tokens: Vec<String> = Vec::new();
         let mut ops: Vec<RelOp> = Vec::new();
@@ -533,12 +749,27 @@ pub fn parse_relation_expr(expr: &str, arg_names: &[String]) -> Vec<ParsedRelati
             continue;
         }
         for pair_idx in 0..ops.len() {
-            if let (Some(lhs), Some(rhs)) = (
-                resolve_operand(&tokens[pair_idx], arg_names),
-                resolve_operand(&tokens[pair_idx + 1], arg_names),
-            ) {
-                // Keep only constraints referencing at least one parameter.
-                if matches!(lhs, RelOperand::Param(_)) || matches!(rhs, RelOperand::Param(_)) {
+            let lhs_opt = if pair_idx == 0 && tokens[0].trim().is_empty() {
+                last_lhs
+            } else {
+                resolve_operand_with_abs(&tokens[pair_idx], arg_names)
+            };
+            let rhs_opt = resolve_operand_with_abs(&tokens[pair_idx + 1], arg_names);
+            if let (Some((lhs, lhs_abs)), Some((rhs, rhs_abs))) = (lhs_opt, rhs_opt) {
+                if pair_idx == 0 && matches!(lhs, RelOperand::Param(_)) {
+                    last_lhs = Some((lhs, lhs_abs));
+                }
+                if lhs_abs
+                    && matches!(lhs, RelOperand::Param(_))
+                    && let RelOperand::Const(c) = rhs
+                {
+                    emit_abs_relation(&mut out, lhs, ops[pair_idx], c);
+                } else if rhs_abs
+                    && matches!(rhs, RelOperand::Param(_))
+                    && let RelOperand::Const(c) = lhs
+                {
+                    emit_abs_relation(&mut out, rhs, flip_op(ops[pair_idx]), c);
+                } else if matches!(lhs, RelOperand::Param(_)) || matches!(rhs, RelOperand::Param(_)) {
                     out.push(ParsedRelation {
                         lhs,
                         op: ops[pair_idx],
@@ -551,11 +782,30 @@ pub fn parse_relation_expr(expr: &str, arg_names: &[String]) -> Vec<ParsedRelati
     out
 }
 
-/// Parse all relations in `relations` against `arg_names`.
+/// Parse simple, compound, and wrapped comparisons (`a < b`, `issue < settlement < maturity`,
+/// `year < 0 or year >= 10000`, `abs(x) > 32767`, `trunc(end_date) < trunc(start_date)`,
+/// `serial_number < 0 or >= 2958466`) against `arg_names`.
+/// Free-text clauses that cannot be parsed as numeric comparisons are silently skipped.
+pub fn parse_relation_expr(expr: &str, arg_names: &[String]) -> Vec<ParsedRelation> {
+    parse_relation_expr_impl(expr, arg_names, true)
+}
+
+/// Parse conjunctive `relations` entries (splitting on `and`/`&&`/`,`/`;`, never enforcing
+/// mutually exclusive `or` branches simultaneously).
 pub fn parse_relations(relations: &[String], arg_names: &[String]) -> Vec<ParsedRelation> {
     let mut out = Vec::new();
     for r in relations {
-        out.extend(parse_relation_expr(r, arg_names));
+        out.extend(parse_relation_expr_impl(r, arg_names, false));
+    }
+    out
+}
+
+/// Parse `error_edges[i].when` trigger conditions (splitting `or`/`||` disjuncts into individual
+/// candidate triggers for `HintErrorEdges`).
+pub fn parse_error_edge_triggers(whens: &[String], arg_names: &[String]) -> Vec<ParsedRelation> {
+    let mut out = Vec::new();
+    for w in whens {
+        out.extend(parse_relation_expr_impl(w, arg_names, true));
     }
     out
 }
@@ -710,5 +960,107 @@ mod tests {
         assert!(bank.get("YIELD").is_some());
         assert!(bank.get("PMT").is_some());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn validates_param_names_hex_literals_non_numeric_arrays_and_compound_error_edges() {
+        // 1. Unknown parameter name must be rejected by validate_hint_file.
+        let bad_param = SAMPLE_YIELD_HINTS.replace("\"settlement\"", "\"not_a_yield_param\"");
+        assert!(
+            HintBank::parse_file_str("bad-param.json", &bad_param).is_err(),
+            "validate_hint_file must reject parameter names not in calc-catalogue"
+        );
+
+        // 2. Hex literals must pass through value2_safe_f64 (flush subnormals & -0.0, reject Inf/NaN).
+        assert_eq!(
+            hint_value_to_witness(&json!("0x8000000000000000"), HintArgKind::Number),
+            Some(json!("0x0000000000000000")),
+            "-0.0 hex literal must normalize to +0.0"
+        );
+        assert_eq!(
+            hint_value_to_witness(&json!("0x0000000000000001"), HintArgKind::Number),
+            Some(hex_f64(f64::MIN_POSITIVE)),
+            "subnormal hex literal must flush to MIN_POSITIVE"
+        );
+        assert_eq!(
+            hint_value_to_witness(&json!("0x7ff0000000000000"), HintArgKind::Number),
+            None,
+            "+Inf hex literal must be rejected"
+        );
+        assert_eq!(
+            hint_value_to_witness(&json!("0x7ff8000000000000"), HintArgKind::Number),
+            None,
+            "NaN hex literal must be rejected"
+        );
+
+        // 3. Non-numeric and empty array specials must convert to Touchstone-compatible values (not None).
+        for (raw, kind) in [
+            (json!([]), HintArgKind::Array),
+            (json!([true, false]), HintArgKind::Logical),
+            (json!(["-", ","]), HintArgKind::Text),
+            (json!([1, null, true]), HintArgKind::Any),
+        ] {
+            let w = hint_value_to_witness(&raw, kind)
+                .unwrap_or_else(|| panic!("expected non-None witness for {raw} ({kind:?})"));
+            super::super::oracle::json_arg_to_touchstone(&w)
+                .unwrap_or_else(|e| panic!("converted witness {w} for {raw} failed Touchstone encoding: {e}"));
+        }
+
+        // 4. parse_relation_expr must handle `or`, `abs(...)`, `trunc(...)`, and shorthand RHS clauses.
+        let names: Vec<String> = ["year", "start_date", "end_date", "x"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let r1 = parse_relation_expr("year < 0 or year >= 10000", &names);
+        assert_eq!(r1.len(), 2, "expected 2 clauses from `or`: {r1:?}");
+        let r2 = parse_relation_expr("trunc(end_date) < trunc(start_date) or start_date < 0", &names);
+        assert_eq!(r2.len(), 2, "expected 2 clauses from `trunc(...)` + `or`: {r2:?}");
+        let r3 = parse_relation_expr("abs(x) > 32767", &names);
+        assert_eq!(r3.len(), 2, "expected 2 clauses from `abs(x) > 32767`: {r3:?}");
+        let r4 = parse_relation_expr("start_date < 0 or >= 2958466", &names);
+        assert_eq!(r4.len(), 2, "expected 2 clauses from shorthand `or >=`: {r4:?}");
+
+        // 5. Across all committed repository hint files, zero specials/edges are silently dropped
+        //    and compound `or`/`abs`/`trunc` error_edges parse cleanly.
+        let bank = load_default_hints().expect("all committed hint files validate cleanly");
+        let mut total_specials = 0usize;
+        let mut dropped_specials = 0usize;
+        let mut total_error_edges = 0usize;
+        let mut parsed_error_edges = 0usize;
+        for (func_name, loaded) in &bank.functions {
+            let decl = calc_catalogue::named(func_name).unwrap();
+            let arg_names: Vec<String> = decl.parameters().iter().map(|p| p.name.to_owned()).collect();
+            for arg in &loaded.hint.args {
+                for sv in &arg.specials {
+                    total_specials += 1;
+                    if hint_value_to_witness(sv, arg.kind).is_none() {
+                        dropped_specials += 1;
+                    }
+                }
+                for eh in &arg.edges {
+                    total_specials += 1;
+                    if hint_value_to_witness(&eh.value, arg.kind).is_none() {
+                        dropped_specials += 1;
+                    }
+                }
+            }
+            for ee in &loaded.hint.error_edges {
+                total_error_edges += 1;
+                if !parse_error_edge_triggers(std::slice::from_ref(&ee.when), &arg_names).is_empty() {
+                    parsed_error_edges += 1;
+                }
+            }
+        }
+        eprintln!(
+            "committed hints audit: specials={total_specials} dropped={dropped_specials}, error_edges={parsed_error_edges}/{total_error_edges}"
+        );
+        assert_eq!(
+            dropped_specials, 0,
+            "zero committed hint specials/edges may be silently dropped"
+        );
+        assert!(
+            parsed_error_edges * 2 >= total_error_edges,
+            "expected >=50% of committed error_edges to parse (got {parsed_error_edges}/{total_error_edges})"
+        );
     }
 }
