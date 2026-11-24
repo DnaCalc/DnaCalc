@@ -43,6 +43,59 @@ fn first_adjacent_period_open_exception() {
     );
 }
 
+/// Excel 16.0.20625.20108 rejects subnormal annuity denominators (dc-j9k.129).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn payment_denominator_requires_normal_binary64() {
+    let periods = f64::from_bits(0x8010_0000_0000_0003);
+    error(call("PMT", vec![n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]), Num);
+    let normal = f64::from_bits(0x0017_1547_652b_82fe);
+    for (periods, expected) in [(normal.next_down(), None), (normal, Some(0xffc0_0000_0000_0000))] {
+        let payment = call("PMT", vec![n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]);
+        let principal = call("PPMT", vec![n(1.0), n(1.0), n(periods), n(2.0), n(-1.0), n(1.0)]);
+        for result in [payment, principal] {
+            match expected {
+                Some(bits) => exact(result, f64::from_bits(bits)),
+                None => error(result, Num),
+            }
+        }
+    }
+    exact(
+        call("IPMT", vec![n(1.0), n(1.0), n(normal.next_down()), n(2.0), n(-1.0), n(1.0)]),
+        0.0,
+    );
+}
+
+/// Excel 16.0.20625.20108 keeps the rate's low bit through the annuity logarithm.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn payment_kernels_keep_the_low_bit_of_the_smallest_normal_rates() {
+    let f = f64::from_bits;
+    for (args, bits) in [
+        (
+            vec![f(0x8010_0000_0000_0001), 1.0, 11.25, 10.0, 10.0, -1.0],
+            0xbffc_71c7_1c71_c71d,
+        ),
+        (
+            vec![f(0x8010_0000_0000_0009), 1.0, 360.0, 10.0, 10.0, -1.0],
+            0xbfac_71c7_1c71_c71c,
+        ),
+        (
+            vec![f(0x0010_0000_0000_0003), f(0x3ff0_0000_0000_0004), 360.0, 1e-7],
+            0xbdf3_16b7_e580_7ca6,
+        ),
+        (
+            vec![f(0x0010_0000_0000_0001), 360.0, 375.0, 100.0],
+            0xbfd1_1111_1111_1111,
+        ),
+    ] {
+        let principal = args.iter().copied().map(n).collect();
+        exact(call("PPMT", principal), f(bits));
+        let payment = std::iter::once(args[0]).chain(args[2..].iter().copied()).map(n).collect();
+        exact(call("PMT", payment), f(bits));
+    }
+}
+
 /// Carbon cb19 (dc-j9k.90 / dc-j9k.12): Excel 16.0.20527.20196 bit-exact controls for the unified
 /// PC=64 PMT quotient body, shared `excel_log1p_times(1.0, rate)` in `alnrel`, and PC=64 stored
 /// exponent products across PMT, IPMT, PPMT, CUMPRINC and CUMIPMT.

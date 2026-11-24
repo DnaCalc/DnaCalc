@@ -168,14 +168,14 @@ pub(crate) fn time(hour: f64, minute: f64, second: f64) -> Result<f64, W> {
 
 /// The year, month and day of a 1900 serial, rounded to the nearest second first.
 pub(crate) fn serial_to_ymd(serial: f64) -> Result<(i64, i64, i64), W> {
-    if !serial.is_finite() || serial < 0.0 {
+    Ok(ymd_1900(rounded_serial(serial)?))
+}
+
+fn rounded_serial(serial: f64) -> Result<i64, W> {
+    if serial < 0.0 {
         return Err(W::Num);
     }
-    let rounded = serial + 0.5 / 86_400.0;
-    if rounded >= (MAX_SERIAL_1900 + 1) as f64 {
-        return Err(W::Num);
-    }
-    Ok(ymd_1900(rounded.floor() as i64))
+    whole_serial(serial + 0.5 / 86_400.0)
 }
 
 pub(crate) fn hms(serial: f64) -> Result<(f64, f64, f64), W> {
@@ -202,7 +202,7 @@ pub(crate) fn days(end_serial: f64, start_serial: f64) -> Result<f64, W> {
 
 // --- months and weeks (date_week_family.rs) -----------------------------------------------------
 
-fn whole_serial(n: f64) -> Result<i64, W> {
+pub(crate) fn whole_serial(n: f64) -> Result<i64, W> {
     if !(0.0..(MAX_SERIAL_1900 + 1) as f64).contains(&n) {
         return Err(W::Num);
     }
@@ -317,29 +317,21 @@ pub(crate) fn isoweeknum(serial: f64) -> Result<f64, W> {
 
 // --- DAYS360 and DATEDIF (date_value_family.rs) -------------------------------------------------
 
-fn ymd_of(serial: f64) -> Result<(i64, i64, i64), W> {
-    if !serial.is_finite() {
-        return Err(W::Num);
-    }
-    let whole = serial.trunc() as i64;
-    if whole < 0 {
-        return Err(W::Num);
-    }
-    Ok(ymd_1900(whole))
-}
-
-fn is_last_day_of_february(year: i64, month: i64, day: i64) -> bool {
-    let last = if year == 1900 {
+fn excel_days_in_month(year: i64, month: i64) -> i64 {
+    if year == 1900 && month == 2 {
         29
     } else {
         days_in_month(year, month)
-    };
-    month == 2 && day == last
+    }
+}
+
+fn is_last_day_of_february(year: i64, month: i64, day: i64) -> bool {
+    month == 2 && day == excel_days_in_month(year, month)
 }
 
 pub(crate) fn days360(start: f64, end: f64, european: bool) -> Result<f64, W> {
-    let (sy, sm, mut sd) = ymd_of(start)?;
-    let (ey, em, mut ed) = ymd_of(end)?;
+    let (sy, sm, mut sd) = serial_to_ymd(start)?;
+    let (ey, em, mut ed) = serial_to_ymd(end)?;
     if european {
         if sd == 31 {
             sd = 30;
@@ -376,7 +368,7 @@ pub(crate) enum DateDiffUnit {
 }
 
 pub(crate) fn datedif_unit(unit: &str) -> Result<DateDiffUnit, W> {
-    match unit.trim().to_ascii_uppercase().as_str() {
+    match unit.to_ascii_uppercase().as_str() {
         "Y" => Ok(DateDiffUnit::Y),
         "M" => Ok(DateDiffUnit::M),
         "D" => Ok(DateDiffUnit::D),
@@ -393,19 +385,28 @@ fn last_day_of_previous_month(year: i64, month: i64) -> i64 {
     } else {
         (year, month - 1)
     };
-    days_in_month(y, m)
+    excel_days_in_month(y, m)
 }
 
 pub(crate) fn datedif(start_serial: f64, end_serial: f64, unit: DateDiffUnit) -> Result<f64, W> {
+    // Excel validates the rounded calendar serials, then uses truncated serials for unit D.
+    let rounded_start = rounded_serial(start_serial)?;
+    let rounded_end = rounded_serial(end_serial)?;
     let start = start_serial.trunc();
     let end = end_serial.trunc();
-    if !start.is_finite() || !end.is_finite() || start < 0.0 || end < 0.0 || end < start {
+    if end < start {
         return Err(W::Num);
     }
-    let (sy, sm, sd) = ymd_of(start)?;
-    let (ey, em, ed) = ymd_of(end)?;
-    let serial_of = |y: i64, m: i64, d: i64| {
-        excel_serial_from_ymd(DateSystem::System1900, y, m, d).ok_or(W::Num)
+    let (sy, sm, sd) = ymd_1900(rounded_start);
+    let (ey, em, ed) = ymd_1900(rounded_end);
+    let month_span = em - sm - i64::from(ed < sd);
+    let remaining_days = || {
+        let days = if ed < sd {
+            ed + last_day_of_previous_month(ey, em) - sd
+        } else {
+            ed - sd
+        };
+        days as f64
     };
     match unit {
         DateDiffUnit::D => Ok(end - start),
@@ -416,34 +417,18 @@ pub(crate) fn datedif(start_serial: f64, end_serial: f64, unit: DateDiffUnit) ->
             }
             Ok(years as f64)
         }
-        DateDiffUnit::M => {
-            let mut months = (ey - sy) * 12 + (em - sm);
-            if ed < sd {
-                months -= 1;
-            }
-            Ok(months as f64)
-        }
-        DateDiffUnit::Ym => {
-            let mut months = (em - sm).rem_euclid(12);
-            if ed < sd {
-                months = (months - 1).rem_euclid(12);
-            }
-            Ok(months as f64)
-        }
+        DateDiffUnit::M => Ok(((ey - sy) * 12 + month_span) as f64),
+        DateDiffUnit::Ym => Ok(month_span.rem_euclid(12) as f64),
+        DateDiffUnit::Yd if month_span.rem_euclid(12) == 0 => Ok(remaining_days()),
         DateDiffUnit::Yd => {
-            let candidate = serial_of(ey, sm, sd.min(days_in_month(ey, sm)))?;
-            if candidate <= end {
-                Ok(end - candidate)
-            } else {
-                let previous = serial_of(ey - 1, sm, sd.min(days_in_month(ey - 1, sm)))?;
-                Ok(end - previous)
-            }
+            // With whole months left over, Excel projects the end month and day onto the
+            // start year or its successor, preserving the calendar of the projected year.
+            let year = sy + i64::from((em, ed) < (sm, sd));
+            let projected_end =
+                excel_serial_from_ymd(DateSystem::System1900, year, em, ed).ok_or(W::Num)?;
+            Ok(projected_end - rounded_start as f64)
         }
-        DateDiffUnit::Md => Ok(if ed >= sd {
-            ed - sd
-        } else {
-            ed + last_day_of_previous_month(ey, em) - sd
-        } as f64),
+        DateDiffUnit::Md => Ok(remaining_days()),
     }
 }
 
@@ -591,18 +576,15 @@ pub(crate) fn networkdays(
 fn us_30_360(start: i64, end: i64) -> f64 {
     let (sy, sm, mut sd) = ymd_1900(start);
     let (ey, em, mut ed) = ymd_1900(end);
-    let feb_end = |y: i64, m: i64| if y == 1900 { 29 } else { days_in_month(y, m) };
-    let start_last_feb = sm == 2 && sd == feb_end(sy, sm);
-    let end_last_feb = em == 2 && ed == feb_end(ey, em);
+    // YEARFRAC basis 0 uses Gregorian February ends. It decides whether an end day of 31
+    // rolls to day 1 of the next month using the original start day.
+    let start_last_feb = sm == 2 && sd == days_in_month(sy, sm);
+    let end_last_feb = em == 2 && ed == days_in_month(ey, em);
+    if ed == 31 && sd >= 30 {
+        ed = 30;
+    }
     if sd == 31 || start_last_feb {
         sd = 30;
-    }
-    if ed == 31 {
-        if sd < 30 {
-            let (ny, nm) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
-            return (ny - sy) as f64 * 360.0 + (nm - sm) as f64 * 30.0 + (1 - sd) as f64;
-        }
-        ed = 30;
     }
     if end_last_feb && start_last_feb {
         ed = 30;
@@ -622,7 +604,7 @@ fn eu_30_360(start: i64, end: i64) -> f64 {
     ((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64
 }
 
-pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64, W> {
+pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: i64) -> Result<f64, W> {
     if start_date.trunc() < 0.0 || end_date.trunc() < 0.0 {
         return Err(W::Num);
     }
@@ -637,13 +619,10 @@ pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64
         Ok(serial)
     };
     let (mut start, mut end) = (serial(start_date)?, serial(end_date)?);
-    if !basis.is_finite() {
-        return Err(W::Num);
-    }
     if end < start {
         std::mem::swap(&mut start, &mut end);
     }
-    match basis.trunc() as i64 {
+    match basis {
         0 => Ok(us_30_360(start, end) / 360.0),
         1 => super::day_count_common::excel_actual_actual_fraction(start, end),
         2 => Ok((end - start) as f64 / 360.0),

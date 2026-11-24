@@ -63,6 +63,9 @@ while True:
     if kind != "B":
         continue
     groups = [g for g in payload["groups"] if not g.get("p")]          # primer calls are evaluated, not answered
+    if payload.get("serial") and any("o" not in g and "i" not in g for g in groups):
+        send("R", {"id": payload["id"], "error": "excel-error", "detail": "serial group has no request positions"})
+        continue
     if drifted:
         send("R", {"id": payload["id"], "error": "fingerprint-drift-before", "detail": "fake settings changed"})
         drifted = False

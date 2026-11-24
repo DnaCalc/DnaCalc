@@ -92,6 +92,11 @@ fn growth(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
 /// `ln(1 + r)` as Excel's internal logarithm forms it (dc-j9k.90 / cb19): shared `PC=64`
 /// forward `atanh` series below `|r| = 3/8` and `LN(stored(1 + r))` from `3/8`.
 fn alnrel(rate: f64) -> f64 {
+    // The smallest normal rates round back to themselves in Excel. The
+    // series would first store rate/2 as a subnormal and lose its low bit.
+    if (f64::MIN_POSITIVE..2.0 * f64::MIN_POSITIVE).contains(&rate.abs()) {
+        return rate;
+    }
     excel_log1p_times(1.0, rate)
 }
 
@@ -256,16 +261,16 @@ pub fn pmt(
         return Err(FinancialError::Num);
     }
     // dc-j9k.12 / dc-j9k.90 (cb19): unified PC=64 annuity formula across every nonzero rate and
-    // period sign. `alnrel(r)` calls the shared `excel_log1p_times(1.0, r)`, the exponent product
+    // period sign. `alnrel(r)` forms the Excel logarithm, the exponent product
     // `-excel_x87_mul(periods, log_growth)` is stored from PC=64, the balance fold is
     // `(pv + fv)/em + fv` with stored PC=64 operations (naturally handling `fv == -pv` and
     // `nper < 0` without overflow), and timing multiplies by `due_coefficient(r)` or `r`.
     let neg_log = -excel_x87_mul(periods, alnrel(periodic_rate));
     let em = crate::ported::excel_numeric::excel_expm1_spilled(neg_log);
-    // Preserve the growth-reciprocal overflow refusal before the balance
-    // fold can turn pv/Inf + fv into a finite payment. R31 paired parts keep
-    // first-period beginning IPMT zero ahead of this shared PMT check.
-    if em == 0.0 || !em.is_finite() {
+    // The stored denominator must be normal. Excel reports #NUM! for a
+    // subnormal even when the balances cancel or the quotient could be finite.
+    // First-period beginning IPMT returns zero before this shared check.
+    if em.abs() < f64::MIN_POSITIVE || !em.is_finite() {
         return Err(FinancialError::Num);
     }
     let quotient = excel_x87_add(

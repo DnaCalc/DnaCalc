@@ -327,7 +327,7 @@ class Batcher:
         self.interactive = _Class()
         self.bulk = _Class()
         self.sweep = _Class()
-        self.sweep_serial = _Class()
+        self.sweep_serial = deque()    # low-priority serial pieces, kept whole for one calculation pass
         self.isolate = set()
         self.recent_interactive = 0.0
         self.costs = {}          # function -> estimated microseconds per call
@@ -355,15 +355,19 @@ class Batcher:
         return batch
 
     def classes(self):
-        return self.interactive, self.bulk, self.sweep, self.sweep_serial
+        return self.interactive, self.bulk, self.sweep
+
+    def serial_queue(self, piece):
+        return self.sweep_serial if piece.priority == "sweep" else self.serial
 
     def queue_for(self, piece):
         if piece.priority == "sweep":
-            return self.sweep_serial if piece.serial else self.sweep
+            return self.sweep
         return self.interactive if piece.priority == "interactive" else self.bulk
 
     def queued_calls(self):
         return (sum(cls.calls for cls in self.classes()) + sum(p.calls for p in self.serial)
+                + sum(p.calls for p in self.sweep_serial)
                 + sum(p.calls for queue in self.pinned.values() for p in queue))
 
     def waiting(self):
@@ -371,7 +375,7 @@ class Batcher:
         for cls in self.classes():
             for item in cls.items():
                 yield item.piece, item.group, item.suspect or item.group["f"] in self.isolate
-        for queue in (self.serial, *self.pinned.values()):
+        for queue in (self.serial, self.sweep_serial, *self.pinned.values()):
             for piece in queue:
                 for group in piece.groups:
                     yield piece, group, False
@@ -382,15 +386,17 @@ class Batcher:
         for cls in self.classes():
             cls.discard_request(rid, origin=origin)
         self.serial = deque(p for p in self.serial if not matches(p))
+        self.sweep_serial = deque(p for p in self.sweep_serial if not matches(p))
         for addins, queue in self.pinned.items():
             self.pinned[addins] = deque(p for p in queue if not matches(p))
 
     def serial_pending(self):
         return bool(self.serial)
 
-    def next_serial_batch(self):
+    def next_serial_batch(self, *, sweep=False):
         """The oldest serial piece, whole and in order, with its primer: one worker evaluates it call by call."""
-        piece = self.serial.popleft()
+        queue = self.sweep_serial if sweep else self.serial
+        piece = queue.popleft()
         batch = Batch()
         batch.serial = True
         batch.echo = piece.echo
@@ -402,6 +408,8 @@ class Batcher:
         batch.pieces.add(piece)
         piece.remaining = len(piece.groups)
         piece.t_dispatched = time.monotonic()
+        if sweep:
+            batch.est_ms = sum(g["n"] * self.costs.get(g["f"], DEFAULT_COST_US) for g in batch.groups) / 1000
         return batch
 
     def add_piece(self, piece):
@@ -409,8 +417,8 @@ class Batcher:
             self.pinned.setdefault(piece.addins, deque()).append(piece)
             piece.remaining = len(piece.groups)
             return
-        if piece.serial and piece.priority != "sweep":
-            self.serial.append(piece)
+        if piece.serial:
+            self.serial_queue(piece).append(piece)
             piece.remaining = len(piece.groups)
             return
         cls = self.queue_for(piece)
@@ -462,7 +470,6 @@ class Batcher:
             m["v"].extend(g["v"])
             batch.pieces.add(item.piece)
             batch.echo = batch.echo or item.piece.echo
-            batch.serial = batch.serial or item.piece.serial
         batch.calls = calls
         batch.est_ms = est
         now = time.monotonic()
@@ -503,6 +510,7 @@ class Batcher:
         """Receive time of the oldest queued item, or None when nothing waits."""
         times = [t for cls in self.classes() if (t := cls.oldest()) is not None]
         times += [p.t_received for p in self.serial]
+        times += [p.t_received for p in self.sweep_serial]
         times += [p.t_received for queue in self.pinned.values() for p in queue]
         return min(times) if times else None
 
@@ -513,10 +521,10 @@ class Batcher:
 
     def requeue(self, batch):
         """Put work the worker did not run back in its original queue."""
-        if batch.addins or (batch.serial and all(p.priority != "sweep" for p in batch.pieces)):
-            queue = self.serial if batch.serial else self.pinned.setdefault(batch.addins, deque())
+        if batch.addins or batch.serial:
             for piece in batch.pieces:
                 if not piece.done:
+                    queue = self.serial_queue(piece) if batch.serial else self.pinned.setdefault(batch.addins, deque())
                     queue.appendleft(piece)
             return
         self.requeue_items([sl.item for sl in batch.slices if not sl.item.piece.done])

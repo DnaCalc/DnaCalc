@@ -64,8 +64,6 @@ pub(crate) fn inverse_kernel(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, Works
     // In-place LU: below the diagonal holds the unit-lower multipliers, on and above holds U.
     let mut a = matrix.to_vec();
     let mut piv: Vec<usize> = (0..n).collect();
-    const EPS: f64 = 1e-12;
-
     for k in 0..n {
         let mut pivot_row = k;
         let mut pivot_abs = a[k][k].abs();
@@ -77,7 +75,8 @@ pub(crate) fn inverse_kernel(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, Works
             }
         }
 
-        if pivot_abs < EPS {
+        // Excel rejects subnormal pivots, including those produced by elimination.
+        if pivot_abs < f64::MIN_POSITIVE {
             return Err(WorksheetErrorCode::Num);
         }
 

@@ -431,6 +431,46 @@ fn series_and_paired_sums() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn minverse_accepts_tiny_nonzero_pivots() {
+    let pivot = f64::from_bits(0x3d3c_25c2_6849_7680);
+    let expected = f64::from_bits(0x42a2_309c_e540_0001);
+    let diagonal = arr(vec![vec![pivot, 0.0], vec![0.0, 1.0]]);
+    assert_eq!(
+        array(call("MINVERSE", vec![diagonal])),
+        (2, 2, vec![expected, 0.0, 0.0, 1.0]),
+    );
+    let swapped = arr(vec![vec![0.0, 1.0], vec![f64::MIN_POSITIVE, 0.0]]);
+    assert_eq!(
+        array(call("MINVERSE", vec![swapped])),
+        (2, 2, vec![0.0, f64::from_bits(0x7fd0_0000_0000_0000), 1.0, 0.0]),
+    );
+    let near_dependent = arr(vec![vec![1.0, 1.0], vec![1.0, 1.0 + f64::EPSILON]]);
+    let reciprocal = 4_503_599_627_370_496.0;
+    assert_eq!(
+        array(call("MINVERSE", vec![near_dependent])),
+        (2, 2, vec![reciprocal + 1.0, -reciprocal, -reciprocal, reciprocal]),
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn minverse_pivot_must_remain_normal_after_elimination() {
+    let smallest_normal = f64::MIN_POSITIVE;
+    let twice_smallest_normal = 2.0 * smallest_normal;
+    let matrix = |last| arr(vec![vec![1.0, 1.0], vec![smallest_normal, last]]);
+    let normal_reciprocal = f64::from_bits(0x7fd0_0000_0000_0000);
+    assert_eq!(
+        array(call("MINVERSE", vec![matrix(twice_smallest_normal)])),
+        (2, 2, vec![2.0, -normal_reciprocal, -1.0, normal_reciprocal]),
+    );
+    error(
+        call("MINVERSE", vec![matrix(twice_smallest_normal.next_down())]),
+        Num,
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn matrix_functions() {
     for value in [1e-100, -1e-13, 0.0] {
         exact(call("MDETERM", vec![n(value)]), value);

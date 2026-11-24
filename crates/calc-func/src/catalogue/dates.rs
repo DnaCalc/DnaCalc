@@ -13,7 +13,7 @@
 //! argument. Fn7 measures #N/A for omitted required WORKDAY and NETWORKDAYS arguments too;
 //! a blank reference supplies serial zero. A holiday list reads the numbers its cells hold.
 
-use super::kit::{fail, num, out, reject_logical, text_arg, values};
+use super::kit::{fail, num, opt_flag, out, reject_logical, text_arg, values};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::{CalcEnvironment, DateSystem};
@@ -108,23 +108,19 @@ fn weekend(site: &Site<'_>, a: &[CalcValue], index: usize, workday: bool) -> Ste
         return Ok(WeekendMask::saturday_sunday());
     };
     match value.core_ref() {
-        CoreRef::Missing | CoreRef::Empty => Ok(WeekendMask::saturday_sunday()),
+        CoreRef::Missing => Ok(WeekendMask::saturday_sunday()),
         // An error value is no weekend: WORKDAY.INTL's #NUM!, NETWORKDAYS.INTL's #VALUE! (Excel
         // 16.0.20430, 2026-10-25, dc-6au: `=WORKDAY.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #NUM!,
         // `=NETWORKDAYS.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #VALUE!).
         CoreRef::Error(_) if workday => fail(W::Num),
         CoreRef::Error(_) => fail(W::Value),
         CoreRef::Text(text) => {
-            let raw = text.to_string_lossy();
-            if raw.len() == 7 && raw.chars().all(|ch| ch == '0' || ch == '1') {
-                let mask = WeekendMask::from_mask_text(&raw).expect("a checked mask");
-                if mask.is_all_days() && workday {
-                    return fail(W::Value);
-                }
-                return Ok(mask);
+            let mask =
+                WeekendMask::from_mask_text(&text.to_string_lossy()).ok_or(Exit::Error(W::Value))?;
+            if mask.is_all_days() && workday {
+                return fail(W::Value);
             }
-            let code = num(site, a, index)?;
-            WeekendMask::from_number(code.trunc() as i64).ok_or(Exit::Error(W::Num))
+            Ok(mask)
         }
         _ => {
             let code = num(site, a, index)?;
@@ -167,7 +163,7 @@ fn holidays(
         Ok(())
     })?;
     for n in numbers {
-        found.insert(k::serial_from_number(to_1900(system, n)).map_err(Exit::Error)?);
+        found.insert(k::whole_serial(to_1900(system, n)).map_err(Exit::Error)?);
     }
     Ok(found)
 }
@@ -276,7 +272,7 @@ ported_shared_family! {
         }
         let start = date_arg(s, a, 0)?;
         let end = date_arg(s, a, 1)?;
-        let european = a.len() > 2 && num(s, a, 2)? != 0.0;
+        let european = opt_flag(s, a, 2, false)?;
         out(s, k::days360(start, end, european))
     }
     11 datedif_fn |s, a, sv| {
@@ -372,10 +368,13 @@ ported_shared_family! {
         networkdays(s, a, sv, true)
     }
     23 yearfrac_fn |s, a, sv| {
+        let basis = if a.len() > 2 && !a[2].is_missing() { super::kit::num_without_logical(s, a, 2)? } else { 0.0 };
+        if !(0.0..5.0).contains(&basis) {
+            return fail(W::Num);
+        }
         let start = super::kit::checked_date_serial(strict_date_arg(s, a, 0)?)?;
         let end = super::kit::checked_date_serial(strict_date_arg(s, a, 1)?)?;
-        let basis = if a.len() > 2 && !a[2].is_missing() { super::kit::num_without_logical(s, a, 2)? } else { 0.0 };
-        out(s, k::yearfrac(start, end, basis))
+        out(s, k::yearfrac(start, end, basis as i64))
     }
     24 now_fn |s, a, sv| {
         let now = now(s)?;
