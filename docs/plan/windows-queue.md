@@ -24,6 +24,48 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww12 Windows replay, 2026-11-24
+
+- **dc-26wtr.1.1–.1.5.** The XLL route matrix, partial Esc, RTD topic removal and
+  restart, Office.js Promise and stream cell timelines, and mixed native callbacks are
+  recorded in [the async measurements](../research/async-mechanisms-excel.md).
+- **dc-j9k.68 / dc-j9k.96.** On Win64 AMD at a6a160aa6, CalcFunc passed 572 unit and
+  488 integration tests. The workspace cross-check passed for all Windows targets. The integration rerun staged the fixtures at the paths embedded
+  in the cross-built executable. Chrome and Firefox each passed 558 unit and 488 integration
+  tests. Dev and perf matched the same CalcFunc-Evidence 4ef2c244 bank counts in every ETS family
+  function. SEASONALITY 5,637/5,639, ETS 3,216/3,354, CONFINT 4,525/4,600 and STAT
+  3,084/3,111. The two archived seasonality differences and the separate preparation cases
+  remain open. See `ww12/ets-dev-perf-parity.tsv` and `ww12/intake-packets`.
+- **dc-8wp.25.** Excel preserved the exact input words through create, refresh and reopen in
+  all nine controls. Row-only and crossed pivots returned +0 for both the explicit trailing-zero
+  and missing-value totals. The forward control retained Sum `3fe6666666666666` and Average
+  `3fcddddddddddddd`. Current Win64 refresh matched all 72 Sum and Average totals and 482/486
+  cells overall. Four empty crossed Average cells returned #DIV/0! in DNA Calc and blank in
+  Excel. Those empty groups stay dc-8wp.10. See `ww12/pivot` and `ww12/bank-rows/pivot-refresh.json`.
+- **dc-8wp.24 / dc-8wp.10.** Six fresh source/order variants produced three distinct nonzero
+  grand Product words. The three measure mixes agreed within each case. Of six cases, row-first
+  factor replay matched three, column-first two, source order four and multiplied rounded
+  intersections one. The current host refresh refused all 18 fresh pivots (0/624 cells) and all
+  11 retained ww10 precision pivots (0/1,014). The source words, frozen alternatives and cell
+  differences are in `ww12/product`, `ww12/pivot-replay` and `ww12/bank-rows`. The Windows source
+  packages are staged on dna-firehorse at `~/codex-runs/ww12-xbuild/pivot-replay.zip`.
+- **dc-8wp.6 / dc-8wp.12.** The staged axis packet contains both Excel-authored books,
+  twenty pivot layouts, and live cell and package captures. Current refresh matched
+  1,869/13,914 tabular and 2,261/16,579 outline cells. The differences are in
+  `ww12/bank-rows`. Win64 M6 matched 180/180 subtotal fill and bottom colors, 45/45 subtotal
+  font colors and 117/117 Dark11 body fills. The existing Windows grid replay again matched 405/405.
+- **dc-ztvv.21 follow-up.** The pinned cluster representatives passed in the native and both
+  browser CalcFunc runs. The Windows structural sweep passed dependencies, wasm refusal,
+  licence ledger and dependency ceiling. It reported a preset geometry include in the
+  portable OS-import audit and the fuzzer's coercion text list in the name-table audit.
+  Full milestone validation stays with dc-ztvv. The broker's RATE mode stays in place pending
+  a coordinated restart. The nl24 and sf2 discrepancy packets were staged for coordinator intake.
+- **dc-1nbp.6.** The held Excel Range kept A2 and 20 through worksheet reorder. Deleting and
+  recreating the sheet under the same name left its old Address at HRESULT 0x800A01A8 and
+  Value2 empty. The new handle read 30. Closing and reopening the workbook invalidated that
+  handle, and a fresh handle read 30. See `ww12/range-lifetime/range.json`. A paired DNA Calc
+  execution and the remaining E1/E3/E4/E5 arms stay open.
+
 ### ww11 Windows replay, 2026-11-24
 
 - **dc-gotq0.1.** Native Windows at fc4ce7d1e passed all 28 desktop tests. The hash-checked
