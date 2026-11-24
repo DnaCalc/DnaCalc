@@ -841,7 +841,16 @@ mod tests {
             fractal_stats: FractalDiscoveryStats::default(),
             tracker: CoverageTracker::new("RATE"),
         };
-        write_outputs(&rate_cfg, &rate_spec, &rate_summary, &[], &BTreeMap::new()).unwrap();
+        write_outputs(
+            &rate_cfg,
+            &rate_spec,
+            &rate_summary,
+            &[],
+            &BTreeMap::new(),
+            &[],
+            &std::collections::HashMap::new(),
+        )
+        .unwrap();
 
         // 2. Dry-run sweep for ABS must be ignored (0 Excel calls).
         let abs_dry_dir = base.join("dry-abs");
