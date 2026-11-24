@@ -699,17 +699,21 @@ pub fn yield_kernel(
             (c.maturity - s_k) as f64 / 365.0
         }
     };
-    let tau = excel_x87_mul(f, excel_x87_add(k_yr as f64, frac));
+    let yrs = excel_x87_add(k_yr as f64, frac);
     let d = excel_x87_sub(price, 100.0);
-    let tc = excel_x87_div(excel_x87_mul(excel_x87_mul(tau, rate_), 100.0), f);
+    let mut yr_r = excel_x87_mul(yrs, rate_);
+    if yr_r.abs() < f64::MIN_POSITIVE {
+        yr_r = 0.0;
+    }
+    let tc = excel_x87_mul(yr_r, 100.0);
     let den = excel_x87_add(
         excel_x87_add(
-            excel_x87_mul(tau, 100.0),
-            excel_x87_div(excel_x87_mul(d, tau), 2.0),
+            excel_x87_mul(yrs, 100.0),
+            excel_x87_div(excel_x87_mul(d, yrs), 2.0),
         ),
-        excel_x87_div(excel_x87_mul(d, f), 4.0),
+        excel_x87_div(d, 4.0),
     );
-    let mut y = excel_x87_mul(f, excel_x87_div(excel_x87_sub(tc, d), den));
+    let mut y = excel_x87_div(excel_x87_sub(tc, d), den);
     if !y.is_finite() {
         if tracing {
             crate::trace::hit(3);
@@ -777,30 +781,24 @@ pub fn yield_kernel(
             return Err(derr(WorksheetErrorCode::Num));
         }
         pv = excel_x87_add(pv, excel_x87_div(red, r_disc));
-        // Pre-registered rival Y2-B (cb26 16/16 live Excel 16.0.20625.20108): frequency == 1
-        // skips the redemption derivative finiteness check while frequency in {2, 4} rejects
-        // !r_denom.is_finite() (f * r_disc1 overflow, nl27 pz-Y3) and !t_red.is_finite();
-        // t_cp + t_red == +inf is never checked, so slope = -inf -> step = -0.0.
-        let t_red = if c.frequency == 1 {
-            excel_x87_div(excel_x87_mul(rex_pv, red), r_disc1)
+        // Redemption derivative finiteness (cb26 Y2-B + nl27 live holdout/pz-Y3):
+        // `f * r_disc1` overflow is rejected immediately; if `t_red = (rex_pv * red) / r_denom`
+        // overflows (`!t_red.is_finite()`, any frequency), Excel omits `t_red` from `slope`
+        // (`slope = -t_cp`), checks `|step| <= 1e-10` first (publishing `y` when `|pv/t_cp| <= 1e-10`),
+        // and only returns `#NUM!` when `|step| > 1e-10`. When `t_red` is finite, `t_cp + t_red == +inf`
+        // is not rejected (`slope = -inf -> step = -0.0 -> Ok(y)`).
+        let r_denom = if c.frequency == 1 {
+            r_disc1
         } else {
-            let r_denom = excel_x87_mul(f, r_disc1);
-            if !r_denom.is_finite() {
+            let d = excel_x87_mul(f, r_disc1);
+            if !d.is_finite() {
                 if tracing {
                     crate::trace::hit(9);
                     crate::trace::record_iterations(iter + 1);
                 }
                 return Err(derr(WorksheetErrorCode::Num));
             }
-            let v = excel_x87_div(excel_x87_mul(rex_pv, red), r_denom);
-            if !v.is_finite() {
-                if tracing {
-                    crate::trace::hit(9);
-                    crate::trace::record_iterations(iter + 1);
-                }
-                return Err(derr(WorksheetErrorCode::Num));
-            }
-            v
+            d
         };
         if !pv.is_finite() || !t_cp.is_finite() {
             if tracing {
@@ -809,7 +807,13 @@ pub fn yield_kernel(
             }
             return Err(derr(WorksheetErrorCode::Num));
         }
-        let mut slope = -excel_x87_add(t_cp, t_red);
+        let t_red = excel_x87_div(excel_x87_mul(rex_pv, red), r_denom);
+        let t_red_overflow = !t_red.is_finite();
+        let mut slope = if t_red_overflow {
+            -t_cp
+        } else {
+            -excel_x87_add(t_cp, t_red)
+        };
         // Excel flushes subnormal slope to 0.0; on negative base (`off` integer),
         // `diff / 0.0 == ±inf` publishes `y` (`!step.is_nan() && base < 0.0`, cb26 Y3).
         if slope.abs() < f64::MIN_POSITIVE {
@@ -853,6 +857,13 @@ pub fn yield_kernel(
             } else {
                 Ok(y)
             };
+        }
+        if t_red_overflow {
+            if tracing {
+                crate::trace::hit(9);
+                crate::trace::record_iterations(iter + 1);
+            }
+            return Err(derr(WorksheetErrorCode::Num));
         }
         y = excel_x87_sub(y, step);
     }
@@ -2545,6 +2556,80 @@ mod tests {
         assert_eq!(
             yieldmat_kernel(45292.0, 47849.0, 45000.0, 0.05, 100.0, Some(neg_min)),
             num_err
+        );
+    }
+
+    /// nl27 post-fix live 4,000-row YIELD holdout discoveries (Excel 16.0.20625.20108):
+    /// 1. When redemption derivative `t_red` overflows (`!t_red.is_finite()`, any `f`), Excel
+    ///    omits `t_red` from `slope` (`slope = -t_cp`), checks `|step| <= 1e-10` first, and
+    ///    only returns `#NUM!` if `|step| > 1e-10` (explaining C01 + Y2B-06..15 + f=2).
+    /// 2. The multi-period par-100 seed uses `yrs = k_yr + frac` with `f` cancelled and
+    ///    flushes subnormal `yrs * rate` to `0.0` (explaining C02 + C03).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn yield_holdout_tred_deferred_overflow_and_yrs_rate_seed() {
+        let num_err = Err(BondCoreEvalError::Domain(WorksheetErrorCode::Num));
+        // C01 exact 1-ULP frontier (f=1, b=3): lo has finite t_red -> Ok(y_1), hi has t_red=+inf
+        // and |pv/t_cp| = 2.13e-5 > 1e-10 -> #NUM!
+        let r_c01 = f64::from_bits(0x3fdbdd9c78606766);
+        let red_c01 = f64::from_bits(0x40a087957aaf1c15);
+        assert_eq!(
+            yield_kernel(
+                264053.0,
+                288025.0,
+                r_c01,
+                f64::from_bits(0x41366ea781b2db7e),
+                red_c01,
+                1.0,
+                Some(3.0),
+            )
+            .unwrap()
+            .to_bits(),
+            0xbfefffc4c824c579
+        );
+        assert_eq!(
+            yield_kernel(
+                264053.0,
+                288025.0,
+                r_c01,
+                f64::from_bits(0x41366ea781b2db7f),
+                red_c01,
+                1.0,
+                Some(3.0),
+            ),
+            num_err
+        );
+        // C02 & C03: yrs * rate subnormal flush at yrs < 1.0 and exact rate at yrs >= 1.0
+        let tiny_r = f64::from_bits(0x0010000000000003);
+        assert_eq!(
+            yield_kernel(45293.0, 45658.0, tiny_r, 100.0, 100.0, 2.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0x0000000000000000
+        );
+        assert_eq!(
+            yield_kernel(45292.0, 45658.0, tiny_r, 100.0, 100.0, 2.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0x0010000000000003
+        );
+        assert_eq!(
+            yield_kernel(36526.0, 45658.0, tiny_r, 100.0, 100.0, 2.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0x0010000000000003
+        );
+        assert_eq!(
+            yield_kernel(45458.0, 45658.0, f64::from_bits(0x0020000000000000), 100.0, 100.0, 4.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0x0020000000000000
+        );
+        assert_eq!(
+            yield_kernel(45496.0, 45658.0, f64::from_bits(0x0020000000000000), 100.0, 100.0, 4.0, Some(0.0))
+                .unwrap()
+                .to_bits(),
+            0x0000000000000000
         );
     }
 }
