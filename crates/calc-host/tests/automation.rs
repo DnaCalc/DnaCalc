@@ -4796,3 +4796,55 @@ fn dc_oxh8w_4__range_copy_and_cut_to_a_destination() {
     // No destination means the clipboard, which is refused typed.
     assert!(matches!(call("A2", "Copy", vec![]), Err(AutoError::NotModelled { .. })));
 }
+
+/// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_4__range_sort_orders_rows_by_key_columns() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let _ = &host;
+    let put = |address: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+    };
+    for (row, (key, tag)) in [(3., "c"), (1., "a"), (2., "b")].into_iter().enumerate() {
+        put(&format!("A{}", row + 2), AutoValue::R8(key));
+        put(&format!("B{}", row + 2), AutoValue::text(tag));
+    }
+    put("A1", AutoValue::text("key"));
+    put("B1", AutoValue::text("tag"));
+    let sort = |args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, "A1:B4"), "Sort", InvokeKind::Method, args)
+    };
+    let key = |address: &str| AutoValue::Object(range(&model, address));
+    // Ascending by A with a header row (xlYes = 1) in the eighth argument.
+    let mut args = vec![key("A1"), AutoValue::I4(1)];
+    args.extend(std::iter::repeat_with(|| AutoValue::Missing).take(5));
+    args.push(AutoValue::I4(1));
+    sort(args.clone()).unwrap();
+    assert!(matches!(cell_text(&model, "A2"), AutoValue::R8(1.)));
+    assert!(matches!(cell_text(&model, "B2"), AutoValue::Text(_)));
+    assert_eq!(cell_text(&model, "B2").as_text().unwrap(), "a");
+    assert!(matches!(cell_text(&model, "A4"), AutoValue::R8(3.)));
+    assert_eq!(cell_text(&model, "A1").as_text().unwrap(), "key");
+    // Descending (xlDescending = 2) by the second column.
+    args[0] = key("B1");
+    args[1] = AutoValue::I4(2);
+    sort(args.clone()).unwrap();
+    assert_eq!(cell_text(&model, "B2").as_text().unwrap(), "c");
+    assert!(matches!(cell_text(&model, "A2"), AutoValue::R8(3.)));
+    // Sorting columns and xlGuess refuse typed and change nothing.
+    let mut sideways = args.clone();
+    sideways.push(AutoValue::Missing);
+    sideways.push(AutoValue::Missing);
+    sideways.push(AutoValue::I4(1));
+    assert!(matches!(sort(sideways), Err(AutoError::NotModelled { .. })));
+    args[7] = AutoValue::I4(0);
+    assert!(matches!(sort(args), Err(AutoError::NotModelled { .. })));
+    assert_eq!(cell_text(&model, "B2").as_text().unwrap(), "c");
+}
