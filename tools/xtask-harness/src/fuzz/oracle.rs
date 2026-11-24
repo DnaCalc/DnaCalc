@@ -15,8 +15,8 @@ use super::cluster::{
 };
 use super::domain::DomainSpec;
 use super::rng::{
-    Rng, StreamCaseHasher, canonical_case_key, compact_to_f64, f64_to_compact, f64_to_ordered,
-    parse_hex_bits, step_ulps,
+    Rng, StreamCaseHasher, canonical_case_key, compact_to_f64, f64_to_compact, parse_hex_bits,
+    step_ulps,
 };
 use super::steer::{
     CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
@@ -24,7 +24,7 @@ use super::steer::{
 use super::{FuzzConfig, FuzzSummary, freeze_predictions, write_outputs};
 use calc_verdict::Severity;
 use serde_json::Value;
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use touchstone_client::{Answer, Arg, Client, Handle, Priority, Request};
@@ -588,6 +588,7 @@ fn ingest_judged_cases(
     function: &str,
     cases: &[FuzzCase],
     judged: &[JudgedRow],
+    excel_answers: &mut HashMap<String, String>,
     region_stats: &mut BTreeMap<String, RegionStats>,
     known_clusters: &mut HashSet<String>,
     discrepancies: &mut Vec<DiscrepancyRow>,
@@ -602,6 +603,9 @@ fn ingest_judged_cases(
     let mut new_clusters = 0usize;
     let mut discrepant_regions: HashSet<String> = HashSet::new();
     for (case, row) in cases.iter().zip(judged.iter()) {
+        if let Some(enc) = &row.excel_encoded {
+            excel_answers.insert(canonical_case_key(function, &case.args), enc.clone());
+        }
         *total_asked += 1;
         let st = region_stats.entry(case.region.clone()).or_default();
         st.asked += 1;
@@ -659,6 +663,56 @@ fn ingest_judged_cases(
     (new_clusters, discrepant_regions)
 }
 
+/// Choose the opposite-predicate bracket `(lo_bits, lo_out, hi_bits, hi_out)` whose possible
+/// adjacent flip position is closest in Value2-compact ULPs to `frontier.dna_lo_bits`, breaking
+/// ties by matching DNA Calc's transition direction (`dna_lo_tag -> dna_hi_tag`) and then midpoint.
+fn select_closest_flip_bracket(
+    frontier: &Frontier,
+    pts: &mut Vec<(u64, String)>,
+) -> Option<(u64, String, u64, String)> {
+    pts.sort_by_key(|(b, _)| f64_to_compact(f64::from_bits(*b)));
+    pts.dedup_by_key(|(b, _)| *b);
+    let dna_c = f64_to_compact(f64::from_bits(frontier.dna_lo_bits));
+    let dna_lo_tag = predicate_tag(&frontier.dna_lo_outcome);
+    let dna_hi_tag = predicate_tag(&frontier.dna_hi_outcome);
+    let mut best: Option<(u128, u8, u128, usize)> = None;
+    for (idx, w) in pts.windows(2).enumerate() {
+        let p0 = predicate_tag(&w[0].1);
+        let p1 = predicate_tag(&w[1].1);
+        if p0 == p1 {
+            continue;
+        }
+        let c0 = f64_to_compact(f64::from_bits(w[0].0));
+        let c1 = f64_to_compact(f64::from_bits(w[1].0));
+        if c1 <= c0 {
+            continue;
+        }
+        // Any adjacent flip [k, k + 1] inside [c0, c1] has k in [c0, c1 - 1].
+        let hi_k = c1 - 1;
+        let min_dist: u128 = if dna_c < c0 {
+            (c0 - dna_c) as u128
+        } else if dna_c > hi_k {
+            (dna_c - hi_k) as u128
+        } else {
+            0
+        };
+        let dir_pen = u8::from(!(p0 == dna_lo_tag && p1 == dna_hi_tag));
+        let mid_dist = ((c0 + hi_k) - 2 * dna_c).unsigned_abs();
+        let key = (min_dist, dir_pen, mid_dist);
+        if best.is_none_or(|(bd, bp, bm, _)| key < (bd, bp, bm)) {
+            best = Some((min_dist, dir_pen, mid_dist, idx));
+        }
+    }
+    best.map(|(_, _, _, idx)| {
+        (
+            pts[idx].0,
+            pts[idx].1.clone(),
+            pts[idx + 1].0,
+            pts[idx + 1].1.clone(),
+        )
+    })
+}
+
 /// For any non-route frontier whose consecutive window around DNA Calc's flip did NOT contain
 /// Excel's flip, bracket Excel's flip with an exponential probe and then pinpoint it with
 /// batched 64-point ordered-bit bisection (freezing predictions before every Touchstone probe).
@@ -668,6 +722,7 @@ fn bisect_shifted_frontiers_excel(
     client: &Client,
     frontiers: &mut [Frontier],
     seen_keys: &mut HashSet<String>,
+    excel_answers: &mut HashMap<String, String>,
     case_hasher: &mut StreamCaseHasher,
     pred_hashes: &mut Vec<String>,
     all_envs: &mut BTreeMap<String, Value>,
@@ -700,6 +755,8 @@ fn bisect_shifted_frontiers_excel(
     }
 
     // Step 1: Exponential bracket expansion around DNA Calc's flip in one batched probe.
+    // Includes offset 0 as a bracket reference (reusing its cached Excel answer when already in
+    // `seen_keys` rather than re-asking or double-banking it).
     let offsets: &[i64] = &[
         -1_099_511_627_776,
         -16_777_216,
@@ -716,7 +773,7 @@ fn bisect_shifted_frontiers_excel(
         1_099_511_627_776,
     ];
     let mut bracket_cases: Vec<FuzzCase> = Vec::new();
-    let mut bracket_meta: Vec<(usize, u64)> = Vec::new();
+    let mut bracket_refs: Vec<(usize, u64, String)> = Vec::new();
     for &fidx in &shifted_indices {
         let f = &frontiers[fidx];
         let anchor = f64::from_bits(f.dna_lo_bits);
@@ -749,7 +806,11 @@ fn bisect_shifted_frontiers_excel(
             if !set_axis_f64(&mut args, f.axis, f.axis_cell, v) {
                 continue;
             }
-            let _ = seen_keys.insert(canonical_case_key(&f.function, &args));
+            let key = canonical_case_key(&f.function, &args);
+            bracket_refs.push((fidx, b, key.clone()));
+            if !seen_keys.insert(key) {
+                continue;
+            }
             let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
             *next_id += 1;
             let region = format!("boundary_bisect:{}", f.axis_name);
@@ -763,62 +824,58 @@ fn bisect_shifted_frontiers_excel(
                 trace,
                 outcome_class,
             });
-            bracket_meta.push((fidx, b));
         }
     }
-    if bracket_cases.is_empty() {
-        return Ok(());
+    if !bracket_cases.is_empty() {
+        *total_generated += bracket_cases.len();
+        let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-bracket-predictions.jsonl"));
+        pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &bracket_cases)?);
+        let agg = ask_single_priority(
+            client,
+            &cfg.function,
+            &bracket_cases,
+            INTERACTIVE_CHUNK_SIZE,
+            2,
+            Priority::Interactive,
+        )?;
+        *excel_seconds += agg.excel_seconds;
+        for (k, v) in agg.envs {
+            all_envs.entry(k).or_insert(v);
+        }
+        for (w, c) in agg.worker_calls {
+            *all_worker_calls.entry(w).or_insert(0) += c;
+        }
+        let _ = ingest_judged_cases(
+            &cfg.function,
+            &bracket_cases,
+            &agg.rows,
+            excel_answers,
+            region_stats,
+            known_clusters,
+            discrepancies,
+            discrepancy_parents,
+            frontier_seeds,
+            total_asked,
+            total_matched,
+            total_mismatched,
+            total_unread,
+            total_crashed,
+        );
     }
-    *total_generated += bracket_cases.len();
-    let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-bracket-predictions.jsonl"));
-    pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &bracket_cases)?);
-    let agg = ask_single_priority(
-        client,
-        &cfg.function,
-        &bracket_cases,
-        INTERACTIVE_CHUNK_SIZE,
-        2,
-        Priority::Interactive,
-    )?;
-    *excel_seconds += agg.excel_seconds;
-    for (k, v) in agg.envs {
-        all_envs.entry(k).or_insert(v);
-    }
-    for (w, c) in agg.worker_calls {
-        *all_worker_calls.entry(w).or_insert(0) += c;
-    }
-    let _ = ingest_judged_cases(
-        &cfg.function,
-        &bracket_cases,
-        &agg.rows,
-        region_stats,
-        known_clusters,
-        discrepancies,
-        discrepancy_parents,
-        frontier_seeds,
-        total_asked,
-        total_matched,
-        total_mismatched,
-        total_unread,
-        total_crashed,
-    );
 
-    // Find tightest opposite-predicate brackets [lo_bits, hi_bits] per shifted frontier.
+    // Find closest opposite-predicate brackets [lo_bits, hi_bits] per shifted frontier.
     let mut by_f: BTreeMap<usize, Vec<(u64, String)>> = BTreeMap::new();
-    for ((fidx, bits), j) in bracket_meta.into_iter().zip(agg.rows.iter()) {
-        if let Some(enc) = &j.excel_encoded {
+    for (fidx, bits, key) in bracket_refs {
+        if let Some(enc) = excel_answers.get(&key) {
             by_f.entry(fidx).or_default().push((bits, enc.clone()));
         }
     }
     let mut active_brackets: Vec<(usize, u64, String, u64, String)> = Vec::new();
     for (fidx, mut pts) in by_f {
-        pts.sort_by_key(|(b, _)| f64_to_ordered(f64::from_bits(*b)));
-        pts.dedup_by_key(|(b, _)| *b);
-        for w in pts.windows(2) {
-            if predicate_tag(&w[0].1) != predicate_tag(&w[1].1) {
-                active_brackets.push((fidx, w[0].0, w[0].1.clone(), w[1].0, w[1].1.clone()));
-                break;
-            }
+        if let Some((lo_b, lo_o, hi_b, hi_o)) =
+            select_closest_flip_bracket(&frontiers[fidx], &mut pts)
+        {
+            active_brackets.push((fidx, lo_b, lo_o, hi_b, hi_o));
         }
     }
 
@@ -829,12 +886,12 @@ fn bisect_shifted_frontiers_excel(
             break;
         }
         let mut step_cases: Vec<FuzzCase> = Vec::new();
-        let mut step_meta: Vec<(usize, u64)> = Vec::new();
+        let mut step_refs: Vec<(usize, u64, String)> = Vec::new();
         let mut still_open = Vec::new();
         for (bi, (fidx, lo_b, lo_o, hi_b, hi_o)) in active_brackets.iter().enumerate() {
             let ca = f64_to_compact(f64::from_bits(*lo_b));
             let cb = f64_to_compact(f64::from_bits(*hi_b));
-            if cb <= ca + 1 {
+            if cb == ca + 1 {
                 let f = &mut frontiers[*fidx];
                 f.excel_lo_bits = Some(*lo_b);
                 f.excel_hi_bits = Some(*hi_b);
@@ -842,6 +899,9 @@ fn bisect_shifted_frontiers_excel(
                 f.excel_hi_outcome = Some(hi_o.clone());
                 let shift = ca - f64_to_compact(f64::from_bits(f.dna_lo_bits));
                 f.shifted_ulps = i64::try_from(shift).ok();
+                continue;
+            }
+            if cb <= ca {
                 continue;
             }
             still_open.push(bi);
@@ -862,6 +922,11 @@ fn bisect_shifted_frontiers_excel(
                 if !set_axis_f64(&mut args, f.axis, f.axis_cell, val) {
                     continue;
                 }
+                let key = canonical_case_key(&f.function, &args);
+                step_refs.push((bi, b, key.clone()));
+                if !seen_keys.insert(key) {
+                    continue;
+                }
                 let (pred, trace, outcome_class) = evaluate_traced(&f.function, &args, &ctx);
                 *next_id += 1;
                 let region = format!("boundary_bisect:{}", f.axis_name);
@@ -875,92 +940,82 @@ fn bisect_shifted_frontiers_excel(
                     trace,
                     outcome_class,
                 });
-                step_meta.push((bi, b));
             }
         }
-        if step_cases.is_empty() {
-            for bi in still_open {
-                let (fidx, lo_b, lo_o, hi_b, hi_o) = &active_brackets[bi];
-                let f = &mut frontiers[*fidx];
-                f.excel_lo_bits = Some(*lo_b);
-                f.excel_hi_bits = Some(*hi_b);
-                f.excel_lo_outcome = Some(lo_o.clone());
-                f.excel_hi_outcome = Some(hi_o.clone());
-                let shift = f64_to_compact(f64::from_bits(*lo_b))
-                    - f64_to_compact(f64::from_bits(f.dna_lo_bits));
-                f.shifted_ulps = i64::try_from(shift).ok();
-            }
+        if still_open.is_empty() {
             break;
         }
-        *total_generated += step_cases.len();
-        let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-step{step}-predictions.jsonl"));
-        pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &step_cases)?);
-        let agg = ask_single_priority(
-            client,
-            &cfg.function,
-            &step_cases,
-            INTERACTIVE_CHUNK_SIZE,
-            2,
-            Priority::Interactive,
-        )?;
-        *excel_seconds += agg.excel_seconds;
-        for (k, v) in agg.envs {
-            all_envs.entry(k).or_insert(v);
+        if !step_cases.is_empty() {
+            *total_generated += step_cases.len();
+            let pred_path = cfg.out_dir.join(format!("bisect-{round:02}-step{step}-predictions.jsonl"));
+            pred_hashes.push(freeze_predictions(&pred_path, &cfg.function, &step_cases)?);
+            let agg = ask_single_priority(
+                client,
+                &cfg.function,
+                &step_cases,
+                INTERACTIVE_CHUNK_SIZE,
+                2,
+                Priority::Interactive,
+            )?;
+            *excel_seconds += agg.excel_seconds;
+            for (k, v) in agg.envs {
+                all_envs.entry(k).or_insert(v);
+            }
+            for (w, c) in agg.worker_calls {
+                *all_worker_calls.entry(w).or_insert(0) += c;
+            }
+            let _ = ingest_judged_cases(
+                &cfg.function,
+                &step_cases,
+                &agg.rows,
+                excel_answers,
+                region_stats,
+                known_clusters,
+                discrepancies,
+                discrepancy_parents,
+                frontier_seeds,
+                total_asked,
+                total_matched,
+                total_mismatched,
+                total_unread,
+                total_crashed,
+            );
         }
-        for (w, c) in agg.worker_calls {
-            *all_worker_calls.entry(w).or_insert(0) += c;
-        }
-        let _ = ingest_judged_cases(
-            &cfg.function,
-            &step_cases,
-            &agg.rows,
-            region_stats,
-            known_clusters,
-            discrepancies,
-            discrepancy_parents,
-            frontier_seeds,
-            total_asked,
-            total_matched,
-            total_mismatched,
-            total_unread,
-            total_crashed,
-        );
 
         let mut pts_by_bi: BTreeMap<usize, Vec<(u64, String)>> = BTreeMap::new();
         for &bi in &still_open {
             let (_, lo_b, lo_o, hi_b, hi_o) = &active_brackets[bi];
             pts_by_bi.insert(bi, vec![(*lo_b, lo_o.clone()), (*hi_b, hi_o.clone())]);
         }
-        for ((bi, bits), j) in step_meta.into_iter().zip(agg.rows.iter()) {
-            if let Some(enc) = &j.excel_encoded {
+        for (bi, bits, key) in step_refs {
+            if let Some(enc) = excel_answers.get(&key) {
                 pts_by_bi.entry(bi).or_default().push((bits, enc.clone()));
             }
         }
         let mut next_active = Vec::new();
         for (bi, mut pts) in pts_by_bi {
-            let fidx = active_brackets[bi].0;
-            pts.sort_by_key(|(b, _)| f64_to_ordered(f64::from_bits(*b)));
-            pts.dedup_by_key(|(b, _)| *b);
-            for w in pts.windows(2) {
-                if predicate_tag(&w[0].1) != predicate_tag(&w[1].1) {
-                    next_active.push((fidx, w[0].0, w[0].1.clone(), w[1].0, w[1].1.clone()));
-                    break;
-                }
+            let (fidx, prev_lo, _, prev_hi, _) = active_brackets[bi];
+            if let Some((lo_b, lo_o, hi_b, hi_o)) =
+                select_closest_flip_bracket(&frontiers[fidx], &mut pts)
+                && (lo_b != prev_lo || hi_b != prev_hi)
+            {
+                next_active.push((fidx, lo_b, lo_o, hi_b, hi_o));
             }
         }
         active_brackets = next_active;
     }
 
-    // Record best bracket for any frontier still active after max rounds.
+    // Record exact adjacent brackets for any frontier that converged on the final step.
     for (fidx, lo_b, lo_o, hi_b, hi_o) in active_brackets {
+        let ca = f64_to_compact(f64::from_bits(lo_b));
+        let cb = f64_to_compact(f64::from_bits(hi_b));
         let f = &mut frontiers[fidx];
-        if f.excel_lo_bits.is_none() {
+        if f.excel_lo_bits.is_none() && cb == ca + 1 {
             f.excel_lo_bits = Some(lo_b);
             f.excel_hi_bits = Some(hi_b);
             f.excel_lo_outcome = Some(lo_o);
             f.excel_hi_outcome = Some(hi_o);
-            let shift = f64_to_compact(f64::from_bits(lo_b))
-                - f64_to_compact(f64::from_bits(f.dna_lo_bits));
+            let shift = ca - f64_to_compact(f64::from_bits(f.dna_lo_bits));
             f.shifted_ulps = i64::try_from(shift).ok();
         }
     }
@@ -979,6 +1034,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
     let mut rng = Rng::from_seed_and_tag(cfg.seed, &cfg.function);
     let mut tracker = CoverageTracker::new(&cfg.function);
     let mut seen_keys: HashSet<String> = HashSet::with_capacity(cfg.budget);
+    let mut excel_answers: HashMap<String, String> = HashMap::with_capacity(cfg.budget);
     let mut region_weights: Vec<f64> = spec.regions.iter().map(|r| r.base_weight).collect();
     let mut region_stats: BTreeMap<String, RegionStats> = BTreeMap::new();
     let mut known_clusters: HashSet<String> = HashSet::new();
@@ -1090,6 +1146,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &cfg.function,
             &bulk_batch,
             &bulk_agg.rows,
+            &mut excel_answers,
             &mut region_stats,
             &mut known_clusters,
             &mut discrepancies,
@@ -1105,6 +1162,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
             &cfg.function,
             &inter_cases,
             &inter_agg.rows,
+            &mut excel_answers,
             &mut region_stats,
             &mut known_clusters,
             &mut discrepancies,
@@ -1238,6 +1296,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
                 &cfg.function,
                 &final_cases,
                 &agg.rows,
+                &mut excel_answers,
                 &mut region_stats,
                 &mut known_clusters,
                 &mut discrepancies,
@@ -1267,6 +1326,7 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         &client,
         &mut frontiers,
         &mut seen_keys,
+        &mut excel_answers,
         &mut case_hasher,
         &mut pred_hashes,
         &mut all_envs,
@@ -1653,6 +1713,7 @@ mod tests {
             shifted_ulps: None,
         }];
         let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
         let mut hasher = StreamCaseHasher::new("RATE");
         let mut pred_hashes = Vec::new();
         let mut envs = BTreeMap::new();
@@ -1671,6 +1732,7 @@ mod tests {
             &client,
             &mut frontiers,
             &mut seen,
+            &mut excel_answers,
             &mut hasher,
             &mut pred_hashes,
             &mut envs,
@@ -1700,6 +1762,229 @@ mod tests {
         );
         assert!(f.shifted_ulps.unwrap() > 0);
         assert!(!pred_hashes.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn shifted_frontier_bisection_dedups_seen_keys_and_picks_closest_flip() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-fuzz-bisect-closest-test-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(
+            &endpoint,
+            json!({"host": "127.0.0.1", "port": port, "token": "t"}).to_string(),
+        )
+        .unwrap();
+
+        // Anchor at -1.0; place:
+        // 1) A far-left decoy flip at -200_000 ULPs (number -> #VALUE!).
+        // 2) An interior island inside [-65_536, -1024] at [-40_000, -30_000] (number).
+        // 3) The true closest flip at -5_000 ULPs (#VALUE! -> number, matching DNA direction).
+        // Both Step 1 (bracket choice) and Step 2 (64-point refinement) must choose the closest flip (-5_000)
+        // rather than breaking on the leftmost flip (-200_000 or -40_000).
+        let anchor = -1.0_f64;
+        let far_cut = step_ulps(anchor, -200_000, true).unwrap();
+        let island_lo = step_ulps(anchor, -40_000, true).unwrap();
+        let island_hi = step_ulps(anchor, -30_000, true).unwrap();
+        let close_cut = step_ulps(anchor, -5_000, true).unwrap();
+        let seen_by_broker = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let seen_by_broker_srv = seen_by_broker.clone();
+
+        let _server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => write_frame(
+                        &mut stream,
+                        b'H',
+                        &json!({"v": "touchstone/1", "server": "fake-bisect-closest", "envs": {"e1": {"file_version": "16.0.20625.20108", "cpu": "Fake", "machine": "x86-64"}}}),
+                    ),
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap().to_string();
+                        let mut answers = Vec::new();
+                        for g in body["groups"].as_array().unwrap() {
+                            let tokens: Vec<&str> = g["k"].as_str().unwrap().split(',').collect();
+                            let width = tokens.len();
+                            let n = g["n"].as_u64().unwrap() as usize;
+                            let flat = g["v"].as_array().unwrap();
+                            let mut ty = String::new();
+                            let mut out_v = Vec::new();
+                            let mut ity = String::new();
+                            let mut iv = Vec::new();
+                            for r in 0..n {
+                                for c in 0..width {
+                                    ity.push('n');
+                                    iv.push(flat[r * width + c].clone());
+                                }
+                                let g_hex = flat[r * width + 5].as_str().unwrap();
+                                seen_by_broker_srv.lock().unwrap().push(g_hex.to_owned());
+                                let g_val = f64::from_bits(u64::from_str_radix(g_hex, 16).unwrap());
+                                let is_num = g_val <= far_cut
+                                    || (g_val > island_lo && g_val <= island_hi)
+                                    || g_val > close_cut;
+                                if is_num {
+                                    ty.push('n');
+                                    out_v.push(Value::String(format!("{:016x}", 0.05_f64.to_bits())));
+                                } else {
+                                    ty.push('e');
+                                    out_v.push(Value::String("#VALUE!".to_owned()));
+                                }
+                            }
+                            let mut g_out = json!({"ty": ty, "v": out_v, "ity": ity, "iv": iv});
+                            if let Some(o) = g.get("o") {
+                                g_out["o"] = o.clone();
+                            } else {
+                                g_out["i"] = g["i"].clone();
+                            }
+                            answers.push(g_out);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({"id": id, "seq": body["seq"], "env": "e1", "w": "w3", "g": answers}),
+                        );
+                        if body["last"] == json!(true) {
+                            write_frame(&mut stream, b'D', &json!({"id": id, "calls": 0}));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let client = connect_client(Some(&endpoint)).unwrap();
+        let mut cfg = FuzzConfig::default_for("RATE");
+        cfg.out_dir = tmp.join("out");
+        let base_args = vec![
+            hex_f64(10.0),
+            hex_f64(-120.0),
+            hex_f64(1000.0),
+            hex_f64(0.0),
+            hex_f64(0.0),
+            hex_f64(0.1),
+        ];
+        let mut frontiers = vec![Frontier {
+            id: "frontier-RATE-001".to_owned(),
+            function: "RATE".to_owned(),
+            axis: 5,
+            axis_cell: None,
+            axis_name: "guess".to_owned(),
+            kind: "error:Value<->number".to_owned(),
+            base_args: base_args.clone(),
+            dna_lo_bits: anchor.to_bits(),
+            dna_hi_bits: step_ulps(anchor, 1, true).unwrap().to_bits(),
+            dna_lo_outcome: "error:Value".to_owned(),
+            dna_hi_outcome: "0x3fa999999999999a".to_owned(),
+            excel_lo_bits: None,
+            excel_hi_bits: None,
+            excel_lo_outcome: None,
+            excel_hi_outcome: None,
+            shifted_ulps: None,
+        }];
+        // Pre-seed seen_keys + excel_answers with dna_lo_bits (already probed in
+        // expand_frontier_windows) and an exact Step 2 interior sample point so bisection must
+        // reuse cached answers and never re-ask or double-bank them.
+        let mut seen = HashSet::new();
+        let mut excel_answers = HashMap::new();
+        let mut pre_lo_args = base_args.clone();
+        set_axis_f64(&mut pre_lo_args, 5, None, anchor);
+        let pre_lo_key = canonical_case_key("RATE", &pre_lo_args);
+        seen.insert(pre_lo_key.clone());
+        excel_answers.insert(pre_lo_key, format!("0x{:016x}", 0.05_f64.to_bits()));
+
+        // First interior point of Step 2 over [-65_536, -1_024]:
+        // ca + (span * 1) / 64 = -65_536 + 64_512 / 64 = -64_528.
+        let pre_step_val = step_ulps(anchor, -64_528, true).unwrap();
+        let mut pre_step_args = base_args.clone();
+        set_axis_f64(&mut pre_step_args, 5, None, pre_step_val);
+        let pre_step_key = canonical_case_key("RATE", &pre_step_args);
+        seen.insert(pre_step_key.clone());
+        excel_answers.insert(pre_step_key, "error:Value".to_owned());
+
+        let mut hasher = StreamCaseHasher::new("RATE");
+        let mut pred_hashes = Vec::new();
+        let mut envs = BTreeMap::new();
+        let mut workers = BTreeMap::new();
+        let mut rstats = BTreeMap::new();
+        let mut known = HashSet::new();
+        let mut discs = Vec::new();
+        let mut dparents = Vec::new();
+        let mut fseeds = Vec::new();
+        let (mut next_id, mut generated, mut asked, mut matched, mut mismatched, mut unread, mut crashed) =
+            (0, 0, 0, 0, 0, 0, 0);
+        let mut excel_s = 0.0;
+
+        bisect_shifted_frontiers_excel(
+            &cfg,
+            &client,
+            &mut frontiers,
+            &mut seen,
+            &mut excel_answers,
+            &mut hasher,
+            &mut pred_hashes,
+            &mut envs,
+            &mut workers,
+            &mut rstats,
+            &mut known,
+            &mut discs,
+            &mut dparents,
+            &mut fseeds,
+            &mut next_id,
+            &mut generated,
+            &mut asked,
+            &mut matched,
+            &mut mismatched,
+            &mut unread,
+            &mut crashed,
+            &mut excel_s,
+            0,
+        )
+        .expect("bisect succeeded");
+
+        // 1) Must never re-ask the pre-seen anchor or Step 2 point, or ask any point twice.
+        let asked_hexes = seen_by_broker.lock().unwrap().clone();
+        let anchor_hex = format!("{:016x}", anchor.to_bits());
+        let pre_step_hex = format!("{:016x}", pre_step_val.to_bits());
+        assert!(
+            !asked_hexes.contains(&anchor_hex),
+            "bisect re-asked pre-seen dna_lo_bits {anchor_hex}"
+        );
+        assert!(
+            !asked_hexes.contains(&pre_step_hex),
+            "bisect re-asked pre-seen Step 2 interior point {pre_step_hex}"
+        );
+        let unique_asked: HashSet<&String> = asked_hexes.iter().collect();
+        assert_eq!(
+            unique_asked.len(),
+            asked_hexes.len(),
+            "bisect asked duplicate points to Touchstone"
+        );
+        let unique_disc_keys: HashSet<String> = discs
+            .iter()
+            .map(|d| canonical_case_key("RATE", &d.case.args))
+            .collect();
+        assert_eq!(
+            unique_disc_keys.len(),
+            discs.len(),
+            "discrepancies contain duplicate canonical rows"
+        );
+
+        // 2) Must pick the closest flip (-5_000), not the leftmost flip (-200_000 or -40_000).
+        let f = &frontiers[0];
+        assert_eq!(
+            f.excel_lo_bits,
+            Some(close_cut.to_bits()),
+            "expected closest flip at -5000 ULPs, got {:?}",
+            f.shifted_ulps
+        );
+        assert_eq!(
+            f.excel_hi_bits,
+            Some(step_ulps(close_cut, 1, true).unwrap().to_bits())
+        );
+        assert_eq!(f.shifted_ulps, Some(-5_000));
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

@@ -3,11 +3,11 @@
 //! Enforces the bank rule (owner 2026-11-21): ONLY inputs where Excel's answer differed from
 //! DNA Calc's frozen prediction are exported to `bank-rows/<FUNC>.json` (`dnacalc-witness-set/1`).
 
-use super::rng::parse_hex_bits;
+use super::rng::{canonical_case_key, parse_hex_bits};
 use super::steer::FuzzCase;
 use calc_verdict::{Severity, WITNESS_SET_FORMAT, WitnessInvocation, decode_result};
 use serde_json::{Map, Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 /// Verdict of comparing one frozen DNA Calc prediction against Excel's Touchstone reply.
 #[derive(Clone, Debug)]
@@ -409,17 +409,23 @@ pub fn encode_witness_set_json(
     rows: &[&DiscrepancyRow],
 ) -> Result<String, String> {
     // Verify bank rule invariant: every exported row must actually differ!
-    for row in rows {
+    // Also deduplicate by canonical (function, args) key so bank-rows never receives duplicate rows.
+    let mut seen_canonical: HashSet<String> = HashSet::with_capacity(rows.len());
+    let mut unique_rows: Vec<&DiscrepancyRow> = Vec::with_capacity(rows.len());
+    for &row in rows {
         if row.expected == row.case.prediction {
             return Err(format!(
                 "refusing to export matching row {} into discrepancy WitnessSet",
                 row.case.id
             ));
         }
+        if seen_canonical.insert(canonical_case_key(function, &row.case.args)) {
+            unique_rows.push(row);
+        }
     }
     let mut env_to_rid: BTreeMap<String, String> = BTreeMap::new();
     let mut readings: Vec<Value> = Vec::new();
-    for row in rows {
+    for row in &unique_rows {
         if !env_to_rid.contains_key(&row.env_id) {
             let rid = format!("r{}", readings.len());
             let env = envs.get(&row.env_id);
@@ -451,8 +457,8 @@ pub fn encode_witness_set_json(
             env_to_rid.insert(row.env_id.clone(), rid);
         }
     }
-    let mut witnesses: Vec<Value> = Vec::with_capacity(rows.len());
-    for (idx, row) in rows.iter().enumerate() {
+    let mut witnesses: Vec<Value> = Vec::with_capacity(unique_rows.len());
+    for (idx, row) in unique_rows.iter().enumerate() {
         let rid = &env_to_rid[&row.env_id];
         witnesses.push(json!({
             "id": format!("{lane}-{function}-{:05}", idx + 1),
@@ -542,6 +548,27 @@ mod tests {
                 &[&matching],
             )
             .is_err()
+        );
+
+        // Duplicate canonical inputs must be deduplicated so bank-rows never contains the same row twice.
+        let mut dup = row.clone();
+        dup.case.id = "fuzz-RATE-b01-000099".to_owned();
+        let deduped = encode_witness_set_json(
+            "RATE",
+            "sf1",
+            "sf1/rate-sweep/spec.json",
+            "discrepancies only",
+            "2026-11-23T22:30:00Z",
+            &envs,
+            &touchstone_bulk_context(),
+            &[&row, &dup],
+        )
+        .expect("deduped WitnessSet");
+        let parsed_dedup = calc_verdict::WitnessSet::decode(deduped.as_bytes()).unwrap();
+        assert_eq!(
+            parsed_dedup.witnesses.len(),
+            1,
+            "duplicate canonical inputs should collapse to a single bank row"
         );
     }
 }
