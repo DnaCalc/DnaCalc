@@ -265,7 +265,7 @@ pub fn cluster_key_for(
 }
 
 /// Complexity score for choosing a minimal representative (lower = simpler / cleaner inputs).
-fn arg_complexity(value: &Value) -> u64 {
+pub(crate) fn arg_complexity(value: &Value) -> u64 {
     match value {
         Value::String(s) => {
             if let Some(bits) = parse_hex_bits(value) {

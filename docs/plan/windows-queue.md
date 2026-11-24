@@ -36,6 +36,11 @@ Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen prediction
   4,525/4,600 and STAT 3,084/3,111. Both oracle corpus runs matched
   78,344/78,390, with identical counts for all 156 workbooks. The 46 failures
   comprise 27 mismatches, five missing results and 14 circular held results.
+- **dc-j9k.61.** The full-detail oracle rerun retained exact values for all
+  27 mismatches. A fresh Touchstone read of r39 ETS STAT D678 confirmed the
+  archive's 3fde0fc00eae7f20 in Excel 16.0.20625.20108. Win64 returned
+  3fde0fc00eae7f1f. The live and archive readings are in ww14/bank-rows.
+  Sibling numerical precision remains dc-j9k.61.
 - Win64 matched 37 of the 39 former nl25 discrepancies from Excel
   16.0.20625.20108 on AMD Ryzen 7 4800H. It returned 3 where Excel returned 0
   on nl25-s1-027 and -028. The two fresh-source residuals and two archived

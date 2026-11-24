@@ -2035,7 +2035,15 @@ pub fn execute_live_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         fractal_stats,
         tracker,
     };
-    write_outputs(cfg, &spec, &summary, &discrepancies, &all_envs)?;
+    write_outputs(
+        cfg,
+        &spec,
+        &summary,
+        &discrepancies,
+        &all_envs,
+        &frontier_seeds,
+        &excel_answers,
+    )?;
     Ok(summary)
 }
 
@@ -2424,6 +2432,22 @@ mod tests {
         assert_eq!(recipe.cpus, vec!["Fake AMD Ryzen".to_owned()]);
         assert!(!recipe.storage_policy.matching_readings_stored);
         assert!(recipe.storage_policy.discrepancies_only);
+
+        // Texture catalogue (dc-ztvv.26.8): textures.json must be written and retain interesting
+        // cases EVEN WHEN THEY MATCH Excel (matched_excel == Some(true)) while bank-rows stays
+        // strictly discrepancies-only!
+        let tex_path = cfg.out_dir.join("textures.json");
+        assert!(tex_path.is_file(), "expected textures.json from live run");
+        let tex_cat = crate::fuzz::texture::read_texture_catalogue(&tex_path).expect("read textures");
+        assert!(!tex_cat.entries.is_empty(), "expected non-empty texture catalogue");
+        assert!(
+            tex_cat.entries.iter().any(|e| e.matched_excel == Some(true)),
+            "expected matching interesting texture cases to be retained in textures.json"
+        );
+        let tex_val = crate::fuzz::texture::validate_texture_catalogue_file(&tex_path)
+            .expect("validate live textures");
+        assert_eq!(tex_val.matched_recorded, tex_val.total);
+        assert!(tex_val.drifted.is_empty());
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

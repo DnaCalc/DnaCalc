@@ -17,6 +17,7 @@ pub mod spec_gen;
 pub mod steer;
 pub mod storage;
 mod sweep;
+pub mod texture;
 
 use boundary::{Frontier, expand_frontier_windows};
 use cluster::{DiscrepancyCluster, DiscrepancyRow, RegionStats};
@@ -24,7 +25,7 @@ use domain::DomainSpec;
 use fractal::{FractalConfig, FractalDiscoveryStats, fractal_discover_local};
 use rng::{GENERATOR_VERSION, Rng, hash_case_stream};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -32,7 +33,7 @@ use std::process::ExitCode;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use steer::{CoverageTracker, FuzzCase, generate_steered_round, touchstone_bulk_context};
 
-pub const USAGE: &str = "cargo xtask fuzz (sweep ... | coverage ... | --func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json> | --verify-storage <dir> | --audit-bank <witness.json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
+pub const USAGE: &str = "cargo xtask fuzz (sweep ... | coverage ... | --func <F> | --all-catalogue | --patient-zero <json> | --resweep <recipe.json> | --verify-storage <dir> | --audit-bank <witness.json> | --validate-textures <json>) [--seed <N>] [--budget <N>] [--min-budget <N>] [--out <dir>] [--hints-dir <dir>] [--round-size <N>] [--dry-rounds <K>] [--batch <N>] [--in-flight <N>] [--frontiers <N>] [--fractal-depth <D>] [--window <W>] [--pz-siblings <F1,F2>] [--max-siblings <N>] [--texture-out <json>] [--max-textures <N>] [--lane <name>] [--endpoint <path>] [--bank-rows-out <json>] [--pin-out <json>] [--dry-run]";
 
 #[derive(Clone, Debug)]
 pub struct FuzzConfig {
@@ -58,6 +59,9 @@ pub struct FuzzConfig {
     pub resweep: Option<PathBuf>,
     pub verify_storage: Option<PathBuf>,
     pub audit_bank: Option<PathBuf>,
+    pub validate_textures: Option<PathBuf>,
+    pub texture_out: Option<PathBuf>,
+    pub max_textures: usize,
     pub pz_siblings: Vec<String>,
     pub max_siblings: usize,
     pub dry_run: bool,
@@ -101,6 +105,9 @@ impl FuzzConfig {
             resweep: None,
             verify_storage: None,
             audit_bank: None,
+            validate_textures: None,
+            texture_out: None,
+            max_textures: 64,
             pz_siblings: Vec::new(),
             max_siblings: 6,
             dry_run: false,
@@ -132,6 +139,9 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     let mut resweep: Option<PathBuf> = None;
     let mut verify_storage: Option<PathBuf> = None;
     let mut audit_bank: Option<PathBuf> = None;
+    let mut validate_textures: Option<PathBuf> = None;
+    let mut texture_out: Option<PathBuf> = None;
+    let mut max_textures: Option<usize> = None;
     let mut pz_siblings: Vec<String> = Vec::new();
     let mut max_siblings: Option<usize> = None;
     let mut dry_run = false;
@@ -222,6 +232,15 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
             "--resweep" => resweep = Some(PathBuf::from(next_val()?)),
             "--verify-storage" => verify_storage = Some(PathBuf::from(next_val()?)),
             "--audit-bank" => audit_bank = Some(PathBuf::from(next_val()?)),
+            "--validate-textures" => validate_textures = Some(PathBuf::from(next_val()?)),
+            "--texture-out" => texture_out = Some(PathBuf::from(next_val()?)),
+            "--max-textures" => {
+                max_textures = Some(
+                    next_val()?
+                        .parse()
+                        .map_err(|_| "--max-textures needs an integer")?,
+                );
+            }
             "--pz-siblings" => {
                 for item in next_val()?.split(',') {
                     let s = item.trim().to_ascii_uppercase();
@@ -245,10 +264,11 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
         + usize::from(patient_zero.is_some())
         + usize::from(resweep.is_some())
         + usize::from(verify_storage.is_some())
-        + usize::from(audit_bank.is_some());
+        + usize::from(audit_bank.is_some())
+        + usize::from(validate_textures.is_some());
     if mode_count > 1 {
         return Err(
-            "cannot combine --all-catalogue, --patient-zero, --resweep, --verify-storage, and --audit-bank"
+            "cannot combine --all-catalogue, --patient-zero, --resweep, --verify-storage, --audit-bank, and --validate-textures"
                 .into(),
         );
     }
@@ -332,6 +352,11 @@ pub fn parse_args(raw: &[String]) -> Result<FuzzConfig, String> {
     cfg.resweep = resweep;
     cfg.verify_storage = verify_storage;
     cfg.audit_bank = audit_bank;
+    cfg.validate_textures = validate_textures;
+    cfg.texture_out = texture_out;
+    if let Some(v) = max_textures {
+        cfg.max_textures = v;
+    }
     cfg.pz_siblings = pz_siblings;
     if let Some(v) = max_siblings {
         cfg.max_siblings = v;
@@ -668,18 +693,29 @@ pub fn execute_dry_run(cfg: &FuzzConfig) -> Result<FuzzSummary, String> {
         fractal_stats,
         tracker,
     };
-    write_outputs(cfg, &spec, &summary, &[], &BTreeMap::new())?;
+    write_outputs(
+        cfg,
+        &spec,
+        &summary,
+        &[],
+        &BTreeMap::new(),
+        &all_cases,
+        &HashMap::new(),
+    )?;
     Ok(summary)
 }
 
-/// Write `spec.json`, `summary.json`, `frontiers.json`, `report.md`, and (when discrepancies exist)
-/// `bank-rows` and `pinned-representatives` WitnessSets.
+/// Write `spec.json`, `summary.json`, `frontiers.json`, `report.md`, `recipe.json`, `textures.json`,
+/// and (when discrepancies exist) `bank-rows` and `pinned-representatives` WitnessSets.
+#[allow(clippy::too_many_arguments)]
 pub fn write_outputs(
     cfg: &FuzzConfig,
     spec: &DomainSpec,
     summary: &FuzzSummary,
     discrepancies: &[DiscrepancyRow],
     envs: &BTreeMap<String, Value>,
+    cases_sample: &[FuzzCase],
+    excel_answers: &HashMap<String, String>,
 ) -> Result<(), String> {
     fs::create_dir_all(&cfg.out_dir).map_err(|e| format!("{}: {e}", cfg.out_dir.display()))?;
     let spec_doc = json!({
@@ -845,6 +881,24 @@ pub fn write_outputs(
     // Always write the canonical dc-ztvv.26.7 storage-policy recipe manifest (recipe.json).
     let recipe = storage::build_sweep_recipe(cfg, spec, summary, discrepancies, envs);
     storage::write_sweep_recipe(&cfg.out_dir, &recipe)?;
+
+    // Always extract and write the dc-ztvv.26.8 interesting texture catalogue (textures.json),
+    // keeping matching interesting cases alongside discrepant ones.
+    if cfg.max_textures > 0 {
+        let cat = texture::extract_texture_catalogue(
+            cfg,
+            spec,
+            summary,
+            cases_sample,
+            excel_answers,
+            &recipe.calc_func_commit,
+            cfg.max_textures,
+        );
+        texture::write_texture_catalogue(&cfg.out_dir.join("textures.json"), &cat)?;
+        if let Some(shared_path) = &cfg.texture_out {
+            texture::merge_texture_catalogue_file(shared_path, &cat)?;
+        }
+    }
     Ok(())
 }
 
@@ -864,6 +918,35 @@ pub fn run(raw: &[String]) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if let Some(tex_path) = &cfg.validate_textures {
+        return match texture::validate_texture_catalogue_file(tex_path) {
+            Ok(rep) => {
+                if rep.drifted.is_empty() {
+                    println!(
+                        "xtask fuzz --validate-textures: PASS {}/{} matched across {} functions ({:?})",
+                        rep.matched_recorded,
+                        rep.total,
+                        rep.functions.len(),
+                        rep.by_kind
+                    );
+                    ExitCode::SUCCESS
+                } else {
+                    eprintln!(
+                        "xtask fuzz --validate-textures: DRIFT {}/{} matched, {} drifted: {:?}",
+                        rep.matched_recorded,
+                        rep.total,
+                        rep.drifted.len(),
+                        rep.drifted
+                    );
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask fuzz --validate-textures: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
     if let Some(dir) = &cfg.verify_storage {
         return match storage::verify_sweep_storage_policy(dir, cfg.bank_rows_out.as_deref()) {
             Ok(rep) => {
