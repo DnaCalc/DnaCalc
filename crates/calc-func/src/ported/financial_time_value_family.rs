@@ -667,7 +667,6 @@ fn rate_secant(
 fn discounted_cashflows(
     base: f64,
     cashflows: impl Iterator<Item = Option<f64>>,
-    term_overflow: FinancialError,
 ) -> Result<(f64, f64), FinancialError> {
     let mut power = 1.0;
     let mut total = 0.0;
@@ -680,11 +679,8 @@ fn discounted_cashflows(
             }
             let term = financial_daz(excel_x87_div(cashflow, divisor));
             if !term.is_finite() {
-                if term_overflow == FinancialError::Div0 {
-                    return Err(term_overflow);
-                }
-                // MIRR gives a later unusable divisor precedence over an
-                // earlier overflowing positive term.
+                // Finish checking divisors before reporting a term overflow.
+                // A later unusable divisor still produces #DIV/0!.
                 overflowed_term = true;
             } else {
                 total = excel_x87_add(total, term);
@@ -692,19 +688,22 @@ fn discounted_cashflows(
         }
         power = excel_x87_mul(power, base);
     }
-    if overflowed_term { Err(term_overflow) } else { Ok((total, power)) }
+    if overflowed_term {
+        Err(FinancialError::Num)
+    } else {
+        Ok((total, power))
+    }
 }
 
 fn discounted_npv(
     base: f64,
     cashflows: impl Iterator<Item = f64>,
-    term_overflow: FinancialError,
     defer_final_overflow: bool,
 ) -> Result<f64, FinancialError> {
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let (total, _) = discounted_cashflows(base, cashflows.map(Some), term_overflow)?;
+    let (total, _) = discounted_cashflows(base, cashflows.map(Some))?;
     // A running-sum overflow is distinct from overflow in the final division.
     if !total.is_finite() {
         return Err(FinancialError::Num);
@@ -721,7 +720,7 @@ pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError>
     validate_finite(&[periodic_rate])?;
     validate_finite(cashflows)?;
     // Time-zero stored discounts, followed by one division by the stored base.
-    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied(), FinancialError::Div0, false)
+    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied(), false)
 }
 
 /// Remaining balance after `periods` payments, on the exp/log1p/expm1 core (W108
@@ -1108,9 +1107,6 @@ pub fn mirr(
         cashflows
             .iter()
             .map(|value| if *value > 0.0 { *value } else { 0.0 }),
-        // Excel reports NUM for an overflowing positive term in MIRR;
-        // an unusable divisor still reports DIV/0, as it does in NPV.
-        FinancialError::Num,
         defer_final_overflow,
     )?;
     let finance_base = excel_x87_add(1.0, finance_rate);
@@ -1119,7 +1115,6 @@ pub fn mirr(
         cashflows
             .iter()
             .map(|value| if *value < 0.0 { Some(*value) } else { None }),
-        FinancialError::Div0,
     );
     let (finance_pv, terminal_power) = match finance_discount {
         // An unusable finance discount does not hide the earlier positive
@@ -2318,7 +2313,8 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn npv_tiny_base_error_rules_match_the_measured_calls() {
         // design/fable52-last-bit.md section 1, b = 2^-30: 35 flows of 1 overflow only the
-        // final division (#NUM!); 36 overflow a term (#DIV/0!); 37 flows of 0 meet 0 / 0.
+        // final division (#NUM!); 36 hit a subnormal divisor (#DIV/0!);
+        // 37 flows of 0 also reach an unusable divisor.
         let rate = 2.0f64.powi(-30) - 1.0;
         assert_eq!(npv(rate, &[1.0; 35]), Err(FinancialError::Num));
         assert_eq!(npv(rate, &[1.0; 36]), Err(FinancialError::Div0));
