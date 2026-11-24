@@ -110,23 +110,23 @@ Managed RTD remains dc-snz.23.
 
 ### Office.js Promise and streaming custom functions
 
-ww9 staged a local manifest, workbook, and Promise and streaming fixture. Automatic approval review rejected the Office.js catalog registration command, so the Excel sideload and measurements still belong to dc-26wtr.1.
+The owner installed manifest 1.0.0.2 in the trusted catalog, and ww11 used that catalog and the existing HTTPS fixture server. The JavaScript-only runtime did not deliver the fixture's HTTP event requests. For the remaining invocation measurements, use a fixture with cancelable and address metadata and an observable record of invocation IDs, addresses, cancellation order and results. Repeat the workbook controls below with keyboard F9, Esc, close and the remaining save variants. Capture worksheet Text, Value2, CalculationState and application event order.
 
-1. On a disposable profile, prepare an Excel add-in-only XML manifest with a new add-in ID,
-   namespace `DNACALCASYNC`, `ReadWriteDocument`, and the custom-functions script, metadata,
-   page and shared runtime resources served over HTTPS. Add a delayed Promise function with
-   cancelable metadata and a separate streaming function with streaming metadata, `setResult`,
-   and `onCanceled`. Log invocation IDs, address when enabled, cancellation order and values.
-   Put the manifest in an approved UNC share. [Custom-functions manifest](https://learn.microsoft.com/en-us/office/dev/add-ins/excel/custom-functions-overview),
-   [invocation and cancellation](https://learn.microsoft.com/en-us/office/dev/add-ins/excel/custom-functions-web-reqs).
-2. After approval, with Office closed on that profile, add
-   `HKCU\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs\{catalog GUID}` with
-   `Id` (REG_SZ, the same braced GUID), `Url` (REG_SZ, the full UNC folder) and
-   `Flags` (REG_DWORD, 1). Start a private Excel session, open Home → Add-ins → Advanced →
-   Shared Folder and add the manifest. Use unique function names and remove the sideloaded entry
-   and its catalog on that profile after the runs.
-   [Microsoft's Windows catalog and removal steps](https://learn.microsoft.com/en-us/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins).
-3. Apply the same two dependent chains, argument edit, formula overwrite, F9, CalculateFull,
-   Manual/Automatic, close and save/reopen. Log Promise settlement once and stream delivery
-   for each result, with duplicate arguments as a shared-stream control. Record worksheet Text,
-   Value2, CalculationState and callback/event order before making any equivalence claim.
+## Office.js custom functions on Windows
+
+The ww11 runs used Excel 16.0.20625.20108 on an AMD Ryzen 7 4800H. Each run opened a fresh copy of the worksheet with a reference to the owner's trusted catalog. Manifest 1.0.0.2 uses the JavaScript-only custom-functions runtime. The fixture returns a Promise after a nominal 1,600 ms and emits six stream values at nominal 450 ms intervals. Excel COM polling recorded cell text, values and calculation state. The private-desktop logs recorded zero owned windows on the user's desktop.
+
+| Condition | Promise and its dependent | Stream and its dependent |
+| --- | --- | --- |
+| Cold Automatic entry, argument 4 | Both showed **#BUSY!** (Value2 error -2146826237). They first showed 40 and 140 at 2,406 ms and 2,604 ms in the two samples. CalculationState read 2 while waiting and 0 when the results appeared. | Both showed **#BUSY!**. The first sampled values were 41 and 141 at 1,346 ms and 1,386 ms. The stream reached 46 and the dependent reached 146. The stream published while the Promise was still pending. |
+| Automatic edit, argument 4 to 5 | The old 40 and 140 stayed visible until 50 and 150 appeared at 1,904 ms. | The old 46 and 146 stayed visible until 51 and 151 appeared at 684 ms. The stream reached 56 and the dependent reached 156. |
+| Automatic edit, argument 7 replaced by 8 after about 520 ms | The old 50 and 150 stayed visible and the final values were 80 and 180. No 70 was observed. | The cells showed 71 before the new argument started producing 81 through 86. |
+| Overwrite while the argument 9 calls are pending | The literal 123 and its dependent 223 held through the sample. No late 90 was observed. | The overwritten cell and its dependent held at 456 and 556. A second cell with the same stream formula continued from 91 through 96. |
+| Switch to Manual during an Automatic call | The in-flight Promise subsequently published 100 and its dependent published 200. | The first stream values, 101 and 201, held through the rest of the sample. |
+| Manual edit, then Application.Calculate | Editing the argument from 10 to 11 left 100 and 200 visible. Calculate yielded 110 and 210. | Editing left 101 and 201 visible. Calculate yielded 111 and 211. No later ticks appeared in the Manual sample. |
+| Manual formula entry, then CalculateFull | The new formula showed #BUSY! then 120. The dependent stayed at 210 until CalculateFull yielded 220. | The new formula showed #BUSY! then 121. The dependent stayed at 211 until CalculateFull yielded 221. |
+| Manual save with CalculateBeforeSave off and reopen | The sampled reopen values were 120 and 220. They held on Calculate and after switching to Automatic. | Reopen displayed 121 and 221. They held on Calculate. After switching to Automatic the sampled values were 126 and 226. |
+
+Times are the first sample that observed a change. The cold clock began after formula entry and includes the remaining runtime startup. The polling reads occurred sequentially, so adjacent observations cannot establish ordering within a sample. The warm and Manual rows are from the first run. The second run confirmed the cold results, then yielded #NAME? on its first argument edit. The cause of the registration loss is unverified.
+
+The fixture runtime did not deliver its HTTP event logs. The overwrite and retarget tests show that old results did not replace the edited cells during the sample. Callback delivery and ordering, whether duplicate streams share an invocation, Esc and keyboard F9, application event order, metadata options, errors, array spills and additional save and reopen variants remain open under dc-26wtr.1.3 and dc-26wtr.1.4. Raw samples, fixture inputs and guards are in the Windows lane under ww11/office-js/ and ww11/office-js-confirm/.

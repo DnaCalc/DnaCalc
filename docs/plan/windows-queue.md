@@ -24,6 +24,29 @@ Use owned sessions and authored fixtures for live Excel. Compare retained corpus
 Record the Excel build, CPU, exact input words and result selection for function probes.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
+### ww11 Windows replay, 2026-11-24
+
+- **dc-gotq0.1.** Native Windows at fc4ce7d1e passed all 28 desktop tests. The hash-checked
+  cross-built image printed usage and the staged CalcVBA UTF-16 concatenation test passed.
+- **dc-26wtr.1.** Excel 16.0.20625.20108 on Ryzen 7 4800H showed cold #BUSY! for both
+  Office.js functions and their dependents. Automatic edits, overwrite, Manual calculation
+  and Manual reopen are recorded in [the async measurements](../research/async-mechanisms-excel.md).
+- **dc-8wp.6/.10/.12/.16/.19.** The axis, precision, style, Location, shared-style and original
+  relationship packages are in the hash-verified archive on dna-koderbot under
+  codex-runs/ww11-xbuild/pt3/. The Win64 host matched 150 subtotal fill and bottom-border
+  colors and 45 Medium2 font colors. The Windows worker passed its grid projection check.
+  All five labels-only saves reopened and refreshed in Excel. All 360 cells matched and each
+  report retained Region and Product with zero value fields. A fresh shared-cache capture kept
+  the second report intact after the first lost all fields. On the original M6 model workbook,
+  Excel returned the same 18 answers on open and CalculateFull. DNA Calc matched 11 and refused
+  seven. The live capture and exact answers are in the same Linux folder.
+- **dc-6332.10.** The Win64 X2Pool endpoints matched fresh Excel values 3 and 10002.
+  Excel listed 10,002 registrations for the XLL.
+  Unload left zero live callback allocations and the closed name returned #NAME?.
+- **dc-1nbp.3.1.** The Win64 desktop replay matched all six formula values and 20 of 45 checks.
+  The B3 SheetChange still preceded calculation, carried the old value, and was followed
+  by an extra calculation pair. The event differences are in ww11/bank-rows.
+
 ### ww10 numerical replay, 2026-11-23
 
 - **dc-j9k.75**. Win64 at `189d5f9d9` passed 566 CalcFunc unit tests with three ignored. The new
