@@ -200,6 +200,38 @@ pub fn is_value2_exact(value: f64) -> bool {
         && !(value == 0.0 && value.is_sign_negative())
 }
 
+/// Compress finite IEEE-754 doubles into a Value2-safe integer order where the subnormal gap
+/// `(-MIN_POSITIVE, +MIN_POSITIVE)` collapses to a single point `0` (`0.0`).
+#[inline]
+pub fn f64_to_compact(v: f64) -> i128 {
+    let pos_min = min_pos_ordered();
+    let neg_min = min_neg_ordered();
+    if v == 0.0 || v.is_subnormal() {
+        0
+    } else if v > 0.0 {
+        (f64_to_ordered(v) - pos_min) as i128 + 1
+    } else {
+        -((neg_min - f64_to_ordered(v)) as i128 + 1)
+    }
+}
+
+/// Inverse of [`f64_to_compact`], returning `None` outside `[-f64::MAX, +f64::MAX]`.
+#[inline]
+pub fn compact_to_f64(c: i128) -> Option<f64> {
+    let pos_min = min_pos_ordered();
+    let neg_min = min_neg_ordered();
+    if c == 0 {
+        Some(0.0)
+    } else if c > 0 {
+        let ord = pos_min.checked_add(u64::try_from(c - 1).ok()?)?;
+        (ord <= max_pos_ordered()).then(|| ordered_to_f64(ord))
+    } else {
+        let dist = u64::try_from(-c - 1).ok()?;
+        let ord = neg_min.checked_sub(dist)?;
+        (ord >= max_neg_ordered()).then(|| ordered_to_f64(ord))
+    }
+}
+
 /// Step a finite double by `delta` ULPs in IEEE-754 total order.
 /// When `value2_safe` is true, skips subnormals and `-0.0` (so `±MIN_POSITIVE` steps to `0.0`
 /// and `0.0` steps to `±MIN_POSITIVE`), ensuring Excel `Value2` round-trips identically.
@@ -218,31 +250,7 @@ pub fn step_ulps(value: f64, delta: i64, value2_safe: bool) -> Option<f64> {
         let out = ordered_to_f64(ord as u64);
         return out.is_finite().then_some(out);
     }
-    // Compress the subnormal gap (-MIN_POSITIVE, +MIN_POSITIVE) to a single point (0.0).
-    let pos_min = min_pos_ordered();
-    let neg_min = min_neg_ordered();
-    let to_compact = |v: f64| -> i128 {
-        if v == 0.0 || v.is_subnormal() {
-            0
-        } else if v > 0.0 {
-            (f64_to_ordered(v) - pos_min) as i128 + 1
-        } else {
-            -((neg_min - f64_to_ordered(v)) as i128 + 1)
-        }
-    };
-    let from_compact = |c: i128| -> Option<f64> {
-        if c == 0 {
-            Some(0.0)
-        } else if c > 0 {
-            let ord = pos_min.checked_add((c - 1) as u64)?;
-            (ord <= max_pos_ordered()).then(|| ordered_to_f64(ord))
-        } else {
-            let dist = (-c - 1) as u64;
-            let ord = neg_min.checked_sub(dist)?;
-            (ord >= max_neg_ordered()).then(|| ordered_to_f64(ord))
-        }
-    };
-    from_compact(to_compact(value) + delta as i128)
+    compact_to_f64(f64_to_compact(value) + delta as i128)
 }
 
 /// Canonical deduplication key for one function call.

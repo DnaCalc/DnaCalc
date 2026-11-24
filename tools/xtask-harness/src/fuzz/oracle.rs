@@ -15,8 +15,8 @@ use super::cluster::{
 };
 use super::domain::DomainSpec;
 use super::rng::{
-    Rng, StreamCaseHasher, canonical_case_key, f64_to_ordered, ordered_to_f64, parse_hex_bits,
-    step_ulps,
+    Rng, StreamCaseHasher, canonical_case_key, compact_to_f64, f64_to_compact, f64_to_ordered,
+    parse_hex_bits, step_ulps,
 };
 use super::steer::{
     CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
@@ -143,6 +143,47 @@ pub fn answer_to_encoded(answer: &Answer) -> Result<String, RowOutcome> {
             reason: "unexpected spilled array output".to_owned(),
         }),
     }
+}
+
+/// Verify that Excel's echoed input row matches the arguments we asked for bit-for-bit.
+///
+/// Touchstone's `echo` wire format (`Program.cs`, `PROTOCOL.md`) flattens `Arg::Array`
+/// (`aRxC`) into `R * C` consecutive scalar `Answer::Number` cells in `ity`/`iv`, while
+/// synthetic tests may echo an `Answer::Array`; accept both faithfully.
+pub fn echo_row_matches_sent(sent: &[Arg], echoed: &[Answer]) -> bool {
+    let mut pos = 0usize;
+    for arg in sent {
+        match arg {
+            Arg::Array { bits, .. } => {
+                if let Some(cell @ Answer::Array { .. }) = echoed.get(pos) {
+                    if !echo_matches_arg(arg, cell) {
+                        return false;
+                    }
+                    pos += 1;
+                } else {
+                    if pos + bits.len() > echoed.len() {
+                        return false;
+                    }
+                    for (expected_bits, cell) in bits.iter().zip(&echoed[pos..pos + bits.len()]) {
+                        if !matches!(cell, Answer::Number(got) if got == expected_bits) {
+                            return false;
+                        }
+                    }
+                    pos += bits.len();
+                }
+            }
+            _ => {
+                let Some(cell) = echoed.get(pos) else {
+                    return false;
+                };
+                if !echo_matches_arg(arg, cell) {
+                    return false;
+                }
+                pos += 1;
+            }
+        }
+    }
+    pos == echoed.len()
 }
 
 /// Verify that Excel's echoed input matches the argument we asked for bit-for-bit.
@@ -311,16 +352,11 @@ fn drain_one_chunk(
             && let Some(echo_row) = in_rows.get(pos)
         {
             let sent = &chunk.sent_rows[pos];
-            if echo_row.len() != sent.len()
-                || !sent
-                    .iter()
-                    .zip(echo_row.iter())
-                    .all(|(s, e)| echo_matches_arg(s, e))
-            {
+            if !echo_row_matches_sent(sent, echo_row) {
                 judged[case_idx] = JudgedRow {
                     outcome: RowOutcome::Unread {
                         reason: format!(
-                            "echo input readback differed (sent {} args, got {})",
+                            "echo input readback differed (sent {} args, got {} echo cells)",
                             sent.len(),
                             echo_row.len()
                         ),
@@ -796,29 +832,28 @@ fn bisect_shifted_frontiers_excel(
         let mut step_meta: Vec<(usize, u64)> = Vec::new();
         let mut still_open = Vec::new();
         for (bi, (fidx, lo_b, lo_o, hi_b, hi_o)) in active_brackets.iter().enumerate() {
-            let oa = f64_to_ordered(f64::from_bits(*lo_b));
-            let ob = f64_to_ordered(f64::from_bits(*hi_b));
-            if ob <= oa + 1 {
+            let ca = f64_to_compact(f64::from_bits(*lo_b));
+            let cb = f64_to_compact(f64::from_bits(*hi_b));
+            if cb <= ca + 1 {
                 let f = &mut frontiers[*fidx];
                 f.excel_lo_bits = Some(*lo_b);
                 f.excel_hi_bits = Some(*hi_b);
                 f.excel_lo_outcome = Some(lo_o.clone());
                 f.excel_hi_outcome = Some(hi_o.clone());
-                let shift = oa as i128 - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+                let shift = ca - f64_to_compact(f64::from_bits(f.dna_lo_bits));
                 f.shifted_ulps = i64::try_from(shift).ok();
                 continue;
             }
             still_open.push(bi);
             let f = &frontiers[*fidx];
-            let span = ob - oa;
+            let span = (cb - ca) as u128;
             let k_pts = span.saturating_sub(1).min(63) as usize;
             let mut local_bits = HashSet::new();
             for j in 1..=k_pts {
-                let ord = oa + ((span as u128 * j as u128) / ((k_pts + 1) as u128)) as u64;
-                let mut val = ordered_to_f64(ord);
-                if val.is_subnormal() || (val == 0.0 && val.is_sign_negative()) {
-                    val = 0.0;
-                }
+                let c = ca + ((span * j as u128) / ((k_pts + 1) as u128)) as i128;
+                let Some(val) = compact_to_f64(c) else {
+                    continue;
+                };
                 let b = if val == 0.0 { 0u64 } else { val.to_bits() };
                 if b == *lo_b || b == *hi_b || !local_bits.insert(b) {
                     continue;
@@ -844,7 +879,6 @@ fn bisect_shifted_frontiers_excel(
             }
         }
         if step_cases.is_empty() {
-            // Remaining brackets may span only the subnormal gap; record them cleanly.
             for bi in still_open {
                 let (fidx, lo_b, lo_o, hi_b, hi_o) = &active_brackets[bi];
                 let f = &mut frontiers[*fidx];
@@ -852,8 +886,8 @@ fn bisect_shifted_frontiers_excel(
                 f.excel_hi_bits = Some(*hi_b);
                 f.excel_lo_outcome = Some(lo_o.clone());
                 f.excel_hi_outcome = Some(hi_o.clone());
-                let shift = f64_to_ordered(f64::from_bits(*lo_b)) as i128
-                    - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+                let shift = f64_to_compact(f64::from_bits(*lo_b))
+                    - f64_to_compact(f64::from_bits(f.dna_lo_bits));
                 f.shifted_ulps = i64::try_from(shift).ok();
             }
             break;
@@ -925,8 +959,8 @@ fn bisect_shifted_frontiers_excel(
             f.excel_hi_bits = Some(hi_b);
             f.excel_lo_outcome = Some(lo_o);
             f.excel_hi_outcome = Some(hi_o);
-            let shift = f64_to_ordered(f64::from_bits(lo_b)) as i128
-                - f64_to_ordered(f64::from_bits(f.dna_lo_bits)) as i128;
+            let shift = f64_to_compact(f64::from_bits(lo_b))
+                - f64_to_compact(f64::from_bits(f.dna_lo_bits));
             f.shifted_ulps = i64::try_from(shift).ok();
         }
     }
@@ -1667,5 +1701,48 @@ mod tests {
         assert!(f.shifted_ulps.unwrap() > 0);
         assert!(!pred_hashes.is_empty());
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn echo_row_matches_flattened_touchstone_array_and_rejects_mismatch() {
+        let b0 = (-100.0_f64).to_bits();
+        let b1 = (60.0_f64).to_bits();
+        let b2 = (60.0_f64).to_bits();
+        let g = (0.1_f64).to_bits();
+        let sent = vec![
+            Arg::Array {
+                rows: 3,
+                cols: 1,
+                bits: vec![b0, b1, b2],
+            },
+            Arg::Number(g),
+        ];
+        // Real Touchstone wire echo flattens a3x1 + n into 4 scalar Answer::Number entries.
+        let flat_echo = vec![
+            Answer::Number(b0),
+            Answer::Number(b1),
+            Answer::Number(b2),
+            Answer::Number(g),
+        ];
+        assert!(echo_row_matches_sent(&sent, &flat_echo));
+
+        // Single-bit change in any array cell must be rejected as unread.
+        let mut bad_echo = flat_echo.clone();
+        bad_echo[1] = Answer::Number(b1 ^ 1);
+        assert!(!echo_row_matches_sent(&sent, &bad_echo));
+
+        // Missing trailing scalar arg must be rejected.
+        assert!(!echo_row_matches_sent(&sent, &flat_echo[..3]));
+
+        // Matrix-form echo is also accepted.
+        let matrix_echo = vec![
+            Answer::Array {
+                rows: 3,
+                cols: 1,
+                cells: vec![Answer::Number(b0), Answer::Number(b1), Answer::Number(b2)],
+            },
+            Answer::Number(g),
+        ];
+        assert!(echo_row_matches_sent(&sent, &matrix_echo));
     }
 }
