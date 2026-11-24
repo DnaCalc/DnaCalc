@@ -140,6 +140,7 @@ class Relay:
     def from_broker(self, kind, body):
         if kind == protocol.HELLO:
             self.server = body.get("server") or self.server
+            self.sweep = body.get("sweep") is True
             self.envs.update(body.get("envs", {}))
             self.hello_seen.set()
             return
@@ -218,7 +219,7 @@ class Relay:
                 await asyncio.wait_for(self.hello_seen.wait(), 10)
             except asyncio.TimeoutError:
                 pass
-            out.send(protocol.HELLO, {"v": protocol.VERSION, "server": self.server or self.host, "envs": self.envs}, True)
+            out.send(protocol.HELLO, {"v": protocol.VERSION, "server": self.server or self.host, "sweep": getattr(self, "sweep", False), "envs": self.envs}, True)
         elif kind == protocol.PING:
             out.send(protocol.PONG, body, True)
         elif kind == protocol.SUBMIT:

@@ -27,6 +27,7 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -133,10 +134,11 @@ impl Answer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Priority {
     Interactive,
     Bulk,
+    Sweep,
 }
 
 /// A question: one function over many calls.
@@ -431,6 +433,7 @@ fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
                 match request.priority {
                     Some(Priority::Interactive) => opts["priority"] = json!("interactive"),
                     Some(Priority::Bulk) => opts["priority"] = json!("bulk"),
+                    Some(Priority::Sweep) => opts["priority"] = json!("sweep"),
                     None => {}
                 }
                 frame["opts"] = opts;
@@ -495,6 +498,8 @@ fn client_lane() -> Option<String> {
 
 // ---- connection -------------------------------------------------------------------------------
 
+type RequestResult = Result<Reply, (Error, Option<Box<Reply>>)>;
+
 struct Slot {
     frames: Arc<[Vec<u8>]>,
     answers: Vec<Option<Answer>>,
@@ -502,7 +507,8 @@ struct Slot {
     env_id: Option<String>,
     env_by_row: Vec<Option<String>>,
     worker_calls: BTreeMap<String, usize>,
-    sender: Sender<Result<Reply, Error>>,
+    sender: Sender<RequestResult>,
+    sweep: bool,
     started: std::time::Instant,
     echo: bool,
 }
@@ -512,6 +518,8 @@ struct Shared {
     writer: Mutex<Result<Option<Stream>, String>>,
     slots: Mutex<HashMap<String, Slot>>,
     envs: Mutex<HashMap<String, Value>>,
+    sweep_supported: AtomicBool,
+    sweep_required: AtomicBool,
 }
 
 pub struct Client {
@@ -565,6 +573,9 @@ impl Connector {
             stream.read_exact(&mut frame[4..])?;
             let (kind, body) = take_frames(&mut frame)?.pop().expect("one complete frame");
             if kind == b'H' && body["v"] == VERSION {
+                shared
+                    .sweep_supported
+                    .store(body["sweep"] == json!(true), Ordering::Relaxed);
                 if let Some(envs) = body["envs"].as_object() {
                     shared.envs.lock().unwrap().extend(envs.clone());
                 }
@@ -586,11 +597,73 @@ impl Shared {
             stream.shutdown();
         }
         for (_, slot) in self.slots.lock().unwrap().drain() {
-            let _ = slot.sender.send(Err(Error::Connection(reason.clone())));
+            self.fail(slot, Error::Connection(reason.clone()));
+        }
+    }
+
+    fn fail(&self, slot: Slot, error: Error) {
+        let sender = slot.sender.clone();
+        let partial = self.partial_reply(slot);
+        let _ = sender.send(Err((error, partial)));
+    }
+
+    fn partial_reply(&self, slot: Slot) -> Option<Box<Reply>> {
+        (slot.sweep && slot.answers.iter().any(Option::is_some)).then(|| Box::new(self.reply(slot)))
+    }
+
+    fn reply(&self, slot: Slot) -> Reply {
+        let known_envs = self.envs.lock().unwrap();
+        let env = slot
+            .env_id
+            .as_ref()
+            .and_then(|id| known_envs.get(id).cloned());
+        let envs = slot
+            .env_by_row
+            .iter()
+            .flatten()
+            .chain(slot.env_id.iter())
+            .filter_map(|id| known_envs.get(id).map(|env| (id.clone(), env.clone())))
+            .collect();
+        Reply {
+            rows: slot
+                .answers
+                .into_iter()
+                .enumerate()
+                .map(|(index, answer)| {
+                    if slot.sweep
+                        && slot
+                            .inputs
+                            .as_ref()
+                            .and_then(|rows| rows[index].as_ref())
+                            .is_none()
+                    {
+                        return Answer::Unread {
+                            reason: "service supplied no input readback".into(),
+                        };
+                    }
+                    answer.unwrap_or_else(|| Answer::Unread {
+                        reason: "service did not answer this call".into(),
+                    })
+                })
+                .collect(),
+            inputs: slot
+                .inputs
+                .map(|inputs| inputs.into_iter().map(Option::unwrap_or_default).collect()),
+            env_id: slot.env_id,
+            env,
+            env_by_row: slot.env_by_row,
+            envs,
+            worker_calls: slot.worker_calls,
+            seconds: slot.started.elapsed().as_secs_f64(),
         }
     }
 
     fn replay(&self, mut stream: Stream) {
+        if self.sweep_required.load(Ordering::Relaxed) {
+            stream.shutdown();
+            self.close("sweep broker connection ended".into());
+            return;
+        }
         let mut writer = self.writer.lock().unwrap();
         let Ok(connection) = &mut *writer else {
             stream.shutdown();
@@ -673,7 +746,8 @@ impl Drop for Client {
 
 /// A request in flight.
 pub struct Handle {
-    receiver: Receiver<Result<Reply, Error>>,
+    receiver: Receiver<RequestResult>,
+    sweep_slot: Option<(Arc<Shared>, String)>,
 }
 
 impl Handle {
@@ -682,12 +756,28 @@ impl Handle {
         self.receiver
             .recv()
             .map_err(|_| Error::Connection("the client was dropped".into()))?
+            .map_err(|(error, _)| error)
     }
+
     pub fn wait_timeout(self, timeout: Duration) -> Result<Reply, Error> {
+        self.wait_timeout_with_partial(timeout)
+            .map_err(|(error, _)| error)
+    }
+
+    /// Sweep runs can retain verified observations received before the request was interrupted.
+    pub fn wait_timeout_with_partial(self, timeout: Duration) -> RequestResult {
         match self.receiver.recv_timeout(timeout) {
             Ok(result) => result,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(Error::Timeout),
-            Err(_) => Err(Error::Connection("the client was dropped".into())),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                let partial = self.sweep_slot.and_then(|(shared, id)| {
+                    let slot = shared.slots.lock().unwrap().remove(&id)?;
+                    shared.partial_reply(slot)
+                });
+                self.receiver
+                    .try_recv()
+                    .unwrap_or(Err((Error::Timeout, partial)))
+            }
+            Err(_) => Err((Error::Connection("the client was dropped".into()), None)),
         }
     }
 }
@@ -730,6 +820,8 @@ impl Client {
             writer: Mutex::new(Ok(None)),
             slots: Mutex::new(HashMap::new()),
             envs: Mutex::new(HashMap::new()),
+            sweep_supported: AtomicBool::new(false),
+            sweep_required: AtomicBool::new(false),
         });
         let name = format!("rust-{}", std::process::id());
         let mut reader = connector.open(&name, &shared)?;
@@ -738,6 +830,10 @@ impl Client {
         thread::spawn(move || {
             let mut result = reader_shared.read(&mut reader);
             loop {
+                if reader_shared.sweep_required.load(Ordering::Relaxed) {
+                    reader_shared.close("sweep broker connection ended".into());
+                    break;
+                }
                 if let Err(Error::Protocol(error)) = result {
                     reader_shared.close(error);
                     break;
@@ -779,8 +875,23 @@ impl Client {
         })
     }
 
+    /// Require broker-side sweep scheduling for this connection.
+    pub fn require_sweep(&self) -> Result<(), Error> {
+        if !self.shared.sweep_supported.load(Ordering::Relaxed) {
+            return Err(Error::Protocol(
+                "broker or relay does not advertise sweep priority".into(),
+            ));
+        }
+        self.shared.sweep_required.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+
     /// Sends a request and returns at once.
     pub fn submit(&self, request: Request) -> Result<Handle, Error> {
+        let sweep = matches!(request.priority, Some(Priority::Sweep));
+        if sweep {
+            self.require_sweep()?;
+        }
         let id = {
             let mut next = self.next.lock().unwrap();
             *next += 1;
@@ -802,7 +913,7 @@ impl Client {
             .as_mut()
             .map_err(|reason| Error::Connection(reason.clone()))?;
         self.shared.slots.lock().unwrap().insert(
-            id,
+            id.clone(),
             Slot {
                 frames: Arc::clone(&frames),
                 answers: vec![None; calls],
@@ -815,6 +926,7 @@ impl Client {
                 env_by_row: vec![None; calls],
                 worker_calls: BTreeMap::new(),
                 sender,
+                sweep,
                 started: Instant::now(),
                 echo: request.echo_inputs,
             },
@@ -824,7 +936,10 @@ impl Client {
         {
             *connection = None;
         }
-        Ok(Handle { receiver })
+        Ok(Handle {
+            receiver,
+            sweep_slot: sweep.then(|| (Arc::clone(&self.shared), id)),
+        })
     }
 
     /// One question, blocking until it is answered.
@@ -930,60 +1045,33 @@ fn route(shared: &Shared, kind: u8, body: Value) {
         }
         b'D' => {
             let id = body["id"].as_str().unwrap_or("").to_string();
-            let Some(slot) = shared.slots.lock().unwrap().remove(&id) else {
+            let mut slots = shared.slots.lock().unwrap();
+            let Some(slot) = slots.remove(&id) else {
                 return;
             };
-            let seconds = slot.started.elapsed().as_secs_f64();
-            let known_envs = shared.envs.lock().unwrap();
-            let env = slot
-                .env_id
-                .as_ref()
-                .and_then(|e| known_envs.get(e).cloned());
-            let mut envs = BTreeMap::new();
-            for row_env in slot.env_by_row.iter().flatten() {
-                if !envs.contains_key(row_env)
-                    && let Some(entry) = known_envs.get(row_env)
-                {
-                    envs.insert(row_env.clone(), entry.clone());
-                }
-            }
-            if let Some(id) = &slot.env_id
-                && !envs.contains_key(id)
-                && let Some(entry) = known_envs.get(id)
-            {
-                envs.insert(id.clone(), entry.clone());
-            }
-            drop(known_envs);
-            let missing = slot.answers.iter().any(Option::is_none);
-            let result = if missing {
-                Err(Error::Protocol(
-                    "the service finished without answering every call".into(),
-                ))
+            if slot.answers.iter().any(Option::is_none) {
+                shared.fail(
+                    slot,
+                    Error::Protocol("the service finished without answering every call".into()),
+                );
             } else {
-                Ok(Reply {
-                    rows: slot.answers.into_iter().map(Option::unwrap).collect(),
-                    inputs: slot
-                        .inputs
-                        .map(|v| v.into_iter().map(|c| c.unwrap_or_default()).collect()),
-                    env_id: slot.env_id,
-                    env,
-                    env_by_row: slot.env_by_row,
-                    envs,
-                    worker_calls: slot.worker_calls,
-                    seconds,
-                })
-            };
-            let _ = slot.sender.send(result);
+                let sender = slot.sender.clone();
+                let _ = sender.send(Ok(shared.reply(slot)));
+            }
         }
         b'X' => {
             let id = body["id"].as_str().unwrap_or("").to_string();
-            let Some(slot) = shared.slots.lock().unwrap().remove(&id) else {
+            let mut slots = shared.slots.lock().unwrap();
+            let Some(slot) = slots.remove(&id) else {
                 return;
             };
-            let _ = slot.sender.send(Err(Error::Service {
-                code: body["code"].as_str().unwrap_or("error").to_string(),
-                detail: body["detail"].as_str().unwrap_or("").to_string(),
-            }));
+            shared.fail(
+                slot,
+                Error::Service {
+                    code: body["code"].as_str().unwrap_or("error").to_string(),
+                    detail: body["detail"].as_str().unwrap_or("").to_string(),
+                },
+            );
         }
         _ => {}
     }

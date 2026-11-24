@@ -326,6 +326,8 @@ class Batcher:
     def __init__(self):
         self.interactive = _Class()
         self.bulk = _Class()
+        self.sweep = _Class()
+        self.sweep_serial = _Class()
         self.isolate = set()
         self.recent_interactive = 0.0
         self.costs = {}          # function -> estimated microseconds per call
@@ -352,13 +354,21 @@ class Batcher:
         batch.est_ms = sum(g["n"] * self.costs.get(g["f"], DEFAULT_COST_US) for g in batch.groups) / 1000
         return batch
 
+    def classes(self):
+        return self.interactive, self.bulk, self.sweep, self.sweep_serial
+
+    def queue_for(self, piece):
+        if piece.priority == "sweep":
+            return self.sweep_serial if piece.serial else self.sweep
+        return self.interactive if piece.priority == "interactive" else self.bulk
+
     def queued_calls(self):
-        return (self.interactive.calls + self.bulk.calls + sum(p.calls for p in self.serial)
+        return (sum(cls.calls for cls in self.classes()) + sum(p.calls for p in self.serial)
                 + sum(p.calls for queue in self.pinned.values() for p in queue))
 
     def waiting(self):
         """Queued groups with their source piece and whether they need isolation."""
-        for cls in (self.interactive, self.bulk):
+        for cls in self.classes():
             for item in cls.items():
                 yield item.piece, item.group, item.suspect or item.group["f"] in self.isolate
         for queue in (self.serial, *self.pinned.values()):
@@ -367,7 +377,7 @@ class Batcher:
                     yield piece, group, False
 
     def discard_request(self, rid):
-        for cls in (self.interactive, self.bulk):
+        for cls in self.classes():
             cls.discard_request(rid)
         self.serial = deque(p for p in self.serial if p.rid != rid)
         for addins, queue in self.pinned.items():
@@ -397,11 +407,11 @@ class Batcher:
             self.pinned.setdefault(piece.addins, deque()).append(piece)
             piece.remaining = len(piece.groups)
             return
-        if piece.serial:
+        if piece.serial and piece.priority != "sweep":
             self.serial.append(piece)
             piece.remaining = len(piece.groups)
             return
-        cls = self.interactive if piece.priority == "interactive" else self.bulk
+        cls = self.queue_for(piece)
         if piece.priority == "interactive":
             self.recent_interactive = time.monotonic()
         items = 0
@@ -414,18 +424,19 @@ class Batcher:
     def has_work(self):
         return not (self.interactive.empty() and self.bulk.empty())
 
-    def next_batch(self, allow_isolated=True):
+    def next_batch(self, allow_isolated=True, sweep_queue=None):
         """Assemble the next batch for an idle worker, or None.  allow_isolated=False (every worker but the
         isolation worker) leaves suspect items and isolated functions' calls in the queue."""
-        if not self.has_work():
-            return None
         batch = Batch()
         items = []
-        if not self.interactive.empty():
+        if sweep_queue is not None:
+            items, calls, _, est = sweep_queue.take(32, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS,
+                                              allow_isolated=allow_isolated)
+        elif not self.interactive.empty():
             items, calls, _, est = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs,
                                                          allow_isolated=allow_isolated)
             batch.interactive = bool(items)
-        if not items and not self.bulk.empty():
+        if sweep_queue is None and not items and not self.bulk.empty():
             items, calls, _, est = self.bulk.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS,
                                                   allow_isolated=allow_isolated)
         if not items:
@@ -488,7 +499,7 @@ class Batcher:
 
     def oldest_queued(self):
         """Receive time of the oldest queued item, or None when nothing waits."""
-        times = [t for t in (self.interactive.oldest(), self.bulk.oldest()) if t is not None]
+        times = [t for cls in self.classes() if (t := cls.oldest()) is not None]
         times += [p.t_received for p in self.serial]
         times += [p.t_received for queue in self.pinned.values() for p in queue]
         return min(times) if times else None
@@ -496,12 +507,11 @@ class Batcher:
     def requeue_items(self, items):
         """Put items back at the front, in order (after a crash: suspect items to run alone)."""
         for item in reversed(items):
-            cls = self.interactive if item.piece.priority == "interactive" else self.bulk
-            cls.push_front(item)
+            self.queue_for(item.piece).push_front(item)
 
     def requeue(self, batch):
         """Put work the worker did not run back in its original queue."""
-        if batch.serial or batch.addins:
+        if batch.addins or (batch.serial and all(p.priority != "sweep" for p in batch.pieces)):
             queue = self.serial if batch.serial else self.pinned.setdefault(batch.addins, deque())
             for piece in batch.pieces:
                 if not piece.done:

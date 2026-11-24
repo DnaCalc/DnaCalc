@@ -6,7 +6,7 @@ compressed; the ssh stream between the broker and a relay is.
 
 | Type | Byte | Direction | Body |
 |---|---|---|---|
-| hello | `H` | both | client: `{"v", "name", "lane"?, "token"?, "compress"?}`; service: `{"v", "server", "envs": {env_id: entry}}` |
+| hello | `H` | both | client: `{"v", "name", "lane"?, "token"?, "compress"?}`; service: `{"v", "server", "sweep"?, "envs": {env_id: entry}}` |
 | submit | `S` | client to service | `{"id", "seq", "last", "groups", "opts"?, "c"?, "origin"?}` |
 | answer | `A` | service to client | `{"id", "seq", "env", "w", "b", "g": [...], "order"?, "c"?}` |
 | done | `D` | service to client | `{"id", "calls", "envs", "seconds", "c"?}` |
@@ -18,7 +18,7 @@ compressed; the ssh stream between the broker and a relay is.
 ## Requests
 A request has an `id` (32 hex digits) and is sent as one or more `submit` frames with `seq` 0, 1, ...; the last has
 `"last": true`. Frame 0 carries `opts`: `echo` (read back the inputs), `order` (`any` or `serial`), `priority`
-(`interactive` or `bulk`), `calls` (the total, for the default priority), `primer` (serial mode: calls evaluated first).
+(`interactive`, `bulk`, or `sweep`), `calls` (the total, for the default priority), `primer` (serial mode: calls evaluated first).
 `addins` (a list of add-in file names, e.g. `["EUROTOOL.XLAM"]`) asks for an environment variant whose Excel has
 exactly those add-in files open; only a worker the broker started with `--addin-worker` serves it (other requests never
 reach it), and a request naming a set no worker has is refused. `c` is a tag the relay adds and the service returns.
@@ -27,6 +27,13 @@ provides the origin host from its relay connection or local machine. A resent `(
 cache for 15 minutes and does not trigger a new evaluation. When a batch for one request returns `excel-error`, the broker
 can retry it once. A second `excel-error` for the same request returns terminal error code `excel-crashed` and refuses that
 ID for one hour.
+
+A sweep client requires `"sweep": true` in the service hello. A relay forwards the capability
+from its broker. Sweep work is dispatched in small batches after foreground work, capped at
+one worker by default while preserving the interactive reserve. A broker with a larger
+`--sweep-workers` limit can expand while foreground workers are idle. The broker returns
+`sweep-deferred` for sweep requests still queued after 12 seconds. Clients can retain
+observations already received and retry the run from its recipe.
 
 A **group** holds calls of one function and one argument shape, columnar:
 

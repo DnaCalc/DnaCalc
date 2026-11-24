@@ -591,6 +591,42 @@ class BrokerTests(unittest.TestCase):
         from touchstone import client
         return client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name=name)
 
+    def test_sweep_uses_one_worker_until_idle_expansion(self):
+        broker, state, stop = start_broker(workers=4)
+        try:
+            conn = self.connect(state)
+            # Cost-size these into separate dispatches even though they arrived in one request.
+            rows = [[number(ONE)]] * 24
+            def busy_workers(priority):
+                reply = conn.submit_rows("ID", rows, priority=priority).result(15)
+                self.assertEqual(len(reply["rows"]), len(rows))
+                return [slot.name for slot in broker.slots if slot.calls]
+            broker.batcher.costs["ID"] = 300_000
+            self.assertEqual(len(busy_workers("sweep")), 1)
+            for slot in broker.slots:
+                slot.calls = 0
+            broker.options.sweep_workers = 3
+            broker.batcher.costs["ID"] = 300_000
+            self.assertGreater(len(busy_workers("sweep")), 1)
+        finally:
+            stop()
+
+    def test_sweep_gives_the_worker_back_to_foreground_between_batches(self):
+        broker, state, stop = start_broker(workers=1)
+        try:
+            conn = self.connect(state)
+            sweep = conn.submit_rows("SLEEP", [[number(ONE)]] * 96, priority="sweep")
+            until = time.monotonic() + 3
+            while not any(slot.state == "busy" and slot.running == "sweep" for slot in broker.slots):
+                self.assertLess(time.monotonic(), until)
+                time.sleep(0.01)
+            foreground = conn.submit_rows("ID", [[number(TWO)]], priority="bulk")
+            self.assertEqual(foreground.result(5)["rows"], [number(TWO)])
+            self.assertFalse(sweep.done())
+            self.assertEqual(len(sweep.result(10)["rows"]), 96)
+        finally:
+            stop()
+
     def test_answers_arrive_in_request_order_with_the_environment(self):
         broker, state, stop = start_broker()
         try:

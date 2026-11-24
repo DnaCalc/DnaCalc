@@ -59,6 +59,7 @@ HEAL_COOLDOWN = 120.0
 RESTART_CAP = 3
 RESTART_WINDOW = 3600.0
 HEALTH_SECONDS = 30.0
+SWEEP_QUEUE_SECONDS = 12
 RESERVE_WORKERS = 1               # workers bulk may never fill while bulk is queued: interactive work always has one
 ASYNC_FUNCTIONS = {"IMPORTCSV", "IMPORTTEXT", "IMAGE"}   # answered through an Excel async query
 ASYNC_DEADLINE_MS_PER_CALL = 35000
@@ -478,7 +479,7 @@ class Broker:
                 conn.origin = "tcp:" + str(body["name"])[:40]
                 conn.source.update(protocol.client_origin({"client": body["name"], "lane": body.get("lane")}))
             conn.send(protocol.HELLO, {"v": protocol.VERSION, "server": self.machine,
-                                       "envs": {k: v["env"] for k, v in self.envs.known.items()}}, True)
+                                       "sweep": True, "envs": {k: v["env"] for k, v in self.envs.known.items()}}, True)
         elif kind == protocol.SUBMIT:
             self.on_submit(conn, body)
         elif kind == protocol.PING:
@@ -542,6 +543,8 @@ class Broker:
             return
         groups = body["groups"]
         try:
+            if req.priority == "sweep" and (req.addins or req.primer):
+                raise ValueError("sweep requests cannot use add-ins or primers")
             for group in [*groups, *(req.primer if seq == 0 else [])]:
                 self.admission.check(group)
         except ValueError as error:
@@ -585,6 +588,7 @@ class Broker:
 
     # ---- dispatch ---------------------------------------------------------------------
     def kick(self):
+        self.expire_sweeps()
         # Serial work goes to the serial worker, in order; while any waits, ordinary batches keep off that worker.
         if self.batcher.serial_pending():
             serial_slots = [s for s in self.slots if s.serial and not s.addins and s.state != "down"]
@@ -614,7 +618,7 @@ class Broker:
             if not interactive:
                 # Bulk never fills the last `reserve` workers: interactive questions always find one free.
                 up = [s for s in self.slots if s.state in ("idle", "busy") and not s.addins]
-                bulk_busy = sum(1 for s in up if s.state == "busy" and s.running == "bulk")
+                bulk_busy = sum(1 for s in up if s.state == "busy" and s.running in ("bulk", "sweep"))
                 if len(up) > reserve and bulk_busy >= len(up) - reserve:
                     return
             # the serial worker (calculation off the thread pool) is the last choice for ordinary work
@@ -638,7 +642,47 @@ class Broker:
                 self.last_isolated_dispatch = time.monotonic()
             asyncio.create_task(self.run_batch(slot, batch))
         self.run_pending_checks()
+        self.dispatch_sweeps(reserve)
         self.maybe_recycle()
+
+    def expire_sweeps(self):
+        cutoff = time.monotonic() - SWEEP_QUEUE_SECONDS
+        expired = {(piece.origin, piece.rid) for piece, _, _ in self.batcher.waiting()
+                   if piece.priority == "sweep" and piece.t_received <= cutoff}
+        for key in expired:
+            request = self.requests.get(key)
+            self.batcher.discard_request(key[1])
+            for piece in request.pieces.values() if request else ():
+                self.fail_piece(piece, "sweep-deferred", "sweep yielded after waiting for an Excel worker")
+
+    def dispatch_sweeps(self, reserve):
+        plain = [slot for slot in self.slots if not slot.addins and slot.state in ("idle", "busy")]
+        if not plain or self.batcher.serial_pending():
+            return
+        foreground_idle = all(slot.state != "busy" or slot.running == "sweep" for slot in self.slots)
+        cap = self.opt("sweep_workers", 1) if foreground_idle else 1
+        busy = sum(slot.state == "busy" and slot.running == "sweep" for slot in plain)
+        idle = sum(slot.state == "idle" for slot in plain)
+        available = min(cap - busy, idle - min(reserve, len(plain) - 1))
+        isolation = self.isolation_slot()
+        for slot in sorted(plain, key=lambda slot: slot.serial):
+            if available <= 0:
+                break
+            if slot.state != "idle":
+                continue
+            batch = None
+            if slot.serial:
+                batch = self.batcher.next_batch(allow_isolated=slot is isolation, sweep_queue=self.batcher.sweep_serial)
+            if batch is None:
+                batch = self.batcher.next_batch(allow_isolated=slot is isolation, sweep_queue=self.batcher.sweep)
+            if batch is not None:
+                slot.state = "busy"
+                slot.running = "sweep"
+                available -= 1
+                if all(sl.item.suspect for sl in batch.slices):
+                    self.last_isolated_dispatch = time.monotonic()
+                asyncio.create_task(self.run_batch(slot, batch))
+
 
     def isolation_slot(self):
         """Keep isolated work on one compatible worker. Substitute while the primary is unavailable."""
@@ -961,7 +1005,8 @@ class Broker:
         """One batch in `leak_every`: the same calls in reversed order on another worker, answers compared.
 
         A difference is a candidate for the state-sensitive registry (leakage.jsonl); no answer is changed."""
-        if batch.serial or batch.interactive or batch.addins or any(g.get("spill") for g in batch.groups):
+        if batch.serial or batch.interactive or batch.addins or any(g.get("spill") for g in batch.groups) \
+                or any(p.priority == "sweep" for p in batch.pieces):
             return
         self.leak_counter += 1
         if not force and (not self.leak_every or self.leak_counter % self.leak_every):
@@ -1318,7 +1363,7 @@ class Broker:
         keep_serial = self.batcher.serial_pending()
         reserve = self.opt("reserve", RESERVE_WORKERS)
         plain_up = [s for s in self.slots if not s.addins and s.state in ("idle", "busy")]
-        bulk_busy = sum(s.state == "busy" and s.running == "bulk" for s in plain_up)
+        bulk_busy = sum(s.state == "busy" and s.running in ("bulk", "sweep") for s in plain_up)
         reserved = len(plain_up) > reserve and bulk_busy >= len(plain_up) - reserve
         workers = {s.name: {"calls": 0, "oldest": None} for s in self.slots}
         workers[None] = {"calls": 0, "oldest": None}
@@ -1458,6 +1503,7 @@ class Broker:
                 self.note_build()
                 self.write_health()
                 while not stop.exists():
+                    self.expire_sweeps()
                     self.write_status()
                     self.evict()
                     self.heal()
@@ -1528,6 +1574,8 @@ def launch_broker(options):
     run += f" --desktop {options.desktop}"
     if options.admission:
         run += f" --admission {options.admission}"
+    if options.sweep_workers != 1:
+        run += f" --sweep-workers {options.sweep_workers}"
     if options.registry is not None:
         run += " --registry " + " ".join(options.registry)
     run += f" --leak-every {options.leak_every}"
@@ -1631,6 +1679,8 @@ def main():
     parser.add_argument("--relay-v1-queue", default="~/excel-queue-v2",
                         help="the v1 file queue each relay serves on its host (~/excel-queue at cutover)")
     parser.add_argument("--relay-socket", default="~/.excel-service/excel.sock")
+    parser.add_argument("--sweep-workers", type=int, default=1,
+                        help="maximum low-priority sweep workers while foreground work is idle (default 1)")
     parser.add_argument("--registry", nargs="*", default=None,
                         help="functions served in serial mode (default WEEKNUM; 'none' for an empty registry, to test the leak check)")
     parser.add_argument("--leak-every", type=int, default=100, help="reversed-order check on one batch in this many")
@@ -1646,6 +1696,8 @@ def main():
                              "joined by +); it serves only requests whose opts name exactly that set (repeatable)")
     parser.add_argument("--since", default=None, help="e.g. 24h, 7d or an ISO time")
     options = parser.parse_args()
+    if options.sweep_workers < 1:
+        parser.error("--sweep-workers must be positive")
     options.local_queue = options.local_queue or options.state / "queue"
     if options.command == "run":
         if not getattr(options, "worker_command", None):

@@ -122,3 +122,42 @@ by `witnesses::fuzz_cluster_representatives_calculate_as_pinned`.
 | `IRR` | `I4` | 14 | `+-DBL_MAX` overflow and near-`-1` long-chain retry refusal (`irr_multi_flow_ordinary` 1,791/1,791 exact) | `dc-j9k.105` (relates `dc-j9k.43`) |
 
 \* Post-`3766bca80` count across the 106,174 unique `s1+s2+s3` cases (plus 26 in `seed 20261126` holdout; `R1+R3` dropped from 8,882 to 0).
+
+## Continuous sweep scheduler
+
+```sh
+cargo xtask fuzz sweep --plan
+cargo xtask fuzz sweep --out ~/codex-runs/sweep/state \
+  --bank-rows-out ~/codex-runs/sweep/bank-rows --tracker /path/to/dedicated/master-clone
+```
+
+The queue uses `docs/fuzz/order.tsv`. Every function gets a first sweep, ordered by the
+usage × complexity score, then by discrepancy class at equal scores. Subsequent sweeps
+start with the least recently completed function. The score scales the budget from 64 to
+512 cases. A default sweep uses the live fuzzer's adaptive rounds and leaves targeted
+frontier mapping to follow-up runs. `--runs <N>` limits completions for a smoke run.
+`--endpoint <path>` selects a specific broker or relay endpoint.
+
+Create `PAUSE` in the state directory to stop submissions. Submitted chunks may finish
+so their results can be recorded. Remove the file to resume. The scheduler retries an
+interrupted function with its original recipe and seed in a new attempt directory. A
+broker or relay restart can therefore repeat some calls.
+
+Touchstone caps sweep work at one worker by default. Start the updated broker with
+`--sweep-workers <N>` to use spare workers while the foreground is idle. Sweep requests
+yield to ordinary work between short batches and leave the configured interactive reserve
+available. Queued sweep requests expire after 12 seconds and the client waits up to 15
+seconds per submitted request. The broker can keep its Excel workers running. Direct
+connections need the updated broker. Relayed connections also need an updated relay
+bundle so the sweep capability is advertised to the client.
+
+Keep the state and bank outside the repository for a standing run. Each attempt records
+the recipe, generator, CalcFunc commit and harness hash, and the observed Excel
+environments include the build and CPU. Completed runs keep coverage, cluster
+representatives, and prediction hashes. The bank receives verified discrepancies as
+replies arrive, including observations from an interrupted attempt. With `--tracker`,
+the scheduler files clusters in a dedicated master clone with `br`, using the function
+and cluster key as a stable external reference across sweeps. It checks and pushes
+tracker updates using the clone's configured Git access and `DNACALC_AGENT_LOG`. Without
+`--tracker`, the completed reports remain available for filing from a later invocation.
+The dedicated clone should have no independent unpublished work.
