@@ -3659,3 +3659,72 @@ fn xnpv_date_bounds_split_and_i32_wraparound_and_xirr_arity3_2d() {
         Num,
     );
 }
+
+/// Carbon cb28 (dc-ztvv.26.46, Excel 16.0.20625.20108): XIRR checks `date < 0.0`
+/// before truncation (rejecting `(-1, 0)` with #NUM!), accepts `[0, 1)` as serial 0,
+/// and rejects any date >= 2,958,466 (including >= 2^31, without XNPV's i32 wraparound).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn xirr_rejects_negative_and_out_of_range_dates_before_truncation() {
+    let f = f64::from_bits;
+
+    // dc-ztvv.26.46 minimal representative (fuzz-XIRR-r02-000324, arity=2):
+    error(
+        call(
+            "XIRR",
+            vec![
+                col(&[
+                    f(0xbf4caf87241508d2),
+                    f(0x401a39b5f5fbdc08),
+                    f(0xc072204eee3d1791),
+                ]),
+                col(&[
+                    f(0xbfb2a0033717d61e),
+                    f(0x3faf44ccf768ccfd),
+                    f(0x406df48011bc7694),
+                ]),
+            ],
+        ),
+        Num,
+    );
+
+    // Negative sub-unit floats rejected before truncation (S1b, S3a):
+    for bad_d0 in [-0.5, -1e-15, -f64::MIN_POSITIVE, -1e-8] {
+        error(
+            call("XIRR", vec![col(&[-100.0, 121.0]), col(&[bad_d0, 365.0])]),
+            Num,
+        );
+    }
+
+    // [0, 1) accepted as serial 0 in XIRR (distinct from XNPV):
+    for ok_d0 in [0.0, f64::MIN_POSITIVE, 0.5, 0.999_999] {
+        let got = number(call(
+            "XIRR",
+            vec![col(&[-100.0, 121.0]), col(&[ok_d0, 365.0])],
+        ));
+        assert!((got - 0.21).abs() < 1e-6, "d0={ok_d0}: got={got}");
+    }
+
+    // Upper bound 2,958,465.9 accepted; >= 2,958,466 (including >= 2^31) -> #NUM!:
+    let ok_hi = number(call(
+        "XIRR",
+        vec![col(&[-100.0, 121.0]), col(&[45000.0, 2_958_465.9]), n(1e-8)],
+    ));
+    assert!(ok_hi > 0.0 && ok_hi.is_finite(), "ok_hi={ok_hi}");
+    for hi_bad in [
+        2_958_466.0,
+        10_000_000.0,
+        536_870_912.0,
+        2_147_483_647.0,
+        2_147_483_648.0,
+        9_007_199_254_740_991.0,
+    ] {
+        error(
+            call(
+                "XIRR",
+                vec![col(&[-100.0, 121.0]), col(&[45000.0, hi_bad]), n(1e-8)],
+            ),
+            Num,
+        );
+    }
+}

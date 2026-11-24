@@ -166,15 +166,18 @@ pub(crate) fn collect_irr_values_from_eval(
     }
 }
 
+/// Excel `XIRR` date serial admission (`cb28` S1b, S2a, S3a):
+/// rejects `date < 0.0` before truncation, accepts `[0.0, 1.0)` as serial `0`,
+/// and rejects any date `>= 2_958_466.0` (including `>= 2^31`, unlike `XNPV`).
 pub(crate) fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalError> {
-    if !value.is_finite() {
+    if !value.is_finite() || value < 0.0 {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
-    let serial = value.trunc() as i64;
-    if serial < 0 {
+    let serial = value.trunc();
+    if serial > 2_958_465.0 {
         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Num));
     }
-    Ok(serial)
+    Ok(serial as i64)
 }
 
 /// Excel `XNPV` date serial admission (`cb28` S1b, S2a, S3a):
