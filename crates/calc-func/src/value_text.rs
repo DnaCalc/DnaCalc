@@ -530,8 +530,9 @@ fn month_named(word: &str) -> Option<i64> {
         .map(|at| at as i64 + 1)
 }
 
-/// The time at the start of `tokens[from..]`, its fraction of a day and the tokens it took.
-fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
+/// The fraction of a day, the tokens taken, and whether an unfinished time
+/// consumed the first numeric field following a space.
+fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize, bool)> {
     let mut at = from;
     let Token::Number(hour, hour_len) = tokens.get(at)? else {
         return None;
@@ -540,8 +541,10 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
     at += 1;
     let mut minute = 0i64;
     let mut second = 0f64;
+    let mut separated_fraction = 0.0;
     let mut colon = false;
     let mut extended = false;
+    let mut consumed_date_field = false;
     if tokens.get(at) == Some(&Token::Sep(':')) {
         colon = true;
         at += 1;
@@ -565,10 +568,29 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
                         if let Some(Token::Number(f, len)) = tokens.get(at + 1) {
                             second += *f as f64 / 10f64.powi(*len as i32);
                             at += 2;
+                        } else if from == 0
+                            && let [Token::Sep(' '), Token::Number(f, len), ..] = &tokens[at + 1..]
+                        {
+                            // Excel rounds the digits after the space to milliseconds.
+                            let divisor = 10_i64.pow(*len as u32);
+                            separated_fraction = ((*f * 1000 + divisor / 2) / divisor) as f64 / 1000.0;
+                            consumed_date_field = true;
+                            at += 3;
                         } else if extended && at + 1 == tokens.len() {
                             at += 1;
                         }
                     }
+                } else if from == 0 && tokens.get(at) == Some(&Token::Sep(' ')) {
+                    let Token::Number(s, len) = tokens.get(at + 1)? else {
+                        return None;
+                    };
+                    if !time_field(*s, *len) {
+                        return None;
+                    }
+                    extended |= *len > 2;
+                    second = *s as f64;
+                    consumed_date_field = true;
+                    at += 2;
                 }
             }
         }
@@ -607,8 +629,8 @@ fn time_at(tokens: &[Token], from: usize) -> Option<(f64, usize)> {
     if !colon && !marked {
         return None;
     }
-    let seconds = (hour * 3600 + minute * 60) as f64 + second;
-    Some((seconds / 86_400.0, at - from))
+    let seconds = (hour * 3600 + minute * 60) as f64 + (second + separated_fraction);
+    Some((seconds / 86_400.0, at - from, consumed_date_field))
 }
 
 fn time_field(value: i64, digits: usize) -> bool {
@@ -789,11 +811,12 @@ fn date_time(text: &str, context: &ReadContext<'_>, allow_time: bool) -> Result<
     // A time at the start, or after the last space.
     let mut time = None;
     let mut date_tokens: &[Token] = &tokens;
-    if let Some((fraction, taken)) = time_at(&tokens, 0) {
+    if let Some((fraction, taken, consumed_date_field)) = time_at(&tokens, 0) {
         let rest = &tokens[taken..];
         let rest = match rest.first() {
             None => rest,
             Some(Token::Sep(' ')) => &rest[1..],
+            Some(Token::Sep('/' | '-')) if consumed_date_field && rest.len() > 1 => &rest[1..],
             _ => return Err(Unread::Rejected),
         };
         time = Some(fraction);
@@ -803,7 +826,7 @@ fn date_time(text: &str, context: &ReadContext<'_>, allow_time: bool) -> Result<
             if tokens[start - 1] != Token::Sep(' ') {
                 continue;
             }
-            if let Some((fraction, taken)) = time_at(&tokens, start)
+            if let Some((fraction, taken, _)) = time_at(&tokens, start)
                 && start + taken == tokens.len()
             {
                 time = Some(fraction);
@@ -815,7 +838,7 @@ fn date_time(text: &str, context: &ReadContext<'_>, allow_time: bool) -> Result<
     // A trailing colon after the time ("12:" and "1:30:").
     if time.is_none()
         && let Some(Token::Sep(':')) = tokens.last()
-        && let Some((fraction, taken)) = time_at(&tokens[..tokens.len() - 1], 0)
+        && let Some((fraction, taken, _)) = time_at(&tokens[..tokens.len() - 1], 0)
         && taken == tokens.len() - 1
     {
         time = Some(fraction);
@@ -824,7 +847,7 @@ fn date_time(text: &str, context: &ReadContext<'_>, allow_time: bool) -> Result<
     if time.is_none() && tokens.len() >= 2 {
         let trimmed = &tokens[..tokens.len() - 1];
         if tokens.last() == Some(&Token::Sep(':'))
-            && let Some((fraction, taken)) = time_at(trimmed, 0)
+            && let Some((fraction, taken, _)) = time_at(trimmed, 0)
             && taken == trimmed.len()
         {
             time = Some(fraction);

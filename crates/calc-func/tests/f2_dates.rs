@@ -835,6 +835,46 @@ fn date_qualified_time_text_admits_one_extended_component() {
     }
 }
 
+/// Excel 20625 reads a number after the space as part of an unfinished time.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn time_text_borrows_the_number_after_trailing_punctuation() {
+    let env = host();
+    for (input, value, day, time) in [
+        (
+            "0:240:59. 2020/01/02",
+            0x40e6_7905_5af2_51c2,
+            0x40e6_7900_0000_0000,
+            0x3fc5_6bc9_4708_0000,
+        ),
+        (
+            "0:240: 1 jan 2020",
+            0x40e5_66e5_556d_9b1e,
+            0x40e5_66e0_0000_0000,
+            0x3fc5_55b6_6c78_0000,
+        ),
+        (
+            "0:40:59. 2025/01/02",
+            0x40e6_7900_e92b_3b87,
+            0x40e6_7900_0000_0000,
+            0x3f9d_2567_70e0_0000,
+        ),
+        (
+            "0:40:59. 2025",
+            0x3f9d_2567_70d0_e3d2,
+            0,
+            0x3f9d_2567_70d0_e3d2,
+        ),
+    ] {
+        for (function, bits) in [("VALUE", value), ("DATEVALUE", day), ("TIMEVALUE", time)] {
+            exact(c(&env, function, vec![t(input)]), f64::from_bits(bits));
+        }
+    }
+    for input in ["0:40:59. Jan 2020", "0:240: 2020/01/02", "0:40:59. 1/1/2020"] {
+        error(c(&env, "TIMEVALUE", vec![t(input)]), Value);
+    }
+}
+
 /// dc-iuwct.44 (Excel 16.0.20527 en-ZA, 52/53 + 17/17 + 10/10 frozen predictions):
 /// year-less date text resolves against the calculation clock's year (same clock source as
 /// TODAY/NOW) in VALUE, DATEVALUE, NUMBERVALUE, date functions, and arithmetic coercion,
