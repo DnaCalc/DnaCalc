@@ -2047,12 +2047,13 @@ pub(crate) fn bratio_checked(a: f64, b: f64, x: f64, y: f64) -> Result<(f64, f64
                 let n = 20;
                 w1 = bratio_bup(b0, a0, y0, x0, n, eps);
                 b0 += n as f64;
-                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps)?;
+                // Excel stops bgrat at machine epsilon eps0 = 2^-52 rather than 1e-15 (cb27, dc-j9k.70).
+                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps0)?;
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
             "bgrat_150" => {
-                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps)?;
+                let (nw1, _ie) = bratio_bgrat_checked(b0, a0, y0, x0, w1, eps0)?;
                 w1 = nw1;
                 w = 0.5 + (0.5 - w1);
             }
@@ -2128,7 +2129,7 @@ pub(crate) fn bratio_checked(a: f64, b: f64, x: f64, y: f64) -> Result<(f64, f64
                     w += bratio_bup(a0, b0, x0, y0, nn, eps);
                     a0 += nn as f64;
                 }
-                let (nw, _ie) = bratio_bgrat_checked(a0, b0, x0, y0, w, eps)?;
+                let (nw, _ie) = bratio_bgrat_checked(a0, b0, x0, y0, w, eps0)?;
                 w = nw;
                 w1 = 0.5 + (0.5 - w);
             }
@@ -3104,6 +3105,93 @@ mod tests {
                 "discontinuity at delta={delta}: prev={prev_q:e}, q={q:e}"
             );
             prev_q = q;
+        }
+    }
+
+    /// Excel 16.0.20625.20108 (Carbon cb27 Suite 3, frozen SHA-256 fccba5bb, dc-j9k.70):
+    /// Passing `eps0 = bratio_spmpar1()` (`2^-52 = f64::EPSILON`) rather than `eps = 1e-15`
+    /// to all three `bratio_bgrat_checked` call sites (`bup_140`, `bgrat_150`, `bup_160`)
+    /// resolves 10/10 unseen `T.INV`/`T.INV.2T`/`TINV`/`CONFIDENCE.T` controls (`B3c`) and
+    /// 12/12 exact unseen `F.INV`/`F.INV.RT`/`FINV` controls (`B3b`) to 0 ULP via `calc_func::invoke`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cb27_bgrat_eps0_matches_excel_across_beta_f_t_callers() {
+        use crate::value::{CalcValue, NumericMode};
+        use crate::{
+            EvalServices, FunctionCallScratch, Notation, PreparedArguments, catalogue, invoke,
+        };
+
+        struct SliceArgs<'a>(&'a [CalcValue]);
+        impl PreparedArguments for SliceArgs<'_> {
+            fn count(&self) -> usize {
+                self.0.len()
+            }
+            fn argument(&mut self, index: usize) -> CalcValue {
+                self.0[index].clone()
+            }
+        }
+
+        let eval = |name: &str, args: &[u64]| -> u64 {
+            let target = catalogue()
+                .resolve_surface(Notation::Call, name)
+                .unwrap_or_else(|e| panic!("unknown function {name}: {e:?}"));
+            let vals: Vec<CalcValue> = args
+                .iter()
+                .map(|&bits| CalcValue::number(f64::from_bits(bits)))
+                .collect();
+            let mut prepared = SliceArgs(&vals);
+            let mut services = EvalServices::new(&NumericMode::Fast);
+            let mut scratch = FunctionCallScratch::default();
+            let value = invoke(target, &mut prepared, &mut services, &mut scratch)
+                .unwrap_or_else(|fault| panic!("{name}({args:?}) faulted: {fault:?}"));
+            value
+                .as_number()
+                .unwrap_or_else(|| panic!("{name}({args:?}) returned non-number {value:?}"))
+                .to_bits()
+        };
+
+        // B3c: 10/10 unseen T*INV + CONFIDENCE.T controls (2..22 ULP off at eps = 1e-15).
+        let t_cases: &[(&str, &str, &[u64], u64)] = &[
+            ("T.INV.2T", "0016", &[0x3fd3_e923_329a_d2bf, 0x4014_0000_0000_0000], 0x3ff2_060f_5af0_837d),
+            ("TINV", "0017", &[0x3fd2_3727_7211_f57f, 0x4014_0000_0000_0000], 0x3ff3_2ad9_42d7_6802),
+            ("T.INV", "0018", &[0x3fef_b941_c7a6_6ee2, 0x4042_0000_0000_0000], 0x4003_f82b_1cff_1ba8),
+            ("CONFIDENCE.T", "0019", &[0x3fd3_5230_e079_dc35, 0x3fec_fd52_cd5f_2cf8, 0x4045_8000_0000_0000], 0x3fc2_7bc1_bc4a_452e),
+            ("T.INV.2T", "0020", &[0x3f76_50c4_ff37_7ff2, 0x4043_0000_0000_0000], 0x4007_94d3_4d2f_db60),
+            ("TINV", "0021", &[0x3fb4_07ea_f29e_778f, 0x4040_0000_0000_0000], 0x3ffd_1b89_925b_3de4),
+            ("T.INV", "0022", &[0x3f7a_1fa1_e72c_3ae1, 0x404b_8000_0000_0000], 0xc004_98df_bf1e_426b),
+            ("CONFIDENCE.T", "0023", &[0x3fc5_62bc_14fc_d7a0, 0x4014_ee74_e647_c196, 0x4020_0000_0000_0000], 0x4006_d115_77c1_f26a),
+            ("T.INV.2T", "0024", &[0x3fd2_6e86_65d5_bdac, 0x4010_0000_0000_0000], 0x3ff3_96f5_b9b6_d97c),
+            ("TINV", "0025", &[0x3fd0_fc1b_8da6_5b9a, 0x4014_0000_0000_0000], 0x3ff4_0f05_3d58_d474),
+        ];
+        for &(func, id, args, expected) in t_cases {
+            let got = eval(func, args);
+            assert_eq!(
+                got, expected,
+                "cb27 B3c {func} {id}: got {got:#018x}, expected {expected:#018x}"
+            );
+        }
+
+        // B3b: 12 exact unseen F.INV / F.INV.RT / FINV controls (3..6 ULP off at eps = 1e-15).
+        let f_cases: &[(&str, &str, &[u64], u64)] = &[
+            ("F.INV", "0000", &[0x3fee_bda9_8795_5fb6, 0x4022_0000_0000_0000, 0x405a_c000_0000_0000], 0x4000_7e4e_7f2e_9658),
+            ("F.INV.RT", "0001", &[0x3fa4_2567_86aa_04a0, 0x4022_0000_0000_0000, 0x405a_c000_0000_0000], 0x4000_7e4e_7f2e_9658),
+            ("F.INV.RT", "0002", &[0x3fd5_2168_f5e3_1e2c, 0x4022_0000_0000_0000, 0x403a_0000_0000_0000], 0x3ff3_6192_644a_1bb8),
+            ("FINV", "0003", &[0x3fd5_2168_f5e3_1e2c, 0x4022_0000_0000_0000, 0x403a_0000_0000_0000], 0x3ff3_6192_644a_1bb8),
+            ("F.INV", "0006", &[0x3fe6_62dd_fd61_8a06, 0x4014_0000_0000_0000, 0x4045_8000_0000_0000], 0x3ff4_1775_ba95_b7df),
+            ("F.INV.RT", "0007", &[0x3fd3_3a44_053c_ebf4, 0x4014_0000_0000_0000, 0x4045_8000_0000_0000], 0x3ff4_1775_ba95_b7df),
+            ("F.INV", "0008", &[0x3fef_4582_1d0f_11e4, 0x4014_0000_0000_0000, 0x404a_8000_0000_0000], 0x4006_ff29_227a_b235),
+            ("F.INV.RT", "0009", &[0x3f97_4fbc_5e1d_c380, 0x4014_0000_0000_0000, 0x404a_8000_0000_0000], 0x4006_ff29_227a_b235),
+            ("F.INV.RT", "0010", &[0x3fd7_c7b6_97d1_56e7, 0x401c_0000_0000_0000, 0x4045_0000_0000_0000], 0x3ff1_d936_5b6f_7399),
+            ("FINV", "0011", &[0x3fd7_c7b6_97d1_56e7, 0x401c_0000_0000_0000, 0x4045_0000_0000_0000], 0x3ff1_d936_5b6f_7399),
+            ("F.INV.RT", "0014", &[0x3fdb_9cb0_1bf9_1fc6, 0x401c_0000_0000_0000, 0x403e_0000_0000_0000], 0x3ff0_7958_4806_60b8),
+            ("FINV", "0015", &[0x3fdb_9cb0_1bf9_1fc6, 0x401c_0000_0000_0000, 0x403e_0000_0000_0000], 0x3ff0_7958_4806_60b8),
+        ];
+        for &(func, id, args, expected) in f_cases {
+            let got = eval(func, args);
+            assert_eq!(
+                got, expected,
+                "cb27 B3b {func} {id}: got {got:#018x}, expected {expected:#018x}"
+            );
         }
     }
 }
