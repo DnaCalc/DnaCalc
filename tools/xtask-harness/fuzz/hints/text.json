@@ -1,0 +1,3699 @@
+{
+  "family": "text",
+  "version": 1,
+  "functions": {
+    "VALUE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "0",
+            "123",
+            "-45.67",
+            "1 234.5",
+            "1 1/2",
+            "1 0/0",
+            "(100)",
+            "(1)%",
+            "(1) %",
+            "(1%)",
+            "(%1)",
+            "%(1)",
+            "(1%)%",
+            "12.5%",
+            "1e20",
+            "12345678901234567",
+            "R12",
+            "€12",
+            "12€",
+            "2024/02/01",
+            "2024/02/001",
+            "1 jan 2020",
+            "12:30 pm",
+            "12:30",
+            "١٢٣",
+            "abc",
+            true,
+            false,
+            42
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #VALUE!, whereas a blank cell evaluates to 0",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:28"
+            },
+            {
+              "value": "(1)%",
+              "why": "parentheses plus one percent sign in any position parses as -0.01",
+              "source": "handbook FN-VALUE-003"
+            },
+            {
+              "value": "2024/02/001",
+              "why": "three-part numeric dates allow at most two digits for month and day",
+              "source": "handbook FN-VALUE-002"
+            },
+            {
+              "value": "12345678901234567",
+              "why": "digits beyond the 15th significant digit are truncated",
+              "source": "crates/calc-func/src/value_text.rs:16"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "blank_or_number_passthrough",
+          "how": "number, empty cell, or missing placeholder returns number without text parsing",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:79"
+        },
+        {
+          "name": "script_digits",
+          "how": "en-ZA/host profiles accept Arabic-Indic, extended Arabic-Indic, Devanagari, and Thai digits, but reject fullwidth digits",
+          "source": "handbook FN-VALUE-001"
+        },
+        {
+          "name": "date_and_time_strings",
+          "how": "parses locale dates and h:m[:s[.f]] times into Excel serial numbers",
+          "source": "crates/calc-func/src/value_text.rs:19"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "text is logical TRUE or FALSE",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:82"
+        },
+        {
+          "when": "text exceeds 255 UTF-16 code units or fails number/date/time grammar",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:84"
+        },
+        {
+          "when": "fraction with zero denominator such as 1 1/0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/value_text.rs:18"
+        }
+      ],
+      "notes": "Parses number, fraction, currency, date, and time strings under host locale; blank cell gives 0."
+    },
+    "TEXT": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            -0.005,
+            1,
+            60,
+            1234.567,
+            123456789012345,
+            -1,
+            0.5,
+            "",
+            "abc",
+            true,
+            false
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": -0.005,
+              "why": "negative value rounding to zero drops minus sign under 0 format",
+              "source": "handbook FN-DOLLAR-001"
+            },
+            {
+              "value": -1,
+              "why": "negative number under a date/time format code returns #VALUE!",
+              "source": "crates/calc-func/src/format/mod.rs:21"
+            }
+          ]
+        },
+        {
+          "name": "format_text",
+          "kind": "text",
+          "specials": [
+            "0",
+            "0.00",
+            "#,##0.00",
+            "0%",
+            "0.00E+00",
+            "General",
+            "@",
+            "@!",
+            "\"@\"",
+            "yyyy-mm-dd",
+            "[$-407]mmmm",
+            "[$-411]mmm",
+            "[$-419]mmmm",
+            "[h]:mm:ss",
+            "0.00;-0.00;\"zero\";@",
+            "[>100]\"big\";0",
+            "# ?/?",
+            "1e2",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "@",
+              "why": "applied to a number emits General display rather than full digits",
+              "source": "handbook FN-TEXT-002"
+            },
+            {
+              "value": "1e2",
+              "why": "plain exponent-looking format codes are rejected as #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:194"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "four_section_format",
+          "how": "uses up to 4 semicolon-delimited sections: positive, negative, zero, text (or bracketed conditions)",
+          "source": "crates/calc-func/src/format/mod.rs:15"
+        },
+        {
+          "name": "locale_tagged_dates",
+          "how": "bracketed locale tags like [$-407] or [$-411] select language-specific month/weekday names",
+          "source": "handbook FN-TEXT-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "format_text is a logical value",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:125"
+        },
+        {
+          "when": "negative value formatted with a date/time format code",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:226"
+        },
+        {
+          "when": "invalid format code or integer-part fraction under space grouping separator",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/format/mod.rs:25"
+        }
+      ],
+      "notes": "Formats numeric values via Excel number/date/time sections and text via the fourth section or @."
+    },
+    "FIXED": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            -0.005,
+            0.5,
+            -0.5,
+            1234.567,
+            -1234.567,
+            1000000000000000.0,
+            1e-15
+          ],
+          "ranges": [
+            [
+              -1000000000000000.0,
+              1000000000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.005,
+              "why": "rounding to zero decimal places drops the minus sign (shows 0)",
+              "source": "handbook FN-DOLLAR-001"
+            }
+          ]
+        },
+        {
+          "name": "decimals",
+          "kind": "integer",
+          "specials": [
+            -401,
+            -400,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            15,
+            127,
+            128
+          ],
+          "ranges": [
+            [
+              -400,
+              127
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2,
+              "why": "default decimals when omitted",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:309"
+            },
+            {
+              "value": 127,
+              "why": "maximum accepted decimals before #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:317"
+            },
+            {
+              "value": -400,
+              "why": "decimals below -400 clamp to -400",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:320"
+            }
+          ]
+        },
+        {
+          "name": "no_commas",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        },
+        {
+          "name": "negative_decimals_rounding",
+          "how": "negative decimals round to the left of the decimal point",
+          "source": "Excel documentation"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "decimals > 127",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:317"
+        }
+      ],
+      "notes": "Rounds number half-away-from-zero to decimals (max 127, default 2) with optional grouping suppression."
+    },
+    "DOLLAR": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            -0.005,
+            -0.01,
+            -0.5,
+            0.5,
+            1234.567,
+            -1234.567
+          ],
+          "ranges": [
+            [
+              -1000000000000000.0,
+              1000000000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.005,
+              "why": "keeps minus sign on negative amounts that round to zero (unlike FIXED/TEXT)",
+              "source": "handbook FN-DOLLAR-001"
+            }
+          ]
+        },
+        {
+          "name": "decimals",
+          "kind": "integer",
+          "specials": [
+            -2147483648,
+            -2147483647,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            127,
+            128
+          ],
+          "ranges": [
+            [
+              -400,
+              127
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2,
+              "why": "default when omitted; explicit missing placeholder uses 0",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:340"
+            },
+            {
+              "value": 127,
+              "why": "maximum accepted decimals before #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:317"
+            },
+            {
+              "value": -2147483647,
+              "why": "negative decimals at or below -2147483647 drop minus sign when 15-digit magnitude < 0.01",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:349"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "decimals > 127",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:317"
+        }
+      ],
+      "notes": "Formats number as locale currency rounded to decimals (default 2, empty placeholder 0)."
+    },
+    "NUMBERVALUE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "2.500,27",
+            "3.5%",
+            "3.5%%",
+            "1 234.5",
+            "+12.34",
+            "-12.34",
+            "%1e3",
+            "1e-3",
+            "1e3,0",
+            "1/3",
+            "12:30",
+            "1e308",
+            "1e309",
+            "0e309",
+            "12 34",
+            "12 34",
+            "bad"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty string evaluates to 0",
+              "source": "crates/calc-func/src/ported/text_more.rs:869"
+            },
+            {
+              "value": "0e309",
+              "why": "exponent outside [-308, 308] returns #VALUE! even when coefficient is zero",
+              "source": "crates/calc-func/src/ported/text_more.rs:964"
+            }
+          ]
+        },
+        {
+          "name": "decimal_separator",
+          "kind": "text",
+          "specials": [
+            ".",
+            ",",
+            "e",
+            "%",
+            " ",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty separator string returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:647"
+            }
+          ]
+        },
+        {
+          "name": "group_separator",
+          "kind": "text",
+          "specials": [
+            ",",
+            ".",
+            " ",
+            " ",
+            "e",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty separator string returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:647"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "decimal_separator != group_separator"
+      ],
+      "regimes": [
+        {
+          "name": "custom_separator_parse",
+          "how": "uses first character of decimal_separator and group_separator (strips group_separator only before first decimal_separator)",
+          "source": "crates/calc-func/src/ported/text_more.rs:909"
+        },
+        {
+          "name": "host_value_fallback",
+          "how": "when custom parser fails under measured host reader, strips ASCII spaces and trailing % and falls back to VALUE grammar",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:720"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "decimal_separator == group_separator",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:659"
+        },
+        {
+          "when": "decimal_separator or group_separator is empty string",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:647"
+        },
+        {
+          "when": "text exceeds 255 UTF-16 code units or normalized exponent outside [-308, 308]",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:634"
+        },
+        {
+          "when": "non-ASCII space (NBSP, em space, thin space, etc.) when not equal to group_separator",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:679"
+        }
+      ],
+      "notes": "Locale-independent numeric text parser with fallback to host VALUE after stripping spaces and trailing %."
+    },
+    "VALUETOTEXT": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            1234.5,
+            -42,
+            "hello",
+            "a\"b",
+            true,
+            false,
+            null,
+            "#N/A",
+            "#DIV/0!"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "format",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            -1,
+            0.9,
+            1.9
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "concise mode: text returned unquoted",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:576"
+            },
+            {
+              "value": 1,
+              "why": "strict mode: text wrapped in double quotes with internal quotes doubled",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:576"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "format (after date_integer_floor) is not 0 or 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Converts a scalar value to text; errors render as text literals rather than propagating."
+    },
+    "ARRAYTOTEXT": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            [],
+            "#REF!"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "#REF!",
+              "why": "a top-level scalar error in array propagates directly instead of rendering as text",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:595"
+            }
+          ]
+        },
+        {
+          "name": "format",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            -1,
+            0.9,
+            1.9
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "concise mode: joins elements in row-major order with ', '",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:626"
+            },
+            {
+              "value": 1,
+              "why": "strict mode: wraps in braces with ',' between columns and ';' between rows",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:624"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "format (after date_integer_floor) is not 0 or 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        },
+        {
+          "when": "array contains reference cells (e.g. from OFFSET/INDIRECT)",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:603"
+        }
+      ],
+      "notes": "Formats array elements as concise comma-space text or strict braced array literal."
+    },
+    "BAHTTEXT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            0,
+            -0.0,
+            -0.001,
+            -0.005,
+            0.01,
+            0.25,
+            1,
+            11,
+            21,
+            100,
+            1000000,
+            -1234.56
+          ],
+          "ranges": [
+            [
+              -1000000000000000.0,
+              1000000000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.001,
+              "why": "negative number rounding to zero satang retains Thai minus word ลบ before ศูนย์บาทถ้วน",
+              "source": "handbook FN-BAHTTEXT-001"
+            },
+            {
+              "value": 0,
+              "why": "zero or -0.0 omits minus word",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:1091"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "thai_digit_rules",
+          "how": "uses เอ็ด (et) for trailing 1 in multi-digit groups, ยี่ (yi) for 20s, and omits 1 before tens",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1069"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Converts number rounded to 2 decimal places into Thai currency words (baht and satang)."
+    },
+    "ASC": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "ABC123",
+            "ＡＢＣ１２３",
+            "ｶﾀｶﾅ",
+            "カタカナ",
+            "　",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_byte_profile",
+          "how": "under single-byte profiles (such as en-ZA), returns coerced text unchanged",
+          "source": "handbook FN-ASC-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Full-width to half-width conversion (identity under single-byte profiles; DBCS profiles refused as not modelled)."
+    },
+    "DBCS": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "ABC123",
+            "ＡＢＣ１２３",
+            "ｶﾀｶﾅ",
+            "カタカナ",
+            " ",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_byte_profile",
+          "how": "under single-byte profiles (such as en-ZA), returns coerced text unchanged",
+          "source": "handbook FN-ASC-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Half-width to full-width conversion (identity under single-byte profiles; DBCS profiles refused as not modelled)."
+    },
+    "JIS": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "ABC123",
+            "ｶﾀｶﾅ",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "every call on Windows non-Japanese Excel",
+          "excel": "#NAME?",
+          "source": "handbook FN-JIS-001"
+        }
+      ],
+      "notes": "Absent on Windows English Excel 16.0.20527; always returns #NAME?."
+    },
+    "PHONETIC": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "non_japanese_profile",
+          "how": "returns #N/A for text and blank cells under non-Japanese profiles",
+          "source": "handbook FN-PHONETIC-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "any call under non-Japanese profile",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1010"
+        }
+      ],
+      "notes": "Requires a reference operand at formula entry; returns #N/A under non-Japanese editing profiles."
+    },
+    "TEXTBEFORE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "a-b-c",
+            "a--b",
+            "Red riding hood's hood",
+            "abc",
+            "😀-x"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #N/A for non-empty delimiter, or #VALUE! if explicit instance_num != 1",
+              "source": "handbook FN-TEXTSPLIT-001"
+            }
+          ]
+        },
+        {
+          "name": "delimiter",
+          "kind": "text",
+          "specials": [
+            "",
+            "-",
+            "--",
+            " ",
+            "HOOD",
+            "x",
+            [
+              "-",
+              ","
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty single delimiter returns empty text when instance_num > 0 and text length != 1, or whole text when instance_num < 0 or length == 1",
+              "source": "crates/calc-func/src/ported/text_more.rs:1036"
+            }
+          ]
+        },
+        {
+          "name": "instance_num",
+          "kind": "integer",
+          "specials": [
+            -3,
+            -1,
+            0,
+            1,
+            2,
+            10,
+            1000000001
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "instance_num == 0 returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_more.rs:1031"
+            }
+          ]
+        },
+        {
+          "name": "match_mode",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 = case-sensitive; 1 = case-insensitive (ASCII fold)",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:456"
+            }
+          ]
+        },
+        {
+          "name": "match_end",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "treats end (or start when instance_num < 0) of text as a virtual delimiter",
+              "source": "crates/calc-func/src/ported/text_more.rs:1078"
+            }
+          ]
+        },
+        {
+          "name": "if_not_found",
+          "kind": "any",
+          "specials": [
+            "not found",
+            "",
+            0,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "instance_num != 0",
+        "abs(instance_num) <= len(text) - len(delimiter) + 1"
+      ],
+      "regimes": [
+        {
+          "name": "single_vs_array_delimiter",
+          "how": "single scalar delimiter uses date_integer_floor and checks start-position bound; array delimiter uses trunc and len(text).max(1) bound",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:448"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "instance_num == 0 or |instance_num| > valid position bound",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:466"
+        },
+        {
+          "when": "delimiter not found and if_not_found omitted",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:500"
+        },
+        {
+          "when": "match_mode or match_end not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Extracts substring before the Nth occurrence (forward or backward) of delimiter(s)."
+    },
+    "TEXTAFTER": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "a-b-c",
+            "a--b",
+            "Red riding hood's hood",
+            "abc",
+            "😀-x"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #N/A for non-empty delimiter, or #VALUE! if explicit instance_num != 1",
+              "source": "handbook FN-TEXTSPLIT-001"
+            }
+          ]
+        },
+        {
+          "name": "delimiter",
+          "kind": "text",
+          "specials": [
+            "",
+            "-",
+            "--",
+            " ",
+            "HOOD",
+            "x",
+            [
+              "-",
+              ","
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty single delimiter returns whole text when instance_num > 0 and text length != 1, or empty text when instance_num < 0 or length == 1",
+              "source": "crates/calc-func/src/ported/text_more.rs:1036"
+            }
+          ]
+        },
+        {
+          "name": "instance_num",
+          "kind": "integer",
+          "specials": [
+            -3,
+            -1,
+            0,
+            1,
+            2,
+            10,
+            1000000001
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "instance_num == 0 returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_more.rs:1031"
+            }
+          ]
+        },
+        {
+          "name": "match_mode",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "match_end",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "if_not_found",
+          "kind": "any",
+          "specials": [
+            "not found",
+            "",
+            0,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "instance_num != 0",
+        "abs(instance_num) <= len(text) - len(delimiter) + 1"
+      ],
+      "regimes": [
+        {
+          "name": "single_vs_array_delimiter",
+          "how": "single scalar delimiter uses date_integer_floor and checks start-position bound; array delimiter uses trunc and len(text).max(1) bound",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:448"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "instance_num == 0 or |instance_num| > valid position bound",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:466"
+        },
+        {
+          "when": "delimiter not found and if_not_found omitted",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:500"
+        },
+        {
+          "when": "match_mode or match_end not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Extracts substring after the Nth occurrence (forward or backward) of delimiter(s)."
+    },
+    "TEXTSPLIT": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a,b,c",
+            "a,b,,c",
+            "a=1;b=2,3",
+            "A,b,C",
+            "single"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #VALUE! (unlike TEXTBEFORE/TEXTAFTER which return #N/A)",
+              "source": "handbook FN-TEXTSPLIT-001"
+            }
+          ]
+        },
+        {
+          "name": "col_delimiter",
+          "kind": "text",
+          "specials": [
+            ",",
+            "=",
+            "",
+            [
+              ",",
+              ";"
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty delimiter in TEXTSPLIT returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:531"
+            }
+          ]
+        },
+        {
+          "name": "row_delimiter",
+          "kind": "text",
+          "specials": [
+            ";",
+            "\n",
+            "",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty row delimiter returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:531"
+            }
+          ]
+        },
+        {
+          "name": "ignore_empty",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "match_mode",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "pad_with",
+          "kind": "any",
+          "specials": [
+            "#N/A",
+            "",
+            0,
+            "-"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "array_lifted_text",
+          "how": "when text is an array, lifting keeps only the first split cell per element",
+          "source": "handbook FN-TEXTSPLIT-002"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "text is empty string",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:542"
+        },
+        {
+          "when": "both col_delimiter and row_delimiter are omitted/missing",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:526"
+        },
+        {
+          "when": "any delimiter is empty text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:531"
+        },
+        {
+          "when": "ignore_empty or match_mode not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Splits text by column and/or row delimiters into a 2D array padded with pad_with (default #N/A)."
+    },
+    "REGEXTEST": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "hello",
+            "ab12cd345",
+            "a\nb",
+            "a\rb",
+            "áb",
+            "ABC"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "a\rb",
+              "why": "dot (.) does not match CR (\\r) as well as LF (\\n)",
+              "source": "handbook FN-REGEXTEST-001"
+            }
+          ]
+        },
+        {
+          "name": "pattern",
+          "kind": "text",
+          "specials": [
+            "",
+            "^$",
+            "[0-9]+",
+            "^[a-z]+$",
+            "\\w+",
+            "\\d+",
+            "a.b",
+            "[",
+            "(a)(b)",
+            "\\bword\\b",
+            "(?<=a)b",
+            "(?!b)a"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "[",
+              "why": "unclosed character class does not compile and returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_more.rs:12"
+            },
+            {
+              "value": "^$",
+              "why": "matches empty text",
+              "source": "crates/calc-func/src/ported/text_more.rs:14"
+            }
+          ]
+        },
+        {
+          "name": "case_sensitivity",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "0 = case-sensitive (default); 1 = case-insensitive",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:743"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "unicode_word_class",
+          "how": "\\w includes alphanumeric, Mn combining marks, and Pc connector punctuation",
+          "source": "crates/calc-func/src/ported/text_more.rs:110"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "invalid regex syntax such as unclosed '[' or leading quantifier '*'",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_more.rs:523"
+        },
+        {
+          "when": "case_sensitivity not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Tests whether pattern matches anywhere in text (PCRE2 semantics)."
+    },
+    "REGEXEXTRACT": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "ab12cd345",
+            "abc",
+            "2024-05-01",
+            "a\r\nb",
+            "😀"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "pattern",
+          "kind": "text",
+          "specials": [
+            "[0-9]+",
+            "(\\d+)-(\\d+)",
+            "(a)(b)?",
+            "^[a-z]+$",
+            "",
+            "["
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "[0-9]+",
+              "why": "return_mode=2 on a pattern with zero capture groups returns #VALUE! even when matched",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:824"
+            }
+          ]
+        },
+        {
+          "name": "return_mode",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              2
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "first match only",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:814"
+            },
+            {
+              "value": 1,
+              "why": "all matches as a horizontal row",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:817"
+            },
+            {
+              "value": 2,
+              "why": "capture groups from first match; #N/A for unmatched optional groups",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:825"
+            }
+          ]
+        },
+        {
+          "name": "case_sensitivity",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "no match found",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:813"
+        },
+        {
+          "when": "return_mode == 2 and pattern has 0 capture groups",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:824"
+        },
+        {
+          "when": "return_mode not in {0, 1, 2} or case_sensitivity not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:838"
+        },
+        {
+          "when": "invalid regex pattern such as '['",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_more.rs:523"
+        }
+      ],
+      "notes": "Extracts first match (0), all matches (1), or first match's capture groups (2)."
+    },
+    "REGEXREPLACE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abc",
+            "ab12cd345",
+            "a\r\nb",
+            "😀x",
+            "\naaaaaaaaaaaa"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "pattern",
+          "kind": "text",
+          "specials": [
+            "[0-9]+",
+            "(\\d+)",
+            "",
+            "[",
+            "a"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty pattern matches boundaries; positive occurrence past astral char triggers #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:963"
+            }
+          ]
+        },
+        {
+          "name": "replacement",
+          "kind": "text",
+          "specials": [
+            "",
+            "x",
+            "$1",
+            "[$1-$2]"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "occurrence",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            100
+          ],
+          "ranges": [
+            [
+              -100,
+              100
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "replaces all matches (default)",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:915"
+            },
+            {
+              "value": -1,
+              "why": "negative occurrence indexes backward from the last match",
+              "source": "handbook FN-REGEXREPLACE-001"
+            }
+          ]
+        },
+        {
+          "name": "case_sensitivity",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            -1,
+            2
+          ],
+          "ranges": [
+            [
+              0,
+              1
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "invalid regex pattern such as '['",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_more.rs:523"
+        },
+        {
+          "when": "empty pattern encountering astral surrogate pair before occurrence limit",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:963"
+        },
+        {
+          "when": "case_sensitivity not in {0, 1}",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:372"
+        }
+      ],
+      "notes": "Replaces all or Nth (positive/negative) regex matches with literal text and $1.. group expansions."
+    },
+    "ENCODEURL": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a b",
+            "A-Za-z0-9._~",
+            "1E+20",
+            "café",
+            "😀",
+            123,
+            true
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "A-Za-z0-9._~",
+              "why": "tilde (~) is percent-encoded as %7E; only [A-Za-z0-9.-_] remain literal",
+              "source": "handbook FN-ENCODEURL-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "encoded UTF-8 percent string exceeds 32,767 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1131"
+        }
+      ],
+      "notes": "Percent-encodes UTF-8 bytes with uppercase hex except [A-Za-z0-9.-_]."
+    },
+    "FILTERXML": {
+      "args": [
+        {
+          "name": "xml",
+          "kind": "text",
+          "specials": [
+            "<a><b>1</b><b>2</b></a>",
+            "<a xmlns=\"urn:x\"><b>3.14159265358979323</b></a>",
+            "<a xmlns:p=\"urn:p\"><p:b>TRUE</p:b></a>",
+            "<a><b>x<c>y</c>z</b></a>",
+            "<a><b></b></a>",
+            "not xml",
+            ""
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "<a><b>x<c>y</c>z</b></a>",
+              "why": "element value joins only direct text children ('xz')",
+              "source": "crates/calc-func/src/catalogue/text_format.rs:1146"
+            }
+          ]
+        },
+        {
+          "name": "xpath",
+          "kind": "text",
+          "specials": [
+            "//b",
+            "//p:b",
+            "//b/@id",
+            "count(//b)",
+            "//b/text()",
+            "/",
+            "//missing",
+            "["
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "count(//b)",
+              "why": "non-nodeset XPath results return #VALUE!",
+              "source": "handbook FN-FILTERXML-001"
+            },
+            {
+              "value": "//b/text()",
+              "why": "non-element/non-attribute nodes return #VALUE!",
+              "source": "handbook FN-FILTERXML-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "cell_entry_parsing",
+          "how": "each matched node text is parsed via cell-entry rules (15 sig digits, TRUE/FALSE, date/time, else text)",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1152"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "malformed XML or invalid XPath",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1170"
+        },
+        {
+          "when": "empty nodeset, non-nodeset result, non-element/attribute node, or empty node text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1185"
+        }
+      ],
+      "notes": "Evaluates XPath 1.0 against XML, returning scalar or vertical column of parsed node values."
+    },
+    "HYPERLINK": {
+      "args": [
+        {
+          "name": "link_location",
+          "kind": "text",
+          "specials": [
+            "https://example.com",
+            "",
+            "Sheet2!A1",
+            123,
+            true
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "friendly_name",
+          "kind": "any",
+          "specials": [
+            "Click here",
+            "",
+            0,
+            42,
+            true,
+            false,
+            null,
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": null,
+              "why": "blank cell passed as friendly_name returns 0",
+              "source": "handbook FN-HYPERLINK-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "return_value_selection",
+          "how": "returns coerced link_location when friendly_name is omitted/missing, else friendly_name verbatim (0 if empty cell)",
+          "source": "crates/calc-func/src/catalogue/text_format.rs:1016"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Coerces link_location to text and returns friendly_name verbatim when provided."
+    },
+    "CHAR": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            0,
+            0.9,
+            1,
+            32,
+            65,
+            127,
+            128,
+            129,
+            159,
+            160,
+            255,
+            255.9,
+            256,
+            -1
+          ],
+          "ranges": [
+            [
+              1,
+              255
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid Windows-1252 code point",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:423"
+            },
+            {
+              "value": 128,
+              "why": "maps via Windows-1252 to U+20AC (€), not U+0080",
+              "source": "handbook FN-CHAR-001"
+            },
+            {
+              "value": 255,
+              "why": "maximum valid code point before #VALUE!",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:423"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "floored number < 1 or > 255",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:423"
+        }
+      ],
+      "notes": "Maps integers 1..=255 through Windows-1252 code page (using date_integer_floor)."
+    },
+    "CODE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "A",
+            " ",
+            "€",
+            "Ÿ",
+            "Ϩ",
+            "😀",
+            65,
+            true
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:438"
+            },
+            {
+              "value": "€",
+              "why": "Windows-1252 0x80..=0x9F character returns 128..=159",
+              "source": "handbook FN-CHAR-001"
+            },
+            {
+              "value": "😀",
+              "why": "character outside Windows-1252 returns 63 ('?')",
+              "source": "handbook FN-CHAR-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "text is empty string",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:438"
+        }
+      ],
+      "notes": "Returns Windows-1252 byte (1..=255) of first UTF-16 unit, or 63 if outside code page 1252."
+    },
+    "UNICHAR": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            65,
+            128,
+            55295,
+            55296,
+            57343,
+            57344,
+            128512,
+            1114111,
+            1114112,
+            -1
+          ],
+          "ranges": [
+            [
+              1,
+              1114111
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid Unicode scalar",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:498"
+            },
+            {
+              "value": 55296,
+              "why": "UTF-16 surrogate range 0xD800..=0xDFFF returns #N/A",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:502"
+            },
+            {
+              "value": 57343,
+              "why": "upper end of surrogate range returning #N/A",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:502"
+            },
+            {
+              "value": 1114111,
+              "why": "maximum Unicode scalar 0x10FFFF",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:498"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "trunc(number) < 1 or > 1114111 (0x10FFFF)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:498"
+        },
+        {
+          "when": "55296 <= trunc(number) <= 57343 (UTF-16 surrogate code point)",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:502"
+        }
+      ],
+      "notes": "Truncates number to integer and returns Unicode scalar character (#N/A for surrogates)."
+    },
+    "UNICODE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "A",
+            "€",
+            "😀",
+            65,
+            true
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:513"
+            },
+            {
+              "value": "😀",
+              "why": "decodes leading surrogate pair to scalar 128512",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:512"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "text is empty or starts with an unpaired UTF-16 surrogate",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:513"
+        }
+      ],
+      "notes": "Returns Unicode scalar code point of the first character; rejects empty text and unpaired surrogates."
+    },
+    "LEN": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "compatibility_version_1_vs_2",
+          "how": "Version 1 counts UTF-16 code units; Version 2 counts valid surrogate pairs once (ignoring trailing unmatched high surrogate)",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:7"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Counts UTF-16 units (v1) or characters (v2) after worksheet text coercion."
+    },
+    "LEFT": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "num_chars",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.0001,
+            0,
+            1,
+            2,
+            5,
+            100,
+            32767
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "returns empty string",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:117"
+            },
+            {
+              "value": 1,
+              "why": "default when num_chars is omitted; preserves astral surrogate pair",
+              "source": "handbook FN-LEFT-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "num_chars < 0 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Preserves valid UTF-16 surrogate pairs when counting characters; default num_chars is 1."
+    },
+    "RIGHT": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "num_chars",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.0001,
+            0,
+            1,
+            2,
+            5,
+            100,
+            32767
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "default when num_chars is omitted; preserves astral surrogate pair",
+              "source": "handbook FN-LEFT-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "num_chars < 0 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Preserves valid UTF-16 surrogate pairs when counting characters from the end; default num_chars is 1."
+    },
+    "MID": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            0.9,
+            1,
+            2,
+            5,
+            2147483648,
+            2147483648.5,
+            2147483649
+          ],
+          "ranges": [
+            [
+              1,
+              2147483648
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum 1-based start_num",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:69"
+            },
+            {
+              "value": 2147483648,
+              "why": "highest admitted truncated start (2^31); >= 2147483649 returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:60"
+            }
+          ]
+        },
+        {
+          "name": "num_chars",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            5,
+            2147483647,
+            2147483648
+          ],
+          "ranges": [
+            [
+              0,
+              2147483647
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2147483647,
+              "why": "maximum admitted count; >= 2147483648 returns #VALUE!",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "compatibility_version_1_vs_2",
+          "how": "Version 1 slices raw UTF-16 code units (can split surrogate pairs); Version 2 counts surrogate pairs",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:87"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "trunc(start_num) < 1 or start_num >= 2147483649",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:65"
+        },
+        {
+          "when": "num_chars < 0 or num_chars >= 2147483648",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Slices substring from start_num; plain truncation for both start_num and num_chars."
+    },
+    "LENB": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "中",
+            "中abc"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "single_byte_locale",
+          "how": "under single-byte profiles (e.g. en-ZA), counts UTF-16 units like LEN (v1)",
+          "source": "handbook FN-LENB-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Byte-length under DBCS profiles (refused); counts UTF-16 units under single-byte profiles."
+    },
+    "LEFTB": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "中abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "num_bytes",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            5,
+            100
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "num_bytes < 0 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Matches LEFT under single-byte profiles; DBCS profiles refused as not modelled."
+    },
+    "RIGHTB": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "中abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "num_bytes",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            5,
+            100
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "num_bytes < 0 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Matches RIGHT under single-byte profiles; DBCS profiles refused as not modelled."
+    },
+    "MIDB": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "中abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5,
+            2147483648,
+            2147483649
+          ],
+          "ranges": [
+            [
+              1,
+              2147483648
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "num_bytes",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            5,
+            2147483647,
+            2147483648
+          ],
+          "ranges": [
+            [
+              0,
+              2147483647
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "trunc(start_num) < 1 or start_num >= 2147483649",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:65"
+        },
+        {
+          "when": "num_bytes < 0 or num_bytes >= 2147483648",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:43"
+        }
+      ],
+      "notes": "Counts UTF-16 code units under single-byte profiles (even in CompatibilityVersion 2); DBCS profiles refused."
+    },
+    "UPPER": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "ﬀoo",
+            "Istanbul",
+            "ı",
+            "𐐨",
+            "άέήίόύώΐΰ"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "straße",
+              "why": "sharp s (ß) stays ß (no SS expansion)",
+              "source": "handbook FN-UPPER-001"
+            },
+            {
+              "value": "ﬀoo",
+              "why": "non-expanding ligatures stay unchanged",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:543"
+            },
+            {
+              "value": "𐐨",
+              "why": "supplementary astral cased letters stay unchanged",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:544"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "BMP single-codepoint uppercase mapping; rejects ill-formed UTF-16 as not modelled."
+    },
+    "LOWER": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "İ",
+            "ẞ",
+            "ΑΣ",
+            "ΑΣ.",
+            "ΑΣ́",
+            "ΆΣ",
+            "𐐀"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "ΑΣ",
+              "why": "word-final Greek sigma becomes ς",
+              "source": "handbook FN-LOWER-001"
+            },
+            {
+              "value": "ΑΣ́",
+              "why": "sigma followed by a combining mark takes medial σ",
+              "source": "handbook FN-LOWER-001"
+            },
+            {
+              "value": "𐐀",
+              "why": "astral cased letters above U+FFFF remain unchanged",
+              "source": "handbook FN-LOWER-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "BMP single-codepoint lowercase mapping with contextual Greek final sigma."
+    },
+    "PROPER": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            "hello wORLD",
+            "it's 2nd-test",
+            "a𐐀b",
+            "ΑΣ ΑΣΣ"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "a𐐀b",
+              "why": "supplementary surrogate pair acts as a word boundary",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:620"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Capitalizes first BMP alphabetic character after any non-alphabetic character or astral pair."
+    },
+    "TRIM": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "   ",
+            "  a  b  ",
+            " a ",
+            " a😀 ",
+            "\ta\tb\t",
+            123
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": " a ",
+              "why": "only ASCII U+0020 spaces are stripped/collapsed; NBSP and tabs stay intact",
+              "source": "handbook FN-TRIM-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Removes leading/trailing ASCII U+0020 and collapses internal runs of U+0020 to one space."
+    },
+    "CLEAN": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abc",
+            "\u0000a\u0007b\u001fc",
+            "",
+            "",
+            "a😀b",
+            123
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "\u0000a\u0007b\u001fc",
+              "why": "removes all C0 control code units 0..31",
+              "source": "handbook FN-CLEAN-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Strips ASCII C0 control characters (< 32) and Windows-1252 undefined C1 positions (129, 141, 143, 144, 157)."
+    },
+    "REPT": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "ab",
+            "😀",
+            12
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number_times",
+          "kind": "integer",
+          "specials": [
+            -1,
+            -0.5,
+            0,
+            0.9,
+            1,
+            3,
+            32767,
+            32768,
+            2147483647,
+            2147483648
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "returns empty string",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:476"
+            },
+            {
+              "value": 32768,
+              "why": "non-empty text repeated past 32,767 UTF-16 units returns #VALUE!",
+              "source": "handbook FN-LEFT-001"
+            },
+            {
+              "value": 2147483648,
+              "why": "count >= 2^31 returns #VALUE! even when text is empty",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:473"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "number_times < 0 (before trunc) or >= 2147483648",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:473"
+        },
+        {
+          "when": "len(text) * trunc(number_times) > 32,767 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:484"
+        }
+      ],
+      "notes": "Repeats text trunc(number_times) times; checks sign before truncating and caps result at 32,767 UTF-16 units."
+    },
+    "EXACT": {
+      "args": [
+        {
+          "name": "text1",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "text2",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [],
+      "notes": "Coerces both arguments to text and compares exact UTF-16 code unit equality (case-sensitive)."
+    },
+    "FIND": {
+      "args": [
+        {
+          "name": "find_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "A",
+            "b*d",
+            "é",
+            "😀"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty find_text matches immediately at start_num if start_num <= len + 1",
+              "source": "handbook FN-FIND-001"
+            }
+          ]
+        },
+        {
+          "name": "within_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abc",
+            "ABC",
+            "a*b",
+            "XÉ",
+            "😀abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            0.9999999,
+            1,
+            2,
+            10,
+            100
+          ],
+          "ranges": [
+            [
+              1,
+              32768
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "default start_num when omitted",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:106"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        },
+        {
+          "name": "compatibility_version_1_vs_2",
+          "how": "Version 1 counts UTF-16 units; Version 2 counts valid surrogate pairs once",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num < 1 (after date_integer_floor) or start_num > len(within_text) + 1",
+          "excel": "#VALUE!",
+          "source": "handbook FN-FIND-001"
+        },
+        {
+          "when": "find_text not found in within_text from start_num",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:309"
+        }
+      ],
+      "notes": "Case-sensitive literal substring search without wildcards."
+    },
+    "FINDB": {
+      "args": [
+        {
+          "name": "find_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "b",
+            "中"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "within_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abc",
+            "中b",
+            "😀b"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5
+          ],
+          "ranges": [
+            [
+              1,
+              32768
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num < 1 or > len + 1, or find_text not found",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:294"
+        }
+      ],
+      "notes": "Matches FIND counting UTF-16 units under single-byte profiles; DBCS profiles refused."
+    },
+    "SEARCH": {
+      "args": [
+        {
+          "name": "find_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "A",
+            "b*d",
+            "a?c",
+            "~*",
+            "~?",
+            "é",
+            "σ",
+            "😀"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty find_text matches at start_num when start_num <= len (or len==0 and start_num==1)",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:378"
+            },
+            {
+              "value": "b*d",
+              "why": "supports *, ?, and ~ escape wildcards with case-insensitive matching",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:312"
+            }
+          ]
+        },
+        {
+          "name": "within_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abcde",
+            "a*b",
+            "XÉ",
+            "ΑΣ",
+            "😀abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            0.9999999,
+            1,
+            2,
+            10
+          ],
+          "ranges": [
+            [
+              1,
+              32768
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        },
+        {
+          "name": "compatibility_version_1_vs_2",
+          "how": "Version 1 counts UTF-16 units; Version 2 returns character position while wildcards still match UTF-16 units",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:11"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num < 1 or pattern not found",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:405"
+        }
+      ],
+      "notes": "Case-insensitive wildcard search (*, ?, ~ escape) beyond ASCII via simple UTF-16 case folding."
+    },
+    "SEARCHB": {
+      "args": [
+        {
+          "name": "find_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "b*d",
+            "中"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "within_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abcde",
+            "中b",
+            "😀b"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5
+          ],
+          "ranges": [
+            [
+              1,
+              32768
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num < 1 or pattern not found",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:405"
+        }
+      ],
+      "notes": "Matches SEARCH counting UTF-16 units under single-byte profiles; DBCS profiles refused."
+    },
+    "REPLACE": {
+      "args": [
+        {
+          "name": "old_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abcdef",
+            "😀abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              1,
+              32767
+            ]
+          ],
+          "edges": [
+            {
+              "value": 32768,
+              "why": "start_num >= 32768 returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:141"
+            }
+          ]
+        },
+        {
+          "name": "num_chars",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            3,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": [
+            {
+              "value": 32768,
+              "why": "num_chars >= 32768 returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:145"
+            }
+          ]
+        },
+        {
+          "name": "new_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "XYZ",
+            "12345"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num < 1 or start_num >= 32768 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:140"
+        },
+        {
+          "when": "num_chars < 0 or num_chars >= 32768 (after date_integer_floor)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:145"
+        },
+        {
+          "when": "resulting string exceeds 32,767 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "handbook FN-LEFT-001"
+        }
+      ],
+      "notes": "Replaces num_chars starting at 1-based start_num with new_text; rejects result > 32,767 units with #VALUE!."
+    },
+    "REPLACEB": {
+      "args": [
+        {
+          "name": "old_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "abcdef",
+            "中abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "start_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              1,
+              32767
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "num_bytes",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            3,
+            32767,
+            32768
+          ],
+          "ranges": [
+            [
+              0,
+              32767
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "new_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "XYZ"
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "start_num not in 1..32767 or num_bytes not in 0..32767",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:141"
+        },
+        {
+          "when": "resulting string exceeds 32,767 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:163"
+        }
+      ],
+      "notes": "Matches REPLACE counting UTF-16 units under single-byte profiles; DBCS profiles refused."
+    },
+    "SUBSTITUTE": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "aaa",
+            "aba",
+            "Sales Data",
+            "abc"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "old_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "a",
+            "A",
+            "b"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty old_text returns text unchanged",
+              "source": "crates/calc-func/src/ported/text_kernels.rs:226"
+            }
+          ]
+        },
+        {
+          "name": "new_text",
+          "kind": "text",
+          "specials": [
+            "",
+            "bb",
+            "X"
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "instance_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            10,
+            2147483627,
+            2147483647
+          ],
+          "ranges": [
+            [
+              1,
+              2147483626
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2147483627,
+              "why": "Excel rejects the 20 binary64 predecessors of i32::MAX as well as >= i32::MAX with #VALUE!",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:375"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "date_integer_floor_snap",
+          "how": "fractional inputs within 2^-22 + 2^-33 (positive) or 2^-23 + 2^-34 (negative) below ceiling snap up",
+          "source": "crates/calc-func/src/ported/text_kernels.rs:24"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "instance_num < 1 or >= FIRST_INVALID_INSTANCE (i32::MAX - 20 ULPs) or logical",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:373"
+        },
+        {
+          "when": "resulting string exceeds 32,767 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "handbook FN-LEFT-001"
+        }
+      ],
+      "notes": "Case-sensitive replacement of all or Nth occurrence of old_text; logical instance_num is rejected."
+    },
+    "T": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            "hello",
+            "",
+            0,
+            123,
+            true,
+            false,
+            null,
+            "#DIV/0!",
+            "#N/A"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": 123,
+              "why": "numbers, logicals, and blanks return empty string ''",
+              "source": "handbook FN-T-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [],
+      "error_edges": [
+        {
+          "when": "value is a worksheet error",
+          "excel": "propagates error",
+          "source": "handbook FN-T-001"
+        }
+      ],
+      "notes": "Returns text unchanged, propagates errors, and returns '' for numbers, logicals, and blanks."
+    },
+    "CONCATENATE": {
+      "args": [
+        {
+          "name": "text1",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            123,
+            true,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "text2",
+          "kind": "text",
+          "specials": [
+            "",
+            " ",
+            "  a  b  ",
+            "abc",
+            "ABC",
+            "Hello World",
+            "straße",
+            "ΑΣ",
+            "123",
+            "-45.67",
+            "TRUE",
+            "FALSE",
+            "€",
+            "😀",
+            "a b",
+            "a\tb\nc",
+            456,
+            false,
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "truncate_at_32767",
+          "how": "results longer than 32,767 UTF-16 code units are silently truncated to 32,767 units",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:215"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Joins scalar text arguments; truncates past 32,767 UTF-16 units (unlike CONCAT which returns #CALC!)."
+    },
+    "CONCAT": {
+      "args": [
+        {
+          "name": "text1",
+          "kind": "any",
+          "specials": [
+            "a",
+            "123",
+            "",
+            [
+              "x",
+              "y"
+            ],
+            [
+              1,
+              null,
+              true
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "text2",
+          "kind": "any",
+          "specials": [
+            "b",
+            "",
+            [
+              "z"
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "range_concatenation",
+          "how": "accepts arrays/ranges in row-major order as well as scalars",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:196"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "joined length exceeds 32,767 UTF-16 code units",
+          "excel": "#CALC!",
+          "source": "handbook FN-LEFT-001"
+        }
+      ],
+      "notes": "Joins scalars and ranges in row-major order; returns #CALC! past 32,767 UTF-16 units."
+    },
+    "TEXTJOIN": {
+      "args": [
+        {
+          "name": "delimiter",
+          "kind": "text",
+          "specials": [
+            ",",
+            " ",
+            "",
+            "-",
+            [
+              ",",
+              ";"
+            ]
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                ",",
+                ";"
+              ],
+              "why": "range/array of delimiters cycles in row-major order across gaps",
+              "source": "crates/calc-func/src/catalogue/text_functions.rs:222"
+            }
+          ]
+        },
+        {
+          "name": "ignore_empty",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            1
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "text1",
+          "kind": "any",
+          "specials": [
+            "a",
+            "",
+            null,
+            [
+              "a",
+              "",
+              "c"
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "text2",
+          "kind": "any",
+          "specials": [
+            "b",
+            "",
+            null,
+            [
+              1,
+              2
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "ignore_empty_policy",
+          "how": "when ignore_empty is TRUE, skips blank cells and empty coerced strings",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:267"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "joined length exceeds 32,767 UTF-16 code units",
+          "excel": "#CALC!",
+          "source": "crates/calc-func/src/catalogue/text_functions.rs:280"
+        }
+      ],
+      "notes": "Joins non-empty (if ignore_empty) strings with cycling delimiter(s); #CALC! past 32,767 UTF-16 units."
+    }
+  }
+}
