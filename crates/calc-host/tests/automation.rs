@@ -165,6 +165,85 @@ fn text(model: &WorkbookAutomation, object: &ObjectRef, name: &str) -> String {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_number_format_get_reports_uniform_codes_and_mixed_null() {
+    let (_, model, _) = blank_report();
+    let cells = range(&model, "A1:B2");
+    assert_eq!(text(&model, &cells, "NumberFormat"), "General");
+    invoke_kind(
+        &model,
+        &range(&model, "A1"),
+        "NumberFormat",
+        InvokeKind::Put,
+        vec![AutoValue::text("0.00")],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "NumberFormat", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    // This workbook was authored by Excel. A2 is formatted as 0%.
+    let (_, imported) = setup();
+    assert_eq!(
+        text(&imported, &range(&imported, "A2"), "NumberFormat"),
+        "0%"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_number_format_put_formats_a_report_column_in_one_undo_step() {
+    let (host, model, _) = blank_report();
+    fill(&host, (2, 4), &[&["30"], &["70"]]);
+    let column = range(&model, "D:D");
+    invoke_kind(
+        &model,
+        &column,
+        "NumberFormat",
+        InvokeKind::Put,
+        vec![AutoValue::text("0.00")],
+    )
+    .unwrap();
+    assert_eq!(text(&model, &column, "NumberFormat"), "0.00");
+    assert_eq!(text(&model, &range(&model, "D2"), "Text"), "30.00");
+    assert_eq!(
+        text(&model, &range(&model, "D1048576"), "NumberFormat"),
+        "0.00"
+    );
+    assert_eq!(text(&model, &range(&model, "E2"), "NumberFormat"), "General");
+
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    #[cfg(windows)]
+    if let Some(path) = std::env::var_os("DNACALC_FORMATTING_WORKBOOK") {
+        std::fs::write(path, &saved).unwrap();
+    }
+    let reopened = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_, reopened) = setup_session(reopened);
+    assert_eq!(
+        text(&reopened, &range(&reopened, "D:D"), "NumberFormat"),
+        "0.00"
+    );
+
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert_eq!(text(&model, &column, "NumberFormat"), "General");
+    assert_eq!(text(&model, &range(&model, "D2"), "Text"), "30");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn workbook_range_members_follow_identity_selection_and_address_flags() {
     let (host, model) = setup();
     host.session
