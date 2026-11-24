@@ -57,10 +57,34 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              1.1,
+              -1.0,
+              -0.1
+            ],
+            [
+              1e+16,
+              1.0,
+              -1e+16
+            ],
+            [
+              9.99999999999999e+307,
+              9.99999999999999e+307
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                1e+16,
+                1.0,
+                -1e+16
+              ],
+              "why": "applies adjust_final_sum before dividing by count",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:202"
+            }
+          ]
         },
         {
           "name": "number2",
@@ -115,6 +139,20 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              1.1,
+              -1.0,
+              -0.1
+            ],
+            [
+              1e+16,
+              1.0,
+              -1e+16
+            ],
+            [
+              9.99999999999999e+307,
+              9.99999999999999e+307
             ]
           ],
           "ranges": [],
@@ -134,7 +172,23 @@
           "source": "crates/calc-func/src/catalogue/aggregate.rs:180"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "zero numeric values found across all arguments",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:202"
+        },
+        {
+          "when": "direct argument is non-numeric text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:194"
+        },
+        {
+          "when": "held nested array inside an array argument",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:180"
+        }
+      ],
       "notes": "Returns #DIV/0! when count == 0; direct text/logicals coerce while held non-numbers are skipped."
     },
     "AVERAGEA": {
@@ -322,10 +376,29 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              0.0
+            ],
+            [
+              -0.0,
+              0.0
+            ],
+            [
+              -1e+308,
+              1e+308
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                0.0
+              ],
+              "why": "returns 0.0 when arguments contain no numeric values (only text/logical/blank in held refs)",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:299"
+            }
+          ]
         },
         {
           "name": "number2",
@@ -380,6 +453,17 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              0.0
+            ],
+            [
+              -0.0,
+              0.0
+            ],
+            [
+              -1e+308,
+              1e+308
             ]
           ],
           "ranges": [],
@@ -399,7 +483,18 @@
           "source": "crates/calc-func/src/catalogue/aggregate.rs:271"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "direct argument is non-numeric text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:263"
+        },
+        {
+          "when": "held nested array inside an array argument",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:246"
+        }
+      ],
       "notes": "Skips held text/logicals/blanks; returns 0 when empty; held nested array returns #N/A."
     },
     "MAX": {
@@ -457,10 +552,29 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              0.0
+            ],
+            [
+              -0.0,
+              0.0
+            ],
+            [
+              -1e+308,
+              1e+308
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                0.0
+              ],
+              "why": "returns 0.0 when arguments contain no numeric values (only text/logical/blank in held refs)",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:299"
+            }
+          ]
         },
         {
           "name": "number2",
@@ -515,6 +629,17 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              0.0
+            ],
+            [
+              -0.0,
+              0.0
+            ],
+            [
+              -1e+308,
+              1e+308
             ]
           ],
           "ranges": [],
@@ -534,7 +659,18 @@
           "source": "crates/calc-func/src/catalogue/aggregate.rs:271"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "direct argument is non-numeric text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:263"
+        },
+        {
+          "when": "held nested array inside an array argument",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:246"
+        }
+      ],
       "notes": "Skips held text/logicals/blanks; returns 0 when empty; held nested array returns #N/A."
     },
     "MINA": {
@@ -852,10 +988,20 @@
                 3.0,
                 4.0
               ]
+            ],
+            null,
+            [
+              0.0
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "direct blank or omitted argument counts as 1 (as 0), while held blanks/text/logicals are skipped",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:336"
+            }
+          ]
         },
         {
           "name": "value2",
@@ -910,7 +1056,8 @@
                 3.0,
                 4.0
               ]
-            ]
+            ],
+            null
           ],
           "ranges": [],
           "edges": []
@@ -982,10 +1129,20 @@
                 3.0,
                 4.0
               ]
+            ],
+            null,
+            [
+              0.0
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "direct blank or omitted argument counts as 1, while held blank cells are skipped",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:381"
+            }
+          ]
         },
         {
           "name": "value2",
@@ -1040,7 +1197,8 @@
                 3.0,
                 4.0
               ]
-            ]
+            ],
+            null
           ],
           "ranges": [],
           "edges": []
@@ -1217,10 +1375,33 @@
             "a*",
             "*?",
             "",
-            "="
+            "=",
+            "<>",
+            "~*",
+            "2016-17 Winter",
+            0,
+            true,
+            false,
+            null
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "2016-17 Winter",
+              "why": "digit-bearing label with non-date/exponent letters evaluates as text in criteria",
+              "source": "handbook FN-COUNTIF-001"
+            },
+            {
+              "value": null,
+              "why": "omitted or blank cell criterion matches numeric 0",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:20"
+            },
+            {
+              "value": "=",
+              "why": "lone '=' matches blank cells only, whereas '' matches blanks and empty text",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:23"
+            }
+          ]
         }
       ],
       "relations": [],
@@ -1231,7 +1412,18 @@
           "source": "crates/calc-func/src/catalogue/conditional.rs:21"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "criteria text exceeds 255 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:77"
+        },
+        {
+          "when": "range is a multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:10"
+        }
+      ],
       "notes": "Single-area reference required; criteria arrays lift elementwise."
     },
     "COUNTIFS": {
@@ -1256,10 +1448,23 @@
             "a*",
             "*?",
             "",
-            "="
+            "=",
+            "<>",
+            "~*",
+            "2016-17 Winter",
+            0,
+            true,
+            false,
+            null
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "2016-17 Winter",
+              "why": "digit-bearing label with non-date/exponent letters evaluates as text in criteria",
+              "source": "handbook FN-COUNTIF-001"
+            }
+          ]
         },
         {
           "name": "criteria_range2",
@@ -1281,7 +1486,14 @@
             "a*",
             "*?",
             "",
-            "="
+            "=",
+            "<>",
+            "~*",
+            "2016-17 Winter",
+            0,
+            true,
+            false,
+            null
           ],
           "ranges": [],
           "edges": []
@@ -1295,7 +1507,23 @@
           "source": "crates/calc-func/src/catalogue/conditional.rs:7"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "criteria_range shapes differ across pairs",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:8"
+        },
+        {
+          "when": "any criteria_range is a multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:10"
+        },
+        {
+          "when": "any criteria text exceeds 255 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:77"
+        }
+      ],
       "notes": "Pairs (criteria_range, criteria) repeat; criteria arrays lift elementwise."
     },
     "MAXIFS": {

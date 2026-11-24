@@ -62,7 +62,13 @@
               0.0
             ],
             "#N/A",
-            null
+            null,
+            42,
+            [
+              [
+                1
+              ]
+            ]
           ],
           "ranges": [],
           "edges": [
@@ -70,6 +76,11 @@
               "value": null,
               "why": "blank or omitted array returns #VALUE! before reading indices",
               "source": "crates/calc-func/src/catalogue/lookup.rs:1418"
+            },
+            {
+              "value": 42,
+              "why": "scalar array is treated as 1x1; valid with row_num/column_num in {0, 1} and area_num=1",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1458"
             }
           ]
         },
@@ -158,6 +169,11 @@
           "name": "1d_omitted_column",
           "how": "when column_num is omitted on a 1-row array/range, row_num indexes columns",
           "source": "crates/calc-func/src/catalogue/lookup.rs:1474"
+        },
+        {
+          "name": "2d_omitted_column_array_vs_ref",
+          "how": "omitted column_num on a 2D array returns row_num's entire row; on a 2D reference returns #REF!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1486"
         }
       ],
       "error_edges": [
@@ -170,6 +186,21 @@
           "when": "row_num > rows or column_num > columns or area_num > areas",
           "excel": "#REF!",
           "source": "crates/calc-func/src/catalogue/lookup.rs:1494"
+        },
+        {
+          "when": "row_num < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1433"
+        },
+        {
+          "when": "column_num < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1433"
+        },
+        {
+          "when": "area_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1433"
         }
       ],
       "notes": "Indexes a reference (preserving reference identity) or array; truncates indices and treats 0 as entire axis."
@@ -286,7 +317,10 @@
             2,
             0.5,
             -0.5,
-            null
+            null,
+            -2147483648,
+            2147483648,
+            1e+100
           ],
           "ranges": [
             [
@@ -807,10 +841,27 @@
             "ss",
             true,
             false,
-            null
+            null,
+            "a?c",
+            "~*",
+            "é",
+            "é",
+            "😀",
+            "??"
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "😀",
+              "why": "when range_lookup is FALSE, '?' matches one UTF-16 code unit so astral emoji matches '??'",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1275"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted lookup_value maps to numeric 0",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1252"
+            }
+          ]
         },
         {
           "name": "table_array",
@@ -842,10 +893,25 @@
               2,
               3
             ],
-            null
+            null,
+            [
+              [
+                1
+              ]
+            ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                [
+                  1
+                ]
+              ],
+              "why": "1x1 scalar or single-cell array table_array returns #N/A",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1255"
+            }
+          ]
         },
         {
           "name": "col_index_num",
@@ -859,7 +925,9 @@
             1.9,
             2,
             3,
-            10
+            10,
+            -2147483647,
+            0.9
           ],
           "ranges": [
             [
@@ -888,7 +956,12 @@
             false,
             0,
             1,
-            null
+            null,
+            2,
+            -1,
+            "TRUE",
+            "FALSE",
+            "bad"
           ],
           "ranges": [],
           "edges": [
@@ -933,6 +1006,11 @@
           "when": "matched and (trunc(col_index_num) > width or <= -2147483648)",
           "excel": "#REF!",
           "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+        },
+        {
+          "when": "col_index_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1288"
         }
       ],
       "notes": "Vertical lookup in first column; blanks map to 0 and UTF-16 length check applies in exact non-wildcard mode."
@@ -954,10 +1032,27 @@
             "ss",
             true,
             false,
-            null
+            null,
+            "a?c",
+            "~*",
+            "é",
+            "é",
+            "😀",
+            "??"
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "😀",
+              "why": "when range_lookup is FALSE, '?' matches one UTF-16 code unit so astral emoji matches '??'",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1275"
+            },
+            {
+              "value": null,
+              "why": "blank or omitted lookup_value maps to numeric 0",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1252"
+            }
+          ]
         },
         {
           "name": "table_array",
@@ -986,10 +1081,32 @@
                 3
               ]
             ],
-            null
+            null,
+            [
+              [
+                1
+              ]
+            ],
+            [
+              [
+                1,
+                2,
+                3
+              ]
+            ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                [
+                  1
+                ]
+              ],
+              "why": "1x1 scalar or single-cell array table_array returns #N/A",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1255"
+            }
+          ]
         },
         {
           "name": "row_index_num",
@@ -1003,7 +1120,9 @@
             1.9,
             2,
             3,
-            10
+            10,
+            -2147483647,
+            0.9
           ],
           "ranges": [
             [
@@ -1032,10 +1151,26 @@
             false,
             0,
             1,
-            null
+            null,
+            2,
+            -1,
+            "TRUE",
+            "FALSE",
+            "bad"
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": true,
+              "why": "default when omitted: bisection on first row",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1260"
+            },
+            {
+              "value": null,
+              "why": "explicit blank/empty range_lookup evaluates as FALSE (exact match)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1225"
+            }
+          ]
         }
       ],
       "relations": [],
@@ -1066,6 +1201,11 @@
           "when": "matched and (trunc(row_index_num) > rows or <= -2147483648)",
           "excel": "#REF!",
           "source": "crates/calc-func/src/catalogue/lookup.rs:1285"
+        },
+        {
+          "when": "row_index_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1288"
         }
       ],
       "notes": "Horizontal lookup in first row; truncates row_index_num and validates bounds only on match."
@@ -1219,7 +1359,11 @@
             2,
             3,
             255,
-            256
+            256,
+            0.9,
+            true,
+            false,
+            null
           ],
           "ranges": [
             [
@@ -1232,6 +1376,16 @@
               "value": 0,
               "why": "index_num < 1 or > value_count returns #VALUE!",
               "source": "crates/calc-func/src/catalogue/lookup.rs:1590"
+            },
+            {
+              "value": 0.9,
+              "why": "index_num truncates toward zero (0.9 -> 0 -> #VALUE!, 1.9 -> 1)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1587"
+            },
+            {
+              "value": true,
+              "why": "logical index_num coerces via number coercion (TRUE -> 1, FALSE -> 0 -> #VALUE!)",
+              "source": "crates/calc-func/src/catalogue/lookup.rs:1586"
             }
           ]
         },
@@ -1264,8 +1418,7 @@
             "#VALUE!",
             "#REF!",
             "#NAME?",
-            "#NUM!",
-            "#N/A"
+            "#NUM!"
           ],
           "ranges": [],
           "edges": []
@@ -1299,8 +1452,7 @@
             "#VALUE!",
             "#REF!",
             "#NAME?",
-            "#NUM!",
-            "#N/A"
+            "#NUM!"
           ],
           "ranges": [],
           "edges": []
@@ -1317,6 +1469,11 @@
       "error_edges": [
         {
           "when": "trunc(index_num) < 1 or trunc(index_num) > number of value arguments",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/lookup.rs:1590"
+        },
+        {
+          "when": "index_num < 1",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/lookup.rs:1590"
         }
@@ -2369,6 +2526,16 @@
               "value": "x",
               "why": "direct non-boolean text is skipped (if all skipped -> #VALUE!); direct blank/omitted is FALSE",
               "source": "handbook FN-AND-001"
+            },
+            {
+              "value": null,
+              "why": "direct blank or omitted argument reads as FALSE, whereas held blanks in arrays/ranges are skipped",
+              "source": "crates/calc-func/src/catalogue/logical.rs:18"
+            },
+            {
+              "value": "TRUE",
+              "why": "direct 'TRUE'/'FALSE' text coerces to logical, whereas held text in arrays/ranges is skipped",
+              "source": "crates/calc-func/src/catalogue/logical.rs:16"
             }
           ]
         },
@@ -2394,10 +2561,20 @@
             [
               true,
               true
+            ],
+            [
+              1,
+              0
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "x",
+              "why": "direct non-boolean text is skipped (returns #VALUE! only if no logical/number is found)",
+              "source": "crates/calc-func/src/catalogue/logical.rs:16"
+            }
+          ]
         }
       ],
       "relations": [],
@@ -2453,7 +2630,18 @@
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "direct blank or omitted argument reads as FALSE, whereas held blanks in arrays/ranges are skipped",
+              "source": "crates/calc-func/src/catalogue/logical.rs:18"
+            },
+            {
+              "value": "TRUE",
+              "why": "direct 'TRUE'/'FALSE' text coerces to logical, whereas held text in arrays/ranges is skipped",
+              "source": "crates/calc-func/src/catalogue/logical.rs:16"
+            }
+          ]
         },
         {
           "name": "logical2",
@@ -2477,10 +2665,20 @@
             [
               false,
               false
+            ],
+            [
+              1,
+              0
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "x",
+              "why": "direct non-boolean text is skipped (returns #VALUE! only if no logical/number is found)",
+              "source": "crates/calc-func/src/catalogue/logical.rs:16"
+            }
+          ]
         }
       ],
       "relations": [],
@@ -3034,6 +3232,684 @@
       ],
       "error_edges": [],
       "notes": "Catches #N/A lazily; passes all other errors and non-errors through unchanged."
+    },
+    "CELL": {
+      "args": [
+        {
+          "name": "info_type",
+          "kind": "text",
+          "specials": [
+            "address",
+            "row",
+            "col",
+            "contents",
+            "type",
+            "filename",
+            "format",
+            "color",
+            "parentheses",
+            "prefix",
+            "protect",
+            "width",
+            "ADDRESS",
+            " format ",
+            "",
+            "invalid"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": " format ",
+              "why": "info_type is ASCII case-insensitive but not trimmed; spaces return #VALUE!",
+              "source": "crates/calc-func/src/catalogue/host_facts.rs:109"
+            },
+            {
+              "value": "width",
+              "why": "returns a 1x2 array {rounded_width, is_default}",
+              "source": "crates/calc-func/src/catalogue/host_facts.rs:245"
+            }
+          ]
+        },
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "omitted_active_cell",
+          "how": "when reference is omitted, reads the active cell of the active sheet",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:146"
+        },
+        {
+          "name": "first_cell_of_area",
+          "how": "for a multi-cell or multi-area reference, inspects the top-left cell of the first area",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:46"
+        },
+        {
+          "name": "format_classification",
+          "how": "format/color/parentheses classify the cell's number format code sections",
+          "source": "crates/calc-func/src/format/cell_info.rs:1"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "info_type is not one of the 12 known type names (or has whitespace)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:143"
+        },
+        {
+          "when": "reference targets a closed external workbook",
+          "excel": "#N/A",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:157"
+        },
+        {
+          "when": "reference is not a cell reference (formula entry refuses non-reference)",
+          "excel": "#VALUE! / refused",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:566"
+        }
+      ],
+      "notes": "Requires a cell reference in optional reference slot; reads active cell when omitted."
+    },
+    "OFFSET": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            -1048576,
+            -10,
+            -1,
+            -0.9,
+            0,
+            0.9,
+            1,
+            10,
+            1048576,
+            null
+          ],
+          "ranges": [
+            [
+              -100,
+              100
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "omitted or blank rows coerces to 0",
+              "source": "crates/calc-func/src/catalogue/offset.rs:8"
+            },
+            {
+              "value": 0.9,
+              "why": "rows offset is truncated toward zero",
+              "source": "crates/calc-func/src/catalogue/offset.rs:167"
+            }
+          ]
+        },
+        {
+          "name": "cols",
+          "kind": "integer",
+          "specials": [
+            -16384,
+            -10,
+            -1,
+            -0.9,
+            0,
+            0.9,
+            1,
+            10,
+            16384,
+            null
+          ],
+          "ranges": [
+            [
+              -50,
+              50
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "omitted or blank cols coerces to 0",
+              "source": "crates/calc-func/src/catalogue/offset.rs:8"
+            }
+          ]
+        },
+        {
+          "name": "height",
+          "kind": "integer",
+          "specials": [
+            -1048576,
+            -2,
+            -1,
+            -0.5,
+            0,
+            1e-300,
+            0.92,
+            1,
+            1.9,
+            2,
+            10,
+            1048576,
+            null
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "exact zero height returns #REF! after reading width",
+              "source": "crates/calc-func/src/catalogue/offset.rs:113"
+            },
+            {
+              "value": 0.92,
+              "why": "nonzero fraction in (-1, 1) truncates to 0 and produces a 2-row span",
+              "source": "crates/calc-func/src/catalogue/offset.rs:193"
+            },
+            {
+              "value": -2,
+              "why": "negative height extends upward from the shifted anchor cell",
+              "source": "crates/calc-func/src/catalogue/offset.rs:11"
+            }
+          ]
+        },
+        {
+          "name": "width",
+          "kind": "integer",
+          "specials": [
+            -16384,
+            -2,
+            -1,
+            -0.5,
+            0,
+            1e-300,
+            0.92,
+            1,
+            1.9,
+            2,
+            10,
+            16384,
+            null
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "exact zero width returns #REF!",
+              "source": "crates/calc-func/src/catalogue/offset.rs:113"
+            },
+            {
+              "value": -0.5,
+              "why": "negative fraction in (-1, 0) truncates to 0 and produces a 2-column span",
+              "source": "crates/calc-func/src/catalogue/offset.rs:194"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "negative_extent_reverse_span",
+          "how": "negative height or width extends up or left from shifted origin",
+          "source": "crates/calc-func/src/catalogue/offset.rs:196"
+        },
+        {
+          "name": "sub_unit_nonzero_extent",
+          "how": "fractional extent in (-1, 0) or (0, 1) bypasses exact-zero #REF! check and spans 2 cells",
+          "source": "crates/calc-func/src/catalogue/offset.rs:190"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "height == 0",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:113"
+        },
+        {
+          "when": "width == 0",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:113"
+        },
+        {
+          "when": "shifted area falls outside 1..=1048576 rows or 1..=16384 columns",
+          "excel": "#REF!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:152"
+        },
+        {
+          "when": "reference is multi-area or targets a closed external workbook",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/offset.rs:88"
+        }
+      ],
+      "notes": "Requires a single-area reference; returns a reference; volatile."
+    },
+    "SORT": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              3,
+              1,
+              2
+            ],
+            [
+              -1,
+              0,
+              1
+            ],
+            [
+              [
+                3,
+                20
+              ],
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                30
+              ]
+            ],
+            [
+              [
+                1,
+                3,
+                2
+              ],
+              [
+                10,
+                30,
+                20
+              ]
+            ],
+            [
+              1
+            ],
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": [
+                3,
+                1,
+                2
+              ],
+              "why": "by_col=FALSE sorts rows vertically; by_col=TRUE sorts columns horizontally",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:442"
+            }
+          ]
+        },
+        {
+          "name": "sort_index",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            1.9,
+            2,
+            3,
+            10,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "explicit empty cell in sort_index becomes 0 (#VALUE!), while omitted selects 1",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:457"
+            },
+            {
+              "value": 1.9,
+              "why": "sort_index truncates toward zero",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:249"
+            }
+          ]
+        },
+        {
+          "name": "sort_order",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            1.5,
+            -1.5,
+            null
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "ascending order (default when omitted)",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:260"
+            },
+            {
+              "value": -1,
+              "why": "descending order",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:261"
+            },
+            {
+              "value": 0,
+              "why": "0 (or empty cell in sort_order) returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:262"
+            }
+          ]
+        },
+        {
+          "name": "by_col",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": false,
+              "why": "default FALSE (or omitted/blank) sorts by rows; TRUE sorts by columns",
+              "source": "crates/calc-func/src/catalogue/arrays.rs:272"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "mixed_type_sort_order",
+          "how": "orders kinds as blank < numbers < text < logicals < errors",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:284"
+        },
+        {
+          "name": "multi_key_array_sort",
+          "how": "sort_index and sort_order accept arrays of equal length (or one sort_order broadcast)",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:464"
+        },
+        {
+          "name": "15digit_number_and_collation_text",
+          "how": "compares numbers by Excel 15-digit rule and text ignoring case under host collation",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:14"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "sort_index < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:472"
+        },
+        {
+          "when": "sort_index exceeds width along sorted axis",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:472"
+        },
+        {
+          "when": "sort_order after trunc is neither 1 nor -1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:262"
+        },
+        {
+          "when": "len(sort_order) > 1 and len(sort_order) != len(sort_index)",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/arrays.rs:464"
+        }
+      ],
+      "notes": "Stable merge sort over rows or columns; empty cells in sort_index/sort_order yield #VALUE!."
+    },
+    "ADDRESS": {
+      "args": [
+        {
+          "name": "row_num",
+          "kind": "integer",
+          "specials": [
+            -1048576,
+            -1048575,
+            -1,
+            0,
+            0.9999999,
+            1,
+            1.9,
+            10,
+            1048576,
+            1048577,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              1048576
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "valid only in R1C1 relative mode (abs_num in {3, 4}, a1=FALSE), emitting 'R' without [0]",
+              "source": "crates/calc-func/src/ported/address.rs:181"
+            },
+            {
+              "value": 1048576,
+              "why": "maximum Excel worksheet row",
+              "source": "crates/calc-func/src/ported/address.rs:186"
+            }
+          ]
+        },
+        {
+          "name": "column_num",
+          "kind": "integer",
+          "specials": [
+            -16384,
+            -16383,
+            -1,
+            0,
+            0.9999999,
+            1,
+            26,
+            27,
+            702,
+            703,
+            16384,
+            16385,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              16384
+            ]
+          ],
+          "edges": [
+            {
+              "value": 27,
+              "why": "column 27 transitions from single-letter Z to two-letter AA",
+              "source": "crates/calc-func/src/ported/address.rs:153"
+            },
+            {
+              "value": 16384,
+              "why": "maximum Excel worksheet column (XFD)",
+              "source": "crates/calc-func/src/ported/address.rs:187"
+            }
+          ]
+        },
+        {
+          "name": "abs_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            1.9,
+            null
+          ],
+          "ranges": [
+            [
+              1,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "1 (or omitted): $A$1 / R1C1",
+              "source": "handbook FUNC.ADDRESS"
+            },
+            {
+              "value": 2,
+              "why": "2: A$1 / R1C[1]",
+              "source": "handbook FUNC.ADDRESS"
+            },
+            {
+              "value": 3,
+              "why": "3: $A1 / R[1]C1",
+              "source": "handbook FUNC.ADDRESS"
+            },
+            {
+              "value": 4,
+              "why": "4: A1 / R[1]C[1]",
+              "source": "handbook FUNC.ADDRESS"
+            }
+          ]
+        },
+        {
+          "name": "a1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            0,
+            1,
+            -1,
+            "TRUE",
+            "FALSE",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": false,
+              "why": "selects R1C1 reference style and allows 0/negative relative offsets",
+              "source": "crates/calc-func/src/ported/address.rs:177"
+            }
+          ]
+        },
+        {
+          "name": "sheet_text",
+          "kind": "text",
+          "specials": [
+            "Sheet1",
+            "My Sheet",
+            "O'Brien",
+            "A1",
+            "R1C1",
+            "RC",
+            "TRUE",
+            "XFD1048576",
+            "[Book1.xlsx]Sheet 1",
+            "",
+            null
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "My Sheet",
+              "why": "sheet names outside simple identifier rules are single-quoted with doubled internal quotes",
+              "source": "crates/calc-func/src/ported/address.rs:121"
+            },
+            {
+              "value": "A1",
+              "why": "reference-like or boolean sheet names (A1, R1C1, RC, TRUE) are single-quoted",
+              "source": "crates/calc-func/src/ported/address.rs:52"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "two_step_integer_rounding",
+          "how": "integer args use floor(RN53(RN64(n + 2^31)) - 2^31) via address_integer",
+          "source": "crates/calc-func/src/ported/address.rs:9"
+        },
+        {
+          "name": "a1_vs_r1c1_relative",
+          "how": "R1C1 relative axes admit (-limit + 1)..limit (including 0); absolute axes require 1..=limit",
+          "source": "crates/calc-func/src/ported/address.rs:179"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "abs_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:488"
+        },
+        {
+          "when": "abs_num > 4",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:488"
+        },
+        {
+          "when": "row_num > 1048576",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/address.rs:186"
+        },
+        {
+          "when": "column_num > 16384",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/address.rs:187"
+        },
+        {
+          "when": "sheet_text exceeds 255 UTF-16 units or 256 after quote escaping",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/address.rs:93"
+        }
+      ],
+      "notes": "Formats cell address text in A1 or R1C1 style with optional quoted sheet prefix."
     }
   }
 }

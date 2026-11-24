@@ -3964,7 +3964,11 @@
             1000000000000000.0,
             4503599627370495.5,
             9007199254740992.0,
-            1e+307
+            1e+307,
+            -0.0,
+            -2.2250738585072014e-308,
+            -1.7976931348623157e+308,
+            1.7976931348623157e+308
           ],
           "ranges": [
             [
@@ -3982,6 +3986,11 @@
               "value": 2.2250738585072014e-308,
               "why": "ABS retains subnormal inputs",
               "source": "crates/calc-func/src/catalogue/rounding.rs:96"
+            },
+            {
+              "value": -1.7976931348623157e+308,
+              "why": "largest negative finite binary64 returns +DBL_MAX unchanged",
+              "source": "handbook FUNC.ABS"
             }
           ]
         }
@@ -3994,7 +4003,13 @@
           "source": "crates/calc-func/src/catalogue/rounding.rs:148"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "number fails worksheet numeric coercion (e.g. non-numeric text or '0e-309')",
+          "excel": "#VALUE!",
+          "source": "handbook FN-ABS-001"
+        }
+      ],
       "notes": "Retains subnormals and Excel overflow NaN bit patterns."
     },
     "SIGN": {
@@ -4091,7 +4106,14 @@
             1000000000000000.0,
             4503599627370495.5,
             9007199254740992.0,
-            1e+307
+            1e+307,
+            -3.0000000000000004,
+            2.9999999999999982,
+            999999999999999.5,
+            123456789012345.67,
+            -1125899906842624.0,
+            -2251799813685248.5,
+            -2.2250738585072014e-308
           ],
           "ranges": [
             [
@@ -4109,6 +4131,11 @@
               "value": 2.9999999999999996,
               "why": "15-digit reading rounds to 3, so INT returns 3",
               "source": "crates/calc-func/src/catalogue/rounding.rs:185"
+            },
+            {
+              "value": -2251799813685248.5,
+              "why": "below -1e15, negative non-integers adjust via truncate(x - 1.0) in binary64",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:205"
             }
           ]
         }
@@ -4126,7 +4153,13 @@
           "source": "crates/calc-func/src/catalogue/rounding.rs:200"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "number fails worksheet numeric coercion",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:6"
+        }
+      ],
       "notes": "Reads 15 significant digits below 1e15 so 2.9999999999999996 -> 3."
     },
     "ROUND": {
@@ -4163,7 +4196,9 @@
             4503599627370495.5,
             9007199254740992.0,
             1e+307,
-            1.7976931348623157e+308
+            1.7976931348623157e+308,
+            -1.7976931348623157e+308,
+            -0.0
           ],
           "ranges": [
             [
@@ -4181,6 +4216,11 @@
               "value": 2.675,
               "why": "15-digit reading gives 2.68 despite binary64 below half",
               "source": "crates/calc-func/src/catalogue/rounding.rs:14"
+            },
+            {
+              "value": 1.7976931348623157e+308,
+              "why": "rounding DBL_MAX up past 2^1024 stores Excel overflow NaN payload instead of #NUM!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:353"
             }
           ]
         },
@@ -4199,7 +4239,9 @@
             308,
             2147483646,
             2147483647,
-            -2147483647
+            -2147483647,
+            -2147483648,
+            -2147483480
           ],
           "ranges": [
             [
@@ -4212,6 +4254,11 @@
               "value": 2147483647,
               "why": "32-bit wrapped kept = digits + e_out + 1 wraps negative so ROUND(1.5, 2^31-1) == 0",
               "source": "crates/calc-func/src/catalogue/rounding.rs:292"
+            },
+            {
+              "value": -2147483480,
+              "why": "32-bit wrap on very negative num_digits can wrap kept positive for tiny values",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:294"
             }
           ]
         }
@@ -4229,7 +4276,18 @@
           "source": "crates/calc-func/src/catalogue/rounding.rs:320"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "rounded magnitude reaches or exceeds 2^1025",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:356"
+        },
+        {
+          "when": "number or num_digits fails numeric coercion",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:6"
+        }
+      ],
       "notes": "Flushes subnormals; retains Excel overflow bit pattern past DBL_MAX up to 2^1025."
     },
     "ROUNDUP": {
@@ -4265,7 +4323,11 @@
             1000000000000000.0,
             4503599627370495.5,
             9007199254740992.0,
-            1e+307
+            1e+307,
+            -1.0001086461844975e-307,
+            2.225073858507202e-308,
+            1.7976931348623153e+308,
+            -1.7976931348623153e+308
           ],
           "ranges": [
             [
@@ -4278,6 +4340,16 @@
               "value": 1.0001086461844975e-307,
               "why": "positive input within 2^-1026 above truncation adds no unit",
               "source": "crates/calc-func/src/catalogue/rounding.rs:469"
+            },
+            {
+              "value": -1.0001086461844975e-307,
+              "why": "negative input still adds unit even within 2^-1026 of truncation (unlike positive)",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:470"
+            },
+            {
+              "value": 2.225073858507202e-308,
+              "why": "normal input whose 15-digit reading falls below MIN_NORMAL returns packed initial underflow",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:485"
             }
           ]
         },
@@ -4295,7 +4367,10 @@
             307,
             32767,
             32768,
-            65537
+            65537,
+            -32768,
+            -4294967296,
+            4294967296
           ],
           "ranges": [
             [
@@ -4308,6 +4383,11 @@
               "value": 32768,
               "why": "low 16 bits >= 0x8000 count as out-of-range 100 places",
               "source": "crates/calc-func/src/catalogue/rounding.rs:398"
+            },
+            {
+              "value": -32768,
+              "why": "out-of-range negative num_digits returns #NUM! whenever a digit is dropped",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:456"
             }
           ]
         }
@@ -4323,9 +4403,25 @@
           "name": "binary64_unit_add",
           "how": "adds decimal unit in binary64 rather than exact decimal",
           "source": "crates/calc-func/src/catalogue/rounding.rs:475"
+        },
+        {
+          "name": "directed_initial_underflow",
+          "how": "input in [MIN_NORMAL, 2*MIN_NORMAL) with 15-digit reading below MIN_NORMAL returns packed normal bits",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:485"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "rounded result or added unit overflows binary64 DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:438"
+        },
+        {
+          "when": "negative num_digits out of 16-bit range (|places| >= 2^32 or low16 >= 32768) and digit dropped",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:456"
+        }
+      ],
       "notes": "Adds 10^-places unit in binary64; overflow returns #NUM!."
     },
     "ROUNDDOWN": {
@@ -4521,7 +4617,9 @@
             1.0,
             10.0,
             1125899999999.0,
-            1125900000000.0
+            1125900000000.0,
+            -1.0000000000000001e-296,
+            -5.0
           ],
           "ranges": [
             [
@@ -4534,6 +4632,11 @@
               "value": 1125900000000.0,
               "why": "|number/divisor| >= 1.1259e12 returns #NUM!",
               "source": "crates/calc-func/src/catalogue/rounding.rs:655"
+            },
+            {
+              "value": 0.0,
+              "why": "MOD(0, divisor) returns +0 whenever divisor != 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:666"
             }
           ]
         },
@@ -4551,7 +4654,8 @@
             0.3,
             1.0,
             10.0,
-            9.99999999999999e+307
+            9.99999999999999e+307,
+            67108864.0
           ],
           "ranges": [
             [
@@ -4569,6 +4673,11 @@
               "value": 1e-300,
               "why": "Veltkamp low part subnormal triggers #NUM! on sign-adjusted subnormal remainder",
               "source": "crates/calc-func/src/catalogue/rounding.rs:702"
+            },
+            {
+              "value": 9.99999999999999e+307,
+              "why": "when remainder + divisor absorbs remainder (equals divisor), returns 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:681"
             }
           ]
         }
@@ -4593,6 +4702,16 @@
           "when": "divisor == 0",
           "excel": "#DIV/0!",
           "source": "crates/calc-func/src/catalogue/rounding.rs:664"
+        },
+        {
+          "when": "|number / divisor| >= 1.1259e12",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:670"
+        },
+        {
+          "when": "final remainder is subnormal or tiny opposite-sign remainder has |quotient| >= 2^26",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:688"
         }
       ],
       "notes": "Computes binary64 remainder adjusted by divisor when signs differ; rejects |q| >= 1.1259e12 and subnormal outputs."
@@ -5680,10 +5799,46 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              1.1,
+              -1.0,
+              -0.1
+            ],
+            [
+              1e+16,
+              1.0,
+              -1e+16
+            ],
+            [
+              9.99999999999999e+307,
+              9.99999999999999e+307
+            ],
+            [
+              1e-308,
+              -1e-308
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": [
+                1.1,
+                -1.0,
+                -0.1
+              ],
+              "why": "adjust_final_sum snaps near-cancelling final binary64 addition to +0",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:97"
+            },
+            {
+              "value": [
+                9.99999999999999e+307,
+                9.99999999999999e+307
+              ],
+              "why": "running sum overflow beyond DBL_MAX returns #NUM!",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:70"
+            }
+          ]
         },
         {
           "name": "number2",
@@ -5717,6 +5872,24 @@
                 3.0,
                 4.0
               ]
+            ],
+            [
+              1.1,
+              -1.0,
+              -0.1
+            ],
+            [
+              1e+16,
+              1.0,
+              -1e+16
+            ],
+            [
+              9.99999999999999e+307,
+              9.99999999999999e+307
+            ],
+            [
+              1e-308,
+              -1e-308
             ]
           ],
           "ranges": [],
@@ -5736,7 +5909,18 @@
           "source": "crates/calc-func/src/catalogue/aggregate.rs:97"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "running or final sum overflows binary64 DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:70"
+        },
+        {
+          "when": "direct argument is non-numeric text",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:109"
+        }
+      ],
       "notes": "Reads through held arrays; skips held non-numbers; direct errors precede held errors."
     },
     "PRODUCT": {
@@ -5949,10 +6133,33 @@
                 3.0,
                 4.0
               ]
+            ],
+            null,
+            [
+              1e+200,
+              1e+200
+            ],
+            [
+              1e-200,
+              1e-200
             ]
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": null,
+              "why": "omitted argument, direct Empty, or single 1x1 blank reference returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:566"
+            },
+            {
+              "value": [
+                1e-200,
+                1e-200
+              ],
+              "why": "subnormal product term flushes to +0",
+              "source": "crates/calc-func/src/catalogue/aggregate.rs:470"
+            }
+          ]
         },
         {
           "name": "array2",
@@ -5986,6 +6193,15 @@
                 3.0,
                 4.0
               ]
+            ],
+            null,
+            [
+              1e+200,
+              1e+200
+            ],
+            [
+              1e-200,
+              1e-200
             ]
           ],
           "ranges": [],
@@ -6005,7 +6221,18 @@
           "source": "crates/calc-func/src/catalogue/aggregate.rs:566"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "array dimensions differ across arguments or single 1x1 blank cell reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:499"
+        },
+        {
+          "when": "product term or running sum overflows DBL_MAX",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:521"
+        }
+      ],
       "notes": "Treats non-numbers inside arrays/ranges as 0; flushes subnormal products to +0."
     },
     "SUBTOTAL": {
@@ -6030,7 +6257,13 @@
             101,
             109,
             111,
-            112
+            112,
+            0.9999999,
+            1.9999999,
+            11.9999999,
+            100,
+            100.9999999,
+            111.9999999
           ],
           "ranges": [
             [
@@ -6052,6 +6285,16 @@
               "value": 101,
               "why": "101..=111 exclude manually hidden rows",
               "source": "crates/calc-func/src/catalogue/subtotal.rs:251"
+            },
+            {
+              "value": 0.9999999,
+              "why": "uses date_integer_floor tolerant upper-neighbor threshold (2^-22 + 2^-33)",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:248"
+            },
+            {
+              "value": 12,
+              "why": "values in 12..=100 return #VALUE!",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
             }
           ]
         },
@@ -6088,6 +6331,16 @@
           "when": "function_num > 111",
           "excel": "#VALUE!",
           "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
+        },
+        {
+          "when": "function_num in 12..=100",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
+        },
+        {
+          "when": "function_num is AVERAGE/STDEV/STDEVP/VAR/VARP (1,7,8,10,11 or +100) with zero numbers (or <2 for sample)",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:168"
         }
       ],
       "notes": "Requires references in ref slots; invalid function_num returns #VALUE!."
@@ -6278,10 +6531,33 @@
             "a*",
             "*?",
             "",
-            "="
+            "=",
+            "<>",
+            "~*",
+            "2016-17 Winter",
+            0,
+            true,
+            false,
+            null
           ],
           "ranges": [],
-          "edges": []
+          "edges": [
+            {
+              "value": "2016-17 Winter",
+              "why": "digit-bearing label with non-date/exponent letters evaluates as text in criteria",
+              "source": "handbook FN-COUNTIF-001"
+            },
+            {
+              "value": null,
+              "why": "omitted or blank cell criterion asks for equality with 0",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:20"
+            },
+            {
+              "value": "=",
+              "why": "lone '=' matches blank cells only, whereas '' matches blank cells and empty text",
+              "source": "crates/calc-func/src/catalogue/conditional.rs:23"
+            }
+          ]
         },
         {
           "name": "sum_range",
@@ -6304,7 +6580,23 @@
           "source": "crates/calc-func/src/catalogue/conditional.rs:77"
         }
       ],
-      "error_edges": [],
+      "error_edges": [
+        {
+          "when": "criteria text exceeds 255 UTF-16 code units",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:77"
+        },
+        {
+          "when": "range or sum_range is a multi-area reference",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:10"
+        },
+        {
+          "when": "sum of matched numbers overflows binary64",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:229"
+        }
+      ],
       "notes": "Multi-area reference is #VALUE!; omitted sum_range sums range itself."
     },
     "SUMIFS": {
