@@ -277,7 +277,7 @@ refuses naming dc-zjsg.4.
 
 Axes (dc-oxh8w.11): `Chart.Axes(xlCategory|xlValue)` and `Axis.MinimumScale`, `MaximumScale`, `MajorUnit`, their `...IsAuto`,
 `ReversePlotOrder` and `Type`, over `WorkbookCommand::ChartAxis` (`chart_axes.rs`). Reading an automatic scale returns the renderer's scale (`chart::axis_scale`), and `...IsAuto = False` from automatic freezes it
-(dc-oxh8w.13). Chart.Export is dc-oxh8w.20; chart sheets, secondary axis groups and the Axes collection are dc-oxh8w.21.
+(dc-oxh8w.13). Chart.Export is dc-oxh8w.22; chart sheets, secondary axis groups and the Axes collection are dc-oxh8w.23.
 Axis titles and tick-label formats (dc-oxh8w.12): `Axis.HasTitle`, `AxisTitle.Text/Caption` and `TickLabels.NumberFormat/NumberFormatLinked` over
 `WorkbookCommand::ChartAxisLabels`; the writer saves `c:title` and `c:numFmt` (retained and newly made charts). Formats beyond the six the
 loader reads, data labels and series/plot/chart-area formatting are dc-oxh8w.18 and dc-oxh8w.19.
