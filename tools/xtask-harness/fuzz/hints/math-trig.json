@@ -1,0 +1,6382 @@
+{
+  "family": "math-trig",
+  "version": 1,
+  "functions": {
+    "SIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "SIN(0) = 0 exact",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 returns #NUM! in Excel circular trig",
+              "source": "crates/calc-func/src/ported/real_policy.rs:54"
+            },
+            {
+              "value": -134217728.0,
+              "why": "|x| >= 2^27 returns #NUM! in Excel circular trig",
+              "source": "crates/calc-func/src/ported/real_policy.rs:83"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_fptan_chain",
+          "how": "66-bit pi reduction and x87 FPTAN double-rounded to binary64",
+          "source": "handbook FN-SIN-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        }
+      ],
+      "notes": "Circular trig uses x87 66-bit pi reduction and rejects |number| >= 2^27 with #NUM!."
+    },
+    "COS": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0,
+            1.4901161193847656e-08
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "COS(0) = 1.0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 1.4901161193847656e-08,
+              "why": "|x| < 2^-26 returns 1.0 shortcut",
+              "source": "crates/calc-func/src/ported/cos.rs:3"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 returns #NUM!",
+              "source": "crates/calc-func/src/ported/real_policy.rs:54"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "small_arg_shortcut",
+          "how": "|x| < 2^-26 returns 1.0",
+          "source": "crates/calc-func/src/ported/cos.rs:3"
+        },
+        {
+          "name": "x87_fptan_chain",
+          "how": "66-bit pi reduction and x87 FPTAN chain",
+          "source": "handbook FN-SIN-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        }
+      ],
+      "notes": "Uses x87 FPTAN circular chain with |x| < 2^-26 -> 1.0 shortcut and |x| >= 2^27 #NUM! guard."
+    },
+    "TAN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "TAN(0) = 0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 returns #NUM!",
+              "source": "crates/calc-func/src/ported/real_policy.rs:54"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "fprem1_pi_over_2",
+          "how": "reduces argument via x87 FPREM1(x, FLDPI/2)",
+          "source": "handbook FN-TAN-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/real_policy.rs:83"
+        }
+      ],
+      "notes": "Reduces argument with x87 FPREM1(x, pi/2) and returns #NUM! for |x| >= 2^27."
+    },
+    "COT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "TAN(0) == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/cot.rs:9"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 checked before TAN returns #NUM!",
+              "source": "crates/calc-func/src/ported/cot.rs:5"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number != 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_recip_of_tan",
+          "how": "computes RN53(RN64(1 / TAN(x)))",
+          "source": "crates/calc-func/src/ported/cot.rs:6"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/cot.rs:10"
+        },
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/cot.rs:5"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/cot.rs:5"
+        }
+      ],
+      "notes": "Evaluates double-rounded x87 reciprocal 1/TAN(x); #DIV/0! at 0 and #NUM! for |x| >= 2^27."
+    },
+    "SEC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "SEC(0) = 1.0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 returns #NUM!",
+              "source": "crates/calc-func/src/ported/sec.rs:5"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_recip_of_cos",
+          "how": "computes RN53(RN64(1 / COS(x)))",
+          "source": "crates/calc-func/src/ported/sec.rs:6"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/sec.rs:5"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/sec.rs:5"
+        }
+      ],
+      "notes": "Evaluates double-rounded x87 reciprocal 1/COS(x); #NUM! for |x| >= 2^27."
+    },
+    "CSC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -134217728.0,
+            -134217727.0,
+            -1000000.0,
+            -6.283185307179586,
+            -3.141592653589793,
+            -1.5707963267948966,
+            -1.0,
+            -1e-08,
+            0.0,
+            1e-16,
+            1e-08,
+            0.5,
+            0.7853981633974483,
+            1.0,
+            1.5707963267948966,
+            3.141592653589793,
+            6.283185307179586,
+            1000000.0,
+            134217727.0,
+            134217728.0
+          ],
+          "ranges": [
+            [
+              -134217727.0,
+              134217727.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "SIN(0) == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/csc.rs:8"
+            },
+            {
+              "value": 134217728.0,
+              "why": "|x| >= 2^27 returns #NUM!",
+              "source": "crates/calc-func/src/ported/csc.rs:5"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number != 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_recip_of_sin",
+          "how": "computes RN53(RN64(1 / SIN(x)))",
+          "source": "crates/calc-func/src/ported/csc.rs:6"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/csc.rs:9"
+        },
+        {
+          "when": "number >= 134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/csc.rs:5"
+        },
+        {
+          "when": "number <= -134217728",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/csc.rs:5"
+        }
+      ],
+      "notes": "Evaluates double-rounded x87 reciprocal 1/SIN(x); #DIV/0! at 0 and #NUM! for |x| >= 2^27."
+    },
+    "ASIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0001,
+            -1.0,
+            -0.9999999999999999,
+            -0.5,
+            -1e-16,
+            0.0,
+            1e-16,
+            0.5,
+            0.9999999999999999,
+            1.0,
+            1.0001
+          ],
+          "ranges": [
+            [
+              -1.0,
+              1.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "lower closed domain endpoint returning -pi/2",
+              "source": "crates/calc-func/src/ported/asin.rs:8"
+            },
+            {
+              "value": 1.0,
+              "why": "upper closed domain endpoint returning pi/2",
+              "source": "crates/calc-func/src/ported/asin.rs:8"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "reused_factor_atan",
+          "how": "forms t=1-x, u=2-t, root=sqrt(t*u), atan(x/root), flushing subnormals to +0",
+          "source": "crates/calc-func/src/ported/asin.rs:14"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/asin.rs:9"
+        },
+        {
+          "when": "number > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/asin.rs:9"
+        }
+      ],
+      "notes": "Reuses t = 1 - x in u = 2 - t, introducing 1-ULP sign asymmetry on negative inputs."
+    },
+    "ACOS": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0001,
+            -1.0,
+            -0.5,
+            -1e-16,
+            0.0,
+            1e-16,
+            0.5,
+            1.0,
+            1.0001
+          ],
+          "ranges": [
+            [
+              -1.0,
+              1.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "lower closed domain endpoint returning pi",
+              "source": "crates/calc-func/src/ported/acos.rs:6"
+            },
+            {
+              "value": 1.0,
+              "why": "upper closed domain endpoint returning 0",
+              "source": "crates/calc-func/src/ported/acos.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "pi_over_2_minus_asin",
+          "how": "computes RN53(RN64(pi/2 - ASIN(x)))",
+          "source": "crates/calc-func/src/ported/acos.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/acos.rs:11"
+        },
+        {
+          "when": "number > 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/acos.rs:11"
+        }
+      ],
+      "notes": "Evaluates pi/2 - ASIN(x) via x87 sub, inheriting ASIN's 1-ULP sign asymmetry."
+    },
+    "ATAN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -100.0,
+            -1.0,
+            -0.5,
+            -1e-16,
+            0.0,
+            1e-16,
+            0.5,
+            1.0,
+            100.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "switch boundary between |x| <= 1 FPATAN and |x| > 1 FLDPI/2 - FPATAN(1,|x|)",
+              "source": "handbook FN-ATAN-001"
+            },
+            {
+              "value": 1.0,
+              "why": "switch boundary between |x| <= 1 FPATAN and |x| > 1 FLDPI/2 - FPATAN(1,|x|)",
+              "source": "handbook FN-ATAN-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "unit_disk_fpatan",
+          "how": "|x| <= 1 uses x87 FPATAN directly",
+          "source": "handbook FN-ATAN-001"
+        },
+        {
+          "name": "reciprocal_reduction",
+          "how": "|x| > 1 uses FLDPI/2 - FPATAN(1, |x|)",
+          "source": "handbook FN-ATAN-001"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Uses x87 FPATAN directly for |x| <= 1 and pi/2 - FPATAN(1, |x|) for |x| > 1."
+    },
+    "ATAN2": {
+      "args": [
+        {
+          "name": "x_num",
+          "kind": "number",
+          "specials": [
+            -1e+200,
+            -1.0,
+            -1e-200,
+            0.0,
+            1e-200,
+            1.0,
+            1e+200
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "x_num == 0 returns #DIV/0! if y_num == 0, else +-pi/2",
+              "source": "crates/calc-func/src/ported/atan2.rs:4"
+            }
+          ]
+        },
+        {
+          "name": "y_num",
+          "kind": "number",
+          "specials": [
+            -1e+200,
+            -1e+109,
+            -1.0,
+            0.0,
+            1.0,
+            1e+109,
+            1e+200
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "y_num == 0 and x_num == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/atan2.rs:4"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "y_axis_exact",
+          "how": "x_num == 0 and y_num != 0 returns +-pi/2",
+          "source": "crates/calc-func/src/ported/atan2.rs:17"
+        },
+        {
+          "name": "ratio_atan_quadrant",
+          "how": "evaluates excel_atan(y_num / x_num) shifted by +-pi for x_num < 0",
+          "source": "crates/calc-func/src/ported/atan2.rs:20"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "x_num == 0 and y_num == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/atan2.rs:5"
+        },
+        {
+          "when": "y_num / x_num overflows f64",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/atan2.rs:11"
+        }
+      ],
+      "notes": "Argument order is (x_num, y_num); returns #NUM! when y_num/x_num overflows f64."
+    },
+    "ACOT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -10.0,
+            -1.0,
+            -1e-16,
+            0.0,
+            1e-16,
+            1.0,
+            10.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "returns exact pi/2 at 0",
+              "source": "crates/calc-func/src/ported/acot.rs:7"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "zero_exact",
+          "how": "n == 0 returns pi/2",
+          "source": "crates/calc-func/src/ported/acot.rs:7"
+        },
+        {
+          "name": "positive_recip_atan",
+          "how": "n > 0 evaluates excel_atan_reduced(1/n)",
+          "source": "crates/calc-func/src/ported/acot.rs:10"
+        },
+        {
+          "name": "negative_pi_shift",
+          "how": "n < 0 adds pi to principal branch, flushing subnormals to +0",
+          "source": "crates/calc-func/src/ported/acot.rs:12"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Maps negative inputs into (pi/2, pi] by adding pi to ATAN(1/x); flushes subnormals to +0."
+    },
+    "DEGREES": {
+      "args": [
+        {
+          "name": "angle",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -3.141592653589793,
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            1.0,
+            3.141592653589793,
+            1e+306,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -3.137e+306,
+              3.137e+306
+            ]
+          ],
+          "edges": [
+            {
+              "value": 3.137e+306,
+              "why": "product angle * (180/pi) overflows past DBL_MAX to #NUM!",
+              "source": "crates/calc-func/src/catalogue/math.rs:100"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "subnormal_flush",
+          "how": "subnormal product flushes to +0.0",
+          "source": "crates/calc-func/src/catalogue/math.rs:100"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "angle > 3.137e306",
+          "excel": "#NUM!",
+          "source": "handbook FN-DEGREES-001"
+        },
+        {
+          "when": "angle < -3.137e306",
+          "excel": "#NUM!",
+          "source": "handbook FN-DEGREES-001"
+        }
+      ],
+      "notes": "Multiplies by 180/pi in binary64, flushing subnormal outputs to +0 and rejecting overflow with #NUM!."
+    },
+    "RADIANS": {
+      "args": [
+        {
+          "name": "angle",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -360.0,
+            -180.0,
+            0.0,
+            2.2250738585072014e-308,
+            1e-306,
+            45.0,
+            180.0,
+            360.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2.2250738585072014e-308,
+              "why": "subnormal product underflows and flushes to +0",
+              "source": "handbook FN-RADIANS-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_mul_subnormal_flush",
+          "how": "x87 multiplication by pi/180 with subnormal flush to +0",
+          "source": "crates/calc-func/src/ported/radians.rs:4"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Multiplies angle by pi/180 on x87 and flushes subnormal products to +0."
+    },
+    "SINH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -710.4758,
+              710.4758
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "|x| = 1 switches from internal Kahan expm1 difference to x87 EXP difference",
+              "source": "crates/calc-func/src/ported/sinh.rs:7"
+            },
+            {
+              "value": 1.0,
+              "why": "|x| = 1 switches from internal Kahan expm1 difference to x87 EXP difference",
+              "source": "crates/calc-func/src/ported/sinh.rs:7"
+            },
+            {
+              "value": 710.47586,
+              "why": "EXP(x) overflows to #NUM!",
+              "source": "crates/calc-func/src/catalogue/math.rs:89"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "small_expm1_diff",
+          "how": "|x| < 1 uses (expm1(x) - expm1(-x)) / 2",
+          "source": "crates/calc-func/src/ported/sinh.rs:16"
+        },
+        {
+          "name": "large_exp_diff",
+          "how": "|x| >= 1 uses x87_sub(EXP(x), EXP(-x)) / 2",
+          "source": "crates/calc-func/src/ported/sinh.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 710.47586",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:89"
+        },
+        {
+          "when": "number < -710.47586",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:89"
+        }
+      ],
+      "notes": "Splits at |x| = 1 between internal Kahan expm1 and x87-stored EXP difference."
+    },
+    "COSH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -709.7827,
+              709.7827
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "COSH(0) = 1.0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 709.7828,
+              "why": "EXP(x) overflows above ln(DBL_MAX) -> #NUM! even while cosh(x) < DBL_MAX",
+              "source": "handbook FN-COSH-001"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "exp_pair_average",
+          "how": "evaluates x87_add(EXP(x), EXP(-x)) / 2",
+          "source": "crates/calc-func/src/ported/cosh.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 709.782712893384",
+          "excel": "#NUM!",
+          "source": "handbook FN-COSH-001"
+        },
+        {
+          "when": "number < -709.782712893384",
+          "excel": "#NUM!",
+          "source": "handbook FN-COSH-001"
+        }
+      ],
+      "notes": "Computes (EXP(x) + EXP(-x))/2 via x87 add; overflows to #NUM! whenever EXP(|x|) overflows."
+    },
+    "TANH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.0,
+              "why": "|x| = 1 switches denominator from expm1 pair to COSH",
+              "source": "crates/calc-func/src/ported/tanh.rs:6"
+            },
+            {
+              "value": -1.0,
+              "why": "|x| = 1 switches denominator from expm1 pair to COSH",
+              "source": "crates/calc-func/src/ported/tanh.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "small_expm1_ratio",
+          "how": "|x| < 1 divides SINH(x) by expm1-based denominator",
+          "source": "crates/calc-func/src/ported/tanh.rs:6"
+        },
+        {
+          "name": "large_sinh_cosh_ratio",
+          "how": "|x| >= 1 divides SINH(x) by COSH(x), saturating non-finite to +-1",
+          "source": "crates/calc-func/src/ported/tanh.rs:13"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Saturates overflow to +-1 via ExcelRealPolicy::SATURATE_SIGN."
+    },
+    "COTH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "TANH(0) == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/coth.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number != 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_recip_of_tanh",
+          "how": "computes RN53(RN64(1/TANH(x))), saturating large |x| to +-1",
+          "source": "crates/calc-func/src/ported/coth.rs:12"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/coth.rs:7"
+        }
+      ],
+      "notes": "Evaluates 1/TANH(x) on x87, returning #DIV/0! at 0 and saturating overflow to +-1."
+    },
+    "SECH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "SECH(0) = 1.0",
+              "source": "Excel documentation"
+            },
+            {
+              "value": 710.0,
+              "why": "1/COSH(710) = 0",
+              "source": "crates/calc-func/src/ported/sech.rs:5"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_recip_of_cosh",
+          "how": "RN53(RN64(1/COSH(x))) with subnormal flush to +0",
+          "source": "crates/calc-func/src/ported/sech.rs:5"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Evaluates 1/COSH(x) on x87 and flushes subnormal outputs to +0."
+    },
+    "CSCH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -710.0,
+            -709.7827,
+            -20.0,
+            -1.0,
+            -0.5,
+            -1e-10,
+            0.0,
+            1e-16,
+            1e-10,
+            0.25,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            20.0,
+            709.7827,
+            710.0,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "SINH(0) == 0 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/csch.rs:4"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number != 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_recip_of_sinh",
+          "how": "RN53(RN64(1/SINH(x))) with subnormal flush to +0",
+          "source": "crates/calc-func/src/ported/csch.rs:9"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/csch.rs:5"
+        }
+      ],
+      "notes": "Evaluates 1/SINH(x) on x87, returning #DIV/0! at 0 and flushing subnormals to +0."
+    },
+    "ASINH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+155,
+            -1.3407807929942596e+154,
+            -1.0,
+            -1e-16,
+            0.0,
+            1e-16,
+            1.0,
+            1.3407807929942596e+154,
+            1e+155
+          ],
+          "ranges": [
+            [
+              -1.3407807929942596e+154,
+              1.3407807929942596e+154
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.3407807929942596e+154,
+              "why": "threshold where x*x overflows f64, switching from finite to #NUM!",
+              "source": "crates/calc-func/src/ported/asinh.rs:9"
+            },
+            {
+              "value": -1.3407807929942596e+154,
+              "why": "negative threshold where x*x overflows f64",
+              "source": "crates/calc-func/src/ported/asinh.rs:9"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "radicand_finite",
+          "how": "LN(|x| + SQRT(x*x + 1)) with every step stored through x87",
+          "source": "crates/calc-func/src/ported/asinh.rs:23"
+        },
+        {
+          "name": "x2_plus_1_overflow",
+          "how": "when x*x is finite but x*x+1 overflows, uses LN(2*|x|)",
+          "source": "crates/calc-func/src/ported/asinh.rs:25"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 1.3407807929942596e154",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/asinh.rs:12"
+        },
+        {
+          "when": "number < -1.3407807929942596e154",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/asinh.rs:12"
+        }
+      ],
+      "notes": "Computes SIGN(x)*LN(|x|+SQRT(x*x+1)); returns #NUM! when x*x overflows f64."
+    },
+    "ACOSH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            0.9999,
+            1.0,
+            1.0000000000000002,
+            2.0,
+            100.0,
+            1.3407807929942596e+154,
+            1e+155
+          ],
+          "ranges": [
+            [
+              1.0,
+              1.3407807929942596e+154
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.0,
+              "why": "minimum valid input returning 0",
+              "source": "crates/calc-func/src/ported/acosh.rs:4"
+            },
+            {
+              "value": 1.3407807929942596e+154,
+              "why": "threshold where x*x overflows f64 to #NUM!",
+              "source": "crates/calc-func/src/ported/acosh.rs:12"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "direct_log_sqrt",
+          "how": "LN(x + SQRT(x*x - 1))",
+          "source": "crates/calc-func/src/ported/acosh.rs:15"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/acosh.rs:4"
+        },
+        {
+          "when": "number > 1.3407807929942596e154",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/acosh.rs:12"
+        }
+      ],
+      "notes": "Computes LN(x + SQRT(x*x - 1)) and returns #NUM! for x < 1 or when x*x overflows f64."
+    },
+    "ATANH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            -0.9999999999999999,
+            -0.5,
+            -0.00010288014587100072,
+            -1e-16,
+            0.0,
+            2.2250738585072014e-308,
+            1e-16,
+            0.00010288014587100072,
+            0.5,
+            0.9999999999999999,
+            1.0
+          ],
+          "ranges": [
+            [
+              -0.9999999999999999,
+              0.9999999999999999
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "|x| >= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/atanh.rs:10"
+            },
+            {
+              "value": 1.0,
+              "why": "|x| >= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/atanh.rs:10"
+            },
+            {
+              "value": 0.00010288014587100072,
+              "why": "exact switch from binary64 cubic x+x^3/3 to x87 ratio-log",
+              "source": "crates/calc-func/src/ported/atanh.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "daz_zero",
+          "how": "|x| < DBL_MIN flushes to +0",
+          "source": "crates/calc-func/src/ported/atanh.rs:15"
+        },
+        {
+          "name": "binary64_cubic",
+          "how": "DBL_MIN <= |x| < 0x3f1af82b729c1d83 uses x + x^3/3",
+          "source": "crates/calc-func/src/ported/atanh.rs:22"
+        },
+        {
+          "name": "x87_ratio_log",
+          "how": "|x| >= 0x3f1af82b729c1d83 uses 0.5 * LN((1+x)/(1-x))",
+          "source": "crates/calc-func/src/ported/atanh.rs:31"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number <= -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/atanh.rs:10"
+        },
+        {
+          "when": "number >= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/atanh.rs:10"
+        }
+      ],
+      "notes": "Three regimes: DAZ +0, binary64 x + x^3/3, and x87-spilled 0.5*LN((1+x)/(1-x))."
+    },
+    "ACOTH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+308,
+            -10.0,
+            -3.6966270922284665,
+            -1.0001,
+            -1.0,
+            0.0,
+            1.0,
+            1.0001,
+            3.6966270922284665,
+            10.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              -1.0000000000000002
+            ],
+            [
+              1.0000000000000002,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "|x| <= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/acoth.rs:41"
+            },
+            {
+              "value": 1.0,
+              "why": "|x| <= 1 returns #NUM!",
+              "source": "crates/calc-func/src/ported/acoth.rs:41"
+            },
+            {
+              "value": 3.6966270922284665,
+              "why": "first |x| using odd-power series instead of ratio logarithm",
+              "source": "crates/calc-func/src/ported/acoth.rs:9"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "ratio_logarithm",
+          "how": "1 < |x| < 0x400d92b14ec204f3 evaluates 0.5*LN((|x|+1)/(|x|-1))",
+          "source": "crates/calc-func/src/ported/acoth.rs:53"
+        },
+        {
+          "name": "odd_power_series",
+          "how": "|x| >= 0x400d92b14ec204f3 sums odd inverse powers on x87, flushing subnormal 1/|x| to +0",
+          "source": "crates/calc-func/src/ported/acoth.rs:59"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "-1 <= number <= 1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/acoth.rs:41"
+        }
+      ],
+      "notes": "Switches between ratio log and x87 odd-power series at 0x400d92b14ec204f3; flushes huge |x| to +0."
+    },
+    "EXP": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000.0,
+            -745.1332,
+            -708.3964,
+            -1.0,
+            0.0,
+            1.0,
+            10.0,
+            709.7827,
+            709.7828,
+            1000.0
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              709.7827128933839
+            ]
+          ],
+          "edges": [
+            {
+              "value": -745.0,
+              "why": "retains subnormal outputs down to EXP(-745)",
+              "source": "handbook FN-ABS-002"
+            },
+            {
+              "value": 709.7827128933839,
+              "why": "largest binary64 before EXP overflows to #NUM!",
+              "source": "crates/calc-func/src/catalogue/math.rs:109"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_exp_with_subnormals",
+          "how": "x87 F2XM1 chain retaining subnormals and rejecting overflow with #NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:109"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 709.7827128933839",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:109"
+        }
+      ],
+      "notes": "Executes x87 EXP chain, retains subnormal underflows, and returns #NUM! on overflow."
+    },
+    "LN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            0.5,
+            1.0,
+            2.0,
+            2.718281828459045,
+            10.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              2.2250738585072014e-308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "non-positive input returns #NUM!",
+              "source": "crates/calc-func/src/ported/ln_fn.rs:4"
+            },
+            {
+              "value": 1.0,
+              "why": "LN(1) = 0 exact",
+              "source": "Excel documentation"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number > 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_fyl2x",
+          "how": "x87 FLDLN2 + FYL2X",
+          "source": "crates/calc-func/src/ported/ln_fn.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/ln_fn.rs:5"
+        }
+      ],
+      "notes": "Executes x87 FLDLN2 + FYL2X; returns #NUM! for number <= 0."
+    },
+    "LOG10": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            0.1,
+            1.0,
+            10.0,
+            100.0,
+            1000.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              2.2250738585072014e-308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "non-positive input returns #NUM!",
+              "source": "crates/calc-func/src/ported/log10_fn.rs:4"
+            },
+            {
+              "value": 1000.0,
+              "why": "LOG10(1000) == 3 exact via FLDLG2+FYL2X, unlike LOG(1000,10)",
+              "source": "crates/calc-func/src/ported/log_fn.rs:14"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number > 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_fldlg2_fyl2x",
+          "how": "x87 FLDLG2 + FYL2X",
+          "source": "crates/calc-func/src/ported/log10_fn.rs:7"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/log10_fn.rs:5"
+        }
+      ],
+      "notes": "Executes x87 FLDLG2 + FYL2X directly; returns #NUM! for number <= 0."
+    },
+    "LOG": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            0.5,
+            1.0,
+            2.0,
+            8.0,
+            10.0,
+            1000.0,
+            1e+100
+          ],
+          "ranges": [
+            [
+              2.2250738585072014e-308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "non-positive number returns #NUM!",
+              "source": "crates/calc-func/src/ported/log_fn.rs:3"
+            },
+            {
+              "value": 1000.0,
+              "why": "LOG(1000, 10) = 2.9999999999999996 via staged x87 quotient",
+              "source": "crates/calc-func/src/ported/log_fn.rs:12"
+            }
+          ]
+        },
+        {
+          "name": "base",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            0.0,
+            2.2250738585072014e-308,
+            0.5,
+            1.0,
+            2.0,
+            2.718281828459045,
+            10.0,
+            100.0
+          ],
+          "ranges": [
+            [
+              2.2250738585072014e-308,
+              1e+100
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "explicit base <= 0 (including empty cell) returns #NUM!",
+              "source": "crates/calc-func/src/ported/log_fn.rs:3"
+            },
+            {
+              "value": 1.0,
+              "why": "base == 1 returns #DIV/0!",
+              "source": "crates/calc-func/src/ported/log_fn.rs:6"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number > 0",
+        "base > 0",
+        "base != 1"
+      ],
+      "regimes": [
+        {
+          "name": "omitted_base_log10",
+          "how": "1-arg LOG(x) delegates to LOG10(x)",
+          "source": "crates/calc-func/src/catalogue/math.rs:115"
+        },
+        {
+          "name": "explicit_base_quotient",
+          "how": "2-arg LOG(x,b) divides stored x87 LN(x)/LN(b), even for b=10",
+          "source": "crates/calc-func/src/ported/log_fn.rs:17"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/log_fn.rs:4"
+        },
+        {
+          "when": "base <= 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/log_fn.rs:4"
+        },
+        {
+          "when": "base == 1",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/log_fn.rs:7"
+        }
+      ],
+      "notes": "Omitted base uses LOG10; explicit base always divides LN(number)/LN(base) on x87."
+    },
+    "SQRT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            -2.2250738585072014e-308,
+            0.0,
+            2.2250738585072014e-308,
+            0.25,
+            1.0,
+            2.0,
+            4.0,
+            1e+308
+          ],
+          "ranges": [
+            [
+              0.0,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "minimum valid input SQRT(0) = 0",
+              "source": "crates/calc-func/src/ported/sqrt_fn.rs:3"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "x87_fsqrt_staged",
+          "how": "x87 FSQRT double-rounded (64-bit then 53-bit)",
+          "source": "handbook FN-SQRT-001"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/sqrt_fn.rs:4"
+        }
+      ],
+      "notes": "Double-rounds via x87 FSQRT; subnormal inputs admitted."
+    },
+    "SQRTPI": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            2.2250738585072014e-308,
+            0.5,
+            1.0,
+            2.0,
+            5.722212220985337e+307,
+            5.722212220985338e+307
+          ],
+          "ranges": [
+            [
+              0.0,
+              5.722212220985337e+307
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "minimum valid input SQRTPI(0) = 0",
+              "source": "crates/calc-func/src/ported/sqrtpi.rs:4"
+            },
+            {
+              "value": 5.722212220985337e+307,
+              "why": "largest n where n*pi <= DBL_MAX before #NUM!",
+              "source": "crates/calc-func/src/ported/sqrtpi.rs:11"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "crt_pow_half",
+          "how": "computes crt_pow(number * pi, 0.5), rejecting n*pi > DBL_MAX",
+          "source": "crates/calc-func/src/ported/sqrtpi.rs:20"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/sqrtpi.rs:5"
+        },
+        {
+          "when": "number > 5.7222122209853366e307",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/sqrtpi.rs:21"
+        }
+      ],
+      "notes": "Rejects logicals (#VALUE!), evaluates CRT pow(n*pi, 0.5), and returns #NUM! if n*pi overflows."
+    },
+    "POWER": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -8.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            0.0,
+            2.2250738585072014e-308,
+            0.5,
+            1.0,
+            2.0,
+            10.0,
+            1e+160
+          ],
+          "ranges": [
+            [
+              -1e+100,
+              1e+100
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "0^0 is #NUM! and 0^(neg) is #DIV/0!",
+              "source": "crates/calc-func/src/ported/power_fn.rs:77"
+            },
+            {
+              "value": 10.0,
+              "why": "positive base 10 with integer exponent uses decimal scale ten_to(k)",
+              "source": "crates/calc-func/src/ported/power_fn.rs:103"
+            },
+            {
+              "value": -1.0,
+              "why": "negative base accepts odd integer 1/y within signed int32 to 15 digits",
+              "source": "crates/calc-func/src/ported/power_fn.rs:115"
+            }
+          ]
+        },
+        {
+          "name": "power",
+          "kind": "number",
+          "specials": [
+            -1023.0,
+            -2.0,
+            -1.0,
+            -0.5,
+            0.0,
+            0.3333333333333333,
+            0.5,
+            1.0,
+            2.0,
+            3.0,
+            126.0,
+            308.0,
+            4294967294.0,
+            4294967295.0
+          ],
+          "ranges": [
+            [
+              -1000.0,
+              1000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "x^0 = 1 for nonzero x, #NUM! for x = 0",
+              "source": "crates/calc-func/src/ported/power_fn.rs:77"
+            },
+            {
+              "value": 126.0,
+              "why": "10^126 double-rounds in x87 PC64->PC53",
+              "source": "crates/calc-func/src/ported/power_fn.rs:55"
+            },
+            {
+              "value": 4294967295.0,
+              "why": "u32::MAX sentinel drops out of integer exponent path",
+              "source": "crates/calc-func/src/ported/power_fn.rs:11"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "integer_exponent_binexp",
+          "how": "exact integer |y| < u32::MAX uses x87 binexp (or decimal ten_to for base 10)",
+          "source": "crates/calc-func/src/ported/power_fn.rs:100"
+        },
+        {
+          "name": "negative_base_odd_root",
+          "how": "x < 0 with fractional y accepted iff 1/y to 15 digits is odd i32",
+          "source": "crates/calc-func/src/ported/power_fn.rs:120"
+        },
+        {
+          "name": "fractional_x87_exp_log",
+          "how": "non-integer y evaluates exp(y*ln|x|) with reciprocal staging for y < 0",
+          "source": "crates/calc-func/src/ported/power_fn.rs:142"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number == 0 and power == 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/power_fn.rs:79"
+        },
+        {
+          "when": "number == 0 and power < 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/ported/power_fn.rs:87"
+        }
+      ],
+      "notes": "Shares kernel with ^; 10^126 double-rounds; fractional negative base accepts odd 15-digit roots."
+    },
+    "PI": {
+      "args": [],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "ieee_pi",
+          "how": "returns binary64 pi (0x400921fb54442d18)",
+          "source": "crates/calc-func/src/catalogue/math.rs:106"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Zero-argument constant returning binary64 pi (7 ULPs above 15-digit 3.14159265358979)."
+    },
+    "FACT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            -0.1,
+            0.0,
+            0.9,
+            1.0,
+            5.0,
+            5.9,
+            20.0,
+            170.0,
+            170.9,
+            171.0
+          ],
+          "ranges": [
+            [
+              0.0,
+              170.999
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "FACT(0) = 1; negative inputs including (-1, 0) return #NUM! before truncating",
+              "source": "crates/calc-func/src/ported/fact.rs:20"
+            },
+            {
+              "value": 171.0,
+              "why": "n >= 171 overflows binary64 to #NUM!",
+              "source": "crates/calc-func/src/ported/fact.rs:23"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0",
+        "number < 171"
+      ],
+      "regimes": [
+        {
+          "name": "reverse_native_product",
+          "how": "truncates nonnegative input and multiplies n*(n-1)*...*2 in reverse",
+          "source": "crates/calc-func/src/ported/fact.rs:13"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/factorial_common.rs:11"
+        },
+        {
+          "when": "number >= 171",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/fact.rs:23"
+        }
+      ],
+      "notes": "Rejects negative fractions before truncating; multiplies in descending order."
+    },
+    "FACTDOUBLE": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -1.1,
+            -1.0,
+            -0.5,
+            0.0,
+            1.0,
+            6.0,
+            7.0,
+            50.0,
+            300.0,
+            301.0
+          ],
+          "ranges": [
+            [
+              -1.0,
+              300.999
+            ]
+          ],
+          "edges": [
+            {
+              "value": -1.0,
+              "why": "FACTDOUBLE(-1) = 1; values in [-1, 0) are admitted",
+              "source": "crates/calc-func/src/ported/factorial_common.rs:4"
+            },
+            {
+              "value": 300.0,
+              "why": "largest integer before double factorial overflows binary64",
+              "source": "Excel documentation"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= -1"
+      ],
+      "regimes": [
+        {
+          "name": "reverse_step2_product",
+          "how": "truncates toward zero and multiplies n*(n-2)*... in reverse",
+          "source": "crates/calc-func/src/ported/factorial_common.rs:31"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/factorial_common.rs:4"
+        }
+      ],
+      "notes": "Rejects logicals (#VALUE!); admits [-1, 0) returning 1; multiplies in descending step-2 order."
+    },
+    "COMBIN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            5,
+            9,
+            50,
+            1000,
+            2147483646,
+            2147483647
+          ],
+          "ranges": [
+            [
+              0,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "COMBIN(0, 0) = 1",
+              "source": "crates/calc-func/src/ported/combin.rs:51"
+            },
+            {
+              "value": 9,
+              "why": "COMBIN(9, 3) returns 83.99999999999999 via cyclic x87 loop",
+              "source": "handbook FN-COMBIN-001"
+            },
+            {
+              "value": 2147483646,
+              "why": "largest admitted number before #NUM!",
+              "source": "crates/calc-func/src/ported/combin.rs:8"
+            },
+            {
+              "value": 2147483647,
+              "why": "first rejected n >= 2147483647",
+              "source": "crates/calc-func/src/ported/combin.rs:44"
+            }
+          ]
+        },
+        {
+          "name": "number_chosen",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            3,
+            5,
+            10,
+            500
+          ],
+          "ranges": [
+            [
+              0,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "k = 0 after min(k, n-k) returns 1.0",
+              "source": "crates/calc-func/src/ported/combin.rs:51"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= number_chosen",
+        "number >= 0",
+        "number_chosen >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "cyclic_x87_product",
+          "how": "reduces k=min(k,n-k), multiplies (n-k+i-1)/i for i=2..=k, then * n last",
+          "source": "crates/calc-func/src/ported/combin.rs:15"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combin.rs:42"
+        },
+        {
+          "when": "number_chosen < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combin.rs:43"
+        },
+        {
+          "when": "number_chosen > number",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combin.rs:47"
+        },
+        {
+          "when": "number > 2147483646",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combin.rs:44"
+        }
+      ],
+      "notes": "Truncates arguments after DAZ subnormal zeroing; cyclic x87 loop multiplies n last."
+    },
+    "COMBINA": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1.0,
+            -0.5,
+            0.0,
+            1.0,
+            5.0,
+            10.0,
+            100.0
+          ],
+          "ranges": [
+            [
+              0,
+              500
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "truncated n == 0 and truncated k == 0 returns 1 even for negative fraction k in (-1, 0)",
+              "source": "crates/calc-func/src/ported/combina.rs:30"
+            }
+          ]
+        },
+        {
+          "name": "number_chosen",
+          "kind": "integer",
+          "specials": [
+            -1.0,
+            -0.5,
+            0.0,
+            1.0,
+            3.0,
+            10.0,
+            100.0
+          ],
+          "ranges": [
+            [
+              0,
+              500
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.5,
+              "why": "with n in (-1, 1), (-0.5) truncates to 0 and bypasses k < 0 guard",
+              "source": "crates/calc-func/src/ported/combina.rs:28"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0",
+        "number_chosen >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "zero_zero_early_return",
+          "how": "trunc(n)==0 && trunc(k)==0 returns 1 before negative guard",
+          "source": "crates/calc-func/src/ported/combina.rs:30"
+        },
+        {
+          "name": "combin_delegation",
+          "how": "delegates COMBIN(trunc(n)+trunc(k)-1, trunc(k))",
+          "source": "crates/calc-func/src/ported/combina.rs:46"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number <= -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combina.rs:33"
+        },
+        {
+          "when": "number_chosen < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/combina.rs:33"
+        }
+      ],
+      "notes": "Truncates both args before summing n+k-1; checks (0,0) before negative guard."
+    },
+    "PERMUT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            5,
+            10,
+            50,
+            170,
+            1000
+          ],
+          "ranges": [
+            [
+              0,
+              200
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "PERMUT(0, 0) = 1",
+              "source": "crates/calc-func/src/ported/permut_fn.rs:17"
+            }
+          ]
+        },
+        {
+          "name": "number_chosen",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            5,
+            10,
+            170
+          ],
+          "ranges": [
+            [
+              0,
+              200
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "empty product returns 1",
+              "source": "crates/calc-func/src/ported/permut_fn.rs:17"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= number_chosen",
+        "number >= 0",
+        "number_chosen >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "ascending_x87_product",
+          "how": "ascending x87 double-rounded product for f in (n-k+1)..=n",
+          "source": "crates/calc-func/src/ported/permut_fn.rs:18"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permut_fn.rs:12"
+        },
+        {
+          "when": "number_chosen < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permut_fn.rs:13"
+        },
+        {
+          "when": "number_chosen > number",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permut_fn.rs:14"
+        }
+      ],
+      "notes": "Evaluates ascending x87 product from n - k + 1 to n instead of n!/(n-k)!."
+    },
+    "PERMUTATIONA": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1.0,
+            -0.5,
+            0.0,
+            1.0,
+            2.0,
+            10.0,
+            100.0,
+            2147483646.0,
+            2147483647.0
+          ],
+          "ranges": [
+            [
+              0,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "PERMUTATIONA(0, 0) = 1; negative raw n rejected before truncation",
+              "source": "crates/calc-func/src/ported/permutationa_fn.rs:8"
+            },
+            {
+              "value": 10.0,
+              "why": "base 10 uses exact decimal ten_to(k) up to k = 308",
+              "source": "crates/calc-func/src/ported/permutationa_fn.rs:23"
+            },
+            {
+              "value": 2147483647.0,
+              "why": "n >= 2147483647 returns #NUM!",
+              "source": "crates/calc-func/src/ported/permutationa_fn.rs:12"
+            }
+          ]
+        },
+        {
+          "name": "number_chosen",
+          "kind": "integer",
+          "specials": [
+            -1.0,
+            -0.5,
+            0.0,
+            1.0,
+            10.0,
+            126.0,
+            308.0,
+            309.0,
+            2147483647.0
+          ],
+          "ranges": [
+            [
+              0,
+              310
+            ]
+          ],
+          "edges": [
+            {
+              "value": -0.5,
+              "why": "number_chosen in (-1, 0] truncates to 0 and is admitted",
+              "source": "crates/calc-func/src/ported/permutationa_fn.rs:14"
+            },
+            {
+              "value": 126.0,
+              "why": "10^126 exhibits x87 PC64->PC53 double rounding",
+              "source": "crates/calc-func/src/ported/power_fn.rs:55"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0",
+        "number_chosen >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "base10_decimal_scale",
+          "how": "n == 10 uses ExactDecimal::unit(k) up to k = 308",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:23"
+        },
+        {
+          "name": "binary_squaring_x87",
+          "how": "repeated squaring with x87_mul",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:29"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:11"
+        },
+        {
+          "when": "number >= 2147483647",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:12"
+        },
+        {
+          "when": "number_chosen <= -1",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:14"
+        },
+        {
+          "when": "number_chosen >= 2147483647",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/permutationa_fn.rs:13"
+        }
+      ],
+      "notes": "Computes trunc(n)^trunc(k); rejects n < 0 raw but truncates k in (-1, 0) to 0."
+    },
+    "MULTINOMIAL": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5,
+            10,
+            50,
+            170,
+            171,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              60
+            ]
+          ],
+          "edges": [
+            {
+              "value": 170,
+              "why": "maximum admitted sum of inputs before #NUM!",
+              "source": "crates/calc-func/src/ported/multinomial.rs:15"
+            },
+            {
+              "value": 171,
+              "why": "sum > 170 returns #NUM! even if single argument would cancel",
+              "source": "crates/calc-func/src/ported/multinomial.rs:10"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5,
+            10,
+            50,
+            -1
+          ],
+          "ranges": [
+            [
+              0,
+              60
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "number1 >= 0",
+        "number2 >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "log10_sum_power10",
+          "how": "sums log10(2..=total), subtracts log10(2..=item) in reverse arg order, then POWER(10, acc)",
+          "source": "crates/calc-func/src/ported/multinomial.rs:22"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number1 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:182"
+        },
+        {
+          "when": "number2 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:182"
+        },
+        {
+          "when": "number1 > 170",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/multinomial.rs:15"
+        }
+      ],
+      "notes": "Rejects logicals (#VALUE!), single blank ref (#VALUE!), or sum > 170 (#NUM!)."
+    },
+    "GCD": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            6,
+            12,
+            24,
+            100,
+            9007199254740992.0,
+            9007199254740994.0
+          ],
+          "ranges": [
+            [
+              0,
+              10000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "GCD(0, x) = x",
+              "source": "crates/calc-func/src/ported/gcd_fn.rs:5"
+            },
+            {
+              "value": 9007199254740992.0,
+              "why": "2^53 is admitted; values > 2^53 return #NUM!",
+              "source": "crates/calc-func/src/catalogue/math.rs:326"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            8,
+            18,
+            36,
+            100,
+            9007199254740992.0
+          ],
+          "ranges": [
+            [
+              0,
+              10000
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "number1 >= 0",
+        "number2 >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "euclidean_fold",
+          "how": "truncates nonnegative integers <= 2^53 and folds Euclidean gcd",
+          "source": "crates/calc-func/src/ported/gcd_lcm_common.rs:5"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number1 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        },
+        {
+          "when": "number2 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        },
+        {
+          "when": "number1 > 9007199254740992",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        }
+      ],
+      "notes": "Admits [0, 2^53] inclusive; rejects logicals with #VALUE! and treats multi-cell blanks as 0."
+    },
+    "LCM": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            6,
+            12,
+            24,
+            100,
+            9007199254740992.0,
+            9007199254740994.0
+          ],
+          "ranges": [
+            [
+              0,
+              10000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "if any item is 0 returns 0 immediately",
+              "source": "crates/calc-func/src/ported/lcm_fn.rs:5"
+            },
+            {
+              "value": 9007199254740992.0,
+              "why": "2^53 limit on both inputs and intermediate binary64-rounded product",
+              "source": "crates/calc-func/src/ported/gcd_lcm_common.rs:23"
+            }
+          ]
+        },
+        {
+          "name": "number2",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            8,
+            18,
+            36,
+            100,
+            9007199254740992.0
+          ],
+          "ranges": [
+            [
+              0,
+              10000
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "number1 >= 0",
+        "number2 >= 0"
+      ],
+      "regimes": [
+        {
+          "name": "reverse_order_fold",
+          "how": "reduces flattened values in reverse order with binary64 rounding at 2^53",
+          "source": "crates/calc-func/src/ported/lcm_fn.rs:10"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number1 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        },
+        {
+          "when": "number2 < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        },
+        {
+          "when": "number1 > 9007199254740992",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:326"
+        }
+      ],
+      "notes": "Reduces in reverse worksheet/argument order; product > 2^53 returns #NUM!."
+    },
+    "BASE": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            7,
+            15,
+            255,
+            4095,
+            9007199254740991.0,
+            9007199254740992.0
+          ],
+          "ranges": [
+            [
+              0,
+              1000000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "BASE(0, radix, 0) returns empty string \"\"",
+              "source": "crates/calc-func/src/ported/base_fn.rs:39"
+            },
+            {
+              "value": 9007199254740992.0,
+              "why": "exclusive upper bound; number >= 2^53 returns #NUM!",
+              "source": "crates/calc-func/src/ported/base_fn.rs:26"
+            }
+          ]
+        },
+        {
+          "name": "radix",
+          "kind": "integer",
+          "specials": [
+            1,
+            2,
+            8,
+            10,
+            16,
+            36,
+            37
+          ],
+          "ranges": [
+            [
+              2,
+              36
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2,
+              "why": "minimum radix",
+              "source": "crates/calc-func/src/ported/base_fn.rs:35"
+            },
+            {
+              "value": 36,
+              "why": "maximum radix",
+              "source": "crates/calc-func/src/ported/base_fn.rs:35"
+            }
+          ]
+        },
+        {
+          "name": "min_length",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            4,
+            8,
+            255,
+            256
+          ],
+          "ranges": [
+            [
+              0,
+              255
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "explicit 0 with number == 0 produces \"\" instead of \"0\"",
+              "source": "crates/calc-func/src/ported/base_fn.rs:39"
+            },
+            {
+              "value": 255,
+              "why": "maximum allowed min_length",
+              "source": "crates/calc-func/src/ported/base_fn.rs:35"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "number >= 0",
+        "2 <= radix <= 36",
+        "0 <= min_length <= 255"
+      ],
+      "regimes": [
+        {
+          "name": "zero_empty_length",
+          "how": "number == 0 and explicit min_length == 0 returns \"\"",
+          "source": "crates/calc-func/src/ported/base_fn.rs:39"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:26"
+        },
+        {
+          "when": "number >= 9007199254740992",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:26"
+        },
+        {
+          "when": "radix < 2",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:35"
+        },
+        {
+          "when": "radix > 36",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:35"
+        },
+        {
+          "when": "min_length < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:28"
+        },
+        {
+          "when": "min_length > 255",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/base_fn.rs:35"
+        }
+      ],
+      "notes": "Sign and 2^53 check precede truncation; BASE(0, r, 0) returns \"\"."
+    },
+    "DECIMAL": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "0",
+            "1010",
+            "FF",
+            " ff",
+            "FF ",
+            "  z",
+            "123",
+            "-1",
+            "G",
+            "ZZZZZZZZZZ"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty or leading-whitespace-only string returns 0",
+              "source": "crates/calc-func/src/ported/decimal_fn.rs:18"
+            }
+          ]
+        },
+        {
+          "name": "radix",
+          "kind": "integer",
+          "specials": [
+            1,
+            2,
+            8,
+            10,
+            16,
+            36,
+            37
+          ],
+          "ranges": [
+            [
+              2,
+              36
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2,
+              "why": "minimum radix",
+              "source": "crates/calc-func/src/ported/decimal_fn.rs:13"
+            },
+            {
+              "value": 36,
+              "why": "maximum radix",
+              "source": "crates/calc-func/src/ported/decimal_fn.rs:13"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "2 <= radix <= 36"
+      ],
+      "regimes": [
+        {
+          "name": "leading_ws_trim_only",
+          "how": "strips leading whitespace only, case-insensitive digits 0-9A-Z",
+          "source": "crates/calc-func/src/ported/decimal_fn.rs:17"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "radix < 2",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/decimal_fn.rs:13"
+        },
+        {
+          "when": "radix > 36",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/ported/decimal_fn.rs:13"
+        }
+      ],
+      "notes": "Strips leading whitespace only; trailing spaces, signs, or digits >= radix return #NUM!."
+    },
+    "ROMAN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            4,
+            9,
+            49,
+            99,
+            499,
+            999,
+            1994,
+            3999,
+            4000
+          ],
+          "ranges": [
+            [
+              0,
+              3999
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "ROMAN(0) returns empty string \"\"",
+              "source": "handbook FN-ROMAN-001"
+            },
+            {
+              "value": 3999,
+              "why": "maximum admitted integer before #VALUE!",
+              "source": "crates/calc-func/src/ported/roman_fn.rs:160"
+            }
+          ]
+        },
+        {
+          "name": "form",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            -1,
+            5,
+            true,
+            false
+          ],
+          "ranges": [
+            [
+              0,
+              4
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "classic form (and TRUE or omitted)",
+              "source": "crates/calc-func/src/catalogue/math.rs:196"
+            },
+            {
+              "value": 4,
+              "why": "most concise form (and FALSE)",
+              "source": "crates/calc-func/src/catalogue/math.rs:197"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= number <= 3999",
+        "0 <= form <= 4"
+      ],
+      "regimes": [
+        {
+          "name": "five_conciseness_forms",
+          "how": "form 0..=4 selects progressive subtractive contractions (49->IL, 499->ID, 999->IM)",
+          "source": "crates/calc-func/src/ported/roman_fn.rs:147"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/roman_fn.rs:160"
+        },
+        {
+          "when": "number >= 4000",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/ported/roman_fn.rs:160"
+        },
+        {
+          "when": "form < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/math.rs:200"
+        },
+        {
+          "when": "form > 4",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/math.rs:200"
+        }
+      ],
+      "notes": "Truncates number toward zero; form TRUE/omitted maps to 0 and FALSE maps to 4."
+    },
+    "ARABIC": {
+      "args": [
+        {
+          "name": "text",
+          "kind": "text",
+          "specials": [
+            "",
+            "   ",
+            "I",
+            "iv",
+            "MCMXCIV",
+            "MMMCMXCIX",
+            "-IV",
+            "IC",
+            "BAD",
+            "123"
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": "",
+              "why": "empty text returns 0",
+              "source": "crates/calc-func/src/ported/arabic_fn.rs:19"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "case_insensitive_reverse_scan",
+          "how": "scans Roman numerals right-to-left subtracting when value < prev",
+          "source": "crates/calc-func/src/ported/arabic_fn.rs:17"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Accepts empty text/blank as 0, folds case, and rejects non-Roman characters with #VALUE!."
+    },
+    "SERIESSUM": {
+      "args": [
+        {
+          "name": "x",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -1.0,
+            0.0,
+            0.5,
+            1.0,
+            2.0,
+            1e-160
+          ],
+          "ranges": [
+            [
+              -100.0,
+              100.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "0^0 is #NUM! when n + i*m == 0",
+              "source": "crates/calc-func/src/catalogue/math.rs:236"
+            }
+          ]
+        },
+        {
+          "name": "n",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -1.0,
+            0.0,
+            0.5,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -20.0,
+              20.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "m",
+          "kind": "number",
+          "specials": [
+            -1.0,
+            0.0,
+            0.5,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10.0,
+              10.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "coefficients",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "negative_base_fractional_zero",
+          "how": "for x < 0 and fractional exponent, term power is 0 rather than #NUM!",
+          "source": "crates/calc-func/src/catalogue/math.rs:233"
+        },
+        {
+          "name": "subnormal_power_flush",
+          "how": "flushes |power| < DBL_MIN to 0 before multiplying coefficient via x87_mul",
+          "source": "crates/calc-func/src/catalogue/math.rs:238"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Rejects logicals (#VALUE!); zeroes fractional powers of negative x; flushes subnormal powers."
+    },
+    "SUMX2MY2": {
+      "args": [
+        {
+          "name": "array_x",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array_y",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shape_before_errors",
+          "how": "mismatched array shapes return #N/A before reading cell errors",
+          "source": "crates/calc-func/src/catalogue/math.rs:343"
+        },
+        {
+          "name": "per_term_x2_minus_y2",
+          "how": "sums x*x - y*y over positions where both hold numbers",
+          "source": "crates/calc-func/src/catalogue/math.rs:244"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Shape mismatch gives #N/A before error cells; no numeric pair gives #DIV/0!."
+    },
+    "SUMX2PY2": {
+      "args": [
+        {
+          "name": "array_x",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array_y",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shape_before_errors",
+          "how": "mismatched array shapes return #N/A before reading cell errors",
+          "source": "crates/calc-func/src/catalogue/math.rs:343"
+        },
+        {
+          "name": "per_term_x2_plus_y2",
+          "how": "sums x*x + y*y over positions where both hold numbers",
+          "source": "crates/calc-func/src/catalogue/math.rs:247"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Shape mismatch gives #N/A before error cells; no numeric pair gives #DIV/0!."
+    },
+    "SUMXMY2": {
+      "args": [
+        {
+          "name": "array_x",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array_y",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shape_before_errors",
+          "how": "mismatched array shapes return #N/A before reading cell errors",
+          "source": "crates/calc-func/src/catalogue/math.rs:343"
+        },
+        {
+          "name": "per_term_diff_sq",
+          "how": "sums (x - y)*(x - y) over positions where both hold numbers",
+          "source": "crates/calc-func/src/catalogue/math.rs:250"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Shape mismatch gives #N/A before error cells; no numeric pair gives #DIV/0!."
+    },
+    "MDETERM": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1.0
+              ]
+            ],
+            [
+              [
+                0.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                2.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1e-13,
+                0.0
+              ],
+              [
+                0.0,
+                1.0
+              ]
+            ],
+            [
+              [
+                2.0,
+                -1.0,
+                0.0
+              ],
+              [
+                -1.0,
+                2.0,
+                -1.0
+              ],
+              [
+                0.0,
+                -1.0,
+                2.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_gaussian_pivoting",
+          "how": "partial-pivoted elimination in binary64; non-square or non-numeric is #VALUE!",
+          "source": "crates/calc-func/src/ported/matrix_family.rs:4"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires non-empty square numeric matrix (#VALUE! otherwise); evaluates in binary64."
+    },
+    "MINVERSE": {
+      "args": [
+        {
+          "name": "array",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1.0
+              ]
+            ],
+            [
+              [
+                0.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                2.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1e-13,
+                0.0
+              ],
+              [
+                0.0,
+                1.0
+              ]
+            ],
+            [
+              [
+                2.0,
+                -1.0,
+                0.0
+              ],
+              [
+                -1.0,
+                2.0,
+                -1.0
+              ],
+              [
+                0.0,
+                -1.0,
+                2.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "x87_doolittle_lu",
+          "how": "Doolittle LU with partial pivoting and x87 double-rounded arithmetic; pivot < 1e-12 is #NUM!",
+          "source": "crates/calc-func/src/ported/matrix_family.rs:80"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Singular threshold |pivot| < 1e-12 returns #NUM!; canonicalizes -0.0 to +0.0."
+    },
+    "MMULT": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1.0
+              ]
+            ],
+            [
+              [
+                0.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                2.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1e-13,
+                0.0
+              ],
+              [
+                0.0,
+                1.0
+              ]
+            ],
+            [
+              [
+                2.0,
+                -1.0,
+                0.0
+              ],
+              [
+                -1.0,
+                2.0,
+                -1.0
+              ],
+              [
+                0.0,
+                -1.0,
+                2.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0,
+                3.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              [
+                1.0
+              ]
+            ],
+            [
+              [
+                0.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                2.0,
+                4.0
+              ]
+            ],
+            [
+              [
+                1e-13,
+                0.0
+              ],
+              [
+                0.0,
+                1.0
+              ]
+            ],
+            [
+              [
+                2.0,
+                -1.0,
+                0.0
+              ],
+              [
+                -1.0,
+                2.0,
+                -1.0
+              ],
+              [
+                0.0,
+                -1.0,
+                2.0
+              ]
+            ],
+            [
+              [
+                1.0
+              ],
+              [
+                2.0
+              ],
+              [
+                3.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "binary64_dot_products",
+          "how": "evaluates row-column dot products in binary64; dimension mismatch is #VALUE!",
+          "source": "crates/calc-func/src/ported/matrix_family.rs:145"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Requires left_cols == right_rows and all numeric cells (#VALUE! otherwise)."
+    },
+    "MUNIT": {
+      "args": [
+        {
+          "name": "dimension",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            5,
+            10,
+            4096
+          ],
+          "ranges": [
+            [
+              1,
+              64
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "truncated dimension < 1 returns #VALUE!",
+              "source": "crates/calc-func/src/catalogue/math.rs:270"
+            },
+            {
+              "value": 1,
+              "why": "1x1 identity matrix {{1}}",
+              "source": "crates/calc-func/src/catalogue/math.rs:270"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "dimension >= 1"
+      ],
+      "regimes": [
+        {
+          "name": "identity_matrix_spill",
+          "how": "truncates dimension toward zero; returns n x n identity matrix",
+          "source": "crates/calc-func/src/catalogue/math.rs:269"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "dimension < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/math.rs:270"
+        },
+        {
+          "when": "dimension > 1048576",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/math.rs:270"
+        }
+      ],
+      "notes": "Truncates dimension toward zero; > 4096 not modelled (>16M cells)."
+    },
+    "ABS": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "ABS(-0.0) = +0.0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:41"
+            },
+            {
+              "value": 2.2250738585072014e-308,
+              "why": "ABS retains subnormal inputs",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:96"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "overflow_sign_clear",
+          "how": "clears sign bit on binary64 and qualified Excel overflow numbers",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:148"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Retains subnormals and Excel overflow NaN bit patterns."
+    },
+    "SIGN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "returns 0 for +-0, 1 for > 0, -1 for < 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:171"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "subnormal_negative_sign",
+          "how": "negative subnormal returns -1",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:164"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns -1, 0, or 1; negative subnormals yield -1."
+    },
+    "INT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1000000000000000.0,
+              "why": "|x| >= 1e15 switches from 15-digit ExactDecimal reading to binary64 floor/truncate",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:200"
+            },
+            {
+              "value": 2.9999999999999996,
+              "why": "15-digit reading rounds to 3, so INT returns 3",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:185"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "decimal15_below_1e15",
+          "how": "|x| < 1e15 floors 15-significant-digit reading",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:211"
+        },
+        {
+          "name": "binary64_at_1e15",
+          "how": "|x| >= 1e15 truncates binary64 with negative fraction adjustment",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:200"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Reads 15 significant digits below 1e15 so 2.9999999999999996 -> 3."
+    },
+    "ROUND": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307,
+            1.7976931348623157e+308
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.005,
+              "why": "15-digit reading rounds ties away from zero -> 1.01",
+              "source": "handbook FN-ROUND-004"
+            },
+            {
+              "value": 2.675,
+              "why": "15-digit reading gives 2.68 despite binary64 below half",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:14"
+            }
+          ]
+        },
+        {
+          "name": "num_digits",
+          "kind": "integer",
+          "specials": [
+            -308,
+            -100,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            15,
+            308,
+            2147483646,
+            2147483647,
+            -2147483647
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2147483647,
+              "why": "32-bit wrapped kept = digits + e_out + 1 wraps negative so ROUND(1.5, 2^31-1) == 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:292"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "decimal15_ties_away",
+          "how": "rounds 15-digit reading ties away from zero",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:319"
+        },
+        {
+          "name": "i32_digit_count_wrap",
+          "how": "num_digits clamped to i32 wraps digits + e_out + 1 in 32-bit two's complement",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:320"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Flushes subnormals; retains Excel overflow bit pattern past DBL_MAX up to 2^1025."
+    },
+    "ROUNDUP": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+307,
+              1e+307
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1.0001086461844975e-307,
+              "why": "positive input within 2^-1026 above truncation adds no unit",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:469"
+            }
+          ]
+        },
+        {
+          "name": "num_digits",
+          "kind": "integer",
+          "specials": [
+            -308,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            15,
+            307,
+            32767,
+            32768,
+            65537
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": [
+            {
+              "value": 32768,
+              "why": "low 16 bits >= 0x8000 count as out-of-range 100 places",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:398"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "16bit_directed_places",
+          "how": "uses low 16 bits of trunc(|num_digits|) when < 32768 and < 2^32",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:402"
+        },
+        {
+          "name": "binary64_unit_add",
+          "how": "adds decimal unit in binary64 rather than exact decimal",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:475"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Adds 10^-places unit in binary64; overflow returns #NUM!."
+    },
+    "ROUNDDOWN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2.9999999999999996,
+              "why": "15-digit reading rounds to 3 before truncation toward zero",
+              "source": "handbook FN-ROUND-002"
+            }
+          ]
+        },
+        {
+          "name": "num_digits",
+          "kind": "integer",
+          "specials": [
+            -308,
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            15,
+            308,
+            32767,
+            32768,
+            65537
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": [
+            {
+              "value": 32768,
+              "why": "out-of-range num_digits uses 100 places",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:398"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "15digit_directed_trunc",
+          "how": "truncates 15-digit reading toward zero using 16-bit directed_places",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:424"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Shares directed kernel with TRUNC; retains initial underflows and overflow bit patterns."
+    },
+    "TRUNC": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1e+307,
+            -1000000000000000.0,
+            -23.5,
+            -6.05,
+            -2.675,
+            -1.5,
+            -1.125,
+            -0.5,
+            -0.3,
+            -0.05,
+            0.0,
+            2.2250738585072014e-308,
+            1e-307,
+            0.05,
+            0.1,
+            0.3,
+            0.5,
+            1.005,
+            1.5,
+            2.675,
+            2.9999999999999996,
+            3.535,
+            6.05,
+            7.05,
+            1000000000000000.0,
+            4503599627370495.5,
+            9007199254740992.0,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1e+308,
+              1e+308
+            ]
+          ],
+          "edges": [
+            {
+              "value": 2.9999999999999996,
+              "why": "15-digit reading is 3, so TRUNC returns 3",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:15"
+            },
+            {
+              "value": 2.2250738585072014e-308,
+              "why": "TRUNC(DBL_MIN) retains subnormal output",
+              "source": "handbook FN-TRUNC-001"
+            }
+          ]
+        },
+        {
+          "name": "num_digits",
+          "kind": "integer",
+          "specials": [
+            -2,
+            -1,
+            0,
+            1,
+            2,
+            15,
+            32768
+          ],
+          "ranges": [
+            [
+              -20,
+              20
+            ]
+          ],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "default_zero_digits",
+          "how": "omitted num_digits defaults to 0",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:235"
+        }
+      ],
+      "error_edges": [],
+      "notes": "ROUNDDOWN with default num_digits = 0; retains DBL_MIN subnormal output."
+    },
+    "MOD": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -1000000000000.0,
+            -5.3,
+            -1.0,
+            -1e-296,
+            0.0,
+            2.2250738585072014e-308,
+            0.3,
+            1.0,
+            10.0,
+            1125899999999.0,
+            1125900000000.0
+          ],
+          "ranges": [
+            [
+              -10000000000.0,
+              10000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1125900000000.0,
+              "why": "|number/divisor| >= 1.1259e12 returns #NUM!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:655"
+            }
+          ]
+        },
+        {
+          "name": "divisor",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -1.0,
+            -0.1,
+            0.0,
+            1e-300,
+            1e-296,
+            0.1,
+            0.3,
+            1.0,
+            10.0,
+            9.99999999999999e+307
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "zero divisor returns #DIV/0!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:663"
+            },
+            {
+              "value": 1e-300,
+              "why": "Veltkamp low part subnormal triggers #NUM! on sign-adjusted subnormal remainder",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:702"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "divisor != 0"
+      ],
+      "regimes": [
+        {
+          "name": "quotient_limit",
+          "how": "|number / divisor| >= 1.1259e12 returns #NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:670"
+        },
+        {
+          "name": "tiny_remainder_dekker",
+          "how": "subnormal remainder with opposite sign from divisor uses Veltkamp/Dekker check",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:704"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "divisor == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:664"
+        }
+      ],
+      "notes": "Computes binary64 remainder adjusted by divisor when signs differ; rejects |q| >= 1.1259e12 and subnormal outputs."
+    },
+    "QUOTIENT": {
+      "args": [
+        {
+          "name": "numerator",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -1.0,
+            -0.3,
+            0.0,
+            2.2250738585072014e-308,
+            0.3,
+            1.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000000.0,
+              1000000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.3,
+              "why": "QUOTIENT(0.3, 0.1) = 2 because binary64 0.3/0.1 = 2.9999999999999996",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:751"
+            }
+          ]
+        },
+        {
+          "name": "denominator",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -1.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "zero denominator returns #DIV/0!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:745"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "denominator != 0"
+      ],
+      "regimes": [
+        {
+          "name": "strict_number_args",
+          "how": "rejects logicals with #VALUE! and explicit omission with #N/A",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:120"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "denominator == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:746"
+        }
+      ],
+      "notes": "Truncates binary64 quotient toward zero; strict number coercion rejects logicals with #VALUE!."
+    },
+    "MROUND": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -6.05,
+            -0.05,
+            0.0,
+            0.05,
+            6.05,
+            7.05,
+            23.499999999999996,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 6.05,
+              "why": "MROUND(6.05, 0.1) = 6 because quotient 60.49999999999999 lies > 5e-15 below half",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:536"
+            },
+            {
+              "value": 23.499999999999996,
+              "why": "within 5e-15 below half rounds up to 24",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:537"
+            }
+          ]
+        },
+        {
+          "name": "multiple",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -1.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "multiple == 0 returns 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:522"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "half_tolerance_5e_15",
+          "how": "counts quotient up when 0.5 - frac(q) <= 5e-15",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:561"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 0 and multiple < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:524"
+        },
+        {
+          "when": "number < 0 and multiple > 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:524"
+        }
+      ],
+      "notes": "Strict number arguments (logicals -> #VALUE!); mismatched nonzero signs give #NUM!."
+    },
+    "EVEN": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -5.0,
+            -2.5,
+            -2.0,
+            -1.0,
+            -2.2250738585072014e-308,
+            0.0,
+            2.2250738585072014e-308,
+            1.0,
+            1.5,
+            2.0,
+            3.0,
+            9007199254740991.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "EVEN(0) = 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:783"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "away_from_zero_even",
+          "how": "rounds magnitude up to next even integer and restores sign",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:781"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Retains sign and rounds away from zero to nearest even integer."
+    },
+    "ODD": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -5.0,
+            -2.5,
+            -2.0,
+            -1.0,
+            -2.2250738585072014e-308,
+            0.0,
+            2.2250738585072014e-308,
+            1.0,
+            1.5,
+            2.0,
+            3.0,
+            9007199254740991.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "ODD(0) = 1",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:783"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "away_from_zero_odd",
+          "how": "rounds magnitude up to next odd integer and restores sign",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:781"
+        }
+      ],
+      "error_edges": [],
+      "notes": "ODD(0) = 1; rounds nonzero values away from zero to nearest odd integer."
+    },
+    "CEILING": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            1.0000000000000036,
+            1.000000000000007,
+            4.3,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "number == 0 returns +0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:588"
+            },
+            {
+              "value": 0.3,
+              "why": "CEILING(0.3, 0.1) = 0.30000000000000004 via 15-digit quotient rounding",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:22"
+            }
+          ]
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:588"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "quotient_15_digit_snap",
+          "how": "rounds number/significance to 15 digits before ceil",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 0 and significance < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:590"
+        }
+      ],
+      "notes": "Uses 15-digit quotient snap; positive number with negative significance is #NUM!; zero sig is 0."
+    },
+    "ECMA.CEILING": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            1.0000000000000036,
+            1.000000000000007,
+            4.3,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "number == 0 returns +0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:588"
+            },
+            {
+              "value": 0.3,
+              "why": "CEILING(0.3, 0.1) = 0.30000000000000004 via 15-digit quotient rounding",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:22"
+            }
+          ]
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:588"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "quotient_15_digit_snap",
+          "how": "rounds number/significance to 15 digits before ceil",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 0 and significance < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:590"
+        }
+      ],
+      "notes": "Uses 15-digit quotient snap; positive number with negative significance is #NUM!; zero sig is 0."
+    },
+    "FLOOR": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            0.9999999999999996,
+            0.9999999999999991,
+            4.3,
+            1e+307
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "FLOOR(0, 0) returns +0 rather than #DIV/0!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:608"
+            },
+            {
+              "value": 0.3,
+              "why": "FLOOR(0.3, 0.1) = 0.2",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:22"
+            }
+          ]
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 with nonzero number returns #DIV/0!",
+              "source": "crates/calc-func/src/catalogue/rounding.rs:610"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "quotient_15_digit_snap",
+          "how": "rounds number/significance to 15 digits before floor",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:8"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "number > 0 and significance < 0",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:612"
+        },
+        {
+          "when": "number != 0 and significance == 0",
+          "excel": "#DIV/0!",
+          "source": "crates/calc-func/src/catalogue/rounding.rs:610"
+        }
+      ],
+      "notes": "FLOOR(0, 0) = 0; nonzero number with 0 significance is #DIV/0!; positive number + negative sig is #NUM!."
+    },
+    "CEILING.MATH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            4.3,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:53"
+            }
+          ]
+        },
+        {
+          "name": "mode",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "mode == 0 rounds negative numbers toward +inf (CEILING.MATH) or -inf (FLOOR.MATH); nonzero reverses",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:58"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "abs_significance_mode",
+          "how": "takes |significance| (default 1) and flips negative rounding direction when mode != 0",
+          "source": "crates/calc-func/src/catalogue/rounding_more.rs:19"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Defaults significance=1, mode=0; takes |significance| and returns 0 when significance == 0."
+    },
+    "FLOOR.MATH": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            4.3,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:72"
+            }
+          ]
+        },
+        {
+          "name": "mode",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1
+          ],
+          "ranges": [
+            [
+              -1,
+              1
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "mode == 0 rounds negative numbers toward +inf (CEILING.MATH) or -inf (FLOOR.MATH); nonzero reverses",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:77"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "abs_significance_mode",
+          "how": "takes |significance| (default 1) and flips negative rounding direction when mode != 0",
+          "source": "crates/calc-func/src/catalogue/rounding_more.rs:19"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Defaults significance=1, mode=0; takes |significance| and returns 0 when significance == 0."
+    },
+    "CEILING.PRECISE": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            4.3,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:85"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "precise_mode_zero",
+          "how": "delegates to .MATH with mode = 0 and default significance = 1",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:86"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Equivalent to .MATH with mode = 0; uses |significance| and defaults significance to 1."
+    },
+    "ISO.CEILING": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            4.3,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:85"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "precise_mode_zero",
+          "how": "delegates to .MATH with mode = 0 and default significance = 1",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:86"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Equivalent to .MATH with mode = 0; uses |significance| and defaults significance to 1."
+    },
+    "FLOOR.PRECISE": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            -10.0,
+            -4.3,
+            -0.3,
+            0.0,
+            0.3,
+            4.3,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000000.0,
+              1000000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "significance",
+          "kind": "number",
+          "specials": [
+            -2.0,
+            -0.1,
+            0.0,
+            0.1,
+            1.0,
+            2.0
+          ],
+          "ranges": [
+            [
+              -10000.0,
+              10000.0
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0.0,
+              "why": "significance == 0 returns 0",
+              "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:93"
+            }
+          ]
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "precise_mode_zero",
+          "how": "delegates to .MATH with mode = 0 and default significance = 1",
+          "source": "crates/calc-func/src/ported/ceiling_floor_family.rs:86"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Equivalent to .MATH with mode = 0; uses |significance| and defaults significance to 1."
+    },
+    "RAND": {
+      "args": [],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "volatile_unit_draw",
+          "how": "draws from RandomSource in [0, 1); refused if no RandomSource",
+          "source": "crates/calc-func/src/catalogue/random.rs:15"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Zero-argument volatile function returning [0, 1)."
+    },
+    "RANDBETWEEN": {
+      "args": [
+        {
+          "name": "bottom",
+          "kind": "number",
+          "specials": [
+            -100,
+            -1.5,
+            0,
+            1,
+            10,
+            100
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "bottom is rounded up via ceil() before range check",
+              "source": "crates/calc-func/src/catalogue/random.rs:39"
+            }
+          ]
+        },
+        {
+          "name": "top",
+          "kind": "number",
+          "specials": [
+            -100,
+            -1.5,
+            0,
+            1,
+            10,
+            100
+          ],
+          "ranges": [
+            [
+              -1000,
+              1000
+            ]
+          ],
+          "edges": [
+            {
+              "value": 0,
+              "why": "top is rounded down via floor() before range check",
+              "source": "crates/calc-func/src/catalogue/random.rs:40"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "bottom <= top"
+      ],
+      "regimes": [
+        {
+          "name": "ceil_bottom_floor_top",
+          "how": "draws integer in [ceil(bottom), floor(top)]",
+          "source": "crates/calc-func/src/catalogue/random.rs:39"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "bottom > top",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/random.rs:41"
+        }
+      ],
+      "notes": "Volatile; rounds bottom up and top down to integers before checking bottom <= top."
+    },
+    "RANDARRAY": {
+      "args": [
+        {
+          "name": "rows",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5,
+            -1
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid rows (< 1 returns #VALUE!)",
+              "source": "crates/calc-func/src/catalogue/random.rs:54"
+            }
+          ]
+        },
+        {
+          "name": "columns",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            5,
+            -1
+          ],
+          "ranges": [
+            [
+              1,
+              10
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "minimum valid columns (< 1 returns #VALUE!)",
+              "source": "crates/calc-func/src/catalogue/random.rs:54"
+            }
+          ]
+        },
+        {
+          "name": "min",
+          "kind": "number",
+          "specials": [
+            -100.0,
+            -1.5,
+            0.0,
+            1.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000.0,
+              1000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "max",
+          "kind": "number",
+          "specials": [
+            -100.0,
+            -1.5,
+            0.0,
+            1.0,
+            10.0
+          ],
+          "ranges": [
+            [
+              -1000.0,
+              1000.0
+            ]
+          ],
+          "edges": []
+        },
+        {
+          "name": "whole_number",
+          "kind": "logical",
+          "specials": [
+            false,
+            true
+          ],
+          "ranges": [],
+          "edges": [
+            {
+              "value": true,
+              "why": "TRUE applies ceil(min)..=floor(max) integer domain",
+              "source": "crates/calc-func/src/catalogue/random.rs:60"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        "rows >= 1",
+        "columns >= 1",
+        "min <= max"
+      ],
+      "regimes": [
+        {
+          "name": "continuous_or_whole",
+          "how": "whole_number=TRUE samples integers in [ceil(min), floor(max)]; FALSE samples [min, max)",
+          "source": "crates/calc-func/src/catalogue/random.rs:60"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "rows < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/random.rs:54"
+        },
+        {
+          "when": "columns < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/random.rs:54"
+        },
+        {
+          "when": "min > max",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/random.rs:61"
+        }
+      ],
+      "notes": "Defaults (1, 1, 0, 1, FALSE); volatile; rows*cols > 1,048,576 is not modelled."
+    },
+    "SUM": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "direct_errors_before_held",
+          "how": "evaluates direct argument errors/coercions before held reference/array errors",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:90"
+        },
+        {
+          "name": "adjust_final_sum",
+          "how": "applies Excel 50-exponent cancellation snap on final addition",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:97"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Reads through held arrays; skips held non-numbers; direct errors precede held errors."
+    },
+    "PRODUCT": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "skip_omitted_flush_subnormals",
+          "how": "skips omitted args (returns 0 if none) and flushes subnormal products to +0",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:125"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Returns 0 when no numeric values exist; held nested array returns #N/A."
+    },
+    "SUMSQ": {
+      "args": [
+        {
+          "name": "number1",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "number2",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "subnormal_square_flush",
+          "how": "flushes subnormal x*x products to +0 before summing",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:150"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Squares numbers sequentially and sums from 0; held nested array returns #N/A."
+    },
+    "SUMPRODUCT": {
+      "args": [
+        {
+          "name": "array1",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "array2",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shape_checked_after_factors",
+          "how": "reads all factors before checking equal shape (#VALUE!)",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:495"
+        },
+        {
+          "name": "single_blank_ref_value_error",
+          "how": "single empty cell ref returns #VALUE!, omitted arg is #VALUE!",
+          "source": "crates/calc-func/src/catalogue/aggregate.rs:566"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Treats non-numbers inside arrays/ranges as 0; flushes subnormal products to +0."
+    },
+    "SUBTOTAL": {
+      "args": [
+        {
+          "name": "function_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            101,
+            109,
+            111,
+            112
+          ],
+          "ranges": [
+            [
+              1,
+              11
+            ],
+            [
+              101,
+              111
+            ]
+          ],
+          "edges": [
+            {
+              "value": 1,
+              "why": "1..=11 include manually hidden rows",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:250"
+            },
+            {
+              "value": 101,
+              "why": "101..=111 exclude manually hidden rows",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:251"
+            }
+          ]
+        },
+        {
+          "name": "ref1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "ref2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "nested_subtotal_and_filter_exclusion",
+          "how": "excludes nested SUBTOTAL/AGGREGATE cells and filtered rows",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:254"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "function_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
+        },
+        {
+          "when": "function_num > 111",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:252"
+        }
+      ],
+      "notes": "Requires references in ref slots; invalid function_num returns #VALUE!."
+    },
+    "AGGREGATE": {
+      "args": [
+        {
+          "name": "function_num",
+          "kind": "integer",
+          "specials": [
+            0,
+            1,
+            9,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "ranges": [
+            [
+              1,
+              19
+            ]
+          ],
+          "edges": [
+            {
+              "value": 13,
+              "why": "1..=13 use reference form",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:278"
+            },
+            {
+              "value": 14,
+              "why": "14..=19 use array form with required 4th arg k",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:295"
+            }
+          ]
+        },
+        {
+          "name": "options",
+          "kind": "integer",
+          "specials": [
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "ranges": [
+            [
+              0,
+              7
+            ]
+          ],
+          "edges": [
+            {
+              "value": 4,
+              "why": "option 4 ignores nothing and accepts scalar inputs",
+              "source": "crates/calc-func/src/catalogue/subtotal.rs:284"
+            }
+          ]
+        },
+        {
+          "name": "ref1",
+          "kind": "array",
+          "specials": [
+            [
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              3.0
+            ],
+            [
+              -1.0,
+              0.0,
+              1.0
+            ],
+            [
+              1.0,
+              2.0,
+              4.0,
+              8.0
+            ],
+            [
+              [
+                1.0,
+                2.0
+              ],
+              [
+                3.0,
+                4.0
+              ]
+            ]
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "ref2",
+          "kind": "any",
+          "specials": [
+            1,
+            2,
+            0.5,
+            0,
+            -1
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "ref3",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1 <= function_num <= 19",
+        "0 <= options <= 7"
+      ],
+      "regimes": [
+        {
+          "name": "reference_form_1_to_13",
+          "how": "functions 1..=13 accept references (scalars #VALUE! unless options == 4)",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:278"
+        },
+        {
+          "name": "array_form_14_to_19",
+          "how": "functions 14..=19 require 4 args (LARGE, SMALL, PERCENTILE/QUARTILE)",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:295"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "function_num < 1",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:269"
+        },
+        {
+          "when": "function_num > 19",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:269"
+        },
+        {
+          "when": "options < 0",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:269"
+        },
+        {
+          "when": "options > 7",
+          "excel": "#VALUE!",
+          "source": "crates/calc-func/src/catalogue/subtotal.rs:269"
+        }
+      ],
+      "notes": "Uses date_integer_floor on function_num and options; array form enforces 4 args."
+    },
+    "SUMIF": {
+      "args": [
+        {
+          "name": "range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "sum_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "shaped_sum_range",
+          "how": "shapes sum_range from its top-left cell to range's size",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:6"
+        },
+        {
+          "name": "criteria_255_limit",
+          "how": "criteria longer than 255 UTF-16 code units returns #VALUE!",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:77"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Multi-area reference is #VALUE!; omitted sum_range sums range itself."
+    },
+    "SUMIFS": {
+      "args": [
+        {
+          "name": "sum_range",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range1",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria1",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria_range2",
+          "kind": "reference",
+          "specials": [],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "criteria2",
+          "kind": "criteria",
+          "specials": [
+            ">0",
+            ">=0",
+            "<0",
+            "<>0",
+            "=0",
+            "1",
+            "a*",
+            "*?",
+            "",
+            "="
+          ],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {
+          "name": "exact_shape_match",
+          "how": "all ranges must match sum_range's shape or #VALUE! before reading cells",
+          "source": "crates/calc-func/src/catalogue/conditional.rs:7"
+        }
+      ],
+      "error_edges": [],
+      "notes": "Pairs (criteria_range, criteria) repeat; criteria arrays lift elementwise."
+    }
+  }
+}
