@@ -430,12 +430,20 @@ pub fn encode_witness_set_json(
             let rid = format!("r{}", readings.len());
             let env = envs.get(&row.env_id);
             let excel_build = env
-                .and_then(|e| e.get("file_version").or_else(|| e.get("build")))
-                .and_then(Value::as_str)
+                .and_then(|e| {
+                    e.get("file_version")
+                        .and_then(Value::as_str)
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| e.get("build").and_then(Value::as_str).filter(|s| !s.is_empty()))
+                })
                 .unwrap_or("unknown");
             let cpu = env
-                .and_then(|e| e.get("cpu").or_else(|| e.get("cpu_id")))
-                .and_then(Value::as_str)
+                .and_then(|e| {
+                    e.get("cpu")
+                        .and_then(Value::as_str)
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| e.get("cpu_id").and_then(Value::as_str).filter(|s| !s.is_empty()))
+                })
                 .unwrap_or("unknown");
             let bitness = env
                 .and_then(|e| e.get("machine"))
@@ -533,6 +541,42 @@ mod tests {
         assert_eq!(parsed.function, "RATE");
         assert_eq!(parsed.witnesses.len(), 1);
         assert_eq!(parsed.witnesses[0].calc_func.as_deref(), Some("error:Num"));
+        assert_eq!(parsed.readings.len(), 1);
+        assert_eq!(parsed.readings[0].excel_build.as_deref(), Some("16.0.20625.20108"));
+        assert_eq!(
+            parsed.readings[0].cpu.as_deref(),
+            Some("AMD Ryzen 7 4800H with Radeon Graphics")
+        );
+        assert_eq!(parsed.readings[0].bitness.as_deref(), Some("64-bit"));
+
+        // Verify fallback to `build`/`cpu_id` and 32-bit `machine`.
+        let mut envs_32 = BTreeMap::new();
+        envs_32.insert(
+            "e32".to_owned(),
+            json!({
+                "file_version": "",
+                "build": "20625",
+                "cpu_id": "x86 Family 6",
+                "machine": "x86"
+            }),
+        );
+        let mut row_32 = row.clone();
+        row_32.env_id = "e32".to_owned();
+        let encoded_32 = encode_witness_set_json(
+            "RATE",
+            "sf1",
+            "sf1/rate-sweep/spec.json",
+            "discrepancies only",
+            "2026-11-23T22:30:00Z",
+            &envs_32,
+            &touchstone_bulk_context(),
+            &[&row_32],
+        )
+        .expect("32-bit fallback WitnessSet");
+        let parsed_32 = calc_verdict::WitnessSet::decode(encoded_32.as_bytes()).unwrap();
+        assert_eq!(parsed_32.readings[0].excel_build.as_deref(), Some("20625"));
+        assert_eq!(parsed_32.readings[0].cpu.as_deref(), Some("x86 Family 6"));
+        assert_eq!(parsed_32.readings[0].bitness.as_deref(), Some("32-bit"));
 
         let mut matching = row.clone();
         matching.expected = matching.case.prediction.clone();

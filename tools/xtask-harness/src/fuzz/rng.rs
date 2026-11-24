@@ -7,7 +7,7 @@ use calc_verdict::{Sha256, sha256_hex};
 use serde_json::Value;
 
 /// Bumped whenever deterministic generation semantics change.
-pub const GENERATOR_VERSION: &str = "dnacalc-smart-fuzz/2";
+pub const GENERATOR_VERSION: &str = "dnacalc-smart-fuzz/3";
 
 /// Exact Dekker split of `ln(2)` (`LN_2_HI` has 11 trailing zero significand bits so
 /// `k * LN_2_HI` is exact for every IEEE-754 binary64 exponent `|k| <= 2047`).

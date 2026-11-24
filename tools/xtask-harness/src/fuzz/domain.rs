@@ -843,20 +843,19 @@ fn gen_rate_near_flat_and_regimes(rng: &mut Rng) -> Vec<Value> {
             pack_rate(nper, pmt, pv, Some(fv), Some(timing), guess)
         }
         1 => {
-            // gx1 / fx2-2092 neighborhood & general fractional-neg-nper flat secant
-            let nper = f64::from_bits(0xbfb6_dc00_4793_792d);
-            let pmt = f64::from_bits(0x4049_c31d_f3fc_025c);
-            let pv = f64::from_bits(0x4081_7662_41ff_7680);
-            let fv = f64::from_bits(0xbfe9_01d6_d18d_4f4b);
-            let g = f64::from_bits(0x3fdd_a8bb_c02b_4f20);
-            let delta = rng.gen_i64_inclusive(-200, 200);
-            let mut row = [nper, pmt, pv, fv, 1.0, g];
-            let axis = *rng.pick(&[0usize, 1, 2, 3, 5]);
-            row[axis] = step_ulps(row[axis], delta, true).unwrap_or(row[axis]);
-            if rng.chance(0.25) {
-                row[4] = 0.0;
-            }
-            pack_rate(row[0], row[1], row[2], Some(row[3]), Some(row[4]), Some(row[5]))
+            // General small fractional negative-nper flat-secant regime:
+            // same-sign (pmt, pv) with small opposite-sign fv and varied guess.
+            let nper = -rng.log_uniform(-8, 0, false);
+            let sign = if rng.chance(0.5) { 1.0 } else { -1.0 };
+            let pmt = sign * rng.log_uniform(0, 12, false);
+            let pv = sign * rng.log_uniform(2, 14, false);
+            let fv = -sign * rng.log_uniform(-8, 4, false);
+            let guess = if rng.chance(0.25) {
+                Some(rng.uniform(-0.8, 0.0))
+            } else {
+                Some(rng.uniform(0.01, 2.0))
+            };
+            pack_rate(nper, pmt, pv, Some(fv), Some(timing), guess)
         }
         2 => {
             // Flat-change tie probes (huge negative nper, guess=0 or small, both balance signs!)
@@ -1499,5 +1498,41 @@ mod tests {
             let args = pmt.generate(region.kind, &mut rng);
             assert!((pmt.min_arity..=pmt.max_arity).contains(&args.len()));
         }
+    }
+
+    #[test]
+    fn rate_near_flat_and_regimes_samples_generally_without_fixture_constants() {
+        let rate = DomainSpec::for_function("RATE").unwrap();
+        let mut rng = Rng::from_seed(20261124);
+        let forbidden: [u64; 5] = [
+            0xbfb6_dc00_4793_792d,
+            0x4049_c31d_f3fc_025c,
+            0x4081_7662_41ff_7680,
+            0xbfe9_01d6_d18d_4f4b,
+            0x3fdd_a8bb_c02b_4f20,
+        ];
+        let mut small_neg_npers = std::collections::HashSet::new();
+        for _ in 0..200 {
+            let args = rate.generate(RegionKind::RateNearFlatAndRegimes, &mut rng);
+            for arg in &args {
+                if let Some(bits) = super::super::rng::parse_hex_bits(arg) {
+                    assert!(
+                        !forbidden.contains(&bits),
+                        "hardcoded fixture constant 0x{bits:016x} appeared in RateNearFlatAndRegimes"
+                    );
+                }
+            }
+            if let Some(bits) = super::super::rng::parse_hex_bits(&args[0]) {
+                let nper = f64::from_bits(bits);
+                if nper > -1.0 && nper < 0.0 {
+                    small_neg_npers.insert(bits);
+                }
+            }
+        }
+        assert!(
+            small_neg_npers.len() >= 15,
+            "expected general sampling of small negative fractional nper in (-1, 0), got {} distinct values",
+            small_neg_npers.len()
+        );
     }
 }

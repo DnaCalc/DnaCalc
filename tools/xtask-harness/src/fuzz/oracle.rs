@@ -1419,17 +1419,23 @@ mod tests {
                             "server": "fake-fuzzer-broker",
                             "envs": {
                                 "e-bulk": {
-                                    "excel_build": "20625",
+                                    "engine": "excel",
+                                    "version": "16.0",
+                                    "build": "20625",
+                                    "file_version": "16.0.20625.20108",
+                                    "machine": "x86-64",
+                                    "os": "Windows",
                                     "cpu": "Fake AMD Ryzen",
-                                    "platform": "Windows",
-                                    "bitness": 64,
                                     "mt_calc": "manual:4"
                                 },
                                 "e-inter": {
-                                    "excel_build": "20625",
+                                    "engine": "excel",
+                                    "version": "16.0",
+                                    "build": "20625",
+                                    "file_version": "16.0.20625.20108",
+                                    "machine": "x86-64",
+                                    "os": "Windows",
                                     "cpu": "Fake AMD Ryzen",
-                                    "platform": "Windows",
-                                    "bitness": 64,
                                     "mt_calc": "off"
                                 }
                             }
@@ -1594,6 +1600,17 @@ mod tests {
         let bank_bytes = std::fs::read(&bank_path).expect("bank-rows written");
         let bank = WitnessSet::decode(&bank_bytes).expect("valid WitnessSet");
         assert_eq!(bank.witnesses.len(), summary.total_mismatched);
+        assert!(!bank.readings.is_empty(), "expected reading provenance records");
+        for r in &bank.readings {
+            assert_eq!(
+                r.excel_build.as_deref(),
+                Some("16.0.20625.20108"),
+                "bank-rows reading should carry Touchstone file_version, not unknown"
+            );
+            assert_eq!(r.cpu.as_deref(), Some("Fake AMD Ryzen"));
+            assert_eq!(r.bitness.as_deref(), Some("64-bit"));
+            assert_eq!(r.platform.as_deref(), Some("Windows"));
+        }
         for w in &bank.witnesses {
             assert_ne!(
                 w.calc_func.as_deref(),
@@ -1604,6 +1621,12 @@ mod tests {
         let pin_bytes = std::fs::read(&pin_path).expect("pin-out written");
         let pinned = WitnessSet::decode(&pin_bytes).expect("valid pinned WitnessSet");
         assert!(!pinned.witnesses.is_empty());
+        assert!(!pinned.readings.is_empty());
+        for r in &pinned.readings {
+            assert_eq!(r.excel_build.as_deref(), Some("16.0.20625.20108"));
+            assert_eq!(r.cpu.as_deref(), Some("Fake AMD Ryzen"));
+            assert_eq!(r.bitness.as_deref(), Some("64-bit"));
+        }
         for f in &summary.frontiers {
             if let (Some(lo), Some(hi)) = (f.excel_lo_bits, f.excel_hi_bits) {
                 assert_eq!(
@@ -1913,7 +1936,7 @@ mod tests {
                     b'H' => write_frame(
                         &mut stream,
                         b'H',
-                        &json!({"v": "touchstone/1", "server": "fake-bisect", "envs": {"e1": {"excel_build": "20625", "cpu": "Fake"}}}),
+                        &json!({"v": "touchstone/1", "server": "fake-bisect", "envs": {"e1": {"file_version": "16.0.20625.20108", "build": "20625", "cpu": "Fake", "machine": "x86-64"}}}),
                     ),
                     b'S' => {
                         let id = body["id"].as_str().unwrap().to_string();
