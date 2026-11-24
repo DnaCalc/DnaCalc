@@ -1,0 +1,1483 @@
+{
+  "family": "financial-tvm",
+  "version": 1,
+  "functions": {
+    "PV": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 1e-16, 1e-15, -0.5, 0.005, 0.05, 0.1, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 takes linear -(fv + pmt * nper); tiny nonzero rate still runs power/annuity branch", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:122"},
+            {"value": -1, "why": "base 1 + rate <= 0 returns #NUM! via growth_from_base", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:127"}
+          ]
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [-10, -1, 0, 0.5, 1, 12, 60, 360, 1000],
+          "ranges": [[-1000, 10000]],
+          "edges": [
+            {"value": 0, "why": "factor == 1 makes annuity term 0", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:129"}
+          ]
+        },
+        {
+          "name": "pmt",
+          "kind": "number",
+          "specials": [0, -1000, -100, -1, 1, 100, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, -1000, 1000, 100000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1, -1, 2],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 selects EndOfPeriod; any nonzero selects BeginningOfPeriod", "source": "crates/calc-func/src/catalogue/financial.rs:65"}
+          ]
+        }
+      ],
+      "relations": [
+        "rate > -1"
+      ],
+      "regimes": [
+        {"name": "exact zero rate", "how": "rate == 0.0 returns -(fv + pmt * nper)", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:122"},
+        {"name": "nonzero rate", "how": "evaluates x87-stored (1+rate)^nper and (factor-1)/rate * timing", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:127"}
+      ],
+      "error_edges": [
+        {"when": "rate <= -1 && rate != 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:127"},
+        {"when": "factor == 0 (underflow at large negative nper or large negative rate)", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:132"},
+        {"when": "result overflows to non-finite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:142"}
+      ],
+      "notes": "Only exact rate == 0.0 uses linear branch; nonzero tiny rates lose precision in 1 + rate."
+    },
+    "FV": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 1e-16, 1e-15, -0.5, 0.005, 0.05, 0.25, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 sets annuity term to nper; tiny nonzero rate divides (factor - 1)/rate", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:161"},
+            {"value": 1e-15, "why": "1 + 1e-15 rounds in binary64 causing >60% annuity term error vs mathematical limit", "source": "handbook FN-FV-001"}
+          ]
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [-10, -1, 0, 0.5, 1, 10, 12, 360],
+          "ranges": [[-1000, 10000]],
+          "edges": []
+        },
+        {
+          "name": "pmt",
+          "kind": "number",
+          "specials": [0, -120, -100, 100, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [0, -1000, 1000, 1e-308],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1, -1, 2],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 selects EndOfPeriod; any nonzero selects BeginningOfPeriod", "source": "crates/calc-func/src/catalogue/financial.rs:65"}
+          ]
+        }
+      ],
+      "relations": [
+        "rate > -1"
+      ],
+      "regimes": [
+        {"name": "exact zero rate", "how": "sets annuity term to nper", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:161"},
+        {"name": "subnormal term flush", "how": "present_component and payment_component flush subnormals separately before summing", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:180"}
+      ],
+      "error_edges": [
+        {"when": "1 + rate <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:156"},
+        {"when": "result overflows to non-finite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:173"}
+      ],
+      "notes": "Computes growth factor via POWER(RN53(RN64(1+rate)), nper) and flushes subnormals per cashflow term."
+    },
+    "PMT": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 1e-13, -1e-13, -0.3333333333333333, 0.004166666666666667, 0.05, 0.5, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 takes linear -(fv + pv) / nper", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:235"},
+            {"value": -1, "why": "1 + rate <= 0 returns #NUM!; beginning timing also rejects 1 + 1/rate == 0", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:240"}
+          ]
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [-10, -1, 0, 0.5, 1, 12, 360, 1000],
+          "ranges": [[-1000, 10000]],
+          "edges": [
+            {"value": 0, "why": "nper == 0 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:228"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [0, -1000, 1000, 200000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, -1000, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1, -1, 2],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 selects EndOfPeriod; any nonzero selects BeginningOfPeriod with due_coefficient", "source": "crates/calc-func/src/catalogue/financial.rs:65"}
+          ]
+        }
+      ],
+      "relations": [
+        "nper != 0",
+        "rate > -1"
+      ],
+      "regimes": [
+        {"name": "exact zero rate", "how": "returns -(fv + pv) / nper", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:235"},
+        {"name": "log1p/expm1 annuity route", "how": "uses excel_log1p_times (atanh series for |r| < 3/8, LN(1+r) from 3/8) and excel_expm1_spilled", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:256"}
+      ],
+      "error_edges": [
+        {"when": "nper == 0 || 1 + rate <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:228"},
+        {"when": "type != 0 && 1 + 1/rate == 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:246"},
+        {"when": "em == 0 || !em.is_finite() || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:261"}
+      ],
+      "notes": "Uses (pv + fv)/em + fv balance fold and due_coefficient(r) = 1/(1 + 1/r) for beginning payments."
+    },
+    "NPER": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 1e-17, 1e-15, -0.5, 0.05, 0.1, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 takes -(fv + pv) / pmt; tiny nonzero rates where 1 + rate rounds to 1 return #DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:316"}
+          ]
+        },
+        {
+          "name": "pmt",
+          "kind": "number",
+          "specials": [0, -1000, -100, 100, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": [
+            {"value": 0, "why": "rate == 0 && pmt == 0 returns #DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:317"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [0, -1000, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, -1000, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "rate > -1",
+        "(tf * pmt - fv * rate) / (tf * pmt + pv * rate) > 0 when rate != 0"
+      ],
+      "regimes": [
+        {"name": "exact zero rate", "how": "returns -(fv + pv) / pmt in x87 PC64", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:316"},
+        {"name": "x87 logarithm ratio", "how": "ln_x87(ratio) / ln_x87(1 + rate) with every operation stored from x87 PC64", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:347"}
+      ],
+      "error_edges": [
+        {"when": "rate == 0 && pmt == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:317"},
+        {"when": "rate != 0 && RN53(RN64(1 + rate)) == 1", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:344"},
+        {"when": "ratio <= 0 || !ratio.is_finite() || 1 + rate <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:336"}
+      ],
+      "notes": "Tiny nonzero rates that round 1 + rate to 1 give #DIV/0! because ln(1) == 0."
+    },
+    "RATE": {
+      "args": [
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [-10, -1.5, -1, 0, 0.5, 1, 10, 12, 360],
+          "ranges": [[-1000, 10000]],
+          "edges": [
+            {"value": 0, "why": "constant balance makes secant change flat (#NUM!)", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:500"}
+          ]
+        },
+        {
+          "name": "pmt",
+          "kind": "number",
+          "specials": [0, -599.55, -120, -100, 100, 1e-300],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [0, -1000, 1000, 100000, 1e-300],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, -1000, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        },
+        {
+          "name": "guess",
+          "kind": "number",
+          "specials": [-1, -0.999999, -0.1, 0, 0.1, 0.455, 0.46, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": -1, "why": "guess <= -1 returns #VALUE!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:370"},
+            {"value": 0.1, "why": "default guess when omitted", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:363"}
+          ]
+        }
+      ],
+      "relations": [
+        "guess > -1",
+        "at least one cashflow sign change among pmt, pv, fv"
+      ],
+      "regimes": [
+        {"name": "strict 200-step secant convergence", "how": "stops when |step| < 1e-7 && |balance| < 1e-7 within 200 steps", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:588"},
+        {"name": "post-budget 1e-4 acceptance", "how": "after 200 steps accepts iterate if step <= 1e-4 && |balance| <= 1e-4 && 1+r >= 1e-4", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:620"},
+        {"name": "flat-balance nudge", "how": "nudges before by +-0.001 once when change is in (-MIN_POSITIVE/16, 0]", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:493"},
+        {"name": "negative-period overflow asymptotic", "how": "when quotient overflows for nper < 0 and current > 0, publishes current if asymptotic limit <= 1e-7", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:552"}
+      ],
+      "error_edges": [
+        {"when": "guess <= -1", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:370"},
+        {"when": "second consecutive flat balance or !next.is_finite() or 1 + result < 1e-7", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:521"},
+        {"when": "divisor after DAZ == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:532"}
+      ],
+      "notes": "Secant in rate with +-0.001 second point; up to 200 iterations; final root requires 1 + rate >= 1e-7."
+    },
+    "NPV": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [-1, -0.5, 0, 0.1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": -1, "why": "1 + rate == 0 gives #DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:682"}
+          ]
+        },
+        {
+          "name": "value1",
+          "kind": "any",
+          "specials": [-10000, -100, 0, 100, 1000, 10000],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "value2",
+          "kind": "any",
+          "specials": [-1000, 0, 100, 1000, 5000],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "rate != -1"
+      ],
+      "regimes": [
+        {"name": "range/array vs scalar admission", "how": "ranges/arrays skip text, logicals, and blanks without advancing period; direct scalar args coerce text and logicals", "source": "handbook FN-NPV-001"},
+        {"name": "x87 DAZ/FTZ discounting", "how": "each flow divides by running power of RN53(RN64(1+rate)) then divides total by base", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:645"}
+      ],
+      "error_edges": [
+        {"when": "1 + rate == 0 || divisor == 0 || !divisor.is_finite() || !term.is_finite()", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:656"},
+        {"when": "!total.is_finite() || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:687"}
+      ],
+      "notes": "First value is discounted at period 1 (not period 0); skipped range cells do not increment period index."
+    },
+    "IPMT": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-13, -1e-13, 0.004166666666666667, 0.1446, 0.2404, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": 0, "why": "exact 0.0 returns 0.0 after period checks; tiny nonzero rate runs log1p/expm1 path", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:837"}
+          ]
+        },
+        {
+          "name": "per",
+          "kind": "number",
+          "specials": [0, 0.5, 1, 1.0000000000000002, 12, 360],
+          "ranges": [[1, 10000]],
+          "edges": [
+            {"value": 1, "why": "per == 1 with type != 0 returns 0.0 even when rate <= -1", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:830"}
+          ]
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [0.9999999999999999, 1, 12, 360],
+          "ranges": [[1, 10000]],
+          "edges": []
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [-1000, 0, 1000, 200000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, -1000, 1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1 <= per",
+        "per - 1 < nper",
+        "rate > -1 (unless per == 1 && type != 0)"
+      ],
+      "regimes": [
+        {"name": "beginning first period", "how": "per == 1 && type != 0 returns 0.0 before rate <= -1 and PMT checks", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:830"},
+        {"name": "quotient expm1 route", "how": "computes remaining = (nper + 1) - per in x87 PC64 and -((q*em - fv)*factor)", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:791"}
+      ],
+      "error_edges": [
+        {"when": "per < 1 || per - 1 >= nper", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:824"},
+        {"when": "1 + rate <= 0 (when not per == 1 && type != 0 and rate != 0)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:840"}
+      ],
+      "notes": "Upper bound is per - 1 < nper (allows fractional period beyond nper up to nper + 1 - eps); uses (nper + 1) - per ordering."
+    },
+    "PPMT": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-13, 0.004166666666666667, 0.1809, -1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": []
+        },
+        {
+          "name": "per",
+          "kind": "number",
+          "specials": [0, 1, 12, 191, 360],
+          "ranges": [[1, 10000]],
+          "edges": []
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [1, 12, 264, 360, 375],
+          "ranges": [[1, 10000]],
+          "edges": []
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [-8172.57, 0, 57755.66, 200000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [0, 635.76, -1000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "1 <= per",
+        "per - 1 < nper",
+        "rate > -1"
+      ],
+      "regimes": [
+        {"name": "zero rate or beginning period <= 1", "how": "returns pmt - ipmt", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:920"},
+        {"name": "quotient exp route", "how": "computes (q * exp(-(nper+1-per)*L)) * factor directly instead of pmt - ipmt", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:931"}
+      ],
+      "error_edges": [
+        {"when": "nper == 0 || 1 + rate <= 0 || per < 1 || per - 1 >= nper", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:910"}
+      ],
+      "notes": "Calls pmt before ipmt, so PMT domain errors precede IPMT's beginning-first-period shortcut."
+    },
+    "ISPMT": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [-0.1, 0, 0.05, 0.1, 1],
+          "ranges": [[-10, 10]],
+          "edges": []
+        },
+        {
+          "name": "per",
+          "kind": "number",
+          "specials": [-1, 0, 1, 10, 12],
+          "ranges": [[-1000, 10000]],
+          "edges": [
+            {"value": 0, "why": "per == 0 is valid (0-indexed periods)", "source": "handbook ISPMT"}
+          ]
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [-10, -1, 0, 1, 10, 12],
+          "ranges": [[-1000, 10000]],
+          "edges": [
+            {"value": 0, "why": "nper == 0 returns #DIV/0!; negative nper is admitted", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1039"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [-1000, 0, 1000, 100000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "nper != 0"
+      ],
+      "regimes": [
+        {"name": "four-stage x87 PC64 chain", "how": "(((per - nper) * pv) * rate) / nper with each operation stored from x87 PC64", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1046"}
+      ],
+      "error_edges": [
+        {"when": "nper == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1039"},
+        {"when": "result overflows to non-finite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1053"}
+      ],
+      "notes": "Admits negative nper and out-of-range per; evaluates (((per - nper)*pv)*rate)/nper in x87 PC64."
+    },
+    "MIRR": {
+      "args": [
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [[-100, 110], [-100000, 39000, 30000, 21000, 37000, 46000], [100, 200]],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "finance_rate",
+          "kind": "number",
+          "specials": [-1, -0.9999999999999999, 0, 0.1, 0.12],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": -1, "why": "1 + finance_rate == 0 gives #DIV/0! when any negative flow occurs at period >= 1", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1109"}
+          ]
+        },
+        {
+          "name": "reinvest_rate",
+          "kind": "number",
+          "specials": [-1, -0.9999999999999999, 0, 0.1, 0.12],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": -1, "why": "1 + reinvest_rate == 0 gives #DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:682"}
+          ]
+        }
+      ],
+      "relations": [
+        "len(values) >= 2",
+        "at least one positive and one negative cashflow",
+        "reinvest_rate != -1",
+        "finance_rate != -1 (unless all negative flows are at index 0)"
+      ],
+      "regimes": [
+        {"name": "2-flow vs 3-flow vs >=4-flow root", "how": "n==2 returns magnitude directly; n==3 uses crt_pow(mag, 0.5); n>=4 uses excel_pow_chain(mag, 1/(n-1))", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1143"}
+      ],
+      "error_edges": [
+        {"when": "len(values) < 2 || no positive flow || no negative flow || finance_pv == 0 || 1 + reinvest_rate == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1064"},
+        {"when": "positive term overflows || !finance_pv.is_finite() || (ratio < 0 && (n-1) even) || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1089"}
+      ],
+      "notes": "Compounds positive NPV by n (total cashflows) rather than n-1 before dividing by finance PV."
+    },
+    "FVSCHEDULE": {
+      "args": [
+        {
+          "name": "principal",
+          "kind": "number",
+          "specials": [0, -1000, 1, 1000, 1e100],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "schedule",
+          "kind": "array",
+          "specials": [[0.09, 0.11, 0.1], [-1, 0.5], [0, 0]],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [],
+      "regimes": [
+        {"name": "scalar or 1-cell reference vs multi-cell range/array", "how": "coerces numeric text in scalar or 1-cell reference; treats blanks as 0 and rejects text/logicals as #VALUE! in multi-cell range/array", "source": "crates/calc-func/src/catalogue/financial.rs:199"}
+      ],
+      "error_edges": [
+        {"when": "principal is logical || multi-cell schedule contains text or logical", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:267"},
+        {"when": "product overflows to non-finite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1168"}
+      ],
+      "notes": "Rejects logical principal with #VALUE!; multiplies principal * prod(1 + r) in binary64."
+    },
+    "PDURATION": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.025, 0.05, 0.1, 1],
+          "ranges": [[1e-300, 10]],
+          "edges": [
+            {"value": 0, "why": "rate <= 0 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1178"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [1e-300, 1, 1000, 2000, 1e100],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [1e-300, 1, 1000, 2200, 1e100],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": [
+            {"value": 2000, "why": "pv == fv returns 0.0 via LN(fv) - LN(pv)", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1186"}
+          ]
+        }
+      ],
+      "relations": [
+        "rate > 0",
+        "pv > 0",
+        "fv > 0"
+      ],
+      "regimes": [
+        {"name": "split worksheet LN", "how": "computes (LN(fv) - LN(pv)) / LN(1 + rate) via excel_log rather than LN(fv/pv)", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1185"}
+      ],
+      "error_edges": [
+        {"when": "rate <= 0 || pv <= 0 || fv <= 0 || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1178"}
+      ],
+      "notes": "Evaluates (LN(fv) - LN(pv)) / LN(1 + rate) using x87 excel_log."
+    },
+    "RRI": {
+      "args": [
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [2.2250738585072014e-308, 1, 2, 10, 96],
+          "ranges": [[2.2250738585072014e-308, 10000]],
+          "edges": [
+            {"value": 2.2250738585072014e-308, "why": "rejects positive subnormal nper < DBL_MIN before pv == fv equality check", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1199"},
+            {"value": 1, "why": "exact identity route returns fv / pv - 1 without exp/ln", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1244"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [-5, -1, 0, 1e-308, 1, 10000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": [
+            {"value": 0, "why": "DAZ-normalized pv == fv == 0 returns 0.0; pv == 0 with nonzero fv returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1208"}
+          ]
+        },
+        {
+          "name": "fv",
+          "kind": "number",
+          "specials": [-9, -3, 0, 1e-308, 2, 11000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": [
+            {"value": 0, "why": "fv == 0 with nonzero pv returns -1.0", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1231"}
+          ]
+        }
+      ],
+      "relations": [
+        "nper >= DBL_MIN",
+        "same sign for pv and fv (or fv == 0, or pv == fv)"
+      ],
+      "regimes": [
+        {"name": "equal DAZ pv and fv", "how": "returns +0.0 even for equal negative values", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1208"},
+        {"name": "nper == 1 identity", "how": "returns RN53(RN64(fv/pv)) - 1 without power chain", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1244"},
+        {"name": "nper != 1 raw x87 power chain", "how": "uses exp(RN53(RN64((1/nper) * ln(fv/pv)))) - 1 bypassing POWER's 0.5 sqrt shortcut", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1247"}
+      ],
+      "error_edges": [
+        {"when": "nper < DBL_MIN", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1199"},
+        {"when": "pv != fv && (pv == 0 || (pv < 0) != (fv < 0) && fv != 0)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1215"},
+        {"when": "!base.is_finite() || !reciprocal.is_finite() || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1234"}
+      ],
+      "notes": "Applies DAZ normalization to pv, fv, and fv/pv; admits two negative amounts."
+    },
+    "NOMINAL": {
+      "args": [
+        {
+          "name": "effect_rate",
+          "kind": "number",
+          "specials": [1e-300, 0.05, 0.053543, 0.1, 1],
+          "ranges": [[1e-300, 10]],
+          "edges": [
+            {"value": 0, "why": "effect_rate <= 0 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1260"}
+          ]
+        },
+        {
+          "name": "npery",
+          "kind": "number",
+          "specials": [0.9, 1, 2, 2.9, 3, 4, 12, 365],
+          "ranges": [[1, 10000]],
+          "edges": [
+            {"value": 1, "why": "trunc(npery) < 1 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1260"},
+            {"value": 2, "why": "periods <= 2 uses register-continuous x87 FYL2X/F2XM1/FSCALE; periods >= 3 uses stored excel_pow_chain", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1272"}
+          ]
+        }
+      ],
+      "relations": [
+        "effect_rate > 0",
+        "trunc(npery) >= 1"
+      ],
+      "regimes": [
+        {"name": "periods <= 2 continuous x87 power", "how": "uses excel_pow_x87_direct", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1272"},
+        {"name": "periods >= 3 stored x87 power chain", "how": "uses excel_pow_chain", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1274"}
+      ],
+      "error_edges": [
+        {"when": "effect_rate <= 0 || trunc(npery) < 1 || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1260"}
+      ],
+      "notes": "Truncates npery toward zero before domain check and reciprocal calculation."
+    },
+    "EFFECT": {
+      "args": [
+        {
+          "name": "nominal_rate",
+          "kind": "number",
+          "specials": [1e-300, 0.0525, 0.1, 1],
+          "ranges": [[1e-300, 10]],
+          "edges": [
+            {"value": 0, "why": "nominal_rate <= 0 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1288"}
+          ]
+        },
+        {
+          "name": "npery",
+          "kind": "number",
+          "specials": [0.9, 1, 4, 12, 365, 4294967294, 4294967295],
+          "ranges": [[1, 4294967295]],
+          "edges": [
+            {"value": 1, "why": "trunc(npery) < 1 returns #NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1288"},
+            {"value": 4294967295, "why": "trunc(npery) < u32::MAX uses x87-spilled binary exponentiation; >= u32::MAX switches to excel_pow_chain", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1301"}
+          ]
+        }
+      ],
+      "relations": [
+        "nominal_rate > 0",
+        "trunc(npery) >= 1"
+      ],
+      "regimes": [
+        {"name": "binary exponentiation (periods < u32::MAX)", "how": "LSB-first binary exponentiation with every multiply/squaring stored from x87 PC64", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1301"},
+        {"name": "power chain (periods >= u32::MAX)", "how": "switches to excel_pow_chain", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1315"}
+      ],
+      "error_edges": [
+        {"when": "nominal_rate <= 0 || trunc(npery) < 1 || !result.is_finite()", "excel": "#NUM!", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:1288"}
+      ],
+      "notes": "Truncates npery toward zero; switches power dispatch at u32::MAX (4294967295)."
+    },
+    "CUMIPMT": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.0075, 0.05, 0.1],
+          "ranges": [[1e-300, 10]],
+          "edges": []
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [1, 12, 352.5, 360, 2147483647],
+          "ranges": [[1, 2147483647]],
+          "edges": [
+            {"value": 2147483647, "why": "i32::MAX upper bound in period_argument", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:39"}
+          ]
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [1e-300, 1000, 125000, 200000],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "start_period",
+          "kind": "number",
+          "specials": [1, 1.5, 1.9, 13, 352],
+          "ranges": [[1, 2147483647]],
+          "edges": [
+            {"value": 1, "why": "beginning timing omits period 1 from interest count and principal sum", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:170"}
+          ]
+        },
+        {
+          "name": "end_period",
+          "kind": "number",
+          "specials": [1, 1.5, 10.2, 24, 352.5, 360],
+          "ranges": [[1, 2147483647]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 1, "why": "only exact 0.0 and 1.0 are accepted; other values return #NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:54"}
+          ]
+        }
+      ],
+      "relations": [
+        "1 <= start_period <= end_period <= nper",
+        "type in {0, 1}"
+      ],
+      "regimes": [
+        {"name": "empty whole-period interval", "how": "ceil(start_period) > floor(end_period) (or start==1 && end<2 for type==1) returns 0.0", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:175"},
+        {"name": "x87 finish count * PMT - principal", "how": "computes RN53(RN64(count * payment) - principal) rather than summing IPMT", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:124"}
+      ],
+      "error_edges": [
+        {"when": "rate <= 0 || pv <= 0 || nper < 1 || nper > i32::MAX || start_period < 1 || end_period > nper || start_period > end_period", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:39"},
+        {"when": "type != 0 && type != 1", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:58"},
+        {"when": "any required argument is logical", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:40"}
+      ],
+      "notes": "Rejects logicals with #VALUE!; admits fractional nper/start_period/end_period and sums whole periods ceil(start)..=floor(end)."
+    },
+    "CUMPRINC": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.0075, 0.05, 0.1],
+          "ranges": [[1e-300, 10]],
+          "edges": []
+        },
+        {
+          "name": "nper",
+          "kind": "number",
+          "specials": [1, 12, 352.5, 360, 2147483647],
+          "ranges": [[1, 2147483647]],
+          "edges": []
+        },
+        {
+          "name": "pv",
+          "kind": "number",
+          "specials": [1e-300, 1000, 125000, 200000],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "start_period",
+          "kind": "number",
+          "specials": [1, 1.5, 1.9, 13, 352],
+          "ranges": [[1, 2147483647]],
+          "edges": []
+        },
+        {
+          "name": "end_period",
+          "kind": "number",
+          "specials": [1, 1.5, 10.2, 24, 352.5, 360],
+          "ranges": [[1, 2147483647]],
+          "edges": []
+        },
+        {
+          "name": "type",
+          "kind": "integer",
+          "specials": [0, 1],
+          "ranges": [[0, 1]],
+          "edges": [
+            {"value": 1, "why": "only exact 0.0 and 1.0 are accepted; other values return #NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:54"}
+          ]
+        }
+      ],
+      "relations": [
+        "1 <= start_period <= end_period <= nper",
+        "type in {0, 1}"
+      ],
+      "regimes": [
+        {"name": "empty whole-period interval", "how": "ceil(start_period) > floor(end_period) returns 0.0", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:201"},
+        {"name": "cumulative_principal expm1 span", "how": "uses q * (exp(-(n-end+1)*L) * -expm1(-count*L)), adding q*due_coeff for beginning period 1", "source": "crates/calc-func/src/ported/financial_time_value_family.rs:979"}
+      ],
+      "error_edges": [
+        {"when": "rate <= 0 || pv <= 0 || nper < 1 || nper > i32::MAX || start_period < 1 || end_period > nper || start_period > end_period", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:39"},
+        {"when": "type != 0 && type != 1", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cumulative_finance_family.rs:58"},
+        {"when": "any required argument is logical", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:40"}
+      ],
+      "notes": "Rejects logicals with #VALUE!; not equal to sum of public PPMT in general."
+    },
+    "IRR": {
+      "args": [
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [[-100, 121], [1, -2], [-1, 3], [-10000, 3000, 4200, 6800], [-70000, 12000, 15000, 18000, 21000, 26000]],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "guess",
+          "kind": "number",
+          "specials": [-1, -0.9999999999999716, -0.1, -1.3010426069826053e-17, 0, 0.1, 2, 9007199254740992],
+          "ranges": [[-0.999999999, 9007199254740991]],
+          "edges": [
+            {"value": -1, "why": "guess <= -1 returns #VALUE!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:643"},
+            {"value": 9007199254740992, "why": "1.0 + guess == guess at 2^53 returns #VALUE!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:643"},
+            {"value": 0.1, "why": "default guess and first retry point", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:656"}
+          ]
+        }
+      ],
+      "relations": [
+        "len(numeric_values) >= 2",
+        "at least one positive and one negative cashflow",
+        "guess > -1 && 1 + guess != guess"
+      ],
+      "regimes": [
+        {"name": "secant in u = rate/(1+rate)", "how": "runs up to 200 secant steps in u with +-0.001 second point; stops on |du|<1e-7 && |npv|<1e-7", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:470"},
+        {"name": "post-budget 1e-4 acceptance", "how": "accepts iterate after 200 steps when |du| <= 1e-4 && |npv| <= 1e-4", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:623"},
+        {"name": "retry ladder", "how": "on failure retries u = 0.1/1.1, then u = -0.1, then u = 2/3 before returning #NUM!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:655"}
+      ],
+      "error_edges": [
+        {"when": "guess <= -1 || RN53(RN64(1 + guess)) == guess", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:643"},
+        {"when": "any error cell inside values array/range", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:103"},
+        {"when": "len(numeric_values) < 2 || no sign change || all retries fail", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:157"}
+      ],
+      "notes": "Ignores text/logical/blank cells inside array/range; direct text/logical values give #NUM! after guess check."
+    },
+    "XNPV": {
+      "args": [
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [0, 1e-300, 0.09, 0.1, 1],
+          "ranges": [[1e-300, 10]],
+          "edges": [
+            {"value": 0, "why": "rate <= 0 (including -0.0) returns #NUM!; +1e-300 is accepted", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:717"}
+          ]
+        },
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [[-10000, 2750, 4250, 3250, 2750]],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "dates",
+          "kind": "array",
+          "specials": [[39448, 39508, 39751, 39859, 39904]],
+          "ranges": [],
+          "edges": []
+        }
+      ],
+      "relations": [
+        "rate > 0",
+        "len(values) == len(dates) >= 1",
+        "all dates >= dates[0]",
+        "values and dates are 1-D vectors (not 2-D)"
+      ],
+      "regimes": [
+        {"name": "worksheet POWER discounting", "how": "evaluates years = (date - dates[0])/365 in binary64, pow = POWER(RN53(RN64(1+rate)), years), and x87 sum", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:720"}
+      ],
+      "error_edges": [
+        {"when": "rate <= 0 || len(values) != len(dates) || any date < dates[0] || any date < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:186"},
+        {"when": "2-D array/range in values or dates", "excel": "#REF!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:67"},
+        {"when": "text, logical, or blank cell inside values or dates", "excel": "#VALUE!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:30"}
+      ],
+      "notes": "Truncates dates; requires rate > 0 strictly and does not require sign changes in values."
+    },
+    "XIRR": {
+      "args": [
+        {
+          "name": "values",
+          "kind": "array",
+          "specials": [[-10000, 2750, 4250, 3250, 2750], [-100, 121]],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "dates",
+          "kind": "array",
+          "specials": [[39448, 39508, 39751, 39859, 39904], [44013, 44378]],
+          "ranges": [],
+          "edges": []
+        },
+        {
+          "name": "guess",
+          "kind": "number",
+          "specials": [-1, -0.5, 0, 0.1, 1],
+          "ranges": [[-0.999999999, 10]],
+          "edges": [
+            {"value": -1, "why": "guess <= -1 returns #NUM! after scalar coercion", "source": "crates/calc-func/src/catalogue/financial.rs:352"}
+          ]
+        }
+      ],
+      "relations": [
+        "len(values) == len(dates) >= 2",
+        "at least one positive and one negative cashflow",
+        "all dates >= dates[0]",
+        "guess > -1"
+      ],
+      "regimes": [
+        {"name": "two-cashflow analytical vs positive bracket", "how": "for 2 flows, negative root returns analytical (ratio)^(1/years)-1; positive root brackets from 0", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:900"},
+        {"name": "general positive bracket then bounded Newton/secant", "how": "if guess > 0 tries positive bisection bracket first, then secant/Newton with polish", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:911"}
+      ],
+      "error_edges": [
+        {"when": "logical guess", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:334"},
+        {"when": "singleton values and dates (length 1)", "excel": "#N/A", "source": "crates/calc-func/src/catalogue/financial.rs:353"},
+        {"when": "2-D array/range in values or dates", "excel": "#REF!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:67"},
+        {"when": "guess <= -1 || len(values) != len(dates) || no sign change || any date < dates[0]", "excel": "#NUM!", "source": "crates/calc-func/src/ported/cashflow_rate_family.rs:171"}
+      ],
+      "notes": "Reads optional scalar guess (rejecting logicals) before vectors; returns #N/A for singleton pair."
+    },
+    "SLN": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [-1000, 0, 1e-308, 30000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [-1000, 0, 7500],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "life",
+          "kind": "number",
+          "specials": [-10, -1, 0, 0.5, 10],
+          "ranges": [[-10000, 10000]],
+          "edges": [
+            {"value": 0, "why": "life == 0 returns #DIV/0!; negative and fractional life are accepted", "source": "crates/calc-func/src/ported/depreciation_family.rs:29"}
+          ]
+        }
+      ],
+      "relations": [
+        "life != 0"
+      ],
+      "regimes": [
+        {"name": "subnormal difference preserved, quotient flushed", "how": "computes RN53(RN64((cost - salvage) / life)) and flushes subnormal output to +0.0", "source": "crates/calc-func/src/ported/depreciation_family.rs:36"}
+      ],
+      "error_edges": [
+        {"when": "life == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/depreciation_family.rs:29"},
+        {"when": "result overflows to non-finite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:37"}
+      ],
+      "notes": "Admits negative cost, salvage, and nonzero negative life."
+    },
+    "SYD": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [-1000, 0, 30000],
+          "ranges": [[-1000000000, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 7500],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "life",
+          "kind": "number",
+          "specials": [1e-160, 1e-154, 1, 10, 9007199254740992],
+          "ranges": [[1e-154, 10000]],
+          "edges": [
+            {"value": 1e-160, "why": "subnormal or overflowing denominator life*(life+1)/2 flushes to 0 giving #DIV/0!", "source": "crates/calc-func/src/ported/depreciation_family.rs:64"}
+          ]
+        },
+        {
+          "name": "per",
+          "kind": "number",
+          "specials": [1e-300, 0.5, 1, 10, 10.000000000000002],
+          "ranges": [[1e-300, 10000]],
+          "edges": [
+            {"value": 10, "why": "per > life rejected only when per - life >= DBL_MIN", "source": "crates/calc-func/src/ported/depreciation_family.rs:48"}
+          ]
+        }
+      ],
+      "relations": [
+        "per <= life (within DBL_MIN)"
+      ],
+      "regimes": [
+        {"name": "x87 PC64 (life+1)-per", "how": "stores life+1 before subtracting per; flushes subnormal basis and final result to 0.0", "source": "crates/calc-func/src/ported/depreciation_family.rs:63"}
+      ],
+      "error_edges": [
+        {"when": "salvage < 0 || life <= 0 || per <= 0 || per - life >= DBL_MIN", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:48"},
+        {"when": "denominator life*(life+1)/2 is nonfinite or subnormal", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/depreciation_family.rs:64"},
+        {"when": "basis or final result is nonfinite", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:78"}
+      ],
+      "notes": "Admits negative cost and fractional life/per; checks per - life >= DBL_MIN."
+    },
+    "DB": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [0, 1e-300, 1000, 1000000],
+          "ranges": [[0, 1000000000]],
+          "edges": [
+            {"value": 0, "why": "cost == 0 returns 0.0 immediately", "source": "crates/calc-func/src/ported/depreciation_family.rs:171"}
+          ]
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 100, 100000],
+          "ranges": [[0, 1000000000]],
+          "edges": [
+            {"value": 0, "why": "ratio == 0 sets rate = 1.000", "source": "handbook DB"}
+          ]
+        },
+        {
+          "name": "life",
+          "kind": "number",
+          "specials": [0.5, 1, 6, 10, 4294967295],
+          "ranges": [[0.1, 10000]],
+          "edges": [
+            {"value": 0.5, "why": "life stays fractional (1/life = 2) while period and month truncate", "source": "crates/calc-func/src/ported/depreciation_family.rs:153"}
+          ]
+        },
+        {
+          "name": "period",
+          "kind": "number",
+          "specials": [0.25, 1, 2, 6, 7],
+          "ranges": [[1e-300, 10001]],
+          "edges": [
+            {"value": 0.25, "why": "0 < period < 1 truncates to 0 and computes period 1 initial depreciation", "source": "crates/calc-func/src/ported/depreciation_family.rs:153"}
+          ]
+        },
+        {
+          "name": "month",
+          "kind": "integer",
+          "specials": [1, 6, 7, 11.9, 12],
+          "ranges": [[1, 12]],
+          "edges": [
+            {"value": 12, "why": "default when omitted; month < 12 permits an extra final partial period (life + 1)", "source": "crates/calc-func/src/ported/depreciation_family.rs:167"}
+          ]
+        }
+      ],
+      "relations": [
+        "trunc(period) <= trunc(life) + (1 if trunc(month) < 12 else 0)",
+        "1 <= trunc(month) <= 12"
+      ],
+      "regimes": [
+        {"name": "rate decimal rounding", "how": "rounds 1 - (salvage/cost)^(1/life) to 3 decimal places via Excel 15-digit decimal ROUND", "source": "crates/calc-func/src/ported/depreciation_family.rs:142"},
+        {"name": "final partial year", "how": "when trunc(month) < 12 and whole_period == whole_life + 1, computes (book/12)*rate*(12-month)", "source": "crates/calc-func/src/ported/depreciation_family.rs:206"}
+      ],
+      "error_edges": [
+        {"when": "cost < 0 || salvage < 0 || life <= 0 || period <= 0 || trunc(month) < 1 || trunc(month) > 12", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:161"},
+        {"when": "(period as u32) as i32 > (life as u32) as i32 + (trunc(month) < 12)", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:167"}
+      ],
+      "notes": "Truncates period and month but keeps life fractional; casts period/life via u32->i32."
+    },
+    "DDB": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [0, 1e-308, 2400, 1000000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 300, 5000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "life",
+          "kind": "number",
+          "specials": [1, 10, 1e308],
+          "ranges": [[1e-10, 10000]],
+          "edges": []
+        },
+        {
+          "name": "period",
+          "kind": "number",
+          "specials": [0.5, 1, 2, 10, 4294967296],
+          "ranges": [[1e-300, 10000]],
+          "edges": [
+            {"value": 1, "why": "period <= 1 sets power = 1.0", "source": "crates/calc-func/src/ported/depreciation_family.rs:425"},
+            {"value": 4294967296, "why": "period - 1 >= u32::MAX switches from x87 integer power loop to excel_pow_positive", "source": "crates/calc-func/src/ported/depreciation_family.rs:430"}
+          ]
+        },
+        {
+          "name": "factor",
+          "kind": "number",
+          "specials": [1e-308, 1, 2, 3, 10],
+          "ranges": [[1e-300, 100]],
+          "edges": [
+            {"value": 2, "why": "default double-declining factor when omitted", "source": "crates/calc-func/src/catalogue/financial.rs:374"}
+          ]
+        }
+      ],
+      "relations": [
+        "period <= life"
+      ],
+      "regimes": [
+        {"name": "integer vs fractional period power", "how": "when period > 1 and (period-1) integer < u32::MAX uses x87 integer power loop, >= u32::MAX uses excel_pow_positive, else power_kernel", "source": "crates/calc-func/src/ported/depreciation_family.rs:430"}
+      ],
+      "error_edges": [
+        {"when": "cost < 0 || salvage < 0 || life <= 0 || period <= 0 || period > life || factor <= 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:398"},
+        {"when": "declining amount overflows before salvage clipping", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:448"}
+      ],
+      "notes": "Flushes subnormal factor/life rate to 0 before multiplying by cost; checks declining overflow before salvage clamp."
+    },
+    "VDB": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [0, 1e-308, 2400, 10000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 300, 5000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "life",
+          "kind": "number",
+          "specials": [1, 10, 100],
+          "ranges": [[1e-10, 10000]],
+          "edges": []
+        },
+        {
+          "name": "start_period",
+          "kind": "number",
+          "specials": [0, 0.5, 1, 5],
+          "ranges": [[0, 10000]],
+          "edges": []
+        },
+        {
+          "name": "end_period",
+          "kind": "number",
+          "specials": [0, 0.5, 1, 1.5, 10],
+          "ranges": [[0, 10000]],
+          "edges": []
+        },
+        {
+          "name": "factor",
+          "kind": "number",
+          "specials": [0, 1.5, 2, 3],
+          "ranges": [[0, 100]],
+          "edges": [
+            {"value": 0, "why": "explicit empty factor slot reads as 0 (straight-line when no_switch=FALSE); omitted trailing factor defaults to 2", "source": "crates/calc-func/src/catalogue/financial.rs:379"}
+          ]
+        },
+        {
+          "name": "no_switch",
+          "kind": "logical",
+          "specials": [false, true],
+          "ranges": [],
+          "edges": [
+            {"value": false, "why": "default; switches to straight-line when straight - declining >= DBL_MIN/16", "source": "crates/calc-func/src/ported/depreciation_family.rs:296"},
+            {"value": true, "why": "never switches to straight-line", "source": "crates/calc-func/src/ported/depreciation_family.rs:234"}
+          ]
+        }
+      ],
+      "relations": [
+        "0 <= start_period <= end_period <= life"
+      ],
+      "regimes": [
+        {"name": "no_switch TRUE", "how": "sums DDB annual amounts per year with separate x87 partial-year products", "source": "crates/calc-func/src/ported/depreciation_family.rs:234"},
+        {"name": "no_switch FALSE", "how": "advances period-by-period and switches permanently to straight-line when straight - declining >= DBL_MIN/16", "source": "crates/calc-func/src/ported/depreciation_family.rs:296"},
+        {"name": "start_period == end_period", "how": "returns 0.0 immediately", "source": "crates/calc-func/src/ported/depreciation_family.rs:235"}
+      ],
+      "error_edges": [
+        {"when": "cost < 0 || salvage < 0 || life <= 0 || factor < 0 || start_period < 0 || end_period < start_period || end_period > life", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:228"},
+        {"when": "subnormal/overflowing straight-line division available/remaining_life", "excel": "#NUM!", "source": "crates/calc-func/src/ported/depreciation_family.rs:336"}
+      ],
+      "notes": "Preserves subnormal scalar inputs; omitted factor defaults to 2 while explicit empty slot reads as 0."
+    },
+    "AMORLINC": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [1e-300, 1000, 2400, 100000],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "date_purchased",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 39679, 41252, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "first_period",
+          "kind": "date-serial",
+          "specials": [0, 1, 60, 61, 39813, 41557, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 300, 1000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "period",
+          "kind": "number",
+          "specials": [0, 0.5, 1, 6, 7],
+          "ranges": [[0, 1000]],
+          "edges": [
+            {"value": 0, "why": "exact 0 returns prorated first period; 0 < period < 1 returns full annual charge cost * rate", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:271"}
+          ]
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.1, 0.15, 0.5, 1],
+          "ranges": [[1e-300, 1]],
+          "edges": []
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 2, "why": "basis 2 (Actual/360) is rejected with #NUM! in AMORLINC/AMORDEGRC", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:35"}
+          ]
+        }
+      ],
+      "relations": [
+        "date_purchased <= first_period",
+        "salvage <= cost",
+        "basis in {0, 1, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "period == 0 prorated", "how": "returns cost * (rate * initial_fraction) capped at cost - salvage", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:260"},
+        {"name": "0 < period < 1", "how": "returns full annual depreciation cost * rate", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:273"},
+        {"name": "basis 1 purchase-year denominator", "how": "divides actual days by purchase year length (365/366) even across year boundaries", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:120"}
+      ],
+      "error_edges": [
+        {"when": "cost <= 0 || salvage < 0 || salvage > cost || period < 0 || rate <= 0 || trunc(date_purchased) > trunc(first_period)", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/financial.rs:152"},
+        {"when": "trunc(basis) not in {0, 1, 3, 4}", "excel": "#NUM!", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:35"},
+        {"when": "date_purchased or first_period < 0 or > 2958465", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/kit.rs:155"}
+      ],
+      "notes": "Rejects basis 2; treats cost == salvage as 0.0; uses 0 < period < 1 as full annual charge."
+    },
+    "AMORDEGRC": {
+      "args": [
+        {
+          "name": "cost",
+          "kind": "number",
+          "specials": [1e-300, 1000, 2400, 100000],
+          "ranges": [[1e-300, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "date_purchased",
+          "kind": "date-serial",
+          "specials": [0, 1, 59, 60, 61, 39679, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "first_period",
+          "kind": "date-serial",
+          "specials": [0, 1, 60, 61, 39813, 2958465],
+          "ranges": [[0, 2958465]],
+          "edges": []
+        },
+        {
+          "name": "salvage",
+          "kind": "number",
+          "specials": [0, 300, 1000],
+          "ranges": [[0, 1000000000]],
+          "edges": []
+        },
+        {
+          "name": "period",
+          "kind": "number",
+          "specials": [0, 0.5, 1, 2, 3, 6],
+          "ranges": [[0, 1000]],
+          "edges": [
+            {"value": 0.5, "why": "0 < period < 1 is NotHeld fault (dc-ymjf.2.42) in DnaCalc; integer periods floor", "source": "crates/calc-func/src/catalogue/financial.rs:401"}
+          ]
+        },
+        {
+          "name": "rate",
+          "kind": "number",
+          "specials": [1e-300, 0.15, 0.16666666666666666, 0.2, 0.3333333333333333, 0.49999999999999994, 0.5],
+          "ranges": [[1e-300, 0.49999999999999994]],
+          "edges": [
+            {"value": 0.3333333333333333, "why": "rate >= 1/3 enters high-rate 1.5x branch using 15-digit ROUND", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:316"},
+            {"value": 0.2, "why": "life = 1/rate switches coefficient at 3, 5, 6", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:181"},
+            {"value": 0.5, "why": "rate >= 0.5_f64.next_down() returns #NUM!", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:7"}
+          ]
+        },
+        {
+          "name": "basis",
+          "kind": "integer",
+          "specials": [0, 1, 3, 4],
+          "ranges": [[0, 4]],
+          "edges": [
+            {"value": 2, "why": "basis 2 is rejected with #NUM!", "source": "crates/calc-func/src/catalogue/financial.rs:398"}
+          ]
+        }
+      ],
+      "relations": [
+        "date_purchased <= first_period",
+        "salvage <= cost",
+        "rate < 0.5",
+        "basis in {0, 1, 3, 4}"
+      ],
+      "regimes": [
+        {"name": "coefficient step bands", "how": "life=1/rate gives 1.0 (<3), 1.5 (<5), 2.0 (<=6), 2.5 (>6)", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:181"},
+        {"name": "high-rate branch (rate >= 1/3)", "how": "uses 1.5*rate and 15-digit ROUND ending in 2 or 3 periods", "source": "crates/calc-func/src/ported/amor_depreciation_family.rs:203"}
+      ],
+      "error_edges": [
+        {"when": "cost <= 0 || salvage < 0 || salvage > cost || period < 0 || rate <= 0 || rate >= 0.5_f64.next_down() || trunc(date_purchased) > trunc(first_period)", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/financial.rs:152"},
+        {"when": "trunc(basis) not in {0, 1, 3, 4}", "excel": "#NUM!", "source": "crates/calc-func/src/catalogue/financial.rs:398"}
+      ],
+      "notes": "Rejects basis 2 and rate >= 0.5.next_down(); rounds each period charge to whole units."
+    },
+    "DOLLARDE": {
+      "args": [
+        {
+          "name": "fractional_dollar",
+          "kind": "number",
+          "specials": [-1.125, -1.02, 0, 1.01, 1.02, 1.5, 3.690026, 8.963035],
+          "ranges": [[-1000000, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "fraction",
+          "kind": "number",
+          "specials": [-0.1, 0, 0.9, 1, 8, 10, 16, 16.9, 32, 100, 10000000000],
+          "ranges": [[1, 10000000000]],
+          "edges": [
+            {"value": 0, "why": "fraction in [0, 1) truncates to 0 returning #DIV/0!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:28"},
+            {"value": 10, "why": "power-of-10 denominators equal scale 10^ceil(log10(d)) leaving input unchanged", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:35"}
+          ]
+        }
+      ],
+      "relations": [
+        "trunc(fraction) >= 1"
+      ],
+      "regimes": [
+        {"name": "power-of-10 denominator", "how": "scale == denominator so whole + frac*scale/denom leaves number unchanged", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:35"}
+      ],
+      "error_edges": [
+        {"when": "fraction < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:25"},
+        {"when": "fraction >= 0 && trunc(fraction) == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:28"},
+        {"when": "logical in either argument", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:184"}
+      ],
+      "notes": "Rejects logicals with #VALUE!; truncates fraction as binary64 without i32 saturation."
+    },
+    "DOLLARFR": {
+      "args": [
+        {
+          "name": "decimal_dollar",
+          "kind": "number",
+          "specials": [-1.125, 0, 1.03125, 1.125, 12.375],
+          "ranges": [[-1000000, 1000000]],
+          "edges": []
+        },
+        {
+          "name": "fraction",
+          "kind": "number",
+          "specials": [-1, 0, 0.9, 1, 8, 10, 16, 16.9, 32, 100, 10000000000],
+          "ranges": [[1, 10000000000]],
+          "edges": [
+            {"value": 0, "why": "fraction in [0, 1) truncates to 0 returning #DIV/0!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:28"},
+            {"value": 10, "why": "power-of-10 denominators equal scale leaving input unchanged", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:35"}
+          ]
+        }
+      ],
+      "relations": [
+        "trunc(fraction) >= 1"
+      ],
+      "regimes": [
+        {"name": "power-of-10 denominator", "how": "scale == denominator leaves number unchanged", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:35"}
+      ],
+      "error_edges": [
+        {"when": "fraction < 0", "excel": "#NUM!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:25"},
+        {"when": "fraction >= 0 && trunc(fraction) == 0", "excel": "#DIV/0!", "source": "crates/calc-func/src/ported/dollar_fraction_family.rs:28"},
+        {"when": "logical in either argument", "excel": "#VALUE!", "source": "crates/calc-func/src/catalogue/financial.rs:184"}
+      ],
+      "notes": "Rejects logicals with #VALUE!; splits whole via trunc so negative inputs keep consistent sign."
+    }
+  }
+}
