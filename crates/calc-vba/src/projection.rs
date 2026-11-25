@@ -660,11 +660,22 @@ impl ModelObject {
             && (kind == InvokeKind::Put || (kind == InvokeKind::Putref && values.len() > 1))
             && let Some(getter) =
                 lookup_member_by_name(self.object.interface, name, InvokeKind::Get)
-            && getter.arguments().next().is_none()
         {
-            let inner = self.invoke_member(getter, &[], &[])?;
-            if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
-                return target.invoke_late(None, kind, values, names);
+            let params = getter.arguments().count();
+            if params == 0 {
+                let inner = self.invoke_member(getter, &[], &[])?;
+                if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
+                    return target.invoke_late(None, kind, values, names);
+                }
+            } else if values.len() > 1 {
+                // `ws.Range("A1") = 3`: the getter takes the leading arguments (its own
+                // parameters), the returned object's default member takes the assigned value
+                // (dc-z34rd).
+                let split = params.min(values.len() - 1);
+                let inner = self.invoke_member(getter, &values[..split], &names[..split])?;
+                if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
+                    return target.invoke_late(None, kind, &values[split..], &names[split..]);
+                }
             }
         }
         if let Some(name) = name
