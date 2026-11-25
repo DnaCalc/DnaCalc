@@ -7948,3 +7948,18 @@ fn percentrank_publishes_the_fifteen_digit_reading_through_the_decimal_scale() {
         );
     }
 }
+
+/// Excel 20527 (dc-j9k.313, .328, .331): SUMX2MY2, SUMX2PY2 and SUMXMY2 pair the cells in
+/// row-major order when the two ranges have the same count of cells, whatever their shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sum_of_squares_pairs_ranges_of_equal_count_with_different_shapes() {
+    let square = || arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    let column = || col(&[1.0, 2.0, 4.0, 8.0]);
+    exact(call("SUMX2MY2", vec![square(), column()]), -55.0);
+    exact(call("SUMX2PY2", vec![square(), column()]), 115.0);
+    exact(call("SUMXMY2", vec![square(), column()]), 17.0);
+    for name in ["SUMX2MY2", "SUMX2PY2", "SUMXMY2"] {
+        error(call(name, vec![square(), col(&[1.0, 2.0, 3.0])]), NA);
+    }
+}
