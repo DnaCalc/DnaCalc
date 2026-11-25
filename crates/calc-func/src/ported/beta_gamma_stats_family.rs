@@ -762,6 +762,21 @@ pub fn gamma_inv_kernel(
     if alpha.is_subnormal() {
         return Err(WorksheetErrorCode::Div0);
     }
+    // Excel 16.0.20625.20108 (dc-j9k.155, bisected to the ulp with p = 0.9375 and 0.5): from
+    // alpha = 0x7fdd154b28e76973 (8.169e307) the answer is #NUM!; below it the #DIV/0! from
+    // 0x7fc45f306dc9c883 (DBL_MAX / 2 pi) holds.
+    if alpha >= f64::from_bits(0x7fdd_154b_28e7_6973) {
+        return Err(WorksheetErrorCode::Num);
+    }
+    // Between the two steps a scale that overflows the stored result is #NUM!, otherwise #DIV/0!
+    // (alpha 3e307, 4e307, 6e307, 8e307 against beta 1 to 60, 52 answers).
+    if alpha >= f64::from_bits(0x7fc4_5f30_6dc9_c883) {
+        return Err(if crate::ported::excel_numeric::excel_x87_mul(beta, alpha).is_finite() {
+            WorksheetErrorCode::Div0
+        } else {
+            WorksheetErrorCode::Num
+        });
+    }
     use crate::ported::excel_numeric::excel_x87_mul;
     // Unified 7-term Goldstein (Algorithm 451) across all large shapes 2*alpha in [5e10, 2^1000)
     // (Carbon cb20 / dc-j9k.71).
@@ -842,6 +857,30 @@ pub fn gamma_inv_kernel(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Live Excel 16.0.20625.20108 (dc-j9k.155): the #DIV/0! to #NUM! step is at 0x7fdd154b28e76973.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gamma_inv_huge_alpha_is_num_from_the_bisected_step() {
+        let a = |bits| f64::from_bits(bits);
+        for p in [0.9375, 0.5] {
+            assert_eq!(gamma_inv_kernel(p, a(0x7fc4_5f30_6dc9_c882), 1.0).is_ok(), true);
+            assert_eq!(gamma_inv_kernel(p, a(0x7fc4_5f30_6dc9_c883), 1.0), Err(WorksheetErrorCode::Div0));
+            assert_eq!(gamma_inv_kernel(p, a(0x7fdd_154b_28e7_6972), 1.0), Err(WorksheetErrorCode::Div0));
+            assert_eq!(gamma_inv_kernel(p, a(0x7fdd_154b_28e7_6973), 1.0), Err(WorksheetErrorCode::Num));
+        }
+        assert_eq!(
+            gamma_inv_kernel(0.9375, a(0x7fde_b981_a5aa_a577), 2.0),
+            Err(WorksheetErrorCode::Num)
+        );
+        // Below the step a scale that overflows the result is #NUM!.
+        for (alpha, beta, num) in [(3.0e307, 5.0, false), (3.0e307, 6.0, true), (4.0e307, 4.0, false),
+            (4.0e307, 5.0, true), (6.0e307, 2.0, false), (6.0e307, 3.0, true), (8.0e307, 2.0, false),
+            (8.0e307, 3.0, true), (8.0e307, 60.0, true)] {
+            let want = if num { WorksheetErrorCode::Num } else { WorksheetErrorCode::Div0 };
+            assert_eq!(gamma_inv_kernel(0.5, alpha, beta), Err(want), "{alpha} {beta}");
+        }
+    }
 
     // BUG-FUNC-039 item 3: GAMMA.INV p=0 and p=1 boundary cases.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
