@@ -219,9 +219,49 @@ pub struct FormatPatch {
     pub font_color_indexed: Option<u8>,
     /// Six-digit RGB fill color, optionally prefixed with a hash. An empty string clears the fill.
     pub fill: Option<String>,
+    /// Interior pattern and colours, as Format Cells' Fill tab sets them.
+    pub interior: Option<InteriorPatch>,
     /// Replacement settings for the four outer border edges.
     pub borders: Option<BorderPatch>,
 }
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// Changes to a cell fill. A colour set on a cell without a pattern makes the fill solid, as in Excel.
+pub struct InteriorPatch {
+    /// OOXML pattern type keyword (`none`, `solid`, `darkGray`, ...).
+    pub pattern: Option<String>,
+    /// Cell colour: the solid colour, or the background behind a pattern.
+    pub color: Option<FillColor>,
+    /// Colour of the pattern's marks. The cell must have a pattern other than solid.
+    pub pattern_color: Option<FillColor>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// A fill colour choice.
+pub enum FillColor {
+    /// Six-digit RGB, optionally prefixed with a hash.
+    Rgb(String),
+    /// OOXML workbook palette index, 8 through 63.
+    Indexed(u8),
+    /// Automatic colour.
+    Automatic,
+}
+impl FillColor {
+    fn style(&self) -> Result<Option<StyleColor>, String> {
+        Ok(match self {
+            Self::Rgb(v) => color(v)?,
+            Self::Indexed(i) if (8..=63).contains(i) => Some(StyleColor {
+                indexed: Some(i.to_string()),
+                ..Default::default()
+            }),
+            Self::Indexed(_) => return Err("Choose one fill color from the workbook palette".into()),
+            Self::Automatic => None,
+        })
+    }
+}
+const PATTERNS: [&str; 19] = [
+    "none", "solid", "mediumGray", "darkGray", "lightGray", "darkHorizontal", "darkVertical", "darkDown", "darkUp",
+    "darkGrid", "darkTrellis", "lightHorizontal", "lightVertical", "lightDown", "lightUp", "lightGrid", "lightTrellis",
+    "gray125", "gray0625",
+];
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// Replacement border style and color. Each `false` flag clears its edge.
 pub struct BorderPatch {
@@ -316,6 +356,14 @@ impl FormatPatch {
         }
         if self.superscript == Some(true) && self.subscript == Some(true) {
             return Err("Superscript and subscript cannot both be on".into());
+        }
+        if let Some(i) = &self.interior {
+            if i.pattern.as_deref().is_some_and(|p| !PATTERNS.contains(&p)) {
+                return Err("Choose a fill pattern".into());
+            }
+            for c in [&i.color, &i.pattern_color].into_iter().flatten() {
+                c.style()?;
+            }
         }
         for c in [&self.font_color, &self.fill].into_iter().flatten() {
             color(c)?;
@@ -543,6 +591,18 @@ pub fn patched_style(
             xf.apply_fill = true;
         }
     }
+    if let Some(i) = &patch.interior {
+        let source = xf.fill_id.or(parent.fill_id).unwrap_or(0);
+        let before = table.fills.get(source as usize).ok_or("The source fill is unavailable")?;
+        let fill = interior_fill(before, i)?;
+        if &fill != before {
+            let id = table.fills.len() as u32;
+            table.fills.push(fill);
+            table.sources.fills.insert(id, source);
+            xf.fill_id = Some(id);
+            xf.apply_fill = true;
+        }
+    }
     if let Some(v) = &patch.borders {
         let source = xf.border_id.or(parent.border_id).unwrap_or(0);
         let mut border = table
@@ -580,6 +640,49 @@ pub fn patched_style(
     table.cell_formats.push(xf);
     table.sources.cell_formats.insert(id, index);
     Ok(id)
+}
+
+fn interior_fill(before: &Fill, patch: &InteriorPatch) -> Result<Fill, String> {
+    let mut fill = before.clone();
+    let kind = |f: &Fill| f.pattern_type.clone().unwrap_or_else(|| "none".into());
+    if let Some(pattern) = &patch.pattern {
+        let old = kind(&fill);
+        match (old.as_str(), pattern.as_str()) {
+            (_, "none") => {
+                fill.fg_color = None;
+                fill.bg_color = None;
+            }
+            ("none", _) => {}
+            ("solid", "solid") => {}
+            // The cell colour moves between the solid foreground and the pattern's background.
+            ("solid", _) => {
+                fill.bg_color = fill.fg_color.take();
+            }
+            (_, "solid") => {
+                fill.fg_color = fill.bg_color.take();
+            }
+            _ => {}
+        }
+        fill.pattern_type = Some(pattern.clone());
+    }
+    if let Some(c) = &patch.color {
+        let c = c.style()?;
+        match kind(&fill).as_str() {
+            "none" => {
+                fill.pattern_type = Some("solid".into());
+                fill.fg_color = c;
+            }
+            "solid" => fill.fg_color = c,
+            _ => fill.bg_color = c,
+        }
+    }
+    if let Some(c) = &patch.pattern_color {
+        if matches!(kind(&fill).as_str(), "none" | "solid") {
+            return Err("The pattern colour needs a fill pattern".into());
+        }
+        fill.fg_color = c.style()?;
+    }
+    Ok(fill)
 }
 
 pub(crate) fn prepare(

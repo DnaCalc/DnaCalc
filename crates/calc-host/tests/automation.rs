@@ -6624,3 +6624,100 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     let reply = invoke_kind(&model, &range(&model, "H20"), "Sort", InvokeKind::Method, vec![key]);
     assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
 }
+
+fn interior(model: &WorkbookAutomation, address: &str) -> ObjectRef {
+    let target = range(model, address);
+    let interior = obj(invoke(model, &target, "Interior", vec![]).unwrap());
+    model.released(&target);
+    interior
+}
+
+fn i4(model: &WorkbookAutomation, target: &ObjectRef, member: &str) -> i32 {
+    match invoke(model, target, member, vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{member} returned {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_defaults_report_no_fill() {
+    let (_, model, _) = blank_report();
+    let cell = interior(&model, "B2");
+    assert_eq!(i4(&model, &cell, "Color"), 16_777_215);
+    assert_eq!(i4(&model, &cell, "ColorIndex"), -4142);
+    assert_eq!(i4(&model, &cell, "Pattern"), -4142);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_color_is_solid_and_survives_reopen() {
+    let (host, model, _) = blank_report();
+    let cells = interior(&model, "B2:C3");
+    // RGB(255, 128, 0) in VBA's byte order.
+    put_font(&model, &cells, "Color", AutoValue::I4(255 | 128 << 8)).unwrap();
+    assert_eq!(i4(&model, &cells, "Color"), 255 | 128 << 8);
+    assert_eq!(i4(&model, &cells, "Pattern"), 1);
+    let mixed = interior(&model, "B2:D3");
+    assert!(matches!(
+        invoke(&model, &mixed, "Color", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    for bad in [AutoValue::I4(-1), AutoValue::I4(0x0100_0000)] {
+        assert_eq!(excel_error(put_font(&model, &cells, "Color", bad)).0, 1004);
+    }
+    assert_eq!(
+        excel_error(invoke(&model, &cells, "Color", vec![AutoValue::I4(1)])).0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    let cell = interior(&reopened, "C3");
+    assert_eq!(i4(&reopened, &cell, "Color"), 255 | 128 << 8);
+    assert_eq!(i4(&reopened, &cell, "Pattern"), 1);
+    assert_eq!(i4(&reopened, &interior(&reopened, "D3"), "Pattern"), -4142);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_color_index_uses_the_palette() {
+    let (host, model, _) = blank_report();
+    let cell = interior(&model, "E5");
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(3)).unwrap();
+    assert_eq!(i4(&model, &cell, "ColorIndex"), 3);
+    assert_eq!(i4(&model, &cell, "Color"), 255);
+    assert_eq!(i4(&model, &cell, "Pattern"), 1);
+    for bad in [0, 57, -4143] {
+        assert_eq!(
+            excel_error(put_font(&model, &cell, "ColorIndex", AutoValue::I4(bad))).0,
+            1004
+        );
+    }
+    let reopened = reopen_formatting(&host);
+    assert_eq!(i4(&reopened, &interior(&reopened, "E5"), "ColorIndex"), 3);
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(-4142)).unwrap();
+    assert_eq!(i4(&model, &cell, "Pattern"), -4142);
+    assert_eq!(i4(&model, &cell, "Color"), 16_777_215);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_pattern_keeps_color_and_pattern_color() {
+    let (host, model, _) = blank_report();
+    let cell = interior(&model, "A7");
+    put_font(&model, &cell, "Color", AutoValue::I4(0x00FF00)).unwrap();
+    put_font(&model, &cell, "Pattern", AutoValue::I4(-4126)).unwrap();
+    assert_eq!(i4(&model, &cell, "Pattern"), -4126);
+    assert_eq!(i4(&model, &cell, "Color"), 0x00FF00);
+    put_font(&model, &cell, "PatternColor", AutoValue::I4(0xFF0000)).unwrap();
+    assert_eq!(i4(&model, &cell, "PatternColor"), 0xFF0000);
+    assert_eq!(i4(&model, &cell, "Color"), 0x00FF00);
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "Pattern", AutoValue::I4(99))).0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    let cell = interior(&reopened, "A7");
+    assert_eq!(i4(&reopened, &cell, "Pattern"), -4126);
+    assert_eq!(i4(&reopened, &cell, "Color"), 0x00FF00);
+    assert_eq!(i4(&reopened, &cell, "PatternColor"), 0xFF0000);
+}
