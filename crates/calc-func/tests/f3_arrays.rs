@@ -541,3 +541,29 @@ fn wraprows_and_wrapcols_count_and_argument_order() {
     assert_eq!((padded.shape().rows, padded.shape().cols), (2, 2));
     assert_eq!(padded.get(1, 1).unwrap().as_error(), Some(NA));
 }
+
+/// Excel 16.0.20527 (Touchstone, 2026-11-25; dc-j9k.314 onwards): a RANDARRAY whose minimum exceeds its
+/// maximum is #VALUE! even where the size alone would be #SPILL! or too big to model; a zero size is
+/// #CALC! before that check.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn randarray_minimum_above_maximum_is_value_before_spill() {
+    use calc_func::value::WorksheetErrorCode::Spill;
+    error(call("RANDARRAY", vec![n(10.5), n(32768.0), n(664.0)]), Value);
+    error(call("RANDARRAY", vec![n(10.0), n(16385.0), n(664.0)]), Value);
+    error(call("RANDARRAY", vec![n(2000.0), n(2000.0), n(5.0), n(1.0)]), Value);
+    error(call("RANDARRAY", vec![n(0.0), n(1.0), n(5.0), n(1.0)]), Calc);
+    error(call("RANDARRAY", vec![n(1.0), n(1.0), n(1.2), n(1.5), b(true)]), Value);
+    error(call("RANDARRAY", vec![n(10.5), n(32768.0)]), Spill);
+}
+
+/// Excel 16.0.20527 (Touchstone, dc-j9k.351 to .353): SEQUENCE floors a dimension the way RANDARRAY does,
+/// so a negative dimension within about 2^-23 of zero is a zero dimension (#CALC!), not #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_tiny_negative_dimension_is_calc() {
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x8050_0000_0000_0000))]), Calc);
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x8010_0000_0000_0001)), n(0.0)]), Calc);
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x3d72_fe28_7039_747c)), n(f64::from_bits(0xbd9a_4031_0ea7_ccad))]), Calc);
+    error(call("SEQUENCE", vec![n(-0.5)]), Value);
+}
