@@ -40,7 +40,7 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
   run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   run a public VBA Sub or Function of the file's project
-  run    <book> --all [--fixtures]        run every public entry, each in its own session; --fixtures gives required scalar arguments a documented value (Number 1, Boolean True, Text 1)
+  run    <book> --all [--fixtures] [--steps <n>]   run every public entry, each in its own session; --fixtures gives required scalar arguments a documented value (Number 1, Boolean True, Text 1); --steps <n> is the most steps one VBA call may take (default 50000000)
 workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
          NOW and TODAY read this machine's clock (UTC)
@@ -72,6 +72,7 @@ pub(crate) struct Cli {
     pub(crate) macro_args: Vec<String>,
     pub(crate) all_macros: bool,
     pub(crate) fixtures: bool,
+    pub(crate) steps: u64,
     pub(crate) locale: String,
 }
 
@@ -90,6 +91,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         macro_args: Vec::new(),
         all_macros: false,
         fixtures: false,
+        steps: session::MAX_VBA_STEPS,
         locale: "en-US".into(),
     };
     let mut books = Vec::new();
@@ -104,6 +106,13 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
             "--cells" => cli.list_cells = true,
             "--all" => cli.all_macros = true,
             "--fixtures" => cli.fixtures = true,
+            "--steps" => {
+                let text = value("a step count")?;
+                cli.steps = text
+                    .replace('_', "")
+                    .parse()
+                    .map_err(|_| fail(format!("--steps {text:?}: expected a whole number")))?;
+            }
             "--out" => cli.out = Some(value("a file")?),
             "--macro" => cli.macro_name = Some(value("Module.Proc")?),
             "--arg" => cli.macro_args.push(value("a value")?),

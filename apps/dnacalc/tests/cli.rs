@@ -254,3 +254,24 @@ fn run_all_reports_one_outcome_per_entry() {
     let (_, code, _) = dnacalc(&["run", book, "--all", "--json"]);
     assert_eq!(code, 2);
 }
+
+/// `--steps <n>` sets the most steps one VBA call may take (default 50,000,000): a long Monte Carlo
+/// entry finishes with a larger budget, and a small one ends the entry with the typed budget failure.
+/// (dc-re3qu)
+#[test]
+fn run_all_takes_a_step_budget_per_entry() {
+    let book = root().join("crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+    let book = book.to_str().unwrap();
+    let (report, _, _) = dnacalc(&["run", book, "--all", "--steps", "1", "--macro-level", "guarded", "--json"]);
+    let rows = report["invocations"].as_array().unwrap();
+    let my_func = rows.iter().find(|row| row["entry"] == "Module1.MyFunc").unwrap();
+    assert_eq!(my_func["outcome"], serde_json::json!({
+        "kind": "failed", "reason": "the step budget was exhausted"
+    }));
+    let (report, _, _) = dnacalc(&["run", book, "--all", "--steps", "1000000", "--macro-level", "guarded", "--json"]);
+    let rows = report["invocations"].as_array().unwrap();
+    let my_func = rows.iter().find(|row| row["entry"] == "Module1.MyFunc").unwrap();
+    assert_eq!(my_func["outcome"]["kind"], "success");
+    let (_, code, _) = dnacalc(&["run", book, "--all", "--steps", "many", "--macro-level", "guarded", "--json"]);
+    assert_eq!(code, 2);
+}

@@ -1024,8 +1024,8 @@ pub(crate) fn cumulative_principal(
     periodic_rate: f64,
     periods: f64,
     present_value: f64,
-    start_period: i32,
-    end_period: i32,
+    start_period: i64,
+    end_period: i64,
     timing: PaymentTiming,
 ) -> Option<f64> {
     if !(periodic_rate > 0.0) || start_period > end_period || start_period < 1 {
@@ -1036,9 +1036,9 @@ pub(crate) fn cumulative_principal(
     let first = if beginning { start_period.max(2) } else { start_period };
     let mut total = 0.0;
     if end_period >= first {
-        let last = periods - f64::from(end_period) + 1.0;
+        let last = periods - end_period as f64 + 1.0;
         let discount = crate::ported::excel_numeric::excel_exp(-excel_x87_mul(last, log_growth));
-        let count = f64::from(end_period - first + 1);
+        let count = (end_period - first + 1) as f64;
         let span = -crate::ported::excel_numeric::excel_expm1_spilled(-excel_x87_mul(count, log_growth));
         total = excel_x87_mul(quotient, excel_x87_mul(discount, span));
         if !beginning {
@@ -1211,10 +1211,11 @@ pub fn fvschedule(principal: f64, schedule: &[f64]) -> Result<f64, FinancialErro
     for rate in schedule {
         result *= 1.0 + rate;
     }
+    // Live Excel (dc-j9k.330): an overflowing running product (or an infinity times zero) is 0.
     if result.is_finite() {
         Ok(result)
     } else {
-        Err(FinancialError::Num)
+        Ok(0.0)
     }
 }
 
@@ -2450,6 +2451,28 @@ mod tests {
     fn fvschedule_matches_microsoft_sample() {
         let got = fvschedule(1.0, &[0.09, 0.11, 0.10]).expect("fvschedule");
         assert_close(got, 1.33089, 1e-12);
+    }
+
+    /// Live Excel (dc-j9k.330): a schedule that overflows the running product publishes 0, not #NUM!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fvschedule_overflow_publishes_zero() {
+        assert_eq!(fvschedule(9e307, &[1.0]).map(f64::to_bits), Ok(0));
+        assert_eq!(fvschedule(9e307, &[1.0, -0.75]).map(f64::to_bits), Ok(0));
+        assert_eq!(fvschedule(9e307, &[1.0, -1.0]).map(f64::to_bits), Ok(0));
+        assert_eq!(fvschedule(1e200, &[1e100, 1e100]).map(f64::to_bits), Ok(0));
+        assert_eq!(fvschedule(1e200, &[1e300, -0.5, -0.5]).map(f64::to_bits), Ok(0));
+        assert_eq!(fvschedule(1e200, &[1e100, -0.5]).map(f64::to_bits), Ok(0x7e27e43c8800759c));
+        assert_eq!(fvschedule(8e307, &[1.0]).map(f64::to_bits), Ok(0x7fec7b1f3cac7433));
+        assert_eq!(fvschedule(2.0, &[-5.0]).map(f64::to_bits), Ok(0xc020000000000000));
+        assert_eq!(
+            fvschedule(
+                f64::from_bits(0x42e0000000000000),
+                &[-536870912.0, 4503599627370496.0, -10.0, f64::MAX, -0.5, 360.0]
+            )
+            .map(f64::to_bits),
+            Ok(0)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

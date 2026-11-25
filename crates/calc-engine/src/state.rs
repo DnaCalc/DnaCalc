@@ -347,6 +347,9 @@ pub struct EngineState {
     /// Nonlocal certificate facets retain conservative validation. Ordinary dependency reads
     /// use the graph's invalidation and publication candidates instead of a workbook scan.
     pub(crate) certificate_watch: BTreeSet<NodeId>,
+    /// The file cache a formula had when its recalculation was refused: kept for Save only, as the cell's cache with
+    /// its file provenance. It is never read as calculated (dc-e6b0j).
+    pub(crate) refused_file_caches: BTreeMap<NodeId, FileCached>,
     /// Topic to the nodes whose published result stamp read it (dc-snz.23.2). Entries are added
     /// when a result is published and verified against the current stamp when used, so a node
     /// that no longer reads the topic is dropped lazily and never dirtied.
@@ -537,6 +540,16 @@ impl EngineState {
                 .or_default()
                 .insert(node);
         }
+        match &result {
+            FormulaResult::NotModeled { .. } => {
+                if let Some(FormulaResult::FileCached(cache)) = self.results.of(node) {
+                    self.refused_file_caches.insert(node, cache.clone());
+                }
+            }
+            _ => {
+                self.refused_file_caches.remove(&node);
+            }
+        }
         self.results.publish(node, at, result, group);
     }
     /// Physical result rows, distinct from calculation coverage or freshness.
@@ -603,6 +616,7 @@ impl EngineState {
             linked_input_version: self.linked_input_version,
             contract: self.contract.clone(),
             certificate_watch: self.certificate_watch.clone(),
+            refused_file_caches: self.refused_file_caches.clone(),
             rtd_readers: self.rtd_readers.clone(),
             certificate_candidates: self.certificate_candidates.clone(),
             certificate_context: self.certificate_context,
@@ -766,6 +780,7 @@ impl EngineState {
             linked_input_version: 0,
             contract: crate::contract::ContractState::new(),
             certificate_watch: BTreeSet::new(),
+            refused_file_caches: BTreeMap::new(),
             rtd_readers: BTreeMap::new(),
             certificate_candidates: BTreeSet::new(),
             certificate_context: None,
@@ -1160,6 +1175,16 @@ impl EngineState {
                 Some(result)
             }
             FormulaResult::NotModeled { .. } => None,
+        }
+    }
+
+    /// The file cache of a formula whose recalculation was refused, for Save: Excel saves such a workbook, and the
+    /// cell keeps the value its file held, with its file provenance (dc-e6b0j).
+    pub fn refused_file_cache(&self, at: CellKey) -> Option<&FileCached> {
+        let node = self.node_at(at)?;
+        match self.results.of(node)? {
+            FormulaResult::NotModeled { .. } => self.refused_file_caches.get(&node),
+            _ => None,
         }
     }
 
