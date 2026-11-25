@@ -289,7 +289,7 @@ impl WorkbookAutomation {
     ) -> Reply {
         self.with_target(target, |_, meta| {
             // Workbook.Names lists every name, worksheet-scoped ones as "Sheet1!Local", ordered by that text.
-            // The order of local names among global ones is unmeasured (RUN-ON-WINDOWS, dc-oxh8w.33).
+            // The order of local names among global ones is unmeasured (RUN-ON-WINDOWS, dc-oxh8w.36).
             let mut names = meta
                 .model
                 .definitions()
