@@ -11,7 +11,22 @@ impl WorkbookAutomation {
         handlers.on("Styles", "_Default", InvokeKind::Get, Self::styles_item);
         handlers.on("Styles", "Add", InvokeKind::Method, Self::styles_add);
         handlers.on("Style", "Delete", InvokeKind::Method, Self::style_delete);
-        for member in ["Name", "NameLocal", "BuiltIn", "NumberFormat"] {
+        for member in [
+            "Name",
+            "NameLocal",
+            "BuiltIn",
+            "NumberFormat",
+            "Value",
+            "_Default",
+            "HorizontalAlignment",
+            "VerticalAlignment",
+            "WrapText",
+            "ShrinkToFit",
+            "IndentLevel",
+            "Orientation",
+            "Locked",
+            "FormulaHidden",
+        ] {
             handlers.on("Style", member, InvokeKind::Get, Self::style_member);
         }
     }
@@ -103,7 +118,46 @@ impl WorkbookAutomation {
             let styles = host.styles();
             let style = styles.cell_styles.get(index as usize).ok_or_else(|| AutoError::excel(424, "Object required"))?;
             Ok(match call.member.name.as_str() {
-                "Name" | "NameLocal" => AutoValue::text(&style.name),
+                "Name" | "NameLocal" | "Value" | "_Default" => AutoValue::text(&style.name),
+                "HorizontalAlignment" | "VerticalAlignment" | "WrapText" | "ShrinkToFit" | "IndentLevel" | "Orientation"
+                | "Locked" | "FormulaHidden" => {
+                    let base = styles.cell_style_formats.get(style.xf_id as usize).ok_or_else(|| {
+                        AutoError::not_modelled(format!("{} of a missing style format", call.label()), "dc-oxh8w.63")
+                    })?;
+                    let alignment = base.alignment.as_ref();
+                    match call.member.name.as_str() {
+                        "HorizontalAlignment" => {
+                            AutoValue::I4(format_enum_value(HORIZONTAL, alignment.and_then(|a| a.horizontal.as_deref()), call)?)
+                        }
+                        "VerticalAlignment" => {
+                            AutoValue::I4(format_enum_value(VERTICAL, alignment.and_then(|a| a.vertical.as_deref()), call)?)
+                        }
+                        "WrapText" => AutoValue::Bool(alignment.is_some_and(|a| a.wrap_text)),
+                        "ShrinkToFit" => AutoValue::Bool(alignment.is_some_and(|a| a.shrink_to_fit)),
+                        "IndentLevel" => {
+                            let indent = alignment.and_then(|a| a.indent.as_deref()).unwrap_or("0");
+                            AutoValue::I4(indent.parse().map_err(|_| {
+                                AutoError::not_modelled(format!("Style.IndentLevel stored as {indent}"), "dc-oxh8w.63")
+                            })?)
+                        }
+                        "Orientation" => {
+                            let rotation = alignment.and_then(|a| a.text_rotation.as_deref()).unwrap_or("0");
+                            AutoValue::I4(match rotation.parse::<i32>() {
+                                Ok(n @ 0..=90) => n,
+                                Ok(n @ 91..=180) => 90 - n,
+                                Ok(255) => XL_VERTICAL_TEXT,
+                                _ => {
+                                    return Err(AutoError::not_modelled(
+                                        format!("Style.Orientation stored as {rotation}"),
+                                        "dc-oxh8w.63",
+                                    ));
+                                }
+                            })
+                        }
+                        "Locked" => AutoValue::Bool(base.protection.as_ref().and_then(|p| p.locked).unwrap_or(true)),
+                        _ => AutoValue::Bool(base.protection.as_ref().and_then(|p| p.hidden).unwrap_or(false)),
+                    }
+                }
                 "BuiltIn" => AutoValue::Bool(style.builtin_id.is_some() && !style.custom_builtin),
                 _ => {
                     let base = styles
