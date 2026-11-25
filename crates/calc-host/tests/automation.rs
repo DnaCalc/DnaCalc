@@ -7482,6 +7482,50 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     assert_eq!(sheet_names(&host).len(), count);
 }
 
+/// dc-oxh8w.43: Sheets.Copy / Worksheets.Copy copy every listed worksheet, in order, after the After anchor or
+/// before the Before anchor; cells come along; no anchor (a new workbook) is a typed refusal; both anchors are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+        )
+        .unwrap(),
+    );
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    invoke_kind(&model, &range(&model, "A1"), "Value2", InvokeKind::Put, vec![AutoValue::R8(5.)]).unwrap();
+    invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    let second = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(2)]).unwrap());
+    let base = sheet_names(&host);
+    assert_eq!(base.len(), 2);
+
+    // After the last sheet: the copies keep their order.
+    invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(second.clone())]).unwrap();
+    let names = sheet_names(&host);
+    assert_eq!(names, vec![base[0].clone(), base[1].clone(), format!("{} (2)", base[0]), format!("{} (2)", base[1])], "{names:?}");
+    let third = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(4)]).unwrap()); // the copy of the sheet that holds A1
+    let a1 = obj(invoke(&model, &third, "Range", vec![AutoValue::text("A1")]).unwrap());
+    let got = invoke(&model, &a1, "Value2", vec![]).unwrap();
+    assert!(matches!(got, AutoValue::R8(v) if v == 5.), "the copy holds the cells: {got:?} {names:?}");
+
+    // Before the second sheet: all four copies land ahead of it, in order; a copy of "X (2)" is "X (n)", n free.
+    invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(second.clone())]).unwrap();
+    let names = sheet_names(&host);
+    let (a, b) = (&base[0], &base[1]);
+    let want = [a.clone(), format!("{a} (3)"), format!("{b} (3)"), format!("{a} (4)"), format!("{b} (4)"), b.clone(), format!("{a} (2)"), format!("{b} (2)")];
+    assert_eq!(names, want, "{names:?}");
+
+    let both = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(second.clone())]);
+    assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
+    let new_book = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![]);
+    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{new_book:?}");
+    assert_eq!(sheet_names(&host).len(), 8);
+}
+
 /// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
 /// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
 #[cfg_attr(not(target_arch = "wasm32"), test)]

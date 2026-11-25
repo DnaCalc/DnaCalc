@@ -31,6 +31,8 @@ use std::{
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
 mod application;
+mod books;
+pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory};
 
 mod cells;
 mod clipboard;
@@ -146,7 +148,6 @@ pub struct WorkbookAutomation {
     fallback: ValuesOnly<Rc<dyn AutomationHost>>,
     handlers: Handlers<Self>,
     snapshot: RefCell<Option<Rc<Snapshot>>>,
-    next_workbook: Cell<u64>,
     /// `Application.ScreenUpdating`: a flag the application holds; no renderer is attached here.
     screen_updating: Cell<bool>,
     /// `Application.MultiThreadedCalculation`: Enabled, ThreadMode (XlThreadMode) and the manual ThreadCount.
@@ -196,12 +197,6 @@ impl WorkbookAutomation {
         handlers.on("Application", "ThisCell", InvokeKind::Get, Self::this_cell);
         handlers.on(
             "Application",
-            "ActiveWorkbook",
-            InvokeKind::Get,
-            Self::current_book,
-        );
-        handlers.on(
-            "Application",
             "ThisWorkbook",
             InvokeKind::Get,
             Self::current_book,
@@ -236,9 +231,6 @@ impl WorkbookAutomation {
         );
         handlers.on("Application", "Workbooks", InvokeKind::Get, Self::delegate);
         handlers.on("Application", "EnableEvents", InvokeKind::Get, Self::events);
-        handlers.on("Workbooks", "Count", InvokeKind::Get, Self::delegate);
-        handlers.on("Workbooks", "Item", InvokeKind::Get, Self::book_item);
-        handlers.on("Workbooks", "_Default", InvokeKind::Get, Self::book_item);
         handlers.on("Workbooks", "Application", InvokeKind::Get, Self::delegate);
         handlers.on("Workbooks", "Parent", InvokeKind::Get, Self::delegate);
         handlers.on("Workbook", "Name", InvokeKind::Get, Self::workbook_name);
@@ -290,6 +282,7 @@ impl WorkbookAutomation {
         Self::register_find(&mut handlers);
         Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
+        Self::register_books(&mut handlers);
         Self::register_formatting(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
@@ -307,7 +300,6 @@ impl WorkbookAutomation {
             host,
             handlers,
             snapshot: RefCell::new(None),
-            next_workbook: Cell::new(1),
             screen_updating: Cell::new(true),
             multithreaded: Cell::new((true, 0, 1)),
             display_alerts: Cell::new(true),
@@ -455,10 +447,7 @@ impl WorkbookAutomation {
         let (workbook, enabled) = match previous.as_ref() {
             Some(old) => (old.workbook, old.enabled.clone()),
             None => {
-                let id = self.next_workbook.get();
-                self.next_workbook
-                    .set(id.checked_add(1).expect("workbook identity exhausted"));
-                (id, Rc::new(Cell::new(true)))
+                (books::next_identity(), Rc::new(Cell::new(true)))
             }
         };
         let active = host
@@ -513,10 +502,7 @@ impl WorkbookAutomation {
             if let Some(old) = previous.as_ref() {
                 enabled.set(old.enabled.get());
             }
-            let id = self.next_workbook.get();
-            self.next_workbook
-                .set(id.checked_add(1).expect("workbook identity exhausted"));
-            id
+            books::next_identity()
         };
         let session_name = session.file_full_name();
         let full_name = if !session_name.is_empty() {
@@ -831,15 +817,6 @@ impl WorkbookAutomation {
                 Some(at) => self.acquire(access, &ReferenceLike::cell(at), RangeAxis::Cells),
                 None => Ok(AutoValue::Error(2023)),
             }
-        })
-    }
-    fn book_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, meta| {
-            ValuesOnly::<Rc<dyn AutomationHost>>::workbook_item(
-                call,
-                book_name(&meta.full_name),
-                meta.workbook,
-            )
         })
     }
     fn current_book(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -1237,6 +1214,9 @@ impl ObjectModel for WorkbookAutomation {
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.policy.check(call)?;
+        if let Some(routed) = self.foreign_call(target, call) {
+            return routed;
+        }
         if let Some(handler) = self.handlers.get(call.interface, call.member) {
             handler(self, target, call)
         } else {
