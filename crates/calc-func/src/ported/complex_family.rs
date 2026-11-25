@@ -188,11 +188,23 @@ impl ParsedComplex {
         Self::new(s * crt_cos(self.im), s * crt_sin(self.im), None)
     }
     pub(crate) fn ln(self) -> Result<Self, WorksheetErrorCode> {
+        // Excel (dc-j9k.175, live probes): the squares flush subnormal results; a sum that is 0 or
+        // infinite is #NUM!, and so is an overflowing im/re ratio (1e-300-1.8e8i). Only when both parts are
+        // nonzero: a real or pure imaginary argument takes the real route (IMLN("1e-300") = -690.78).
+        let square = |x: f64| {
+            let value = x * x;
+            if value < f64::MIN_POSITIVE { 0.0 } else { value }
+        };
+        let sum = square(self.re) + square(self.im);
+        if self.re != 0.0 && self.im != 0.0 && (sum == 0.0 || !sum.is_finite() || (self.im / self.re).is_infinite()) {
+            return Err(WorksheetErrorCode::Num);
+        }
         let mag = self.abs();
         if mag == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        Ok(Self::new(crt_log(mag), crt_atan2(self.im, self.re), None))
+        let im = crt_atan2(self.im, self.re);
+        Ok(Self::new(crt_log(mag), if im.abs() < f64::MIN_POSITIVE { 0.0 } else { im }, None))
     }
     pub(crate) fn sqrt(self) -> Self {
         // IMSQRT has a distinct magnitude graph from IMABS: square each component with
@@ -591,6 +603,11 @@ pub(crate) fn parse_real_number(text: &str) -> Option<f64> {
     let parsed = parse_ascii_decimal_15(unsigned)?;
     // Complex coefficient strings have their own grammar. Only decimal lexeme
     // conversion is shared with numeric argument coercion; decorations are not.
+    // Excel 16.0.20625.20108 (dc-j9k.175): a nonzero coefficient below 1e-309 is #NUM!
+    // (1e-310, 9.99999999999999e-310, 1e-320, 1e-400); 1e-309 up to the normal range reads as 0.
+    if parsed != 0.0 && parsed < 1e-309 {
+        return None;
+    }
     Some(if parsed < f64::MIN_POSITIVE {
         0.0
     } else if negative {
