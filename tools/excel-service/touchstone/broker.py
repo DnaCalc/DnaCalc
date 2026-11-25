@@ -226,6 +226,8 @@ class Slot:
         self.capped_noted = False
         self.running = None                      # "bulk", "interactive", "serial" while busy
         self.isolation = False                   # the one worker that runs suspect and isolated calls
+        self.generation = 0                      # bumped whenever the slot's worker process is taken over/restarted
+        self.replaced_reason = None              # error code for an in-flight batch whose worker was replaced
 
 
 class Broker:
@@ -243,7 +245,8 @@ class Broker:
         self.cache_bytes = 0
         self.counters = {"calls": 0, "batches": 0, "requests": 0, "refused": 0, "errors": 0}
         self.crash_counts = {}
-        self.poisoned = {}                       # request id -> wall-clock expiry
+        self.poisoned = {}                       # request id -> wall-clock expiry (crash/excel-error quarantine)
+        self.poisoned_deadlines = {}             # (origin, rid) -> {"until": float, "detail": str}
         self.crash_times = {}                    # function -> times of calls that crashed Excel alone (the budget)
         self.deadline_times = {}                 # function -> times of calls killed at their deadline alone (its own budget)
         registry = getattr(options, "registry", None)
@@ -295,6 +298,12 @@ class Broker:
             self.crash_counts.update({k: int(v) for k, v in data.get("crash_counts", {}).items()})
             self.poisoned.update({rid: until for rid, until in data.get("poisoned_requests", {}).items()
                                   if isinstance(until, (int, float)) and until > time.time()})
+            for item in data.get("poisoned_deadlines", []):
+                if (isinstance(item, list) and len(item) == 4 and isinstance(item[2], (int, float))
+                        and item[2] > time.time()):
+                    self.poisoned_deadlines[(str(item[0]), str(item[1]))] = {
+                        "until": float(item[2]), "detail": str(item[3]),
+                    }
         except (OSError, ValueError):
             pass
         try:
@@ -306,7 +315,9 @@ class Broker:
 
     def save_isolated(self):
         data = {"isolated": sorted(self.batcher.isolate), "crash_counts": self.crash_counts,
-                "poisoned_requests": self.poisoned}
+                "poisoned_requests": self.poisoned,
+                "poisoned_deadlines": [[o, r, info["until"], info["detail"]]
+                                       for (o, r), info in self.poisoned_deadlines.items()]}
         self.isolated_dirty = not self.write_diagnostic("isolated.json", json.dumps(data))
 
     def save_costs(self, force=False):
@@ -506,11 +517,16 @@ class Broker:
 
     def on_submit(self, conn, body):
         rid, seq = body["id"], body["seq"]
+        key = (conn.origin, rid)
+        deadline_poison = self.poisoned_deadlines.get(key)
+        if deadline_poison is not None and deadline_poison["until"] > time.time():
+            conn.send(protocol.ERROR, self.tag({"id": rid, "code": "excel-deadline",
+                                                 "detail": deadline_poison["detail"]}, body.get("c")), True)
+            return
         if self.poisoned.get(rid, 0) > time.time():
             conn.send(protocol.ERROR, self.tag({"id": rid, "code": "excel-crashed",
                                                  "detail": self.poison_detail(rid)}, body.get("c")), True)
             return
-        key = (conn.origin, rid)
         req = self.requests.get(key)
         if req is None:
             req = self.requests[key] = Request()
@@ -757,7 +773,7 @@ class Broker:
             # one call at a time (dc-4rsw), so allow each call its own wait.
             deadline_ms = max(deadline_ms, ASYNC_DEADLINE_MS_PER_CALL * max(1, calls))
         confined = all(sl.item.suspect for sl in batch.slices)       # a suspect or isolated call: crashes are not the pool's
-        if confined and self.over_crash_budget(batch, self.deadline_times, "deadline_budget", DEADLINE_BUDGET):
+        if self.over_crash_budget(batch, self.deadline_times, "deadline_budget", DEADLINE_BUDGET):
             names = ", ".join(sorted({g["f"] for g in batch.groups}))
             self.fail_batch(batch, "excel-deadline-budget",
                             f"{names}: {self.opt('deadline_budget', DEADLINE_BUDGET)} calls ran past their deadline within "
@@ -776,6 +792,8 @@ class Broker:
         message = {"groups": [*batch.primer, *batch.groups], "deadline_ms": deadline_ms, "echo": batch.echo,
                    "serial": batch.serial}
         request_keys = {(piece.origin, piece.rid) for piece in batch.pieces}
+        proc = slot.proc
+        gen = slot.generation
         while True:
             self.batch_no += 1
             number = self.batch_no
@@ -783,18 +801,31 @@ class Broker:
             t_dispatch = time.monotonic()
             result, failure = None, None
             try:
-                result = await self.loop.run_in_executor(self.executor, slot.proc.run, message, deadline_ms / 1000 + 5)
+                result = await self.loop.run_in_executor(self.executor, proc.run, message, deadline_ms / 1000 + 5)
             except engine.WorkerTimeout as error:
                 failure = ("excel-timeout", str(error))
             except Exception as error:
                 failure = ("worker-lost", str(error)[:300])
             t_back = time.monotonic()
+            if slot.generation != gen:
+                # Another path (such as stall healing) already replaced this slot's worker: do not touch
+                # slot.state, slot.crashes, or restart the new healthy worker.
+                if result is None or result.get("error"):
+                    code = slot.replaced_reason or (failure[0] if failure else result.get("error"))
+                    detail = (failure[1] if failure else result.get("detail")) or "worker restarted"
+                    self.fail_batch(batch, code, detail)
+                    self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=code)
+                else:
+                    self.respond(batch, result, slot)
+                    self.remember(batch, result)
+                    self.log_batch(slot, number, batch, result, t_dispatch, t_back, sent=time.monotonic())
+                return
             if result is None:
                 break
-            if slot.proc.hello is not slot.hello:
+            if proc.hello is not slot.hello:
                 # The worker can recycle after an excel-error while clearing its scratch sheet.
-                slot.restarts += int(slot.proc.hello.get("restart", False))
-                self.adopt_hello(slot, slot.proc.hello)
+                slot.restarts += int(proc.hello.get("restart", False))
+                self.adopt_hello(slot, proc.hello)
                 slot.state = "busy"
             if result.get("error") != "excel-error" or len(request_keys) != 1 or self.stopping:
                 break
@@ -811,6 +842,7 @@ class Broker:
             self.kick()
             return
         restart = False
+        deadline_kill = False
         if failure is None and result.get("error"):
             error = result["error"]
             detail = result.get("detail")
@@ -825,11 +857,13 @@ class Broker:
             restart = error in ("excel-crashed", "fingerprint-drift-after")
             deadline_kill = error == "excel-crashed" and bool(result.get("deadline"))
             if error == "excel-crashed":
-                slot.crashes += 1
+                if not deadline_kill:
+                    slot.crashes += 1
                 if not batch.serial and not batch.addins:
                     # the batch is answered or split here, not failed: no caller retries a call that crashed Excel
-                    self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=error)
-                    self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail="excel-crashed")
+                    logged_error = "excel-deadline" if deadline_kill else error
+                    self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=logged_error)
+                    self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail=logged_error)
                     if deadline_kill:
                         self.quarantine_repeat_deadlines(slot, batch, number, detail)
                     if not batch.pieces or not all(p.done for p in batch.pieces):
@@ -837,11 +871,25 @@ class Broker:
                     await self.finish_restart(slot, counted=not confined and not deadline_kill)
                     self.kick()
                     return
-                for item_f in {g["f"] for g in batch.groups}:
-                    self.crash_counts[item_f] = self.crash_counts.get(item_f, 0) + 1
-                    if self.crash_counts[item_f] >= 2:
-                        self.batcher.isolate.add(item_f)
-                self.save_isolated()
+                if deadline_kill:
+                    failure = ("excel-deadline", detail)
+                    now = time.time()
+                    fns = sorted({g["f"] for g in batch.groups})
+                    for item_f in fns:
+                        self.deadline_times.setdefault(item_f, []).append(now)
+                    self.deadline_log.write({
+                        "utc": logs.utc().isoformat(timespec="seconds"),
+                        "function": fns[0] if fns else None,
+                        "functions": fns if len(fns) > 1 else None,
+                        "calls": batch.calls, "serial": batch.serial, "addins": list(batch.addins),
+                        "worker": slot.name, "batch": number, "detail": str(detail or "")[:400],
+                    })
+                else:
+                    for item_f in {g["f"] for g in batch.groups}:
+                        self.crash_counts[item_f] = self.crash_counts.get(item_f, 0) + 1
+                        if self.crash_counts[item_f] >= 2:
+                            self.batcher.isolate.add(item_f)
+                    self.save_isolated()
         if failure is not None:
             self.fail_batch(batch, failure[0], failure[1])
             self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=failure[0])
@@ -850,7 +898,7 @@ class Broker:
             if failure[0] in ("excel-timeout", "worker-lost"):
                 await self.restart_slot(slot, counted=failure[0] != "excel-timeout")
             elif restart:
-                await self.finish_restart(slot)
+                await self.finish_restart(slot, counted=not deadline_kill)
             else:
                 slot.state = "idle"
             self.kick()
@@ -890,48 +938,71 @@ class Broker:
     def quarantine_repeat_deadlines(self, slot, batch, number, detail):
         """A request whose calls ran past the deadline a second time is quarantined with its arguments (a typed
         "excel-deadline" error for the caller, a "quarantined" row in deadline-list.jsonl), not retried on the next
-        worker: Excel is slow on it, not wrong (dc-v3jbo)."""
-        for key in {(piece.origin, piece.rid) for piece in batch.pieces}:
-            req = self.requests.get(key)
-            if req is None:
-                continue
-            req.deadline_kills += 1
-            if req.deadline_kills >= 2:
-                self.quarantine_request(key, req, batch, slot, number, detail, deadline=True)
+        worker: Excel is slow on it, not wrong (dc-v3jbo). Only a batch owned by a single request is attributed,
+        so co-batched innocent requests are never charged."""
+        request_keys = {(piece.origin, piece.rid) for piece in batch.pieces}
+        if len(request_keys) != 1:
+            return
+        key = next(iter(request_keys))
+        req = self.requests.get(key)
+        if req is None:
+            return
+        req.deadline_kills += 1
+        if req.deadline_kills >= 2:
+            self.quarantine_request(key, req, batch, slot, number, detail, deadline=True)
 
     def quarantine_request(self, key, req, batch, slot, number, detail, deadline=False):
-        rid = key[1]
-        self.poisoned[rid] = time.time() + self.opt("poison_seconds", POISON_SECONDS)
+        origin, rid = key
+        until = time.time() + self.opt("poison_seconds", POISON_SECONDS)
         calls = req.calls or batch.calls
-        (self.deadline_log if deadline else self.crash_log).write({
-                              "quarantined": deadline, "calls": calls, "utc": logs.utc().isoformat(timespec="seconds"),
-                              "id": rid, "origin": req.source, "worker": slot.name, "batch": number,
-                              "failures": req.deadline_kills if deadline else req.excel_errors, "detail": str(detail or "")[:400],
-                              "function": batch.groups[0]["f"], "retry_at": self.poisoned[rid],
-                              "opts": {"order": "serial" if req.serial else "any", "echo": req.echo,
-                                       "priority": req.priority, "addins": req.addins, "primer": req.primer},
-                              "pieces": [{"seq": p.seq, "last": p.last, "groups": p.groups}
-                                         for _, p in sorted(req.pieces.items())]})
-        self.save_isolated()
-        self.batcher.discard_request(rid)
-        detail = self.poison_detail(rid)
-        code = "excel-crashed"
+        req_fns = sorted({g["f"] for p in req.pieces.values() for g in p.groups}) or [batch.groups[0]["f"]]
+        primary_fn = req_fns[0]
+        record = {
+            "quarantined": deadline, "calls": calls, "utc": logs.utc().isoformat(timespec="seconds"),
+            "id": rid, "origin": req.source, "worker": slot.name, "batch": number,
+            "failures": req.deadline_kills if deadline else req.excel_errors, "detail": str(detail or "")[:400],
+            "function": primary_fn, "retry_at": until,
+            "opts": {"order": "serial" if req.serial else "any", "echo": req.echo,
+                     "priority": req.priority, "addins": req.addins, "primer": req.primer},
+            "pieces": [{"seq": p.seq, "last": p.last, "groups": p.groups}
+                       for _, p in sorted(req.pieces.items())],
+        }
+        if len(req_fns) > 1:
+            record["functions"] = req_fns
+        (self.deadline_log if deadline else self.crash_log).write(record)
         if deadline:
+            now = time.time()
+            kills = max(1, req.deadline_kills)
+            for fn in req_fns:
+                self.deadline_times.setdefault(fn, []).extend([now] * kills)
             code = "excel-deadline"
-            detail = (f"calls of {batch.groups[0]['f']} ran past the deadline twice; the request is quarantined "
-                      f"(Excel is slow on it, not wrong); resubmission refused until "
-                      f"{datetime.fromtimestamp(self.poisoned[rid], timezone.utc).isoformat(timespec='seconds')}")
-        for request_key in [k for k in self.requests if k[1] == rid]:
+            until_iso = datetime.fromtimestamp(until, timezone.utc).isoformat(timespec="seconds")
+            msg = (f"calls of {', '.join(req_fns)} ran past the deadline twice; the request is quarantined "
+                   f"(Excel is slow on it, not wrong); resubmission refused until {until_iso}")
+            self.poisoned_deadlines[key] = {"until": until, "detail": msg}
+            self.save_isolated()
+            self.batcher.discard_request(rid, origin=origin)
+            target_keys = [key]
+        else:
+            self.poisoned[rid] = until
+            self.save_isolated()
+            self.batcher.discard_request(rid)
+            code = "excel-crashed"
+            msg = self.poison_detail(rid)
+            target_keys = [k for k in self.requests if k[1] == rid]
+        for request_key in target_keys:
             request = self.requests.get(request_key)
             if request is None:
                 continue
             for piece in request.pieces.values():
-                self.fail_piece(piece, code, detail)
+                self.fail_piece(piece, code, msg)
             if self.requests.pop(request_key, None) is not None:
                 self.cache_bytes -= request.cache_bytes
         self.counters["quarantined_requests"] = self.counters.get("quarantined_requests", 0) + 1
 
     def over_crash_budget(self, batch, table=None, option="crash_budget", default=CRASH_BUDGET):
+        if not batch.groups:
+            return False
         window = self.opt("crash_window", CRASH_WINDOW)
         budget = self.opt(option, default)
         table = self.crash_times if table is None else table
@@ -950,7 +1021,7 @@ class Broker:
         if batch.calls == 1 and len(slices) == 1:
             self.answer_crashed(slot, batch, number, detail, deadline_kill)
             return
-        if not confined:
+        if not confined and not deadline_kill:
             for f in {g["f"] for g in batch.groups}:
                 self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
                 if self.crash_counts[f] >= 2:
@@ -984,10 +1055,11 @@ class Broker:
         f = group["f"]
         now = time.time()
         (self.deadline_times if deadline_kill else self.crash_times).setdefault(f, []).append(now)
-        self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
-        if self.crash_counts[f] >= 2:
-            self.batcher.isolate.add(f)
-        self.save_isolated()
+        if not deadline_kill:
+            self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
+            if self.crash_counts[f] >= 2:
+                self.batcher.isolate.add(f)
+            self.save_isolated()
         record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": value["args"],
                   "worker": slot.name, "batch": number, "detail": value["detail"],
                   "id": batch.slices[0].item.piece.rid, "origin": batch.slices[0].item.piece.source}
@@ -998,7 +1070,8 @@ class Broker:
         self.log_event("excel-deadline-call" if deadline_kill else "excel-crashed-call", worker=slot.name, function=f, batch=number)
         result = {"env_id": (slot.hello or {}).get("env_id"), "batch": number, "groups": [{"ty": "x", "v": [value]}]}
         self.respond(batch, result, slot)
-        self.counters["crashed_calls"] = self.counters.get("crashed_calls", 0) + 1
+        counter = "deadline_calls" if deadline_kill else "crashed_calls"
+        self.counters[counter] = self.counters.get(counter, 0) + 1
 
     async def finish_restart(self, slot, counted=True):
         """The worker restarts its own Excel after a crash; that is a restart, so it counts against the hourly cap,
@@ -1013,11 +1086,19 @@ class Broker:
         slot.restarts += 1
         await self.recycle_after_worker_event(slot)
 
-    async def restart_slot(self, slot, counted=True):
+    async def restart_slot(self, slot, counted=True, old_proc=None, expected_gen=None):
         """After a missed deadline or a lost worker process: start it once more, within the cap; a failed start
         leaves it down until its cool-down passes. A restart after our own deadline watchdog or a stall
         (counted=False) is not a fault of the worker: it never counts against the cap (dc-v3jbo)."""
-        await self.loop.run_in_executor(self.executor, slot.proc.kill)
+        if expected_gen is not None and slot.generation != expected_gen:
+            return
+        proc_to_kill = old_proc if old_proc is not None else slot.proc
+        if expected_gen is None:
+            slot.generation += 1
+        gen = slot.generation
+        await self.loop.run_in_executor(self.executor, proc_to_kill.kill)
+        if slot.generation != gen:
+            return
         if counted and self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
             self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour)")
             return
@@ -1084,12 +1165,18 @@ class Broker:
     async def leak_check(self, other, first_worker, batch, result):
         message = {"id": -self.leak_counter, "groups": self.reversed_groups(batch.groups), "deadline_ms": 30000,
                    "echo": False, "serial": False}
+        proc = other.proc
+        gen = other.generation
         try:
-            second = await self.loop.run_in_executor(self.executor, other.proc.run, message, 40)
+            second = await self.loop.run_in_executor(self.executor, proc.run, message, 40)
         except Exception as error:
             self.log_event("leak-check-failed", worker=other.name, detail=str(error)[:200])
+            if other.generation != gen:
+                return
             await self.restart_slot(other)
             self.kick()
+            return
+        if other.generation != gen:
             return
         other.state = "idle"
         if second.get("error"):
@@ -1264,6 +1351,8 @@ class Broker:
         wall_time = time.time()
         for rid in [rid for rid, until in self.poisoned.items() if until <= wall_time]:
             del self.poisoned[rid]
+        for key in [k for k, info in self.poisoned_deadlines.items() if info["until"] <= wall_time]:
+            del self.poisoned_deadlines[key]
         now = time.monotonic()
         if self.cache_bytes < ANSWER_CACHE_BYTES and len(self.requests) < 20000:
             old = [k for k, r in self.requests.items() if r.done_sent and now - r.touched > ANSWER_CACHE_SECONDS]
@@ -1408,11 +1497,15 @@ class Broker:
             isolated and piece.t_received <= cutoff for piece, _, isolated in self.batcher.waiting()
         ):
             flags.append("isolated queue stalled")
+        return flags
+
+    def broker_notes(self):
+        notes = []
         recovery = self.last_stall_recovery
         if recovery is not None and time.monotonic() - recovery[0] < STALL_NOTE_SECONDS:
-            flags.append(f"isolation worker restarted after a stall {time.monotonic() - recovery[0]:.0f}s ago "
+            notes.append(f"isolation worker restarted after a stall {time.monotonic() - recovery[0]:.0f}s ago "
                          f"({recovery[2]}; {recovery[1]} calls failed isolation-stalled)")
-        return flags
+        return notes
 
     def stalled_isolated_pieces(self):
         cutoff = time.monotonic() - self.opt("isolation_fail_seconds", ISOLATION_FAIL_SECONDS)
@@ -1444,13 +1537,18 @@ class Broker:
         self.last_isolated_dispatch = time.monotonic()
         self.log_event("isolation-stall-healed", worker=name, calls=failed, pieces=len(pieces))
         if slot is not None and slot.state in ("idle", "busy"):
+            slot.generation += 1
+            slot.replaced_reason = "isolation-stalled"
+            old_proc = slot.proc
+            gen = slot.generation
             slot.state = "new"
-            asyncio.create_task(self.restart_after_stall(slot))
+            slot.running = None
+            asyncio.create_task(self.restart_after_stall(slot, old_proc, gen))
         self.kick()
 
-    async def restart_after_stall(self, slot):
+    async def restart_after_stall(self, slot, old_proc=None, expected_gen=None):
         try:
-            await self.restart_slot(slot, counted=False)
+            await self.restart_slot(slot, counted=False, old_proc=old_proc, expected_gen=expected_gen)
         finally:
             self.kick()
 
@@ -1509,7 +1607,7 @@ class Broker:
             add(functions.setdefault(function, {"calls": 0, "oldest": None}), group["n"], oldest)
         return total, workers, functions
 
-    def health_line(self, flags=None):
+    def health_line(self, flags=None, notes=None):
         """One line the orchestrator's monitor reads: OK, DEGRADED or DOWN, then the facts."""
         up = [x for x in self.slots if x.state in ("idle", "busy")]
         down = [x for x in self.slots if x.state == "down"]
@@ -1517,6 +1615,7 @@ class Broker:
         oldest_at = self.batcher.oldest_queued()
         oldest = 0.0 if oldest_at is None else max(0.0, time.monotonic() - oldest_at)
         flags = self.broker_flags() if flags is None else flags
+        notes = self.broker_notes() if notes is None else notes
         storage_errors = self.storage.summary()
         if not up and not starting:
             word = "DOWN"
@@ -1534,6 +1633,8 @@ class Broker:
             line += " | writes failing: " + storage_errors
         if flags:
             line += " | BROKER: " + ", ".join(flags)
+        if notes:
+            line += " | note: " + ", ".join(notes)
         peers = getattr(self, "peers", None)
         if peers is not None and peers.summary():
             line += " | " + peers.summary()
@@ -1552,11 +1653,12 @@ class Broker:
     def write_status(self):
         queue, workers, functions = self.queue_snapshot()
         flags = self.broker_flags()
+        notes = self.broker_notes()
         isolation = self.isolation_slot()
         status = {"pid": os.getpid(), "running": True, "utc": logs.utc().isoformat(timespec="seconds"),
-                  "health": self.health_line(flags), "oldest_queued_s": round((queue["oldest"] or {}).get("age_s", 0), 2),
+                  "health": self.health_line(flags, notes), "oldest_queued_s": round((queue["oldest"] or {}).get("age_s", 0), 2),
                   "oldest_queued": queue["oldest"], "queue_by_function": functions,
-                  "queue_unassigned": workers[None], "broker_flags": flags,
+                  "queue_unassigned": workers[None], "broker_flags": flags, "broker_notes": notes,
                   "last_answer_utc": None if self.last_answer is None else
                   datetime.fromtimestamp(self.last_answer, timezone.utc).isoformat(timespec="seconds"),
                   "queued_calls": queue["calls"], "counters": self.counters,
@@ -1638,7 +1740,17 @@ class Broker:
                 status = {"pid": os.getpid(), "running": False, "utc": stopped_at, "health": f"DOWN broker stopped utc={stopped_at}"}
                 self.write_diagnostic("status.json", json.dumps(status))
                 self.write_diagnostic("health.txt", status["health"] + "\n")
-                (self.state_dir / "run.pid").unlink(missing_ok=True)
+                self.executor.shutdown(wait=False, cancel_futures=True)
+        # Wait briefly after releasing service.lock for executor threads to exit; only remove run.pid when
+        # none remain alive and run.pid still names this process, so command_stop can always find a live process.
+        threads = list(getattr(self.executor, "_threads", ()))
+        deadline = time.monotonic() + 0.5
+        for thread in threads:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                thread.join(timeout=remaining)
+        if all(not thread.is_alive() for thread in threads) and read_run_pid(self.state_dir) == os.getpid():
+            (self.state_dir / "run.pid").unlink(missing_ok=True)
 
 
 def command_start(options):
@@ -1774,27 +1886,34 @@ def end_process_tree(pid):
         os.kill(pid, signal.SIGKILL)
 
 
-def end_run_process(state, grace):
+def read_run_pid(state):
+    try:
+        return int((state / "run.pid").read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def end_run_process(state, grace, pid=None):
     """After the lock is free the run process may still be alive (it left it alive twice on 2026-11-25).
     Wait `grace` seconds for it to exit, then end its process tree. Returns the sentence stop prints."""
     pid_file = state / "run.pid"
-    try:
-        pid = int(pid_file.read_text(encoding="ascii").strip())
-    except (OSError, ValueError):
-        return "touchstone broker stopped"
-    if pid == os.getpid():
+    if pid is None:
+        pid = read_run_pid(state)
+    if pid is None or pid == os.getpid():
         return "touchstone broker stopped"
     deadline = time.monotonic() + grace
     while time.monotonic() < deadline and process_alive(pid):
         time.sleep(0.2)
     if not process_alive(pid):
-        pid_file.unlink(missing_ok=True)
+        if read_run_pid(state) in (None, pid):
+            pid_file.unlink(missing_ok=True)
         return "touchstone broker stopped"
     end_process_tree(pid)
     time.sleep(0.3)
     if process_alive(pid):
         raise RuntimeError(f"touchstone broker run process {pid} is still alive after the stop and the tree kill")
-    pid_file.unlink(missing_ok=True)
+    if read_run_pid(state) in (None, pid):
+        pid_file.unlink(missing_ok=True)
     return f"touchstone broker stopped; its run process {pid} outlived the stop for {grace:.0f}s and was ended"
 
 
@@ -1804,11 +1923,15 @@ def command_stop(options):
     while time.monotonic() < deadline:
         with state_lock(options.state / "start.lock") as acquired:
             if acquired:
+                pid = read_run_pid(options.state)
                 (options.state / "stop").touch()
                 while time.monotonic() < deadline:
+                    seen = read_run_pid(options.state)
+                    if seen is not None:
+                        pid = seen
                     with state_lock(options.state / "service.lock") as stopped:
                         if stopped:
-                            print(end_run_process(options.state, grace))
+                            print(end_run_process(options.state, grace, pid=pid))
                             return
                     time.sleep(0.2)
                 raise TimeoutError("stop not confirmed; no process was killed")

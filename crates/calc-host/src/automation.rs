@@ -32,7 +32,7 @@ const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
 mod application;
 mod books;
-pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory};
+pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory, set_book_read_only};
 
 mod cells;
 mod clipboard;
@@ -203,8 +203,13 @@ pub struct WorkbookAutomation {
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
     /// Window captions a macro set, by workbook (dc-p3rg9).
     window_captions: RefCell<HashMap<u64, String>>,
+    /// Window states (`XlWindowState`) a macro set, by workbook (dc-p3rg9).
+    window_states: RefCell<HashMap<u64, i32>>,
     /// The protection a macro set on each sheet (`None`: it unprotected a sheet the file protects) (dc-oxh8w.68).
     sheet_protect: RefCell<HashMap<SheetId, Option<protection::SheetProtect>>>,
+    /// Stable handles for `ObjectKey::Style { index }`: each entry is `(xf_id, folded_name)` so
+    /// deleting an earlier style neither shifts live handles nor aliases a deleted handle.
+    style_handles: RefCell<Vec<(u32, String)>>,
 }
 
 struct RangeLeases {
@@ -247,13 +252,13 @@ impl WorkbookAutomation {
             "Application",
             "ActiveSheet",
             InvokeKind::Get,
-            Self::get_active_sheet,
+            Self::app_active_sheet,
         );
         handlers.on(
             "Application",
             "Worksheets",
             InvokeKind::Get,
-            Self::app_sheets,
+            Self::app_worksheets,
         );
         handlers.on("Application", "Sheets", InvokeKind::Get, Self::app_sheets);
         handlers.on("Application", "Names", InvokeKind::Get, Self::app_names);
@@ -357,7 +362,9 @@ impl WorkbookAutomation {
             last_goto: RefCell::new(None),
             window_views: RefCell::new(HashMap::new()),
             window_captions: RefCell::new(HashMap::new()),
+            window_states: RefCell::new(HashMap::new()),
             sheet_protect: RefCell::new(HashMap::new()),
+            style_handles: RefCell::new(Vec::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
@@ -480,6 +487,24 @@ impl WorkbookAutomation {
     pub fn worksheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
         let meta = self.metadata()?;
         sheet_name(&meta, sheet)?;
+        Ok(object(
+            "Worksheet",
+            ObjectKey::Worksheet {
+                workbook: meta.workbook,
+                sheet,
+            },
+        ))
+    }
+    /// The sheet object identity for `sheet` (`Chart` for a chart sheet, `Worksheet` otherwise).
+    pub fn sheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
+        let meta = self.metadata()?;
+        sheet_name(&meta, sheet)?;
+        if meta.chart_sheets.contains(&sheet) {
+            return match Self::chart_of_sheet(&meta, sheet)? {
+                AutoValue::Object(obj) => Ok(obj),
+                _ => unreachable!("chart_of_sheet always returns an Object"),
+            };
+        }
         Ok(object(
             "Worksheet",
             ObjectKey::Worksheet {
@@ -643,6 +668,7 @@ impl WorkbookAutomation {
     }
     fn validate(&self, target: &ObjectRef, meta: &Snapshot) -> Result<(), AutoError> {
         let workbook = match target.key {
+            ObjectKey::Windows(0) => None,
             ObjectKey::Workbook(id)
             | ObjectKey::Sheets(id)
             | ObjectKey::Worksheets(id)
@@ -848,6 +874,25 @@ impl WorkbookAutomation {
         self.with_target(target, |_, _| self.fallback_member(target, call))
     }
     fn application_range(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let AutoValue::Object(ObjectRef {
+            key: ObjectKey::Range(reference) | ObjectKey::RangeView { reference, .. },
+            ..
+        }) = call.arg(0)
+        {
+            if let Some(routed) = self.range_book_call(reference, target, call) {
+                return routed;
+            }
+            if let AutoValue::Object(ObjectRef {
+                key: ObjectKey::Range(second) | ObjectKey::RangeView { reference: second, .. },
+                ..
+            }) = call.arg(1)
+                && !self.owns_range(second)
+            {
+                return Err(AutoError::excel(1004, ""));
+            }
+        } else if let Some(routed) = self.active_book_call(target, call) {
+            return routed;
+        }
         self.with_target(target, |access, meta| {
             self.get_range(access, meta, None, call)
         })
@@ -891,31 +936,52 @@ impl WorkbookAutomation {
             )))
         })
     }
+    fn app_active_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(routed) = self.active_book_call(target, call) {
+            return routed;
+        }
+        self.get_active_sheet(target, call)
+    }
     fn get_active_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
             self.active_sheet(access, meta)
         })
     }
+    fn app_worksheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            let id = self.active_book_id(meta.workbook)?;
+            Ok(AutoValue::Object(object(
+                "Sheets",
+                ObjectKey::Worksheets(id),
+            )))
+        })
+    }
     fn app_sheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
+            let id = self.active_book_id(meta.workbook)?;
             Ok(AutoValue::Object(object(
                 "Sheets",
-                ObjectKey::Sheets(meta.workbook),
+                ObjectKey::Sheets(id),
             )))
         })
     }
     fn app_names(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
+            let id = self.active_book_id(meta.workbook)?;
             Ok(AutoValue::Object(object(
                 "Names",
-                ObjectKey::Names(meta.workbook),
+                ObjectKey::Names(id),
             )))
         })
     }
     fn app_cells(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(routed) = self.active_book_call(target, call) {
+            return routed;
+        }
         self.with_target(target, |access, meta| {
             no_args(call)?;
             let sheet = match access {
@@ -937,6 +1003,12 @@ impl WorkbookAutomation {
         })
     }
     fn app_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(routed) = self.active_book_call(target, call) {
+            return routed;
+        }
+        self.own_selection(target, call)
+    }
+    fn own_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
             if let Access::Session(session, _) = access
@@ -950,6 +1022,12 @@ impl WorkbookAutomation {
         })
     }
     fn app_active_cell(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(routed) = self.active_book_call(target, call) {
+            return routed;
+        }
+        self.own_active_cell(target, call)
+    }
+    fn own_active_cell(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
             self.active_cell_range(access, meta, "_Application.ActiveCell without a user view")
@@ -1228,13 +1306,21 @@ impl WorkbookAutomation {
             values,
         })))
     }
-    fn union(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+    fn union(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() < 2
             || call.args.len() > 30
             || call.arg(0).is_missing()
             || call.arg(1).is_missing()
         {
             return Err(geometry::bad_count());
+        }
+        if let AutoValue::Object(ObjectRef {
+            key: ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. },
+            ..
+        }) = call.arg(0)
+            && let Some(routed) = self.range_book_call(held, target, call)
+        {
+            return routed;
         }
         self.with_access(|mut access| {
             let mut ranges = Vec::new();

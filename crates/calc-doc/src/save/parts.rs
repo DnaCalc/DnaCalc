@@ -228,6 +228,7 @@ pub(super) fn workbook(
     iteration: Option<calc_doc_model::IterationSettings>,
     names: &NameChanges,
     cache_state: Option<&super::CalculationCacheState>,
+    calc_overrides: (Option<bool>, Option<bool>),
 ) -> Result<Vec<u8>, SaveRefusal> {
     let source = xml.bytes();
     let mut reader = Reader::new(xml);
@@ -499,6 +500,14 @@ pub(super) fn workbook(
             ),
         ));
     }
+    if cache_state.is_none()
+        && let Some(on) = calc_overrides.0
+    {
+        calc_attributes.push(("calcOnSave", Some(if on { "1" } else { "0" }.to_owned())));
+    }
+    if let Some(full) = calc_overrides.1 {
+        calc_attributes.push(("fullPrecision", Some(if full { "1" } else { "0" }.to_owned())));
+    }
     if full_calc {
         calc_attributes.push(("fullCalcOnLoad", Some("1".to_owned())));
     }
@@ -725,6 +734,45 @@ pub(super) fn put_part(
     } else {
         out.added.push((name.into(), bytes));
     }
+}
+/// Remove the relationships with these ids from the relationships part of `from` (a frame left the drawing, so its
+/// link to the chart part must go too).
+pub(super) fn remove_relationship_ids(
+    package: &crate::opc::Package,
+    out: &mut super::author::Changes,
+    from: &str,
+    ids: &std::collections::BTreeSet<String>,
+) -> Result<(), SaveRefusal> {
+    let (parent, file) = from.rsplit_once('/').map_or(("", from), |(p, f)| (p, f));
+    let name = if parent.is_empty() { format!("_rels/{file}.rels") } else { format!("{parent}/_rels/{file}.rels") };
+    if ids.is_empty() || (package.part(&name).is_none() && !out.rewritten.contains_key(&name)) {
+        return Ok(());
+    }
+    let xml = current_part(package, out, &name, b"")?;
+    let source = xml.bytes();
+    let mut reader = Reader::new(&xml);
+    match reader.next()? {
+        Some((XmlEvent::Start(root), _)) if root.name.is(RELATIONSHIPS_NAMESPACE, "Relationships") => {}
+        _ => return Err(reader.invalid("the document element is not Relationships")),
+    }
+    let mut splice = Splice::new(source);
+    loop {
+        match reader.expect()? {
+            (XmlEvent::Start(element), span) => {
+                let end = reader.element_end()?;
+                if element.attribute("Id").is_some_and(|id| ids.contains(id)) {
+                    splice.keep_to(span.0);
+                    splice.skip_to(end);
+                }
+            }
+            (XmlEvent::Text(_), _) => {}
+            (XmlEvent::End(_), _) => break,
+        }
+    }
+    reader.end()?;
+    let bytes = splice.finish();
+    put_part(package, out, &name, bytes);
+    Ok(())
 }
 pub(super) fn ensure_relationship(
     package: &crate::opc::Package,

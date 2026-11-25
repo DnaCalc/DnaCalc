@@ -109,7 +109,9 @@ impl WorkbookAutomation {
 
     /// `Interior.Color` of a series: the colour the chart draws it in, as the BGR number VBA uses.
     pub(super) fn interior_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::RangeFormat(_)) || super::formatting::is_condition_part(target) {
+        if matches!(target.key, ObjectKey::RangeFormat(_) | ObjectKey::Style { .. })
+            || super::formatting::is_condition_part(target)
+        {
             return self.range_interior_get(target, call);
         }
         match Self::paint_of(target) {
@@ -120,7 +122,9 @@ impl WorkbookAutomation {
     }
 
     pub(super) fn interior_put_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::RangeFormat(_)) || super::formatting::is_condition_part(target) {
+        if matches!(target.key, ObjectKey::RangeFormat(_) | ObjectKey::Style { .. })
+            || super::formatting::is_condition_part(target)
+        {
             return self.range_interior_put(target, call);
         }
         let paint = Self::paint_of(target).ok_or_else(|| AutoError::not_modelled("Range.Interior.Color", "dc-oxh8w.2"))?;
@@ -223,8 +227,8 @@ impl WorkbookAutomation {
         let border = self.border_state(target)?;
         let series = matches!(target.key, ObjectKey::Report { item: ReportItem::SeriesBorder(..), .. });
         // A series that states nothing draws in Excel's automatic style, which differs by chart type: its answers wait
-        // for Excel's (dc-oxh8w.60).
-        let unstated = |what: &str| AutoError::not_modelled(format!("{what} of a series outline the file does not state"), "dc-oxh8w.60");
+        // for Excel's (dc-yship).
+        let unstated = |what: &str| AutoError::not_modelled(format!("{what} of a series outline the file does not state"), "dc-yship");
         match call.member.name.as_str() {
             "LineStyle" => {
                 if border.none {
@@ -237,7 +241,7 @@ impl WorkbookAutomation {
                     .dash
                     .as_deref()
                     .map_or(Some(1), |d| LINE_STYLES.iter().find(|(_, p)| *p == Some(d)).map(|(c, _)| *c));
-                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-oxh8w.67"))
+                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-yship"))
             }
             "Weight" => {
                 if series && border.width.is_none() {

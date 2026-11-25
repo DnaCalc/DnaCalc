@@ -54,7 +54,12 @@ impl WorkbookAutomation {
         let Some(copy_to) = copy_to else {
             return Err(error_1004());
         };
-        self.mutate_range(target, call, |session, list| {
+        // The list is only read; the output block is what is written.
+        self.mutate(target, call, |session, list| {
+            let list = list.ok_or_else(geometry::type_mismatch)?;
+            if list.area_count() != 1 {
+                return Err(AutoError::not_modelled(format!("{} multi-area write", call.label()), "dc-1nbp.6"));
+            }
             let mut access = Access::Session(session, false);
             let list_area = list.areas()[0];
             let criteria = match &criteria {
@@ -167,6 +172,12 @@ impl WorkbookAutomation {
             if end_row > calc_value::MAX_ROWS || end_column > calc_value::MAX_COLUMNS {
                 return Err(error_1004());
             }
+            let output = GridArea::new(
+                destination.first(),
+                CellKey::new(destination.sheet(), end_row, end_column).map_err(|_| error_1004())?,
+            )
+            .map_err(|_| error_1004())?;
+            self.guard_area(session, output)?;
             let mut values = Vec::with_capacity((out_rows * columns) as usize);
             for value in header.iter() {
                 values.push(auto_value(value)?);

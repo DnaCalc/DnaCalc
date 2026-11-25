@@ -8,14 +8,18 @@
 //! Formulas are stored and read relative to the first cell of the range given to `Add`; Excel reads them relative to
 //! the active cell (RUN-ON-WINDOWS.txt, cl5 dc-tqcvu).
 use super::super::report::report;
+use super::borders::{
+    BOTTOM, DIAGONAL_DOWN, DIAGONAL_UP, LEFT, LINES, RIGHT, TOP, WEIGHTS, edge_property,
+    indexed_color, pick, rgb_color, side,
+};
 use super::interior::color_bgr;
 use super::*;
-use crate::{CommandIngress, ConditionalChange, SkinIntent, WorkbookCommand};
-use calc_doc_model::{DifferentialFormat, Fill, StyleColor};
+use crate::{CommandIngress, ConditionalChange, EdgeChange, EdgesPatch, SkinIntent, WorkbookCommand};
+use calc_doc_model::{DifferentialFormat, Fill, NumberFormat, StyleColor};
 use calc_object_model::ReportItem;
 
 /// Owner of the rule types, members and operations this port refuses.
-const REMAINDER: &str = "dc-oxh8w.62";
+const REMAINDER: &str = "dc-jupjv";
 
 // XlFormatConditionType (common types) and XlFormatConditionOperator, with the OOXML spellings.
 const TYPES: &[(i32, &str)] = &[
@@ -108,7 +112,9 @@ fn rule_at(
 }
 
 fn dxf_of(session: &HostSession, rule: &calc_doc::ConditionalRule) -> Result<DifferentialFormat, AutoError> {
-    let id = rule.dxf.ok_or_else(|| AutoError::not_modelled("a rule without a format of its own", REMAINDER))?;
+    let Some(id) = rule.dxf else {
+        return Ok(DifferentialFormat::default());
+    };
     session
         .host()
         .styles()
@@ -121,19 +127,83 @@ fn dxf_of(session: &HostSession, rule: &calc_doc::ConditionalRule) -> Result<Dif
 fn condition_index(target: &ObjectRef) -> Result<u32, AutoError> {
     match &target.key {
         ObjectKey::Report {
-            item: ReportItem::FormatCondition(n) | ReportItem::ConditionInterior(n) | ReportItem::ConditionFont(n),
+            item:
+                ReportItem::FormatCondition(n)
+                | ReportItem::ConditionInterior(n)
+                | ReportItem::ConditionFont(n)
+                | ReportItem::ConditionBorders(n)
+                | ReportItem::ConditionBorder(n, _),
             ..
         } => Ok(*n),
         _ => Err(geometry::type_mismatch()),
     }
 }
 
-/// True when `target` is the `Interior` or `Font` of a `FormatCondition`.
+/// True when `target` is the `Interior`, `Font`, `Borders` or `Border` of a `FormatCondition`.
 pub(in crate::automation) fn is_condition_part(target: &ObjectRef) -> bool {
     matches!(
         &target.key,
-        ObjectKey::Report { item: ReportItem::ConditionInterior(_) | ReportItem::ConditionFont(_), .. }
+        ObjectKey::Report {
+            item:
+                ReportItem::ConditionInterior(_)
+                | ReportItem::ConditionFont(_)
+                | ReportItem::ConditionBorders(_)
+                | ReportItem::ConditionBorder(..),
+            ..
+        }
     )
+}
+
+/// Subtract `cut` from `area`, yielding up to four non-overlapping rectangular strips.
+fn subtract_area(area: GridArea, cut: GridArea) -> Vec<GridArea> {
+    let Some(inter) = area.intersection(cut) else {
+        return vec![area];
+    };
+    let sheet = area.sheet();
+    let (ar1, ac1, ar2, ac2) = (
+        area.first().row(),
+        area.first().column(),
+        area.last().row(),
+        area.last().column(),
+    );
+    let (ir1, ic1, ir2, ic2) = (
+        inter.first().row(),
+        inter.first().column(),
+        inter.last().row(),
+        inter.last().column(),
+    );
+    let rect = |r1, c1, r2, c2| {
+        GridArea::new(
+            CellKey::new(sheet, r1, c1).expect("strip inside grid"),
+            CellKey::new(sheet, r2, c2).expect("strip inside grid"),
+        )
+        .expect("same sheet")
+    };
+    let mut out = Vec::new();
+    if ar1 < ir1 {
+        out.push(rect(ar1, ac1, ir1 - 1, ac2));
+    }
+    if ir2 < ar2 {
+        out.push(rect(ir2 + 1, ac1, ar2, ac2));
+    }
+    if ac1 < ic1 {
+        out.push(rect(ir1, ac1, ir2, ic1 - 1));
+    }
+    if ic2 < ac2 {
+        out.push(rect(ir1, ic2 + 1, ir2, ac2));
+    }
+    out
+}
+
+fn subtract_areas(existing: &[GridArea], cuts: &[GridArea]) -> Vec<GridArea> {
+    let mut current = existing.to_vec();
+    for &cut in cuts {
+        current = current
+            .into_iter()
+            .flat_map(|area| subtract_area(area, cut))
+            .collect();
+    }
+    current
 }
 
 impl WorkbookAutomation {
@@ -151,6 +221,9 @@ impl WorkbookAutomation {
         handlers.on("FormatCondition", "StopIfTrue", InvokeKind::Put, Self::condition_put_stop);
         handlers.on("FormatCondition", "Interior", InvokeKind::Get, Self::condition_interior);
         handlers.on("FormatCondition", "Font", InvokeKind::Get, Self::condition_font);
+        handlers.on("FormatCondition", "Borders", InvokeKind::Get, Self::condition_borders);
+        handlers.on("FormatCondition", "NumberFormat", InvokeKind::Get, Self::condition_number_format);
+        handlers.on("FormatCondition", "NumberFormat", InvokeKind::Put, Self::condition_put_number_format);
         handlers.on("FormatCondition", "AppliesTo", InvokeKind::Get, Self::condition_applies_to);
         handlers.on("FormatCondition", "ModifyAppliesToRange", InvokeKind::Method, Self::condition_modify_applies);
         handlers.on("FormatCondition", "Priority", InvokeKind::Put, Self::condition_put_priority);
@@ -206,10 +279,6 @@ impl WorkbookAutomation {
                 ("cellIs", name, formulas)
             }
             2 => ("expression", "", vec![text_of(call.arg(2))?.ok_or_else(refused)?]),
-            // Excel's defaults: top 10 items, above the average, duplicate values.
-            5 => ("top10", "", Vec::new()),
-            8 => ("duplicateValues", "", Vec::new()),
-            12 => ("aboveAverage", "", Vec::new()),
             3..=17 if TYPES.iter().any(|(v, _)| *v == kind) => {
                 return Err(AutoError::not_modelled(
                     format!("FormatConditions.Add of type {kind}"),
@@ -232,6 +301,7 @@ impl WorkbookAutomation {
             if session.host().loaded().sheet(sheet).is_some_and(|s| s.protected()) {
                 return Err(refused());
             }
+            self.guard_sheet_contents(session, sheet)?;
             let revision = session.host().revision().get();
             let receipt = session.dispatch_from(
                 CommandIngress::Automation,
@@ -262,26 +332,42 @@ impl WorkbookAutomation {
 
     fn conditions_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         format_arity(call, 0)?;
-        let mut found = None;
+        let mut plan = None;
         self.with_range(target, |access, _, range, _| {
             let Access::Session(session, _) = access else { return Err(refused()) };
             let sheet = range.areas()[0].first().sheet();
             let rules = session.host().model().definitions().conditional_rules(sheet);
-            let order = touching(session, sheet, range.areas());
-            let covered = order.iter().all(|&n| {
-                rules[n].areas.iter().all(|a| range.areas().iter().any(|b| b.intersection(*a) == Some(*a)))
-            });
-            found = Some((sheet, order, covered));
+            let mut order = touching(session, sheet, range.areas());
+            // Apply from the highest position down so earlier positions stay valid after removals.
+            order.sort_unstable_by(|a, b| b.cmp(a));
+            let mut edits = Vec::new();
+            for n in order {
+                let source = &rules[n];
+                let remaining = subtract_areas(&source.areas, range.areas());
+                if remaining.is_empty() {
+                    edits.push((n as u32, ConditionalChange::Remove));
+                } else if remaining.len() > 128 {
+                    return Err(AutoError::not_modelled(
+                        "FormatConditions.Delete splitting a rule into more than 128 ranges",
+                        REMAINDER,
+                    ));
+                } else if remaining != source.areas {
+                    edits.push((
+                        n as u32,
+                        ConditionalChange::Update {
+                            applies: applies_text(&remaining),
+                            formulas: source.formulas.clone(),
+                            stop: source.stop,
+                        },
+                    ));
+                }
+            }
+            plan = Some((sheet, edits));
             Ok(AutoValue::Empty)
         })?;
-        let (sheet, mut order, covered) = found.ok_or_else(refused)?;
-        if !covered {
-            return Err(AutoError::not_modelled("FormatConditions.Delete over part of a rule's range", REMAINDER));
-        }
-        // Remove from the highest position down so earlier positions stay valid.
-        order.sort_unstable_by(|a, b| b.cmp(a));
-        for n in order {
-            self.rule_change(sheet, n as u32, ConditionalChange::Remove)?;
+        let (sheet, edits) = plan.ok_or_else(refused)?;
+        for (index, change) in edits {
+            self.rule_change(sheet, index, change)?;
         }
         Ok(AutoValue::Empty)
     }
@@ -292,6 +378,7 @@ impl WorkbookAutomation {
             if session.host().loaded().sheet(sheet).is_some_and(|s| s.protected()) {
                 return Err(refused());
             }
+            self.guard_sheet_contents(session, sheet)?;
             let revision = session.host().revision().get();
             let receipt = session.dispatch_from(
                 CommandIngress::Automation,
@@ -328,13 +415,16 @@ impl WorkbookAutomation {
                     .and_then(|op| OPERATORS.iter().find(|(_, name)| *name == op))
                     .map(|(v, _)| AutoValue::I4(*v))
                     .ok_or_else(|| AutoError::not_modelled("FormatCondition.Operator stored as another comparison", REMAINDER)),
+                // ww21 Condition.Expression.Operator: expression rules answer Empty.
+                "Operator" if rule.kind == "expression" => Ok(AutoValue::Empty),
                 "Formula1" | "Formula2" if matches!(rule.kind.as_str(), "cellIs" | "expression") => {
                     let place = usize::from(member == "Formula2");
-                    source
-                        .formulas
-                        .get(place)
-                        .map(|f| AutoValue::text(&format!("={f}")))
-                        .ok_or_else(|| AutoError::not_modelled("FormatCondition.Formula2 of a rule with one formula", REMAINDER))
+                    match source.formulas.get(place) {
+                        Some(f) => Ok(AutoValue::text(&format!("={f}"))),
+                        // ww21 Condition.Formula2: an absent second formula answers Empty.
+                        None if place == 1 => Ok(AutoValue::Empty),
+                        None => Err(AutoError::not_modelled("FormatCondition.Formula1 of a rule without a formula", REMAINDER)),
+                    }
                 }
                 "Priority" => {
                     let rules = session.host().model().definitions().conditional_rules(sheet);
@@ -467,6 +557,156 @@ impl WorkbookAutomation {
         self.rule_change(sheet, index, ConditionalChange::Remove)
     }
 
+    fn condition_borders(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let index = condition_index(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        self.read_host(target, |session, sheet, _| rule_at(session, sheet, index).map(|_| ()))?;
+        Ok(report(workbook, sheet, "Borders", ReportItem::ConditionBorders(index)))
+    }
+
+    fn condition_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let index = condition_index(target)?;
+        self.read_host(target, |session, sheet, _| {
+            let (_, rule) = rule_at(session, sheet, index)?;
+            let dxf = dxf_of(session, &rule)?;
+            Ok(match dxf.number_format {
+                Some(nf) => AutoValue::text(&nf.code),
+                None => AutoValue::Empty,
+            })
+        })
+    }
+
+    fn condition_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let AutoValue::Text(text) = call.arg(0) else {
+            return Err(refused());
+        };
+        let code = String::from_utf16(text.utf16_code_units()).map_err(|_| refused())?;
+        let mut id = 164u32;
+        self.read_host(target, |session, _, _| {
+            let styles = session.host().styles();
+            id = (0..=163)
+                .find(|n| {
+                    calc_doc_model::builtin_number_format(*n).is_some_and(|c| {
+                        c == code || (c.eq_ignore_ascii_case("general") && code.eq_ignore_ascii_case("general"))
+                    })
+                })
+                .or_else(|| {
+                    styles
+                        .differential_formats
+                        .iter()
+                        .filter_map(|d| d.number_format.as_ref())
+                        .find(|n| n.code == code)
+                        .map(|n| n.id)
+                })
+                .or_else(|| styles.number_formats.iter().find(|n| n.code == code).map(|n| n.id))
+                .unwrap_or_else(|| {
+                    styles
+                        .differential_formats
+                        .iter()
+                        .filter_map(|d| d.number_format.as_ref().map(|n| n.id))
+                        .chain(styles.number_formats.iter().map(|n| n.id))
+                        .max()
+                        .unwrap_or(163)
+                        .max(163)
+                        .saturating_add(1)
+                });
+            Ok(AutoValue::Empty)
+        })?;
+        self.condition_edit(target, move |dxf| {
+            dxf.number_format = Some(NumberFormat { id, code: code.clone() });
+            Ok(())
+        })
+    }
+
+    pub(in crate::automation) fn condition_borders_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Report { workbook, sheet, item: ReportItem::ConditionBorders(index) } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let edge = integral_format_arg(call)?;
+        match edge {
+            DIAGONAL_DOWN..=RIGHT => {
+                self.read_host(target, |session, sheet, _| rule_at(session, sheet, index).map(|_| ()))?;
+                Ok(report(workbook, sheet, "Border", ReportItem::ConditionBorder(index, edge)))
+            }
+            11 | 12 => Err(AutoError::not_modelled("FormatCondition.Borders inside edges", REMAINDER)),
+            _ => Err(refused()),
+        }
+    }
+
+    pub(in crate::automation) fn condition_border_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let ObjectKey::Report { ref item, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let (index, edges): (u32, &[i32]) = match *item {
+            ReportItem::ConditionBorders(n) => (n, &[LEFT, TOP, BOTTOM, RIGHT]),
+            ReportItem::ConditionBorder(n, e) => (n, std::slice::from_ref(match e {
+                DIAGONAL_DOWN => &DIAGONAL_DOWN,
+                DIAGONAL_UP => &DIAGONAL_UP,
+                LEFT => &LEFT,
+                TOP => &TOP,
+                BOTTOM => &BOTTOM,
+                _ => &RIGHT,
+            })),
+            _ => return Err(geometry::type_mismatch()),
+        };
+        let member = call.member.name.as_str();
+        self.read_host(target, |session, sheet, _| {
+            let (_, rule) = rule_at(session, sheet, index)?;
+            let dxf = dxf_of(session, &rule)?;
+            let mut uniform = None;
+            for &edge in edges {
+                let value = edge_property(session.host(), side(dxf.border.as_ref(), edge), member)?;
+                if uniform.is_some_and(|prior| prior != value) {
+                    return Ok(AutoValue::Null);
+                }
+                uniform = Some(value);
+            }
+            Ok(AutoValue::I4(uniform.ok_or_else(refused)?))
+        })
+    }
+
+    pub(in crate::automation) fn condition_border_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Report { ref item, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let mut change = EdgeChange::default();
+        match call.member.name.as_str() {
+            "LineStyle" => change.line = Some(pick(LINES, integral_format_arg(call)?)?),
+            "Weight" => change.weight = Some(pick(WEIGHTS, integral_format_arg(call)?)?),
+            "Color" => change.color = Some(rgb_color(integral_format_arg(call)?)?),
+            _ => change.color = Some(indexed_color(integral_format_arg(call)?)?),
+        }
+        let mut patch = EdgesPatch::default();
+        match *item {
+            ReportItem::ConditionBorders(_) => {
+                patch.left = Some(change.clone());
+                patch.top = Some(change.clone());
+                patch.bottom = Some(change.clone());
+                patch.right = Some(change);
+            }
+            ReportItem::ConditionBorder(_, edge) => match edge {
+                LEFT => patch.left = Some(change),
+                RIGHT => patch.right = Some(change),
+                TOP => patch.top = Some(change),
+                BOTTOM => patch.bottom = Some(change),
+                DIAGONAL_UP => patch.diagonal_up = Some(change),
+                DIAGONAL_DOWN => patch.diagonal_down = Some(change),
+                _ => return Err(refused()),
+            },
+            _ => return Err(geometry::type_mismatch()),
+        }
+        self.condition_edit(target, move |dxf| {
+            let border = dxf.border.get_or_insert_with(Default::default);
+            crate::format_edges::apply(border, &patch).map_err(|_| refused())
+        })
+    }
+
     /// `Interior.Color` and `.ColorIndex` of a rule's format.
     pub(in crate::automation) fn condition_interior_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         format_arity(call, 0)?;
@@ -475,11 +715,12 @@ impl WorkbookAutomation {
         self.read_host(target, |session, sheet, _| {
             let (_, rule) = rule_at(session, sheet, index)?;
             let dxf = dxf_of(session, &rule)?;
-            let fill = dxf.fill.as_ref().ok_or_else(|| {
-                AutoError::not_modelled("Interior of a rule without a fill", REMAINDER)
-            })?;
             match member.as_str() {
-                "Color" => Ok(AutoValue::I4(color_bgr(session.host(), fill.bg_color.as_ref(), 0x00FF_FFFF)?)),
+                // ww21 Condition.Interior.Color: unset fill answers 0.
+                "Color" => {
+                    let bg = dxf.fill.as_ref().and_then(|f| f.bg_color.as_ref());
+                    Ok(AutoValue::I4(color_bgr(session.host(), bg, 0)?))
+                }
                 _ => Err(AutoError::not_modelled(format!("FormatCondition.Interior.{member}"), REMAINDER)),
             }
         })
@@ -510,7 +751,7 @@ impl WorkbookAutomation {
         })
     }
 
-    /// `Font.Bold`, `.Italic` and `.Color` of a rule's format.
+    /// `Font.Bold`, `.Italic`, `.Underline` and `.Color` of a rule's format.
     pub(in crate::automation) fn condition_font_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         format_arity(call, 0)?;
         let index = condition_index(target)?;
@@ -521,6 +762,11 @@ impl WorkbookAutomation {
             match member.as_str() {
                 "Bold" => Ok(AutoValue::Bool(dxf.font.as_ref().is_some_and(|f| f.bold))),
                 "Italic" => Ok(AutoValue::Bool(dxf.font.as_ref().is_some_and(|f| f.italic))),
+                "Underline" => Ok(AutoValue::I4(format_enum_value(
+                    super::font::UNDERLINES,
+                    dxf.font.as_ref().and_then(|f| f.underline.as_deref()),
+                    call,
+                )?)),
                 "Color" => Ok(AutoValue::I4(color_bgr(
                     session.host(),
                     dxf.font.as_ref().and_then(|f| f.color.as_ref()),
@@ -536,19 +782,23 @@ impl WorkbookAutomation {
         let member = call.member.name.clone();
         match member.as_str() {
             "Bold" | "Italic" => {
-                if !geometry::boolean(call.arg(0)).map_err(|_| refused())? {
-                    return Err(AutoError::not_modelled(
-                        format!("FormatCondition.Font.{member} = False (a differential format cannot say b val=0)"),
-                        REMAINDER,
-                    ));
-                }
+                let on = geometry::boolean(call.arg(0)).map_err(|_| refused())?;
                 self.condition_edit(target, move |dxf| {
                     let font = dxf.font.get_or_insert_with(Default::default);
                     if member == "Bold" {
-                        font.bold = true;
+                        font.bold = on;
+                        font.bold_off = !on;
                     } else {
-                        font.italic = true;
+                        font.italic = on;
+                        font.italic_off = !on;
                     }
+                    Ok(())
+                })
+            }
+            "Underline" => {
+                let keyword = format_enum_keyword(super::font::UNDERLINES, call)?;
+                self.condition_edit(target, move |dxf| {
+                    dxf.font.get_or_insert_with(Default::default).underline = Some(keyword.clone());
                     Ok(())
                 })
             }

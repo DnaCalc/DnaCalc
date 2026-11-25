@@ -541,3 +541,131 @@ fn wraprows_and_wrapcols_count_and_argument_order() {
     assert_eq!((padded.shape().rows, padded.shape().cols), (2, 2));
     assert_eq!(padded.get(1, 1).unwrap().as_error(), Some(NA));
 }
+
+/// Excel 16.0.20527 (Touchstone, 2026-11-25; dc-j9k.314 onwards): a RANDARRAY whose minimum exceeds its
+/// maximum is #VALUE! even where the size alone would be #SPILL! or too big to model; a zero size is
+/// #CALC! before that check.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn randarray_minimum_above_maximum_is_value_before_spill() {
+    use calc_func::value::WorksheetErrorCode::Spill;
+    error(call("RANDARRAY", vec![n(10.5), n(32768.0), n(664.0)]), Value);
+    error(call("RANDARRAY", vec![n(10.0), n(16385.0), n(664.0)]), Value);
+    error(call("RANDARRAY", vec![n(2000.0), n(2000.0), n(5.0), n(1.0)]), Value);
+    error(call("RANDARRAY", vec![n(0.0), n(1.0), n(5.0), n(1.0)]), Calc);
+    error(call("RANDARRAY", vec![n(1.0), n(1.0), n(1.2), n(1.5), b(true)]), Value);
+    error(call("RANDARRAY", vec![n(10.5), n(32768.0)]), Spill);
+}
+
+/// Excel 16.0.20527 (Touchstone, dc-j9k.351 to .353): SEQUENCE floors a dimension the way RANDARRAY does,
+/// so a negative dimension within about 2^-23 of zero is a zero dimension (#CALC!), not #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_tiny_negative_dimension_is_calc() {
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x8050_0000_0000_0000))]), Calc);
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x8010_0000_0000_0001)), n(0.0)]), Calc);
+    error(call("SEQUENCE", vec![n(f64::from_bits(0x3d72_fe28_7039_747c)), n(f64::from_bits(0xbd9a_4031_0ea7_ccad))]), Calc);
+    error(call("SEQUENCE", vec![n(-0.5)]), Value);
+}
+
+/// Excel 16.0.20527 (Touchstone, 2026-11-25; dc-j9k.277 to .281): ARRAYTOTEXT of a one-cell reference
+/// that holds an error is that error whatever the format, and of a blank one-cell reference is #VALUE!;
+/// a wider range shows its errors and blanks as text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn arraytotext_of_one_cell_reference_holding_an_error_or_blank() {
+    use calc_func::value::WorksheetErrorCode::Ref;
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(Ref), n(5.0)]);
+    sheet.column(1, 3, vec![n(1.0)]);
+    sheet.column(1, 4, vec![e(NA)]);
+    let error_cell = sheet.area(1, 1, 1, 1);
+    let blank_cell = sheet.area(1, 2, 1, 2);
+    let wide = sheet.area(1, 3, 1, 4);
+    for format in [vec![], vec![n(0.0)], vec![n(1.0)], vec![n(2.0)], vec![e(calc_func::value::WorksheetErrorCode::Div0)]] {
+        let with = |first: calc_func::value::CalcValue| [vec![first], format.clone()].concat();
+        error(call_on(&mut sheet, "ARRAYTOTEXT", with(error_cell.clone())), Ref);
+        error(call_on(&mut sheet, "ARRAYTOTEXT", with(blank_cell.clone())), Value);
+    }
+    text(call_on(&mut sheet, "ARRAYTOTEXT", vec![wide.clone()]), "1, #N/A");
+    text(call_on(&mut sheet, "ARRAYTOTEXT", vec![wide, n(1.0)]), "{1,#N/A}");
+}
+
+/// Excel 16.0.20625 (Touchstone sheet cases, dc-shqi1): a one-cell reference to an error or blank
+/// is dereferenced as a scalar in WRAPROWS/WRAPCOLS (error wins over bad count; blank or missing
+/// returns #VALUE! even before a #DIV/0! count); a one-cell reference pad supplies that cell value.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn wraprows_and_wrapcols_one_cell_references_missing_and_pad_ref() {
+    use calc_func::value::WorksheetErrorCode::Div0;
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(NA), n(5.0), n(6.0), n(7.0)]);
+    sheet.column(1, 5, vec![n(99.0)]);
+    let err_cell = sheet.area(1, 1, 1, 1);
+    let blank_cell = sheet.area(1, 3, 1, 3);
+    let vec_ref = sheet.area(2, 1, 4, 1);
+    for name in ["WRAPROWS", "WRAPCOLS"] {
+        error(call_on(&mut sheet, name, vec![err_cell.clone(), n(-1.0)]), NA);
+        error(call_on(&mut sheet, name, vec![err_cell.clone(), n(2.0)]), NA);
+        error(call_on(&mut sheet, name, vec![err_cell.clone(), e(Div0)]), NA);
+        error(call_on(&mut sheet, name, vec![blank_cell.clone(), n(-1.0)]), Value);
+        error(call_on(&mut sheet, name, vec![blank_cell.clone(), n(2.0)]), Value);
+        error(call_on(&mut sheet, name, vec![blank_cell.clone(), e(Div0)]), Value);
+        error(call_on(&mut sheet, name, vec![missing(), n(2.0)]), Value);
+        error(call_on(&mut sheet, name, vec![missing(), e(Div0)]), Value);
+    }
+    assert_eq!(
+        array(call_on(&mut sheet, "WRAPROWS", vec![vec_ref, n(2.0), n(99.0)])),
+        (2, 2, vec![5.0, 6.0, 7.0, 99.0])
+    );
+}
+
+/// Excel 16.0.20625 (Touchstone sheet cases, dc-shqi1): MAKEARRAY rejects columns > 16,384 and
+/// rows > 1,048,576 with #SPILL! without evaluating; generated arrays above GENERATED_CELL_LIMIT
+/// refuse as not modelled without allocating >1.5 GiB.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn makearray_rejects_beyond_grid_columns_and_large_generated_arrays_refuse() {
+    use calc_func::value::WorksheetErrorCode::Spill;
+    error(call("MAKEARRAY", vec![n(1.0), n(16_385.0), a_lambda(2)]), Spill);
+    error(call("MAKEARRAY", vec![n(1_048_577.0), n(1.0), a_lambda(2)]), Spill);
+    refused(call("SEQUENCE", vec![n(2048.0), n(1024.0)]));
+}
+
+/// Excel 16.0.20625 (Touchstone bisection, dc-shqi1): SEQUENCE's negative zero-floor cutoff is
+/// exactly -(2^-23 + 2^-34) = 0xbe80020000000000 (#CALC!), one ULP more negative is #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_negative_cutoff_is_exact_to_the_bit() {
+    error(call("SEQUENCE", vec![n(f64::from_bits(0xbe80_0200_0000_0000))]), Calc);
+    error(call("SEQUENCE", vec![n(f64::from_bits(0xbe80_0200_0000_0001))]), Value);
+}
+
+/// Excel 16.0.20625 (Touchstone, dc-shqi1): SORT descending orders 1-ULP adjacent binary64 keys
+/// accurately and honours NumericMode::Exact refusal via site.binary64().
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_descending_orders_adjacent_binary64_keys_and_checks_numeric_mode() {
+    use calc_func::value::{NumericMode, NumericTargetId};
+    use calc_func::{EvalServices, FunctionCallScratch, FunctionFault, Notation, catalogue, invoke};
+    let a = 1.0_f64;
+    let b = f64::from_bits(a.to_bits() + 1);
+    let col = arr_values(vec![vec![n(a)], vec![n(b)]]);
+    let (r, c, cells) = array(call("SORT", vec![col.clone(), n(1.0), n(-1.0)]));
+    assert_eq!((r, c), (2, 1));
+    assert_eq!(cells[0].to_bits(), b.to_bits());
+    assert_eq!(cells[1].to_bits(), a.to_bits());
+
+    let target = catalogue().resolve_surface(Notation::Call, "SORT").unwrap();
+    let mode = NumericMode::Exact(
+        NumericTargetId::new("test-build", "test-channel", "test-compat", "test-env").unwrap(),
+    );
+    let mut services = EvalServices::new(&mode);
+    let mut scratch = FunctionCallScratch::new();
+    // 1-arg SORT reaches order() directly without sort_index/sort_order coercion.
+    let mut args = Given(vec![col]);
+    assert!(matches!(
+        invoke(target, &mut args, &mut services, &mut scratch),
+        Err(FunctionFault::ExactUnavailable { .. })
+    ));
+}

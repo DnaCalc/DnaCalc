@@ -138,6 +138,8 @@ impl WorkbookAutomation {
             |session, reference| {
                 let reference = reference.ok_or_else(geometry::type_mismatch)?;
                 let indexed = resolve_target(reference)?;
+                // Refused before the table pre-step can unlist a table or rename its columns.
+                self.guard_locked(session, &indexed)?;
                 match Self::table_pre_step(session, &indexed, call.args.last())? {
                     PreWrite::Same => Ok(PreWrite::Replace(indexed)),
                     other => Ok(other),
@@ -166,7 +168,11 @@ impl WorkbookAutomation {
             call,
             OWNER,
             |session, reference| match reference {
-                Some(reference) => Self::table_pre_step(session, reference, call.args.last()),
+                Some(reference) => {
+                    // Refused before the table pre-step can unlist a table or rename its columns.
+                    self.guard_locked(session, reference)?;
+                    Self::table_pre_step(session, reference, call.args.last())
+                }
                 None => Ok(PreWrite::Same),
             },
             |session, reference| intent(session, reference.ok_or_else(geometry::type_mismatch)?),
@@ -336,19 +342,34 @@ impl WorkbookAutomation {
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
+        intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate_range_with_owner(target, call, OWNER, intent)
+    }
+    pub(super) fn mutate_range_with_owner(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        owner: &'static str,
         mut intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
-        self.mutate(target, call, |session, reference| {
-            let range = reference.ok_or_else(geometry::type_mismatch)?;
-            self.guard_locked(session, &range)?;
-            if range.area_count() != 1 {
-                return Err(AutoError::not_modelled(
-                    format!("{} multi-area write", call.label()),
-                    "dc-1nbp.6",
-                ));
-            }
-            intent(session, range)
-        })
+        self.mutate_pre(
+            target,
+            call,
+            owner,
+            |_, _| Ok(PreWrite::Same),
+            |session, reference| {
+                let range = reference.ok_or_else(geometry::type_mismatch)?;
+                self.guard_locked(session, &range)?;
+                if range.area_count() != 1 {
+                    return Err(AutoError::not_modelled(
+                        format!("{} multi-area write", call.label()),
+                        "dc-1nbp.6",
+                    ));
+                }
+                intent(session, range)
+            },
+        )
     }
     pub(super) fn write_range(
         &self,

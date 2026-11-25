@@ -15,6 +15,9 @@ const XL_PASTE_FORMATS: i64 = -4122;
 const XL_PASTE_COMMENTS: i64 = -4144;
 const XL_PASTE_VALIDATION: i64 = 6;
 const XL_PASTE_COMMENTS_AND_NOTES: i64 = 21;
+const XL_PASTE_ALL_EXCEPT_BORDERS: i64 = 7;
+const XL_PASTE_FORMULAS_AND_NUMBER_FORMATS: i64 = 11;
+const XL_PASTE_VALUES_AND_NUMBER_FORMATS: i64 = 12;
 const XL_PASTE_COLUMN_WIDTHS: i64 = 8;
 const XL_PASTE_ALL_USING_SOURCE_THEME: i64 = 13;
 const XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS: i64 = 14;
@@ -99,9 +102,12 @@ impl WorkbookAutomation {
             XL_PASTE_VALUES => PasteMode::Values,
             XL_PASTE_FORMULAS => PasteMode::Formulas,
             XL_PASTE_FORMATS => PasteMode::Formats,
+            XL_PASTE_ALL_EXCEPT_BORDERS => PasteMode::AllExceptBorders,
+            XL_PASTE_FORMULAS_AND_NUMBER_FORMATS => PasteMode::FormulasAndNumberFormats,
+            XL_PASTE_VALUES_AND_NUMBER_FORMATS => PasteMode::ValuesAndNumberFormats,
             _ => {
                 return Err(AutoError::not_modelled(
-                    format!("Range.PasteSpecial Paste:={paste} (number-format mixes, all-except-borders)"),
+                    format!("Range.PasteSpecial Paste:={paste} "),
                     OWNER,
                 ));
             }
@@ -191,6 +197,11 @@ impl WorkbookAutomation {
                 }
                 range.areas()[0]
             };
+            // The paste writes its destination, and a Cut also clears its source.
+            self.guard_area(session, to)?;
+            if clip.cut {
+                self.guard_area(session, clip.snapshot.area())?;
+            }
             cut = clip.cut;
             let mut plan = prepare_paste_oriented(
                 session.host(),

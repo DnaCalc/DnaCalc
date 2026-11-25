@@ -2180,7 +2180,7 @@ pub(crate) fn prepare_move(
     to: SheetId,
     place: [f64; 4],
 ) -> Result<Vec<crate::CellEdit>, String> {
-    let fail = |s: &str| format!("{s} (dc-oxh8w.48)");
+    let fail = |s: &str| format!("{s} (dc-oxh8w.3)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; read the chart again"));
     }

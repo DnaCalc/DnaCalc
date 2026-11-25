@@ -790,10 +790,19 @@ impl HostSession {
         policy: &SavePolicy,
         out: &mut dyn PackageWrite,
     ) -> Result<SaveReceipt, SaveFailed> {
-        let save = self.begin_save(policy)?;
-        let receipt = self.finish_save_synchronously(save)?.write(out)?;
-        self.notify_after_save(true);
-        Ok(receipt)
+        let save = match self.begin_save(policy) {
+            Ok(save) => save,
+            Err(SaveFailed::Cancelled) => return Err(SaveFailed::Cancelled),
+            Err(error) => {
+                self.notify_after_save(false);
+                return Err(error);
+            }
+        };
+        let result = self
+            .finish_save_synchronously(save)
+            .and_then(|prepared| prepared.write(out));
+        self.notify_after_save(result.is_ok());
+        result
     }
 
     /// Starts an ordinary Save with the session’s active worksheet and save settings.
@@ -1804,6 +1813,7 @@ impl HostSession {
             let left = self.selection.active.map(|at| at.sheet());
             self.select_quietly(selection, receipt);
             let entered = self.selection.active.map(|at| at.sheet());
+            let switched = matches!((left, entered), (Some(old), Some(new)) if old != new);
             if let (Some(old), Some(new)) = (left, entered)
                 && old != new
             {
@@ -1811,15 +1821,17 @@ impl HostSession {
                 self.notify_document_event(crate::DocumentEvent::SheetDeactivate { sheet: old });
                 self.notify_document_event(crate::DocumentEvent::SheetActivate { sheet: new });
             }
-            let sheet = self.selection.active.map(|at| at.sheet())
-                .or_else(|| self.selection.areas.first().map(|area| area.sheet()));
-            if let Some(sheet) = sheet {
-                let mut target: Vec<_> = self.selection.areas.iter().copied()
-                    .filter(|area| area.sheet() == sheet).collect();
-                if target.is_empty() && let Some(at) = self.selection.active {
-                    target.push(GridArea::new(at, at).expect("active cell is a valid area"));
+            if !switched {
+                let sheet = self.selection.active.map(|at| at.sheet())
+                    .or_else(|| self.selection.areas.first().map(|area| area.sheet()));
+                if let Some(sheet) = sheet {
+                    let mut target: Vec<_> = self.selection.areas.iter().copied()
+                        .filter(|area| area.sheet() == sheet).collect();
+                    if target.is_empty() && let Some(at) = self.selection.active {
+                        target.push(GridArea::new(at, at).expect("active cell is a valid area"));
+                    }
+                    self.notify_workbook_selection_changed(sheet, &target);
                 }
-                self.notify_workbook_selection_changed(sheet, &target);
             }
         }
         Ok(())

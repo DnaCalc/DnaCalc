@@ -112,13 +112,15 @@ pub(crate) struct SaveDemand {
     pub calculate_before_save: bool,
 }
 
+/// A save calculation is complete when every required cell is calculated or typed-refused. Excel saves a
+/// workbook holding a cell the engine does not model; the refused cell keeps its file cache (and its provenance)
+/// in the saved file, it is never written as calculated (dc-e6b0j).
 pub(crate) fn save_completion_valid(receipt: &calc_engine::CompletionReceipt) -> bool {
     // TABLE sessions have real results but retain their Incomplete certificate.
     matches!(
         receipt.outcome,
         crate::CompletionOutcome::Complete | crate::CompletionOutcome::Incomplete
-    ) && receipt.coverage.calculated == receipt.coverage.required
-        && receipt.coverage.refused == 0
+    ) && receipt.coverage.calculated + receipt.coverage.refused == receipt.coverage.required
         && receipt.coverage.held == 0
 }
 
@@ -245,14 +247,58 @@ pub fn prepare_save_with_cache_policy(
     policy: &SavePolicy,
     cache_policy: SaveCachePolicy,
 ) -> Result<PreparedSave, SaveFailed> {
-    prepare_save_operation(host, policy, cache_policy, false, None)
+    prepare_save_operation(host, policy, cache_policy, None)
+}
+
+pub(crate) fn effective_save_policy(host: &HostState, policy: &SavePolicy) -> SavePolicy {
+    if host.sheet_view_overrides.is_empty() {
+        return policy.clone();
+    }
+    let mut views = policy.views.as_deref().cloned().unwrap_or_else(|| calc_doc::SaveViews {
+        revision: host.revision().get(),
+        active_sheet: None,
+        sheets: BTreeMap::new(),
+    });
+    for (&sheet, o) in &host.sheet_view_overrides {
+        if host.model.sheet_by_id(sheet).is_none() {
+            continue;
+        }
+        if let Some(existing) = views.sheets.get_mut(&sheet) {
+            if existing.zoom.is_none() {
+                existing.zoom = o.zoom;
+            }
+            if existing.top_left.is_none() {
+                existing.top_left = o.top_left;
+            }
+            if existing.show_grid_lines.is_none() {
+                existing.show_grid_lines = o.show_grid_lines;
+            }
+            if existing.show_row_col_headers.is_none() {
+                existing.show_row_col_headers = o.show_row_col_headers;
+            }
+            if existing.show_formulas.is_none() {
+                existing.show_formulas = o.show_formulas;
+            }
+            if existing.show_zeros.is_none() {
+                existing.show_zeros = o.show_zeros;
+            }
+            if existing.show_outline_symbols.is_none() {
+                existing.show_outline_symbols = o.show_outline_symbols;
+            }
+        } else if let Some(view) = host.sheet_view(sheet) {
+            views.sheets.insert(sheet, view);
+        }
+    }
+    SavePolicy {
+        views: Some(Arc::new(views)),
+        ..policy.clone()
+    }
 }
 
 pub(crate) fn prepare_save_operation(
     host: &HostState,
     policy: &SavePolicy,
     cache_policy: SaveCachePolicy,
-    calculate_before_save: bool,
     calculation: Option<calc_engine::CompletionReceipt>,
 ) -> Result<PreparedSave, SaveFailed> {
     let pin = SavePin {
@@ -263,6 +309,7 @@ pub(crate) fn prepare_save_operation(
         results: host.engine.result_view(),
         active_calculation: host.work.as_ref().map(|work| work.admission().command),
     };
+    let effective = effective_save_policy(host, policy);
     prepare_image(
         &host.loaded,
         &host.model,
@@ -270,9 +317,9 @@ pub(crate) fn prepare_save_operation(
         &host.axis_edits,
         host.calc_mode(),
         pin,
-        policy,
+        &effective,
         calculation,
-        calculate_before_save,
+        (host.calculate_before_save(), host.precision_as_displayed()),
     )
 }
 
@@ -285,7 +332,8 @@ pub(crate) fn prepare_image(
     pin: SavePin,
     policy: &SavePolicy,
     calculation: Option<calc_engine::contract::CompletionReceipt>,
-    calculate_before_save: bool,
+    // The workbook's own settings: (CalculateBeforeSave, PrecisionAsDisplayed), never a call's context.
+    (calculate_before_save, precision_as_displayed): (bool, bool),
 ) -> Result<PreparedSave, SaveFailed> {
     // The package writer preserves the embedded model bytes. Refuse to save a changed
     // snapshot until those bytes can be updated to agree with the calculated cells.
@@ -350,6 +398,13 @@ pub(crate) fn prepare_image(
                 && definitions.array(at).is_none()
                 && engine.spill(at).is_none()
             {
+                if engine.permitted_cache(at).is_none()
+                    && let Some(cache) = engine.refused_file_cache(at)
+                {
+                    values.insert(at, cache.value().clone());
+                    dirty_caches.insert(at);
+                    continue;
+                }
                 if let Some(result) = engine.permitted_cache(at) {
                     let cache = match result {
                         FormulaResult::Calculated { value, .. } => cached(value),
@@ -465,6 +520,10 @@ pub(crate) fn prepare_image(
         } else {
             snapshot
         };
+    let snapshot = snapshot.with_calculation_overrides(
+        (calculate_before_save != loaded.calc_on_save()).then_some(calculate_before_save),
+        (precision_as_displayed == loaded.full_precision()).then_some(!precision_as_displayed),
+    );
     let plan = calc_doc::prepare_save(&snapshot, policy).map_err(SaveFailed::Refused)?;
     Ok(PreparedSave {
         pin,

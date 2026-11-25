@@ -72,7 +72,7 @@ pub(crate) fn open(cli: &Cli) -> Result<Book, Failure> {
                 &grant,
                 &mut session,
                 &name,
-                MAX_VBA_STEPS,
+                cli.steps,
                 None,
             ) {
                 Ok(project) => (

@@ -13,6 +13,8 @@ pub enum CumulativeFinanceEvalError {
         actual: usize,
     },
     Domain(WorksheetErrorCode),
+    /// A fallback span outside the closed form is too long to walk (owned by open epic dc-j9k).
+    NotModelled,
 }
 
 fn validate_finite(values: &[f64]) -> Result<(), CumulativeFinanceEvalError> {
@@ -36,16 +38,17 @@ fn period_argument(value: f64) -> Result<f64, CumulativeFinanceEvalError> {
             WorksheetErrorCode::Value,
         ));
     }
-    if value < 1.0 || value > i32::MAX as f64 {
+    // Live Excel (dc-j9k.323): no upper limit (nper 2147483648 and 1e300 answer).
+    if value < 1.0 {
         return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
     }
     Ok(value)
 }
 
 /// The whole periods from `start` to `end`: the first whole period at or after the start and the
-/// last at or before the end. An interval holding no whole period is empty.
-fn whole_periods(start: f64, end: f64) -> (i32, i32) {
-    (start.ceil() as i32, end.floor() as i32)
+/// last at or before the end, kept as binary64 so periods past 2^63 never saturate.
+fn whole_periods(start: f64, end: f64) -> (f64, f64) {
+    (start.ceil(), end.floor())
 }
 
 fn payment_timing_arg(value: f64) -> Result<PaymentTiming, CumulativeFinanceEvalError> {
@@ -68,13 +71,13 @@ fn kernel_error(error: FinancialError) -> CumulativeFinanceEvalError {
     })
 }
 
-/// The shared principal span, with the existing fallback outside its quotient domain.
+/// The shared principal span, with a bounded fallback outside its quotient domain.
 fn principal_sum(
     rate: f64,
     periods: f64,
     pv: f64,
-    start_period: i32,
-    end_period: i32,
+    start_period: f64,
+    end_period: f64,
     timing: PaymentTiming,
 ) -> Result<f64, CumulativeFinanceEvalError> {
     if let Some(total) =
@@ -82,24 +85,32 @@ fn principal_sum(
     {
         return Ok(total);
     }
+    // Check PMT first so overflowing quotients / underflowing discounts return Excel's #NUM!
+    // directly rather than hitting a fallback refusal.
+    let payment = time_value::pmt(rate, periods, pv, 0.0, timing).map_err(kernel_error)?;
     let beginning_payment = if timing == PaymentTiming::BeginningOfPeriod {
-        Some(time_value::pmt(rate, periods, pv, 0.0, timing).map_err(kernel_error)?)
+        Some(payment)
     } else {
         None
     };
+    let span = end_period - start_period;
+    if !end_period.is_finite() || end_period >= (1_u64 << 53) as f64 || span > 10_000.0 {
+        return Err(CumulativeFinanceEvalError::NotModelled);
+    }
     let mut total = 0.0;
-    for period in start_period..=end_period {
+    let mut period = start_period;
+    while period <= end_period {
         let principal = if let Some(payment) = beginning_payment {
             // Keep the previous numeric admission as well as its expression.
             // CUMPRINC is not a sum of the public PPMT publications in Excel.
-            let interest = time_value::ipmt(rate, period as f64, periods, pv, 0.0, timing)
+            let interest = time_value::ipmt(rate, period, periods, pv, 0.0, timing)
                 .map_err(kernel_error)?;
-            if period == 1 {
+            if period == 1.0 {
                 payment - interest
             } else {
                 time_value::discounted_payment_principal(
                     rate,
-                    period as f64,
+                    period,
                     periods,
                     payment,
                     0.0,
@@ -107,12 +118,13 @@ fn principal_sum(
                 )
             }
         } else {
-            time_value::ppmt(rate, period as f64, periods, pv, 0.0, timing).map_err(kernel_error)?
+            time_value::ppmt(rate, period, periods, pv, 0.0, timing).map_err(kernel_error)?
         };
         if !principal.is_finite() {
             return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
         }
         total += principal;
+        period += 1.0;
     }
     Ok(total)
 }
@@ -167,8 +179,8 @@ pub fn cumipmt_kernel(
     // Beginning payments have no first-period interest. Excel omits that
     // period from both the payment count and the principal sum: all252
     // eight-period pairs and216 independent longer-loan pairs agree.
-    let start_period = if timing == PaymentTiming::BeginningOfPeriod && start_period == 1 {
-        2
+    let start_period = if timing == PaymentTiming::BeginningOfPeriod && start_period == 1.0 {
+        2.0
     } else {
         start_period
     };
@@ -176,7 +188,7 @@ pub fn cumipmt_kernel(
         return Ok(0.0);
     }
     let principal = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
-    let total = interest_finish((end_period - start_period + 1) as f64, payment, principal);
+    let total = interest_finish(end_period - start_period + 1.0, payment, principal);
     if total.is_finite() {
         Ok(total)
     } else {
@@ -216,6 +228,7 @@ pub fn map_cumulative_finance_error_to_ws(
     match error {
         CumulativeFinanceEvalError::ArityMismatch { .. } => WorksheetErrorCode::Value,
         CumulativeFinanceEvalError::Domain(code) => *code,
+        CumulativeFinanceEvalError::NotModelled => WorksheetErrorCode::Num,
     }
 }
 
@@ -237,6 +250,65 @@ mod tests {
             actual.to_bits(),
             expected.to_bits(),
             "{actual} vs {expected}"
+        );
+    }
+
+    /// Live Excel (dc-j9k.323): nper and the periods have no i32 limit; the principal of a vanishing
+    /// loan is 0 and the interest of a huge-nper loan is the payment count times the payment.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn huge_nper_and_periods_have_no_i32_limit() {
+        // Excel's cell write stores a negative zero as +0.
+        let bits = |r: Result<f64, CumulativeFinanceEvalError>| r.map(|x| if x == 0.0 { 0 } else { x.to_bits() });
+        for nper in [2147483647.0, f64::from_bits(0x41dfffffffc00001), 2147483647.5, 2147483648.0, 1e10, 1e15, 1e300] {
+            assert_eq!(bits(cumprinc_kernel(0.1, nper, 1000.0, 1.0, 5.0, 0.0)), Ok(0), "nper {nper}");
+        }
+        assert_eq!(bits(cumprinc_kernel(0.1, 1e300, 1000.0, 2147483648.0, 2147483648.0, 0.0)), Ok(0));
+        assert_eq!(bits(cumprinc_kernel(0.1, 1e300, 1000.0, 4294967296.0, 4294967296.0, 0.0)), Ok(0));
+        assert_eq!(bits(cumprinc_kernel(0.1, 5e9, 1000.0, 3e9, 3000000001.0, 0.0)), Ok(0));
+        assert_eq!(
+            bits(cumipmt_kernel(0.1, f64::from_bits(0x41dfffffffc00001), 1000.0, 1.0, 5.0, 0.0)),
+            Ok(0xc07f400000000000)
+        );
+        assert_eq!(bits(cumipmt_kernel(0.1, 1e300, 1000.0, 2147483648.0, 2147483648.0, 0.0)), Ok(0xc059000000000000));
+        // The end still may not pass nper.
+        assert!(cumprinc_kernel(0.1, 100.0, 1000.0, 2147483647.5, 2147483647.5, 0.0).is_err());
+        // The cluster's representative.
+        assert_eq!(
+            bits(cumprinc_kernel(
+                f64::from_bits(0x4011d0fe294c2006),
+                f64::from_bits(0x41dfffffffc00001),
+                f64::from_bits(0x01a56e1fc2f8f358),
+                f64::from_bits(0x41856ac2ea528084),
+                f64::from_bits(0x41b115b63d2a994f),
+                1.0
+            )),
+            Ok(0)
+        );
+    }
+
+    /// Live Excel 16.0.20625 (Touchstone, dc-shqi1): start_period/end_period past 2^63 must not
+    /// saturate to i64::MAX, and overflowing quotient returns #NUM!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn cumipmt_and_cumprinc_periods_past_i64_max_do_not_saturate() {
+        let bits = |r: Result<f64, CumulativeFinanceEvalError>| r.map(|x| if x == 0.0 { 0 } else { x.to_bits() });
+        assert_eq!(
+            bits(cumipmt_kernel(0.1, 1e300, 1000.0, 1e20, 2e20, 0.0)),
+            Ok(0xc480f0cf064dd592)
+        );
+        assert_eq!(
+            bits(cumipmt_kernel(0.1, 1e300, 1000.0, 1e100, 2e100, 0.0)),
+            Ok(0xd51c931e8ab87173)
+        );
+        assert_eq!(
+            bits(cumipmt_kernel(0.1, 1e300, 1000.0, 2.0_f64.powi(63), 2.0_f64.powi(64), 0.0)),
+            Ok(0xc449000000000000)
+        );
+        assert_eq!(bits(cumprinc_kernel(0.1, 1e300, 1000.0, 1e20, 2e20, 0.0)), Ok(0));
+        assert_eq!(
+            cumipmt_kernel(1e-20, 1e8, 1e300, 1.0, 2e7, 0.0),
+            Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
         );
     }
 

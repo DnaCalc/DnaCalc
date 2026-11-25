@@ -6034,6 +6034,8 @@ fn contract_p06_manual_save_preserves_permitted_scalar_caches_with_dirty_metadat
         Some(CalcValue::number(3.0))
     );
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    // The saved calcOnSave is the workbook's own setting, not a constant: this save keeps caches, so it is off.
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
     assert!(enter(&mut book, at(s, "A1"), "5").accepted());
     book.take_calculation_events();
     let saved = book.prepare_save(&SavePolicy::default()).unwrap();
@@ -6241,6 +6243,7 @@ fn contract_p06_handlers_precede_the_pin_and_copy_skips_them() {
                 book.advance_calculation();
             }
             enter(&mut book, at(s, "A1"), "5");
+            assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(calculate_before_save)).accepted());
             let mut handler = Handler { sheet: s, calls: 0 };
             let plan = book
                 .prepare_save_with_context(
@@ -23436,6 +23439,9 @@ fn dc_bctq__manual_insertion_retains_historical_values_without_freshness_proofs(
     enter(&mut book, at(s, "A1"), "2");
     enter(&mut book, at(s, "B1"), "=A1*3");
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+    // The workbook's CalculateBeforeSave is off, so the Manual save keeps the held values (it is on by default,
+    // and a Manual save then calculates first: dc-oxh8w.66).
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
     enter(&mut book, at(s, "A1"), "9");
     let receipt = book.dispatch(SkinIntent::Command(C::InsertTemplate {
         bytes: bytes.clone().into(),
@@ -30729,4 +30735,90 @@ fn dc_oxh8w_66__plain_save_passes_calculate_before_save() {
         let want = if on { 10.0 } else { 2.0 };
         assert_eq!(cache.value(), &cached_of(&CalcValue::number(want)), "{on}");
     }
+}
+
+/// A manual workbook with CalculateBeforeSave on saves even when a formula cell is not modelled (NOW with no
+/// clock is refused): the other cells are calculated and the refused cell keeps its file cache, as Excel saves
+/// (dc-e6b0j).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e6b0j__manual_save_with_a_refused_cell_calculates_the_rest_and_keeps_the_refused_cache() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="B1"><f>A1*2</f><v>2</v></c><c r="C1"><f>NOW()</f><v>1.25</v></c></row></sheetData>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(true)).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("Excel saves; so does DNA Calc");
+    let reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let ProjectedValue::FileCached(cache) = value(reopened.host(), at(r, "B1")) else { panic!("B1 file cache") };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(10.0)));
+    let c1 = value(reopened.host(), at(r, "C1"));
+    let ProjectedValue::FileCached(cache) = c1 else { panic!("C1 file cache: {c1:?}") };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(1.25)));
+}
+
+/// Replacing a refused formula with another refused formula must not write the old formula's file cache onto the
+/// new one when saving (rw12 finding 5, dc-iq8o8): the new formula has no cache of its own.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__replaced_refused_formula_does_not_inherit_the_old_file_cache() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="C1"><f>NOW()</f><v>1.25</v></c></row></sheetData>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(true)).accepted());
+    let r = book.host().sheets()[0].id();
+    enter(&mut book, at(r, "C1"), "=NOW()+1");
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("saves");
+    let reopened = session(&saved);
+    let c1 = value(reopened.host(), at(r, "C1"));
+    if let ProjectedValue::FileCached(cache) = &c1 {
+        assert_ne!(cache.value(), &cached_of(&CalcValue::number(1.25)), "old formula's cache leaked: {c1:?}");
+    }
+}
+
+/// Reopens `book` saved under the default policy.
+fn saved_and_reopened(book: &mut HostSession) -> HostSession {
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("saves");
+    session(&saved)
+}
+
+/// PrecisionAsDisplayed put back to False (SetFullPrecision) and CalculateBeforeSave puts reach `calcPr` on save in
+/// Automatic mode, where no cache state is written (rw12 finding 6, dc-iq8o8).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__precision_and_calculate_before_save_puts_are_saved_in_automatic_mode() {
+    let bytes = package_with_part("xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr fullPrecision=\"0\" calcOnSave=\"0\" "));
+    let mut book = session(&bytes);
+    assert!(book.host().precision_as_displayed() && !book.host().calculate_before_save());
+    assert!(book.dispatch(SkinIntent::SetFullPrecision).accepted());
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(true)).accepted());
+    let reopened = saved_and_reopened(&mut book);
+    assert!(!reopened.host().precision_as_displayed(), "fullPrecision put back to True was not saved");
+    assert!(reopened.host().calculate_before_save(), "calcOnSave put to True was not saved");
+
+    let mut book = session(&fixture());
+    assert!(book.host().calculate_before_save());
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
+    assert!(!saved_and_reopened(&mut book).host().calculate_before_save(), "calcOnSave put to False was not saved");
+}
+
+/// A Manual workbook that keeps the default CalculateBeforeSave saves it as it was: the save's calculation state
+/// does not hardcode calcOnSave false (rw12 finding 6, dc-iq8o8).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__manual_save_keeps_the_workbooks_calculate_before_save() {
+    let bytes = package_with_part("xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+    let mut book = session(&bytes);
+    assert!(book.host().calculate_before_save());
+    assert!(saved_and_reopened(&mut book).host().calculate_before_save(), "calcOnSave default lost on save");
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
+    assert!(!saved_and_reopened(&mut book).host().calculate_before_save());
 }

@@ -6898,10 +6898,9 @@ fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
     assert_eq!([value("J1"), value("K1")], ["1", "11"]);
     assert_eq!([value("J2"), value("K2")], ["2", "x"]);
     assert_eq!([value("J3"), value("K3")], ["3", "6"]);
-    // Other Paste kinds are refused typed; formula sources and destinations refuse an Operation; nothing is pasted.
+    // Formula sources and destinations refuse an Operation; nothing is pasted.
     let before = value("M1");
     for args in [
-        vec![AutoValue::I4(12)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2), AutoValue::Bool(true)],
     ] {
@@ -7828,6 +7827,55 @@ fn dc_oxh8w_48__file_held_charts_move_between_sheets_and_save() {
     assert!(matches!(invoke(&model2, &column, "ChartType", vec![]), Ok(AutoValue::I4(51))));
 }
 
+/// dc-3qsm0: a chart-sheet chart moved onto a sheet keeps the content edits made after the move (its source sheet is
+/// deleted), and an embedded chart moved to a chart sheet leaves no relationship to its part in the old drawing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_3qsm0__moved_charts_save_their_edits_and_leave_no_dangling_rels() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(
+                include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec(),
+            )),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let charts = collection("Charts");
+    let chart = obj(invoke_kind(&model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let moved = obj(invoke_kind(&model, &chart, "Location", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::text("Data")]).unwrap());
+    invoke_kind(&model, &moved, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &moved, "ChartTitle", vec![]).unwrap());
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Moved title")]).unwrap();
+    let data = obj(invoke_kind(&model, &collection("Worksheets"), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects = obj(invoke_kind(&model, &data, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let first = obj(invoke_kind(&model, &objects, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let bar = obj(invoke(&model, &first, "Chart", vec![]).unwrap());
+    obj(invoke_kind(&model, &bar, "Location", InvokeKind::Method, vec![AutoValue::I4(1), AutoValue::text("Sales")]).unwrap());
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default()).expect("the saved package opens");
+    // Every chart relationship of a drawing is used by a frame of that drawing.
+    for part in document.package().parts().iter().map(|p| p.name().to_owned()).filter(|n| n.starts_with("xl/drawings/drawing")) {
+        let rels_name = format!("xl/drawings/_rels/{}.rels", part.rsplit('/').next().unwrap());
+        let Ok(rels) = document.package().read_part(&rels_name) else { continue };
+        let (rels, drawing) = (String::from_utf8(rels).unwrap(), String::from_utf8(document.package().read_part(&part).unwrap()).unwrap());
+        let links = rels.matches("relationships/chart\"").count();
+        assert_eq!(links, drawing.matches("<xdr:graphicFrame").count(), "{part}: {rels} / {drawing}");
+    }
+    let (_h2, model2) = setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap());
+    let book2 = obj(invoke(&model2, &model2.application(), "ActiveWorkbook", vec![]).unwrap());
+    let data2 = obj(invoke_kind(&model2, &obj(invoke(&model2, &book2, "Worksheets", vec![]).unwrap()), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects2 = obj(invoke_kind(&model2, &data2, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let only = obj(invoke_kind(&model2, &objects2, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let column = obj(invoke(&model2, &only, "Chart", vec![]).unwrap());
+    let title2 = obj(invoke(&model2, &column, "ChartTitle", vec![]).unwrap());
+    assert_eq!(text_of(invoke(&model2, &title2, "Text", vec![]).unwrap()), "Moved title");
+}
+
 /// dc-oxh8w.48: `Chart.Name = ...` of an embedded chart names its ChartObject; `Chart.Name` then reads `<sheet> <name>`,
 /// as `ChartObject.Name` does.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -7932,7 +7980,7 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let count = sheet_names(&host).len();
     // No application factory here, so a copy to a new workbook refuses naming the Workbooks owner (calc-host-vba tests the copy).
     let to_new_book = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{to_new_book:?}");
+    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.75"), "{to_new_book:?}");
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
@@ -7978,7 +8026,7 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     let both = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(second.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let new_book = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{new_book:?}");
+    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.75"), "{new_book:?}");
     assert_eq!(sheet_names(&host).len(), 8);
 }
 
@@ -8502,23 +8550,200 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
-/// dc-jupjv: `FormatConditions.Add` of the top-10, above-average and duplicate-values types makes a rule of that type
-/// (Excel's defaults: top 10 items, above the average, duplicates). Their own members (Rank, TopBottom, AboveBelow,
-/// DupeUnique) need the Top10, AboveAverage and UniqueValues interfaces in the descriptor (RUN-ON-WINDOWS.txt).
+/// dc-jupjv / dc-qrnem: Excel creates top-10, above-average and duplicate-values rules via AddTop10,
+/// AddAboveAverage and AddUniqueValues (dc-oawf4), not FormatConditions.Add(5|8|12); those stay typed
+/// refusals citing dc-jupjv until Excel's error behaviour on Add(5|8|12) is recorded.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
     let (_host, model, _) = blank_report();
     let target = range(&model, "B2:B6");
     let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
-    let add = |kind: i32| obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
-    let top = add(5);
-    assert_eq!(int(invoke(&model, &top, "Type", vec![]).unwrap()), 5);
-    let average = add(12);
-    assert_eq!(int(invoke(&model, &average, "Type", vec![]).unwrap()), 12);
-    let dupes = add(8);
-    assert_eq!(int(invoke(&model, &dupes, "Type", vec![]).unwrap()), 8);
-    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
+    for kind in [5, 8, 12] {
+        let r = invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]);
+        assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-jupjv"), "{kind}: {r:?}");
+    }
+    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 0);
+}
+
+/// dc-jupjv (ww21): FormatCondition.Operator on an expression rule and absent Formula2 return Empty;
+/// an unset FormatCondition.Interior.Color returns 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__expression_operator_formula2_and_unset_interior_match_excel() {
+    let (_host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let cell_rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    let expr_rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>B3")],
+        )
+        .unwrap(),
+    );
+    assert!(matches!(invoke(&model, &cell_rule, "Formula2", vec![]).unwrap(), AutoValue::Empty));
+    assert!(matches!(invoke(&model, &expr_rule, "Operator", vec![]).unwrap(), AutoValue::Empty));
+    assert!(matches!(invoke(&model, &expr_rule, "Formula2", vec![]).unwrap(), AutoValue::Empty));
+    let interior = obj(invoke(&model, &cell_rule, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 0);
+}
+
+/// dc-jupjv (ww21): FormatCondition.Font Bold=False / Italic=False (dxf b/i val="0"), Font.Underline,
+/// NumberFormat and Borders get/put round-trip through save/reopen; invalid arguments give 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__font_false_underline_number_format_and_borders() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    // Font: Bold=False, Italic=False, Underline=xlUnderlineStyleSingle (2).
+    let font = obj(invoke(&model, &rule, "Font", vec![]).unwrap());
+    invoke_kind(&model, &font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &font, "Italic", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &font, "Underline", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    assert!(matches!(invoke(&model, &font, "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &font, "Italic", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &font, "Underline", vec![]).unwrap()), 2);
+    let bad_u = invoke_kind(&model, &font, "Underline", InvokeKind::Put, vec![AutoValue::I4(999)]);
+    assert!(matches!(bad_u, Err(AutoError::Excel { number: 1004, .. })), "{bad_u:?}");
+    // NumberFormat: initially Empty, then "0.00".
+    assert!(matches!(invoke(&model, &rule, "NumberFormat", vec![]).unwrap(), AutoValue::Empty));
+    invoke_kind(&model, &rule, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &rule, "NumberFormat"), "0.00");
+    let bad_nf = invoke_kind(&model, &rule, "NumberFormat", InvokeKind::Put, vec![AutoValue::I4(7)]);
+    assert!(matches!(bad_nf, Err(AutoError::Excel { number: 1004, .. })), "{bad_nf:?}");
+    // Borders: xlEdgeLeft (7) Continuous, Thin, Red (255).
+    let borders = obj(invoke(&model, &rule, "Borders", vec![]).unwrap());
+    let left = obj(invoke(&model, &borders, "Item", vec![AutoValue::I4(7)]).unwrap());
+    invoke_kind(&model, &left, "LineStyle", InvokeKind::Put, vec![AutoValue::I4(1)]).unwrap();
+    invoke_kind(&model, &left, "Weight", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    invoke_kind(&model, &left, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert_eq!(int(invoke(&model, &left, "LineStyle", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &left, "Weight", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &left, "Color", vec![]).unwrap()), 255);
+    let bad_edge = invoke(&model, &borders, "Item", vec![AutoValue::I4(99)]);
+    assert!(matches!(bad_edge, Err(AutoError::Excel { number: 1004, .. })), "{bad_edge:?}");
+    // Save and verify the dxf XML carries explicit b val="0" and i val="0", and reopens intact.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = reopen_formatting(&host);
+    let r_target = range(&reopened, "B2:B6");
+    let r_conds = obj(invoke(&reopened, &r_target, "FormatConditions", vec![]).unwrap());
+    let r_rule = obj(invoke_kind(&reopened, &r_conds, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let r_font = obj(invoke(&reopened, &r_rule, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &r_font, "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&reopened, &r_font, "Italic", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&reopened, &r_font, "Underline", vec![]).unwrap()), 2);
+    assert_eq!(text(&reopened, &r_rule, "NumberFormat"), "0.00");
+    let r_borders = obj(invoke(&reopened, &r_rule, "Borders", vec![]).unwrap());
+    let r_left = obj(invoke(&reopened, &r_borders, "Item", vec![AutoValue::I4(7)]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_left, "LineStyle", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&reopened, &r_left, "Color", vec![]).unwrap()), 255);
+    // Confirm the reopened dxf carries bold_off and italic_off from b/i val="0".
+    let dxfs = host.session.borrow().host().styles().differential_formats.clone();
+    let dxf = dxfs.last().unwrap();
+    let f = dxf.font.as_ref().unwrap();
+    assert!(!f.bold && f.bold_off, "expected explicit bold_off: {f:?}");
+    assert!(!f.italic && f.italic_off, "expected explicit italic_off: {f:?}");
+}
+
+/// dc-jupjv: editing a FormatCondition whose dxf came from the opened file copies-on-write to a new dxf
+/// instead of refusing or mutating loaded dxf records.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__file_dxf_copy_on_write() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    let interior = obj(invoke(&model, &rule, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    // Reopen so the rule's dxfId points into loaded.styles().differential_formats.
+    let reopened = reopen_formatting(&host);
+    let r_target = range(&reopened, "B2:B6");
+    let r_conds = obj(invoke(&reopened, &r_target, "FormatConditions", vec![]).unwrap());
+    let r_rule = obj(invoke_kind(&reopened, &r_conds, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let r_interior = obj(invoke(&reopened, &r_rule, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_interior, "Color", vec![]).unwrap()), 255);
+    invoke_kind(&reopened, &r_interior, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    assert_eq!(int(invoke(&reopened, &r_interior, "Color", vec![]).unwrap()), 65_280);
+}
+
+/// dc-jupjv (ww21 Condition.Delete.partial): deleting FormatConditions over part of a rule's range
+/// removes the rule only from the requested cells and keeps the remaining strips intact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__partial_delete_subtracts_range() {
+    let (_host, model, _) = blank_report();
+    let conditions_of = |addr: &str| {
+        let r = range(&model, addr);
+        let c = obj(invoke(&model, &r, "FormatConditions", vec![]).unwrap());
+        model.released(&r);
+        c
+    };
+    let count = |addr: &str| int(invoke(&model, &conditions_of(addr), "Count", vec![]).unwrap());
+    let conds = conditions_of("B2:B6");
+    for formula in ["=B2>1", "=B2>2", "=B2>3"] {
+        invoke_kind(
+            &model,
+            &conds,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text(formula)],
+        )
+        .unwrap();
+    }
+    invoke_kind(&model, &conditions_of("B3:B4"), "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count("B2"), 3);
+    assert_eq!(count("B3:B4"), 0);
+    assert_eq!(count("B5:B6"), 3);
+    // 2D hole cutout: remove C3 from B2:D4.
+    let box_conds = conditions_of("B2:D4");
+    invoke_kind(
+        &model,
+        &box_conds,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>9")],
+    )
+    .unwrap();
+    invoke_kind(&model, &conditions_of("C3"), "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count("C3"), 0);
+    assert_eq!(count("C2"), 1);
+    assert_eq!(count("C4"), 1);
+    assert_eq!(count("D3"), 1);
 }
 
 /// dc-lj4j5: `Style.NumberFormat` put changes the format of a style no cell uses yet; a range given the style shows it.
@@ -8568,6 +8793,107 @@ fn dc_lj4j5__style_flag_puts() {
     assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
     let r = invoke_kind(&model, &mine, "WrapText", InvokeKind::Put, vec![AutoValue::I4(3)]);
     assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-lj4j5: Style.HorizontalAlignment, VerticalAlignment, IndentLevel, Orientation, Font and Interior
+/// writes update an unused custom style, propagate to ranges that apply the style, and round-trip through save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_alignment_font_and_interior_puts() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine7")]).unwrap());
+    // Alignment puts.
+    invoke_kind(&model, &mine, "HorizontalAlignment", InvokeKind::Put, vec![AutoValue::I4(-4108)]).unwrap(); // xlCenter
+    invoke_kind(&model, &mine, "VerticalAlignment", InvokeKind::Put, vec![AutoValue::I4(-4160)]).unwrap(); // xlTop
+    invoke_kind(&model, &mine, "IndentLevel", InvokeKind::Put, vec![AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &mine, "Orientation", InvokeKind::Put, vec![AutoValue::I4(-45)]).unwrap();
+    assert_eq!(int(invoke(&model, &mine, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    assert_eq!(int(invoke(&model, &mine, "VerticalAlignment", vec![]).unwrap()), -4160);
+    assert_eq!(int(invoke(&model, &mine, "IndentLevel", vec![]).unwrap()), 3);
+    assert_eq!(int(invoke(&model, &mine, "Orientation", vec![]).unwrap()), -45);
+    // Out-of-range / invalid enum gives 1004.
+    for (m, v) in [("HorizontalAlignment", 999), ("VerticalAlignment", 999), ("IndentLevel", 16), ("Orientation", 91)] {
+        let r = invoke_kind(&model, &mine, m, InvokeKind::Put, vec![AutoValue::I4(v)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{m}={v}: {r:?}");
+    }
+    // Style.Font get/put.
+    let font = obj(invoke(&model, &mine, "Font", vec![]).unwrap());
+    invoke_kind(&model, &font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &font, "Italic", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &font, "Size", InvokeKind::Put, vec![AutoValue::I4(14)]).unwrap();
+    invoke_kind(&model, &font, "Name", InvokeKind::Put, vec![AutoValue::text("Arial")]).unwrap();
+    invoke_kind(&model, &font, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert!(matches!(invoke(&model, &font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert!(matches!(invoke(&model, &font, "Italic", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &font, "Name"), "Arial");
+    assert_eq!(int(invoke(&model, &font, "Color", vec![]).unwrap()), 255);
+    // Style.Interior get/put.
+    let interior = obj(invoke(&model, &mine, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 65_280);
+    assert_eq!(int(invoke(&model, &interior, "Pattern", vec![]).unwrap()), 1);
+    // Apply to a cell and verify the cell inherits them and survives save/reopen.
+    let cell = range(&model, "F2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine7")]).unwrap();
+    assert_eq!(int(invoke(&model, &cell, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    assert_eq!(int(invoke(&model, &cell, "IndentLevel", vec![]).unwrap()), 3);
+    assert_eq!(int(invoke(&model, &cell, "Orientation", vec![]).unwrap()), -45);
+    let cell_font = obj(invoke(&model, &cell, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &cell_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &cell_font, "Name"), "Arial");
+    let cell_int = obj(invoke(&model, &cell, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &cell_int, "Color", vec![]).unwrap()), 65_280);
+    let reopened = reopen_formatting(&host);
+    let r_book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let r_styles = obj(invoke(&reopened, &r_book, "Styles", vec![]).unwrap());
+    let r_mine = obj(invoke_kind(&reopened, &r_styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine7")]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_mine, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    let r_font = obj(invoke(&reopened, &r_mine, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &r_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    let r_int = obj(invoke(&reopened, &r_mine, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_int, "Color", vec![]).unwrap()), 65_280);
+}
+
+/// dc-lj4j5 (ww21): Styles.Add accepts BasedOn:=Range and empty name "", and deleting a custom style
+/// in use resets cells using it back to Normal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__styles_add_based_on_empty_name_and_delete_in_use() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    // Format B2, then Styles.Add("FromB2", BasedOn:=Range("B2")).
+    let b2 = range(&model, "B2");
+    invoke_kind(&model, &b2, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.000")]).unwrap();
+    let b2_font = obj(invoke(&model, &b2, "Font", vec![]).unwrap());
+    invoke_kind(&model, &b2_font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let from_b2 = obj(
+        invoke_kind(
+            &model,
+            &styles,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::text("FromB2"), AutoValue::Object(b2.clone())],
+        )
+        .unwrap(),
+    );
+    assert_eq!(text(&model, &from_b2, "NumberFormat"), "0.000");
+    let s_font = obj(invoke(&model, &from_b2, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &s_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    // Non-range BasedOn gives 1004.
+    let bad = invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("BadBased"), AutoValue::I4(1)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    // ww21 Styles.Add.empty.confirm: empty name "" is accepted.
+    let empty = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("")]).unwrap());
+    assert_eq!(text(&model, &empty, "Name"), "");
+    // ww21 Styles.Delete.inUse: deleting an in-use custom style resets the cell to Normal.
+    let d10 = range(&model, "D10");
+    invoke_kind(&model, &d10, "Style", InvokeKind::Put, vec![AutoValue::text("FromB2")]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &d10, "Style", vec![]).unwrap()), "Name"), "FromB2");
+    invoke_kind(&model, &from_b2, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &d10, "Style", vec![]).unwrap()), "Name"), "Normal");
 }
 
 /// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
@@ -8656,7 +8982,7 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
     let last = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::I4(before as i32 + 1)]).unwrap());
     assert_eq!(text(&model, &last, "Name"), "Mine");
-    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::text("")], vec![AutoValue::I4(3)]] {
+    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::I4(3)]] {
         let r = invoke_kind(&model, &styles, "Add", InvokeKind::Method, args.clone());
         assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
     }
@@ -8676,12 +9002,14 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     let there = range(&reopened, "B2");
     let applied = obj(invoke(&reopened, &there, "Style", vec![]).unwrap());
     assert_eq!(text(&reopened, &applied, "Name"), "Mine");
-    // An unused style added in this session deletes; one a cell uses is refused.
+    // An unused style added in this session deletes; deleting one a cell uses reverts the cell to Normal (ww21).
     let spare = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Spare")]).unwrap());
     invoke_kind(&model, &spare, "Delete", InvokeKind::Method, vec![]).unwrap();
     assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
-    let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
-    assert!(r.is_err(), "{r:?}");
+    invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before);
+    let reverted = obj(invoke(&model, &target, "Style", vec![]).unwrap());
+    assert_eq!(text(&model, &reverted, "Name"), "Normal");
 }
 
 /// dc-oxh8w.50: `Application.ActiveWindow` and `Workbook.Windows(1)` answer the workbook's window: ActiveSheet, ActiveCell,
@@ -8958,6 +9286,47 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     assert_eq!(cell_text_of(&model, "B14"), "4");
 }
 
+/// dc-oxh8w.43: `PasteSpecial` xlPasteValuesAndNumberFormats (12), xlPasteFormulasAndNumberFormats (11) and
+/// xlPasteAllExceptBorders (7) splice the source's number format (and, for 7, its font and fill) into the
+/// destination's own format; 12 and 11 leave the font and fill alone.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_number_format_mixes() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1.5"]]);
+    let put = |address: &str, member: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), member, InvokeKind::Put, vec![value]).unwrap()
+    };
+    put("A1", "NumberFormat", AutoValue::text("0.00"));
+    put_font(&model, &font(&model, "A1"), "Bold", AutoValue::Bool(true)).unwrap();
+    invoke_kind(&model, &interior(&model, "A1"), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    put("C1", "NumberFormat", AutoValue::text("0%"));
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let bold = |address: &str| invoke(&model, &font(&model, address), "Bold", vec![]).unwrap();
+    let shown = |address: &str| text(&model, &range(&model, address), "Text");
+    call("A1", "Copy", vec![]).unwrap();
+    for paste in [12, 11] {
+        let at = if paste == 12 { "C1" } else { "D1" };
+        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
+        assert_eq!(shown(at), "1.50", "paste {paste} carries the number format");
+        assert!(matches!(bold(at), AutoValue::Bool(false)), "paste {paste} leaves the font");
+        assert_eq!(i4(&model, &interior(&model, at), "Color"), 16_777_215, "paste {paste} leaves the fill");
+    }
+    call("E1", "PasteSpecial", vec![AutoValue::I4(7)]).unwrap();
+    assert_eq!(shown("E1"), "1.50");
+    assert!(matches!(bold("E1"), AutoValue::Bool(true)));
+    assert_eq!(i4(&model, &interior(&model, "E1"), "Color"), 255);
+}
+
 /// dc-oxh8w.43: `PasteSpecial` xlPasteValidation (6) pastes only the validation rules and xlPasteComments (-4144) only the
 /// notes: the cell contents stay, Comments leaves the rules alone, and Validation replaces the destination's rule.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -9118,4 +9487,652 @@ fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
     // Too many arguments are an argument-count error.
     let r = method(&sheet, "Protect", vec![AutoValue::Missing; 17]);
     assert!(matches!(r, Err(ref e) if !matches!(e, AutoError::NotModelled { .. })), "{r:?}");
+}
+
+/// dc-p3rg9: Window view state (Zoom, ScrollRow/ScrollColumn, DisplayGridlines/Headings/Formulas/Zeros/Outline)
+/// persists through save and reopen (ww21 window/sheet-xml.json: zoomScale=125, topLeftCell=D15, showGridLines=0).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_view_state_saves_and_reopens() {
+    let (host, model, _) = blank_report();
+    let window = obj(invoke(&model, &model.application(), "ActiveWindow", vec![]).unwrap());
+    let put = |m: &WorkbookAutomation, w: &ObjectRef, name: &str, value: AutoValue| {
+        invoke_kind(m, w, name, InvokeKind::Put, vec![value]).unwrap();
+    };
+    put(&model, &window, "Zoom", AutoValue::I4(125));
+    put(&model, &window, "ScrollRow", AutoValue::I4(15));
+    put(&model, &window, "ScrollColumn", AutoValue::I4(4));
+    put(&model, &window, "DisplayGridlines", AutoValue::Bool(false));
+    put(&model, &window, "DisplayHeadings", AutoValue::Bool(false));
+    put(&model, &window, "DisplayFormulas", AutoValue::Bool(true));
+    put(&model, &window, "DisplayZeros", AutoValue::Bool(false));
+    put(&model, &window, "DisplayOutline", AutoValue::Bool(false));
+
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &w2, "Zoom", vec![]).unwrap()), 125);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollRow", vec![]).unwrap()), 15);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollColumn", vec![]).unwrap()), 4);
+    for (member, expected) in [
+        ("DisplayGridlines", false),
+        ("DisplayHeadings", false),
+        ("DisplayFormulas", true),
+        ("DisplayZeros", false),
+        ("DisplayOutline", false),
+    ] {
+        let got = invoke(&reopened, &w2, member, vec![]).unwrap();
+        assert!(matches!(got, AutoValue::Bool(b) if b == expected), "{member}: {got:?}");
+    }
+}
+
+/// dc-p3rg9: Window.Caption numeric/empty coercion (ww21: 12 -> "12", "" and Empty -> ""), WindowState (-4143
+/// xlNormal default, -4137/-4140 valid, invalid -> 1004), Application.Windows collection, and Window.Split.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_caption_coercion_state_split_and_app_windows() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let put = |name: &str, value: AutoValue| invoke_kind(&model, &window, name, InvokeKind::Put, vec![value]);
+
+    // Caption numeric and empty coercion (ww21 followup/ and vba-boundaries/)
+    put("Caption", AutoValue::I4(12)).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "12");
+    put("Caption", AutoValue::R8(3.5)).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "3.5");
+    put("Caption", AutoValue::text("")).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "");
+    put("Caption", AutoValue::text("CustomTitle")).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "CustomTitle");
+    put("Caption", AutoValue::Empty).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "");
+
+    // WindowState defaults to xlNormal (-4143)
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4143);
+    put("WindowState", AutoValue::I4(-4137)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4137);
+    put("WindowState", AutoValue::I4(-4140)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4140);
+    let bad_state = put("WindowState", AutoValue::I4(99));
+    assert!(matches!(bad_state, Err(AutoError::Excel { number: 1004, .. })), "{bad_state:?}");
+
+    // Application.Windows collection
+    put("Caption", AutoValue::text("ReportWin")).unwrap();
+    let app_windows = obj(invoke(&model, &app, "Windows", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &app_windows, "Count", vec![]).unwrap()), 1);
+    let by_index = obj(invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(by_index.key, window.key);
+    let by_name = obj(invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![AutoValue::text("reportwin")]).unwrap());
+    assert_eq!(by_name.key, window.key);
+    for bad in [AutoValue::I4(2), AutoValue::text("nope")] {
+        let r = invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}: {r:?}");
+    }
+
+    // Window.Split get/put
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(false)));
+    let c3 = range(&model, "C3");
+    invoke_kind(&model, &c3, "Select", InvokeKind::Method, vec![]).unwrap();
+    put("FreezePanes", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("Split", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
+    let split_true = put("Split", AutoValue::Bool(true));
+    assert!(matches!(split_true, Err(AutoError::NotModelled { owner: "dc-p3rg9", .. })), "{split_true:?}");
+}
+
+/// dc-qrnem (rw12 Finding 13): FormatConditions.Add(5|8|12) stays a typed refusal (Excel creates those
+/// via AddTop10/AddAboveAverage/AddUniqueValues, owned by dc-oawf4/dc-jupjv), and ConditionalChange::Format
+/// checks dxf sharing across ALL sheets in the workbook before mutating in place.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_format_conditions_add_5_8_12_refuse_and_cross_sheet_dxf_copy_on_write() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    for kind in [5, 8, 12] {
+        let r = invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]);
+        assert!(
+            matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-jupjv"),
+            "Add({kind}) must refuse citing dc-jupjv: {r:?}"
+        );
+    }
+
+    // Add a second sheet and create one red conditional rule on each sheet so both share the same new dxf.
+    {
+        let mut session = host.session.borrow_mut();
+        assert!(
+            session
+                .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                    sheet: None,
+                    change: calc_host::SheetChange::Add { name: "Sheet2".into() },
+                }))
+                .accepted()
+        );
+        let sheets: Vec<_> = session.host().sheets().iter().map(|s| s.id()).collect();
+        for &sheet in &sheets[..2] {
+            let revision = session.host().revision().get();
+            assert!(
+                session
+                    .dispatch(SkinIntent::Command(WorkbookCommand::Conditional {
+                        sheet,
+                        revision,
+                        index: None,
+                        change: calc_host::ConditionalChange::Condition {
+                            kind: "cellIs".into(),
+                            applies: "A1:A5".into(),
+                            color: "#FF0000".into(),
+                            formulas: vec!["5".into()],
+                            operator: "greaterThan".into(),
+                            rank: 10,
+                            percent: false,
+                            stop: false,
+                        },
+                    }))
+                    .accepted()
+            );
+        }
+    }
+    model.context_changed(&host.session.borrow());
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let sheets = obj(invoke(&model, &book, "Worksheets", vec![]).unwrap());
+    let s1 = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let s2 = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(2)]).unwrap());
+    let r1 = obj(invoke(&model, &s1, "Range", vec![AutoValue::text("A1:A5")]).unwrap());
+    let r2 = obj(invoke(&model, &s2, "Range", vec![AutoValue::text("A1:A5")]).unwrap());
+    let fc1 = obj(invoke_kind(&model, &obj(invoke(&model, &r1, "FormatConditions", vec![]).unwrap()), "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let fc2 = obj(invoke_kind(&model, &obj(invoke(&model, &r2, "FormatConditions", vec![]).unwrap()), "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let int1 = obj(invoke(&model, &fc1, "Interior", vec![]).unwrap());
+    let int2 = obj(invoke(&model, &fc2, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &int1, "Color", vec![]).unwrap()), 0x0000FF);
+    assert_eq!(int(invoke(&model, &int2, "Color", vec![]).unwrap()), 0x0000FF);
+    // Change Sheet1's rule to green: Sheet2's rule MUST stay red!
+    invoke_kind(&model, &int1, "Color", InvokeKind::Put, vec![AutoValue::I4(0x00FF00)]).unwrap();
+    assert_eq!(int(invoke(&model, &int1, "Color", vec![]).unwrap()), 0x00FF00);
+    assert_eq!(
+        int(invoke(&model, &int2, "Color", vec![]).unwrap()),
+        0x0000FF,
+        "editing Sheet1 rule format must not mutate Sheet2 rule sharing the same dxf"
+    );
+}
+
+/// dc-qrnem (rw12 Finding 21): Style.Delete refuses non-Normal built-ins as typed NotModelled (never fake
+/// 1004) and deleting one custom style neither shifts live handles to later styles nor aliases the deleted handle.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_styles_delete_builtin_refuses_and_live_handles_survive_delete() {
+    let blank = blank_package();
+    let archive = existing_wire_support::parse_zip(&blank);
+    let entries = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(&blank);
+            if entry.name == "xl/styles.xml" {
+                let bytes = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(bytes)
+                    .unwrap()
+                    .replace("<cellStyleXfs count=\"1\">", "<cellStyleXfs count=\"2\">")
+                    .replace(
+                        "</cellStyleXfs>",
+                        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>",
+                    )
+                    .replace("<cellStyles count=\"1\">", "<cellStyles count=\"2\">")
+                    .replace(
+                        "</cellStyles>",
+                        "<cellStyle name=\"Currency\" xfId=\"1\" builtinId=\"4\"/></cellStyles>",
+                    );
+                existing_wire_support::RawEntry::stored(&entry.name, xml.as_bytes())
+            } else if entry.method == 0 {
+                existing_wire_support::RawEntry::stored(&entry.name, payload)
+            } else {
+                existing_wire_support::RawEntry::deflated(
+                    &entry.name,
+                    payload,
+                    entry.size,
+                    entry.crc32,
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    let package = existing_wire_support::build_zip(&entries);
+    let (_host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(package)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let currency = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Currency")]).unwrap());
+    // Normal -> 1004; non-Normal built-in -> typed NotModelled citing dc-lj4j5 (not fake 1004).
+    let del_normal = invoke_kind(&model, &normal, "Delete", InvokeKind::Method, vec![]);
+    assert!(matches!(del_normal, Err(AutoError::Excel { number: 1004, .. })), "{del_normal:?}");
+    let del_builtin = invoke_kind(&model, &currency, "Delete", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&del_builtin, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-lj4j5"),
+        "deleting non-Normal built-in must refuse typed citing dc-lj4j5: {del_builtin:?}"
+    );
+    // Live handles across deletion: deleting s1 must not shift s2 or alias s1 to s2 / recreated First.
+    let s1 = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("First")]).unwrap());
+    let s2 = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Second")]).unwrap());
+    let s2_font = obj(invoke(&model, &s2, "Font", vec![]).unwrap());
+    invoke_kind(&model, &s1, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(text(&model, &s2, "Name"), "Second");
+    invoke_kind(&model, &s2_font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(matches!(invoke(&model, &s2_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    let a1 = range(&model, "A1");
+    invoke_kind(&model, &a1, "Style", InvokeKind::Put, vec![AutoValue::Object(s2.clone())]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &a1, "Style", vec![]).unwrap()), "Name"), "Second");
+    let stale_s1 = invoke(&model, &s1, "Name", vec![]);
+    assert!(matches!(stale_s1, Err(AutoError::Excel { number: 424, .. })), "deleted handle must raise 424: {stale_s1:?}");
+    // Re-adding "First" must NOT revive the deleted handle s1.
+    let s1_new = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("First")]).unwrap());
+    assert_eq!(text(&model, &s1_new, "Name"), "First");
+    let still_stale = invoke(&model, &s1, "Name", vec![]);
+    assert!(matches!(still_stale, Err(AutoError::Excel { number: 424, .. })), "{still_stale:?}");
+}
+
+/// dc-qrnem (rw12 Finding 21): ScrollRow preserves stored ScrollColumn across reopen, FreezePanes uses
+/// macro-set scroll position (ww21: ScrollRow=11, ScrollColumn=2, D20 -> SplitRow=9, SplitColumn=2),
+/// and Workbook.Windows(own_name) resolves its window.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_window_scroll_freeze_and_workbook_windows_by_name() {
+    let (host, model, _) = blank_report();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let book_name = text(&model, &book, "Name");
+    let book_windows = obj(invoke(&model, &book, "Windows", vec![]).unwrap());
+    let by_name = obj(invoke_kind(&model, &book_windows, "Item", InvokeKind::Get, vec![AutoValue::text(&book_name)]).unwrap());
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    assert_eq!(by_name.key, window.key);
+
+    // Save ScrollRow=11, ScrollColumn=4, reopen, then put ScrollRow=15 alone -> ScrollColumn stays 4.
+    invoke_kind(&model, &window, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(11)]).unwrap();
+    invoke_kind(&model, &window, "ScrollColumn", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    invoke_kind(&reopened, &w2, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(15)]).unwrap();
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollRow", vec![]).unwrap()), 15);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollColumn", vec![]).unwrap()), 4);
+
+    // Macro-set scroll (11, 2) + active cell D20 + FreezePanes=True -> SplitRow=9, SplitColumn=2.
+    invoke_kind(&model, &window, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(11)]).unwrap();
+    invoke_kind(&model, &window, "ScrollColumn", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    let d20 = range(&model, "D20");
+    invoke_kind(&model, &d20, "Select", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &window, "FreezePanes", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 9);
+    assert_eq!(int(invoke(&model, &window, "SplitColumn", vec![]).unwrap()), 2);
+}
+
+/// dc-qrnem (rw12 Finding 21): Range.Text records MacroObservation when reading a stale or file-cached
+/// cell under strict file provenance (matching Range.Value).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_range_text_records_macro_observation_on_stale_cell() {
+    let mut session = HostSession::open(
+        Arc::new(MemorySource::new(blank_package()).named("obs.xlsx")),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let sheet = session.host().sheets()[0].id();
+    let a1 = CellKey::new(sheet, 1, 1).unwrap();
+    let b1 = CellKey::new(sheet, 1, 2).unwrap();
+    assert!(session.dispatch(SkinIntent::EnterCell { at: a1, text: "10".into() }).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell { at: b1, text: "=A1*2".into() }).accepted());
+    while session.has_pending_calculation() {
+        session.advance_calculation();
+    }
+    // Switch to manual mode and edit A1 so B1 becomes stale (last value 20).
+    assert!(session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell { at: a1, text: "99".into() }).accepted());
+
+    let (_dummy, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let got = model.with_event_session(&mut session, true, || {
+        let r = range(&model, "B1");
+        text(&model, &r, "Text")
+    });
+    assert_eq!(got, "20");
+    let observed = session.take_macro_observations();
+    assert!(
+        observed.iter().any(|o| o.at == b1 && o.provenance == calc_host::ObservedProvenance::Stale),
+        "Range.Text must record MacroObservation on stale cell under strict provenance: {observed:?}"
+    );
+}
+
+/// rw12 finding 14 (dc-iq8o8): `Style.Locked` and `FormulaHidden` puts on an unused custom style reach the saved
+/// `<protection>` of its cellStyleXf, so a cell given the style reads them back after save and reopen.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__style_locked_and_formula_hidden_survive_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine8")]).unwrap());
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &mine, "FormulaHidden", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let cell = range(&model, "G2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine8")]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let again = range(&reopened, "G2");
+    assert!(matches!(invoke(&reopened, &again, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Locked lost on save");
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let style = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine8")]).unwrap());
+    assert!(matches!(invoke(&reopened, &style, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Style.Locked lost on save");
+    assert!(matches!(invoke(&reopened, &style, "FormulaHidden", vec![]).unwrap(), AutoValue::Bool(true)), "FormulaHidden lost on save");
+}
+
+/// rw12 finding 14 (dc-iq8o8): a write to an imported style no cell uses must not make Save fail with "Imported
+/// cellStyleXfs records cannot be replaced": it is refused typed (dc-lj4j5 owns file-style writes) and the save works.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__writing_an_unused_imported_style_does_not_break_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine9")]).unwrap();
+    // After a save and reopen the style is one the file holds, which no cell uses.
+    let mut first = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut first).unwrap();
+    let (reopened_host, reopened) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(first)), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let imported = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine9")]).unwrap());
+    let writes = [
+        ("WrapText", AutoValue::Bool(true)),
+        ("Locked", AutoValue::Bool(false)),
+        ("NumberFormat", AutoValue::text("0.0")),
+        ("HorizontalAlignment", AutoValue::I4(-4108)),
+    ];
+    for (member, value) in writes {
+        let r = invoke_kind(&reopened, &imported, member, InvokeKind::Put, vec![value]);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-lj4j5", .. })), "{member}: {r:?}");
+    }
+    let mut saved = Vec::new();
+    reopened_host.session.borrow_mut().save(&SavePolicy::default(), &mut saved).expect("Save still works");
+}
+
+/// rw12 finding 7 (dc-6q9t4): every write path meets the protection of its own destination, not of what it reads.
+/// On a sheet protected for contents, with only B2 unlocked: Copy/Cut with a Destination and Paste/PasteSpecial write
+/// the destination (refused over a locked cell, allowed over B2) and only read a locked source; Borders, a
+/// FormatConditions rule and a one-cell Sort that widens to a locked region are refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__write_paths_meet_the_protection_of_their_destination() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let protected_error = |r: &Reply| matches!(r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet"));
+    for (address, value) in [("A1", 3.0), ("A2", 1.0), ("A3", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    for (address, value) in [("H1", 3.0), ("H2", 1.0), ("H3", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    // A copy carries the source's Locked with its format, so each write gets its own unlocked cell.
+    for address in ["B2", "C3", "E5", "H2"] {
+        put(&range(&model, address), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    }
+    method(&sheet, "Protect", vec![]).unwrap();
+    let a = |name: &str| AutoValue::Object(range(&model, name));
+    // Copy with a Destination: the locked source is only read.
+    let r = method(&range(&model, "A1"), "Copy", vec![a("D4")]);
+    assert!(protected_error(&r), "Copy onto a locked cell: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "D4"), "Value", vec![]).unwrap(), AutoValue::Empty), "D4 was written");
+    let r = method(&range(&model, "A1"), "Copy", vec![a("B2")]);
+    assert!(r.is_ok(), "Copy of a locked cell onto an unlocked one: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "B2"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 3.0));
+    // Cut moves its source too: a locked source is refused.
+    let r = method(&range(&model, "A3"), "Cut", vec![a("B2")]);
+    assert!(protected_error(&r), "Cut of a locked cell: {r:?}");
+    // The clipboard route.
+    method(&range(&model, "A1"), "Copy", vec![]).unwrap();
+    let r = method(&range(&model, "D4"), "PasteSpecial", vec![]);
+    assert!(protected_error(&r), "PasteSpecial onto a locked cell: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "D4"), "Value", vec![]).unwrap(), AutoValue::Empty), "D4 was pasted");
+    let r = method(&range(&model, "C3"), "PasteSpecial", vec![]);
+    assert!(r.is_ok(), "PasteSpecial onto an unlocked cell: {r:?}");
+    // Borders.
+    let edge = |address: &str| {
+        let borders = obj(invoke(&model, &range(&model, address), "Borders", vec![]).unwrap());
+        obj(invoke(&model, &borders, "Item", vec![AutoValue::I4(9)]).unwrap())
+    };
+    let r = put(&edge("D4"), "LineStyle", vec![AutoValue::I4(1)]);
+    assert!(protected_error(&r), "a border on a locked cell: {r:?}");
+    assert_eq!(i4(&model, &edge("D4"), "LineStyle"), -4142);
+    assert!(put(&edge("E5"), "LineStyle", vec![AutoValue::I4(1)]).is_ok());
+    // A conditional format.
+    let conditions = obj(invoke(&model, &range(&model, "D4"), "FormatConditions", vec![]).unwrap());
+    let r = method(&conditions, "Add", vec![AutoValue::I4(1), AutoValue::I4(3), AutoValue::text("=1")]);
+    assert!(protected_error(&r), "a rule over a locked cell: {r:?}");
+    // A one-cell Sort of an unlocked cell widens to its current region, which holds locked cells: H1:H3.
+    let r = method(&range(&model, "H2"), "Sort", vec![a("H1")]);
+    assert!(protected_error(&r), "a Sort of a locked region: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "H1"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 3.0), "H1 was sorted");
+}
+
+/// rw12 finding 7 (dc-6q9t4): a value write over a whole table of a protected sheet is refused before the table is
+/// deleted (the table pre-step must not run first).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__a_refused_write_over_a_table_keeps_the_table() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    for (address, value) in [("A1", "h1"), ("B1", "h2")] {
+        put(&range(&model, address), "Value", vec![AutoValue::text(value)]).unwrap();
+    }
+    for (address, value) in [("A2", 1.0), ("B2", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let args = vec![AutoValue::I4(1), AutoValue::Object(range(&model, "A1:B2")), AutoValue::Missing, AutoValue::I4(1)];
+    invoke_kind(&model, &tables, "Add", InvokeKind::Method, args).unwrap();
+    let count = || int(invoke(&model, &tables, "Count", vec![]).unwrap());
+    assert_eq!(count(), 1);
+    invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    let r = put(&range(&model, "A1:B2"), "Value", vec![AutoValue::text("x")]);
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    assert_eq!(count(), 1, "the table was unlisted before the write was refused");
+}
+
+/// rw12 finding 7 (dc-6q9t4): AdvancedFilter reads its list and writes its CopyToRange: a locked list is no obstacle
+/// and a locked CopyToRange is refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__advanced_filter_guards_its_destination_not_its_source() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let put = |a: &str, v: AutoValue| {
+        invoke_kind(&model, &range(&model, a), "Value", InvokeKind::Put, vec![v]).unwrap();
+    };
+    for (i, (name, qty)) in [("Name", "Qty"), ("apple", "5"), ("pear", "20")].iter().enumerate() {
+        put(&format!("A{}", i + 1), AutoValue::text(name));
+        match qty.parse::<f64>() {
+            Ok(n) => put(&format!("B{}", i + 1), AutoValue::R8(n)),
+            Err(_) => put(&format!("B{}", i + 1), AutoValue::text(qty)),
+        }
+    }
+    invoke_kind(&model, &range(&model, "G1"), "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    let run = |to: &str| {
+        let args = vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, to)), AutoValue::Bool(false)];
+        invoke_kind(&model, &range(&model, "A1:B3"), "AdvancedFilter", InvokeKind::Method, args)
+    };
+    let r = run("D1");
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet")), "{r:?}");
+    // The output block G1:H3 is not all unlocked, so this is refused too; the point is that a locked source alone is not.
+    let r = run("G1");
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet")), "{r:?}");
+    for a in ["G1:H3"] {
+        invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![]).unwrap();
+        invoke_kind(&model, &range(&model, a), "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+        invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    }
+    let r = run("G1");
+    assert!(r.is_ok(), "a locked list over an unlocked CopyToRange: {r:?}");
+}
+
+/// rw12 finding 7 (dc-6q9t4): Protect's Allow* arguments (5..16) and UserInterfaceOnly on an already-protected sheet
+/// are not modelled: each is refused typed (dc-ml3k0), never dropped silently.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__protect_allow_arguments_and_user_interface_only_are_refused_typed() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let protect = |args: Vec<AutoValue>| invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, args);
+    let flag = |name: &str| matches!(invoke(&model, &sheet, name, vec![]).unwrap(), AutoValue::Bool(true));
+    for index in 5..16 {
+        let mut args = vec![AutoValue::Missing; index];
+        args.push(AutoValue::Bool(true));
+        let r = protect(args);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-ml3k0", .. })), "arg {index}: {r:?}");
+        assert!(!flag("ProtectContents"), "arg {index} protected the sheet though it was refused");
+    }
+    protect(vec![]).unwrap();
+    let r = protect(vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-ml3k0", .. })), "{r:?}");
+    assert!(!flag("ProtectionMode"));
+}
+
+/// dc-p7gpy (rw12 Finding 19): typed refusals must cite OPEN owning beads, never closed ones.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p7gpy_refusals_cite_open_beads() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+
+    // 1. protection.rs: numeric Password -> dc-9b7zd (was closed dc-oxh8w.68)
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let protect = invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::I4(1234)]);
+    assert!(
+        matches!(&protect, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-9b7zd"),
+        "Protect numeric password must cite dc-9b7zd: {protect:?}"
+    );
+
+    // 2. chart_format.rs & chart_axes.rs: unstated Series.Border -> dc-yship (was closed dc-oxh8w.60);
+    //    Chart.Axes without Type / secondary group -> dc-oxh8w.3 (was closed dc-oxh8w.48).
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model,
+        &charts,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(240.0), AutoValue::R8(160.0)],
+    )
+    .unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    invoke_kind(&model, &range(&model, "A1"), "Value2", InvokeKind::Put, vec![AutoValue::text("X")]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "Value2", InvokeKind::Put, vec![AutoValue::text("Y")]).unwrap();
+    invoke_kind(&model, &range(&model, "A2"), "Value2", InvokeKind::Put, vec![AutoValue::R8(1.0)]).unwrap();
+    invoke_kind(&model, &range(&model, "B2"), "Value2", InvokeKind::Put, vec![AutoValue::R8(2.0)]).unwrap();
+    invoke_kind(
+        &model,
+        &chart,
+        "SetSourceData",
+        InvokeKind::Method,
+        vec![AutoValue::Object(range(&model, "A1:B2"))],
+    )
+    .unwrap();
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let unstated = invoke(&model, &border, "LineStyle", vec![]);
+    assert!(
+        matches!(&unstated, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-yship"),
+        "unstated Series.Border.LineStyle must cite dc-yship: {unstated:?}"
+    );
+    let axes_all = invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&axes_all, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.3"),
+        "Chart.Axes() must cite dc-oxh8w.3: {axes_all:?}"
+    );
+    let axes_sec = invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::I4(2)]);
+    assert!(
+        matches!(&axes_sec, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.3"),
+        "Chart.Axes secondary group must cite dc-oxh8w.3: {axes_sec:?}"
+    );
+
+    // 3. books.rs: Workbooks.Add without factory -> dc-oxh8w.75 (was closed dc-oxh8w.42)
+    calc_host::automation::set_book_factory(None);
+    let books = obj(invoke(&model, &app, "Workbooks", vec![]).unwrap());
+    let add_book = invoke_kind(&model, &books, "Add", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&add_book, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.75"),
+        "Workbooks.Add without factory must cite dc-oxh8w.75: {add_book:?}"
+    );
+
+    // 4. autofilter.rs: host refusal on merged range -> dc-oxh8w.43 (was closed dc-0f1k.24)
+    let merged = range(&model, "D1:E2");
+    invoke_kind(&model, &merged, "Merge", InvokeKind::Method, vec![]).unwrap();
+    let af = invoke_kind(&model, &merged, "AutoFilter", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&af, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.43"),
+        "Range.AutoFilter host refusal must cite dc-oxh8w.43: {af:?}"
+    );
+
+    // 5. application.rs: Application.Calculation inside invocation without UserView.settings -> dc-1nbp.6 (was closed dc-oxh8w.52)
+    struct NoSettingsContext(CellKey);
+    impl UserFunctionContext for NoSettingsContext {
+        fn caller(&self) -> Option<CellKey> {
+            Some(self.0)
+        }
+        fn user_view(&self) -> Option<calc_func::UserView> {
+            Some(calc_func::UserView {
+                active_sheet: self.0.sheet(),
+                selection: self.0,
+                settings: None,
+            })
+        }
+        fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
+            Ok("'[book.xlsx]Sheet1'".into())
+        }
+        fn refuse(&mut self, reason: &'static str) -> String {
+            reason.into()
+        }
+        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
+            Ok(CalcValue::empty())
+        }
+        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::empty())
+        }
+    }
+    let (inv_host, inv_model) = setup();
+    let sheet_id = inv_host.session.borrow().host().sheets()[0].id();
+    let cell = CellKey::new(sheet_id, 1, 1).unwrap();
+    let mut ctx = NoSettingsContext(cell);
+    let loan = Loan(RefCell::new(&mut ctx));
+    let calc_in_udf = INVOCATION.set(&loan, || {
+        invoke(&inv_model, &inv_model.application(), "Calculation", vec![])
+    });
+    assert!(
+        matches!(&calc_in_udf, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-1nbp.6"),
+        "Application.Calculation without UserView.settings must cite dc-1nbp.6: {calc_in_udf:?}"
+    );
 }

@@ -250,6 +250,33 @@ fn color_child(
         node.set_child(key, value);
     }
 }
+fn font_flag(node: &mut Node, key: &str, before: (bool, bool), after: (bool, bool)) {
+    if before == after {
+        return;
+    }
+    match after {
+        (true, _) => {
+            let value = if let Some(mut child) = node.child(key).cloned() {
+                child.attr("val", Some("1".into()));
+                Some(child)
+            } else {
+                Some(Node::new(&node.prefix(), key))
+            };
+            node.set_child(key, value);
+        }
+        (false, true) => {
+            let mut child = node
+                .child(key)
+                .cloned()
+                .unwrap_or_else(|| Node::new(&node.prefix(), key));
+            child.attr("val", Some("0".into()));
+            node.set_child(key, Some(child));
+        }
+        (false, false) => {
+            boolean_child(node, key, before.0, false);
+        }
+    }
+}
 fn font(mut node: Node, before: &Font, after: &Font) -> Node {
     for (k, a, b) in [
         ("name", &before.name, &after.name),
@@ -261,9 +288,9 @@ fn font(mut node: Node, before: &Font, after: &Font) -> Node {
     ] {
         value_child(&mut node, k, a, b);
     }
+    font_flag(&mut node, "b", (before.bold, before.bold_off), (after.bold, after.bold_off));
+    font_flag(&mut node, "i", (before.italic, before.italic_off), (after.italic, after.italic_off));
     for (k, a, b) in [
-        ("b", before.bold, after.bold),
-        ("i", before.italic, after.italic),
         ("strike", before.strike, after.strike),
         ("outline", before.outline, after.outline),
         ("shadow", before.shadow, after.shadow),
@@ -394,6 +421,22 @@ fn xf(mut node: Node, before: &CellFormat, after: &CellFormat) -> Node {
                 .map(|a| alignment(child, &before.alignment.clone().unwrap_or_default(), a)),
         );
     }
+    if before.protection != after.protection {
+        let child = node
+            .child("protection")
+            .cloned()
+            .unwrap_or_else(|| Node::new(&node.prefix(), "protection"));
+        node.set_child(
+            "protection",
+            after.protection.as_ref().map(|p| {
+                let mut child = child;
+                for (k, v) in [("locked", p.locked), ("hidden", p.hidden)] {
+                    child.attr(k, v.map(|on| if on { "1" } else { "0" }.to_owned()));
+                }
+                child
+            }),
+        );
+    }
     node
 }
 
@@ -493,7 +536,10 @@ pub(super) fn rewrite(
         .get(before.differential_formats.len()..)
         .unwrap_or(&[])
     {
-        if dxf.border.is_some()
+        if dxf
+            .border
+            .as_ref()
+            .is_some_and(|b| !b.other_children.is_empty())
             || dxf.alignment.is_some()
             || dxf.protection.is_some()
             || dxf
@@ -528,7 +574,7 @@ pub(super) fn rewrite(
                     )),
                 );
             }
-            // A differential format's number format (schema order: font, numFmt, fill).
+            // A differential format's number format (schema order: font, numFmt, fill, border).
             if let Some(format) = &after.number_format {
                 let mut n = Node::new(&node.prefix(), "numFmt");
                 n.attr("numFmtId", Some(format.id.to_string()));
@@ -542,6 +588,16 @@ pub(super) fn rewrite(
                         Node::new(&node.prefix(), "fill"),
                         &before.fill.clone().unwrap_or_default(),
                         f,
+                    )),
+                );
+            }
+            if let Some(b) = &after.border {
+                node.set_child(
+                    "border",
+                    Some(border(
+                        Node::new(&node.prefix(), "border"),
+                        &before.border.clone().unwrap_or_default(),
+                        b,
                     )),
                 );
             }

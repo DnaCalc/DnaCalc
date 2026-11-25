@@ -47,8 +47,16 @@ fn number_format(element: &XmlElement) -> Option<NumberFormat> {
 fn font_child(font: &mut Font, element: &XmlElement) {
     let on = || flag(element, "val").unwrap_or(true);
     match element.name.local.as_str() {
-        "b" => font.bold = on(),
-        "i" => font.italic = on(),
+        "b" => {
+            let v = on();
+            font.bold = v;
+            font.bold_off = !v;
+        }
+        "i" => {
+            let v = on();
+            font.italic = v;
+            font.italic_off = !v;
+        }
         "strike" => font.strike = on(),
         "outline" => font.outline = on(),
         "shadow" => font.shadow = on(),

@@ -7985,3 +7985,87 @@ fn t_inverse_two_tailed_refuses_the_first_normal_binade_of_probability() {
         error(call(name, vec![n(-b(0x001f_ffff_ffff_ffff)), n(1.0)]), Num);
     }
 }
+
+/// Excel 20527 (dc-j9k.284): GAMMAINV and GAMMA.INV answer #NUM! when the small-shape power seed's
+/// logarithm overflows in the division by the shape (shape DBL_MIN, p = 0.0074), not zero; a seed
+/// that only underflows (p = 0.3) is still zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_small_shape_seed_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["GAMMAINV", "GAMMA.INV"] {
+        for beta in [b(0x0010_0000_0000_0000), b(0x0010_0000_0000_0002), 1.0, 1e10] {
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0000)), n(beta)]), Num);
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0002)), n(beta)]), Num);
+        }
+    }
+}
+
+/// Excel 20527 (dc-j9k.255): WEIBULL.DIST and WEIBULL answer #NUM! when the stored exponent
+/// product alpha * ln(x / beta) overflows (a huge shape with a ratio below one), not zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weibull_exponent_product_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["WEIBULL.DIST", "WEIBULL"] {
+        for cumulative in [true, false] {
+            error(
+                call(name, vec![
+                    n(b(0x7f5d_3f1e_e25a_84df)), n(b(0x7fd8_d766_ca02_60b9)), n(b(0x7fc9_c0d7_b054_f143)),
+                    f1_support::b(cumulative),
+                ]),
+                Num,
+            );
+        }
+    }
+}
+
+/// Excel 20527 (dc-j9k.337, .338): GAMMA of an integer is the reverse product through 88 and the
+/// Stirling series from 89 (the reverse product is 1 to 16 ulps off from there).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_integers_switch_to_the_stirling_series_at_89() {
+    let b = f64::from_bits;
+    exact(call("GAMMA", vec![n(100.0)]), b(0x6051_66c6_98cf_183e));
+    exact(call("GAMMA", vec![n(b(0x4061_8000_0000_0000))]), b(0x718d_8895_7d1c_3025));
+    exact(call("GAMMA", vec![n(89.0)]), b(0x5bd0_550c_4b30_7440));
+    let mut product = 1.0;
+    for k in (2..88).rev() {
+        product *= k as f64;
+    }
+    exact(call("GAMMA", vec![n(88.0)]), product);
+}
+
+/// Excel 20527 (dc-j9k.282, .283): below |x| = 1 SINH is the half difference of two expm1 values,
+/// each with its arithmetic stored through x87, which truncates where the binary64 form rounds up
+/// for inputs with trailing zero mantissa bits (SINH(2^-25) is 2^-25, not one ulp above).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sinh_small_arguments_use_the_stored_expm1_difference() {
+    let b = f64::from_bits;
+    for (x, want) in [
+        (0xbe90_0000_0000_0000_u64, 0xbe90_0000_0000_002a_u64),
+        (0xbe8f_ffff_ffff_fef8, 0xbe8f_ffff_ffff_ff4c),
+        (0x3e60_0000_0000_0000, 0x3e60_0000_0000_0000),
+        (0x3e70_0000_0000_0000, 0x3e70_0000_0000_0002),
+        (0x3e80_0000_0000_0000, 0x3e80_0000_0000_000a),
+        (0x3ea0_0000_0000_0000, 0x3ea0_0000_0000_00aa),
+        (0x3ea0_0000_0000_1000, 0x3ea0_0000_0000_10aa),
+    ] {
+        exact(call("SINH", vec![n(b(x))]), b(want));
+    }
+}
+
+/// Excel 20527 (dc-j9k.359): CONFIDENCE.NORM scales the inverse by the x87-stored quotient
+/// sd / sqrt(n); with a huge deviation the binary64 product was one ulp low.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn confidence_norm_scales_by_the_stored_quotient() {
+    let b = f64::from_bits;
+    for name in ["CONFIDENCE.NORM", "CONFIDENCE"] {
+        exact(
+            call(name, vec![n(b(0x3fea_74f0_f20f_283a)), n(b(0x7fe1_ccf3_85eb_c8a1)), n(b(0x430c_6bf5_2634_0010))]),
+            b(0x7e30_88a0_a567_ff78),
+        );
+    }
+}

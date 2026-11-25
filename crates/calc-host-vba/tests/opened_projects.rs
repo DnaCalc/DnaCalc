@@ -2942,3 +2942,98 @@ fn project_designer_modules_are_admitted_as_classes() {
         .unwrap_or_else(|error| panic!("{replacement}: {error}"));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zd4cx_workbooks_open_activates_and_sets_read_only_before_workbook_open() {
+    use std::rc::Rc;
+
+    const OPEN_BOOK: &str = "Private Sub Workbook_Open()\n ThisWorkbook.Worksheets(1).Range(\"D1\").Value = ActiveWorkbook.Name & \"|\" & CStr(ThisWorkbook.ReadOnly) & \"|\" & CStr(Workbooks.Count) & \"|\" & ActiveSheet.Parent.Name & \"|\" & ActiveWindow.Caption\nEnd Sub\n";
+    let target_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", "Option Explicit\n"),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", OPEN_BOOK),
+        ],
+    );
+    let mut caller_session = opened(LOCAL, "CallerBook.xlsm");
+    let caller = calc_host_vba::prepare(
+        caller_session.host(),
+        "CallerBook.xlsm",
+        &[calc_host_vba::ModuleSource {
+            name: "Module1".into(),
+            target: calc_host_vba::ModuleTarget::Standard,
+            source: r#"
+Public Function OpenPair() As String
+ Dim b1 As Workbook
+ Set b1 = Workbooks.Open("OpenedRo.xlsm", 0, True)
+ Dim r1 As String
+ r1 = b1.Worksheets(1).Range("D1").Value
+ Dim b2 As Workbook
+ Set b2 = Workbooks.Open("OpenedRw.xlsm")
+ Dim r2 As String
+ r2 = b2.Worksheets(1).Range("D1").Value
+ b2.Close False
+ b1.Close False
+ OpenPair = r1 & " ; " & r2
+End Function
+"#.into(),
+        }],
+        1_000_000,
+        Some(calc_vba::Backend::Interpreter),
+    )
+    .unwrap();
+    let payload = Rc::new(target_bytes);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: 1_000_000,
+        backend: Some(calc_vba::Backend::Interpreter),
+        loader: Some(Rc::new(move |path: &str| {
+            if matches!(path, "OpenedRo.xlsm" | "OpenedRw.xlsm") {
+                Ok((*payload).clone())
+            } else {
+                Err("missing".into())
+            }
+        })),
+        saver: None,
+        grant: Some(grant()),
+    });
+    let record = caller.run_procedure(&mut caller_session, "Module1.OpenPair", &[]);
+    calc_host::automation::set_book_factory(None);
+    let output = match record.outcome {
+        calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(text)) => text,
+        other => panic!("unexpected outcome: {other:?}"),
+    };
+    assert_eq!(
+        output,
+        "OpenedRo.xlsm|True|2|OpenedRo.xlsm|OpenedRo.xlsm ; OpenedRw.xlsm|False|3|OpenedRw.xlsm|OpenedRw.xlsm"
+    );
+}
+
+/// dc-cmruz: Excel compiles an assignment to a default member of a returned object whose
+/// source is a global function (`Range("B2") = 50`, `Cells(1, 1) = x`,
+/// `Range("A1").Offset(1, 0) = y`); the corpus projects that use them must be admitted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_cmruz_default_member_assignment_to_a_global_range_call_compiles() {
+    use calc_host_vba::{ModuleSource, ModuleTarget};
+    for body in [
+        "Range(\"B2\") = 50",
+        "Cells(2, 1) = 7",
+        "Range(\"A3\").Offset(1, 0) = 9",
+        "Range(\"B6\") = Range(\"B5\").Value",
+        "ActiveSheet.Cells(1, 1) = 3",
+        "Sheets(\"Sheet1\").Range(\"A1\") = 3",
+    ] {
+        let session = opened(&calc_host::blank_package(), "cmruz.xlsm");
+        let source = format!("Public Sub Go()\n {body}\nEnd Sub\n");
+        let modules = vec![ModuleSource {
+            name: "Module1".into(),
+            source,
+            target: ModuleTarget::Standard,
+        }];
+        let prepared = calc_host_vba::prepare(session.host(), "cmruz.xlsm", &modules, 50_000, Some(calc_vba::Backend::Interpreter));
+        assert!(prepared.is_ok(), "{body}: {:?}", prepared.err());
+    }
+}

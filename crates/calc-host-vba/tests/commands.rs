@@ -17,6 +17,13 @@ Public Sub Fill()
  Application.Range(\"A1\").Value2 = 5
  Application.Range(\"B1\").Value2 = \"x\"
 End Sub
+Public Sub DefaultLet()
+ Range(\"B2\") = 50
+ Cells(3, 1) = 7
+ Range(\"A4\").Offset(1, 0) = 9
+ Sheet1.Cells(6, 1) = 11
+ Sheet1.Range(\"C1\") = 12
+End Sub
 Public Function Add2(ByVal a As Double, ByVal b As Double) As Double
  Add2 = a + b
 End Function
@@ -96,7 +103,7 @@ Public Function PumpEvents() As Double
  PumpEvents = 7
 End Function
 Public Sub NeedsWindow()
- Application.ActiveWindow.WindowState = -4137
+ Application.ActiveWindow.NewWindow
 End Sub
 ";
 
@@ -330,5 +337,87 @@ fn an_excel_enum_typed_variable_holds_a_long_and_do_events_returns() {
         assert_eq!(mode.outcome, Outcome::Success(ProcedureResult::Number(-4105.0)), "{mode:?}");
         let pump = owner.run_procedure(&mut session, "Module1.PumpEvents", &[]);
         assert_eq!(pump.outcome, Outcome::Success(ProcedureResult::Number(7.0)), "{pump:?}");
+    }
+}
+
+/// dc-cmruz: Let of the default member of a global `Range`/`Cells` call or of a method result
+/// (`Range("A4").Offset(1, 0) = 9`) writes the cell, as in Excel.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn default_member_let_of_a_range_call_writes_the_cell() {
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
+        let run = owner.run_procedure(&mut session, "Module1.DefaultLet", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {run:?}");
+        for (row, column, expected) in [(2, 2, 50.0), (3, 1, 7.0), (5, 1, 9.0), (6, 1, 11.0), (1, 3, 12.0)] {
+            assert!(
+                matches!(cell(&session, row, column), Some(calc_host::CellInput::Number(n)) if n.get() == expected),
+                "{backend:?} ({row},{column}): {:?}",
+                cell(&session, row, column)
+            );
+        }
+    }
+}
+
+/// dc-cmruz: Excel enumeration members the corpus projects name resolve to the documented value
+/// in a module with Option Explicit (an undefined name there is a compile error, not Empty).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn documented_excel_enumeration_members_compile_under_option_explicit() {
+    let names: &[(&str, f64)] = &[
+        ("xlTopToBottom", 1.0),
+        ("xlLeftToRight", 2.0),
+        ("xlDownThenOver", 1.0),
+        ("xlOverThenDown", 2.0),
+        ("xlDiagonalDown", 5.0),
+        ("xlDiagonalUp", 6.0),
+        ("xlUnderlineStyleNone", -4142.0),
+        ("xlUnderlineStyleSingle", 2.0),
+        ("xlThemeColorDark1", 1.0),
+        ("xlThemeColorAccent1", 5.0),
+        ("xlThemeColorAccent6", 10.0),
+        ("xlCellTypeAllValidation", -4174.0),
+        ("xlCellTypeSameValidation", -4175.0),
+        ("xlCellTypeAllFormatConditions", -4172.0),
+        ("xlLinkTypeExcelLinks", 1.0),
+        ("xlSortNormal", 0.0),
+        ("xlValidAlertStop", 1.0),
+        ("xlValidateList", 3.0),
+        ("xlBetween", 1.0),
+        ("xlEqual", 3.0),
+        ("xlTextQualifierDoubleQuote", 1.0),
+        ("xlSkipColumn", 9.0),
+        ("xlInsertDeleteCells", 1.0),
+        ("xlOverwriteCells", 0.0),
+        ("xlWindows", 2.0),
+        ("xlDialogSaveAs", 5.0),
+        ("xlPrintNoComments", -4142.0),
+        ("xlSum", -4157.0),
+        ("xlDataField", 4.0),
+        ("xlCSVUTF8", 62.0),
+        ("xlTypePDF", 0.0),
+    ];
+    let mut source = String::from("Option Explicit\n");
+    for (i, (name, _)) in names.iter().enumerate() {
+        source += &format!("Public Function C{i}() As Double\n C{i} = {name}\nEnd Function\n");
+    }
+    for backend in backends() {
+        let bytes = vba_project::replace_sources(
+            LOCAL,
+            &[("Module1", &source), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", "")],
+        );
+        let session = opened(&bytes);
+        let grant = calc_host_vba::ProjectGrant::trust_all("test", calc_macro_security::VbaPolicy::Guarded);
+        let prepared = calc_host_vba::prepare_file_project_with_events(&grant, session.host(), "cmd.xlsm", 1_000_000, Some(backend), false);
+        let owner = match prepared {
+            Ok(Some(owner)) => owner,
+            other => panic!("{backend:?}: {:?}", other.err()),
+        };
+        let mut session = session;
+        owner.clone().install(&mut session);
+        for (i, (name, expected)) in names.iter().enumerate() {
+            let run = owner.run_procedure(&mut session, &format!("Module1.C{i}"), &[]);
+            assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Number(*expected)), "{backend:?} {name}");
+        }
     }
 }

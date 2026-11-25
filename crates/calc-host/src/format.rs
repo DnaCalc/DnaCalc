@@ -569,50 +569,12 @@ pub fn patched_style(
         }
     }
     let source = xf.font_id.or(parent.font_id).unwrap_or(0);
-    let mut font = table
+    let before = table
         .fonts
         .get(source as usize)
-        .ok_or("The source font is unavailable")?
-        .clone();
-    let before = font.clone();
-    if let Some(v) = &patch.font_name {
-        font.name = Some(v.clone());
-        font.scheme = None;
-    }
-    if let Some(v) = &patch.font_size {
-        font.size = Some(v.clone());
-    }
-    if let Some(v) = patch.bold {
-        font.bold = v;
-    }
-    if let Some(v) = patch.italic {
-        font.italic = v;
-    }
-    if let Some(v) = patch.underline {
-        font.underline = v.then(|| "single".into());
-    }
-    if let Some(v) = &patch.underline_style {
-        font.underline = (v != "none").then(|| v.clone());
-    }
-    if let Some(v) = patch.strike {
-        font.strike = v;
-    }
-    for (value, name) in [(patch.superscript, "superscript"), (patch.subscript, "subscript")] {
-        match value {
-            Some(true) => font.vert_align = Some(name.into()),
-            Some(false) if font.vert_align.as_deref() == Some(name) => font.vert_align = None,
-            _ => {}
-        }
-    }
-    if let Some(v) = &patch.font_color {
-        font.color = color(v)?;
-    } else if let Some(index) = patch.font_color_indexed {
-        font.color = Some(StyleColor {
-            indexed: Some(index.to_string()),
-            ..Default::default()
-        });
-    }
-    if font != before {
+        .ok_or("The source font is unavailable")?;
+    let font = apply_font_patch(before, patch)?;
+    if &font != before {
         let id = u32::try_from(table.fonts.len()).map_err(|_| "Too many fonts")?;
         table.fonts.push(font);
         table.sources.fonts.insert(id, source);
@@ -704,7 +666,49 @@ pub fn patched_style(
     Ok(id)
 }
 
-fn interior_fill(before: &Fill, patch: &InteriorPatch) -> Result<Fill, String> {
+pub(crate) fn apply_font_patch(before: &Font, patch: &FormatPatch) -> Result<Font, String> {
+    let mut font = before.clone();
+    if let Some(v) = &patch.font_name {
+        font.name = Some(v.clone());
+        font.scheme = None;
+    }
+    if let Some(v) = &patch.font_size {
+        font.size = Some(v.clone());
+    }
+    if let Some(v) = patch.bold {
+        font.bold = v;
+    }
+    if let Some(v) = patch.italic {
+        font.italic = v;
+    }
+    if let Some(v) = patch.underline {
+        font.underline = v.then(|| "single".into());
+    }
+    if let Some(v) = &patch.underline_style {
+        font.underline = (v != "none").then(|| v.clone());
+    }
+    if let Some(v) = patch.strike {
+        font.strike = v;
+    }
+    for (value, name) in [(patch.superscript, "superscript"), (patch.subscript, "subscript")] {
+        match value {
+            Some(true) => font.vert_align = Some(name.into()),
+            Some(false) if font.vert_align.as_deref() == Some(name) => font.vert_align = None,
+            _ => {}
+        }
+    }
+    if let Some(v) = &patch.font_color {
+        font.color = color(v)?;
+    } else if let Some(index) = patch.font_color_indexed {
+        font.color = Some(StyleColor {
+            indexed: Some(index.to_string()),
+            ..Default::default()
+        });
+    }
+    Ok(font)
+}
+
+pub(crate) fn interior_fill(before: &Fill, patch: &InteriorPatch) -> Result<Fill, String> {
     let mut fill = before.clone();
     let kind = |f: &Fill| f.pattern_type.clone().unwrap_or_else(|| "none".into());
     if let Some(pattern) = &patch.pattern {

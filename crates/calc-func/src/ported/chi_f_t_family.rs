@@ -550,11 +550,10 @@ pub fn t_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksheet
 
 pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let v = truncate_positive_integer(deg_freedom)?;
-    // Excel 20527 (dc-j9k.286-288, bisected to the bit): a probability whose magnitude is in the
-    // first normal binade below 0x001fffffffffffff, either sign, is #DIV/0! at one degree and
-    // #NUM! at more; a negative one elsewhere stays #NUM!.
-    let magnitude = probability.abs().to_bits();
-    if (0x0010_0000_0000_0000..0x001f_ffff_ffff_ffff).contains(&magnitude) {
+    // Excel 20527 (dc-j9k.286-288, dc-shqi1): Excel halves p with subnormal flush to zero before
+    // the sign/domain check; any finite probability with |p / 2| < DBL_MIN (0, subnormals, and
+    // ±0x0010..0x001f..fffe) flushes to 0 -> #DIV/0! at df = 1 and #NUM! at df >= 2.
+    if probability.is_finite() && (probability / 2.0).abs() < f64::MIN_POSITIVE {
         return Err(if v == 1.0 { WorksheetErrorCode::Div0 } else { WorksheetErrorCode::Num });
     }
     if !probability.is_finite() || probability < 0.0 || probability >= 2.0 {
@@ -577,10 +576,11 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
         if p == 0.5 {
             return Ok(sign);
         }
-        // Excel stores the pi product from x87 precision before halving.
-        // Adjacent double-rounding controls distinguish this from a binary64
-        // product even though the two expressions usually give the same angle.
-        let arg = crate::ported::excel_numeric::excel_x87_mul(std::f64::consts::PI, p) / 2.0;
+        // Excel halves p first (flushing subnormal p/2 to 0, and rounding 0x001fffffffffffff/2 to
+        // DBL_MIN), then stores the pi product from x87 precision. For all p >= 2*DBL_MIN halving
+        // is exact in the exponent, so this matches both adjacent double-rounding controls and
+        // 0x001fffffffffffff bit-for-bit (0x7fb45f306dc9c883, dc-shqi1).
+        let arg = crate::ported::excel_numeric::excel_x87_mul(std::f64::consts::PI, p / 2.0);
         return Ok(sign * crate::ported::excel_numeric::excel_x87_recip(crate::ported::tan::tan_kernel(arg)));
     }
     if p == 0.0 {
@@ -1529,5 +1529,28 @@ mod tests {
                 "BETA.DIST({x_bits:#018x}, {a_bits:#018x}, {b_bits:#018x}, TRUE) [{label}] got {got:#018x}, expected {excel:#018x}"
             );
         }
+    }
+
+    /// Excel 16.0.20625 (dc-shqi1): direct subnormal probabilities flush p/2 to 0 in t_inv_2t_kernel
+    /// (#DIV/0! at df=1, #NUM! at df>=2) instead of returning +inf.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn t_inv_2t_kernel_flushes_half_subnormal_probabilities() {
+        for bits in [
+            0x0000_0000_0000_0001_u64,
+            0x000f_ffff_ffff_ffff,
+            0x0010_0000_0000_0000,
+            0x001f_ffff_ffff_fffe,
+            0x8000_0000_0000_0001,
+            0x800f_ffff_ffff_ffff,
+        ] {
+            let p = f64::from_bits(bits);
+            assert_eq!(t_inv_2t_kernel(p, 1.0), Err(WorksheetErrorCode::Div0), "p={bits:#018x} df=1");
+            assert_eq!(t_inv_2t_kernel(p, 2.0), Err(WorksheetErrorCode::Num), "p={bits:#018x} df=2");
+        }
+        assert_eq!(
+            t_inv_2t_kernel(f64::from_bits(0x001f_ffff_ffff_ffff), 1.0).map(f64::to_bits),
+            Ok(0x7fb4_5f30_6dc9_c883)
+        );
     }
 }

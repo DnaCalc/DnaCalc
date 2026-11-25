@@ -106,6 +106,18 @@ pub struct OpenReport<'a> {
     pub repair_counts: std::collections::BTreeMap<&'static str, u64>,
 }
 
+/// Worksheet window view properties changed by automation and persisted on save (dc-p3rg9).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SheetViewOverride {
+    pub zoom: Option<u16>,
+    pub top_left: Option<(u32, u32)>,
+    pub show_grid_lines: Option<bool>,
+    pub show_row_col_headers: Option<bool>,
+    pub show_formulas: Option<bool>,
+    pub show_zeros: Option<bool>,
+    pub show_outline_symbols: Option<bool>,
+}
+
 /// One open workbook: the workbook calc-doc loaded from a package (which keeps the package for a
 /// later save), the current authored revision of its model, and the engine state at that
 /// revision. The host is the one owner that changes either: [`crate::dispatch`] commits an edit
@@ -192,6 +204,8 @@ pub struct HostState {
     pub(crate) file: Option<calc_fml::WorkbookFile>,
     /// The application's facts INFO reads ([`HostState::set_application`]).
     pub(crate) application: Option<calc_fml::ApplicationFacts>,
+    /// Worksheet window view overrides changed by automation (dc-p3rg9).
+    pub(crate) sheet_view_overrides: std::collections::BTreeMap<SheetId, SheetViewOverride>,
 }
 
 pub(crate) fn next_command_scope() -> u64 {
@@ -384,6 +398,7 @@ impl HostState {
             axis_edits: Vec::new(),
             file: None,
             application: None,
+            sheet_view_overrides: std::collections::BTreeMap::new(),
         };
         // The package's date system, the options' locale profile, and no clock until one is set:
         // NOW, TODAY and a date read without a year are refused.
@@ -1105,6 +1120,29 @@ impl HostState {
             != self.loaded.model().definitions().pane_layout(sheet)
         {
             view = view.with_pane_layout(self.model.definitions().pane_layout(sheet));
+        }
+        if let Some(o) = self.sheet_view_overrides.get(&sheet) {
+            if let Some(zoom) = o.zoom {
+                view.zoom = Some(zoom);
+            }
+            if let Some(top_left) = o.top_left {
+                view.top_left = Some(top_left);
+            }
+            if let Some(v) = o.show_grid_lines {
+                view.show_grid_lines = Some(v);
+            }
+            if let Some(v) = o.show_row_col_headers {
+                view.show_row_col_headers = Some(v);
+            }
+            if let Some(v) = o.show_formulas {
+                view.show_formulas = Some(v);
+            }
+            if let Some(v) = o.show_zeros {
+                view.show_zeros = Some(v);
+            }
+            if let Some(v) = o.show_outline_symbols {
+                view.show_outline_symbols = Some(v);
+            }
         }
         Some(view)
     }

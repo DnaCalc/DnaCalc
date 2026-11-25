@@ -169,6 +169,19 @@ fn view(
     if let Some(mode) = state.and_then(|v| v.mode) {
         attrs.push(("view", Some(mode.as_xml())));
     }
+    if let Some(v) = state {
+        for (attr, flag) in [
+            ("showFormulas", v.show_formulas),
+            ("showGridLines", v.show_grid_lines),
+            ("showRowColHeaders", v.show_row_col_headers),
+            ("showZeros", v.show_zeros),
+            ("showOutlineSymbols", v.show_outline_symbols),
+        ] {
+            if let Some(on) = flag {
+                attrs.push((attr, Some(if on { "1" } else { "0" })));
+            }
+        }
+    }
     let mut out = tag.rebuilt(
         &attrs,
         state.is_none() && xml.bytes()[span.0..span.1].ends_with(b"/>"),

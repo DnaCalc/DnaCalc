@@ -565,7 +565,7 @@ pub(super) fn gamma_halley_unit(
         // from a nonzero subnormal, which fails with #DIV/0! before scale is applied.
         // AS 91 `exp(((ln(p) + gammaln(a)) + ln(a)) / a)` avoids `1 + a` absorption at
         // small `a` and matches live Excel's addition order on `a ~ exp(-8)` probes (dc-iuwct.58).
-        let power_seed = || {
+        let power_seed = || -> Result<f64, WorksheetErrorCode> {
             let log_seed = excel_x87_div(
                 excel_x87_add(
                     excel_x87_add(excel_log(prob), gammaln_excel(a)),
@@ -573,10 +573,15 @@ pub(super) fn gamma_halley_unit(
                 ),
                 a,
             );
-            excel_exp(log_seed)
+            // Excel 20527 (dc-j9k.284): a logarithm that overflows in the division by the shape
+            // is #NUM!, not an exponential that underflows to zero.
+            if !log_seed.is_finite() {
+                return Err(WorksheetErrorCode::Num);
+            }
+            Ok(excel_exp(log_seed))
         };
         let small_shape_seed = if a < 1.0 {
-            let seed = power_seed();
+            let seed = power_seed()?;
             if seed == 0.0 {
                 return Ok(0.0);
             }
@@ -588,7 +593,10 @@ pub(super) fn gamma_halley_unit(
             None
         };
         if 2.0 * a < excel_x87_mul(-1.24, excel_log(prob)) {
-            let seed = small_shape_seed.unwrap_or_else(power_seed);
+            let seed = match small_shape_seed {
+                Some(seed) => seed,
+                None => power_seed()?,
+            };
             if seed == 0.0 {
                 return Ok(0.0);
             }

@@ -486,7 +486,9 @@ impl WorkbookEventHandler for WorkbookEvents {
                 })?;
         }
         // Excel raises the workbook's Sheet event after the sheet's own.
-        if let Some(book) = &self.book {
+        if session.workbook_events_enabled()
+            && let Some(book) = &self.book
+        {
             let reference =
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
             let target_obj = self
@@ -513,7 +515,9 @@ impl WorkbookEventHandler for WorkbookEvents {
                     source.calculate_model(self.max_steps)
                 })?;
         }
-        if let Some(book) = &self.book {
+        if session.workbook_events_enabled()
+            && let Some(book) = &self.book
+        {
             let sheet_obj = self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
             self.automation
                 .with_event_session(session, self.file_project, || {
@@ -541,7 +545,9 @@ impl WorkbookEventHandler for WorkbookEvents {
                     source.range_event_object("SelectionChange", target_obj, self.max_steps)
                 })?;
         }
-        if let Some(book) = &self.book {
+        if session.workbook_events_enabled()
+            && let Some(book) = &self.book
+        {
             let reference =
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
             let target_obj = self
@@ -585,8 +591,9 @@ impl WorkbookEventHandler for WorkbookEvents {
             }
             E::NewSheet { sheet } => {
                 if let Some(book) = &self.book {
+                    self.automation.context_changed(session);
                     let sheet_obj =
-                        self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+                        self.automation.sheet_object(sheet).map_err(|e| e.description())?;
                     self.automation
                         .with_event_session(session, self.file_project, || {
                             book.sheet_event_object("NewSheet", sheet_obj, steps)
@@ -605,9 +612,12 @@ impl WorkbookEventHandler for WorkbookEvents {
                             source.plain_model(own, steps)
                         })?;
                 }
-                if let Some(book) = &self.book {
+                if session.workbook_events_enabled()
+                    && let Some(book) = &self.book
+                {
+                    self.automation.context_changed(session);
                     let sheet_obj =
-                        self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+                        self.automation.sheet_object(sheet).map_err(|e| e.description())?;
                     self.automation
                         .with_event_session(session, self.file_project, || {
                             book.sheet_event_object(workbook, sheet_obj, steps)

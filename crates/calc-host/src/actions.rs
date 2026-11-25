@@ -116,15 +116,17 @@ pub enum ConditionalChange {
         dxf: Box<calc_doc_model::DifferentialFormat>,
     },
 }
-/// Edit to the workbook's named cell styles (dc-orxz0).
+/// Edit to the workbook's named cell styles (dc-orxz0, dc-lj4j5).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StyleChange {
-    /// Add a named style whose format copies the Normal style's.
+    /// Add a named style whose format copies Normal or the cell format `based_on` (`Styles.Add`).
     Add {
-        /// The new style's name.
+        /// The new style's name (ww21: Excel accepts the empty string too).
         name: String,
+        /// Optional `cell_formats` index from `BasedOn:=Range`.
+        based_on: Option<u32>,
     },
-    /// Delete a style added after the workbook was opened and not used by any cell format.
+    /// Delete a style added after the workbook was opened; cells using it revert to Normal (ww21).
     Remove {
         /// Position among the workbook's named styles.
         index: u32,
@@ -138,6 +140,33 @@ pub enum StyleChange {
         member: String,
         /// The new value.
         value: bool,
+    },
+    /// Set alignment properties of a style no cell format uses (dc-lj4j5).
+    Alignment {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// Horizontal alignment keyword.
+        horizontal: Option<String>,
+        /// Vertical alignment keyword.
+        vertical: Option<String>,
+        /// Indentation level 0..=15.
+        indent: Option<u16>,
+        /// Text rotation -90..=90 or 255.
+        rotation: Option<i16>,
+    },
+    /// Set font properties of a style no cell format uses (dc-lj4j5).
+    Font {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// Font fields to update.
+        patch: Box<crate::FormatPatch>,
+    },
+    /// Set interior fill properties of a style no cell format uses (dc-lj4j5).
+    Interior {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// Interior fill fields to update.
+        patch: crate::InteriorPatch,
     },
     /// Set the number format of a style no cell format uses (dc-lj4j5).
     NumberFormat {
@@ -1462,15 +1491,23 @@ pub(crate) fn axis_format_edits(
     Ok(edits)
 }
 
+/// The save appends cell style formats and cannot rewrite the ones the file holds: a write to one is refused, as
+/// deleting a file style is (dc-lj4j5 owns both).
+fn imported_style_unwritable(host: &HostState, xf_id: u32) -> Result<(), String> {
+    if (xf_id as usize) < host.loaded().styles().cell_style_formats.len() {
+        return Err("A style the file holds cannot be changed yet (dc-lj4j5)".into());
+    }
+    Ok(())
+}
+
 fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEdit>, String> {
     let mut styles = (**host.styles()).clone();
     match change {
-        StyleChange::Add { name } => {
-            let trimmed = name.trim();
-            if trimmed.is_empty() || trimmed.encode_utf16().count() > 255 {
-                return Err("Use a style name of 1 to 255 characters".into());
+        StyleChange::Add { name, based_on } => {
+            if name.encode_utf16().count() > 255 {
+                return Err("Use a style name of at most 255 characters".into());
             }
-            if styles.cell_styles.iter().any(|s| s.name.to_lowercase() == trimmed.to_lowercase()) {
+            if styles.cell_styles.iter().any(|s| s.name.to_lowercase() == name.to_lowercase()) {
                 return Err("A style with this name already exists".into());
             }
             let normal = styles
@@ -1479,15 +1516,46 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
                 .find(|s| s.name == "Normal")
                 .map(|s| s.xf_id)
                 .ok_or("The workbook has no Normal style to copy")?;
-            let base = styles
-                .cell_style_formats
-                .get(normal as usize)
-                .ok_or("The Normal style's format is missing")?
-                .clone();
+            let base = match based_on {
+                Some(cell_xf_index) => {
+                    let cell_xf = styles
+                        .cell_formats
+                        .get(cell_xf_index as usize)
+                        .ok_or("The source cell format is unavailable")?;
+                    let parent = cell_xf
+                        .xf_id
+                        .and_then(|id| styles.cell_style_formats.get(id as usize))
+                        .or_else(|| styles.cell_style_formats.get(normal as usize))
+                        .cloned()
+                        .unwrap_or_default();
+                    calc_doc_model::CellFormat {
+                        number_format_id: cell_xf.number_format_id.or(parent.number_format_id),
+                        font_id: cell_xf.font_id.or(parent.font_id),
+                        fill_id: cell_xf.fill_id.or(parent.fill_id),
+                        border_id: cell_xf.border_id.or(parent.border_id),
+                        xf_id: None,
+                        quote_prefix: false,
+                        pivot_button: false,
+                        apply_number_format: cell_xf.apply_number_format || parent.apply_number_format,
+                        apply_font: cell_xf.apply_font || parent.apply_font,
+                        apply_fill: cell_xf.apply_fill || parent.apply_fill,
+                        apply_border: cell_xf.apply_border || parent.apply_border,
+                        apply_alignment: cell_xf.apply_alignment || parent.apply_alignment,
+                        apply_protection: cell_xf.apply_protection || parent.apply_protection,
+                        alignment: cell_xf.alignment.clone().or(parent.alignment),
+                        protection: cell_xf.protection.clone().or(parent.protection),
+                    }
+                }
+                None => styles
+                    .cell_style_formats
+                    .get(normal as usize)
+                    .ok_or("The Normal style's format is missing")?
+                    .clone(),
+            };
             let xf_id = styles.cell_style_formats.len() as u32;
             styles.cell_style_formats.push(base);
             styles.cell_styles.push(calc_doc_model::CellStyle {
-                name: trimmed.to_owned(),
+                name,
                 xf_id,
                 builtin_id: None,
                 custom_builtin: false,
@@ -1497,17 +1565,31 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
         StyleChange::Remove { index } => {
             let index = index as usize;
             if index < host.loaded().styles().cell_styles.len() {
-                return Err("A style the file holds cannot be deleted yet (dc-oxh8w.63)".into());
+                return Err("A style the file holds cannot be deleted yet (dc-lj4j5)".into());
             }
-            let style = styles.cell_styles.get(index).ok_or("The style is unavailable")?;
-            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(style.xf_id)) {
-                return Err("The style is in use; deleting it needs the cell formats reset (dc-oxh8w.63)".into());
+            let style = styles.cell_styles.get(index).ok_or("The style is unavailable")?.clone();
+            let loaded_xfs = host.loaded().styles().cell_formats.len();
+            if styles.cell_formats.iter().take(loaded_xfs).any(|xf| xf.xf_id == Some(style.xf_id)) {
+                return Err("The style is used by an imported cell format (dc-lj4j5)".into());
+            }
+            let normal = styles
+                .cell_styles
+                .iter()
+                .find(|s| s.name == "Normal")
+                .map(|s| s.xf_id)
+                .unwrap_or(0);
+            // ww21 Styles.Delete.inUse: cells using a deleted custom style revert to Normal.
+            for xf in styles.cell_formats.iter_mut().skip(loaded_xfs) {
+                if xf.xf_id == Some(style.xf_id) {
+                    xf.xf_id = Some(normal);
+                }
             }
             styles.cell_styles.remove(index);
         }
         StyleChange::Flag { index, member, value } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1531,9 +1613,82 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
                 }
             }
         }
+        StyleChange::Alignment { index, horizontal, vertical, indent, rotation } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let base = styles.cell_style_formats.get_mut(xf_id as usize).ok_or("The style's format is missing")?;
+            let a = base.alignment.get_or_insert_with(Default::default);
+            if let Some(h) = horizontal {
+                a.horizontal = Some(h);
+            }
+            if let Some(v) = vertical {
+                a.vertical = Some(v);
+            }
+            if let Some(i) = indent {
+                a.indent = Some(i.to_string());
+            }
+            if let Some(r) = rotation {
+                a.text_rotation = Some(if r < 0 { 90 - r } else { r }.to_string());
+            }
+            base.apply_alignment = true;
+        }
+        StyleChange::Font { index, patch } => {
+            patch.validate()?;
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing its font needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let source = styles
+                .cell_style_formats
+                .get(xf_id as usize)
+                .ok_or("The style's format is missing")?
+                .font_id
+                .unwrap_or(0);
+            let before = styles.fonts.get(source as usize).ok_or("The source font is unavailable")?;
+            let font = crate::format::apply_font_patch(before, &patch)?;
+            if &font != before {
+                let id = u32::try_from(styles.fonts.len()).map_err(|_| "Too many fonts")?;
+                styles.fonts.push(font);
+                styles.sources.fonts.insert(id, source);
+                let base = &mut styles.cell_style_formats[xf_id as usize];
+                base.font_id = Some(id);
+                base.apply_font = true;
+            }
+        }
+        StyleChange::Interior { index, patch } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing its fill needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let source = styles
+                .cell_style_formats
+                .get(xf_id as usize)
+                .ok_or("The style's format is missing")?
+                .fill_id
+                .unwrap_or(0);
+            let before = styles.fills.get(source as usize).ok_or("The source fill is unavailable")?;
+            let fill = crate::format::interior_fill(before, &patch)?;
+            if &fill != before {
+                let id = styles.fills.len() as u32;
+                styles.fills.push(fill);
+                styles.sources.fills.insert(id, source);
+                let base = &mut styles.cell_style_formats[xf_id as usize];
+                base.fill_id = Some(id);
+                base.apply_fill = true;
+            }
+        }
         StyleChange::NumberFormat { index, code } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing its format needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1723,27 +1878,49 @@ pub(crate) fn conditional_edits(
                 rules[i].authored = true;
             }
             ConditionalChange::Format { dxf } => {
-                let id = parsed
-                    .dxf
-                    .ok_or("This rule has no format of its own to change (dc-tqcvu)")?
-                    as usize;
-                let shared = rules.iter().enumerate().any(|(n, other)| {
-                    n != i
-                        && crate::conditional_rule(other)
-                            .map(|r| r.dxf == parsed.dxf)
-                            .unwrap_or(true)
-                });
-                if id < host.loaded().styles().differential_formats.len() {
-                    return Err("This rule's format came from the file; changing it needs a new format record (dc-oxh8w.62)".into());
-                }
-                if shared {
-                    return Err("This rule shares its format with another rule; changing it would change both (dc-tqcvu)".into());
-                }
                 let mut styles = (**host.styles()).clone();
-                *styles
-                    .differential_formats
-                    .get_mut(id)
-                    .ok_or("The rule's format is missing from the styles part")? = *dxf;
+                let needs_copy = match parsed.dxf {
+                    None => true,
+                    Some(id) => {
+                        let shared_on_current = rules.iter().enumerate().any(|(n, other)| {
+                            n != i
+                                && crate::conditional_rule(other)
+                                    .map(|r| r.dxf == parsed.dxf)
+                                    .unwrap_or(true)
+                        });
+                        let shared_on_other_sheet = host
+                            .model()
+                            .sheets()
+                            .iter()
+                            .filter(|other_sheet| other_sheet.id() != sheet)
+                            .any(|other_sheet| {
+                                host.model()
+                                    .definitions()
+                                    .conditional_rules(other_sheet.id())
+                                    .iter()
+                                    .any(|other| {
+                                        crate::conditional_rule(other)
+                                            .map(|r| r.dxf == parsed.dxf)
+                                            .unwrap_or(true)
+                                    })
+                            });
+                        (id as usize) < host.loaded().styles().differential_formats.len()
+                            || shared_on_current
+                            || shared_on_other_sheet
+                    }
+                };
+                if needs_copy {
+                    let new_id = u32::try_from(styles.differential_formats.len())
+                        .map_err(|_| "Too many differential formats")?;
+                    styles.differential_formats.push(*dxf);
+                    rules[i] = calc_doc::conditional_with_dxf(&rules[i], new_id)?;
+                } else {
+                    let id = parsed.dxf.unwrap() as usize;
+                    *styles
+                        .differential_formats
+                        .get_mut(id)
+                        .ok_or("The rule's format is missing from the styles part")? = *dxf;
+                }
                 rules[i].authored = true;
                 staged_styles = Some(styles);
             }

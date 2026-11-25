@@ -1394,6 +1394,19 @@ fn workday_intl_checks_range_then_zero_days_then_holidays_then_weekend() {
     error(w(vec![n(-1.0), n(0.0), n(7.0)]), Num);
 }
 
+/// dc-shqi1: in 1904 date mode, WORKDAY.INTL must check its target against the 1904 origin (serial
+/// 1462 in 1900 coordinates) before reading holidays or weekend.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workday_intl_1904_system_checks_target_against_1904_origin() {
+    let mut env = host();
+    env.date_system = DateSystem::System1904;
+    let w = |args: Vec<CalcValue>| c(&env, "WORKDAY.INTL", args);
+    error(w(vec![n(1.0), n(-5.0), t("abc")]), Num);
+    error(w(vec![n(1.0), n(-2.0), t("abc")]), Num);
+    error(w(vec![n(1.0), n(-1.0), t("abc")]), Value);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn host_facts() {
@@ -1598,6 +1611,41 @@ fn database_functions() {
         call_on(&mut sheet, "DSUM", vec![db, t("Nope"), crit]),
         Value,
     );
+}
+
+/// Live Excel (16.0.20625, dc-j9k.271-.276): a criteria header that names no field makes the cell a
+/// computed criterion (nonzero number or TRUE holds, zero, FALSE, text and error fail).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_computed_criteria_and_held_field() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("A"), n(5.0), n(7.0)]);
+    sheet.column(1, 2, vec![t("B"), n(6.0), n(8.0)]);
+    sheet.column(1, 7, vec![t("Q"), n(5.0)]);
+    let db = sheet.area(1, 1, 3, 2);
+    let crit = sheet.area(1, 7, 2, 7);
+    for (value, count) in [
+        (n(5.0), 2.0), (n(-5.0), 2.0), (n(1e300), 2.0), (b(true), 2.0),
+        (n(0.0), 0.0), (b(false), 0.0), (t("Al"), 0.0), (t(">1"), 0.0), (t("=5"), 0.0), (e(NA), 0.0),
+    ] {
+        sheet.cells.insert((2, 7), value);
+        exact(call_on(&mut sheet, "DCOUNT", vec![db.clone(), n(1.0), crit.clone()]), count);
+    }
+    sheet.cells.insert((2, 7), n(5.0));
+    exact(call_on(&mut sheet, "DPRODUCT", vec![db.clone(), n(1.0), crit.clone()]), 35.0);
+    error(call_on(&mut sheet, "DGET", vec![db.clone(), n(1.0), crit.clone()]), Num);
+    // A numeric header that names no field, a computed criterion alike.
+    sheet.cells.insert((1, 7), n(7.0));
+    exact(call_on(&mut sheet, "DSUM", vec![db.clone(), n(1.0), crit.clone()]), 12.0);
+    // An error cell in a matching record is the result.
+    sheet.column(1, 4, vec![t("S"), n(5.0), e(NA)]);
+    let db3 = sheet.area(1, 1, 3, 4);
+    error(call_on(&mut sheet, "DPRODUCT", vec![db3, t("S"), crit.clone()]), NA);
+    // The same error typed in the formula is the result (the formula evaluator maps a held one to #VALUE!).
+    for (held, code) in [(e(NA), NA), (e(Name), Name), (e(Div0), Div0)] {
+        sheet.cells.insert((1, 7), t("A"));
+        error(call_on(&mut sheet, "DPRODUCT", vec![db.clone(), held, crit.clone()]), code);
+    }
 }
 
 /// Excel 20527: A-plus-digit database criteria are text, not time or currency.

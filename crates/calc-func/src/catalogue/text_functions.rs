@@ -90,6 +90,10 @@ fn mid(site: &Site<'_>, a: &[CalcValue], bytes: bool) -> Step<CalcValue> {
     let text = text_arg(site, a, 0)?;
     let start = num(site, a, 1)?;
     let count = num(site, a, 2)?;
+    // MIDB admits a start only up to the signed 32-bit bound (live Excel, dc-j9k.362); MID reads one past it.
+    if bytes && start >= 2147483648.0 {
+        return Err(Exit::Error(WorksheetErrorCode::Value));
+    }
     let start = k::mid_start(start).map_err(Exit::Error)?;
     let count = k::nonnegative_count(count, false).map_err(Exit::Error)?;
     Ok(CalcValue::text(k::take_mid(

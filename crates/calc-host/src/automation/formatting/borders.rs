@@ -9,15 +9,15 @@ use calc_value::CellKey;
 const AUTOMATIC_COLOR: i32 = -4105;
 const NO_LINE: i32 = -4142;
 // XlBordersIndex.
-const DIAGONAL_DOWN: i32 = 5;
-const DIAGONAL_UP: i32 = 6;
-const LEFT: i32 = 7;
-const TOP: i32 = 8;
-const BOTTOM: i32 = 9;
-const RIGHT: i32 = 10;
+pub(super) const DIAGONAL_DOWN: i32 = 5;
+pub(super) const DIAGONAL_UP: i32 = 6;
+pub(super) const LEFT: i32 = 7;
+pub(super) const TOP: i32 = 8;
+pub(super) const BOTTOM: i32 = 9;
+pub(super) const RIGHT: i32 = 10;
 const INSIDE_VERTICAL: i32 = 11;
 const INSIDE_HORIZONTAL: i32 = 12;
-const LINES: &[(i32, EdgeLine)] = &[
+pub(super) const LINES: &[(i32, EdgeLine)] = &[
     (NO_LINE, EdgeLine::None),
     (1, EdgeLine::Continuous),
     (-4115, EdgeLine::Dash),
@@ -27,7 +27,7 @@ const LINES: &[(i32, EdgeLine)] = &[
     (-4119, EdgeLine::Double),
     (13, EdgeLine::SlantDashDot),
 ];
-const WEIGHTS: &[(i32, EdgeWeight)] = &[
+pub(super) const WEIGHTS: &[(i32, EdgeWeight)] = &[
     (1, EdgeWeight::Hairline),
     (2, EdgeWeight::Thin),
     (-4138, EdgeWeight::Medium),
@@ -138,7 +138,7 @@ fn cell_border(host: &HostState, style: u32) -> Result<Option<&Border>, AutoErro
     }
 }
 
-fn side(border: Option<&Border>, edge: i32) -> Option<&BorderEdge> {
+pub(super) fn side(border: Option<&Border>, edge: i32) -> Option<&BorderEdge> {
     let border = border?;
     match edge {
         LEFT => border.left.as_ref(),
@@ -170,6 +170,9 @@ impl WorkbookAutomation {
     }
 
     fn borders_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_borders_item(target, call);
+        }
         format_arity(call, 1)?;
         let edge = integral_format_arg(call)?;
         if !(DIAGONAL_DOWN..=INSIDE_HORIZONTAL).contains(&edge) {
@@ -189,6 +192,9 @@ impl WorkbookAutomation {
     }
 
     fn get_border_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_border_get(target, call);
+        }
         if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..) | calc_object_model::ReportItem::SeriesBorder(..), .. }) {
             return self.chart_border_get(target, call);
         }
@@ -228,6 +234,9 @@ impl WorkbookAutomation {
     }
 
     fn put_border_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_border_put(target, call);
+        }
         if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..) | calc_object_model::ReportItem::SeriesBorder(..), .. }) {
             return self.chart_border_put(target, call);
         }
@@ -308,6 +317,7 @@ impl WorkbookAutomation {
             OWNER,
             |session, reference| {
                 let range = reference.ok_or_else(geometry::type_mismatch)?;
+                self.guard_locked(session, range)?;
                 let mut stages = Vec::new();
                 for area in range.areas() {
                     stages.extend(plan(*area)?);
@@ -329,11 +339,11 @@ impl WorkbookAutomation {
     }
 }
 
-fn pick<T: Copy>(table: &[(i32, T)], value: i32) -> Result<T, AutoError> {
+pub(super) fn pick<T: Copy>(table: &[(i32, T)], value: i32) -> Result<T, AutoError> {
     table.iter().find(|(v, _)| *v == value).map(|(_, t)| *t).ok_or_else(format_error)
 }
 
-fn rgb_color(rgb: i32) -> Result<FillColor, AutoError> {
+pub(super) fn rgb_color(rgb: i32) -> Result<FillColor, AutoError> {
     if !(0..=0x00FF_FFFF).contains(&rgb) {
         return Err(format_error());
     }
@@ -341,7 +351,7 @@ fn rgb_color(rgb: i32) -> Result<FillColor, AutoError> {
     Ok(FillColor::Rgb(format!("{:06X}", (rgb & 0xFF) << 16 | rgb & 0xFF00 | rgb >> 16 & 0xFF)))
 }
 
-fn indexed_color(index: i32) -> Result<FillColor, AutoError> {
+pub(super) fn indexed_color(index: i32) -> Result<FillColor, AutoError> {
     match index {
         AUTOMATIC_COLOR => Ok(FillColor::Automatic),
         1..=56 => Ok(FillColor::Indexed(index as u8 + 7)),
@@ -349,7 +359,7 @@ fn indexed_color(index: i32) -> Result<FillColor, AutoError> {
     }
 }
 
-fn edge_property(host: &HostState, edge: Option<&BorderEdge>, member: &str) -> Result<i32, AutoError> {
+pub(super) fn edge_property(host: &HostState, edge: Option<&BorderEdge>, member: &str) -> Result<i32, AutoError> {
     let style = edge.and_then(|e| e.style.as_deref());
     let (line, weight) = decompose_edge(style)
         .ok_or_else(|| AutoError::not_modelled(format!("Border style stored as {}", style.unwrap_or("")), OWNER))?;

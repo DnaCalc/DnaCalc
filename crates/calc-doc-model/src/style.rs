@@ -33,7 +33,11 @@ pub struct Font {
     pub family: Option<String>,
     pub scheme: Option<String>,
     pub bold: bool,
+    /// Explicit `<b val="0"/>` (used in differential formats to turn off bold).
+    pub bold_off: bool,
     pub italic: bool,
+    /// Explicit `<i val="0"/>` (used in differential formats to turn off italic).
+    pub italic_off: bool,
     pub underline: Option<String>,
     pub strike: bool,
     pub outline: bool,
