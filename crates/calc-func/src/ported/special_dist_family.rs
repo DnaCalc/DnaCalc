@@ -223,7 +223,22 @@ pub fn weibull_dist_kernel(
     use crate::ported::excel_numeric::{
         excel_exp, excel_expm1_internal, excel_pow_chain, excel_x87_div, excel_x87_mul,
     };
-    let ratio = excel_x87_div(x, beta);
+    // Excel flushes a subnormal x/beta, alpha/beta^alpha or result to zero (dc-j9k.368; live, bit-exact cells).
+    let ftz = |v: f64| if v.is_subnormal() { 0.0 } else { v };
+    let ratio = ftz(excel_x87_div(x, beta));
+    // The pdf reads beta^alpha first: zero is #DIV/0!, even where the exponent below would overflow (dc-j9k.366).
+    let pba = if cumulative {
+        0.0
+    } else {
+        let pba = excel_pow_chain(beta, alpha);
+        if !pba.is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
+        if pba == 0.0 || pba.is_subnormal() {
+            return Err(WorksheetErrorCode::Div0);
+        }
+        pba
+    };
     // Excel 20527 (dc-j9k.255): a stored exponent product alpha * ln(ratio) that overflows is
     // #NUM!, not an exponential that underflows to zero.
     if ratio > 0.0 && !excel_x87_mul(alpha, crate::ported::excel_numeric::excel_log(ratio)).is_finite() {
@@ -234,18 +249,11 @@ pub fn weibull_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
     let value = if cumulative {
-        -excel_expm1_internal(-power)
+        ftz(-excel_expm1_internal(-power))
     } else {
-        let pba = excel_pow_chain(beta, alpha);
-        if !pba.is_finite() {
-            return Err(WorksheetErrorCode::Num);
-        }
-        if pba == 0.0 || pba.is_subnormal() {
-            return Err(WorksheetErrorCode::Div0);
-        }
         let px = excel_pow_chain(x, alpha - 1.0);
         let e = excel_exp(-power);
-        excel_x87_mul(excel_x87_mul(excel_x87_div(alpha, pba), px), e)
+        ftz(excel_x87_mul(excel_x87_mul(ftz(excel_x87_div(alpha, pba)), px), e))
     };
 
     if !value.is_finite() {
@@ -2654,6 +2662,31 @@ mod tests {
         assert_eq!(gamma_kernel(-2.0), Err(WorksheetErrorCode::Num));
         // A non-integer negative is finite, not a pole.
         assert!(gamma_kernel(-1.5).unwrap().is_finite());
+    }
+
+    /// Live Excel, bit-exact cell inputs (dc-j9k.366/.368): a subnormal x/beta, alpha/beta^alpha or result is
+    /// flushed to zero, and the pdf reports a zero beta^alpha (#DIV/0!) before an overflowing exponent (#NUM!).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn weibull_flushes_subnormals_and_orders_div0_first() {
+        let f = f64::from_bits;
+        // cdf: x/beta = 1.08e-309
+        assert_eq!(weibull_dist_kernel(f(0x3fb9999999999998), 0.5, f(0x7fe089be117ada82), true), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(1e-300, 0.5, 1e10, true), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(1e-300, 1.0, 1e8, true), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(1e-300, 0.001, 1e10, true), Ok(0.0));
+        // pdf: alpha / beta^alpha is subnormal
+        assert_eq!(weibull_dist_kernel(1.0, 1.0, f(0x7fe089be117ada82), false), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(7.5, 1.0, 5e307, false), Ok(0.0));
+        // pdf: beta^alpha underflows to zero before the exponent overflows
+        assert_eq!(
+            weibull_dist_kernel(f(0x7fde293fac17034f), f(0x7fd31843a3f2390e), 0.5, false),
+            Err(WorksheetErrorCode::Div0)
+        );
+        assert_eq!(
+            weibull_dist_kernel(f(0x7fde293fac17034f), f(0x7fd31843a3f2390e), 0.5, true),
+            Err(WorksheetErrorCode::Num)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
