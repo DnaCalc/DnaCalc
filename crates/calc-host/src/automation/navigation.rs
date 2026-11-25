@@ -1,9 +1,11 @@
 //! Workbook collections and Range geometry, resolved against the current session on every call.
 use super::*;
+use calc_object_model::ReportItem;
 
 impl WorkbookAutomation {
     pub(super) fn register_navigation(handlers: &mut Handlers<Self>) {
-        handlers.on("Workbook", "Worksheets", InvokeKind::Get, Self::sheets);
+        handlers.on("Workbook", "Worksheets", InvokeKind::Get, Self::worksheets);
+        handlers.on("Workbook", "Charts", InvokeKind::Get, Self::charts);
         handlers.on("Workbook", "Sheets", InvokeKind::Get, Self::sheets);
         handlers.on("Workbook", "Names", InvokeKind::Get, Self::names);
         handlers.on("Worksheet", "Range", InvokeKind::Get, Self::worksheet_range);
@@ -77,6 +79,29 @@ impl WorkbookAutomation {
             )))
         })
     }
+    fn worksheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Object(object("Sheets", ObjectKey::Worksheets(meta.workbook))))
+        })
+    }
+    fn charts(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Object(object("Sheets", ObjectKey::Charts(meta.workbook))))
+        })
+    }
+    /// The sheets a Sheets-typed collection lists, in workbook order: all, the worksheets (a sheet that is
+    /// neither a chart sheet nor a dialog sheet), or the chart sheets.
+    fn listed<'a>(&self, target: &ObjectRef, meta: &'a Snapshot) -> Vec<&'a calc_doc_model::SheetEntry> {
+        let chart = |s: &&calc_doc_model::SheetEntry| meta.chart_sheets.contains(&s.id());
+        let all = meta.model.sheets().iter();
+        match target.key {
+            ObjectKey::Charts(_) => all.filter(chart).collect(),
+            ObjectKey::Worksheets(_) => all.filter(|s| !chart(s) && !meta.dialog_sheets.contains(&s.id())).collect(),
+            _ => all.collect(),
+        }
+    }
     fn names(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
@@ -91,9 +116,9 @@ impl WorkbookAutomation {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
-            let sheets = meta.model.sheets();
+            let sheets = self.listed(target, meta);
             let sheet = match call.arg(0) {
-                AutoValue::Text(text) => sheets.iter().find(|s| {
+                AutoValue::Text(text) => sheets.iter().copied().find(|s| {
                     calc_value::workbook_names_equal(
                         &s.name().text().to_string_lossy(),
                         &text.to_string_lossy(),
@@ -101,9 +126,17 @@ impl WorkbookAutomation {
                 }),
                 other => usize::try_from(geometry::integer(other)? - 1)
                     .ok()
-                    .and_then(|n| sheets.get(n)),
+                    .and_then(|n| sheets.get(n).copied()),
             }
             .ok_or_else(|| AutoError::Status(0x8002_000Bu32 as i32))?;
+            if meta.dialog_sheets.contains(&sheet.id()) {
+                return Err(AutoError::not_modelled("a DialogSheet from Sheets", "dc-oxh8w.23"));
+            }
+            if meta.chart_sheets.contains(&sheet.id()) {
+                let part = meta.chart_parts.iter().find(|(id, _)| *id == sheet.id()).map(|(_, part)| part.clone());
+                let part = part.ok_or_else(|| AutoError::not_modelled("a chart sheet without a chart", "dc-oxh8w.23"))?;
+                return Ok(super::report::report(meta.workbook, sheet.id(), "Chart", ReportItem::Chart(part)));
+            }
             Ok(AutoValue::Object(object(
                 "Worksheet",
                 ObjectKey::Worksheet {
@@ -116,7 +149,7 @@ impl WorkbookAutomation {
     fn sheets_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
-            Ok(AutoValue::I4(meta.model.sheets().len() as i32))
+            Ok(AutoValue::I4(self.listed(target, meta).len() as i32))
         })
     }
     fn sheets_application(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

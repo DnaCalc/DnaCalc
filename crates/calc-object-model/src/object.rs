@@ -29,6 +29,10 @@ pub enum ObjectKey {
     Workbook(u64),
     /// The Sheets/Worksheets collection of a workbook.
     Sheets(u64),
+    /// The Worksheets collection of a workbook: its worksheets, not its chart or dialog sheets.
+    Worksheets(u64),
+    /// The Charts collection of a workbook: its chart sheets.
+    Charts(u64),
     /// One worksheet in an open workbook.
     Worksheet {
         /// Host identity of the containing workbook.
