@@ -5145,7 +5145,7 @@ mod xlc {
                 ],
                 Some(AutoError::not_modelled(
                     "Names.Add RefersToR1C1",
-                    "dc-jtl4m",
+                    "dc-oxh8w.27",
                 )),
             ),
             (
@@ -5263,9 +5263,8 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Count above one and chart sheets are refused typed, nothing changes.
+    // Chart sheets are refused typed (dc-oxh8w.27 owns them), nothing changes.
     for args in [
-        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(2)],
         vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
     ] {
         let n = sheet_names(&host).len();
@@ -5430,10 +5429,9 @@ fn dc_oxh8w_4__names_add_defines_and_redefines_a_workbook_name() {
     let again = obj(add("Totals", &format!("={sheet}!$C$1")).unwrap());
     assert_eq!(text(&model, &again, "RefersTo"), format!("={sheet}!$C$1"));
     assert!(matches!(invoke(&model, &names, "Count", vec![]).unwrap(), AutoValue::I4(1)));
-    // An invalid name is Excel's 1004; sheet-scoped names and non-formula RefersTo are typed refusals.
+    // An invalid name is Excel's 1004; non-formula RefersTo is a typed refusal.
     let error = add("1bad name", "=1").unwrap_err();
     assert!(matches!(error, AutoError::Excel { number: 1004, .. }), "{error:?}");
-    assert!(matches!(add(&format!("{sheet}!Local"), "=1"), Err(AutoError::NotModelled { .. })));
     assert!(matches!(add("Plain", "text"), Err(AutoError::NotModelled { .. })));
     assert!(matches!(invoke(&model, &names, "Count", vec![]).unwrap(), AutoValue::I4(1)));
 }
@@ -5756,15 +5754,19 @@ fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
     assert_eq!([value("J1"), value("K1")], ["1", "11"]);
     assert_eq!([value("J2"), value("K2")], ["2", "x"]);
     assert_eq!([value("J3"), value("K3")], ["3", "6"]);
-    // Operations and SkipBlanks are refused typed, nothing is pasted.
+    // Other Paste kinds are refused typed; formula sources and destinations refuse an Operation; nothing is pasted.
     let before = value("M1");
     for args in [
-        vec![AutoValue::Missing, AutoValue::I4(2)],
-        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)],
         vec![AutoValue::I4(-4144)],
+        vec![AutoValue::I4(-4163), AutoValue::I4(2)],
+        vec![AutoValue::I4(-4163), AutoValue::I4(2), AutoValue::Bool(true)],
     ] {
         assert!(matches!(call("M1", "PasteSpecial", args), Err(AutoError::NotModelled { .. })));
     }
+    assert!(matches!(
+        call("M1", "PasteSpecial", vec![AutoValue::I4(-4163), AutoValue::I4(99)]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
     assert_eq!(value("M1"), before);
     // Worksheet.Paste at a Destination pastes everything.
     let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
@@ -5833,4 +5835,124 @@ fn dc_oxh8w_24__whole_sheet_delete_clears_the_sheet() {
     invoke_kind(&model, &range(&model, "A1:XFD1048576"), "Delete", InvokeKind::Method, vec![]).unwrap();
     assert!(matches!(cell_text(&model, "A1"), AutoValue::Empty));
     assert!(matches!(cell_text(&model, "D40"), AutoValue::Empty));
+}
+
+/// dc-jtl4m: PasteSpecial Operation (add, subtract, multiply, divide) and SkipBlanks, and Worksheet.PasteSpecial.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jtl4m__paste_special_operation_skip_blanks_and_worksheet_paste_special() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2", "3"], &["5", "", "7"], &["10", "20", "0"], &["=A1", "", ""]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let value = |address: &str| cell_text_of(&model, address);
+    let values = AutoValue::I4(-4163);
+    let operation = |kind: i32| vec![values.clone(), AutoValue::I4(kind)];
+    // Add, subtract, multiply, divide the copied numbers into numbers; the Copy stays for each paste.
+    // A fresh destination row of 10, 20, 30 makes each result unambiguous.
+    fill(&host, (8, 1), &[&["10", "20", "30"]]);
+    call("A1:C1", "Copy", vec![]).unwrap();
+    call("A8", "PasteSpecial", operation(2)).unwrap();
+    assert_eq!([value("A8"), value("B8"), value("C8")], ["11", "22", "33"]);
+    call("A8", "PasteSpecial", operation(3)).unwrap();
+    assert_eq!([value("A8"), value("B8"), value("C8")], ["10", "20", "30"]);
+    call("A8", "PasteSpecial", operation(4)).unwrap();
+    assert_eq!([value("A8"), value("B8"), value("C8")], ["10", "40", "90"]);
+    call("A8", "PasteSpecial", operation(5)).unwrap();
+    assert_eq!([value("A8"), value("B8"), value("C8")], ["10", "20", "30"]);
+    // Dividing by a copied zero is #DIV/0!; an empty destination counts as zero.
+    call("A3:C3", "Copy", vec![]).unwrap();
+    call("A8", "PasteSpecial", operation(5)).unwrap();
+    assert_eq!(text(&model, &range(&model, "C8"), "Text"), "#DIV/0!");
+    assert_eq!(value("A40"), "", "an empty destination");
+    call("A40", "PasteSpecial", operation(2)).unwrap();
+    assert_eq!([value("A40"), value("B40"), value("C40")], ["10", "20", "0"]);
+    // A formula destination is refused typed and nothing changes.
+    call("A4", "Copy", vec![]).unwrap();
+    call("A12", "PasteSpecial", operation(2)).unwrap();
+    assert_eq!(value("A12"), "1", "a formula source pastes its value");
+    call("A1:C1", "Copy", vec![]).unwrap();
+    assert!(matches!(call("A4", "PasteSpecial", operation(2)), Err(AutoError::NotModelled { .. })));
+    // SkipBlanks keeps the destination where the copied cell is blank; without it the blank overwrites.
+    fill(&host, (14, 1), &[&["1", "2", "3"], &["1", "2", "3"]]);
+    call("A2:C2", "Copy", vec![]).unwrap();
+    call("A14", "PasteSpecial", vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)]).unwrap();
+    assert_eq!([value("A14"), value("B14"), value("C14")], ["5", "2", "7"]);
+    call("A15", "PasteSpecial", vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(false)]).unwrap();
+    assert_eq!([value("A15"), value("B15"), value("C15")], ["5", "", "7"]);
+    // Worksheet.PasteSpecial pastes the clipboard at the selection; Link and other formats are refused typed.
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    select_cells(&host, (20, 1), (20, 1));
+    model.context_changed(&host.session.borrow());
+    invoke_kind(&model, &sheet, "PasteSpecial", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!([value("A20"), value("C20")], ["5", "7"]);
+    for args in [vec![AutoValue::text("Text")], vec![AutoValue::Missing, AutoValue::Bool(true)]] {
+        assert!(matches!(
+            invoke_kind(&model, &sheet, "PasteSpecial", InvokeKind::Method, args),
+            Err(AutoError::NotModelled { .. })
+        ));
+    }
+}
+
+/// dc-jtl4m: Worksheets.Add Count, worksheet-scoped Names.Add and a Sort of one cell (its current region).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
+    let (host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = sheet_names(&host)[0].clone();
+    let before = sheet_names(&host).len();
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(3)]).unwrap());
+    let names = sheet_names(&host);
+    assert_eq!(names.len(), before + 3);
+    assert_eq!(names[3], first, "three new sheets sit before the active sheet");
+    assert_eq!(text(&model, &added, "Name"), names[0], "the first new sheet is returned");
+    for bad in [0, -1, 256] {
+        let reply = invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(bad)]);
+        assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
+    }
+    assert_eq!(sheet_names(&host).len(), before + 3);
+    // Scoped names: "Sheet!Name" belongs to that sheet; redefining keeps one; an unknown sheet is 1004.
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let book_names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+    let add = |name: &str, refers: &str| {
+        invoke_kind(&model, &book_names, "Add", InvokeKind::Method, vec![AutoValue::text(name), AutoValue::text(refers)])
+    };
+    let local = obj(add(&format!("{first}!Local"), "=1").unwrap());
+    let shown = text(&model, &local, "Name");
+    assert!(shown.ends_with("!Local") || shown == "Local", "{shown}");
+    assert!(matches!(add("NoSuchSheet!Local", "=1"), Err(AutoError::Excel { number: 1004, .. })));
+    let again = obj(add(&format!("{first}!Local"), "=2").unwrap());
+    assert_eq!(again.key, local.key, "redefining the scoped name keeps one name");
+    // Listing a workbook's names with a sheet-local one stays refused, owned by dc-hsa5.6 (open).
+    assert!(matches!(
+        invoke(&model, &book_names, "Count", vec![]),
+        Err(AutoError::NotModelled { owner: "dc-hsa5.6", .. })
+    ));
+    // A Sort of one cell sorts its current region.
+    let put = |address: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+    };
+    // The first new sheet is the active one and is empty.
+    for (row, value) in [(3., "c"), (1., "a"), (2., "b")].into_iter().enumerate() {
+        put(&format!("A{}", row + 2), AutoValue::R8(value.0));
+        put(&format!("B{}", row + 2), AutoValue::text(value.1));
+    }
+    let key = AutoValue::Object(range(&model, "A2"));
+    invoke_kind(&model, &range(&model, "B3"), "Sort", InvokeKind::Method, vec![key]).unwrap();
+    assert_eq!(cell_text(&model, "B2").as_text().unwrap(), "a");
+    assert!(matches!(cell_text(&model, "A4"), AutoValue::R8(3.)));
+    // A lone cell with no neighbours has no region to sort: 1004.
+    put("H20", AutoValue::R8(1.));
+    let key = AutoValue::Object(range(&model, "H20"));
+    let reply = invoke_kind(&model, &range(&model, "H20"), "Sort", InvokeKind::Method, vec![key]);
+    assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
 }

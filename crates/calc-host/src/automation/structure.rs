@@ -7,7 +7,7 @@ use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, Sk
 /// xlWorksheet, the only sheet type Worksheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
 /// The open bead that owns the structural remainders this file refuses.
-const OWNER: &str = "dc-jtl4m";
+const OWNER: &str = "dc-oxh8w.27";
 
 impl WorkbookAutomation {
     pub(super) fn register_structure(handlers: &mut Handlers<Self>) {
@@ -73,10 +73,12 @@ impl WorkbookAutomation {
             if before.is_some() && after.is_some() {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
-            match call.arg(2) {
-                AutoValue::Missing | AutoValue::Empty => {}
-                other if geometry::integer(other)? == 1 => {}
-                _ => return Err(AutoError::not_modelled("Sheets.Add Count above one", OWNER)),
+            let count = match call.arg(2) {
+                AutoValue::Missing | AutoValue::Empty => 1,
+                other => geometry::integer(other)?,
+            };
+            if !(1..=255).contains(&count) {
+                return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
             match call.arg(3) {
                 AutoValue::Missing | AutoValue::Empty => {}
@@ -101,20 +103,29 @@ impl WorkbookAutomation {
                         .ok_or_else(|| AutoError::not_modelled("Sheets.Add without an active sheet", OWNER))?,
                 )? + 1,
             };
-            let name = Self::new_sheet_name(model);
-            let mut progress = Self::sheet_command(session, None, SheetChange::Add { name })?;
-            let added = session
-                .host()
-                .model()
-                .sheets()
-                .iter()
-                .map(|s| s.id())
-                .find(|id| !order.contains(id))
-                .expect("the added sheet");
-            if position != order.len() + 1 {
-                progress = Self::sheet_command(session, Some(added), SheetChange::Move { position: position as u32 })?
-                    .or(progress);
+            // Count sheets go in as one block before or after the anchor; the first becomes the active sheet.
+            let mut progress = None;
+            let mut first_added = None;
+            for step in 0..count as usize {
+                let known: Vec<SheetId> = session.host().model().sheets().iter().map(|s| s.id()).collect();
+                let name = Self::new_sheet_name(session.host().model());
+                progress = Self::sheet_command(session, None, SheetChange::Add { name })?.or(progress);
+                let added = session
+                    .host()
+                    .model()
+                    .sheets()
+                    .iter()
+                    .map(|s| s.id())
+                    .find(|id| !known.contains(id))
+                    .expect("the added sheet");
+                let at = position + step;
+                if at != known.len() + 1 {
+                    progress =
+                        Self::sheet_command(session, Some(added), SheetChange::Move { position: at as u32 })?.or(progress);
+                }
+                first_added.get_or_insert(added);
             }
+            let added = first_added.expect("at least one sheet");
             // The new sheet becomes the active one.
             let first = CellKey::new(added, 1, 1).map_err(|_| geometry::type_mismatch())?;
             session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(crate::Selection::cell(first)));
@@ -223,9 +234,11 @@ impl WorkbookAutomation {
         let name = call.arg(0).as_text().ok_or_else(|| {
             AutoError::not_modelled("Names.Add without a Name text", OWNER)
         })?;
-        if name.contains('!') {
-            return Err(AutoError::not_modelled("Names.Add of a worksheet-scoped name", OWNER));
-        }
+        // "Sheet1!Local" (or 'My Sheet'!Local) is a worksheet-scoped name; the sheet must exist.
+        let (sheet_part, name) = match name.rfind('!') {
+            Some(at) => (Some(name[..at].to_owned()), name[at + 1..].to_owned()),
+            None => (None, name),
+        };
         let formula = call
             .arg(1)
             .as_text()
@@ -235,12 +248,30 @@ impl WorkbookAutomation {
         let reply = self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
+            let scope = match &sheet_part {
+                None => calc_doc_model::NameScope::Workbook,
+                Some(part) => {
+                    let wanted = match part.strip_prefix('\'').and_then(|p| p.strip_suffix('\'')) {
+                        Some(quoted) => quoted.replace("''", "'"),
+                        None => part.clone(),
+                    };
+                    let sheet = session
+                        .host()
+                        .model()
+                        .sheets()
+                        .iter()
+                        .find(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), &wanted))
+                        .map(|s| s.id())
+                        .ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))?;
+                    calc_doc_model::NameScope::Sheet(sheet)
+                }
+            };
             let existing = session
                 .host()
                 .model()
                 .definitions()
                 .name_table()
-                .lookup(calc_doc_model::NameScope::Workbook, &name)
+                .lookup(scope, &name)
                 .map(|node| (node.id(), node.binding_version(), node.definition().name.clone()));
             if existing.as_ref().is_some_and(|(_, _, spelling)| *spelling != name) {
                 return Err(AutoError::not_modelled(
@@ -253,7 +284,7 @@ impl WorkbookAutomation {
                 SkinIntent::Command(WorkbookCommand::Name(NameEdit {
                     id: existing.as_ref().map(|(id, _, _)| *id),
                     version: existing.as_ref().map(|(_, version, _)| *version),
-                    scope: calc_doc_model::NameScope::Workbook,
+                    scope,
                     name: name.clone(),
                     formula: Some(formula.clone()),
                 })),
@@ -268,7 +299,7 @@ impl WorkbookAutomation {
                 .model()
                 .definitions()
                 .name_table()
-                .lookup(calc_doc_model::NameScope::Workbook, &name)
+                .lookup(scope, &name)
                 .map(|node| node.id())
                 .ok_or_else(|| AutoError::not_modelled("Names.Add result lookup", OWNER))?;
             result = Ok(AutoValue::Object(object(
