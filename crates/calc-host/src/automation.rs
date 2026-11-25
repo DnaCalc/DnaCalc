@@ -105,6 +105,24 @@ struct Snapshot {
     enabled: Rc<Cell<bool>>,
     workbook: u64,
     from_session: bool,
+    /// The sheets that are chart sheets (dc-oxh8w.23); the rest of a workbook's sheets are worksheets.
+    chart_sheets: Rc<Vec<SheetId>>,
+    dialog_sheets: Rc<Vec<SheetId>>,
+    /// Each chart sheet's chart part.
+    chart_parts: Rc<Vec<(SheetId, String)>>,
+}
+
+/// The sheets of the workbook that open as `kind` (`chart sheet` or `dialog sheet`).
+fn sheet_kinds(host: &crate::HostState, kind: &str) -> Vec<SheetId> {
+    host.loaded().sheets().iter().filter(|sheet| sheet.preserved_kind() == Some(kind)).map(|sheet| sheet.id()).collect()
+}
+
+/// The chart part of each chart sheet that has one.
+fn chart_parts(host: &crate::HostState) -> Vec<(SheetId, String)> {
+    sheet_kinds(host, "chart sheet")
+        .into_iter()
+        .filter_map(|id| host.model().definitions().charts(id).first().map(|chart| (id, chart.part.clone())))
+        .collect()
 }
 
 /// Construct once per application. `observer` attaches the session's existing event source;
@@ -435,6 +453,9 @@ impl WorkbookAutomation {
             enabled,
             workbook,
             from_session: false,
+            chart_sheets: Rc::new(sheet_kinds(host, "chart sheet")),
+            dialog_sheets: Rc::new(sheet_kinds(host, "dialog sheet")),
+            chart_parts: Rc::new(chart_parts(host)),
         }));
     }
     /// Update the workbook's file identity (e.g. Save As) without replacing workbook identity.
@@ -450,6 +471,9 @@ impl WorkbookAutomation {
                 enabled: old.enabled.clone(),
                 workbook: old.workbook,
                 from_session: old.from_session,
+                chart_sheets: old.chart_sheets.clone(),
+                dialog_sheets: old.dialog_sheets.clone(),
+                chart_parts: old.chart_parts.clone(),
             }));
         }
     }
@@ -500,6 +524,9 @@ impl WorkbookAutomation {
             enabled,
             workbook,
             from_session: true,
+            chart_sheets: Rc::new(sheet_kinds(session.host(), "chart sheet")),
+            dialog_sheets: Rc::new(sheet_kinds(session.host(), "dialog sheet")),
+            chart_parts: Rc::new(chart_parts(session.host())),
         }));
         self.host.context_changed(session);
     }
@@ -552,6 +579,8 @@ impl WorkbookAutomation {
         let workbook = match target.key {
             ObjectKey::Workbook(id)
             | ObjectKey::Sheets(id)
+            | ObjectKey::Worksheets(id)
+            | ObjectKey::Charts(id)
             | ObjectKey::Names(id)
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),
