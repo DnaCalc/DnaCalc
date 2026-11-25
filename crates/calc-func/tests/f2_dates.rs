@@ -747,6 +747,15 @@ fn value_datevalue_timevalue() {
     exact(c(&e, "SUM", vec![t("1 jan 2020"), n(1.0)]), 43832.0);
     exact(c(&e, "NUMBERVALUE", vec![t("1 234.5")]), 1234.5);
     exact(c(&e, "NUMBERVALUE", vec![t("")]), 0.0);
+    // Live Excel 16.0.20625.20108 en-ZA via Touchstone (dc-j9k.229): ASCII spaces are stripped, and a
+    // doubled trailing percent divides twice, whatever the separators given.
+    exact(c(&e, "NUMBERVALUE", vec![t("12 34")]), 1234.0);
+    exact(c(&e, "NUMBERVALUE", vec![t("12 34"), t("%")]), 1234.0);
+    exact(c(&e, "NUMBERVALUE", vec![t("3.5%%")]), f64::from_bits(0x3f36_f006_8db8_bac8));
+    exact(c(&e, "NUMBERVALUE", vec![t("3.5%%"), t("\n")]), f64::from_bits(0x3f36_f006_8db8_bac8));
+    exact(c(&e, "NUMBERVALUE", vec![t("3.5%%"), t(".")]), f64::from_bits(0x3f36_f006_8db8_bac8));
+    error(c(&e, "NUMBERVALUE", vec![t("1,234.5")]), Value);
+    error(c(&e, "NUMBERVALUE", vec![t("1.234,5"), t(",")]), Value);
     for (text, decimal, group, expected) in [
         ("12", "-", "1", 2.0),
         ("-12", "-", "x", 0.12),
