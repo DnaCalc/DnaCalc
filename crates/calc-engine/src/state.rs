@@ -542,8 +542,15 @@ impl EngineState {
         }
         match &result {
             FormulaResult::NotModeled { .. } => {
-                if let Some(FormulaResult::FileCached(cache)) = self.results.of(node) {
-                    self.refused_file_caches.insert(node, cache.clone());
+                // A formula entered since its last publication owns no file cache: the held result is the
+                // replaced formula's (rw12 finding 5, dc-iq8o8).
+                match self.results.of(node) {
+                    Some(FormulaResult::FileCached(cache)) if !self.entered.contains(&node) => {
+                        self.refused_file_caches.insert(node, cache.clone());
+                    }
+                    _ => {
+                        self.refused_file_caches.remove(&node);
+                    }
                 }
             }
             _ => {
@@ -1711,6 +1718,7 @@ impl EngineState {
             self.certificate_candidates.remove(&node);
             self.volatile.remove(&node);
             self.entered.remove(&node);
+            self.refused_file_caches.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.range_redemand.remove(&node);
@@ -1757,6 +1765,7 @@ impl EngineState {
             self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
             if replace_formula {
+                self.refused_file_caches.remove(&node);
                 self.contract.replace(node);
             }
             self.index.set_name_bindings(node, Vec::new());

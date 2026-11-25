@@ -548,7 +548,6 @@ impl CalculationDomain {
             host,
             &save.policy,
             save.demand.caches,
-            save.demand.calculate_before_save,
             completion,
         ));
     }

@@ -421,6 +421,22 @@ fn xf(mut node: Node, before: &CellFormat, after: &CellFormat) -> Node {
                 .map(|a| alignment(child, &before.alignment.clone().unwrap_or_default(), a)),
         );
     }
+    if before.protection != after.protection {
+        let child = node
+            .child("protection")
+            .cloned()
+            .unwrap_or_else(|| Node::new(&node.prefix(), "protection"));
+        node.set_child(
+            "protection",
+            after.protection.as_ref().map(|p| {
+                let mut child = child;
+                for (k, v) in [("locked", p.locked), ("hidden", p.hidden)] {
+                    child.attr(k, v.map(|on| if on { "1" } else { "0" }.to_owned()));
+                }
+                child
+            }),
+        );
+    }
     node
 }
 

@@ -95,6 +95,7 @@ pub struct CalculatingSave {
     model: Arc<ModelRoot>,
     axis_edits: Vec<AxisEdit>,
     mode: calc_doc::CalcMode,
+    calc_settings: (bool, bool),
     policy: SavePolicy,
     functions: calc_fml::CallableBindings,
     waiting_live: Option<CalcCommandId>,
@@ -133,6 +134,7 @@ pub fn begin_calculated_save(
         model: host.model.clone(),
         axis_edits: host.axis_edits.clone(),
         mode: host.calc_mode(),
+        calc_settings: (host.calculate_before_save(), host.precision_as_displayed()),
         policy: crate::save::effective_save_policy(host, policy),
         functions: host.functions.bindings(),
         waiting_live,
@@ -369,7 +371,7 @@ impl CalculatingSave {
             pin,
             &self.policy,
             Some(receipt.clone()),
-            true,
+            self.calc_settings,
         )
         .map_err(CalculatedSaveError::Save)
     }
@@ -615,7 +617,6 @@ impl OrdinarySave {
             host,
             &self.policy,
             self.demand.caches,
-            self.demand.calculate_before_save,
             completion,
         ));
     }

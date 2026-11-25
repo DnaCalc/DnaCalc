@@ -1070,6 +1070,10 @@ impl Server {
                         Request::SaveWithContext { .. } => self.book.calculates_before_save(),
                         _ => false,
                     };
+                    // The setting the skin sends is the workbook's CalculateBeforeSave: the file keeps it (calcOnSave).
+                    if let Request::SaveWithContext { calculate_before_save: Some(explicit), .. } = &request {
+                        self.book_mut().dispatch(SkinIntent::SetCalculateBeforeSave(*explicit));
+                    }
                     let views = match &request {
                         Request::SaveWithContext { views: Some(v), .. }
                         | Request::SaveAs { views: Some(v), .. } => {

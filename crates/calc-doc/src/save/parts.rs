@@ -228,6 +228,7 @@ pub(super) fn workbook(
     iteration: Option<calc_doc_model::IterationSettings>,
     names: &NameChanges,
     cache_state: Option<&super::CalculationCacheState>,
+    calc_overrides: (Option<bool>, Option<bool>),
 ) -> Result<Vec<u8>, SaveRefusal> {
     let source = xml.bytes();
     let mut reader = Reader::new(xml);
@@ -498,6 +499,14 @@ pub(super) fn workbook(
                 .to_owned(),
             ),
         ));
+    }
+    if cache_state.is_none()
+        && let Some(on) = calc_overrides.0
+    {
+        calc_attributes.push(("calcOnSave", Some(if on { "1" } else { "0" }.to_owned())));
+    }
+    if let Some(full) = calc_overrides.1 {
+        calc_attributes.push(("fullPrecision", Some(if full { "1" } else { "0" }.to_owned())));
     }
     if full_calc {
         calc_attributes.push(("fullCalcOnLoad", Some("1".to_owned())));

@@ -247,7 +247,7 @@ pub fn prepare_save_with_cache_policy(
     policy: &SavePolicy,
     cache_policy: SaveCachePolicy,
 ) -> Result<PreparedSave, SaveFailed> {
-    prepare_save_operation(host, policy, cache_policy, false, None)
+    prepare_save_operation(host, policy, cache_policy, None)
 }
 
 pub(crate) fn effective_save_policy(host: &HostState, policy: &SavePolicy) -> SavePolicy {
@@ -299,7 +299,6 @@ pub(crate) fn prepare_save_operation(
     host: &HostState,
     policy: &SavePolicy,
     cache_policy: SaveCachePolicy,
-    calculate_before_save: bool,
     calculation: Option<calc_engine::CompletionReceipt>,
 ) -> Result<PreparedSave, SaveFailed> {
     let pin = SavePin {
@@ -320,7 +319,7 @@ pub(crate) fn prepare_save_operation(
         pin,
         &effective,
         calculation,
-        calculate_before_save,
+        (host.calculate_before_save(), host.precision_as_displayed()),
     )
 }
 
@@ -333,7 +332,8 @@ pub(crate) fn prepare_image(
     pin: SavePin,
     policy: &SavePolicy,
     calculation: Option<calc_engine::contract::CompletionReceipt>,
-    calculate_before_save: bool,
+    // The workbook's own settings: (CalculateBeforeSave, PrecisionAsDisplayed), never a call's context.
+    (calculate_before_save, precision_as_displayed): (bool, bool),
 ) -> Result<PreparedSave, SaveFailed> {
     // The package writer preserves the embedded model bytes. Refuse to save a changed
     // snapshot until those bytes can be updated to agree with the calculated cells.
@@ -520,6 +520,10 @@ pub(crate) fn prepare_image(
         } else {
             snapshot
         };
+    let snapshot = snapshot.with_calculation_overrides(
+        (calculate_before_save != loaded.calc_on_save()).then_some(calculate_before_save),
+        (precision_as_displayed == loaded.full_precision()).then_some(!precision_as_displayed),
+    );
     let plan = calc_doc::prepare_save(&snapshot, policy).map_err(SaveFailed::Refused)?;
     Ok(PreparedSave {
         pin,
