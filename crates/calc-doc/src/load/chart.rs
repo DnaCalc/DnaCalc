@@ -270,6 +270,8 @@ fn read_chart_xml(
         axes: Vec::new(),
         text_style: Default::default(),
         element_text: Default::default(),
+        area_fill: None,
+        plot_fill: None,
         element_text_complex: Default::default(),
     };
     // The path of local names below chartSpace, and where in a series the reading is.
@@ -592,7 +594,7 @@ fn read_chart_xml(
                 if let Some(axis) = chart.axes.last_mut() {
                     let code = element.attribute("formatCode");
                     axis.number_format = if !axis_number_format_seen && matches!(element.attribute("sourceLinked"), Some("0" | "false"))
-                        && matches!(code, Some("0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%")) {
+                        && code.is_some_and(|c| !c.is_empty() && c.chars().count() <= 255) {
                         code.map(str::to_owned)
                     } else { None };
                     axis_number_format_seen = true;
@@ -765,6 +767,17 @@ fn read_chart_xml(
                 if let Some(plot) = plot {
                     plot.up_down_bars = true;
                 }
+            }
+            // The chart area's and the plot area's own fill (dc-oxh8w.31).
+            (Some("solidFill"), "srgbClr")
+                if path.iter().map(String::as_str).eq(["spPr", "solidFill"]) =>
+            {
+                chart.area_fill = val.filter(|v| v.len() == 6 && v.bytes().all(|b| b.is_ascii_hexdigit()));
+            }
+            (Some("solidFill"), "srgbClr")
+                if path.iter().map(String::as_str).eq(["chart", "plotArea", "spPr", "solidFill"]) =>
+            {
+                chart.plot_fill = val.filter(|v| v.len() == 6 && v.bytes().all(|b| b.is_ascii_hexdigit()));
             }
             (Some("solidFill"), "srgbClr" | "schemeClr")
                 if path.len() >= 3
@@ -1058,12 +1071,14 @@ mod tests {
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn explicit_axis_number_format_requires_one_unlinked_supported_code() {
+    fn explicit_axis_number_format_requires_one_unlinked_code() {
         for (formats, expected) in [
             (r#"<c:numFmt formatCode="0.00%" sourceLinked="0"/>"#, Some("0.00%")),
             (r#"<c:numFmt formatCode="0.00%" sourceLinked="1"/>"#, None),
             (r#"<c:numFmt formatCode="0.00%"/>"#, None),
-            (r#"<c:numFmt formatCode="custom" sourceLinked="0"/>"#, None),
+            (r#"<c:numFmt formatCode="custom" sourceLinked="0"/>"#, Some("custom")),
+            (r#"<c:numFmt formatCode="General" sourceLinked="0"/>"#, Some("General")),
+            (r#"<c:numFmt formatCode="" sourceLinked="0"/>"#, None),
             (r#"<c:numFmt formatCode="0" sourceLinked="0"/><c:numFmt formatCode="0" sourceLinked="0"/>"#, None),
         ] {
             let text = format!(r#"<c:chartSpace xmlns:c="{CHART_NAMESPACE}"><c:chart><c:plotArea><c:valAx><c:axId val="1"/>{formats}</c:valAx></c:plotArea></c:chart></c:chartSpace>"#);

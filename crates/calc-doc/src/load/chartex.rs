@@ -263,6 +263,8 @@ fn read_tree(root: &Node, part: &str, name: String, anchor: ChartAnchor) -> Opti
         axes: Vec::new(),
         text_style: Default::default(),
         element_text: Default::default(),
+        area_fill: None,
+        plot_fill: None,
         element_text_complex: Default::default(),
     })
 }

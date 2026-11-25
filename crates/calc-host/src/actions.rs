@@ -319,6 +319,19 @@ pub enum WorkbookCommand {
         /// Whether the source includes category labels.
         categories: bool,
     },
+    /// Set the fill of a chart's chart area or plot area (dc-oxh8w.31).
+    ChartAreaStyle {
+        /// Worksheet that owns the target.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the target.
+        part: String,
+        /// The plot area (`true`) or the chart area (`false`).
+        plot_area: bool,
+        /// Six-digit RGB color, or `None` for the chart's own.
+        fill: Option<String>,
+    },
     /// Change the color of a chart series.
     ChartSeriesStyle {
         /// Worksheet that owns the target.
@@ -861,6 +874,13 @@ pub(crate) fn prepare(
             headers,
             categories,
         } => crate::chart::prepare_create(host, revision, area, &kind, rows, headers, categories),
+        WorkbookCommand::ChartAreaStyle {
+            sheet,
+            revision,
+            part,
+            plot_area,
+            fill,
+        } => crate::chart::prepare_area_style(host, sheet, revision, &part, plot_area, fill),
         WorkbookCommand::ChartSeriesStyle {
             sheet,
             revision,

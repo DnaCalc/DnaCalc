@@ -2489,6 +2489,8 @@ fn assemble(
         axes,
         text_style: Default::default(),
         element_text: Default::default(),
+        area_fill: None,
+        plot_fill: None,
         element_text_complex: Default::default(),
     });
     host.loaded()
@@ -2622,6 +2624,30 @@ pub(crate) fn prepare_series_labels(
     host.loaded()
         .check_chart_properties(sheet, chart)
         .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+/// `ChartArea.Interior.Color` and its kin: the fill of the chart area or the plot area (dc-oxh8w.31).
+pub(crate) fn prepare_area_style(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot_area: bool,
+    fill: Option<String>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let fill = fill.map(|s| s.trim().strip_prefix('#').unwrap_or(s.trim()).to_ascii_uppercase());
+    if fill.as_ref().is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit())) {
+        return Err("Use a six-digit RGB colour (dc-oxh8w.31)".into());
+    }
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts.iter_mut().find(|c| c.part == part).ok_or("The chart is unavailable")?;
+    let slot = if plot_area { &mut chart.plot_fill } else { &mut chart.area_fill };
+    if *slot == fill {
+        return Ok(Vec::new());
+    }
+    *slot = fill;
+    host.loaded().check_chart_properties(sheet, chart).map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 pub(crate) fn prepare_series_style(

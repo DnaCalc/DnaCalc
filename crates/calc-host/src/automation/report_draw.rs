@@ -70,6 +70,9 @@ impl WorkbookAutomation {
                     | ReportItem::Series(part, _)
                     | ReportItem::DataLabels(part, _)
                     | ReportItem::DataLabel(part, ..)
+                    | ReportItem::ChartArea(part)
+                    | ReportItem::PlotArea(part)
+                    | ReportItem::ChartPaint(part, ..)
                     | ReportItem::SeriesInterior(part, _)
                     | ReportItem::Axis(part, _)
                     | ReportItem::AxisTitle(part, _)
@@ -659,7 +662,12 @@ impl WorkbookAutomation {
     }
     pub(super) fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
         let ObjectKey::Report {
-            item: ReportItem::Series(_, place) | ReportItem::DataLabels(_, place) | ReportItem::DataLabel(_, place, _) | ReportItem::SeriesInterior(_, place),
+            item:
+                ReportItem::Series(_, place)
+                | ReportItem::DataLabels(_, place)
+                | ReportItem::DataLabel(_, place, _)
+                | ReportItem::SeriesInterior(_, place)
+                | ReportItem::ChartPaint(_, calc_object_model::Paint::Series(place), _),
             ..
         } = &target.key
         else {
@@ -1350,6 +1358,9 @@ impl WorkbookAutomation {
         self.colour_child(t, c, true)
     }
     pub(super) fn colour_rgb(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(paint) = Self::paint_of(target) {
+            return self.paint_color(target, call, paint);
+        }
         no_args(call)?;
         let ObjectKey::Report {
             item: ReportItem::ColorFormat(id, line),
@@ -1380,6 +1391,9 @@ impl WorkbookAutomation {
         })
     }
     pub(super) fn colour_put_rgb(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if let Some(paint) = Self::paint_of(target) {
+            return self.paint_put_color(target, call, paint);
+        }
         let ObjectKey::Report {
             item: ReportItem::ColorFormat(id, line),
             ..

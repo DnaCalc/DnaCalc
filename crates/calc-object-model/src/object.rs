@@ -104,6 +104,30 @@ impl ObjectRef {
     }
 }
 
+/// What a chart fill applies to. (dc-oxh8w.31)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Paint {
+    /// The chart area.
+    Area,
+    /// The plot area.
+    Plot,
+    /// A series (place across the plots).
+    Series(u32),
+}
+
+/// How far down `Format.Fill.ForeColor` a [`ReportItem::ChartPaint`] object is. (dc-oxh8w.31)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PaintLevel {
+    /// `Interior`.
+    Interior,
+    /// `Format` (`ChartFormat`).
+    Format,
+    /// `Format.Fill` (`ChartFillFormat`).
+    Fill,
+    /// `Format.Fill.ForeColor` (`ColorFormat`).
+    ForeColor,
+}
+
 /// Which report object of a worksheet an [`ObjectKey::Report`] denotes.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ReportItem {
@@ -135,6 +159,13 @@ pub enum ReportItem {
     DataLabels(String, u32),
     /// The label of one point of a series (chart part, place across the plots, zero-based point). (dc-oxh8w.29)
     DataLabel(String, u32, u32),
+    /// The chart area of a chart (chart part). (dc-oxh8w.31)
+    ChartArea(String),
+    /// The plot area of a chart (chart part). (dc-oxh8w.31)
+    PlotArea(String),
+    /// The `Interior`, `Format`, `Format.Fill` or `Format.Fill.ForeColor` of the chart area, the plot area or a series.
+    /// (dc-oxh8w.31)
+    ChartPaint(String, Paint, PaintLevel),
     /// One axis of a chart: chart part and `XlAxisType` (1 category, 2 value). (dc-oxh8w.11)
     Axis(String, u8),
     /// The title of one axis (chart part, axis type). (dc-oxh8w.12)

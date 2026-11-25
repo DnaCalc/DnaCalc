@@ -375,21 +375,42 @@ impl WorkbookAutomation {
     pub(super) fn tick_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let code = super::report::text_arg(one_arg(call)?)?;
         let kind = self.axis_read(target, "NumberFormat", |a| a.kind.clone())?;
-        if kind != "valAx" || !matches!(code.as_str(), "0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%" | "General") {
+        if kind != "valAx" {
             return Err(AutoError::not_modelled(
-                format!("TickLabels.NumberFormat = {code:?} (only the retained value-axis codes read back)"),
-                "dc-oxh8w.12",
+                format!("TickLabels.NumberFormat = {code:?} of a category axis (only value-axis formats are written)"),
+                "dc-oxh8w.61",
             ));
         }
-        let value = (code != "General").then_some(code);
-        self.axis_labels(target, call, None, Some(value))
+        // Excel refuses a code it cannot use: the number format engine must be able to apply it.
+        let part = Self::chart_token(target)?;
+        let usable = self.read_host(target, |s, sheet, _| {
+            let view = s.host().charts(sheet).0.into_iter().find(|c| c.part == part);
+            Ok(view.is_some_and(|c| {
+                !code.is_empty()
+                    && code.chars().count() <= 255
+                    && calc_func::cell_text(&c.format_profile, c.date_system, &calc_value::CalcValue::number(1.0), &code).is_ok()
+            }))
+        })?;
+        if !usable {
+            return Err(AutoError::excel(1004, "Unable to set the NumberFormat property of the TickLabels class"));
+        }
+        // A code put states it: the labels no longer follow the source cells, "General" included.
+        self.axis_labels(target, call, None, Some(Some(code)))
     }
     pub(super) fn tick_put_number_format_linked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let on = geometry::boolean(one_arg(call)?)?;
-        if !on {
-            return Err(AutoError::not_modelled("TickLabels.NumberFormatLinked = False (keeps the displayed format)", "dc-oxh8w.12"));
+        let (kind, linked) = self.axis_read(target, "NumberFormatLinked", |a| (a.kind.clone(), a.number_format.is_none()))?;
+        if on == linked {
+            return Ok(AutoValue::Empty);
         }
-        self.axis_labels(target, call, None, Some(None))
+        if on {
+            return self.axis_labels(target, call, None, Some(None));
+        }
+        if kind != "valAx" {
+            return Err(AutoError::not_modelled("TickLabels.NumberFormatLinked = False of a category axis", "dc-oxh8w.61"));
+        }
+        // Unlinked, the labels keep the format they show now: General when the source gave none.
+        self.axis_labels(target, call, None, Some(Some("General".to_owned())))
     }
 }
 

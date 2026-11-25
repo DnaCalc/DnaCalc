@@ -165,6 +165,8 @@ fn source_with_xml(
     retained.text_style = before.text_style.clone();
     retained.element_text = before.element_text.clone();
     retained.element_text_complex = before.element_text_complex.clone();
+    retained.area_fill = before.area_fill.clone();
+    retained.plot_fill = before.plot_fill.clone();
     if retained != *before {
         return Err(invalid("Changes to the chart frame are not modelled"));
     }
@@ -449,6 +451,8 @@ fn source_with_xml(
         (XmlEvent::Start(e), _) if e.name.is(C, "chartSpace") => {}
         _ => return Err(invalid("The part has no chartSpace root")),
     }
+    // The chart area's fill is the chart space's own `c:spPr`, after the chart (dc-oxh8w.31).
+    let (mut area_seen, mut area_at) = (false, None);
     loop {
         match reader.expect()? {
             (XmlEvent::Start(e), span) if e.name.is(C, "chart") => {
@@ -458,14 +462,41 @@ fn source_with_xml(
                 found = true;
                 chart(&xml, &mut reader, span, before, after, &mut patches)?;
             }
-            (XmlEvent::Start(_), _) => {
+            (XmlEvent::Start(e), span) if e.name.is(C, "spPr") => {
+                if area_seen {
+                    return Err(invalid("The chart area has duplicate shape records"));
+                }
+                area_seen = true;
+                if before.area_fill != after.area_fill {
+                    let (end, bytes) = colour::replace_fill(&xml, &mut reader, span, after.area_fill.as_deref())?;
+                    patches.push(((span.0, end), bytes));
+                } else {
+                    reader.element_end()?;
+                }
+            }
+            (XmlEvent::Start(e), span) => {
+                if found
+                    && e.name.namespace.as_deref() == Some(C)
+                    && matches!(e.name.local.as_str(), "txPr" | "externalData" | "printSettings" | "userShapes" | "extLst")
+                {
+                    area_at.get_or_insert(span.0);
+                }
                 reader.element_end()?;
             }
-            (XmlEvent::End(_), _) => break,
+            (XmlEvent::End(_), (close, _)) => {
+                area_at.get_or_insert(close);
+                break;
+            }
             _ => {}
         }
     }
     reader.end()?;
+    if before.area_fill != after.area_fill
+        && !area_seen
+        && let (Some(color), Some(at)) = (after.area_fill.as_deref(), area_at)
+    {
+        patches.push(((at, at), colour::fresh_fill(Some(color))));
+    }
     if !found {
         return Err(invalid("The part holds no chart"));
     }
@@ -849,6 +880,7 @@ fn plot_area(
 ) -> Result<usize, SaveRefusal> {
     let mut i = 0;
     let mut a = 0;
+    let (mut area_seen, mut area_at) = (false, None::<usize>);
     loop {
         match reader.expect()? {
             (XmlEvent::Start(e), span)
@@ -883,12 +915,34 @@ fn plot_area(
                     axis_settings(xml, reader, span, old, new, patches)?;
                 }
             }
-            (XmlEvent::Start(_), _) => {
+            (XmlEvent::Start(e), span) if e.name.is(C, "spPr") => {
+                if area_seen {
+                    return Err(reader.invalid("The plot area has duplicate shape records (dc-oxh8w.31)"));
+                }
+                area_seen = true;
+                if before.plot_fill != after.plot_fill {
+                    let (end, bytes) = colour::replace_fill(xml, reader, span, after.plot_fill.as_deref())?;
+                    patches.push(((span.0, end), bytes));
+                } else {
+                    reader.element_end()?;
+                }
+            }
+            (XmlEvent::Start(e), span) => {
+                if e.name.namespace.as_deref() == Some(C) && matches!(e.name.local.as_str(), "extLst") {
+                    area_at.get_or_insert(span.0);
+                }
                 reader.element_end()?;
             }
-            (XmlEvent::End(_), (_, end)) => {
+            (XmlEvent::End(_), (close, end)) => {
                 if i != before.plots.len() || a != before.axes.len() {
                     return Err(reader.invalid("Chart plot or axis count changed (dc-971p.46)"));
+                }
+                if before.plot_fill != after.plot_fill
+                    && !area_seen
+                    && let Some(color) = after.plot_fill.as_deref()
+                {
+                    let at = area_at.unwrap_or(close);
+                    patches.push(((at, at), colour::fresh_fill(Some(color))));
                 }
                 return Ok(end);
             }

@@ -228,6 +228,10 @@ pub struct Chart {
     pub plots: Vec<ChartPlot>,
     pub axes: Vec<ChartAxis>,
     pub text_style: ChartTextStyle,
+    /// The chart area's fill (`c:chartSpace/c:spPr`), six-digit RGB; `None` is the chart's own (dc-oxh8w.31).
+    pub area_fill: Option<String>,
+    /// The plot area's fill (`c:plotArea/c:spPr`), six-digit RGB; `None` is the chart's own.
+    pub plot_fill: Option<String>,
     /// Multiple rich runs or paragraphs need a text-range editing model.
     pub element_text_complex: std::collections::BTreeSet<String>,
     pub element_text: std::collections::BTreeMap<String, ChartTextStyle>,

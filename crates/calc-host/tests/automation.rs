@@ -6501,6 +6501,114 @@ fn dc_oxh8w_29__a_macro_labels_single_points_and_reads_default_positions() {
     }
 }
 
+/// dc-oxh8w.31: `Chart.ChartArea` and `Chart.PlotArea` fills (`Interior.Color`, `Format.Fill.ForeColor.RGB`, BGR numbers)
+/// and `Series.Format.Fill.ForeColor.RGB`; the chart saves `c:spPr` fills for the chart space and the plot area, and
+/// out-of-range colours are 1004. An unstated area reads white.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_31__chart_area_plot_area_and_series_fills() {
+    let (host, model, chart, series) = labelled_chart();
+    let area = obj(invoke(&model, &chart, "ChartArea", vec![]).unwrap());
+    let plot = obj(invoke(&model, &chart, "PlotArea", vec![]).unwrap());
+    let interior = |owner: &ObjectRef| obj(invoke(&model, owner, "Interior", vec![]).unwrap());
+    let fore = |owner: &ObjectRef| {
+        let format = obj(invoke(&model, owner, "Format", vec![]).unwrap());
+        let fill = obj(invoke(&model, &format, "Fill", vec![]).unwrap());
+        obj(invoke(&model, &fill, "ForeColor", vec![]).unwrap())
+    };
+    assert_eq!(int(invoke(&model, &interior(&area), "Color", vec![]).unwrap()), 0xFF_FF_FF);
+    // RGB(255, 0, 0) is 255; the chart area takes it through Interior, the plot area through Format.Fill.ForeColor.
+    invoke_kind(&model, &interior(&area), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    invoke_kind(&model, &fore(&plot), "RGB", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    assert_eq!(int(invoke(&model, &fore(&area), "RGB", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &interior(&plot), "Color", vec![]).unwrap()), 65_280);
+    invoke_kind(&model, &fore(&series), "RGB", InvokeKind::Put, vec![AutoValue::I4(16_711_680)]).unwrap();
+    assert_eq!(int(invoke(&model, &fore(&series), "RGB", vec![]).unwrap()), 16_711_680);
+    let xml = saved_chart_xml(&host);
+    let at = |needle: &str| xml.find(needle).unwrap_or_else(|| panic!("{needle}: {xml}"));
+    assert!(at("<a:srgbClr val=\"FF0000\"/>") > at("</c:chart>"), "{xml}");
+    assert!(at("<a:srgbClr val=\"00FF00\"/>") < at("</c:plotArea>") && at("<a:srgbClr val=\"00FF00\"/>") > at("</c:valAx>"), "{xml}");
+    assert!(xml.contains("<a:srgbClr val=\"0000FF\"/>"), "{xml}");
+    for bad in [AutoValue::I4(-1), AutoValue::I4(16_777_216), AutoValue::R8(1.5)] {
+        for target in [interior(&area), fore(&plot)] {
+            let member = if target.interface == interior(&area).interface { "Color" } else { "RGB" };
+            let r = invoke_kind(&model, &target, member, InvokeKind::Put, vec![bad.clone()]);
+            assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}: {r:?}");
+        }
+    }
+    let r = invoke_kind(&model, &interior(&area), "Color", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+}
+
+/// dc-oxh8w.31: the fills of a chart the file holds: a chart space and a plot area without `c:spPr` gain one, a stated
+/// one is replaced (its outline stays), and a reopened workbook reads them back.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_31__fills_of_a_chart_the_file_holds_are_written_and_replaced() {
+    let open = |bytes: Vec<u8>| {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let chart_of = |model: &WorkbookAutomation| {
+        let book = obj(invoke(model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+        let charts = obj(invoke(model, &book, "Charts", vec![]).unwrap());
+        obj(invoke_kind(model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap())
+    };
+    let fill_of = |model: &WorkbookAutomation, chart: &ObjectRef, owner: &str| {
+        let area = obj(invoke(model, chart, owner, vec![]).unwrap());
+        let interior = obj(invoke(model, &area, "Interior", vec![]).unwrap());
+        interior
+    };
+    let (host, model) = open(include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec());
+    let chart = chart_of(&model);
+    invoke_kind(&model, &fill_of(&model, &chart, "ChartArea"), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    invoke_kind(&model, &fill_of(&model, &chart, "PlotArea"), "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let (host2, model2) = open(bytes);
+    let chart2 = chart_of(&model2);
+    assert_eq!(int(invoke(&model2, &fill_of(&model2, &chart2, "ChartArea"), "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model2, &fill_of(&model2, &chart2, "PlotArea"), "Color", vec![]).unwrap()), 65_280);
+    // A second colour replaces the first: one fill each.
+    invoke_kind(&model2, &fill_of(&model2, &chart2, "ChartArea"), "Color", InvokeKind::Put, vec![AutoValue::I4(16_711_680)]).unwrap();
+    let mut again = Vec::new();
+    host2.session.borrow_mut().save(&SavePolicy::default(), &mut again).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(again.clone())), &OpenPolicy::default()).unwrap();
+    let part = document.package().parts().iter().map(|p| p.name().to_owned()).find(|n| n == "xl/charts/chart1.xml").unwrap();
+    let xml = String::from_utf8(document.package().read_part(&part).unwrap()).unwrap();
+    assert_eq!(xml.matches("<c:spPr").count(), 2, "{xml}");
+    assert!(xml.contains("val=\"0000FF\"") && !xml.contains("val=\"FF0000\"") && xml.contains("val=\"00FF00\""), "{xml}");
+    let (_h3, model3) = open(again);
+    assert_eq!(int(invoke(&model3, &fill_of(&model3, &chart_of(&model3), "ChartArea"), "Color", vec![]).unwrap()), 16_711_680);
+}
+
+/// dc-oxh8w.31: `TickLabels.NumberFormat` takes any code the formatter applies on a value axis (an empty one is 1004), a
+/// code put states it (unlinks, "General" too), `NumberFormatLinked = False` keeps the format shown ("General" when the
+/// labels follow the source), and a category axis refuses typed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_31__tick_label_codes_and_unlinking() {
+    let (host, model, chart, _series) = labelled_chart();
+    let axis = |kind: i32| obj(invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
+    let labels = obj(invoke(&model, &axis(2), "TickLabels", vec![]).unwrap());
+    let linked = || matches!(invoke(&model, &labels, "NumberFormatLinked", vec![]).unwrap(), AutoValue::Bool(true));
+    assert!(linked());
+    invoke_kind(&model, &labels, "NumberFormatLinked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(!linked());
+    assert_eq!(text(&model, &labels, "NumberFormat"), "General");
+    assert!(saved_chart_xml(&host).contains("<c:numFmt formatCode=\"General\" sourceLinked=\"0\"/>"));
+    invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("#,##0.0,\"k\"")]).unwrap();
+    assert_eq!(text(&model, &labels, "NumberFormat"), "#,##0.0,\"k\"");
+    assert!(saved_chart_xml(&host).contains("formatCode=\"#,##0.0,&quot;k&quot;\" sourceLinked=\"0\""));
+    invoke_kind(&model, &labels, "NumberFormatLinked", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(linked());
+    assert_eq!(text(&model, &labels, "NumberFormat"), "General");
+    let bad = invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("")]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let category = obj(invoke(&model, &axis(1), "TickLabels", vec![]).unwrap());
+    let refused = invoke_kind(&model, &category, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]);
+    assert!(matches!(refused, Err(AutoError::NotModelled { .. })), "{refused:?}");
+}
+
 /// dc-oxh8w.19: a macro colours a series through Interior.Color (a BGR number); the chart saves the fill, and
 /// out-of-range colours and wrong argument counts are Excel errors.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

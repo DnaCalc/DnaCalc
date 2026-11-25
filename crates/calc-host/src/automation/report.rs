@@ -126,6 +126,15 @@ impl WorkbookAutomation {
         on("SeriesCollection", "_Default", Method, Self::series_item);
         on("Series", "Name", Get, Self::series_name_get);
         on("Series", "Interior", Get, Self::series_interior);
+        on("Series", "Format", Get, Self::paint_format);
+        on("Chart", "ChartArea", Get, Self::chart_area);
+        on("Chart", "PlotArea", Get, Self::chart_plot_area);
+        for area in ["ChartArea", "PlotArea"] {
+            on(area, "Interior", Get, Self::area_interior);
+            on(area, "Format", Get, Self::paint_format);
+        }
+        on("ChartFormat", "Fill", Get, Self::paint_next);
+        on("ChartFillFormat", "ForeColor", Get, Self::paint_next);
         on("Interior", "Color", Get, Self::interior_color);
         on("Interior", "Color", Put, Self::interior_put_color);
         on("Series", "HasDataLabels", Get, Self::series_has_labels);

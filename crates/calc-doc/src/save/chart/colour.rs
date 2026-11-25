@@ -27,6 +27,36 @@ pub(super) fn replace(
     color: Option<&str>,
     outline: bool,
 ) -> Result<(usize, Vec<u8>), SaveRefusal> {
+    replace_with(xml, reader, span, color, outline, false)
+}
+
+/// [`replace`] for the fill of a chart or plot area: the outline is left as it is (dc-oxh8w.31).
+pub(super) fn replace_fill(
+    xml: &XmlPart,
+    reader: &mut Reader<'_>,
+    span: (usize, usize),
+    color: Option<&str>,
+) -> Result<(usize, Vec<u8>), SaveRefusal> {
+    replace_with(xml, reader, span, color, false, true)
+}
+
+/// A whole `c:spPr` holding only a solid fill.
+pub(super) fn fresh_fill(color: Option<&str>) -> Vec<u8> {
+    let Some(color) = color else {
+        return Vec::new();
+    };
+    let f = String::from_utf8(fill(Some(color))).expect("RGB XML");
+    format!("<c:spPr xmlns:c=\"{C}\" xmlns:a=\"{A}\">{f}</c:spPr>").into_bytes()
+}
+
+fn replace_with(
+    xml: &XmlPart,
+    reader: &mut Reader<'_>,
+    span: (usize, usize),
+    color: Option<&str>,
+    outline: bool,
+    keep_line: bool,
+) -> Result<(usize, Vec<u8>), SaveRefusal> {
     let tag = RawTag::parse(&xml.bytes()[span.0..span.1]);
     let mut children = Vec::new();
     let mut patches = Vec::new();
@@ -34,12 +64,12 @@ pub(super) fn replace(
     let (close, end) = loop {
         match reader.expect()? {
             (XmlEvent::Start(e), s) => {
-                let end = if !outline && e.name.is(A, "ln") {
+                let end = if !outline && !keep_line && e.name.is(A, "ln") {
                     if line {
                         return Err(reader.invalid("Duplicate series outline records (dc-971p.58)"));
                     }
                     line = true;
-                    let (end, bytes) = replace(xml, reader, s, color, true)?;
+                    let (end, bytes) = replace_with(xml, reader, s, color, true, false)?;
                     patches.push(((s.0, end), bytes));
                     end
                 } else {
@@ -90,7 +120,7 @@ pub(super) fn replace(
     } else {
         inserts.entry(fill_at).or_default().extend(fill(color));
     }
-    if !outline && !line && color.is_some() {
+    if !outline && !line && !keep_line && color.is_some() {
         let bytes = inserts.entry(line_at).or_default();
         bytes.extend(format!("<a:ln xmlns:a=\"{A}\">").as_bytes());
         bytes.extend(fill(color));
@@ -151,6 +181,29 @@ mod tests {
         let text = String::from_utf8(bytes).unwrap();
         assert!(!text.contains("solidFill"));
         assert!(text.contains("<a:prstDash val=\"dash\"/>"));
+    }
+    /// dc-oxh8w.31: a chart or plot area's fill is replaced (or added) and its outline stays as stored.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn area_fill_replacement_leaves_the_outline_alone() {
+        let line = "<a:ln w=\"9525\"><a:solidFill><a:srgbClr val=\"D9D9D9\"/></a:solidFill></a:ln>";
+        for (inner, fills) in [
+            (format!("<a:solidFill><a:schemeClr val=\"bg1\"/></a:solidFill>{line}<a:effectLst/>"), "<a:solidFill><a:srgbClr val=\"123ABC\"/></a:solidFill>"),
+            (format!("{line}<a:effectLst/>"), "<a:solidFill><a:srgbClr val=\"123ABC\"/></a:solidFill>"),
+        ] {
+            let xml = XmlPart::new(
+                "chart.xml".into(),
+                format!("<c:spPr xmlns:c=\"{C}\" xmlns:a=\"{A}\">{inner}</c:spPr>").into_bytes(),
+                crate::xml::XmlLimits::default(),
+            );
+            let mut r = Reader::new(&xml);
+            let (_, span) = r.expect().unwrap();
+            let (_, bytes) = replace_fill(&xml, &mut r, span, Some("123ABC")).unwrap();
+            let text = String::from_utf8(bytes).unwrap().replace(&format!("<a:solidFill xmlns:a=\"{A}\">"), "<a:solidFill>");
+            assert!(text.contains(line), "{text}");
+            assert!(text.contains(fills) && text.find(fills) < text.find("<a:ln"), "{text}");
+            assert_eq!(text.matches("123ABC").count(), 1, "{text}");
+        }
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
