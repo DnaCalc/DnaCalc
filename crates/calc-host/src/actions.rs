@@ -51,6 +51,8 @@ pub enum SheetChange {
     Hide,
     /// Make the selected worksheet visible.
     Show,
+    /// Set the worksheet's visibility, including very hidden (`Worksheet.Visible`, dc-oxh8w.47).
+    SetVisibility(SheetVisibility),
 }
 
 /// Edit to a worksheet's conditional formatting rules.
@@ -1242,6 +1244,7 @@ fn sheet_edits(
             }
         }
         C::Remove => SheetEdit::Remove { sheet: require()? },
+        C::SetVisibility(visibility) => SheetEdit::SetVisibility { sheet: require()?, visibility },
         C::Hide | C::Show => {
             let sheet = require()?;
             if model.sheet_by_id(sheet).unwrap().visibility() == SheetVisibility::VeryHidden {

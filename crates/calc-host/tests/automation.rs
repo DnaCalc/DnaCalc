@@ -7830,6 +7830,39 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     assert_eq!(sheet_names(&host).len(), 8);
 }
 
+/// dc-oxh8w.47: Worksheet.Visible reads and writes xlSheetVisible (-1), xlSheetHidden (0) and xlSheetVeryHidden (2);
+/// True and False map to visible and hidden; the last visible sheet cannot be hidden and other values are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_47__worksheet_visible_get_and_put() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let visible = |o: &ObjectRef| invoke_kind(&model, o, "Visible", InvokeKind::Get, vec![]).unwrap();
+    let put = |o: &ObjectRef, v: AutoValue| invoke_kind(&model, o, "Visible", InvokeKind::Put, vec![v]);
+    assert!(matches!(visible(&first), AutoValue::I4(-1)), "{:?}", visible(&first));
+    put(&first, AutoValue::I4(0)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(0)));
+    put(&first, AutoValue::I4(2)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(2)));
+    put(&first, AutoValue::Bool(true)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(-1)));
+    put(&first, AutoValue::Bool(false)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(0)));
+    // The first sheet is hidden: the added sheet is the last visible one and cannot be hidden.
+    for v in [AutoValue::I4(0), AutoValue::Bool(false), AutoValue::I4(2)] {
+        let last = put(&added, v);
+        assert!(matches!(last, Err(AutoError::Excel { number: 1004, .. })), "{last:?}");
+    }
+    assert!(matches!(visible(&added), AutoValue::I4(-1)));
+    let bad = put(&added, AutoValue::I4(7));
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    put(&first, AutoValue::I4(-1)).unwrap();
+    put(&added, AutoValue::I4(2)).unwrap();
+    assert!(matches!(visible(&added), AutoValue::I4(2)));
+}
+
 /// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
 /// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
 #[cfg_attr(not(target_arch = "wasm32"), test)]
