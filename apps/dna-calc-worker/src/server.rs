@@ -3045,6 +3045,7 @@ impl Server {
                 area: area(a)?,
                 down,
                 insert,
+                from_after: false,
             }),
             Intent::EditSheet { sheet, change } => {
                 SkinIntent::Command(calc_host::WorkbookCommand::Sheet {

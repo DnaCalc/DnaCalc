@@ -383,6 +383,20 @@ fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize, tolerant: bool) -
     }
 }
 
+/// A logical flag read as Excel reads a logical argument: any non-zero number is TRUE (TEXTSPLIT's
+/// ignore_empty and match_mode, fuzz sweep dc-j9k.192-.197: -2, -1, 332 and 2.0000000000000004 all
+/// split rather than #VALUE!).
+fn logical_flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
+    if !given(a, index) {
+        return Ok(false);
+    }
+    let n = num(site, a, index)?;
+    if !n.is_finite() {
+        return fail(WorksheetErrorCode::Value);
+    }
+    Ok(n != 0.0)
+}
+
 /// The texts a delimiter argument gives: a single text, or each cell of an array or reference.
 fn delimiters(
     site: &Site<'_>,
@@ -465,7 +479,9 @@ fn text_delim(
     // An explicitly supplied instance counts possible start positions, rather
     // than just text units. An omitted instance and an empty delimiter have
     // different measured rules.
-    if given(a, 2) && single_delimiter {
+    if given(a, 2) && delimiters.len() == 1 {
+        // A one-cell array delimiter validates like a scalar one (dc-j9k.159, .160: Excel 20527
+        // #VALUE!, where we answered #N/A for a delimiter longer than the text).
         let text_len = text.len_utf16_code_units();
         let delimiter_len = delimiters[0].len_utf16_code_units();
         if delimiter_len != 0
@@ -474,6 +490,11 @@ fn text_delim(
         {
             return fail(WorksheetErrorCode::Value);
         }
+    } else if given(a, 2) && delimiters.iter().all(|d| d.len_utf16_code_units() > text.len_utf16_code_units()) {
+        // Several delimiters, every one longer than the text: #VALUE! with an explicit instance
+        // (dc-j9k.173, .174: Excel 20527 fuzz sweep). The instance-count limit for several
+        // delimiters is not measured.
+        return fail(WorksheetErrorCode::Value);
     }
     // fn1 Excel 16.0.20527: an explicitly supplied instance is validated against the empty
     // input before fallback/match_end. An empty delimiter still returns empty text.
@@ -533,8 +554,8 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     if columns.is_none() && rows_by.is_none() {
         return fail(WorksheetErrorCode::Value);
     }
-    let ignore_empty = binary_flag(site, a, 3, false)?;
-    let case_insensitive = binary_flag(site, a, 4, false)?;
+    let ignore_empty = logical_flag(site, a, 3)?;
+    let case_insensitive = logical_flag(site, a, 4)?;
     if columns.iter().chain(rows_by.iter()).flatten().any(|d| d.len_utf16_code_units() == 0) {
         return fail(WorksheetErrorCode::Value);
     }

@@ -1057,7 +1057,7 @@ impl HostSession {
             }) => self.insert_template(bytes, name, revision, &mut receipt),
             SkinIntent::Command(command) => {
                 let coordinates = match &command {
-                    crate::WorkbookCommand::ShiftCells { area, down, insert } => {
+                    crate::WorkbookCommand::ShiftCells { area, down, insert, .. } => {
                         Some(calc_fml::reference::StructuralEdit::ShiftCells {
                             area: *area,
                             down: *down,

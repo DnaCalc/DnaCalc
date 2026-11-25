@@ -11,6 +11,18 @@ pub fn shift_cell_edits(
     down: bool,
     insert: bool,
 ) -> Result<Vec<CellEdit>, String> {
+    shift_cell_edits_from(host, area, down, insert, false)
+}
+
+/// [`shift_cell_edits`] with the choice of where inserted cells take their format from: the cells left of
+/// or above (`from_after` false) or right of or below (`from_after` true) the inserted area.
+pub(crate) fn shift_cell_edits_from(
+    host: &HostState,
+    area: GridArea,
+    down: bool,
+    insert: bool,
+    from_after: bool,
+) -> Result<Vec<CellEdit>, String> {
     let model = host.model();
     if model.sheet_by_id(area.sheet()).is_none() {
         return Err("The worksheet is unavailable".into());
@@ -200,18 +212,22 @@ pub fn shift_cell_edits(
         for row in area.first().row()..=area.last().row() {
             for col in area.first().column()..=area.last().column() {
                 let at = CellKey::new(area.sheet(), row, col).unwrap();
-                let source = if down {
-                    area.first()
+                let source = match (down, from_after) {
+                    (true, false) => area
+                        .first()
                         .row()
                         .checked_sub(1)
                         .filter(|r| *r > 0)
-                        .and_then(|r| CellKey::new(area.sheet(), r, col).ok())
-                } else {
-                    area.first()
+                        .and_then(|r| CellKey::new(area.sheet(), r, col).ok()),
+                    (false, false) => area
+                        .first()
                         .column()
                         .checked_sub(1)
                         .filter(|c| *c > 0)
-                        .and_then(|c| CellKey::new(area.sheet(), row, c).ok())
+                        .and_then(|c| CellKey::new(area.sheet(), row, c).ok()),
+                    // The first cell past the inserted area, as it was before the shift.
+                    (true, true) => CellKey::new(area.sheet(), area.last().row() + 1, col).ok(),
+                    (false, true) => CellKey::new(area.sheet(), row, area.last().column() + 1).ok(),
                 };
                 styles.insert(at, Some(source.map_or(0, |at| host.cell_style(at))));
             }

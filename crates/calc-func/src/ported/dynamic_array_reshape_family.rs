@@ -139,6 +139,21 @@ pub(crate) fn parse_integer(prepared: &CalcValue) -> Result<isize, DynamicArrayR
     Ok(truncated as isize)
 }
 
+pub(crate) fn truncated_integer(
+    arg: Option<&CalcValue>,
+    default: isize,
+) -> Result<isize, DynamicArrayReshapeEvalError> {
+    let Some(value) = arg.filter(|value| !value.is_missing()) else {
+        return Ok(default);
+    };
+    let raw =
+        coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    if !raw.is_finite() {
+        return Err(DynamicArrayReshapeEvalError::InvalidCount);
+    }
+    Ok(raw as isize)
+}
+
 fn parse_integer_calc(value: &CalcValue) -> Result<isize, DynamicArrayReshapeEvalError> {
     // The same scalar-context rule `parse_integer` reads through `coerce_prepared_to_number`
     // (a blank count is 0), so the two prep helpers stay equivalent on a blank argument.
@@ -339,7 +354,7 @@ pub(crate) fn take_span(
         let take = usize::min(count as usize, len);
         Ok((0, take))
     } else {
-        let take = usize::min((-count) as usize, len);
+        let take = usize::min(count.unsigned_abs(), len);
         Ok((len - take, len))
     }
 }
@@ -351,7 +366,7 @@ pub(crate) fn drop_span(
     let (start, end) = if count >= 0 {
         (usize::min(count as usize, len), len)
     } else {
-        (0, len.saturating_sub((-count) as usize))
+        (0, len.saturating_sub(count.unsigned_abs()))
     };
     if start >= end {
         return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
@@ -361,18 +376,8 @@ pub(crate) fn drop_span(
 
 pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => {
-            array.shape().rows as isize
-        }
-        Some(arg) => parse_integer(arg)?,
-        None => return Err(DynamicArrayReshapeEvalError::InvalidCount),
-    };
-    let col_count = if let Some(arg) = args.get(2) {
-        parse_integer(arg)?
-    } else {
-        array.shape().cols as isize
-    };
+    let row_count = truncated_integer(args.get(1), array.shape().rows as isize)?;
+    let col_count = truncated_integer(args.get(2), array.shape().cols as isize)?;
     let (row_start, row_end) = take_span(array.shape().rows, row_count)?;
     let (col_start, col_end) = take_span(array.shape().cols, col_count)?;
     let rows = row_end - row_start;
@@ -388,16 +393,8 @@ pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayR
 
 pub fn eval_drop_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => 0,
-        Some(arg) => parse_integer(arg)?,
-        None => return Err(DynamicArrayReshapeEvalError::InvalidCount),
-    };
-    let col_count = if let Some(arg) = args.get(2) {
-        parse_integer(arg)?
-    } else {
-        0
-    };
+    let row_count = truncated_integer(args.get(1), 0)?;
+    let col_count = truncated_integer(args.get(2), 0)?;
     let (row_start, row_end) = drop_span(array.shape().rows, row_count)?;
     let (col_start, col_end) = drop_span(array.shape().cols, col_count)?;
     let rows = row_end - row_start;
@@ -459,54 +456,43 @@ fn should_ignore_cell(cell: &CalcValue, ignore_mode: usize) -> bool {
     }
 }
 
-fn parse_ignore_mode(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
-    let Some(arg) = arg else {
-        return Ok(0);
-    };
-    if matches!(arg.core_ref(), CoreRef::Missing | CoreRef::Empty) {
-        return Ok(0);
-    }
-    let mode = parse_integer(arg)?;
-    if !(0..=3).contains(&mode) {
+fn eval_flatten_prepared(
+    args: &[CalcValue],
+    column: bool,
+) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
+    let array = materialize_array_arg(&args[0]);
+    let ignore_mode = truncated_integer(args.get(1), 0)?;
+    let by_col = args
+        .get(2)
+        .map(coerce::logical)
+        .transpose()
+        .map_err(|stop| DynamicArrayReshapeEvalError::Preparation(stop.into()))?
+        .unwrap_or(false);
+    // Excel coerces both optional arguments in order before validating the ignore mode.
+    if !(0..=3).contains(&ignore_mode) {
         return Err(DynamicArrayReshapeEvalError::InvalidIgnoreMode);
     }
-    Ok(mode as usize)
+    let cells: Vec<CalcValue> = flatten_cells(&array, by_col)
+        .into_iter()
+        .filter(|cell| !should_ignore_cell(cell, ignore_mode as usize))
+        .map(|cell| match cell.core_ref() {
+            CoreRef::Empty | CoreRef::Missing => CalcValue::number(0.0),
+            _ => cell,
+        })
+        .collect();
+    if column {
+        build_array(cells.len(), 1, cells)
+    } else {
+        build_array(1, cells.len(), cells)
+    }
 }
 
 pub fn eval_tocol_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let array = materialize_array_arg(&args[0]);
-    let ignore_mode = parse_ignore_mode(args.get(1))?;
-    let by_col = args
-        .get(2)
-        .map(parse_bool_like)
-        .transpose()?
-        .unwrap_or(false);
-    let cells: Vec<CalcValue> = flatten_cells(&array, by_col)
-        .into_iter()
-        .filter(|cell| !should_ignore_cell(cell, ignore_mode))
-        .collect();
-    if cells.is_empty() {
-        return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
-    }
-    build_array(cells.len(), 1, cells)
+    eval_flatten_prepared(args, true)
 }
 
 pub fn eval_torow_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let array = materialize_array_arg(&args[0]);
-    let ignore_mode = parse_ignore_mode(args.get(1))?;
-    let by_col = args
-        .get(2)
-        .map(parse_bool_like)
-        .transpose()?
-        .unwrap_or(false);
-    let cells: Vec<CalcValue> = flatten_cells(&array, by_col)
-        .into_iter()
-        .filter(|cell| !should_ignore_cell(cell, ignore_mode))
-        .collect();
-    if cells.is_empty() {
-        return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
-    }
-    build_array(1, cells.len(), cells)
+    eval_flatten_prepared(args, false)
 }
 
 pub fn eval_transpose_prepared(

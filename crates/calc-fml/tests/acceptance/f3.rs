@@ -114,6 +114,64 @@ fn sortby_lifts_each_order_argument() {
     }
 }
 
+/// Excel 16.0.20625 places blank keys after populated keys in both directions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sort_places_blank_range_keys_last_on_either_axis() {
+    let mut book = Book::new();
+    book.number("A1", 101.0)
+        .number("A2", 102.0)
+        .number("A3", 103.0)
+        .number("A4", 104.0)
+        .number("B2", 1.0)
+        .number("B4", 0.0);
+    book.number("D1", 101.0)
+        .number("E1", 102.0)
+        .number("F1", 103.0)
+        .number("G1", 104.0)
+        .number("E2", 1.0)
+        .number("G2", 0.0);
+
+    for (formula, by_column, expected) in [
+        ("=SORT(A1:B4,2,1)", false, [104.0, 102.0, 101.0, 103.0]),
+        ("=SORT(A1:B4,2,-1)", false, [102.0, 104.0, 101.0, 103.0]),
+        ("=SORT(D1:G2,2,1,TRUE)", true, [104.0, 102.0, 101.0, 103.0]),
+        ("=SORT(D1:G2,2,-1,TRUE)", true, [102.0, 104.0, 101.0, 103.0]),
+    ] {
+        let result = book.dynamic(formula);
+        let result = result.as_array().unwrap();
+        let actual: [f64; 4] = std::array::from_fn(|index| {
+            let (row, column) = if by_column { (0, index) } else { (index, 0) };
+            result.get(row, column).unwrap().as_number().unwrap()
+        });
+        assert_eq!(actual, expected, "{formula}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sortby_places_blank_range_keys_last_but_uses_secondary_keys() {
+    let mut book = Book::new();
+    book.number("A2", 1.0).number("A4", 0.0);
+    book.number("C1", 1.0).number("E1", 0.0);
+    for (formula, expected) in [
+        (
+            "=SORTBY({101;102;103;104},A1:A4,1)",
+            numbers(&[&[104.0], &[102.0], &[101.0], &[103.0]]),
+        ),
+        (
+            "=SORTBY({101,102,103,104},B1:E1,-1)",
+            numbers(&[&[102.0, 104.0, 101.0, 103.0]]),
+        ),
+        (
+            "=SORTBY({101;102;103;104},A1:A4,1,{4;3;2;1},1)",
+            numbers(&[&[104.0], &[102.0], &[103.0], &[101.0]]),
+        ),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sort_indices_and_orders_use_tolerant_floor() {
@@ -151,6 +209,38 @@ fn sort_indices_and_orders_use_tolerant_floor() {
         book.dynamic("=SORT({30,1;10,3;20,2},A1)"),
         numbers(&[&[30.0, 1.0], &[20.0, 2.0], &[10.0, 3.0]]),
     );
+}
+
+/// Excel 16.0.20625 accepts the cutoff nearest -1 and rejects the cutoff nearest zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sort_orders_pin_the_negative_tolerant_floor_cutoffs() {
+    let mut book = Book::new();
+    let near_zero = f64::from_bits(0xbe80_0200_0000_0000);
+    let near_negative_one = f64::from_bits(0xbff0_0000_2004_0000);
+    for formula in ["=SORT({3;1;2},1,A1)", "=SORTBY({3;1;2},{3;1;2},A1)"] {
+        for (order, descends) in [
+            (near_zero.next_down(), true),
+            (near_zero, false),
+            (near_zero.next_up(), false),
+            (near_negative_one.next_down(), false),
+            (near_negative_one, true),
+            (near_negative_one.next_up(), true),
+        ] {
+            book.number("A1", order);
+            let expected = if descends {
+                numbers(&[&[3.0], &[2.0], &[1.0]])
+            } else {
+                e(W::Value)
+            };
+            assert_eq!(
+                book.dynamic(formula),
+                expected,
+                "{formula}, bits {:016x}",
+                order.to_bits()
+            );
+        }
+    }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -300,6 +390,45 @@ fn sequence_filter_sort_unique() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn slice_counts_truncate_toward_zero() {
+    let mut book = data();
+    assert_eq!(book.dynamic("=TAKE({1;2},0.5,1e-35)"), e(W::Calc));
+    assert_eq!(
+        book.dynamic("=TAKE(A1:A3,\"2.9\")"),
+        numbers(&[&[1.0], &[2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE({1,2;3,4},-1.2,1.9)"),
+        numbers(&[&[3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=DROP({1,2;3,4},0.5,-1.2)"),
+        numbers(&[&[1.0], &[3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE({1;2},-1e50)"),
+        numbers(&[&[1.0], &[2.0]])
+    );
+    assert_eq!(book.dynamic("=DROP({1;2},-1e50)"), e(W::Calc));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn take_omitted_and_blank_counts() {
+    let mut book = data();
+    assert_eq!(
+        book.dynamic("=TAKE({1,2;3,4},1,)"),
+        numbers(&[&[1.0, 2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE(A1:A3,)"),
+        numbers(&[&[1.0], &[2.0], &[3.0]])
+    );
+    assert_eq!(book.dynamic("=TAKE({1,2;3,4},,H1)"), e(W::Calc));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn taking_choosing_stacking_and_wrapping() {
     let mut book = data();
     let grid = "{1,2;3,4;5,6}";
@@ -372,6 +501,41 @@ fn taking_choosing_stacking_and_wrapping() {
         numbers(&[&[1.0, 2.0, 0.0], &[0.0, 0.0, 0.0]])
     );
     assert_eq!(book.dynamic("=EXPAND({1,2},1,1)"), e(W::Value));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn torow_and_tocol_coerce_optional_arguments_in_order() {
+    let mut book = Book::new();
+    assert_eq!(
+        book.dynamic("=TOROW({1;2},0.75,0.05)"),
+        numbers(&[&[1.0, 2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},-0.025,TRUE)"),
+        rows(&[&[n(11.0), n(22.0), e(W::NA), n(44.0)]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},100,#NUM!)"),
+        e(W::Num)
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},#DIV/0!,#REF!)"),
+        e(W::Div0)
+    );
+    assert_eq!(
+        book.dynamic("=TOCOL({11,#N/A;22,44},2.9,\"true\")"),
+        numbers(&[&[11.0], &[22.0], &[44.0]])
+    );
+    book.number("H6", 22.0).number("I6", 44.0).set("I5", e(W::NA));
+    assert_eq!(
+        book.dynamic("=TOROW(H5:I6,2,\"TRUE\")"),
+        numbers(&[&[0.0, 22.0, 44.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW(H5:I6,3,TRUE)"),
+        numbers(&[&[22.0, 44.0]])
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]

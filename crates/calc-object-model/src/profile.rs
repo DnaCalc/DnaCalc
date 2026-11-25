@@ -36,7 +36,7 @@ pub trait ApplicationHost {
     /// no file system refuses, naming the bead that owns it.
     fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
         let _ = (path, bytes);
-        Err(AutoError::not_modelled("writing a file from a macro", "dc-oxh8w.33"))
+        Err(AutoError::not_modelled("writing a file from a macro", "dc-oxh8w.37"))
     }
 }
 

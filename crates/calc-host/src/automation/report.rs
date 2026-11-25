@@ -497,6 +497,7 @@ impl WorkbookAutomation {
                     area: top_row,
                     down: true,
                     insert: true,
+                    from_after: false,
                 })
             })?;
             area = GridArea::new(area.first(), bottom(area, 1)?).unwrap();

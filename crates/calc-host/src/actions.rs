@@ -658,6 +658,9 @@ pub enum WorkbookCommand {
         down: bool,
         /// Whether to insert cells. Otherwise delete cells.
         insert: bool,
+        /// Whether inserted cells take their format from the cells right of or below them (Excel's
+        /// xlFormatFromRightOrBelow) instead of the left or above.
+        from_after: bool,
     },
 }
 
@@ -1094,8 +1097,13 @@ pub(crate) fn prepare(
             Ok(edits)
         }
         WorkbookCommand::Paste(plan) => plan.into_edits(host),
-        WorkbookCommand::ShiftCells { area, down, insert } => {
-            crate::shift_cell_edits(host, area, down, insert)
+        WorkbookCommand::ShiftCells {
+            area,
+            down,
+            insert,
+            from_after,
+        } => {
+            crate::shift::shift_cell_edits_from(host, area, down, insert, from_after)
         }
     }
 }

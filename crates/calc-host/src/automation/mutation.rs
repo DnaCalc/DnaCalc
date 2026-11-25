@@ -7,7 +7,7 @@ use crate::{
 use std::collections::HashSet;
 
 /// What a table-aware pre-step leaves of a `Range.Value` write.
-enum PreWrite {
+pub(super) enum PreWrite {
     /// Write the range as given.
     Same,
     /// Write this range instead (the part the table's own commands did not take).
@@ -540,7 +540,7 @@ impl WorkbookAutomation {
         }
         Ok(())
     }
-    fn mutate_pre(
+    pub(super) fn mutate_pre(
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
@@ -554,6 +554,7 @@ impl WorkbookAutomation {
             let reference = match &target.key {
                 ObjectKey::Range(held)
                 | ObjectKey::RangeFormat(held)
+                | ObjectKey::RangeEdge { reference: held, .. }
                 | ObjectKey::RangeView {
                     reference: held, ..
                 } => Some(self.resolve(&mut Access::Session(session, false), held)?),
