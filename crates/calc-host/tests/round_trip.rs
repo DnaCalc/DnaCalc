@@ -30782,6 +30782,26 @@ fn dc_iq8o8__replaced_refused_formula_does_not_inherit_the_old_file_cache() {
     }
 }
 
+/// A refused formula nobody edited keeps its file cache through every recalculation, not only the first: a second
+/// Manual save writes the same cache (rw13 finding 1, dc-n9otb).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_n9otb__second_save_keeps_the_unedited_refused_formulas_file_cache() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="C1"><f>NOW()</f><v>1.25</v></c></row></sheetData>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(true)).accepted());
+    let r = book.host().sheets()[0].id();
+    for round in 1..=3 {
+        let reopened = saved_and_reopened(&mut book);
+        let c1 = value(reopened.host(), at(r, "C1"));
+        let ProjectedValue::FileCached(cache) = &c1 else { panic!("save {round}: C1 lost its file cache: {c1:?}") };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(1.25)), "save {round}");
+    }
+}
+
 /// Reopens `book` saved under the default policy.
 fn saved_and_reopened(book: &mut HostSession) -> HostSession {
     let mut saved = Vec::new();

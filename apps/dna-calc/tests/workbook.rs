@@ -2951,7 +2951,7 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     );
     server.take_events();
     let revision = server.book().host().revision();
-    let cancelled_request = server.envelope(Request::Save);
+    let cancelled_request = server.envelope(Request::SaveWithContext { calculate_before_save: Some(false), views: None });
     let cancelled = exchange_full(&mut server, cancelled_request.clone());
     assert!(
         matches!(&cancelled.0, FromServer::Failed { message, .. } if message == "the BeforeSave handler cancelled the save"),
@@ -2973,7 +2973,7 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
         "cancellation is not a handler failure"
     );
 
-    let allowed_request = server.envelope(Request::Save);
+    let allowed_request = server.envelope(Request::SaveWithContext { calculate_before_save: Some(false), views: None });
     let allowed = exchange_full(&mut server, allowed_request.clone());
     assert!(
         matches!(&allowed.0, FromServer::Reply { reply: Reply::Done { outcome, saved: Some(_), .. }, .. } if outcome.accepted),
@@ -2995,7 +2995,7 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     );
 
     send(&mut server, Request::SetVbaEventsEnabled { enabled: false });
-    let disabled = server.envelope(Request::Save);
+    let disabled = server.envelope(Request::SaveWithContext { calculate_before_save: Some(false), views: None });
     assert!(exchange_full(&mut server, disabled).1.is_some());
     assert_eq!(
         report(&mut server),
@@ -3020,7 +3020,7 @@ fn contract_vba_load_is_wire_deduplicated_and_failed_load_preserves_the_project(
     // No UDF probe/reset may hide a sticky native event fault between these saves.
     let mut outcomes = Vec::new();
     for _ in 0..2 {
-        let request = server.envelope(Request::Save);
+        let request = server.envelope(Request::SaveWithContext { calculate_before_save: Some(false), views: None });
         outcomes.push(exchange_full(&mut server, request));
     }
     assert!(
