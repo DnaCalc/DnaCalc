@@ -5172,6 +5172,37 @@ mod xlc {
         assert_eq!(text(&model, &range(&model, "D2"), "Formula"), "=C2+3");
     }
 
+    /// Application.Build is the build the captures record; Application.Calculation reads and
+    /// sets the workbook's calculation mode (dc-oxh8w.31).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_build_and_calculation_mode() {
+        let (host, model) = setup();
+        let app = model.application();
+        assert!(matches!(invoke(&model, &app, "Build", vec![]), Ok(AutoValue::I4(20527))));
+        let err = invoke(&model, &app, "Build", vec![AutoValue::I4(1)]).unwrap_err();
+        assert_eq!(err.number(), 1004);
+        // The fixture opens in manual calculation.
+        assert!(matches!(invoke(&model, &app, "Calculation", vec![]), Ok(AutoValue::I4(-4135))));
+        let put = |value: AutoValue| invoke_kind(&model, &app, "Calculation", InvokeKind::Put, vec![value]);
+        assert!(put(AutoValue::I4(-4105)).is_ok());
+        assert_eq!(host.session.borrow().calc_mode(), CalcMode::Automatic);
+        assert!(matches!(invoke(&model, &app, "Calculation", vec![]), Ok(AutoValue::I4(-4105))));
+        assert!(put(AutoValue::I4(2)).is_ok());
+        assert_eq!(host.session.borrow().calc_mode(), CalcMode::AutomaticExceptTables);
+        assert!(matches!(invoke(&model, &app, "Calculation", vec![]), Ok(AutoValue::I4(2))));
+        assert!(put(AutoValue::I4(-4135)).is_ok());
+        assert_eq!(host.session.borrow().calc_mode(), CalcMode::Manual);
+        // An invalid enumerator and a wrong argument count are Excel errors, not refusals.
+        assert_eq!(put(AutoValue::I4(7)).unwrap_err().number(), 1004);
+        assert_eq!(
+            invoke_kind(&model, &app, "Calculation", InvokeKind::Put, vec![]).unwrap_err().number(),
+            1004
+        );
+        assert_eq!(invoke(&model, &app, "Calculation", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
+        assert_eq!(host.session.borrow().calc_mode(), CalcMode::Manual);
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn echo_message_and_run_reach_the_application() {
