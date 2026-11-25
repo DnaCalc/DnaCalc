@@ -32,6 +32,12 @@ pub trait ApplicationHost {
     fn shell_sheet(&self) -> Option<String> {
         None
     }
+    /// Write `bytes` to the file `path` (Chart.Export). The native shells write the file; a host with
+    /// no file system refuses, naming the bead that owns it.
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
+        let _ = (path, bytes);
+        Err(AutoError::not_modelled("writing a file from a macro", "dc-oxh8w.33"))
+    }
 }
 
 impl<T: ApplicationHost + ?Sized> ApplicationHost for std::rc::Rc<T> {
@@ -55,5 +61,8 @@ impl<T: ApplicationHost + ?Sized> ApplicationHost for std::rc::Rc<T> {
     }
     fn shell_sheet(&self) -> Option<String> {
         (**self).shell_sheet()
+    }
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
+        (**self).write_file(path, bytes)
     }
 }

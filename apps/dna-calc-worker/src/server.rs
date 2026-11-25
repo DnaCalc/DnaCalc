@@ -6,7 +6,7 @@
 //! A cell crosses as the page shows it: the server works out its text in its number format and
 //! its conditional look ([`Workbook::shown`]), its input as it would be edited, and the words for
 //! where its value came from. A chart crosses drawn: the server lays it out with the sheet's
-//! sizes at 100% and draws it ([`crate::chart::chart_svg`]).
+//! sizes at 100% and draws it ([`calc_chart_render::chart_svg`]).
 
 use crate::cells;
 use crate::wire::{
@@ -383,6 +383,7 @@ mod mixed_range_tests {
 impl Server {
     /// A server over a new, empty workbook.
     pub fn new() -> Server {
+        calc_chart_render::install();
         let book = Workbook::new_blank();
         Server {
             workbook_observer: None,
@@ -5201,7 +5202,7 @@ impl Server {
                     kind,
                     place,
                     svg: if width > 0.0 && height > 0.0 {
-                        crate::chart::chart_svg(&view, width, height)
+                        calc_chart_render::chart_svg(&view, width, height)
                     } else {
                         String::new()
                     },

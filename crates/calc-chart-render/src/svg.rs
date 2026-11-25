@@ -60,6 +60,7 @@ fn gridline_color(chart: &ChartView, axis_id: u32) -> String {
 /// the values, from zero when the values allow it, and a twentieth of the range of room past the
 /// highest value (as Excel's 0 to 45 for values up to 40). Excel also fits the step to the axis'
 /// length on screen, which is not modelled.
+#[cfg(test)]
 pub use calc_host::chart::axis;
 
 fn font_pixels(chart: &ChartView) -> f64 {
@@ -2076,7 +2077,7 @@ fn scatter_marks(svg: &mut String, chart: &ChartView, plot: &PlotView, area: Are
 
 #[cfg(test)]
 #[allow(dead_code)]
-#[path = "../../../crates/calc-doc/tests/cdoc_m1_1_support/mod.rs"]
+#[path = "../../calc-doc/tests/cdoc_m1_1_support/mod.rs"]
 mod zip_support;
 
 #[cfg(test)]
@@ -2108,7 +2109,7 @@ mod tests {
     fn dc_zjsg_6__three_d_radar_bubble_and_stock_charts_draw() {
         use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
         use std::sync::Arc;
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -2246,7 +2247,7 @@ mod tests {
     fn dw4_dc_zjsg_6__per_point_dlbl_uses_own_dlbl_pos() {
         use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
         use std::sync::Arc;
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -2312,7 +2313,7 @@ mod tests {
     fn dw4_dc_zjsg_6__excel_measured_chart_details_from_acbfa9d4() {
         use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
         use std::sync::Arc;
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -2375,7 +2376,7 @@ mod tests {
     fn dw4_dc_zjsg_6__sunburst_and_histogram_match_excel_dw3_measurements() {
         use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
         use std::sync::Arc;
-        let bytes = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
         let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes.to_vec()));
         let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();
         assert!(book.dispatch(SkinIntent::Recalculate).accepted());
@@ -2416,7 +2417,7 @@ mod tests {
         use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, PackageRead, SkinIntent};
         use std::sync::Arc;
 
-        let base = include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
+        let base = include_bytes!("../../calc-doc/tests/fixtures/drawing/chart-kinds.xlsx");
         let open_funnel = |bytes: Vec<u8>| {
             let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
             let mut book = HostSession::open(source, &OpenPolicy::default(), HostOptions::default()).unwrap();

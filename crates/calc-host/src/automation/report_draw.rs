@@ -207,7 +207,7 @@ impl WorkbookAutomation {
         })
     }
     /// A chart's rectangle in points (left, top, width, height) from its anchor.
-    fn chart_rectangle(
+    pub(super) fn chart_rectangle(
         session: &HostSession,
         sheet: SheetId,
         part: &str,

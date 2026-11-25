@@ -33,8 +33,13 @@ struct Host {
     enabled: Cell<bool>,
     commands: Cell<u32>,
     runs: Cell<u32>,
+    files: RefCell<Vec<(String, Vec<u8>)>>,
 }
 impl ApplicationHost for Host {
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
+        self.files.borrow_mut().push((path.to_owned(), bytes.to_vec()));
+        Ok(())
+    }
     fn hwnd(&self) -> isize {
         123
     }
@@ -94,6 +99,7 @@ fn setup_session(session: HostSession) -> (Rc<Host>, Rc<WorkbookAutomation>) {
         enabled: Cell::new(true),
         commands: Cell::new(0),
         runs: Cell::new(0),
+        files: RefCell::new(Vec::new()),
     });
     let model = Rc::new(WorkbookAutomation::new(host.clone()));
     model.context_changed(&host.session.borrow());
@@ -6623,4 +6629,50 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     let key = AutoValue::Object(range(&model, "H20"));
     let reply = invoke_kind(&model, &range(&model, "H20"), "Sort", InvokeKind::Method, vec![key]);
     assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
+}
+
+/// dc-oxh8w.22: Chart.Export counts its arguments (1004), answers False for a filter it has no
+/// encoder for, refuses while no rasteriser is installed (typed, owner dc-oxh8w.22), and otherwise draws the
+/// chart at its frame's size at 100% (300 x 200 points = 400 x 267 pixels) and writes the bytes it gets
+/// through the application host, by the filter name or else the file extension.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_22__chart_export_writes_the_drawn_chart_through_the_host() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B3");
+    let export = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Export", InvokeKind::Method, args);
+    for args in [vec![], vec![AutoValue::text("a.png"), AutoValue::text("PNG"), AutoValue::Bool(false), AutoValue::I4(1)]] {
+        let bad = export(args);
+        assert!(matches!(bad, Err(AutoError::Status(-2147352562))), "{bad:?}");
+    }
+    let nothing_installed = export(vec![AutoValue::text("a.png"), AutoValue::text("PNG")]);
+    assert!(matches!(nothing_installed, Err(AutoError::NotModelled { .. })), "{nothing_installed:?}");
+    assert!(host.files.borrow().is_empty());
+
+    fn stub(_: &ChartView, width: u32, height: u32, format: chart::ExportFormat) -> Result<Vec<u8>, String> {
+        Ok(format!("{format:?} {width}x{height}").into_bytes())
+    }
+    chart::set_chart_exporter(stub);
+    let unknown = export(vec![AutoValue::text("a.bmp"), AutoValue::text("BMP")]);
+    assert!(matches!(unknown, Ok(AutoValue::Bool(false))), "{unknown:?}");
+    assert!(matches!(export(vec![AutoValue::text("a.png"), AutoValue::text("png")]), Ok(AutoValue::Bool(true))));
+    assert!(matches!(export(vec![AutoValue::text("b.gif")]), Ok(AutoValue::Bool(true))));
+    assert!(matches!(export(vec![AutoValue::text("c.dat"), AutoValue::text("JPG")]), Ok(AutoValue::Bool(true))));
+    let files = host.files.borrow();
+    let written: Vec<(&str, &str)> =
+        files.iter().map(|(p, b)| (p.as_str(), std::str::from_utf8(b).unwrap())).collect();
+    assert_eq!(written, [("a.png", "Png 400x267"), ("b.gif", "Gif 400x267"), ("c.dat", "Jpg 400x267")]);
 }
