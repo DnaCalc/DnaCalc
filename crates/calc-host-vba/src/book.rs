@@ -43,10 +43,10 @@ impl BookRunner for OwnedBook {
     fn close(&self) -> Result<bool, AutoError> {
         // A session borrowed or lent now belongs to a macro that is running in this workbook.
         let mut session = self.session.try_borrow_mut().map_err(|_| {
-            AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.62")
+            AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.64")
         })?;
         if self.events.automation.is_lent() {
-            return Err(AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.62"));
+            return Err(AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.64"));
         }
         Ok(!session.notify_before_close())
     }
@@ -70,7 +70,7 @@ impl BookRunner for LentBook {
         self.events()?.automation.invoke(target, call)
     }
     fn close(&self) -> Result<bool, AutoError> {
-        Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.62"))
+        Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.64"))
     }
 }
 
@@ -144,7 +144,7 @@ impl Factory {
 impl Factory {
     fn read(&self, path: &str) -> Result<Vec<u8>, AutoError> {
         let loader = self.options.loader.as_ref().ok_or_else(|| {
-            AutoError::not_modelled("Workbooks.Open without a file loader", "dc-oxh8w.62")
+            AutoError::not_modelled("Workbooks.Open without a file loader", "dc-oxh8w.64")
         })?;
         loader(path).map_err(|_| {
             AutoError::excel(
