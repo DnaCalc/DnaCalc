@@ -284,6 +284,398 @@ fn dc_oxh8w_2_wrap_text_reports_mixed_null_and_round_trips() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_column_width_uses_excel_character_units() {
+    let (host, model) = setup();
+    let captured: serde_json::Value = serde_json::from_str(
+        include_str!("fixtures/dc_09v/excel-shown.json").trim_start_matches('\u{feff}'),
+    )
+    .unwrap();
+    let a = range(&model, "A1");
+    let b = range(&model, "B3");
+    let both = range(&model, "A1:B2");
+    for (cell, key) in [(&a, "A"), (&b, "B")] {
+        assert!(
+            matches!(invoke(&model, cell, "ColumnWidth", vec![]).unwrap(),
+            AutoValue::R8(n) if n == captured["widths"][key].as_f64().unwrap())
+        );
+    }
+    assert!(matches!(
+        invoke(&model, &both, "ColumnWidth", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &both,
+            "ColumnWidth",
+            InvokeKind::Put,
+            vec![]
+        ))
+        .0,
+        1004
+    );
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &both,
+            "ColumnWidth",
+            InvokeKind::Put,
+            vec![AutoValue::I4(256)]
+        ))
+        .0,
+        1004
+    );
+    invoke_kind(
+        &model,
+        &both,
+        "ColumnWidth",
+        InvokeKind::Put,
+        vec![AutoValue::I4(16)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &b, "ColumnWidth", vec![]).unwrap(),
+        AutoValue::R8(16.0)
+    ));
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert!(matches!(
+        invoke(&model, &both, "ColumnWidth", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    invoke_kind(
+        &model,
+        &b,
+        "ColumnWidth",
+        InvokeKind::Put,
+        vec![AutoValue::I4(0)],
+    )
+    .unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &range(&reopened, "B:B"), "ColumnWidth", vec![]).unwrap(),
+        AutoValue::R8(0.0)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_row_height_uses_excel_points() {
+    let (host, model) = setup();
+    let captured: serde_json::Value = serde_json::from_str(
+        include_str!("fixtures/dc_09v/excel-shown.json").trim_start_matches('\u{feff}'),
+    )
+    .unwrap();
+    for (address, key) in [("B1", "h1"), ("D3", "h3")] {
+        assert!(
+            matches!(invoke(&model, &range(&model, address), "RowHeight", vec![]).unwrap(),
+            AutoValue::R8(n) if n == captured["rows"][key].as_f64().unwrap())
+        );
+    }
+    let report = range(&model, "A3:C4");
+    assert_eq!(
+        excel_error(invoke(&model, &report, "RowHeight", vec![AutoValue::I4(1)])).0,
+        1004
+    );
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &report,
+            "RowHeight",
+            InvokeKind::Put,
+            vec![AutoValue::I4(-1)]
+        ))
+        .0,
+        1004
+    );
+    invoke_kind(
+        &model,
+        &report,
+        "RowHeight",
+        InvokeKind::Put,
+        vec![AutoValue::R8(22.5)],
+    )
+    .unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &range(&reopened, "D3:D4"), "RowHeight", vec![]).unwrap(),
+        AutoValue::R8(22.5)
+    ));
+    assert!(matches!(
+        invoke(&reopened, &range(&reopened, "D1"), "RowHeight", vec![]).unwrap(),
+        AutoValue::R8(15.0)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_indent_level_uses_format_cells() {
+    let (host, model, _) = blank_report();
+    let cells = range(&model, "B1:B2");
+    let cell = range(&model, "B1");
+    invoke_kind(
+        &model,
+        &cells,
+        "HorizontalAlignment",
+        InvokeKind::Put,
+        vec![AutoValue::I4(-4131)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "IndentLevel", vec![]).unwrap(),
+        AutoValue::I4(0)
+    ));
+    invoke_kind(
+        &model,
+        &cell,
+        "IndentLevel",
+        InvokeKind::Put,
+        vec![AutoValue::I4(15)],
+    )
+    .unwrap();
+    assert!(matches!(
+        invoke(&model, &cells, "IndentLevel", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &cell,
+            "IndentLevel",
+            InvokeKind::Put,
+            vec![AutoValue::I4(16)]
+        ))
+        .0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    let cell = range(&reopened, "B1");
+    assert!(matches!(
+        invoke(&reopened, &cell, "IndentLevel", vec![]).unwrap(),
+        AutoValue::I4(15)
+    ));
+    assert!(matches!(
+        invoke(&reopened, &cell, "HorizontalAlignment", vec![]).unwrap(),
+        AutoValue::I4(-4131)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_orientation_preserves_signed_rotation() {
+    let (host, model, _) = blank_report();
+    let cells = range(&model, "B1:B2");
+    for (address, degrees) in [("B1", -35), ("B2", 44)] {
+        invoke_kind(
+            &model,
+            &range(&model, address),
+            "Orientation",
+            InvokeKind::Put,
+            vec![AutoValue::I4(degrees)],
+        )
+        .unwrap();
+    }
+    assert!(matches!(
+        invoke(&model, &cells, "Orientation", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &cells,
+            "Orientation",
+            InvokeKind::Put,
+            vec![AutoValue::I4(91)]
+        ))
+        .0,
+        1004
+    );
+    assert_eq!(
+        excel_error(invoke_kind(
+            &model,
+            &cells,
+            "Orientation",
+            InvokeKind::Put,
+            vec![AutoValue::R8(10.5)]
+        ))
+        .0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    for (address, degrees) in [("B1", -35), ("B2", 44)] {
+        assert!(
+            matches!(invoke(&reopened, &range(&reopened, address), "Orientation", vec![]).unwrap(),
+            AutoValue::I4(n) if n == degrees)
+        );
+    }
+}
+
+fn reopen_formatting(host: &Host) -> Rc<WorkbookAutomation> {
+    let mut saved = Vec::new();
+    host.session
+        .borrow_mut()
+        .save(&SavePolicy::default(), &mut saved)
+        .unwrap();
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(saved)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    setup_session(session).1
+}
+
+fn font(model: &WorkbookAutomation, address: &str) -> ObjectRef {
+    let target = range(model, address);
+    let font = obj(invoke(model, &target, "Font", vec![]).unwrap());
+    model.released(&target);
+    font
+}
+
+fn put_font(model: &WorkbookAutomation, font: &ObjectRef, member: &str, value: AutoValue) -> Reply {
+    invoke_kind(model, font, member, InvokeKind::Put, vec![value])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_bold_applies_to_the_held_range() {
+    let (host, model, _) = blank_report();
+    let first = font(&model, "D1");
+    assert!(matches!(
+        invoke(&model, &first, "Bold", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    put_font(&model, &first, "Bold", AutoValue::Bool(true)).unwrap();
+    let mixed = font(&model, "D1:D2");
+    assert!(matches!(
+        invoke(&model, &mixed, "Bold", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &font(&reopened, "D1"), "Bold", vec![]).unwrap(),
+        AutoValue::Bool(true)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_italic_preserves_bold() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "A1:B3");
+    put_font(&model, &cells, "Bold", AutoValue::Bool(true)).unwrap();
+    put_font(&model, &cells, "Italic", AutoValue::Bool(true)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cells = font(&reopened, "A1:B3");
+    for member in ["Bold", "Italic"] {
+        assert!(matches!(
+            invoke(&reopened, &cells, member, vec![]).unwrap(),
+            AutoValue::Bool(true)
+        ));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_underline_uses_the_excel_enum() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "C3");
+    assert!(matches!(
+        invoke(&model, &cell, "Underline", vec![]).unwrap(),
+        AutoValue::I4(-4142)
+    ));
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "Underline", AutoValue::I4(17))).0,
+        1004
+    );
+    put_font(&model, &cell, "Underline", AutoValue::I4(-4119)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cell = font(&reopened, "C3");
+    assert!(matches!(
+        invoke(&reopened, &cell, "Underline", vec![]).unwrap(),
+        AutoValue::I4(-4119)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_size_uses_points() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "B2:B3");
+    assert_eq!(
+        excel_error(put_font(&model, &cells, "Size", AutoValue::R8(0.0))).0,
+        1004
+    );
+    put_font(&model, &cells, "Size", AutoValue::R8(14.5)).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &font(&reopened, "B2:B3"), "Size", vec![]).unwrap(),
+        AutoValue::R8(14.5)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_name_survives_reopen() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "B2:B3");
+    assert_eq!(
+        excel_error(invoke(&model, &cells, "Name", vec![AutoValue::I4(0)])).0,
+        1004
+    );
+    put_font(&model, &cells, "Name", AutoValue::text("Courier New")).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert_eq!(
+        text(&reopened, &font(&reopened, "B2:B3"), "Name"),
+        "Courier New"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_color_uses_excel_rgb_order() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "B2");
+    let rgb = 0x0033_2211;
+    put_font(&model, &cell, "Color", AutoValue::I4(rgb)).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(
+        matches!(invoke(&reopened, &font(&reopened, "B2"), "Color", vec![]).unwrap(), AutoValue::I4(n) if n == rgb)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_color_index_preserves_palette_identity() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "B2");
+    assert!(matches!(
+        invoke(&model, &cell, "ColorIndex", vec![]).unwrap(),
+        AutoValue::I4(-4105)
+    ));
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "ColorIndex", AutoValue::I4(57))).0,
+        1004
+    );
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(3)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cell = font(&reopened, "B2");
+    assert!(matches!(
+        invoke(&reopened, &cell, "ColorIndex", vec![]).unwrap(),
+        AutoValue::I4(3)
+    ));
+    assert!(matches!(
+        invoke(&reopened, &cell, "Color", vec![]).unwrap(),
+        AutoValue::I4(255)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_2_number_format_get_reports_uniform_codes_and_mixed_null() {
     let (_, model, _) = blank_report();
     let cells = range(&model, "A1:B2");
@@ -4751,7 +5143,7 @@ mod xlc {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn formula_fill_enters_the_relative_formula_in_every_cell() {
-        let (_host, model) = setup();
+        let (host, model) = setup();
         value2(&model, "A1", AutoValue::R8(1.0));
         value2(&model, "A2", AutoValue::R8(2.0));
         let object = AutoValue::Object(range(&model, "B1:B2"));
@@ -4760,12 +5152,24 @@ mod xlc {
         assert_eq!(text(&model, &range(&model, "B2"), "Formula"), "=A2+1");
         done(run(&*model, "xlcCalculateDocument", vec![]));
         assert_eq!((number(&model, "B1"), number(&model, "B2")), (2.0, 3.0));
-        // FORMULA over several cells is not documented; it is refused, not guessed.
+        // C2: FORMULA writes only the upper-left cell, with an explicit or selected reference.
+        value2(&model, "D2", AutoValue::R8(21.0));
         let several = AutoValue::text("R1C4:R2C4");
-        assert_eq!(
-            run(&*model, "xlcFormula", vec![AutoValue::text("=1"), several]).unwrap_err(),
-            XlcError::NotModelled { what: "FORMULA over more than one cell", owner: "dc-oxh8w.9" }
-        );
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+1"), several]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+1");
+        assert_eq!(number(&model, "D2"), 21.0);
+
+        select_cells(&host, (1, 4), (2, 4));
+        model.context_changed(&host.session.borrow());
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+2")]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+2");
+        assert_eq!(number(&model, "D2"), 21.0);
+
+        select_cells(&host, (2, 4), (1, 4));
+        model.context_changed(&host.session.borrow());
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+3")]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+2");
+        assert_eq!(text(&model, &range(&model, "D2"), "Formula"), "=C2+3");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -4778,7 +5182,13 @@ mod xlc {
         assert!(matches!(invoke(&model, &app, "ScreenUpdating", vec![]), Ok(AutoValue::Bool(false))));
         done(run(&*model, "xlcEcho", vec![AutoValue::R8(1.0)]));
         assert!(matches!(invoke(&model, &app, "ScreenUpdating", vec![]), Ok(AutoValue::Bool(true))));
-        assert!(matches!(run(&*model, "xlcEcho", vec![]), Err(XlcError::NotModelled { owner: "dc-oxh8w.9", .. })));
+        for expected in [false, true] {
+            done(run(&*model, "xlcEcho", vec![]));
+            assert!(matches!(
+                invoke(&model, &app, "ScreenUpdating", vec![]),
+                Ok(AutoValue::Bool(value)) if value == expected
+            ));
+        }
         assert!(matches!(run(&*model, "xlcEcho", vec![AutoValue::text("x")]), Err(XlcError::Operand(_))));
 
         assert!(matches!(invoke(&model, &app, "StatusBar", vec![]), Ok(AutoValue::Bool(false))));
@@ -4807,8 +5217,69 @@ mod xlc {
         value2(&model, "A1", AutoValue::R8(5.0));
         done(run(&*model, "xlcClear", vec![AutoValue::R8(3.0)]));
         assert!(matches!(invoke(&model, &range(&model, "A1"), "Value2", vec![]), Ok(AutoValue::Empty)));
-        assert!(matches!(run(&*model, "xlcClear", vec![]), Err(XlcError::NotModelled { owner: "dc-oxh8w.9", .. })));
+        let selected = range(&model, "A1");
+        value2(&model, "A1", AutoValue::R8(6.0));
+        done(run(&*model, "xlcFormatNumber", vec![AutoValue::text("0.00")]));
+        done(run(&*model, "xlcClear", vec![]));
+        assert!(matches!(invoke(&model, &selected, "Value2", vec![]), Ok(AutoValue::Empty)));
+        assert_eq!(text(&model, &selected, "NumberFormat"), "0.00");
         assert!(matches!(run(&*model, "xlcClear", vec![AutoValue::R8(9.0)]), Err(XlcError::Operand(_))));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn omitted_edit_delete_shifts_the_horizontal_selection_up_as_in_c2() {
+        let (host, model, _) = blank_report();
+        for (address, value) in [("B2", 22.0), ("C2", 23.0), ("B3", 32.0), ("C3", 33.0)] {
+            value2(&model, address, AutoValue::R8(value));
+        }
+        select_cells(&host, (2, 2), (2, 3));
+        model.context_changed(&host.session.borrow());
+        let app = model.application();
+        let selected = obj(invoke(&model, &app, "Selection", vec![]).unwrap());
+        let active = obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap());
+        assert_eq!(text(&model, &selected, "Address"), "$B$2:$C$2");
+        assert_eq!(text(&model, &active, "Address"), "$B$2");
+        done(run(&*model, "xlcEditDelete", vec![]));
+        assert_eq!((number(&model, "B2"), number(&model, "C2")), (32.0, 33.0));
+        for address in ["B3", "C3"] {
+            assert!(matches!(
+                invoke(&model, &range(&model, address), "Value2", vec![]),
+                Ok(AutoValue::Empty)
+            ));
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_workbook_insert_adds_and_activates_a_worksheet_before_the_active_sheet() {
+        let (host, model) = setup();
+        let before = sheet_names(&host);
+        done(xlc::execute(&*model, 354, &[AutoValue::I4(1)]));
+        let after = sheet_names(&host);
+        assert_eq!(&after[1..], before.as_slice());
+        let active = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        assert_eq!(text(&model, &active, "Name"), after[0]);
+        let invalid = xlc::execute(&*model, 354, &[AutoValue::R8(1.25)]);
+        assert!(matches!(invalid, Err(XlcError::Model(AutoError::Excel { number: 1004, .. }))), "{invalid:?}");
+        assert_eq!(sheet_names(&host), after);
+        done(xlc::execute(&*model, 354, &[]));
+        assert_eq!(&sheet_names(&host)[1..], after.as_slice());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_set_print_area_sets_a_range_and_clears_with_empty_text() {
+        let (_, model) = setup();
+        let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        let page = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+        let print_range = AutoValue::Object(range(&model, "B2:C3"));
+        done(xlc::execute(&*model, 22, &[print_range]));
+        assert_eq!(text(&model, &page, "PrintArea"), "$B$2:$C$3");
+        done(xlc::execute(&*model, 22, &[AutoValue::text("R5C4:R6C5")]));
+        assert_eq!(text(&model, &page, "PrintArea"), "$D$5:$E$6");
+        done(xlc::execute(&*model, 22, &[AutoValue::text("")]));
+        assert_eq!(text(&model, &page, "PrintArea"), "");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5014,7 +5485,7 @@ mod xlc {
                     "_Application.Range Get('B1')",
                     "Range.ColumnWidth Put(R8(12.0))",
                 ],
-                Some(unmodelled("Range.ColumnWidth")),
+                None,
             ),
             (
                 "xlcRowHeight",
@@ -5023,7 +5494,7 @@ mod xlc {
                     "_Application.Selection Get()",
                     "Range.RowHeight Put(R8(30.0))",
                 ],
-                Some(unmodelled("Range.RowHeight")),
+                None,
             ),
             (
                 "xlcInsert",
@@ -5180,6 +5651,21 @@ mod xlc {
                     matches!(result, Ok(AutoValue::Bool(true))),
                     "{symbol}: {result:?}"
                 ),
+            }
+            match symbol {
+                "xlcColumnWidth" => assert!(matches!(
+                    invoke(&model, &range(&model, "B1"), "ColumnWidth", vec![]).unwrap(),
+                    AutoValue::R8(12.0)
+                )),
+                "xlcRowHeight" => {
+                    let selection =
+                        obj(invoke(&model, &model.application(), "Selection", vec![]).unwrap());
+                    assert!(matches!(
+                        invoke(&model, &selection, "RowHeight", vec![]).unwrap(),
+                        AutoValue::R8(30.0)
+                    ));
+                }
+                _ => {}
             }
         }
     }
@@ -5538,6 +6024,67 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(xml.contains("<c:min val=\"0\"/>"), "{xml}");
     assert!(xml.contains("<c:majorUnit val=\"25\"/>"), "{xml}");
     assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
+}
+
+/// dc-oxh8w.26: Chart.Axes resolves axes by kind (and scatter orientation), counts arguments and refuses
+/// invalid kinds and groups with 1004; a category axis cannot take IsAuto False.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_26__axes_resolve_by_kind_and_refuse_bad_arguments() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["", "Y"], &["1", "10"], &["2", "30"], &["3", "50"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B4");
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let is_1004 = |r: &Result<AutoValue, AutoError>| matches!(r, Err(AutoError::Excel { number: 1004, .. }));
+    // Argument counts and invalid enum values are Excel errors, not NotModelled.
+    for args in [
+        vec![AutoValue::I4(0)],
+        vec![AutoValue::I4(4)],
+        vec![AutoValue::I4(-1)],
+        vec![AutoValue::I4(1), AutoValue::I4(3)],
+        vec![AutoValue::I4(1), AutoValue::I4(0)],
+    ] {
+        let r = axes(args.clone());
+        assert!(is_1004(&r), "{args:?}: {r:?}");
+    }
+    let r = axes(vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::I4(1)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let value = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    let category = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    // IsAuto False on the category axis is 1004, and a put with no or two values is an argument error.
+    let r = invoke_kind(&model, &category, "MinimumScaleIsAuto", InvokeKind::Put, vec![AutoValue::Bool(false)]);
+    assert!(is_1004(&r), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![AutoValue::R8(1.0), AutoValue::R8(2.0)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    // A scatter chart has two value axes: xlCategory is the horizontal one.
+    select_cells(&host, (30, 1), (30, 1));
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let shape = obj(
+        invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(-1), AutoValue::I4(-4169)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &shape, "Chart", vec![]).unwrap());
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let x = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    let y = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    invoke_kind(&model, &x, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(7.0)]).unwrap();
+    invoke_kind(&model, &y, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(90.0)]).unwrap();
+    assert!(matches!(invoke(&model, &x, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 7.0));
+    assert!(matches!(invoke(&model, &y, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 90.0));
 }
 
 /// dc-oxh8w.12: axis titles and tick-label number formats set by a macro are saved in the chart part.

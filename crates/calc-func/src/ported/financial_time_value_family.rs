@@ -3,8 +3,8 @@
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::excel_numeric::{
     excel_expm1, excel_expm1_internal, excel_log1p, excel_log1p_times, excel_pow_chain,
-    excel_pow_x87_direct, excel_x87_add, excel_x87_div, excel_x87_mul, excel_x87_recip,
-    excel_x87_sub, exp_portable,
+    excel_pow_x87_direct, excel_sqrt_staged, excel_x87_add, excel_x87_div, excel_x87_mul,
+    excel_x87_recip, excel_x87_sub, exp_portable,
 };
 use crate::ported::power_fn::{power_kernel, power_kernel_with_pos_overflow};
 use crate::ported::real_policy::excel_underflow_to_zero;
@@ -1186,12 +1186,12 @@ pub fn mirr(
         return Err(FinancialError::Num);
     }
     let magnitude = ratio.abs();
-    // Degree-one identity and CRT half-power are measured private-root routes;
-    // higher degrees use the existing stored LN/reciprocal/EXP chain.
+    // Touchstone Excel 20625 resolves degree-two midpoint ties by storing
+    // the PC64 square root. Higher degrees use stored LN/reciprocal/EXP.
     let root = if magnitude == 0.0 || periods == 1 {
         magnitude
     } else if periods == 2 {
-        crt_pow(magnitude, 0.5)
+        excel_sqrt_staged(magnitude)
     } else {
         crate::ported::excel_numeric::excel_pow_chain(magnitude, excel_x87_div(1.0, periods as f64))
     };

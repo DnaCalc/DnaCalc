@@ -38,6 +38,7 @@ use std::os::unix::net::UnixStream;
 
 pub const VERSION: &str = "touchstone/1";
 const FRAME_BUDGET: usize = 40 * 1024;
+const MAX_SPILL_GROUP_CALLS: usize = 1000;
 const MAX_FRAME: usize = 64 * 1024 * 1024;
 const SOCKET_TIMEOUT: Duration = Duration::from_secs(10);
 const RECONNECT_WINDOW: Duration = Duration::from_secs(90);
@@ -182,6 +183,8 @@ pub struct Request {
     pub result_index: Option<(u32, u32)>,
     pub priority: Option<Priority>,
     pub echo_inputs: bool,
+    /// Ask for full spill results at isolated worksheet anchors.
+    pub spill: bool,
 }
 
 impl Request {
@@ -192,6 +195,7 @@ impl Request {
             result_index: None,
             priority: None,
             echo_inputs: false,
+            spill: false,
         }
     }
 }
@@ -420,7 +424,12 @@ fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
     let mut size = 0usize;
     for group in &groups {
         let per_call = (group.width * 20).max(8);
-        let initial_step = (FRAME_BUDGET / per_call).max(1);
+        let max_calls = if request.spill {
+            MAX_SPILL_GROUP_CALLS
+        } else {
+            usize::MAX
+        };
+        let initial_step = (FRAME_BUDGET / per_call).clamp(1, max_calls);
         let mut pending: std::collections::VecDeque<(usize, usize)> =
             std::collections::VecDeque::new();
         let mut start = 0;
@@ -430,7 +439,10 @@ fn submit_frames(id: &str, request: &Request) -> Vec<Value> {
             start += n;
         }
         while let Some((off, n)) = pending.pop_front() {
-            let part = group_json(group, off, n);
+            let mut part = group_json(group, off, n);
+            if request.spill {
+                part["spill"] = json!(true);
+            }
             let encoded = serde_json::to_vec(&part).map_or(0, |v| v.len());
             if encoded > FRAME_BUDGET && n > 1 {
                 let half = (n / 2).max(1);
@@ -1132,6 +1144,24 @@ mod tests {
         assert_eq!(json["i"], json!([0, 2]));
         assert_eq!(json["v"], json!(["0000000000000001", "0000000000000002"]));
         assert_eq!(group_json(&groups[1], 0, 1)["o"], json!(1));
+    }
+
+    #[test]
+    fn spill_requests_keep_their_flag_and_positions_across_groups() {
+        let rows = vec![vec![Arg::number(1.0)]; MAX_SPILL_GROUP_CALLS + 1];
+        let mut request = Request::new("TRANSPOSE", rows);
+        request.spill = true;
+        let frames = submit_frames("a", &request);
+        let groups: Vec<_> = frames
+            .iter()
+            .flat_map(|frame| frame["groups"].as_array().unwrap())
+            .collect();
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|group| group["spill"] == json!(true)));
+        assert_eq!(groups[0]["n"], json!(MAX_SPILL_GROUP_CALLS));
+        assert_eq!(groups[0]["o"], json!(0));
+        assert_eq!(groups[1]["n"], json!(1));
+        assert_eq!(groups[1]["o"], json!(MAX_SPILL_GROUP_CALLS));
     }
 
     #[test]

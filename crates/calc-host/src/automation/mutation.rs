@@ -139,6 +139,7 @@ impl WorkbookAutomation {
         self.mutate_pre(
             target,
             call,
+            OWNER,
             |session, reference| {
                 let reference = reference.ok_or_else(geometry::type_mismatch)?;
                 let indexed = resolve_target(reference)?;
@@ -168,6 +169,7 @@ impl WorkbookAutomation {
         self.mutate_pre(
             target,
             call,
+            OWNER,
             |session, reference| match reference {
                 Some(reference) => Self::table_pre_step(session, reference, call.args.last()),
                 None => Ok(PreWrite::Same),
@@ -312,11 +314,24 @@ impl WorkbookAutomation {
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
+        intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate_areas_with_owner(target, call, OWNER, intent)
+    }
+    pub(super) fn mutate_areas_with_owner(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        owner: &'static str,
         mut intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
-        self.mutate(target, call, |session, reference| {
-            intent(session, reference.ok_or_else(geometry::type_mismatch)?)
-        })
+        self.mutate_pre(
+            target,
+            call,
+            owner,
+            |_, _| Ok(PreWrite::Same),
+            |session, reference| intent(session, reference.ok_or_else(geometry::type_mismatch)?),
+        )
     }
     pub(super) fn mutate_range(
         &self,
@@ -488,7 +503,7 @@ impl WorkbookAutomation {
         call: &Call<'_>,
         intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
-        self.mutate_pre(target, call, |_, _| Ok(PreWrite::Same), intent)
+        self.mutate_pre(target, call, OWNER, |_, _| Ok(PreWrite::Same), intent)
     }
     /// Runs a started calculation to its end, as Excel's synchronous automation call does.
     pub(super) fn settle(
@@ -529,6 +544,7 @@ impl WorkbookAutomation {
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
+        owner: &'static str,
         mut pre: impl FnMut(&mut HostSession, Option<&ReferenceLike>) -> Result<PreWrite, AutoError>,
         mut intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
@@ -537,6 +553,7 @@ impl WorkbookAutomation {
             self.validate(target, &meta)?;
             let reference = match &target.key {
                 ObjectKey::Range(held)
+                | ObjectKey::RangeFormat(held)
                 | ObjectKey::RangeView {
                     reference: held, ..
                 } => Some(self.resolve(&mut Access::Session(session, false), held)?),
@@ -554,7 +571,7 @@ impl WorkbookAutomation {
                 if let Some(error) = receipt.error {
                     return Err(AutoError::not_modelled(
                         format!("{}: {error}", call.label()),
-                        OWNER,
+                        owner,
                     ));
                 }
                 progress = receipt.recalc;

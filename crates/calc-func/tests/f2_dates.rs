@@ -104,6 +104,34 @@ fn datedif_checks_calendar_serials() {
     }
 }
 
+/// Excel 16.0.20625 admits equal truncated dates even when fractional rounding reverses them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn datedif_uses_excel_leap_rules_when_rounding_reverses_a_day() {
+    let env = host();
+    for (unit, expected) in [
+        ("d", 0.0),
+        ("m", -1.0),
+        ("y", -1.0),
+        ("md", 30.0),
+        ("yd", 365.0),
+        ("ym", 11.0),
+    ] {
+        exact(c(&env, "DATEDIF", vec![n(1.999999), n(1.5), t(unit)]), expected);
+    }
+    for (calendar_day, expected) in [
+        (62.0_f64, 365.0), // March 1900 includes Excel's fictitious leap day.
+        (45000.0, 364.0), // March 2023 uses the start year's calendar.
+        (45261.0, 365.0), // December 2023 uses the following leap year.
+        (45366.0, 365.0), // March 2024 uses the start year's calendar.
+        (72776.0, 365.0), // April 2099 treats 2100 as a leap year for this remainder.
+        (73141.0, 364.0), // April 2100 uses the following ordinary year.
+    ] {
+        let before = f64::from_bits(calendar_day.to_bits() - 1);
+        exact(c(&env, "DATEDIF", vec![n(before), n(calendar_day - 0.5), t("yd")]), expected);
+    }
+}
+
 /// Excel 16.0.20625 treats 28 February 1900 as the month end for YEARFRAC basis 0.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

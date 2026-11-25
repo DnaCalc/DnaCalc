@@ -237,6 +237,15 @@ impl CalcArray {
         self.shape
     }
 
+    /// The typed cells published by an unblocked worksheet spill, in the same shape.
+    pub fn shown_as_spill(&self) -> Self {
+        let cells = self
+            .iter_row_major()
+            .map(CalcValue::shown_as_spill_cell)
+            .collect();
+        Self::new(self.shape, cells).expect("unchanged array shape")
+    }
+
     /// This array as taken out of an array's cell (see the type's documentation).
     pub fn boxed(mut self) -> Self {
         self.exposure = ArrayExposure::Boxed;
@@ -890,6 +899,22 @@ impl CalcValue {
         match &self.core {
             CoreValue::Array(array) => Some(array),
             _ => None,
+        }
+    }
+
+    /// How a worksheet publishes this value as a cell of a spill.
+    /// Blank and missing elements show as 0. Nested arrays and references show #VALUE!.
+    /// A callable shows its worksheet core while its identity stays inside the expression.
+    pub fn shown_as_spill_cell(&self) -> Self {
+        if self.callable_value().is_some() {
+            Self::new(self.core().clone())
+        } else if self.is_empty() || self.is_missing() {
+            Self::number(0.0)
+        } else if self.as_array().is_some() || self.as_reference().is_some() {
+            // dc-b1l: OFFSET(A1,{0;1;2},0) spills #VALUE! in Excel 16.0.20527.
+            Self::error(WorksheetErrorCode::Value)
+        } else {
+            self.clone()
         }
     }
 

@@ -299,7 +299,6 @@ impl Out {
     }
 
     /// The value on one line.
-    #[cfg(test)]
     pub(crate) fn compact(&self) -> String {
         let mut out = String::new();
         self.write_compact(&mut out);
