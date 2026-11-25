@@ -5143,7 +5143,7 @@ mod xlc {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn formula_fill_enters_the_relative_formula_in_every_cell() {
-        let (_host, model) = setup();
+        let (host, model) = setup();
         value2(&model, "A1", AutoValue::R8(1.0));
         value2(&model, "A2", AutoValue::R8(2.0));
         let object = AutoValue::Object(range(&model, "B1:B2"));
@@ -5152,12 +5152,24 @@ mod xlc {
         assert_eq!(text(&model, &range(&model, "B2"), "Formula"), "=A2+1");
         done(run(&*model, "xlcCalculateDocument", vec![]));
         assert_eq!((number(&model, "B1"), number(&model, "B2")), (2.0, 3.0));
-        // FORMULA over several cells is not documented; it is refused, not guessed.
+        // C2: FORMULA writes only the upper-left cell, with an explicit or selected reference.
+        value2(&model, "D2", AutoValue::R8(21.0));
         let several = AutoValue::text("R1C4:R2C4");
-        assert_eq!(
-            run(&*model, "xlcFormula", vec![AutoValue::text("=1"), several]).unwrap_err(),
-            XlcError::NotModelled { what: "FORMULA over more than one cell", owner: "dc-oxh8w.9" }
-        );
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+1"), several]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+1");
+        assert_eq!(number(&model, "D2"), 21.0);
+
+        select_cells(&host, (1, 4), (2, 4));
+        model.context_changed(&host.session.borrow());
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+2")]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+2");
+        assert_eq!(number(&model, "D2"), 21.0);
+
+        select_cells(&host, (2, 4), (1, 4));
+        model.context_changed(&host.session.borrow());
+        done(run(&*model, "xlcFormula", vec![AutoValue::text("=RC[-1]+3")]));
+        assert_eq!(text(&model, &range(&model, "D1"), "Formula"), "=C1+2");
+        assert_eq!(text(&model, &range(&model, "D2"), "Formula"), "=C2+3");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5170,7 +5182,13 @@ mod xlc {
         assert!(matches!(invoke(&model, &app, "ScreenUpdating", vec![]), Ok(AutoValue::Bool(false))));
         done(run(&*model, "xlcEcho", vec![AutoValue::R8(1.0)]));
         assert!(matches!(invoke(&model, &app, "ScreenUpdating", vec![]), Ok(AutoValue::Bool(true))));
-        assert!(matches!(run(&*model, "xlcEcho", vec![]), Err(XlcError::NotModelled { owner: "dc-oxh8w.9", .. })));
+        for expected in [false, true] {
+            done(run(&*model, "xlcEcho", vec![]));
+            assert!(matches!(
+                invoke(&model, &app, "ScreenUpdating", vec![]),
+                Ok(AutoValue::Bool(value)) if value == expected
+            ));
+        }
         assert!(matches!(run(&*model, "xlcEcho", vec![AutoValue::text("x")]), Err(XlcError::Operand(_))));
 
         assert!(matches!(invoke(&model, &app, "StatusBar", vec![]), Ok(AutoValue::Bool(false))));
@@ -5199,8 +5217,69 @@ mod xlc {
         value2(&model, "A1", AutoValue::R8(5.0));
         done(run(&*model, "xlcClear", vec![AutoValue::R8(3.0)]));
         assert!(matches!(invoke(&model, &range(&model, "A1"), "Value2", vec![]), Ok(AutoValue::Empty)));
-        assert!(matches!(run(&*model, "xlcClear", vec![]), Err(XlcError::NotModelled { owner: "dc-oxh8w.9", .. })));
+        let selected = range(&model, "A1");
+        value2(&model, "A1", AutoValue::R8(6.0));
+        done(run(&*model, "xlcFormatNumber", vec![AutoValue::text("0.00")]));
+        done(run(&*model, "xlcClear", vec![]));
+        assert!(matches!(invoke(&model, &selected, "Value2", vec![]), Ok(AutoValue::Empty)));
+        assert_eq!(text(&model, &selected, "NumberFormat"), "0.00");
         assert!(matches!(run(&*model, "xlcClear", vec![AutoValue::R8(9.0)]), Err(XlcError::Operand(_))));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn omitted_edit_delete_shifts_the_horizontal_selection_up_as_in_c2() {
+        let (host, model, _) = blank_report();
+        for (address, value) in [("B2", 22.0), ("C2", 23.0), ("B3", 32.0), ("C3", 33.0)] {
+            value2(&model, address, AutoValue::R8(value));
+        }
+        select_cells(&host, (2, 2), (2, 3));
+        model.context_changed(&host.session.borrow());
+        let app = model.application();
+        let selected = obj(invoke(&model, &app, "Selection", vec![]).unwrap());
+        let active = obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap());
+        assert_eq!(text(&model, &selected, "Address"), "$B$2:$C$2");
+        assert_eq!(text(&model, &active, "Address"), "$B$2");
+        done(run(&*model, "xlcEditDelete", vec![]));
+        assert_eq!((number(&model, "B2"), number(&model, "C2")), (32.0, 33.0));
+        for address in ["B3", "C3"] {
+            assert!(matches!(
+                invoke(&model, &range(&model, address), "Value2", vec![]),
+                Ok(AutoValue::Empty)
+            ));
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_workbook_insert_adds_and_activates_a_worksheet_before_the_active_sheet() {
+        let (host, model) = setup();
+        let before = sheet_names(&host);
+        done(xlc::execute(&*model, 354, &[AutoValue::I4(1)]));
+        let after = sheet_names(&host);
+        assert_eq!(&after[1..], before.as_slice());
+        let active = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        assert_eq!(text(&model, &active, "Name"), after[0]);
+        let invalid = xlc::execute(&*model, 354, &[AutoValue::R8(1.25)]);
+        assert!(matches!(invalid, Err(XlcError::Model(AutoError::Excel { number: 1004, .. }))), "{invalid:?}");
+        assert_eq!(sheet_names(&host), after);
+        done(xlc::execute(&*model, 354, &[]));
+        assert_eq!(&sheet_names(&host)[1..], after.as_slice());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_set_print_area_sets_a_range_and_clears_with_empty_text() {
+        let (_, model) = setup();
+        let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        let page = obj(invoke(&model, &sheet, "PageSetup", vec![]).unwrap());
+        let print_range = AutoValue::Object(range(&model, "B2:C3"));
+        done(xlc::execute(&*model, 22, &[print_range]));
+        assert_eq!(text(&model, &page, "PrintArea"), "$B$2:$C$3");
+        done(xlc::execute(&*model, 22, &[AutoValue::text("R5C4:R6C5")]));
+        assert_eq!(text(&model, &page, "PrintArea"), "$D$5:$E$6");
+        done(xlc::execute(&*model, 22, &[AutoValue::text("")]));
+        assert_eq!(text(&model, &page, "PrintArea"), "");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -5947,6 +6026,67 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(xml.contains("<c:min val=\"0\"/>"), "{xml}");
     assert!(xml.contains("<c:majorUnit val=\"25\"/>"), "{xml}");
     assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
+}
+
+/// dc-oxh8w.26: Chart.Axes resolves axes by kind (and scatter orientation), counts arguments and refuses
+/// invalid kinds and groups with 1004; a category axis cannot take IsAuto False.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_26__axes_resolve_by_kind_and_refuse_bad_arguments() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["", "Y"], &["1", "10"], &["2", "30"], &["3", "50"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B4");
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let is_1004 = |r: &Result<AutoValue, AutoError>| matches!(r, Err(AutoError::Excel { number: 1004, .. }));
+    // Argument counts and invalid enum values are Excel errors, not NotModelled.
+    for args in [
+        vec![AutoValue::I4(0)],
+        vec![AutoValue::I4(4)],
+        vec![AutoValue::I4(-1)],
+        vec![AutoValue::I4(1), AutoValue::I4(3)],
+        vec![AutoValue::I4(1), AutoValue::I4(0)],
+    ] {
+        let r = axes(args.clone());
+        assert!(is_1004(&r), "{args:?}: {r:?}");
+    }
+    let r = axes(vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::I4(1)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let value = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    let category = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    // IsAuto False on the category axis is 1004, and a put with no or two values is an argument error.
+    let r = invoke_kind(&model, &category, "MinimumScaleIsAuto", InvokeKind::Put, vec![AutoValue::Bool(false)]);
+    assert!(is_1004(&r), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![AutoValue::R8(1.0), AutoValue::R8(2.0)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    // A scatter chart has two value axes: xlCategory is the horizontal one.
+    select_cells(&host, (30, 1), (30, 1));
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let shape = obj(
+        invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(-1), AutoValue::I4(-4169)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &shape, "Chart", vec![]).unwrap());
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let x = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    let y = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    invoke_kind(&model, &x, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(7.0)]).unwrap();
+    invoke_kind(&model, &y, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(90.0)]).unwrap();
+    assert!(matches!(invoke(&model, &x, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 7.0));
+    assert!(matches!(invoke(&model, &y, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 90.0));
 }
 
 /// dc-oxh8w.12: axis titles and tick-label number formats set by a macro are saved in the chart part.

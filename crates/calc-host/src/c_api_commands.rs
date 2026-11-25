@@ -61,6 +61,7 @@ const fn c(
 pub const COMMANDS: &[XlcCommand] = &[
     c(4, "xlcSave", "SAVE", 0, "_Workbook.Save"),
     c(17, "xlcRun", "RUN", 2, "_Application.Run"),
+    c(22, "xlcSetPrintArea", "SET.PRINT.AREA", 1, "PageSetup.PrintArea"),
     c(31, "xlcCalculateNow", "CALCULATE.NOW", 0, "_Application.Calculate"),
     c(42, "xlcFormatNumber", "FORMAT.NUMBER", 1, "Range.NumberFormat"),
     c(47, "xlcColumnWidth", "COLUMN.WIDTH", 5, "Range.ColumnWidth"),
@@ -80,6 +81,7 @@ pub const COMMANDS: &[XlcCommand] = &[
     c(127, "xlcRowHeight", "ROW.HEIGHT", 4, "Range.RowHeight"),
     c(141, "xlcEcho", "ECHO", 1, "_Application.ScreenUpdating"),
     c(167, "xlcCalculateDocument", "CALCULATE.DOCUMENT", 0, "_Worksheet.Calculate"),
+    c(354, "xlcWorkbookInsert", "WORKBOOK.INSERT", 1, "Sheets.Add"),
     c(386, "xlcWorkbookName", "WORKBOOK.NAME", 2, "_Worksheet.Name"),
 ];
 
@@ -139,6 +141,7 @@ pub fn execute(model: &dyn ObjectModel, ordinal: u16, operands: &[AutoValue]) ->
     let result = match ordinal {
         4 => run.save(),
         17 => run.run_macro(),
+        22 => run.set_print_area(),
         31 => run.calculate_now(),
         42 => run.format_number(),
         47 => run.column_width(),
@@ -158,6 +161,7 @@ pub fn execute(model: &dyn ObjectModel, ordinal: u16, operands: &[AutoValue]) ->
         127 => run.row_height(),
         141 => run.echo(),
         167 => run.calculate_document(),
+        354 => run.workbook_insert(),
         386 => run.workbook_name(),
         _ => Err(XlcError::NotServed(ordinal)),
     };
@@ -245,6 +249,20 @@ impl Run<'_> {
         }
     }
 
+    /// An operand supplied as an object is borrowed; text and selection acquire a range.
+    fn with_range_operand<T>(
+        &self,
+        index: usize,
+        use_range: impl FnOnce(&ObjectRef) -> Result<T, XlcError>,
+    ) -> Result<T, XlcError> {
+        let range = self.range(index)?;
+        let result = use_range(&range);
+        if !matches!(self.operand(index), AutoValue::Object(_)) {
+            self.model.released(&range);
+        }
+        result
+    }
+
     fn active_coordinates(&self) -> Result<(u32, u32), XlcError> {
         let active = self.object(&self.application(), "ActiveCell")?;
         let coordinate = |member| match self.call(&active, member, InvokeKind::Get, vec![])? {
@@ -301,13 +319,18 @@ impl Run<'_> {
         self.method(&book, "Save", vec![])
     }
 
-    // ECHO (logical): screen updating. Omitted is not documented as a toggle or as TRUE.
+    // ECHO (logical): screen updating. C2 measured an omitted operand toggling the current value.
     fn echo(&self) -> Result<(), XlcError> {
-        if self.operand(0).is_missing() {
-            return Err(refuse("ECHO without an argument"));
-        }
-        let on = geometry::boolean(self.operand(0)).map_err(|_| XlcError::Operand("logical operand"))?;
-        self.put(&self.application(), "ScreenUpdating", AutoValue::Bool(on))
+        let app = self.application();
+        let on = if self.operand(0).is_missing() {
+            let AutoValue::Bool(current) = self.call(&app, "ScreenUpdating", InvokeKind::Get, vec![])? else {
+                return Err(XlcError::Operand("ScreenUpdating did not answer a Boolean"));
+            };
+            !current
+        } else {
+            geometry::boolean(self.operand(0)).map_err(|_| XlcError::Operand("logical operand"))?
+        };
+        self.put(&app, "ScreenUpdating", AutoValue::Bool(on))
     }
 
     // MESSAGE (logical, text): a number or logical shows the text in the status bar when it is
@@ -343,8 +366,8 @@ impl Run<'_> {
         }
     }
 
-    // FORMULA (formula_text, reference) enters the text, read in R1C1, in the reference (the
-    // selection's cell when omitted). FORMULA.FILL enters the one relative formula in every cell.
+    // FORMULA enters text in the active cell or the first cell of an explicit range (C2).
+    // FORMULA.FILL enters the relative formula in every cell of the range or selection.
     fn formula(&self, fill: bool) -> Result<(), XlcError> {
         let text = match self.operand(0) {
             AutoValue::Missing => return Err(XlcError::Operand("formula text")),
@@ -355,30 +378,47 @@ impl Run<'_> {
             | AutoValue::Bool(_)) => value.clone(),
             _ => return Err(XlcError::Operand("formula text")),
         };
-        let range = self.range(1)?;
-        if !fill {
-            let count = self.call(&range, "Count", InvokeKind::Get, vec![])?;
-            if !matches!(count, AutoValue::I4(1) | AutoValue::R8(1.0)) {
-                return Err(refuse("FORMULA over more than one cell"));
-            }
+        if !fill && self.operand(1).is_missing() {
+            let active = self.object(&self.application(), "ActiveCell")?;
+            let result = self.put(&active, "FormulaR1C1", text);
+            self.model.released(&active);
+            return result;
         }
-        self.put(&range, "FormulaR1C1", text)
+        self.with_range_operand(1, |range| {
+            if fill {
+                return self.put(range, "FormulaR1C1", text);
+            }
+            let count = self.call(range, "Count", InvokeKind::Get, vec![])?;
+            if matches!(count, AutoValue::I4(1) | AutoValue::R8(1.0)) {
+                return self.put(range, "FormulaR1C1", text);
+            }
+            let first = self.call(range, "Item", InvokeKind::Get, vec![AutoValue::I4(1), AutoValue::I4(1)])?;
+            let AutoValue::Object(first) = first else {
+                return Err(XlcError::Operand("Range.Item did not answer a range"));
+            };
+            let result = self.put(&first, "FormulaR1C1", text);
+            self.model.released(&first);
+            result
+        })
     }
 
-    // CLEAR (type_num) on the selection: 1 all, 2 formats, 3 formulas, 4 notes.
+    // CLEAR on a worksheet defaults to clearing its contents (type 3).
     fn clear(&self) -> Result<(), XlcError> {
-        if self.operand(0).is_missing() {
-            return Err(refuse("CLEAR without type_num"));
-        }
-        let member = match self.number(0)? {
-            1.0 => "Clear",
-            2.0 => "ClearFormats",
-            3.0 => "ClearContents",
-            4.0 => "ClearComments",
-            _ => return Err(XlcError::Operand("type_num")),
+        let member = if self.operand(0).is_missing() {
+            "ClearContents"
+        } else {
+            match self.number(0)? {
+                1.0 => "Clear",
+                2.0 => "ClearFormats",
+                3.0 => "ClearContents",
+                4.0 => "ClearComments",
+                _ => return Err(XlcError::Operand("type_num")),
+            }
         };
         let selection = self.object(&self.application(), "Selection")?;
-        self.method(&selection, member, vec![])
+        let result = self.method(&selection, member, vec![]);
+        self.model.released(&selection);
+        result
     }
 
     // SELECT (selection): the active cell argument is not served.
@@ -424,7 +464,14 @@ impl Run<'_> {
     fn shift(&self, member: &str, codes: [i32; 2]) -> Result<(), XlcError> {
         self.require_supported_operands(1, "INSERT with a second operand")?;
         if self.operand(0).is_missing() {
-            return Err(refuse("INSERT or EDIT.DELETE without shift_num"));
+            // INSERT can paste an active cut or copy. That command form remains unmodelled.
+            if member == "Insert" {
+                return Err(refuse("INSERT without shift_num"));
+            }
+            let selection = self.object(&self.application(), "Selection")?;
+            let result = self.method(&selection, member, vec![]);
+            self.model.released(&selection);
+            return result;
         }
         let shift = self.number(0)?;
         if !matches!(shift, 1.0 | 2.0 | 3.0 | 4.0) {
@@ -501,6 +548,57 @@ impl Run<'_> {
         let selection = self.object(&self.application(), "Selection")?;
         let result = self.method(&selection, "PasteSpecial", args);
         self.model.released(&selection);
+        result
+    }
+
+    // WORKBOOK.INSERT inserts a worksheet before the active worksheet.
+    fn workbook_insert(&self) -> Result<(), XlcError> {
+        match self.operand(0) {
+            AutoValue::Missing => {}
+            AutoValue::Text(_) => return Err(refuse("WORKBOOK.INSERT using a template")),
+            _ => match self.number(0)? {
+                1.0 => {}
+                2.0 | 3.0 | 4.0 | 6.0 | 7.0 => {
+                    return Err(refuse("WORKBOOK.INSERT of a non-worksheet sheet"));
+                }
+                _ => return Err(AutoError::excel(1004, "Invalid sheet type").into()),
+            },
+        }
+        let sheets = self.object(&self.application(), "Sheets")?;
+        let result = self.call(&sheets, "Add", InvokeKind::Method, vec![]);
+        self.model.released(&sheets);
+        if let AutoValue::Object(sheet) = result? {
+            self.model.released(&sheet);
+        }
+        Ok(())
+    }
+
+    // SET.PRINT.AREA sets the active worksheet's area, or clears it with empty text.
+    fn set_print_area(&self) -> Result<(), XlcError> {
+        if self.operand(0).is_missing() {
+            return Err(AutoError::excel(1004, "SET.PRINT.AREA requires a range or empty text").into());
+        }
+        let sheet = self.object(&self.application(), "ActiveSheet")?;
+        let result = (|| {
+            let address = if matches!(self.operand(0), AutoValue::Text(text) if text.utf16_code_units().is_empty()) {
+                AutoValue::text("")
+            } else {
+                self.with_range_operand(0, |range| {
+                    let owner = self.object(range, "Worksheet")?;
+                    let same_sheet = owner.key == sheet.key;
+                    self.model.released(&owner);
+                    if !same_sheet {
+                        return Err(refuse("SET.PRINT.AREA with a reference on another sheet"));
+                    }
+                    self.call(range, "Address", InvokeKind::Get, vec![])
+                })?
+            };
+            let page = self.object(&sheet, "PageSetup")?;
+            let result = self.put(&page, "PrintArea", address);
+            self.model.released(&page);
+            result
+        })();
+        self.model.released(&sheet);
         result
     }
 
