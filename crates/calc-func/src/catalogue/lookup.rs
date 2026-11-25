@@ -58,6 +58,7 @@ use super::comparison::{self, Want};
 use crate::call::{CellReader, EvalServices, FunctionFault, LazyArguments, Unreadable};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
+use crate::ported::text_kernels::date_integer_floor;
 use crate::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
@@ -926,7 +927,7 @@ fn index_number(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<f64> {
     site.number_argument(index, value)
 }
 
-/// XMATCH's and XLOOKUP's match_mode and search_mode, each read as a number and rounded down.
+/// XMATCH's and XLOOKUP's match_mode and search_mode use Excel's tolerant integer floor.
 /// An unknown mode, and wildcards with a binary search, are #VALUE!; regex matching
 /// (match_mode 3) is not modelled.
 fn modes(
@@ -938,7 +939,7 @@ fn modes(
         match argument {
             None => Ok(default),
             Some((_, value)) if value.is_missing() || value.is_empty() => Ok(0.0),
-            Some((index, value)) => index_number(site, index, value).map(f64::floor),
+            Some((index, value)) => index_number(site, index, value).map(date_integer_floor),
         }
     };
     let mode_number = read(match_mode, 0.0)?;

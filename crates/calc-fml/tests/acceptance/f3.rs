@@ -82,6 +82,29 @@ fn filterxml_preserves_errors_per_xpath_node() {
     }
 }
 
+/// Excel 16.0.20625 uses a tolerant floor for XMATCH and XLOOKUP mode arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn lookup_modes_floor_with_excel_integer_tolerance() {
+    let mut book = Book::new();
+    book.number("H1", -(2.0_f64.powi(-100)))
+        .number("H2", f64::from_bits(1.0_f64.to_bits() - 1))
+        .number("H3", f64::from_bits((-1.0_f64).to_bits() + 1));
+    for (formula, expected) in [
+        ("=XMATCH(15,{10;20;30},H1)", e(W::NA)),
+        ("=XMATCH(15,{10;20;30},-0.75)", n(1.0)),
+        ("=XMATCH(15,{10;20;30},H2)", n(2.0)),
+        ("=XMATCH(15,{10;20;30},H3)", n(1.0)),
+        ("=XMATCH(15,{10;20;30},1,H1)", e(W::Value)),
+        ("=XMATCH(15,{10;20;30},1,H2)", n(2.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,H1)", n(99.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,H2)", n(200.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,1,H1)", e(W::Value)),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sortby_lifts_each_order_argument() {
