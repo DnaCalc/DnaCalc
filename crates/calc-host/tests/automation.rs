@@ -8190,3 +8190,31 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
     assert!(r.is_err(), "{r:?}");
 }
+
+/// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value
+/// reads back, a non-Boolean is a type mismatch (as the iteration puts), a put without a value is 1004, and PrecisionAsDisplayed
+/// True is a typed refusal owned by dc-oxh8w.64 while False is accepted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
+    let (host, model) = setup();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let put = |target: &_, name: &str, value: AutoValue| invoke_kind(&model, target, name, InvokeKind::Put, vec![value]);
+    for on in [false, true, false] {
+        assert!(put(&app, "CalculateBeforeSave", AutoValue::Bool(on)).is_ok());
+        assert!(matches!(invoke(&model, &app, "CalculateBeforeSave", vec![]), Ok(AutoValue::Bool(v)) if v == on));
+        assert_eq!(host.session.borrow().host().calculate_before_save(), on);
+    }
+    assert!(matches!(put(&app, "CalculateBeforeSave", AutoValue::text("yes")), Err(AutoError::Status(_))));
+    assert_eq!(
+        invoke_kind(&model, &app, "CalculateBeforeSave", InvokeKind::Put, vec![]).unwrap_err().number(),
+        1004
+    );
+    assert!(put(&book, "PrecisionAsDisplayed", AutoValue::Bool(false)).is_ok());
+    assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
+    let refused = put(&book, "PrecisionAsDisplayed", AutoValue::Bool(true)).unwrap_err();
+    assert!(matches!(refused, AutoError::NotModelled { owner: "dc-oxh8w.64", .. }), "{refused:?}");
+    assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
+    assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
+}

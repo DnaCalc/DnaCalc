@@ -32,6 +32,8 @@ impl WorkbookAutomation {
         handlers.on("Application", "CalculationVersion", InvokeKind::Get, Self::get_calculation_version);
         handlers.on("Application", "OperatingSystem", InvokeKind::Get, Self::get_operating_system);
         handlers.on("Application", "CalculateBeforeSave", InvokeKind::Get, Self::get_calculate_before_save);
+        handlers.on("Application", "CalculateBeforeSave", InvokeKind::Put, Self::put_calculate_before_save);
+        handlers.on("Workbook", "PrecisionAsDisplayed", InvokeKind::Put, Self::put_precision_as_displayed);
         handlers.on("Application", "Iteration", InvokeKind::Get, Self::get_iteration);
         handlers.on("Application", "Iteration", InvokeKind::Put, Self::put_iteration);
         handlers.on("Application", "MaxIterations", InvokeKind::Get, Self::get_max_iterations);
@@ -89,6 +91,33 @@ impl WorkbookAutomation {
             s.host().calculate_before_save()
         }, |n| n.calculate_before_save)?;
         Ok(AutoValue::Bool(value))
+    }
+
+    /// `Application.CalculateBeforeSave = True/False`; a non-Boolean is 1004.
+    fn put_calculate_before_save(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.mutate(target, call, |_, _| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            Ok(SkinIntent::SetCalculateBeforeSave(geometry::boolean(call.arg(0))?))
+        })
+    }
+
+    /// `Workbook.PrecisionAsDisplayed = False` returns to full precision, which the engine always
+    /// keeps. True would round the stored values to their displayed formats: refused.
+    fn put_precision_as_displayed(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.mutate(target, call, |_, _| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            if geometry::boolean(call.arg(0))? {
+                return Err(AutoError::not_modelled(
+                    "Workbook.PrecisionAsDisplayed = True (rounds stored values to their displayed formats)",
+                    "dc-oxh8w.64",
+                ));
+            }
+            Ok(SkinIntent::SetFullPrecision)
+        })
     }
 
     fn iteration_settings(&self, what: &str) -> Result<calc_doc_model::IterationSettings, AutoError> {

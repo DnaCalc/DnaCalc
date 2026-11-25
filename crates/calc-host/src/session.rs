@@ -212,6 +212,10 @@ pub enum SkinIntent {
     },
     /// Sets the host's calculation mode; leaving manual mode recalculates.
     SetCalcMode(CalcMode),
+    /// Sets `Application.CalculateBeforeSave` (dc-oxh8w.53).
+    SetCalculateBeforeSave(bool),
+    /// Sets `Workbook.PrecisionAsDisplayed` to false (dc-oxh8w.53); the engine keeps full precision.
+    SetFullPrecision,
     /// Moves the selection. A selection interest follows it.
     Select(Selection),
     /// Moves a subscription's interest.
@@ -1179,6 +1183,14 @@ impl HostSession {
                 if mode != CalcMode::Manual {
                     self.recalculate(&mut receipt);
                 }
+                Ok(())
+            }
+            SkinIntent::SetCalculateBeforeSave(on) => {
+                self.host.options.calculate_before_save = Some(on);
+                Ok(())
+            }
+            SkinIntent::SetFullPrecision => {
+                self.host.options.precision_as_displayed = Some(false);
                 Ok(())
             }
             SkinIntent::Select(selection) => self.select(selection, &mut receipt),
