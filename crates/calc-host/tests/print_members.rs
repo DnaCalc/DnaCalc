@@ -259,3 +259,24 @@ fn dc_oxh8w_8__manual_breaks_follow_the_stored_breaks() {
     assert!(manual_breaks(&setup, true).is_empty());
     assert_eq!(manual_breaks(&setup, false).len(), 1);
 }
+
+/// dc-oxh8w.11: the page count and the breaks come from the plan print preview draws. Letter portrait A1:J120 is
+/// Excel PB1 c1 (6 pages, H A48 and A95, V J1); landscape and 150 per cent change the count as PB1 c3/c6 do for their
+/// layouts. The descriptor has no `Pages` type yet (regenerate on Windows), so this reads the host route directly.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_11_page_count_follows_the_setup() {
+    use calc_host::print_plan::{page_count, print_geometry, print_plan};
+    let (mut s, sheet) = open();
+    assert_eq!(page_count(s.host(), sheet), Ok(0));
+    let key = calc_host::value::CellKey::new(sheet, 120, 10).unwrap();
+    assert!(s.dispatch(SkinIntent::EnterCell { at: key, text: "1".into() }).accepted());
+    assert_eq!(page_count(s.host(), sheet), Ok(6));
+    let plan = print_plan(s.host(), sheet, &print_geometry(s.host(), sheet), (0, 0)).unwrap();
+    let breaks = plan.breaks();
+    assert_eq!(breaks.rows, [(48, false), (95, false)]);
+    assert_eq!(breaks.columns, [(10, false)]);
+    // PB1 c6: scale 150 on A1:J120 is 8 pages.
+    set(&mut s, sheet, "Zoom", V::Int(150));
+    assert_eq!(page_count(s.host(), sheet), Ok(8));
+}

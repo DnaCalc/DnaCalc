@@ -47,6 +47,7 @@ mod chart_export;
 mod chart_format;
 mod chart_labels;
 mod report_draw;
+mod sheet_copy;
 mod structure;
 mod value;
 
@@ -277,6 +278,7 @@ impl WorkbookAutomation {
         Self::register_mutation(&mut handlers);
         Self::register_structure(&mut handlers);
         Self::register_chart_sheets(&mut handlers);
+        Self::register_sheet_copy(&mut handlers);
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);

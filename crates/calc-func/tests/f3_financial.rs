@@ -12,6 +12,121 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 16.0.20625.20108 stores the half power from x87 precision before the reciprocal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn half_powers_store_the_square_root_from_x87_precision() {
+    let rows: &[(&str, &[u64], u64)] = &[
+        (
+            "POWER",
+            &[
+                0x3ff0_0000_0028_3c23,
+                0x3fe0_0000_0000_0000,
+            ],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "POWER",
+            &[
+                0x3ff0_0000_0028_3c23,
+                0xbfe0_0000_0000_0000,
+            ],
+            0x3fef_ffff_ffd7_c3dc,
+        ),
+        (
+            "SQRT",
+            &[
+                0x3ff0_0000_0028_3c23,
+            ],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "SERIESSUM",
+            &[0x3ff0_0000_0028_3c23, 0x3fe0_0000_0000_0000, 1.0f64.to_bits(), 1.0f64.to_bits()],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "FV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0xbfe0_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+            ],
+            0x3fe0_0000_65f5_9571,
+        ),
+        (
+            "FV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0x3fe0_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbfe0_0000_65cd_594d,
+        ),
+        (
+            "PV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0xbfe0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbff0_0000_0014_1e12,
+        ),
+        (
+            "DDB",
+            &[
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x4000_0000_0000_0000,
+                0x3ff8_0000_0000_0000,
+                0x3ce2_0000_0000_0000,
+            ],
+            0x3cd1_ffff_ffff_fffe,
+        ),
+        (
+            "RATE",
+            &[
+                0xbfe0_0000_0000_0000,
+                0xc001_2a4b_d446_d9c6,
+                0xbfba_436d_5d1a_78f3,
+                0xbfef_0c29_fcea_645e,
+                0x0000_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbe70_bc3b_81fd_ca90,
+        ),
+        (
+            "RATE",
+            &[
+                0xbfe0_0000_0000_0000,
+                0xc001_2a4b_d446_d9c6,
+                0xbfba_436d_5d1a_78f3,
+                0xbfef_0c29_fcea_645e,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbe93_bd46_70d4_19ba,
+        ),
+    ];
+    for &(name, args, expected) in rows {
+        let args = args.iter().map(|&bits| n(f64::from_bits(bits))).collect();
+        exact(call(name, args), f64::from_bits(expected));
+    }
+    text(
+        call(
+            "IMPOWER",
+            vec![n(f64::from_bits(0x3e5d_c950_36c2_8ad6)), n(-0.5)],
+        ),
+        "6004.00534941738",
+    );
+}
+
 /// Independent Excel 20527 controls and a nearby excluded rounding case.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -749,6 +864,33 @@ fn duration_rejects_logical_arguments_and_checks_frequency_before_basis() {
         args[5] = t("x");
         error(dated(function, args), Num);
     }
+}
+
+/// Excel 16.0.20625 reports out-of-range PRICE dates as #NUM! with or without a basis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn price_checks_date_domain_and_rejects_logical_frequency() {
+    for slot in 0..2 {
+        for serial in [-1.0, -0.5, 0.0, 0.5, 2_958_466.0] {
+            let mut args = vec![n(45_000.0), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0)];
+            args[slot] = n(serial);
+            error(dated("PRICE", args.clone()), Num);
+            args.push(n(0.0));
+            error(dated("PRICE", args), Num);
+        }
+    }
+    error(
+        dated("PRICE", vec![n(-1.0), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0), t("x")]),
+        Value,
+    );
+    error(
+        dated("PRICE", vec![t("x"), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0), n(-1.0)]),
+        Num,
+    );
+    error(
+        dated("PRICE", vec![n(46_000.0), n(45_000.0), n(-0.1), n(0.05), n(100.0), b(false)]),
+        Value,
+    );
 }
 
 /// Original corpus date-zero and adjacent-date failures, confirmed on Excel20527.

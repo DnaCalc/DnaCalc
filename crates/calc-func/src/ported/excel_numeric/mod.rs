@@ -417,25 +417,12 @@ pub(crate) fn exp_portable(x: f64) -> f64 {
     scale + scale * tmp
 }
 
-/// The positive-power staging of Excel's `POWER(x, y)`: `p = exp(y · ln x)` via
-/// the x87 `exp`/`ln`, with the product formed as the x87 **double-rounded**
-/// `t = RN53(RN64(y · ln x))`. Bit-exact to 64-bit Excel on `x86_64`.
+/// Positive fractional power used by the depreciation kernels.
 ///
-/// `base` must be finite and `> 0`, `exp` finite and `> 0`. The caller
-/// (`power_fn`) owns the surrounding algorithm: sign of a negative base, the
-/// `y < 0` reciprocal via [`excel_x87_recip`], the zero/integer dispatch, and
-/// the worksheet error/subnormal publication rules. The returned `p` is the raw
-/// positive power and may be `+Inf`, `+0`, or subnormal.
+/// They retain the binary64 square-root shortcut. Worksheet POWER handles its
+/// half powers in the worksheet kernel. The distribution substrate uses the
+/// raw log/exp chain, including for half exponents.
 pub(crate) fn excel_pow_positive(base: f64, exp: f64) -> f64 {
-    // Excel special-cases exponent 0.5 to the correctly-rounded hardware `sqrt`
-    // (SSE2 SQRTSD), NOT `exp(0.5·ln x)` — the latter is 1 ULP off (e.g.
-    // POWER(2, 0.5) = √2 exactly). `exp` here is `|y|`, so this also covers the
-    // `y = -0.5` case, whose positive power is then reciprocated by the caller.
-    // (Live-Excel confirmed 400/400; corrects the reciprocal-staging reference.)
-    //
-    // The 0.5 shortcut belongs to the POWER wrapper, NOT the underlying pow:
-    // the distribution substrate's pow sites hit the raw chain even at
-    // exponent 0.5 (W109 b24 s0p5: CR sqrt 412/800 vs chain 800/800).
     if exp == 0.5 {
         return base.sqrt();
     }

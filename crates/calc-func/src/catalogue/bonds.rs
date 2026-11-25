@@ -60,8 +60,8 @@ fn yield_date(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<
     super::kit::checked_date_serial(date_1900(site, a, index, sv)?)
 }
 
-/// YIELD and YIELDDISC validate their optional basis before required arguments.
-fn yield_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+/// PRICE, YIELD and YIELDDISC validate their optional basis before required arguments.
+fn validated_bond_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     let basis = if given(a, index) { num_without_logical(site, a, index)? } else { 0.0 };
     if basis < 0.0 || !(0.0..=4.0).contains(&basis.trunc()) {
         return fail(WorksheetErrorCode::Num);
@@ -69,21 +69,27 @@ fn yield_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
     Ok(basis)
 }
 
-/// DURATION and MDURATION check each date's range and the frequency as they read them.
-/// A date that truncates to zero fails after reading the remaining arguments.
-fn duration_args(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 6]> {
-    let date = |index: usize| {
-        reject_logical(&a[index])?;
-        checked_date_serial(date_1900(site, a, index, sv)?)
-    };
-    let settlement = date(0)?;
-    let maturity = date(1)?;
-    let coupon = num_without_logical(site, a, 2)?;
-    let yield_rate = num_without_logical(site, a, 3)?;
-    let frequency = num_without_logical(site, a, 4)?;
+fn bond_date(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<'_>) -> Step<f64> {
+    reject_logical(&a[index])?;
+    checked_date_serial(date_1900(site, a, index, sv)?)
+}
+
+fn bond_frequency(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+    let frequency = num_without_logical(site, a, index)?;
     if let Err(error) = bond::freq(frequency) {
         return fail(bond::map_bond_core_error_to_ws(&error));
     }
+    Ok(frequency)
+}
+
+/// DURATION and MDURATION check each date's range and the frequency as they read them.
+/// A date that truncates to zero fails after reading the remaining arguments.
+fn duration_args(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 6]> {
+    let settlement = bond_date(site, a, 0, sv)?;
+    let maturity = bond_date(site, a, 1, sv)?;
+    let coupon = num_without_logical(site, a, 2)?;
+    let yield_rate = num_without_logical(site, a, 3)?;
+    let frequency = bond_frequency(site, a, 4)?;
     let basis = if given(a, 5) { num_without_logical(site, a, 5)? } else { 0.0 };
     if settlement < 1.0 || maturity < 1.0 {
         return fail(WorksheetErrorCode::Num);
@@ -175,11 +181,20 @@ ported_shared_family! {
     code: CODE;
     declarations: DECLARATIONS;
     1 price_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::price_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, num(s, a, 5)?, Some(or(s, a, 6, 0.0)?)))
+        let basis = validated_bond_basis(s, a, 6)?;
+        let settlement = bond_date(s, a, 0, sv)?;
+        let maturity = bond_date(s, a, 1, sv)?;
+        let rate = num_without_logical(s, a, 2)?;
+        let yield_rate = num_without_logical(s, a, 3)?;
+        let redemption = num_without_logical(s, a, 4)?;
+        let frequency = bond_frequency(s, a, 5)?;
+        if settlement < 1.0 || maturity < 1.0 {
+            return fail(WorksheetErrorCode::Num);
+        }
+        bond_out(s, bond::price_kernel(settlement, maturity, rate, yield_rate, redemption, frequency, Some(basis)))
     }
     2 yield_fn |s, a, sv| {
-        let basis = yield_basis(s, a, 6)?;
+        let basis = validated_bond_basis(s, a, 6)?;
         let settlement = yield_date(s, a, 0, sv)?;
         let maturity = yield_date(s, a, 1, sv)?;
         let (rate, price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?);
@@ -204,7 +219,7 @@ ported_shared_family! {
     }
     7 yielddisc_fn |s, a, sv| {
         // Excel reads and validates the optional basis before its required slots.
-        let basis = yield_basis(s, a, 4)?;
+        let basis = validated_bond_basis(s, a, 4)?;
         let (settlement, maturity) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?);
         let (price, redemption) = (required_num(s, a, 2)?, required_num(s, a, 3)?);
         bond_out(s, bond::yielddisc_kernel(settlement, maturity, price, redemption, Some(basis)))
