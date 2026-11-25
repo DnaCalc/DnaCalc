@@ -236,7 +236,35 @@ pub struct WorkbookEventFailures {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WorkbookEventObserverId(u64);
 
+/// Why a value a macro read is not a plain calculated or authored value (dc-oxh8w.38).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObservedProvenance {
+    /// The cell holds the value loaded from the file; no calculation produced it.
+    FileCache,
+    /// The cell's last value is stale: its inputs changed and it has not been recalculated.
+    Stale,
+    /// The calculation read an external link.
+    ExternalLink,
+    /// The calculation was held by a circular-reference rule.
+    CircularHeld,
+    /// The calculation read an imported or boundary cache, or carries observations.
+    CachedInputs,
+    /// The calculation carries no stamp certifying its reads.
+    Uncertified,
+}
+
+/// A macro or event read of a cell whose value is a cache or uncertified. The read is admitted,
+/// as Excel returns the loaded cache; the record keeps its provenance traceable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MacroObservation {
+    /// The cell read.
+    pub at: calc_value::CellKey,
+    /// Why its value is not a plain calculated value.
+    pub provenance: ObservedProvenance,
+}
+
 pub(crate) struct WorkbookEventState {
+    pub(crate) observations: std::cell::RefCell<VecDeque<MacroObservation>>,
     owner: Option<Rc<dyn WorkbookEventHandler>>,
     observers: BTreeMap<WorkbookEventObserverId, Rc<dyn WorkbookEventObserver>>,
     application_observer: Option<WorkbookEventObserverId>,
@@ -252,6 +280,7 @@ pub(crate) struct WorkbookEventState {
 impl Default for WorkbookEventState {
     fn default() -> Self {
         Self {
+            observations: Default::default(),
             owner: None,
             observers: BTreeMap::new(),
             application_observer: None,
@@ -370,6 +399,19 @@ impl HostSession {
             }
         }
         first_failure.map_or(Ok(()), Err)
+    }
+
+    /// The cached or uncertified cell values macros have read since the last drain (bounded to
+    /// the latest 1024), oldest first.
+    pub fn take_macro_observations(&mut self) -> Vec<MacroObservation> {
+        self.workbook_events.observations.get_mut().drain(..).collect()
+    }
+    pub(crate) fn record_macro_observation(&self, observation: MacroObservation) {
+        let mut log = self.workbook_events.observations.borrow_mut();
+        if log.len() == 1024 {
+            log.pop_front();
+        }
+        log.push_back(observation);
     }
 
     /// Inspect the bounded event report without editing or invalidating the workbook.

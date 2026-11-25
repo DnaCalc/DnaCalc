@@ -1494,22 +1494,34 @@ fn auto_value(value: &CalcValue) -> Reply {
         _ => return Err(AutoError::not_modelled("Range.Value cell kind", OWNER)),
     })
 }
-// A copied event value outlives its read in mutable VBA state. Until that state
-// carries observation provenance, file projects cannot erase these qualifications.
-fn event_input_needs_provenance(value: &ProjectedValue) -> bool {
+// A macro read of a cache or an uncertified value is admitted, as Excel returns the loaded cache;
+// the host records the observation with its provenance so the use stays traceable.
+fn observed_provenance(value: &ProjectedValue) -> Option<crate::ObservedProvenance> {
+    use crate::ObservedProvenance as P;
     match value {
-        ProjectedValue::FileCached(_) | ProjectedValue::Stale(_) => true,
+        ProjectedValue::FileCached(_) => Some(P::FileCache),
+        ProjectedValue::Stale(_) => Some(P::Stale),
         ProjectedValue::Calculated { calculation, .. } => {
-            calculation.reads_external_links()
-                || calculation.held_by_circular_rule()
-                || calculation.stamp().is_none_or(|stamp| {
-                    stamp.reads.uses_imported_cache
-                        || stamp.reads.uses_boundary_cache
-                        || stamp.reads.legacy_boundary
-                        || !stamp.reads.observations.is_empty()
-                })
+            if calculation.reads_external_links() {
+                Some(P::ExternalLink)
+            } else if calculation.held_by_circular_rule() {
+                Some(P::CircularHeld)
+            } else {
+                match calculation.stamp() {
+                    None => Some(P::Uncertified),
+                    Some(stamp)
+                        if stamp.reads.uses_imported_cache
+                            || stamp.reads.uses_boundary_cache
+                            || stamp.reads.legacy_boundary
+                            || !stamp.reads.observations.is_empty() =>
+                    {
+                        Some(P::CachedInputs)
+                    }
+                    Some(_) => None,
+                }
+            }
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -1536,12 +1548,22 @@ fn read_session(
         .cells()
         .iter()
         .map(|cell| match cell.value() {
-            value if strict_provenance && event_input_needs_provenance(value) => Err(
-                AutoError::not_modelled(
-                    "File-project event reads with cached or uncertified provenance",
-                    "dc-oxh8w.38",
-                ),
-            ),
+            value if strict_provenance && observed_provenance(value).is_some() => {
+                session.record_macro_observation(crate::MacroObservation {
+                    at: cell.at(),
+                    provenance: observed_provenance(value).expect("checked"),
+                });
+                match value {
+                    ProjectedValue::Calculated { value: v, .. } => Ok(v.clone()),
+                    ProjectedValue::FileCached(cache) => Ok(cache.value().to_value()),
+                    ProjectedValue::Stale(stale) => Ok(stale
+                        .last_value()
+                        .cloned()
+                        .or_else(|| stale.file_cache().map(|c| c.value().to_value()))
+                        .unwrap_or_else(CalcValue::empty)),
+                    _ => unreachable!("only cached or calculated values carry provenance"),
+                }
+            }
             ProjectedValue::Empty => Ok(CalcValue::empty()),
             ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => {
                 Ok(v.clone())
