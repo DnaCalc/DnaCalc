@@ -93,7 +93,7 @@ fn basis(v: f64) -> Result<DayCountBasis, BondCoreEvalError> {
         _ => Err(derr(WorksheetErrorCode::Num)),
     }
 }
-fn freq(v: f64) -> Result<i64, BondCoreEvalError> {
+pub(crate) fn freq(v: f64) -> Result<i64, BondCoreEvalError> {
     if !v.is_finite() {
         return Err(derr(WorksheetErrorCode::Num));
     }
