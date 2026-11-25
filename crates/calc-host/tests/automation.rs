@@ -6607,7 +6607,7 @@ fn dc_oxh8w_31__tick_label_codes_and_unlinking() {
 }
 
 /// dc-oxh8w.61: `Border` of the chart area and the plot area (Color BGR, LineStyle, Weight) saves `a:ln` beside the fill;
-/// a category axis takes a tick-label format; bad values are 1004; `Series.Border` refuses typed under dc-oxh8w.62.
+/// a category axis takes a tick-label format; bad values are 1004; `Series.Border` refuses typed under dc-oxh8w.68.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_61__borders_of_chart_and_plot_area_and_category_axis_formats() {
@@ -7941,6 +7941,39 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     assert_eq!(sheet_names(&host).len(), 8);
 }
 
+/// dc-oxh8w.47: Worksheet.Visible reads and writes xlSheetVisible (-1), xlSheetHidden (0) and xlSheetVeryHidden (2);
+/// True and False map to visible and hidden; the last visible sheet cannot be hidden and other values are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_47__worksheet_visible_get_and_put() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let visible = |o: &ObjectRef| invoke_kind(&model, o, "Visible", InvokeKind::Get, vec![]).unwrap();
+    let put = |o: &ObjectRef, v: AutoValue| invoke_kind(&model, o, "Visible", InvokeKind::Put, vec![v]);
+    assert!(matches!(visible(&first), AutoValue::I4(-1)), "{:?}", visible(&first));
+    put(&first, AutoValue::I4(0)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(0)));
+    put(&first, AutoValue::I4(2)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(2)));
+    put(&first, AutoValue::Bool(true)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(-1)));
+    put(&first, AutoValue::Bool(false)).unwrap();
+    assert!(matches!(visible(&first), AutoValue::I4(0)));
+    // The first sheet is hidden: the added sheet is the last visible one and cannot be hidden.
+    for v in [AutoValue::I4(0), AutoValue::Bool(false), AutoValue::I4(2)] {
+        let last = put(&added, v);
+        assert!(matches!(last, Err(AutoError::Excel { number: 1004, .. })), "{last:?}");
+    }
+    assert!(matches!(visible(&added), AutoValue::I4(-1)));
+    let bad = put(&added, AutoValue::I4(7));
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    put(&first, AutoValue::I4(-1)).unwrap();
+    put(&added, AutoValue::I4(2)).unwrap();
+    assert!(matches!(visible(&added), AutoValue::I4(2)));
+}
+
 /// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
 /// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8088,4 +8121,244 @@ fn dc_oxh8w_46__display_alerts_and_cut_copy_mode() {
     // Only False (and the xlCopy/xlCut constants Excel reports) are assignable here.
     let bad = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![AutoValue::I4(7)]);
     assert!(bad.is_err(), "{bad:?}");
+}
+
+/// Inside a worksheet function call the application and workbook settings answer from the host
+/// state the evaluation carries, the same values the session reads give (dc-oxh8w.52).
+struct SettingsProbe {
+    model: Weak<WorkbookAutomation>,
+    seen: Rc<RefCell<Vec<(String, String)>>>,
+}
+impl std::fmt::Debug for SettingsProbe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SettingsProbe")
+    }
+}
+impl UserFunction for SettingsProbe {
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        panic!("invocation required")
+    }
+    fn call_with_context(
+        &self,
+        _: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let loan = Loan(RefCell::new(context));
+        INVOCATION.set(&loan, || {
+            let model = self.model.upgrade().unwrap();
+            let app = model.application();
+            let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+            let mut seen = self.seen.borrow_mut();
+            for (name, target) in [
+                ("Calculation", &app),
+                ("CalculateBeforeSave", &app),
+                ("Iteration", &app),
+                ("MaxIterations", &app),
+                ("MaxChange", &app),
+                ("CalculationState", &app),
+                ("Date1904", &book),
+                ("PrecisionAsDisplayed", &book),
+            ] {
+                seen.push((name.to_owned(), format!("{:?}", invoke(&model, target, name, vec![]))));
+            }
+            Ok(CalcValue::number(1.))
+        })
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn settings_read_inside_a_worksheet_function_call() {
+    let (host, model) = setup();
+    let app = model.application();
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut functions = CallableTable::new();
+    functions
+        .register("SettingsProbe", Rc::new(SettingsProbe { model: Rc::downgrade(&model), seen: seen.clone() }))
+        .unwrap();
+    host.session.borrow_mut().set_user_functions(functions);
+    let caller = at(&host, 20, 5);
+    // Expected from the session's own reads, outside any call.
+    let outside: Vec<(String, String)> = [
+        ("Calculation", &app),
+        ("CalculateBeforeSave", &app),
+        ("Iteration", &app),
+        ("MaxIterations", &app),
+        ("MaxChange", &app),
+    ]
+    .iter()
+    .map(|(name, target)| (name.to_string(), format!("{:?}", invoke(&model, target, name, vec![]))))
+    .collect();
+    enter(&host, caller, "=SettingsProbe()");
+    model.context_changed(&host.session.borrow());
+    host.session.borrow_mut().dispatch(SkinIntent::Recalculate);
+    while host.session.borrow().has_pending_calculation() {
+        host.session.borrow_mut().advance_calculation();
+    }
+    let seen = seen.borrow();
+    assert!(!seen.is_empty(), "the probe ran");
+    for (name, expected) in &outside {
+        let got = seen.iter().rev().find(|(n, _)| n == name).unwrap();
+        assert_eq!(&got.1, expected, "{name} inside the call");
+    }
+    let state = seen.iter().rev().find(|(n, _)| n == "CalculationState").unwrap();
+    assert_eq!(state.1, "Ok(I4(1))", "xlCalculating inside a call");
+    for name in ["Date1904", "PrecisionAsDisplayed"] {
+        let got = seen.iter().rev().find(|(n, _)| n == name).unwrap();
+        assert!(got.1.starts_with("Ok(Bool("), "{name}: {}", got.1);
+    }
+}
+
+/// dc-tqcvu: a macro adds rules with `FormatConditions.Add` (cell value and expression), sets their `Interior.Color`
+/// and `Font` afterwards, reads Type/Operator/Formula1/Formula2/Count/Item back and deletes; the saved workbook
+/// reopens with the same rules and formats. Bad types, missing operators or formulas are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_tqcvu__format_conditions_add_set_interior_and_font_and_delete() {
+    let (host, model, _) = blank_report();
+    let conditions_of = |model: &WorkbookAutomation, address: &str| {
+        let target = range(model, address);
+        let conditions = obj(invoke(model, &target, "FormatConditions", vec![]).unwrap());
+        model.released(&target);
+        conditions
+    };
+    let count = |model: &WorkbookAutomation, conditions: &ObjectRef| int(invoke(model, conditions, "Count", vec![]).unwrap());
+    let add = |model: &WorkbookAutomation, conditions: &ObjectRef, args: Vec<AutoValue>| {
+        invoke_kind(model, conditions, "Add", InvokeKind::Method, args)
+    };
+    let conditions = conditions_of(&model, "B2:B6");
+    assert_eq!(count(&model, &conditions), 0);
+    let greater = obj(add(&model, &conditions, vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")]).unwrap());
+    assert_eq!(int(invoke(&model, &greater, "Type", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &greater, "Operator", vec![]).unwrap()), 5);
+    assert_eq!(text(&model, &greater, "Formula1"), "=3");
+    let interior = obj(invoke(&model, &greater, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 255);
+    let rule_font = obj(invoke(&model, &greater, "Font", vec![]).unwrap());
+    put_font(&model, &rule_font, "Bold", AutoValue::Bool(true)).unwrap();
+    put_font(&model, &rule_font, "Color", AutoValue::I4(65_280)).unwrap();
+    assert!(matches!(invoke(&model, &rule_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &rule_font, "Color", vec![]).unwrap()), 65_280);
+    let between = obj(add(
+        &model,
+        &conditions,
+        vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::text("1"), AutoValue::I4(9)],
+    )
+    .unwrap());
+    assert_eq!(text(&model, &between, "Formula2"), "=9");
+    let expression = obj(add(&model, &conditions, vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>B3")]).unwrap());
+    assert_eq!(int(invoke(&model, &expression, "Type", vec![]).unwrap()), 2);
+    assert_eq!(count(&model, &conditions), 3);
+    // A range elsewhere does not see these rules.
+    assert_eq!(count(&model, &conditions_of(&model, "D1:D2")), 0);
+    let second = obj(invoke_kind(&model, &conditions, "Item", InvokeKind::Method, vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &second, "Formula2"), "=9");
+    // Errors are 1004: unknown type, missing operator, missing formula, between without Formula2, subscript.
+    for args in [
+        vec![AutoValue::I4(99)],
+        vec![AutoValue::I4(1)],
+        vec![AutoValue::I4(1), AutoValue::I4(5)],
+        vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::text("1")],
+        vec![AutoValue::I4(1), AutoValue::I4(42), AutoValue::text("1")],
+        vec![AutoValue::I4(2)],
+    ] {
+        let r = add(&model, &conditions, args.clone());
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
+    }
+    assert_eq!(count(&model, &conditions), 3);
+    let r = invoke_kind(&model, &conditions, "Item", InvokeKind::Method, vec![AutoValue::I4(4)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    invoke_kind(&model, &greater, "StopIfTrue", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(matches!(invoke(&model, &greater, "StopIfTrue", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &greater, "Priority", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &expression, "Priority", vec![]).unwrap()), 3);
+    // The saved workbook reopens with the rules and the rule's own format.
+    let reopened = reopen_formatting(&host);
+    let again = conditions_of(&reopened, "B2:B6");
+    assert_eq!(count(&reopened, &again), 3);
+    let first = obj(invoke_kind(&reopened, &again, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(text(&reopened, &first, "Formula1"), "=3");
+    let interior = obj(invoke(&reopened, &first, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &interior, "Color", vec![]).unwrap()), 255);
+    // Delete one rule, then the rest.
+    invoke_kind(&model, &greater, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count(&model, &conditions), 2);
+    invoke_kind(&model, &conditions, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count(&model, &conditions), 0);
+}
+
+/// dc-orxz0: `Workbook.Styles` with Count, Item (index and name), Add and Style.Delete. A style a macro adds applies to
+/// ranges, saves and reopens; a duplicate or empty name, an unknown name, deleting Normal and deleting a style in use
+/// are refused (1004 where Excel answers an error).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let before = int(invoke(&model, &styles, "Count", vec![]).unwrap());
+    assert!(before >= 1);
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("normal")]).unwrap());
+    assert_eq!(text(&model, &normal, "Name"), "Normal");
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine")]).unwrap());
+    assert_eq!(text(&model, &mine, "Name"), "Mine");
+    assert!(matches!(invoke(&model, &mine, "BuiltIn", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
+    let last = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::I4(before as i32 + 1)]).unwrap());
+    assert_eq!(text(&model, &last, "Name"), "Mine");
+    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::text("")], vec![AutoValue::I4(3)]] {
+        let r = invoke_kind(&model, &styles, "Add", InvokeKind::Method, args.clone());
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
+    }
+    for item in [AutoValue::text("nope"), AutoValue::I4(0), AutoValue::I4(before as i32 + 2)] {
+        let r = invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![item.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{item:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &normal, "Delete", InvokeKind::Method, vec![]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    // Apply it, save, reopen: the style is still there and still applied.
+    let target = range(&model, "B2");
+    invoke_kind(&model, &target, "Style", InvokeKind::Put, vec![AutoValue::text("Mine")]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let book2 = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles2 = obj(invoke(&reopened, &book2, "Styles", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &styles2, "Count", vec![]).unwrap()), before + 1);
+    let there = range(&reopened, "B2");
+    let applied = obj(invoke(&reopened, &there, "Style", vec![]).unwrap());
+    assert_eq!(text(&reopened, &applied, "Name"), "Mine");
+    // An unused style added in this session deletes; one a cell uses is refused.
+    let spare = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Spare")]).unwrap());
+    invoke_kind(&model, &spare, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
+    let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
+    assert!(r.is_err(), "{r:?}");
+}
+
+/// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value
+/// reads back, a non-Boolean is a type mismatch (as the iteration puts), a put without a value is 1004, and PrecisionAsDisplayed
+/// True is a typed refusal owned by dc-oxh8w.64 while False is accepted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
+    let (host, model) = setup();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let put = |target: &_, name: &str, value: AutoValue| invoke_kind(&model, target, name, InvokeKind::Put, vec![value]);
+    for on in [false, true, false] {
+        assert!(put(&app, "CalculateBeforeSave", AutoValue::Bool(on)).is_ok());
+        assert!(matches!(invoke(&model, &app, "CalculateBeforeSave", vec![]), Ok(AutoValue::Bool(v)) if v == on));
+        assert_eq!(host.session.borrow().host().calculate_before_save(), on);
+    }
+    assert!(matches!(put(&app, "CalculateBeforeSave", AutoValue::text("yes")), Err(AutoError::Status(_))));
+    assert_eq!(
+        invoke_kind(&model, &app, "CalculateBeforeSave", InvokeKind::Put, vec![]).unwrap_err().number(),
+        1004
+    );
+    assert!(put(&book, "PrecisionAsDisplayed", AutoValue::Bool(false)).is_ok());
+    assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
+    let refused = put(&book, "PrecisionAsDisplayed", AutoValue::Bool(true)).unwrap_err();
+    assert!(matches!(refused, AutoError::NotModelled { owner: "dc-oxh8w.64", .. }), "{refused:?}");
+    assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
+    assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
 }

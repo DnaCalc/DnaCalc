@@ -2240,3 +2240,62 @@ fn imlog_family_matches_live_excel_probes() {
         f1_support::text(f1_support::call(name, vec![f1_support::t(arg)]), expected);
     }
 }
+
+/// Live Excel 16.0.20625.20108 (dc-j9k.175, Touchstone 2026-11-25): the IMLN family answers #NUM!
+/// (IMARGUMENT #DIV/0!) when im/re overflows and when the squares of both parts underflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imln_family_overflowing_ratio_and_underflowing_squares_are_num() {
+    use calc_func::value::WorksheetErrorCode::{Div0, Num};
+    let mut bad = Vec::new();
+    for (name, arg, expected) in [
+        ("IMLN", "1e-300-1e9i", Num),
+        ("IMLOG10", "1e-300-1e9i", Num),
+        ("IMLOG2", "1e-300-1e9i", Num),
+        ("IMARGUMENT", "1e-300-1e9i", Div0),
+        ("IMLOG2", "1e-300-1.8e8i", Num),
+        ("IMLOG2", "1e-200-1e109i", Num),
+        ("IMLOG2", "1e-310-1e-5i", Num),
+        ("IMLOG2", "1e-300-1e-300i", Num),
+        ("IMLOG2", "1e300-1e300i", Num),
+        ("IMLN", "1e300-1e300i", Num),
+        ("IMLOG2", "1e-320-1e-320i", Num),
+        ("IMEXP", "1e-300-1e9i", Num),
+    ] {
+        let got = f1_support::call(name, vec![f1_support::t(arg)]);
+        let ok = matches!(&got, Ok(v) if v.as_error() == Some(expected));
+        if !ok {
+            bad.push(format!("{name}({arg}) want {expected:?} got {got:?}"));
+        }
+    }
+    for (name, arg, expected) in [
+        ("IMLOG2", "1e-300-1.7e8i", "27.3409595054619-2.2661800709136i"),
+        ("IMLOG2", "1e-300-1e8i", "26.5754247590989-2.2661800709136i"),
+        ("IMLOG2", "1e-308-1i", "-2.2661800709136i"),
+        ("IMLOG2", "1e-309-1i", "-2.2661800709136i"),
+        ("IMLOG2", "1e-200-1e108i", "358.768234247835-2.2661800709136i"),
+        ("IMLOG2", "1e9-1e-300i", "29.8973528539863"),
+        ("IMSQRT", "1e-300-1e9i", "31622.7766016838"),
+    ] {
+        let got = f1_support::call(name, vec![f1_support::t(arg)]);
+        let ok = matches!(&got, Ok(v) if matches!(v.core(), calc_func::value::CoreValue::Text(t) if t.to_string_lossy() == expected));
+        if !ok {
+            bad.push(format!("{name}({arg}) want {expected} got {got:?}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// Live Excel 16.0.20625.20108 (dc-j9k.175): a nonzero complex coefficient below 1e-309 is #NUM!;
+/// 1e-309 and up to the normal range reads as 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_coefficients_below_1e_309_are_num() {
+    for arg in ["1e-310-1i", "9.99999999999999e-310-1i", "1e-320-1i", "1e-400-1i", "1e-310", "0-1e-400i"] {
+        f1_support::error(f1_support::call("IMREAL", vec![f1_support::t(arg)]), calc_func::value::WorksheetErrorCode::Num);
+    }
+    for arg in ["1e-309-1i", "1.5e-309-1i", "1e-308-1i", "1e-309", "0-1e-309i"] {
+        let r = f1_support::call("IMREAL", vec![f1_support::t(arg)]).unwrap();
+        assert_eq!(r.core(), &calc_func::value::CoreValue::Number(0.0), "{arg}");
+    }
+}

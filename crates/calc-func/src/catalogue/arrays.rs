@@ -284,6 +284,10 @@ fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
                     return Err(site.not_modelled(None));
                 }
                 comparison::overflow_numbers(site, a, b)
+            } else if a.is_finite() && b.is_finite() {
+                // Excel 16.0.20625 orders binary64 keys exactly (probed 1 and 3 ulps apart in
+                // both directions): unlike the comparison operators, adjacent doubles never tie.
+                Ok(a.partial_cmp(&b).unwrap_or(Ordering::Equal))
             } else {
                 comparison::numbers(site, a, b)
             }

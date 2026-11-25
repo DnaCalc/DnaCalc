@@ -559,6 +559,31 @@ pub(super) fn rewrite(
         xf,
     )
     .map_err(error)?;
+    // Named cell styles: imported ones stay as written; styles added after the load are appended.
+    if !after.cell_styles.starts_with(&before.cell_styles) {
+        return Err(error("Imported cell styles cannot be replaced".into()));
+    }
+    if after.cell_styles.len() > before.cell_styles.len() {
+        let mut collection = root
+            .child("cellStyles")
+            .cloned()
+            .unwrap_or_else(|| Node::new(&root.prefix(), "cellStyles"));
+        for style in &after.cell_styles[before.cell_styles.len()..] {
+            let mut n = Node::new(&collection.prefix(), "cellStyle");
+            n.attr("name", Some(style.name.clone()));
+            n.attr("xfId", Some(style.xf_id.to_string()));
+            n.attr("builtinId", style.builtin_id.map(|b| b.to_string()));
+            if style.custom_builtin {
+                n.attr("customBuiltin", Some("1".into()));
+            }
+            if style.hidden {
+                n.attr("hidden", Some("1".into()));
+            }
+            collection.added.push(n);
+        }
+        collection.attr("count", Some(after.cell_styles.len().to_string()));
+        root.set_child("cellStyles", Some(collection));
+    }
     let parents = root
         .child("cellStyleXfs")
         .map(|c| c.records("xf"))

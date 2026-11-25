@@ -32,6 +32,8 @@ impl WorkbookAutomation {
         handlers.on("Application", "CalculationVersion", InvokeKind::Get, Self::get_calculation_version);
         handlers.on("Application", "OperatingSystem", InvokeKind::Get, Self::get_operating_system);
         handlers.on("Application", "CalculateBeforeSave", InvokeKind::Get, Self::get_calculate_before_save);
+        handlers.on("Application", "CalculateBeforeSave", InvokeKind::Put, Self::put_calculate_before_save);
+        handlers.on("Workbook", "PrecisionAsDisplayed", InvokeKind::Put, Self::put_precision_as_displayed);
         handlers.on("Application", "Iteration", InvokeKind::Get, Self::get_iteration);
         handlers.on("Application", "Iteration", InvokeKind::Put, Self::put_iteration);
         handlers.on("Application", "MaxIterations", InvokeKind::Get, Self::get_max_iterations);
@@ -62,18 +64,23 @@ impl WorkbookAutomation {
         Ok(AutoValue::text(EXCEL_OPERATING_SYSTEM))
     }
 
-    /// Reads a value from the session; inside a worksheet function call there is none.
+    /// Reads a setting: from the session, or inside a worksheet function call from the settings
+    /// snapshot the evaluation carries (dc-oxh8w.52).
     fn session_read<T>(
         &self,
         what: &str,
-        read: impl Fn(&HostSession) -> T,
+        from_session: impl Fn(&HostSession) -> T,
+        from_snapshot: impl Fn(&calc_func::AppSettings) -> T,
     ) -> Result<T, AutoError> {
         self.with_access(|access| match access {
-            Access::Invocation(_) => Err(AutoError::not_modelled(
-                format!("{what} read inside a worksheet function call"),
-                "dc-oxh8w.40",
-            )),
-            Access::Session(session, _) => Ok(read(session)),
+            Access::Invocation(context) => context
+                .user_view()
+                .and_then(|view| view.settings)
+                .map(|settings| from_snapshot(&settings))
+                .ok_or_else(|| {
+                    AutoError::not_modelled(format!("{what} read inside a worksheet function call"), "dc-oxh8w.52")
+                }),
+            Access::Session(session, _) => Ok(from_session(session)),
         })
     }
 
@@ -82,12 +89,43 @@ impl WorkbookAutomation {
         excel_no_args(call)?;
         let value = self.session_read("Application.CalculateBeforeSave", |s| {
             s.host().calculate_before_save()
-        })?;
+        }, |n| n.calculate_before_save)?;
         Ok(AutoValue::Bool(value))
     }
 
+    /// `Application.CalculateBeforeSave = True/False`; a non-Boolean is 1004.
+    fn put_calculate_before_save(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.mutate(target, call, |_, _| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            Ok(SkinIntent::SetCalculateBeforeSave(geometry::boolean(call.arg(0))?))
+        })
+    }
+
+    /// `Workbook.PrecisionAsDisplayed = False` returns to full precision, which the engine always
+    /// keeps. True would round the stored values to their displayed formats: refused.
+    fn put_precision_as_displayed(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.mutate(target, call, |_, _| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            if geometry::boolean(call.arg(0))? {
+                return Err(AutoError::not_modelled(
+                    "Workbook.PrecisionAsDisplayed = True (rounds stored values to their displayed formats)",
+                    "dc-oxh8w.64",
+                ));
+            }
+            Ok(SkinIntent::SetFullPrecision)
+        })
+    }
+
     fn iteration_settings(&self, what: &str) -> Result<calc_doc_model::IterationSettings, AutoError> {
-        self.session_read(what, |s| s.host().model().definitions().iteration())
+        self.session_read(
+            what,
+            |s| s.host().model().definitions().iteration(),
+            |n| calc_doc_model::IterationSettings::new(n.iteration, n.max_iterations, f64::from_bits(n.max_change_bits)),
+        )
     }
 
     fn get_iteration(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -165,21 +203,22 @@ impl WorkbookAutomation {
     /// `Workbook.Date1904`: the date system the loaded file declares.
     fn get_date1904(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         excel_no_args(call)?;
-        let value = self.session_read("Workbook.Date1904", |s| s.host().declared_date1904())?;
+        let value = self.session_read("Workbook.Date1904", |s| s.host().declared_date1904(), |n| n.date1904)?;
         Ok(AutoValue::Bool(value))
     }
 
     /// `Workbook.PrecisionAsDisplayed`: the file's `fullPrecision`, inverted.
     fn get_precision_as_displayed(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         excel_no_args(call)?;
-        let value = self.session_read("Workbook.PrecisionAsDisplayed", |s| s.host().precision_as_displayed())?;
+        let value = self.session_read("Workbook.PrecisionAsDisplayed", |s| s.host().precision_as_displayed(), |n| n.precision_as_displayed)?;
         Ok(AutoValue::Bool(value))
     }
 
-    /// `Application.CalculationState`: xlDone (0) or xlPending (2).
+    /// `Application.CalculationState`: xlDone (0) or xlPending (2); inside a worksheet function
+    /// call the workbook is calculating, xlCalculating (1) (the documented constant).
     fn get_calculation_state(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         excel_no_args(call)?;
-        let state = self.session_read("Application.CalculationState", |s| s.host().calculation_state())?;
+        let state = self.session_read("Application.CalculationState", |s| s.host().calculation_state(), |_| 1)?;
         Ok(AutoValue::I4(state))
     }
 
@@ -257,20 +296,16 @@ impl WorkbookAutomation {
     /// xlCalculationSemiautomatic (2).
     fn get_calculation(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         excel_no_args(call)?;
-        let mode = self.with_access(|access| {
-            match access {
-                Access::Invocation(_) => Err(AutoError::not_modelled(
-                    "Application.Calculation read inside a worksheet function call",
-                    "dc-oxh8w.35",
-                )),
-                Access::Session(session, _) => Ok(session.calc_mode()),
-            }
-        })?;
-        Ok(AutoValue::I4(match mode {
-            calc_doc::CalcMode::Manual => -4135,
-            calc_doc::CalcMode::AutomaticExceptTables => 2,
-            calc_doc::CalcMode::Automatic => -4105,
-        }))
+        let code = self.session_read(
+            "Application.Calculation",
+            |s| match s.calc_mode() {
+                calc_doc::CalcMode::Manual => -4135,
+                calc_doc::CalcMode::AutomaticExceptTables => 2,
+                calc_doc::CalcMode::Automatic => -4105,
+            },
+            |n| n.calculation,
+        )?;
+        Ok(AutoValue::I4(code))
     }
 
     /// Setting a mode other than Manual recalculates, as Excel does on leaving manual mode.

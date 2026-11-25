@@ -4166,6 +4166,13 @@ impl Server {
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
                 calc_host::WorkbookEvent::SelectionChanged { .. } => "Worksheet_SelectionChange",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
+                calc_host::WorkbookEvent::Document(document) => match document {
+                    calc_host::DocumentEvent::AfterSave { .. } => "Workbook_AfterSave",
+                    calc_host::DocumentEvent::BeforeClose => "Workbook_BeforeClose",
+                    calc_host::DocumentEvent::NewSheet { .. } => "Workbook_NewSheet",
+                    calc_host::DocumentEvent::SheetDeactivate { .. } => "Workbook_SheetDeactivate",
+                    calc_host::DocumentEvent::SheetActivate { .. } => "Workbook_SheetActivate",
+                },
             };
             self.events.push(Event::WorkbookEventFailed {
                 workbook: self.workbook,

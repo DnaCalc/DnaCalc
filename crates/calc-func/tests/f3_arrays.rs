@@ -436,3 +436,30 @@ fn dc_j9k_110_lookup_index_reference_coercion_and_date_integer_floor() {
         2.0,
     );
 }
+
+/// Excel 16.0.20625.20108 (probed 2026-11-25, Touchstone relay, AMD Ryzen 7 4800H) orders
+/// binary64 keys exactly in SORT and SORTBY, both directions: keys 1 and 3 ulps apart are never
+/// a tie, in either input order (dc-sort-adjacent-keys-oq630).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_orders_adjacent_binary64_keys_exactly() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let bases = [0.3_f64, 1.2, 7.7, 1e-5, 3.3e100, 1e15];
+    for base in bases {
+        for gap in [1u64, 3] {
+            let lo = base;
+            let hi = f64::from_bits(base.to_bits() + gap);
+            for (first, second) in [(lo, hi), (hi, lo)] {
+                let keys = CalcValue::array(CalcArray::from_rows(vec![vec![n(first)], vec![n(second)]]).unwrap());
+                let tags = col(&[1.0, 2.0]);
+                let tag_of = |k: f64| if k == first { 1.0 } else { 2.0 };
+                let ascending = array(call("SORT", vec![keys.clone()]));
+                assert_eq!(ascending.2, vec![lo, hi], "SORT {first:e} {second:e}");
+                for (order, want) in [(1.0, [lo, hi]), (-1.0, [hi, lo])] {
+                    let got = array(call("SORTBY", vec![tags.clone(), keys.clone(), n(order)]));
+                    assert_eq!(got.2, want.map(tag_of).to_vec(), "SORTBY {first:e} {second:e} {order}");
+                }
+            }
+        }
+    }
+}

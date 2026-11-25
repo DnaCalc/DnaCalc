@@ -574,7 +574,7 @@ pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksh
         // Adjacent double-rounding controls distinguish this from a binary64
         // product even though the two expressions usually give the same angle.
         let arg = crate::ported::excel_numeric::excel_x87_mul(std::f64::consts::PI, p) / 2.0;
-        return Ok(sign / crate::ported::tan::tan_kernel(arg));
+        return Ok(sign * crate::ported::excel_numeric::excel_x87_recip(crate::ported::tan::tan_kernel(arg)));
     }
     if p == 0.0 {
         return Err(WorksheetErrorCode::Num);
@@ -816,6 +816,31 @@ mod tests {
                 t_inv_2t_kernel(p, 1.0).unwrap().to_bits(),
                 bits,
                 "T.INV.2T({p},1)"
+            );
+        }
+    }
+
+    /// Live Excel 16.0.20625.20108 (dc-j9k.169, Touchstone 2026-11-25): near p=0.5 the reciprocal of
+    /// the stored tangent is the double-rounded x87 reciprocal (as COT); 48 of 100 random p within 1e-12
+    /// of 0.5 ended one unit high with a plain binary64 division.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn t_inv_2t_df1_near_half_uses_the_double_rounded_reciprocal() {
+        for (p, excel) in [
+            (0x3fdfffffffffed52_u64, 0x3ff0000000000eac_u64),
+            (0x3fdfffffffffc7f8_u64, 0x3ff0000000002c02_u64),
+            (0x3fdfffffffffea98_u64, 0x3ff00000000010d0_u64),
+            (0x3fdfffffffffdce6_u64, 0x3ff0000000001b92_u64),
+            (0x3fdfffffffffdb93_u64, 0x3ff0000000001c9c_u64),
+            (0x3fdfffffffffd791_u64, 0x3ff0000000001fc2_u64),
+            (0x3fdfffffffffdfa4_u64, 0x3ff000000000196a_u64),
+            (0x3fdffffffffff394_u64, 0x3ff00000000009c2_u64),
+            (0x3fdffffffffffc12_u64, 0x3ff0000000000316_u64),
+        ] {
+            assert_eq!(
+                t_inv_2t_kernel(f64::from_bits(p), 1.0).unwrap().to_bits(),
+                excel,
+                "T.INV.2T({p:#018x},1)"
             );
         }
     }
