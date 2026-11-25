@@ -1,6 +1,6 @@
 //! Series formatting of a macro (dc-oxh8w.19): `Series.Interior.Color` over `WorkbookCommand::ChartSeriesStyle`,
 //! the command the chart pane's series colour uses; the retained writer saves the series `c:spPr` fill.
-//! Plot area, chart area, `Format.Fill` and borders need types the descriptor lacks (dc-oxh8w.29).
+//! Plot area, chart area, `Format.Fill` and borders need types the descriptor lacks (dc-oxh8w.31).
 
 use super::report::report;
 use super::*;

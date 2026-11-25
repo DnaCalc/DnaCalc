@@ -1,7 +1,7 @@
 //! Data labels of a series (dc-oxh8w.18): `Series.HasDataLabels`, `Series.ApplyDataLabels` and `Series.DataLabels`
 //! with the `DataLabels` members that say what a label shows and where it sits. Writes go through
 //! `WorkbookCommand::ChartSeriesLabels`; the retained chart writer saves `c:dLbls`. Labels of single points
-//! (`DataLabels(Index)`) and label text formatting are dc-oxh8w.28.
+//! (`DataLabels(Index)`) and label text formatting are dc-oxh8w.29.
 
 use super::report::report;
 use super::*;
@@ -9,7 +9,7 @@ use crate::WorkbookCommand;
 use calc_doc_model::ChartLabels;
 use calc_object_model::ReportItem;
 
-const POINTS: &str = "dc-oxh8w.28";
+const POINTS: &str = "dc-oxh8w.29";
 
 /// `XlDataLabelPosition` and the `c:dLblPos` value it stands for.
 const POSITIONS: [(i32, &str); 8] = [
@@ -194,7 +194,7 @@ impl WorkbookAutomation {
     }
 
     /// `DataLabels.Position`: the `XlDataLabelPosition` of the labels; unstated reads as xlLabelPositionOutsideEnd
-    /// for a bar, line or scatter chart... Excel's per-type defaults are asked in RUN-ON-WINDOWS (dc-oxh8w.28).
+    /// for a bar, line or scatter chart... Excel's per-type defaults are asked in RUN-ON-WINDOWS (dc-oxh8w.29).
     pub(super) fn labels_position(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let position = self.labels_read(target, |l| l.position.clone())?;
