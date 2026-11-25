@@ -150,9 +150,10 @@ pub fn db_kernel(
     month: f64,
 ) -> Result<f64, WorksheetErrorCode> {
     validate_finite(&[cost, salvage, life, period, month])?;
-    // The period and month are truncated, but life remains fractional. Original
+    // The period is truncated and the month takes the tolerant floor of the date slots (live Excel,
+    // dc-j9k.308), but life remains fractional. Original
     // positive periods below one still request the initial depreciation.
-    let month = month.trunc();
+    let month = crate::ported::text_kernels::date_integer_floor(month);
     // The host first saturates a nonnegative count to u32, then interprets that
     // word as signed. W111 boundary probes distinguish this from an i32 cast:
     // 2^31 becomes MIN, while counts above u32::MAX become -1.
@@ -497,6 +498,38 @@ mod tests {
         match syd_kernel(30000.0, 7500.0, 10.0, 10.0).unwrap() {
             n => assert!((n - 409.09090909090907).abs() < 1.0e-9),
         }
+    }
+
+    /// Live Excel (dc-j9k.308): DB's month takes the tolerant integer floor of the date slots
+    /// (11.9999999 is 12, 11.999999 is 11).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn db_month_is_the_tolerant_floor() {
+        let db = |month: f64| db_kernel(1000.0, 100.0, 5.0, 1.0, month).map(f64::to_bits);
+        for month in [12.0, 11.9999999, 11.999999999999993, 12.5] {
+            assert_eq!(db(month), Ok(0x4077100000000000), "month {month}");
+        }
+        for month in [11.0, 11.999999, 11.99999, 11.9999, 11.5] {
+            assert_eq!(db(month), Ok(0x4075240000000000), "month {month}");
+        }
+        for month in [6.9999999, 6.99999999] {
+            assert_eq!(db(month), Ok(0x406ae80000000000), "month {month}");
+        }
+        assert_eq!(db(6.999999), Ok(0x4067100000000000));
+        assert_eq!(db(0.99999999), Ok(0x403ec00000000000));
+        assert_eq!(db(0.9999), Err(WorksheetErrorCode::Num));
+        // The cluster's representative.
+        assert_eq!(
+            db_kernel(
+                f64::from_bits(0x3fe0000000000000),
+                f64::from_bits(0x0010000000000000),
+                f64::from_bits(0x3fe0000000000002),
+                f64::from_bits(0x3fd0000000000000),
+                f64::from_bits(0x4027fffffffffffc)
+            )
+            .map(f64::to_bits),
+            Ok(0x3fe0000000000000)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
