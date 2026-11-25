@@ -8662,3 +8662,96 @@ fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
     assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
     assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
 }
+
+/// dc-oxh8w.43: Range.AutoFilter switches the filter on and off and sets one column's criterion through the
+/// host's own AutoFilter command; Worksheet.AutoFilterMode, FilterMode and ShowAllData read and clear it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__range_auto_filter_sets_criteria() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["name", "qty"], &["a", "5"], &["b", "15"], &["c", "25"], &["d", "35"]]);
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let get = |name: &str| invoke(&model, &sheet, name, vec![]).unwrap();
+    let hidden = || -> Vec<u32> {
+        let session = host.session.borrow();
+        let id = session.host().sheets()[0].id();
+        session
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(id)
+            .map(|f| f.filtered_rows.iter().copied().collect())
+            .unwrap_or_default()
+    };
+    let filter = |address: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), "AutoFilter", InvokeKind::Method, args)
+    };
+    let t = |s: &str| AutoValue::text(s);
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    // No Field: on over the current region of a single cell.
+    filter("A1", vec![]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(true)));
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(false)));
+    // Field 2 > 10: rows 2 hidden.
+    filter("A1:B5", vec![AutoValue::I4(2), t(">10")]).unwrap();
+    assert_eq!(hidden(), vec![2]);
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(true)));
+    // Second criterion with xlAnd narrows; xlOr widens.
+    filter("A1:B5", vec![AutoValue::I4(2), t(">10"), AutoValue::I4(1), t("<30")]).unwrap();
+    assert_eq!(hidden(), vec![2, 5]);
+    filter("A1:B5", vec![AutoValue::I4(2), t("<10"), AutoValue::I4(2), t(">30")]).unwrap();
+    assert_eq!(hidden(), vec![3, 4]);
+    // Top 2 items; a plain number is equality; an array is xlFilterValues.
+    filter("A1:B5", vec![AutoValue::I4(2), AutoValue::I4(2), AutoValue::I4(3)]).unwrap();
+    assert_eq!(hidden(), vec![2, 3]);
+    filter("A1:B5", vec![AutoValue::I4(2), AutoValue::I4(15)]).unwrap();
+    assert_eq!(hidden(), vec![2, 4, 5]);
+    let values = AutoValue::Array(Box::new(calc_object_model::AutoArray {
+        rows: 1,
+        columns: 2,
+        lower: (1, 1),
+        values: vec![t("5"), t("35")],
+    }));
+    filter("A1:B5", vec![AutoValue::I4(2), values, AutoValue::I4(7)]).unwrap();
+    assert_eq!(hidden(), vec![3, 4]);
+    // Text criteria on column 1 combine with column 2.
+    filter("A1:B5", vec![AutoValue::I4(1), t("<>a")]).unwrap();
+    assert_eq!(hidden(), vec![2, 3, 4]);
+    // ShowAllData clears the criteria and keeps the filter; a second call is an error.
+    invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(hidden(), Vec::<u32>::new());
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(false)));
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(true)));
+    assert!(matches!(
+        invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+    // Argument errors are 1004; colour filters refuse typed.
+    assert!(matches!(filter("A1:B5", vec![AutoValue::I4(3), t(">1")]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(filter("A1:B5", vec![AutoValue::I4(0), t(">1")]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(
+        filter("A1:B5", vec![AutoValue::I4(1), t("x"), AutoValue::I4(20)]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+    assert!(matches!(
+        filter("A1:B5", vec![AutoValue::I4(1), t("x"), AutoValue::I4(8)]),
+        Err(AutoError::NotModelled { .. })
+    ));
+    // No Field again switches it off; AutoFilterMode = False does the same, True is an error.
+    filter("A1:B5", vec![]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    filter("A1:B5", vec![]).unwrap();
+    invoke_kind(&model, &sheet, "AutoFilterMode", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    assert!(matches!(
+        invoke_kind(&model, &sheet, "AutoFilterMode", InvokeKind::Put, vec![AutoValue::Bool(true)]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+}
