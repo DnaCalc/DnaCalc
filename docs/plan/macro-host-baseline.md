@@ -249,5 +249,61 @@ put needs a document setter): all three are dc-oxh8w.40. File-project event read
 `Workbook.VBProject` (the VBIDE object model: VBComponents, CodeModule) and `MacroOptions`
 (9 and 3 entries) are dc-oxh8w.41.
 
-Not done: the 3,265-hash cohort store (SHA-keyed) is not on this host (dc-oxh8w.30 close note;
-Windows steps in the lane's RUN-ON-WINDOWS.txt item 1).
+## Triage-clean corpus baseline (dc-oxh8w.30, dc-oxh8w.1)
+
+**Input.** The retained v5 member TSV (`dnacalc-corpus/meta/vba-report-members-20261114/`) labels 3,368
+hashes clean. Removing the hashes any retained triage marks suspect (`runs/kode-fi/20261112-vba-triage`,
+the harv3 census) and the XLM-bearing hashes leaves 3,261 (the 3,265 of the cohort note above differs by
+the four Mendeley workbooks and the earlier reconciliation). 2,757 of them are in
+`sources/xl-unique/20261116/` and were copied (`rclone copy --files-from`, checksum, no sync or delete) to
+`~/corpus-macro/wb` on this host: 1.66 GB. The other 504 are not in the SHA-keyed store (491 from
+`windows/corpus/`, 12 FUSE, 1 download) and are unstaged. Nothing was opened in Office or executed outside
+the sandbox. Suspect projects were never run.
+
+**Run.** The debug binary built at 06:48 on 2026-11-25 from master after 3087528f1 (SHA-256 `4171b7f66e1f63b0365806c10b99dc9f40dc78c46926e11d8d9bbda3f5924d38`),
+`dnacalc run <book> --all --fixtures --macro-level guarded --json`, one fresh bubblewrap per
+workbook (read-only copy, no network, 120 CPU s, 4 GiB address space, 300 s wall), eight at a time.
+
+| Workbooks | Count |
+| --- | ---: |
+| Staged and attempted | 2,757 |
+| Opened, project admitted, entries run | 2,125 |
+| Project not admitted | 602 |
+| No result (timeout or signal) | 30 |
+
+| Entry outcome | Every workbook (2,125) | 315 distinct projects |
+| --- | ---: | ---: |
+| Success | 412 | 349 |
+| VBA run-time error | 353 | 250 |
+| Typed refusal | 1,781 | 1,096 |
+| Needs arguments | 19 | 18 |
+| Not callable | 5 | 5 |
+| Failed | 2 | 2 |
+
+A project is the set of entry names and kinds; workbooks that share it count once.
+
+Project admission refusals (602): 251 document project component (dc-hsa5.12), 171 class, designer or
+unbound document module (UserForm and Sheet modules not modelled), 91 locked VBA project, 21 invalid Office
+project, 20 other project parse, 15 package parts (xlsm content type), 8 legacy stream, 5 binary part,
+others below 10.
+
+Refusals ranked by distinct project ([TSV](macro-host-corpus-ranking.tsv)):
+
+| Missing member or command | Owner at run time | Entries | Projects |
+| --- | --- | ---: | ---: |
+| `Range.Select` | dc-1nbp.5 (closed) | 294 | 88 |
+| `_Worksheet.Select` | dc-1nbp.5 | 231 | 43 |
+| `Range.AdvancedFilter` | dc-1nbp.5 | 93 | 4 |
+| `_Application.ActiveWindow` | dc-1nbp.5 | 87 | 24 |
+| `_Application.Goto` | dc-1nbp.5 | 50 | 9 |
+| `Range.Range` | dc-1nbp.5 | 38 | 7 |
+| `_Worksheet.Unprotect` | dc-1nbp.5 | 28 | 15 |
+| `_Worksheet.Visible` | dc-1nbp.5 | 27 | 7 |
+| `_Application.Rows` | dc-1nbp.5 | 21 | 13 |
+| `_Worksheet.Activate` | dc-1nbp.5 | 20 | 8 |
+
+Run-time errors by project: error 9 `COM status 0x8002000b` 92 entries / 31 projects, error 5 HAL
+`CapabilityUnavailable` 32 / 21, error 1004 without text 31 / 6.
+
+Open: the 504 unstaged hashes (windows-corpus staging) and the refusal batches above, owned by the beads named
+in the close note of dc-oxh8w.30.
