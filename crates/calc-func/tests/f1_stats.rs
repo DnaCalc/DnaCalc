@@ -7985,3 +7985,18 @@ fn t_inverse_two_tailed_refuses_the_first_normal_binade_of_probability() {
         error(call(name, vec![n(-b(0x001f_ffff_ffff_ffff)), n(1.0)]), Num);
     }
 }
+
+/// Excel 20527 (dc-j9k.284): GAMMAINV and GAMMA.INV answer #NUM! when the small-shape power seed's
+/// logarithm overflows in the division by the shape (shape DBL_MIN, p = 0.0074), not zero; a seed
+/// that only underflows (p = 0.3) is still zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_small_shape_seed_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["GAMMAINV", "GAMMA.INV"] {
+        for beta in [b(0x0010_0000_0000_0000), b(0x0010_0000_0000_0002), 1.0, 1e10] {
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0000)), n(beta)]), Num);
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0002)), n(beta)]), Num);
+        }
+    }
+}
