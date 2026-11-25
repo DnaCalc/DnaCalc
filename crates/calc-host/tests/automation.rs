@@ -5702,7 +5702,7 @@ mod xlc {
                 ],
                 Some(AutoError::not_modelled(
                     "Names.Add RefersToR1C1",
-                    "dc-oxh8w.36",
+                    "dc-oxh8w.43",
                 )),
             ),
             (
@@ -5835,7 +5835,7 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Chart sheets are refused typed (dc-oxh8w.36 owns them), nothing changes.
+    // Chart sheets are refused typed (dc-oxh8w.43 owns them), nothing changes.
     for args in [
         vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
     ] {
@@ -7240,4 +7240,64 @@ fn dc_oxh8w_11_page_break_collections_list_automatic_breaks() {
     let rows = list("HPageBreaks");
     assert_eq!(rows[0], ("$A$31".to_owned(), -4135), "{rows:?}");
     assert!(rows.iter().skip(1).all(|(_, kind)| *kind == -4105), "{rows:?}");
+}
+
+
+/// dc-oxh8w.36: Worksheet.Copy makes a sheet clone: cells (values, formulas that stay on their own sheet),
+/// styles, column widths and merges; it is placed by Before or After, named "<name> (2)", and becomes active.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+        )
+        .unwrap(),
+    );
+    let sheets = worksheets(&model);
+    let source_name = sheet_names(&host)[0].clone();
+    let put = |address: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();
+    };
+    put("A1", AutoValue::R8(5.));
+    invoke_kind(&model, &range(&model, "A2"), "Formula", InvokeKind::Put, vec![AutoValue::text("=A1*2")]).unwrap();
+    enter(&host, at(&host, 3, 3), "label");
+    invoke_kind(&model, &range(&model, "C3"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::R8(30.)]).unwrap();
+    invoke_kind(&model, &range(&model, "E5:F6"), "MergeCells", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let source = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let width = |model: &WorkbookAutomation| invoke(model, &range(model, "C3"), "ColumnWidth", vec![]).unwrap();
+    let AutoValue::R8(source_width) = width(&model) else { panic!("width") };
+
+    // Copy with After the source: the clone sits second, is named "<name> (2)" and is the active sheet.
+    invoke_kind(&model, &source, "Copy", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(source.clone())]).unwrap();
+    let names = sheet_names(&host);
+    assert_eq!(names[0], source_name);
+    assert_eq!(names[1], format!("{source_name} (2)"));
+    assert!(matches!(cell_text(&model, "A1"), AutoValue::R8(v) if v == 5.), "the clone is active and holds the values");
+    assert_eq!(invoke(&model, &range(&model, "A2"), "Formula", vec![]).unwrap().as_text().unwrap(), "=A1*2");
+    assert!(matches!(cell_text(&model, "A2"), AutoValue::R8(v) if v == 10.));
+    assert_eq!(cell_text(&model, "C3").as_text().unwrap(), "label");
+    assert!(matches!(width(&model), AutoValue::R8(w) if w == source_width), "column widths are cloned");
+    assert!(matches!(invoke(&model, &range(&model, "E5"), "MergeCells", vec![]).unwrap(), AutoValue::Bool(true)));
+    // The clone's formula reads the clone's A1: changing it leaves the source alone.
+    put("A1", AutoValue::R8(7.));
+    assert!(matches!(cell_text(&model, "A2"), AutoValue::R8(v) if v == 14.));
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let source_a2 = obj(invoke(&model, &first, "Range", vec![AutoValue::text("A2")]).unwrap());
+    assert!(matches!(invoke(&model, &source_a2, "Value2", vec![]).unwrap(), AutoValue::R8(v) if v == 10.), "the source is unchanged");
+
+    // Before places the clone ahead of the named sheet; Before and After together are 1004; a second copy is "(3)".
+    invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone())]).unwrap();
+    let names = sheet_names(&host);
+    assert_eq!(names[0], format!("{source_name} (3)"), "{names:?}");
+    let both = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(first.clone())]);
+    assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
+    let count = sheet_names(&host).len();
+    let to_new_book = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![]);
+    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{to_new_book:?}");
+    let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
+    assert!(bad.is_err());
+    assert_eq!(sheet_names(&host).len(), count);
 }
