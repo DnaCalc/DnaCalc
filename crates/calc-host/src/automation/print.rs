@@ -5,12 +5,13 @@
 //! Page Setup UI uses. Handlers register where the descriptor describes the interface (see
 //! `report.rs`); the others stay pending until the descriptor is regenerated on Windows.
 //!
-//! The collections list the manual breaks. Excel's lists also hold the automatic breaks the
-//! printer's pagination produces; that route lives in `apps/dna-calc-model` and is not reachable
-//! from here (dc-oxh8w.11).
+//! The collections list the automatic breaks of the pagination route print preview takes
+//! (`dna_calc_model::printing::paginate` through [`crate::print_plan`]) with the stored manual ones
+//! (dc-oxh8w.11).
 
 use super::report::report;
 use super::*;
+use crate::print_plan;
 use crate::print_members::{self, PrintError, PrintValue};
 use crate::{CommandIngress, PageBreak, PageSetupChange, SkinIntent, WorkbookCommand};
 use calc_object_model::{Descriptor, Handler, ReportItem};
@@ -51,6 +52,13 @@ fn from_auto(value: &AutoValue) -> Result<PrintValue, AutoError> {
         AutoValue::Text(_) => PrintValue::Text(value.as_text().unwrap_or_default()),
         _ => return Err(geometry::type_mismatch()),
     })
+}
+
+/// One page break as the collections list it: where it falls, the stored manual break when there is one.
+struct BreakLine {
+    line: u32,
+    stored: Option<PageBreak>,
+    partial: bool,
 }
 
 impl WorkbookAutomation {
@@ -174,11 +182,37 @@ impl WorkbookAutomation {
         print_members::manual_breaks(&s.host().model().definitions().page_setup(sheet), horizontal)
     }
 
+    /// The breaks of one direction as Excel lists them (dc-oxh8w.11): the automatic breaks of the pagination route
+    /// print preview takes, with the stored manual breaks, in position order. A pagination the route refuses
+    /// (a partial-span manual break, titles inside the area) is refused here and not answered with a guess.
+    fn break_lines(s: &HostSession, sheet: SheetId, horizontal: bool) -> Result<Vec<BreakLine>, AutoError> {
+        let host = s.host();
+        let manual = Self::manual_lines(s, sheet, horizontal);
+        let geometry = print_plan::print_geometry(host, sheet);
+        let plan = print_plan::print_plan(host, sheet, &geometry, (0, 0))
+            .map_err(|e| AutoError::not_modelled(format!("page breaks: {e}"), "dc-oxh8w.11"))?;
+        // Excel calls a break partial when the print range does not start in the first column (row) of the sheet.
+        let partial = if horizontal {
+            plan.pages.iter().map(|p| p.body.0.3).min().is_some_and(|c| c > 1)
+        } else {
+            plan.pages.iter().map(|p| p.body.0.2).min().is_some_and(|r| r > 1)
+        };
+        let breaks = plan.breaks();
+        let mut lines: std::collections::BTreeMap<u32, BreakLine> = std::collections::BTreeMap::new();
+        for &(line, _) in if horizontal { &breaks.rows } else { &breaks.columns } {
+            lines.insert(line, BreakLine { line, stored: None, partial });
+        }
+        for b in manual {
+            lines.insert(b.id + 1, BreakLine { line: b.id + 1, stored: Some(b), partial });
+        }
+        Ok(lines.into_values().collect())
+    }
+
     fn breaks_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let horizontal = Self::breaks_direction(target)?;
         self.read_host(target, |s, sheet, _| {
-            Ok(AutoValue::I4(Self::manual_lines(s, sheet, horizontal).len() as i32))
+            Ok(AutoValue::I4(Self::break_lines(s, sheet, horizontal)?.len() as i32))
         })
     }
 
@@ -190,14 +224,14 @@ impl WorkbookAutomation {
         let (workbook, _, _) = Self::report_key(target)?;
         self.read_host(target, |s, sheet, _| {
             let index = geometry::integer(call.arg(0))?;
-            let lines = Self::manual_lines(s, sheet, horizontal);
+            let lines = Self::break_lines(s, sheet, horizontal)?;
             let found = usize::try_from(index - 1).ok().and_then(|n| lines.get(n));
             let b = found.ok_or_else(|| AutoError::excel(9, "Subscript out of range"))?;
             Ok(report(
                 workbook,
                 sheet,
                 if horizontal { "HPageBreak" } else { "VPageBreak" },
-                ReportItem::PageBreak(horizontal, b.id + 1),
+                ReportItem::PageBreak(horizontal, b.line),
             ))
         })
     }
@@ -249,10 +283,10 @@ impl WorkbookAutomation {
         sheet: SheetId,
         horizontal: bool,
         line: u32,
-    ) -> Result<PageBreak, AutoError> {
-        Self::manual_lines(s, sheet, horizontal)
+    ) -> Result<BreakLine, AutoError> {
+        Self::break_lines(s, sheet, horizontal)?
             .into_iter()
-            .find(|b| b.id + 1 == line)
+            .find(|b| b.line == line)
             .ok_or_else(refused)
     }
 
@@ -273,8 +307,9 @@ impl WorkbookAutomation {
         no_args(call)?;
         let (horizontal, line) = Self::break_of(target)?;
         self.read_host(target, |s, sheet, _| {
-            Self::break_here(s, sheet, horizontal, line)?;
-            Ok(AutoValue::I4(XL_PAGE_BREAK_MANUAL as i32))
+            let b = Self::break_here(s, sheet, horizontal, line)?;
+            let kind = if b.stored.is_some() { XL_PAGE_BREAK_MANUAL } else { XL_PAGE_BREAK_AUTOMATIC };
+            Ok(AutoValue::I4(kind as i32))
         })
     }
 
@@ -283,7 +318,11 @@ impl WorkbookAutomation {
         let (horizontal, line) = Self::break_of(target)?;
         self.read_host(target, |s, sheet, _| {
             let b = Self::break_here(s, sheet, horizontal, line)?;
-            Ok(AutoValue::I4(print_members::break_extent(&b, horizontal) as i32))
+            Ok(AutoValue::I4(match &b.stored {
+                Some(stored) => print_members::break_extent(stored, horizontal),
+                None if b.partial => 2,
+                None => 1,
+            } as i32))
         })
     }
 
@@ -291,7 +330,9 @@ impl WorkbookAutomation {
         let (horizontal, line) = Self::break_of(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
         self.print_change(sheet, call.label(), |s| {
-            Self::break_here(s, sheet, horizontal, line)?;
+            if Self::break_here(s, sheet, horizontal, line)?.stored.is_none() {
+                return Err(refused());
+            }
             let setup = s.host().model().definitions().page_setup(sheet);
             Ok(Self::break_change(horizontal, print_members::without_break(&setup, horizontal, line)))
         })
@@ -312,11 +353,27 @@ impl WorkbookAutomation {
         match kind {
             XL_PAGE_BREAK_MANUAL => {
                 let (horizontal, line) = Self::break_of(target)?;
-                self.read_host(target, |s, sheet, _| {
-                    Self::break_here(s, sheet, horizontal, line).map(|_| AutoValue::Empty)
+                let (_, sheet, _) = Self::report_key(target)?;
+                let found = self.read_host(target, |s, sheet, _| {
+                    Self::break_here(s, sheet, horizontal, line).map(|b| AutoValue::Bool(b.stored.is_some()))
+                })?;
+                if matches!(found, AutoValue::Bool(true)) {
+                    return Ok(AutoValue::Empty);
+                }
+                // An automatic break set to manual stays where it is and is stored.
+                self.print_change(sheet, call.label(), |s| {
+                    let setup = s.host().model().definitions().page_setup(sheet);
+                    let breaks = print_members::with_break(&setup, horizontal, line).map_err(error)?;
+                    Ok(Self::break_change(horizontal, breaks))
                 })
             }
-            XL_PAGE_BREAK_AUTOMATIC => self.break_remove(target, call),
+            XL_PAGE_BREAK_AUTOMATIC => {
+                let (horizontal, line) = Self::break_of(target)?;
+                let stored = self.read_host(target, |s, sheet, _| {
+                    Self::break_here(s, sheet, horizontal, line).map(|b| AutoValue::Bool(b.stored.is_some()))
+                })?;
+                if matches!(stored, AutoValue::Bool(true)) { self.break_remove(target, call) } else { Ok(AutoValue::Empty) }
+            }
             _ => Err(refused()),
         }
     }

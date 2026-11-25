@@ -1,7 +1,7 @@
 //! Print projections from the application's ordinary host, styles, calculated values and chart route.
 use crate::{wire, workbook::Workbook};
 use calc_host::ProjectedValue;
-use calc_host::value::{CellKey, GridArea};
+use calc_host::value::CellKey;
 use dna_calc_model::printing::*;
 use std::collections::BTreeSet;
 
@@ -10,26 +10,9 @@ pub fn settings(book: &Workbook, sheet: wire::Sheet) -> Result<PageSetupState, S
     if host.model().sheet_by_id(sheet.id()).is_none() {
         return Err("Worksheet unavailable (dc-971p.56)".into());
     }
-    let setup = host.model().definitions().page_setup(sheet.id());
-    let brk = |b: calc_host::PageBreak| PageBreak {
-        id: b.id,
-        min: b.min,
-        max: b.max,
-        manual: b.manual,
-        pivot: b.pivot,
-    };
     Ok(PageSetupState {
         revision: host.revision().get(),
-        settings: PageSettings {
-            sections: setup.sections,
-            headers: setup
-                .headers
-                .into_iter()
-                .map(|(k, v)| (k, v.to_string_lossy()))
-                .collect(),
-            row_breaks: setup.row_breaks.into_iter().map(brk).collect(),
-            column_breaks: setup.column_breaks.into_iter().map(brk).collect(),
-        },
+        settings: calc_host::print_plan::page_settings(host, sheet.id()),
         print_area: calc_host::print_name(host, sheet.id(), "_xlnm.Print_Area").unwrap_or_default(),
         print_titles: calc_host::print_name(host, sheet.id(), "_xlnm.Print_Titles")
             .unwrap_or_default(),
@@ -143,44 +126,10 @@ pub fn preview(
     if state.settings.flag("pageSetup", "blackAndWhite", false) {
         notices.push("Black and white preview uses browser grayscale. Excel printer colour conversion is awaiting measurement.".into());
     }
-    let mut rows = None;
-    let mut cols = None;
-    if !state.print_titles.is_empty() {
-        for a in calc_host::print_references(host, sheet.id(), &state.print_titles)? {
-            let first = a.first();
-            let last = a.last();
-            if first.column() == 1 && last.column() == 16384 && rows.is_none() {
-                rows = Some((first.row(), last.row()));
-            } else if first.row() == 1 && last.row() == 1048576 && cols.is_none() {
-                cols = Some((first.column(), last.column()));
-            } else {
-                return Err(
-                    "Print titles need one whole-row and one whole-column band (dc-971p.57)".into(),
-                );
-            }
-        }
-    }
-    let areas = if !state.print_area.is_empty() {
-        calc_host::print_references(host, sheet.id(), &state.print_area)?
-    } else {
-        let mut bottom = 0;
-        let mut right = 0;
-        if let Some(a) = host.used_area(sheet.id()) {
-            bottom = a.last().row();
-            right = a.last().column();
-        }
-        for r in calc_host::format_regions(host, GridArea::full_sheet(sheet.id()))?
-            .into_iter()
-            .filter(|r| r.format != 0)
-        {
-            bottom = bottom.max(r.area.last().row());
-            right = right.max(r.area.last().column());
-        }
-        for a in &geometry.merges {
-            bottom = bottom.max(a.1.2);
-            right = right.max(a.1.3);
-        }
-        let metrics = book.display_metrics(sheet.id());
+    // Charts reach rows and columns the cells do not: the print range covers them.
+    let metrics = book.display_metrics(sheet.id());
+    let (mut bottom, mut right) = (0, 0);
+    if state.print_area.is_empty() {
         for chart in &charts {
             let (x, y, w, h) = match &chart.place {
                 wire::ChartPlace::Cells { from, to } => (
@@ -189,51 +138,20 @@ pub fn preview(
                     metrics.col_start(to.0.3) + to.1 - (metrics.col_start(from.0.3) + from.1),
                     metrics.row_start(to.0.2) + to.2 - (metrics.row_start(from.0.2) + from.2),
                 ),
-                wire::ChartPlace::Sized {
-                    from,
-                    width,
-                    height,
-                } => (
+                wire::ChartPlace::Sized { from, width, height } => (
                     metrics.col_start(from.0.3) + from.1,
                     metrics.row_start(from.0.2) + from.2,
                     *width,
                     *height,
                 ),
-                wire::ChartPlace::Absolute {
-                    x,
-                    y,
-                    width,
-                    height,
-                } => (*x, *y, *width, *height),
+                wire::ChartPlace::Absolute { x, y, width, height } => (*x, *y, *width, *height),
             };
             bottom = bottom.max(metrics.row_at((y + h - 1e-7).max(0.), 1048576));
             right = right.max(metrics.col_at((x + w - 1e-7).max(0.), 16384));
         }
-        if bottom == 0 || right == 0 {
-            Vec::new()
-        } else {
-            vec![
-                GridArea::new(
-                    CellKey::new(sheet.id(), 1, 1).unwrap(),
-                    CellKey::new(sheet.id(), bottom, right).unwrap(),
-                )
-                .unwrap(),
-            ]
-        }
-    };
-    let plan = paginate(
-        &state.settings,
-        &geometry,
-        &areas
-            .iter()
-            .copied()
-            .map(wire::Area::of)
-            .collect::<Vec<_>>(),
-        rows,
-        cols,
-    )?;
+    }
+    let plan = calc_host::print_plan::print_plan(host, sheet.id(), &geometry, (bottom, right))?;
     // Check cardinality before expanding a full-sheet area, title band, or sparse far-away cell.
-    let metrics = book.display_metrics(sheet.id());
     let mut keys = BTreeSet::new();
     for region in plan.pages.iter().flat_map(|p| &p.regions) {
         let a = region.area.area().unwrap();

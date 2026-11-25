@@ -7211,3 +7211,33 @@ fn dc_oxh8w_23__chart_sheets_are_charts_in_sheets_and_charts_collections() {
     let bad = invoke_kind(&model, &charts, "Item", InvokeKind::Get, vec![]);
     assert!(bad.is_err());
 }
+
+/// dc-oxh8w.11: `HPageBreaks` and `VPageBreaks` list the automatic breaks of the one pagination route as well as the
+/// manual ones, as Excel does. Letter portrait, default margins, 100%, A1:J120 of 15 pt rows and 8.43 character columns
+/// (Excel PB1 case c1, 16.0.20527: pages 6, H A48 and A95, V J1, all xlPageBreakAutomatic).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_11_page_break_collections_list_automatic_breaks() {
+    let (host, model, sheet) = blank_report();
+    enter(&host, at(&host, 120, 10), "1");
+    let list = |name: &str| -> Vec<(String, i32)> {
+        let breaks = obj(invoke(&model, &sheet, name, vec![]).unwrap());
+        let AutoValue::I4(count) = invoke(&model, &breaks, "Count", vec![]).unwrap() else { panic!("count") };
+        (1..=count)
+            .map(|i| {
+                let one = obj(invoke(&model, &breaks, "Item", vec![AutoValue::I4(i)]).unwrap());
+                let location = obj(invoke(&model, &one, "Location", vec![]).unwrap());
+                let AutoValue::I4(kind) = invoke(&model, &one, "Type", vec![]).unwrap() else { panic!("type") };
+                (text(&model, &location, "Address"), kind)
+            })
+            .collect()
+    };
+    assert_eq!(list("HPageBreaks"), [("$A$48".to_owned(), -4105), ("$A$95".to_owned(), -4105)]);
+    assert_eq!(list("VPageBreaks"), [("$J$1".to_owned(), -4105)]);
+    // A manual break joins the automatic ones in position order and is typed manual.
+    let breaks = obj(invoke(&model, &sheet, "HPageBreaks", vec![]).unwrap());
+    invoke_kind(&model, &breaks, "Add", InvokeKind::Method, vec![AutoValue::Object(range(&model, "A31"))]).unwrap();
+    let rows = list("HPageBreaks");
+    assert_eq!(rows[0], ("$A$31".to_owned(), -4135), "{rows:?}");
+    assert!(rows.iter().skip(1).all(|(_, kind)| *kind == -4105), "{rows:?}");
+}

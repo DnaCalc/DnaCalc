@@ -381,6 +381,7 @@ dependencies = [
  "calc-value",
  "calc-vba",
  "calc-verdict",
+ "dna-calc-model",
  "miniz_oxide 0.8.9",
  "scoped-tls-hkt",
  "serde_json",
