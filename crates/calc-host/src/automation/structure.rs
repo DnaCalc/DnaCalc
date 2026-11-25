@@ -4,7 +4,7 @@
 use super::*;
 use calc_doc_model::SheetVisibility;
 use calc_object_model::ReportItem;
-use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
+use crate::{NameEdit, CommandError, CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
 
 /// xlWorksheet, and xlChart (a chart sheet): the sheet types Sheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
@@ -24,8 +24,7 @@ impl WorkbookAutomation {
         handlers.on("Names", "Add", InvokeKind::Method, Self::names_add);
     }
 
-    /// One sheet command; a refusal is Excel's 1004 with the host's reason (a name Excel rejects, the
-    /// last visible sheet, ...).
+    /// One sheet command, preserving a typed refusal from the host.
     pub(super) fn sheet_command(
         session: &mut HostSession,
         sheet: Option<SheetId>,
@@ -37,6 +36,9 @@ impl WorkbookAutomation {
         );
         match receipt.error {
             None => Ok(receipt.recalc),
+            Some(IntentError::Command(CommandError::NotModelled { what, owner })) => {
+                Err(AutoError::not_modelled(what, owner))
+            }
             Some(IntentError::Workbook(why)) => Err(AutoError::excel(1004, why)),
             Some(other) => Err(AutoError::excel(1004, other.to_string())),
         }

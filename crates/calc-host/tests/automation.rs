@@ -5936,6 +5936,39 @@ fn dc_oxh8w_4__worksheet_move_and_the_last_sheet_stays() {
     assert_eq!(sheet_names(&host).len(), 1);
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2g5fn_worksheet_delete_refuses_with_the_vba_project_owner() {
+    let package = calc_doc::source_vba_package_for_sheets(
+        &["Keep", "Remove"],
+        &[calc_doc::SourceModule {
+            name: "Sheet2",
+            source: "Option Explicit\n",
+            kind: calc_doc::SourceModuleKind::Worksheet,
+        }],
+    )
+    .unwrap();
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(package)),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (host, model) = setup_session(session);
+    let sheets = worksheets(&model);
+    let target = obj(invoke(&model, &sheets, "Item", vec![AutoValue::text("Remove")]).unwrap());
+    let before = host.session.borrow().host().revision();
+
+    let result = invoke_kind(&model, &target, "Delete", InvokeKind::Method, vec![]);
+
+    assert_eq!(host.session.borrow().host().revision(), before);
+    assert_eq!(sheet_names(&host), ["Keep", "Remove"]);
+    assert!(
+        matches!(&result, Err(AutoError::NotModelled { owner: "dc-2g5fn", .. })),
+        "{result:?}"
+    );
+}
+
 fn cell_text(model: &WorkbookAutomation, address: &str) -> AutoValue {
     invoke(model, &range(model, address), "Value2", vec![]).unwrap()
 }
