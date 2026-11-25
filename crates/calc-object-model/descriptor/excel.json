@@ -75970,6 +75970,362 @@
    ]
   },
   {
+   "name": "TickLabels",
+   "kind": "dispatch",
+   "guid": "{000208C9-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumberFormatLinked",
+     "dispid": 194,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "NumberFormatLinked",
+     "dispid": 194,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlTickLabelOrientation[I4]"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlTickLabelOrientation[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Select",
+     "dispid": 235,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AutoScaleFont",
+     "dispid": 1525,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "AutoScaleFont",
+     "dispid": 1525,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Depth",
+     "dispid": 1890,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Offset",
+     "dispid": 254,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Offset",
+     "dispid": 254,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Alignment",
+     "dispid": 453,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Alignment",
+     "dispid": 453,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "MultiLevel",
+     "dispid": 2653,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "MultiLevel",
+     "dispid": 2653,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Format",
+     "dispid": 116,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "ChartFormat*"
+    }
+   ]
+  },
+  {
    "name": "Legend",
    "kind": "dispatch",
    "guid": "{000208CD-0000-0000-C000-000000000046}",
