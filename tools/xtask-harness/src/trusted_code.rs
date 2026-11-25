@@ -485,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn trusted_project_admits_complete_class_source_and_keeps_event_refusals_typed() {
+    fn trusted_project_admits_complete_class_source_with_configured_events() {
         let bytes = include_bytes!(
             "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P08/observer-cold-off-01.xlsm"
         );
@@ -538,15 +538,12 @@ mod tests {
                 .unwrap()
         );
         manifest.entries.get_mut(&hash).unwrap().events = true;
-        let error = manifest
+        let with_events = manifest
             .prepare(session.host(), "probe.xlsm", &capture, &hash, None, false)
-            .err()
-            .expect("unsupported automatic events still refuse before installation");
-        assert_eq!(error.key, "VbaProject:dc-snz.15");
-        assert!(
-            error.message.contains("unsupported automatic-event prefix"),
-            "{error:?}"
-        );
+            .unwrap();
+        assert!(with_events.project.is_some());
+        with_events.install(&mut session);
+        assert!(session.workbook_events_enabled());
         assert_eq!(
             original,
             session

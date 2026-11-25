@@ -43,6 +43,8 @@ pub struct Calculation {
     /// keeps what its cell held, as Excel keeps it. The value is the rule's, not an evaluation's.
     circular_rule: bool,
     stamp: Option<Arc<crate::contract::ResultStamp>>,
+    // Iteration can read an RTD topic without producing a reusable certificate.
+    uncertified_rtd_reads: Option<Arc<[calc_fml::RtdRead]>>,
 }
 
 impl Calculation {
@@ -54,6 +56,7 @@ impl Calculation {
             external_links: false,
             circular_rule: false,
             stamp: None,
+            uncertified_rtd_reads: None,
         }
     }
 
@@ -199,7 +202,8 @@ impl FormulaResult {
     pub(crate) fn without_stamp(mut self) -> Self {
         match &mut self {
             Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
-                calculation.stamp = None
+                calculation.stamp = None;
+                calculation.uncertified_rtd_reads = None;
             }
             Self::FileCached(_) => {}
         }
@@ -212,6 +216,27 @@ impl FormulaResult {
                 calculation.stamp()
             }
             Self::FileCached(_) => None,
+        }
+    }
+    /// Read subscriptions used for invalidation, including results beyond the certification path.
+    pub(crate) fn rtd_reads(&self) -> &[calc_fml::RtdRead] {
+        match self {
+            Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } => {
+                match calculation.stamp() {
+                    Some(stamp) => &stamp.reads.external_inputs,
+                    None => calculation.uncertified_rtd_reads.as_deref().unwrap_or_default(),
+                }
+            }
+            Self::FileCached(_) => &[],
+        }
+    }
+
+    pub(crate) fn retain_uncertified_rtd_reads(&mut self, reads: &[calc_fml::RtdRead]) {
+        if reads.is_empty() {
+            return;
+        }
+        if let Self::Calculated { calculation, .. } | Self::NotModeled { calculation, .. } = self {
+            calculation.uncertified_rtd_reads = Some(Arc::from(reads));
         }
     }
     pub(crate) fn rebase_occupancy(&mut self, occupancy: impl Fn(GridArea) -> u64) {

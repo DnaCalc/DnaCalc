@@ -5625,6 +5625,7 @@ fn evaluate_with(
     // P14/P15 decide the remaining session certificates; no FreshFor claim is attached here.
     if shared.iterates.is_some() || matches!(state.bindings.get(&node), Some(Binding::DataTable(_)))
     {
+        done.result.retain_uncertified_rtd_reads(local.effects.external_inputs());
         return Ok(Attempt::Done(done));
     }
     let at = live_anchor(state, node);

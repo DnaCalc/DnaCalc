@@ -531,13 +531,11 @@ impl EngineState {
         } else {
             self.certificate_watch.remove(&node);
         }
-        if let Some(stamp) = result.stamp() {
-            for read in &stamp.reads.external_inputs {
-                self.rtd_readers
-                    .entry(read.topic.clone())
-                    .or_default()
-                    .insert(node);
-            }
+        for read in result.rtd_reads() {
+            self.rtd_readers
+                .entry(read.topic.clone())
+                .or_default()
+                .insert(node);
         }
         self.results.publish(node, at, result, group);
     }
@@ -725,14 +723,7 @@ impl EngineState {
         let (live, gone): (BTreeSet<_>, BTreeSet<_>) = readers.into_iter().partition(|node| {
             self.results
                 .of(*node)
-                .and_then(FormulaResult::stamp)
-                .is_some_and(|stamp| {
-                    stamp
-                        .reads
-                        .external_inputs
-                        .iter()
-                        .any(|read| &read.topic == topic)
-                })
+                .is_some_and(|result| result.rtd_reads().iter().any(|read| &read.topic == topic))
         });
         if !gone.is_empty() {
             if let Some(held) = self.rtd_readers.get_mut(topic) {

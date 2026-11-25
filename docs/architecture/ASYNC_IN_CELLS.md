@@ -767,7 +767,7 @@ All four mechanisms obey the three-level execution policy (`Off`, `Guarded`, `Un
 | **JS streaming (`setResult`)** | Not loaded before parsing. | **Runs in `Guarded`** with all JS async bounds plus Guarded-only `max_active_streams` cap (typed refusal on overflow) and bounded per-stream latest-value coalescing inbox. | Sandboxed JS runtime with bounded latest-value coalescing and no arbitrary stream-count truncation; mediated `fetch` allowed & audited. |
 | **Built-in `WEBSERVICE` / `IMAGE`** | Follows host fetch policy (`network` capability). | Mediated through host `network` capability (audited; refused unless allow-listed). | Allowed and audited. |
 
-Runtime policy downgrades (`Unguarded -> Guarded`, `* -> Off`) immediately execute the teardown sequence in §3.4.3 (disconnecting COM RTD servers, revoking/cancelling active XLL/JS tokens and streams, and republishing `CallableTable`). Future host-offered pure-Rust RTD servers (`dc-hul4`) and shared-runtime task-pane IPC (`dc-17spk.5`) remain outside `dc-26wtr` and keep their own security specifications.
+Runtime policy downgrades (`Unguarded -> Guarded`, `* -> Off`) immediately execute the teardown sequence in §3.4.3 (disconnecting COM RTD servers, revoking/cancelling active XLL/JS tokens and streams, and republishing `CallableTable`). The in-process clock provider (`dc-hul4`) and shared-runtime task-pane IPC (`dc-17spk.5`) remain outside `dc-26wtr` and keep their own security specifications.
 
 ---
 
@@ -787,7 +787,15 @@ Related existing beads (not duplicated here):
 - `dc-snz.23` — XLL host X5 strict managed RTD lifecycle/native traffic parity, remote RTD, and `MyAsyncResultType` ABI discrepancy.
 - `dc-17spk.22` — Cross-face and cross-UDF differential parity harness (argument coercions, error edge cases across XLL/VBA/JS/Automation).
 - `dc-17spk.5` — Shared-runtime Office Add-ins / task-pane IPC (separate future scope).
-- `dc-hul4` — Clock RTD server for iterative models (separate future scope).
+- `dc-hul4` — Clock RTD server for iterative models. The workbook server offers an opt-in in-process connector. Desktop scheduling, subscription teardown, the seeded price topic, and Excel COM activation and parity remain open.
+
+A workbook owner enables the clock with `Server::enable_model_clock` and supplies elapsed time
+through `Server::advance_model_clock` or `InProcessTransport::advance_model_clock`. The clock serves
+`=RTD("DnaCalc.Clock",,"Stock","tick",Rate,Run,StepCount)`. The defaults are 1 Hz, running, and
+a step counter of zero. Each model has one controlling cell. After the first connection,
+changing its step counter advances one tick, including while paused. Run or rate changes start
+a new interval. The workbook's own formulas build any reset condition. The clock reads only
+the RTD arguments and advances through the same sequenced admission path as other RTD sources.
 
 ---
 

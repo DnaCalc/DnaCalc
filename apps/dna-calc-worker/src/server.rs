@@ -100,6 +100,7 @@ pub struct Server {
     /// A native host's user functions, applied to every workbook this server installs.
     user_functions: Option<calc_host::CallableTable>,
     rtd_connector: Option<std::rc::Rc<dyn calc_host::RtdConnector>>,
+    model_clock: Option<std::rc::Rc<crate::model_clock::ModelClock>>,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
@@ -133,6 +134,88 @@ pub struct Server {
 impl Default for Server {
     fn default() -> Self {
         Server::new()
+    }
+}
+
+#[cfg(test)]
+mod model_clock_tests {
+    use super::*;
+    use calc_host::{ProjectedValue, value::CalcValue};
+    use std::time::Duration;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn model_clock_drives_one_iteration_per_tick_and_resets_in_the_workbook() {
+        let mut server = Server::new();
+        server.enable_model_clock();
+        let sheet = server.book().host().sheets()[0].id();
+        let at = |column| CellKey::new(sheet, 1, column).unwrap();
+        let apply = |server: &mut Server, intent| {
+            let Reply::Done { outcome, .. } = server
+                .execute_current(Request::Intent(intent), None)
+                .reply
+                .unwrap()
+            else {
+                panic!("expected a workbook receipt");
+            };
+            assert!(outcome.accepted, "{:?}", outcome.error);
+            while server.has_pending_calculation() {
+                server.advance_calculation();
+            }
+        };
+        let enter = |server: &mut Server, column, text: &str| {
+            apply(server, Intent::EnterCell {
+                at: Key::of(at(column)),
+                text: text.into(),
+            });
+        };
+        let expect = |server: &Server, tick, stock| {
+            for (column, expected) in [(1, tick), (2, stock)] {
+                let cell = server.book().cell(at(column)).unwrap();
+                let ProjectedValue::Calculated { value, .. } = cell.value() else {
+                    panic!("{}: {:?}", column, cell.value());
+                };
+                assert_eq!(*value, CalcValue::number(expected), "column {column}");
+            }
+        };
+        let advance = |server: &mut Server, millis| {
+            server.advance_model_clock(Duration::from_millis(millis));
+            while server.has_pending_calculation() {
+                server.advance_calculation();
+            }
+        };
+
+        apply(
+            &mut server,
+            Intent::SetIteration {
+                enabled: true,
+                max_iterations: 1,
+                max_change_bits: 0.001_f64.to_bits(),
+            },
+        );
+        enter(&mut server, 3, "2");
+        enter(&mut server, 4, "TRUE");
+        enter(&mut server, 5, "0");
+        enter(&mut server, 1, "=RTD(\"DnaCalc.Clock\",,\"stock\",\"tick\",C1,D1,E1)");
+        enter(&mut server, 2, "=IF(OR(A1=0,A1=3),10,B1-1)");
+        expect(&server, 0.0, 10.0);
+        advance(&mut server, 499);
+        expect(&server, 0.0, 10.0);
+        advance(&mut server, 1);
+        expect(&server, 1.0, 9.0);
+        advance(&mut server, 500);
+        expect(&server, 2.0, 8.0);
+        enter(&mut server, 4, "FALSE");
+        advance(&mut server, 1000);
+        assert!(matches!(server.book().cell(at(1)).unwrap().value(),
+            ProjectedValue::Calculated { value, .. } if *value == CalcValue::number(2.0)));
+        enter(&mut server, 5, "1");
+        expect(&server, 3.0, 10.0);
+        enter(&mut server, 3, "4");
+        enter(&mut server, 4, "TRUE");
+        advance(&mut server, 250);
+        assert!(matches!(server.book().cell(at(1)).unwrap().value(),
+            ProjectedValue::Calculated { value, .. } if *value == CalcValue::number(4.0)));
     }
 }
 
@@ -313,6 +396,7 @@ impl Server {
             import_route: None,
             user_functions: None,
             rtd_connector: None,
+            model_clock: None,
             subscriptions: BTreeMap::new(),
             subscription_interests: BTreeMap::new(),
             overhang: BTreeMap::new(),
@@ -1722,8 +1806,38 @@ impl Server {
 
     /// Bind a native host's RTD connector to this and every later workbook.
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_host::RtdConnector>) {
-        self.book.set_rtd_connector(connector.clone());
+        if let Some(clock) = &self.model_clock {
+            clock.set_fallback(connector.clone());
+            self.book.set_rtd_connector(clock.clone());
+        } else {
+            self.book.set_rtd_connector(connector.clone());
+        }
         self.rtd_connector = Some(connector);
+    }
+
+    /// Install the local DnaCalc.Clock RTD provider for this workbook and its replacements.
+    pub fn enable_model_clock(&mut self) {
+        if self.model_clock.is_some() {
+            return;
+        }
+        let clock = std::rc::Rc::new(crate::model_clock::ModelClock::default());
+        if let Some(fallback) = &self.rtd_connector {
+            clock.set_fallback(fallback.clone());
+        }
+        self.book.set_rtd_connector(clock.clone());
+        self.model_clock = Some(clock);
+    }
+
+    /// Drive the local clock using monotonic elapsed time. The normal RTD path admits each tick
+    /// and schedules its recalculation.
+    pub fn advance_model_clock(&mut self, elapsed: std::time::Duration) {
+        let Some(clock) = &self.model_clock else {
+            return;
+        };
+        let ticks = clock.advance(elapsed, !self.has_pending_calculation());
+        for tick in ticks {
+            self.update_rtd(tick.topic, tick.lease, tick.sequence, tick.value);
+        }
     }
 
     /// A fetch has its reply: resumes the waiting cell, or does nothing when the calculation
@@ -1752,7 +1866,10 @@ impl Server {
         if let Some(functions) = &self.user_functions {
             book.set_user_functions(functions.clone());
         }
-        if let Some(connector) = &self.rtd_connector {
+        if let Some(clock) = &self.model_clock {
+            clock.reset();
+            book.set_rtd_connector(clock.clone());
+        } else if let Some(connector) = &self.rtd_connector {
             book.set_rtd_connector(connector.clone());
         }
         self.pending_name = None;
