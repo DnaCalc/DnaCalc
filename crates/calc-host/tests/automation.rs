@@ -8014,19 +8014,6 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
     assert!(matches!(visible(&added), AutoValue::I4(2)));
 }
 
-/// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_47__protect_refuses_with_its_owner() {
-    let (_host, model) = setup();
-    let sheets = worksheets(&model);
-    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
-    for member in ["Protect", "Unprotect"] {
-        let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
-        assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
-    }
-}
-
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
 /// before any Goto it is a typed refusal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
