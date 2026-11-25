@@ -129,6 +129,16 @@ pub enum StyleChange {
         /// Position among the workbook's named styles.
         index: u32,
     },
+    /// Set a boolean property (`WrapText`, `ShrinkToFit`, `Locked`, `FormulaHidden`) of a style no cell format uses
+    /// (dc-lj4j5).
+    Flag {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// The Excel member name.
+        member: String,
+        /// The new value.
+        value: bool,
+    },
     /// Set the number format of a style no cell format uses (dc-lj4j5).
     NumberFormat {
         /// Position among the workbook's named styles.
@@ -1471,6 +1481,32 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
                 return Err("The style is in use; deleting it needs the cell formats reset (dc-oxh8w.63)".into());
             }
             styles.cell_styles.remove(index);
+        }
+        StyleChange::Flag { index, member, value } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let base = styles.cell_style_formats.get_mut(xf_id as usize).ok_or("The style's format is missing")?;
+            match member.as_str() {
+                "WrapText" => {
+                    base.alignment.get_or_insert_with(Default::default).wrap_text = value;
+                    base.apply_alignment = true;
+                }
+                "ShrinkToFit" => {
+                    base.alignment.get_or_insert_with(Default::default).shrink_to_fit = value;
+                    base.apply_alignment = true;
+                }
+                "Locked" => {
+                    base.protection.get_or_insert_with(Default::default).locked = Some(value);
+                    base.apply_protection = true;
+                }
+                _ => {
+                    base.protection.get_or_insert_with(Default::default).hidden = Some(value);
+                    base.apply_protection = true;
+                }
+            }
         }
         StyleChange::NumberFormat { index, code } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;

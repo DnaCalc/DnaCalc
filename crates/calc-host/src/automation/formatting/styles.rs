@@ -12,6 +12,9 @@ impl WorkbookAutomation {
         handlers.on("Styles", "Add", InvokeKind::Method, Self::styles_add);
         handlers.on("Style", "Delete", InvokeKind::Method, Self::style_delete);
         handlers.on("Style", "NumberFormat", InvokeKind::Put, Self::style_put_number_format);
+        for member in ["WrapText", "ShrinkToFit", "Locked", "FormulaHidden"] {
+            handlers.on("Style", member, InvokeKind::Put, Self::style_put_flag);
+        }
         for member in [
             "Name",
             "NameLocal",
@@ -263,6 +266,31 @@ impl WorkbookAutomation {
             );
             if let Some(error) = receipt.error {
                 return Err(AutoError::not_modelled(format!("Style.NumberFormat: {error:?}"), "dc-lj4j5"));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    /// `Style.WrapText/ShrinkToFit/Locked/FormulaHidden = bool` for a style no cell format uses (dc-lj4j5).
+    fn style_put_flag(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Style { index, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let AutoValue::Bool(value) = call.arg(0) else {
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        };
+        let member = call.member.name.clone();
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Flag { index, member: member.clone(), value: *value },
+                }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.{member}: {error:?}"), "dc-lj4j5"));
             }
             self.context_changed(session);
             Ok(AutoValue::Empty)

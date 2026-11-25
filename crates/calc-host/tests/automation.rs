@@ -8516,6 +8516,31 @@ fn dc_lj4j5__style_number_format_put() {
     assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
 }
 
+/// dc-lj4j5: `Style.WrapText/ShrinkToFit/Locked/FormulaHidden` puts change a style no cell uses; a cell given the style
+/// shows them; Normal (in use) is refused typed; a non-boolean is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_flag_puts() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine6")]).unwrap());
+    for m in ["WrapText", "ShrinkToFit", "FormulaHidden"] {
+        invoke_kind(&model, &mine, m, InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        assert!(matches!(invoke(&model, &mine, m, vec![]).unwrap(), AutoValue::Bool(true)), "{m}");
+    }
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &mine, "Locked", vec![]).unwrap(), AutoValue::Bool(false)));
+    let cell = range(&model, "E2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine6")]).unwrap();
+    assert!(matches!(invoke(&model, &cell, "WrapText", vec![]).unwrap(), AutoValue::Bool(true)));
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "WrapText", InvokeKind::Put, vec![AutoValue::Bool(true)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "WrapText", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
 /// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
 /// value is 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
