@@ -3123,3 +3123,90 @@ fn dc_y7tqj__unbound_document_module_refuses_as_unsupported_module() {
         "expected UnsupportedModule(\"Sheet1\"), got {err:?}"
     );
 }
+
+/// dc-9spk9 (rw13 finding 3): a template whose `Workbook_Open` itself calls
+/// `Workbooks.Add(Template:=...)` re-enters the factory while it is naming the book; that
+/// panicked with a RefCell `BorrowMutError`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9spk9__template_workbook_open_may_add_another_template_book() {
+    use std::rc::Rc;
+
+    // The nested add runs once: Workbooks.Count stops the recursion.
+    const OPEN_BOOK: &str = "Private Sub Workbook_Open()\n If Workbooks.Count < 3 Then\n  Workbooks.Add Template:=\"Tpl.xlsm\"\n End If\nEnd Sub\n";
+    let target_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[("Module1", "Option Explicit\n"), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", OPEN_BOOK)],
+    );
+    let mut caller_session = opened(LOCAL, "CallerBook.xlsm");
+    let caller = calc_host_vba::prepare(
+        caller_session.host(),
+        "CallerBook.xlsm",
+        &[calc_host_vba::ModuleSource {
+            name: "Module1".into(),
+            target: calc_host_vba::ModuleTarget::Standard,
+            source: "Public Function AddIt() As String\n Dim b As Workbook\n Set b = Workbooks.Add(Template:=\"Tpl.xlsm\")\n AddIt = b.Name & \"|\" & CStr(Workbooks.Count)\nEnd Function\n".into(),
+        }],
+        1_000_000,
+        Some(calc_vba::Backend::Interpreter),
+    )
+    .unwrap();
+    let payload = Rc::new(target_bytes);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: 1_000_000,
+        backend: Some(calc_vba::Backend::Interpreter),
+        loader: Some(Rc::new(move |path: &str| if path == "Tpl.xlsm" { Ok((*payload).clone()) } else { Err("missing".into()) })),
+        saver: None,
+        grant: Some(grant()),
+    });
+    let record = caller.run_procedure(&mut caller_session, "Module1.AddIt", &[]);
+    calc_host::automation::set_book_factory(None);
+    let output = match record.outcome {
+        calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(text)) => text,
+        other => panic!("unexpected outcome: {other:?}"),
+    };
+    // The outer add names its book first (Tpl1); the nested one inside its Workbook_Open is Tpl2.
+    assert_eq!(output, "Tpl1|3");
+}
+
+/// dc-9spk9 (rw13 finding 11): `Workbook.Close(True)` raises `AfterSave` once the file is written, so a saver that
+/// fails gives `AfterSave(False)` (it gave `True`: the event fired when the bytes were built, before the saver ran).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9spk9__close_saving_raises_after_save_after_the_file_is_written() {
+    use std::rc::Rc;
+
+    const AFTER: &str = "Private Sub Workbook_AfterSave(ByVal Success As Boolean)\n Workbooks(\"CallerBook.xlsm\").Worksheets(1).Range(\"Z1\").Value = \"after:\" & CStr(Success)\nEnd Sub\n";
+    let target_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[("Module1", "Option Explicit\n"), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", AFTER)],
+    );
+    let mut caller_session = opened(LOCAL, "CallerBook.xlsm");
+    let caller = calc_host_vba::prepare(
+        caller_session.host(),
+        "CallerBook.xlsm",
+        &[calc_host_vba::ModuleSource {
+            name: "Module1".into(),
+            target: calc_host_vba::ModuleTarget::Standard,
+            source: "Public Function CloseIt() As String\n Dim b As Workbook\n Set b = Workbooks.Open(\"Target.xlsm\")\n b.Worksheets(1).Range(\"A1\").Value = 5\n On Error Resume Next\n b.Close True\n CloseIt = CStr(Err.Number) & \"|\" & CStr(ThisWorkbook.Worksheets(1).Range(\"Z1\").Value)\nEnd Function\n".into(),
+        }],
+        1_000_000,
+        Some(calc_vba::Backend::Interpreter),
+    )
+    .unwrap();
+    let payload = Rc::new(target_bytes);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: 1_000_000,
+        backend: Some(calc_vba::Backend::Interpreter),
+        loader: Some(Rc::new(move |path: &str| if path == "Target.xlsm" { Ok((*payload).clone()) } else { Err("missing".into()) })),
+        saver: Some(Rc::new(|_: &str, _: &[u8]| Err("disk full".to_owned()))),
+        grant: Some(grant()),
+    });
+    let record = caller.run_procedure(&mut caller_session, "Module1.CloseIt", &[]);
+    calc_host::automation::set_book_factory(None);
+    let output = match record.outcome {
+        calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(text)) => text,
+        other => panic!("unexpected outcome: {other:?}"),
+    };
+    assert_eq!(output, "1004|after:False");
+}

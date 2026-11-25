@@ -73,10 +73,18 @@ impl BookRunner for OwnedBook {
             return Ok(false);
         }
         let mut bytes = Vec::new();
-        session
-            .save(&calc_host::SavePolicy::default(), &mut bytes)
-            .map_err(|why| AutoError::excel(1004, why.to_string()))?;
-        saver(destination, &bytes).map_err(|why| AutoError::excel(1004, why))?;
+        match session.save_without_after_event(&calc_host::SavePolicy::default(), &mut bytes) {
+            Ok(_) => {}
+            Err(calc_host::SaveFailed::Cancelled) => return Err(AutoError::excel(1004, "Close: the save was cancelled")),
+            Err(why) => {
+                session.notify_after_save(false);
+                return Err(AutoError::excel(1004, why.to_string()));
+            }
+        }
+        // AfterSave follows the write: it reports whether the file reached its destination.
+        let written = saver(destination, &bytes);
+        session.notify_after_save(written.is_ok());
+        written.map_err(|why| AutoError::excel(1004, why))?;
         Ok(true)
     }
     fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
@@ -240,12 +248,26 @@ impl BookFactory for Factory {
     fn add_from(&self, path: &str) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
         let stem = template_stem(path);
-        let mut stems = self.stems.borrow_mut();
-        let count = stems.entry(stem.to_ascii_lowercase()).or_insert(0);
-        *count += 1;
+        // The name is reserved before `create` runs the book's Workbook_Open, which may add another
+        // template book itself: the borrow is released first, and a failed create gives the number back.
+        let key = stem.to_ascii_lowercase();
+        let count = {
+            let mut stems = self.stems.borrow_mut();
+            let count = stems.entry(key.clone()).or_insert(0);
+            *count += 1;
+            *count
+        };
         let name = format!("{stem}{count}");
         // ww21 Workbooks.Add.Template: a workbook made from Data.xlsx is named Data1 (empty Path).
-        self.create(&name, bytes, self.options.grant.as_ref(), false)
+        let made = self.create(&name, bytes, self.options.grant.as_ref(), false);
+        if made.is_err() {
+            if let Some(now) = self.stems.borrow_mut().get_mut(&key) {
+                if *now == count {
+                    *now -= 1;
+                }
+            }
+        }
+        made
     }
     fn add_package(&self, bytes: Vec<u8>) -> Result<u64, AutoError> {
         let n = self.blank.get() + 1;
