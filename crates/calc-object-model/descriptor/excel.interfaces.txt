@@ -69,3 +69,7 @@ ChartFillFormat
 DialogSheet
 # Calculation settings (dc-oxh8w.40).
 MultiThreadedCalculation
+
+# PageSetup.Pages, FirstPage and EvenPage (dc-oxh8w.45).
+Pages
+Page
