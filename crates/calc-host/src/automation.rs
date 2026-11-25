@@ -198,7 +198,7 @@ pub struct WorkbookAutomation {
     /// What the last Range.Copy or Range.Cut without a Destination left (dc-oxh8w.15).
     clipboard: RefCell<Option<clipboard::Clip>>,
     /// The areas the last `Application.Goto` selected: `Goto` without a Reference returns to them (dc-oxh8w.49).
-    last_goto: RefCell<Option<Vec<GridArea>>>,
+    last_goto: RefCell<Option<StoredReference>>,
     /// The view state a macro sets on windows, per workbook and sheet (dc-oxh8w.50).
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
     /// Window captions a macro set, by workbook (dc-p3rg9).
@@ -678,10 +678,10 @@ impl WorkbookAutomation {
             | ObjectKey::BookWindow(id)
             | ObjectKey::Windows(id)
             | ObjectKey::SheetGroup { workbook: id, .. }
-            | ObjectKey::SheetNames { workbook: id, .. }
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),
             ObjectKey::Worksheet { workbook, sheet }
+            | ObjectKey::SheetNames { workbook, sheet }
             | ObjectKey::Report {
                 workbook, sheet, ..
             } => {
@@ -742,6 +742,16 @@ impl WorkbookAutomation {
                 references,
             });
         Ok(reference)
+    }
+    pub(super) fn release_stored(&self, reference: &StoredReference) {
+        let mut ranges = self.ranges.borrow_mut();
+        if let Some(entry) = ranges.get_mut(reference) {
+            entry.references.release(reference);
+            entry.count -= 1;
+            if entry.count == 0 {
+                ranges.remove(reference);
+            }
+        }
     }
     fn range_argument(
         &self,
@@ -1382,14 +1392,7 @@ impl ObjectModel for WorkbookAutomation {
         | ObjectKey::RangeView { reference, .. }
         | ObjectKey::Areas(reference) = &target.key
         {
-            let mut ranges = self.ranges.borrow_mut();
-            if let Some(entry) = ranges.get_mut(reference) {
-                entry.references.release(reference);
-                entry.count -= 1;
-                if entry.count == 0 {
-                    ranges.remove(reference);
-                }
-            }
+            self.release_stored(reference);
         }
     }
     fn record_refusal(&self, error: &AutoError) {

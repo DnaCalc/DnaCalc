@@ -93,8 +93,14 @@ impl WorkbookAutomation {
         let given = |index: usize| !matches!(call.arg(index), AutoValue::Missing | AutoValue::Empty);
         let paste = if given(0) { geometry::integer(call.arg(0))? } else { XL_PASTE_ALL };
         let mode = match paste {
-            // Within one workbook the source theme is the destination's, and conditional formats merge as they do on All.
-            XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME | XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => PasteMode::All,
+            // Within one workbook the source theme is the destination's.
+            XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME => PasteMode::All,
+            XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => {
+                return Err(AutoError::not_modelled(
+                    "Range.PasteSpecial xlPasteAllMergingConditionalFormats",
+                    "dc-2rjye",
+                ));
+            }
             XL_PASTE_COLUMN_WIDTHS => PasteMode::Formats,
             XL_PASTE_VALIDATION => PasteMode::Validation,
             XL_PASTE_COMMENTS => PasteMode::Comments,
@@ -297,9 +303,13 @@ impl WorkbookAutomation {
             .collect();
         let page = crate::project(host, &ProjectionRequest { cells }).map_err(|_| failed("PasteSpecial"))?;
         let mut current = HashMap::new();
+        let mut dest_empty = std::collections::HashSet::new();
         for cell in page.cells() {
             let number = match cell.value() {
-                ProjectedValue::Empty => 0.0,
+                ProjectedValue::Empty => {
+                    dest_empty.insert(cell.at());
+                    0.0
+                }
                 ProjectedValue::Literal(v) => match v.core_ref() {
                     calc_value::CoreRef::Number(n) => n,
                     _ => return Err(refuse("onto a destination cell that is not a number")),
@@ -309,13 +319,22 @@ impl WorkbookAutomation {
             current.insert(cell.at(), number);
         }
         for edit in plan.edits_mut().iter_mut() {
-            // A blank source cell counts as zero.
+            // A blank source cell counts as zero onto a numeric destination; blank-on-blank is uncaptured (dc-2rjye).
             let (at, source) = match edit {
                 CellEdit::Set { at, input } => match input {
                     CellInput::Number(source) => (*at, source.get()),
                     _ => return Err(refuse("with a source that is not a number")),
                 },
-                CellEdit::Clear { area } => (area.first(), 0.0),
+                CellEdit::Clear { area } => {
+                    let at = area.first();
+                    if dest_empty.contains(&at) {
+                        return Err(AutoError::not_modelled(
+                            "Range.PasteSpecial Operation blank source onto blank destination",
+                            "dc-2rjye",
+                        ));
+                    }
+                    (at, 0.0)
+                }
                 _ => continue,
             };
             let dest = current[&at];

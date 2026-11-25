@@ -252,6 +252,9 @@ impl WorkbookAutomation {
                 Ok(AutoValue::I4(pick))
             }
             "Color" | "ColorIndex" => {
+                if call.member.name == "ColorIndex" && !border.none && border.color.is_none() {
+                    return Ok(AutoValue::I4(-4105));
+                }
                 if series && border.color.is_none() {
                     return Err(unstated("Border.Color"));
                 }
