@@ -185,7 +185,7 @@ class V1Conn:
 
 class Request:
     __slots__ = ("pieces", "last_seq", "priority", "echo", "serial", "t_first", "calls", "done_sent",
-                 "cache_bytes", "envs", "touched", "client", "primer", "addins", "source", "excel_errors")
+                 "cache_bytes", "envs", "touched", "client", "primer", "addins", "source", "excel_errors", "deadline_kills")
 
     def __init__(self):
         self.pieces, self.last_seq = {}, None
@@ -201,6 +201,7 @@ class Request:
         self.addins = ()
         self.source = {}
         self.excel_errors = 0
+        self.deadline_kills = 0
 
 
 class Slot:
@@ -367,10 +368,10 @@ class Broker:
         proc.sweep_leftovers = slot.proc.sweep_leftovers
         return proc
 
-    async def start_slot(self, slot, initial=False):
+    async def start_slot(self, slot, initial=False, counted=True):
         """Start the slot's worker.  The first start of a broker is free; every later start counts against the
         hourly cap, and a failed start (even the first) leaves the worker down until the next cool-down window."""
-        if not initial:
+        if not initial and counted:
             slot.attempts.append(time.time())
         try:
             hello = await self.loop.run_in_executor(self.executor, slot.proc.start)
@@ -829,8 +830,11 @@ class Broker:
                     # the batch is answered or split here, not failed: no caller retries a call that crashed Excel
                     self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=error)
                     self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail="excel-crashed")
-                    self.on_crash(slot, batch, number, detail, confined, deadline_kill)
-                    await self.finish_restart(slot, counted=not confined)
+                    if deadline_kill:
+                        self.quarantine_repeat_deadlines(slot, batch, number, detail)
+                    if not batch.pieces or not all(p.done for p in batch.pieces):
+                        self.on_crash(slot, batch, number, detail, confined, deadline_kill)
+                    await self.finish_restart(slot, counted=not confined and not deadline_kill)
                     self.kick()
                     return
                 for item_f in {g["f"] for g in batch.groups}:
@@ -844,7 +848,7 @@ class Broker:
             self.waits.add("excel-start" if failure[0] in ("worker-lost", "excel-timeout") else "excel-calc",
                            worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail=str(failure[0])[:100])
             if failure[0] in ("excel-timeout", "worker-lost"):
-                await self.restart_slot(slot)
+                await self.restart_slot(slot, counted=failure[0] != "excel-timeout")
             elif restart:
                 await self.finish_restart(slot)
             else:
@@ -883,11 +887,26 @@ class Broker:
         until = datetime.fromtimestamp(self.poisoned[rid], timezone.utc).isoformat(timespec="seconds")
         return f"Excel failed twice for this request; resubmission refused until {until}"
 
-    def quarantine_request(self, key, req, batch, slot, number, detail):
+    def quarantine_repeat_deadlines(self, slot, batch, number, detail):
+        """A request whose calls ran past the deadline a second time is quarantined with its arguments (a typed
+        "excel-deadline" error for the caller, a "quarantined" row in deadline-list.jsonl), not retried on the next
+        worker: Excel is slow on it, not wrong (dc-v3jbo)."""
+        for key in {(piece.origin, piece.rid) for piece in batch.pieces}:
+            req = self.requests.get(key)
+            if req is None:
+                continue
+            req.deadline_kills += 1
+            if req.deadline_kills >= 2:
+                self.quarantine_request(key, req, batch, slot, number, detail, deadline=True)
+
+    def quarantine_request(self, key, req, batch, slot, number, detail, deadline=False):
         rid = key[1]
         self.poisoned[rid] = time.time() + self.opt("poison_seconds", POISON_SECONDS)
-        self.crash_log.write({"id": rid, "origin": req.source, "worker": slot.name, "batch": number,
-                              "failures": req.excel_errors, "detail": str(detail or "")[:400],
+        calls = req.calls or batch.calls
+        (self.deadline_log if deadline else self.crash_log).write({
+                              "quarantined": deadline, "calls": calls, "utc": logs.utc().isoformat(timespec="seconds"),
+                              "id": rid, "origin": req.source, "worker": slot.name, "batch": number,
+                              "failures": req.deadline_kills if deadline else req.excel_errors, "detail": str(detail or "")[:400],
                               "function": batch.groups[0]["f"], "retry_at": self.poisoned[rid],
                               "opts": {"order": "serial" if req.serial else "any", "echo": req.echo,
                                        "priority": req.priority, "addins": req.addins, "primer": req.primer},
@@ -896,12 +915,18 @@ class Broker:
         self.save_isolated()
         self.batcher.discard_request(rid)
         detail = self.poison_detail(rid)
+        code = "excel-crashed"
+        if deadline:
+            code = "excel-deadline"
+            detail = (f"calls of {batch.groups[0]['f']} ran past the deadline twice; the request is quarantined "
+                      f"(Excel is slow on it, not wrong); resubmission refused until "
+                      f"{datetime.fromtimestamp(self.poisoned[rid], timezone.utc).isoformat(timespec='seconds')}")
         for request_key in [k for k in self.requests if k[1] == rid]:
             request = self.requests.get(request_key)
             if request is None:
                 continue
             for piece in request.pieces.values():
-                self.fail_piece(piece, "excel-crashed", detail)
+                self.fail_piece(piece, code, detail)
             if self.requests.pop(request_key, None) is not None:
                 self.cache_bytes -= request.cache_bytes
         self.counters["quarantined_requests"] = self.counters.get("quarantined_requests", 0) + 1
@@ -988,17 +1013,18 @@ class Broker:
         slot.restarts += 1
         await self.recycle_after_worker_event(slot)
 
-    async def restart_slot(self, slot):
+    async def restart_slot(self, slot, counted=True):
         """After a missed deadline or a lost worker process: start it once more, within the cap; a failed start
-        leaves it down until its cool-down passes."""
+        leaves it down until its cool-down passes. A restart after our own deadline watchdog or a stall
+        (counted=False) is not a fault of the worker: it never counts against the cap (dc-v3jbo)."""
         await self.loop.run_in_executor(self.executor, slot.proc.kill)
-        if self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
+        if counted and self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
             self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour)")
             return
         slot.restarts += 1
         slot.state = "new"
         slot.proc = self.new_process(slot)
-        await self.start_slot(slot)
+        await self.start_slot(slot, counted=counted)
 
     # ---- reversed-order and fresh-Excel checks ---------------------------------------------
     def remember(self, batch, result):
@@ -1424,7 +1450,7 @@ class Broker:
 
     async def restart_after_stall(self, slot):
         try:
-            await self.restart_slot(slot)
+            await self.restart_slot(slot, counted=False)
         finally:
             self.kick()
 
