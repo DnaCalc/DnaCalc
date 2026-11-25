@@ -129,6 +129,13 @@ pub enum StyleChange {
         /// Position among the workbook's named styles.
         index: u32,
     },
+    /// Set the number format of a style no cell format uses (dc-lj4j5).
+    NumberFormat {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// Excel number format code.
+        code: String,
+    },
 }
 
 /// Authored workbook commands submitted through [`crate::HostSession::dispatch`].
@@ -1464,6 +1471,17 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
                 return Err("The style is in use; deleting it needs the cell formats reset (dc-oxh8w.63)".into());
             }
             styles.cell_styles.remove(index);
+        }
+        StyleChange::NumberFormat { index, code } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing its format needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let id = crate::format::number_format_id(&mut styles, &code)?;
+            let base = styles.cell_style_formats.get_mut(xf_id as usize).ok_or("The style's format is missing")?;
+            base.number_format_id = Some(id);
+            base.apply_number_format = true;
         }
     }
     Ok(vec![CellEdit::Styles(std::sync::Arc::new(styles))])

@@ -8492,6 +8492,30 @@ fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
     assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
 }
 
+/// dc-lj4j5: `Style.NumberFormat` put changes the format of a style no cell uses yet; a range given the style shows it.
+/// Normal is in use by every cell, so changing it is refused with a typed not-modelled error; an unusable format code
+/// is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_number_format_put() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine5")]).unwrap());
+    invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &mine, "NumberFormat"), "0.00");
+    let cell = range(&model, "D2");
+    invoke_kind(&model, &cell, "Value", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine5")]).unwrap();
+    assert_eq!(text(&model, &cell, "NumberFormat"), "0.00");
+    assert_eq!(text(&model, &cell, "Text"), "30.00");
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
 /// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
 /// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
