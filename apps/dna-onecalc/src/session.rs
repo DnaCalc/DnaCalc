@@ -1105,6 +1105,7 @@ impl Session {
         .with_user_view(calc_func::UserView {
             active_sheet: self.formula_cell.sheet(),
             selection: self.formula_cell,
+            settings: None,
         });
         if let Some(recording) = &recording {
             services = services

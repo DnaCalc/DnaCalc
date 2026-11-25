@@ -7979,6 +7979,92 @@ fn dc_oxh8w_46__display_alerts_and_cut_copy_mode() {
     assert!(bad.is_err(), "{bad:?}");
 }
 
+/// Inside a worksheet function call the application and workbook settings answer from the host
+/// state the evaluation carries, the same values the session reads give (dc-oxh8w.52).
+struct SettingsProbe {
+    model: Weak<WorkbookAutomation>,
+    seen: Rc<RefCell<Vec<(String, String)>>>,
+}
+impl std::fmt::Debug for SettingsProbe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SettingsProbe")
+    }
+}
+impl UserFunction for SettingsProbe {
+    fn call(&self, _: &[CalcValue]) -> Result<CalcValue, String> {
+        panic!("invocation required")
+    }
+    fn call_with_context(
+        &self,
+        _: &[CalcValue],
+        context: &mut dyn UserFunctionContext,
+    ) -> Result<CalcValue, String> {
+        let loan = Loan(RefCell::new(context));
+        INVOCATION.set(&loan, || {
+            let model = self.model.upgrade().unwrap();
+            let app = model.application();
+            let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+            let mut seen = self.seen.borrow_mut();
+            for (name, target) in [
+                ("Calculation", &app),
+                ("CalculateBeforeSave", &app),
+                ("Iteration", &app),
+                ("MaxIterations", &app),
+                ("MaxChange", &app),
+                ("CalculationState", &app),
+                ("Date1904", &book),
+                ("PrecisionAsDisplayed", &book),
+            ] {
+                seen.push((name.to_owned(), format!("{:?}", invoke(&model, target, name, vec![]))));
+            }
+            Ok(CalcValue::number(1.))
+        })
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn settings_read_inside_a_worksheet_function_call() {
+    let (host, model) = setup();
+    let app = model.application();
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut functions = CallableTable::new();
+    functions
+        .register("SettingsProbe", Rc::new(SettingsProbe { model: Rc::downgrade(&model), seen: seen.clone() }))
+        .unwrap();
+    host.session.borrow_mut().set_user_functions(functions);
+    let caller = at(&host, 20, 5);
+    // Expected from the session's own reads, outside any call.
+    let outside: Vec<(String, String)> = [
+        ("Calculation", &app),
+        ("CalculateBeforeSave", &app),
+        ("Iteration", &app),
+        ("MaxIterations", &app),
+        ("MaxChange", &app),
+    ]
+    .iter()
+    .map(|(name, target)| (name.to_string(), format!("{:?}", invoke(&model, target, name, vec![]))))
+    .collect();
+    enter(&host, caller, "=SettingsProbe()");
+    model.context_changed(&host.session.borrow());
+    host.session.borrow_mut().dispatch(SkinIntent::Recalculate);
+    while host.session.borrow().has_pending_calculation() {
+        host.session.borrow_mut().advance_calculation();
+    }
+    let seen = seen.borrow();
+    assert!(!seen.is_empty(), "the probe ran");
+    for (name, expected) in &outside {
+        let got = seen.iter().rev().find(|(n, _)| n == name).unwrap();
+        assert_eq!(&got.1, expected, "{name} inside the call");
+    }
+    let state = seen.iter().rev().find(|(n, _)| n == "CalculationState").unwrap();
+    assert_eq!(state.1, "Ok(I4(1))", "xlCalculating inside a call");
+    for name in ["Date1904", "PrecisionAsDisplayed"] {
+        let got = seen.iter().rev().find(|(n, _)| n == name).unwrap();
+        assert!(got.1.starts_with("Ok(Bool("), "{name}: {}", got.1);
+    }
+}
+
 /// dc-tqcvu: a macro adds rules with `FormatConditions.Add` (cell value and expression), sets their `Interior.Color`
 /// and `Font` afterwards, reads Type/Operator/Formula1/Formula2/Count/Item back and deletes; the saved workbook
 /// reopens with the same rules and formats. Bad types, missing operators or formulas are 1004.
