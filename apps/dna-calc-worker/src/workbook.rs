@@ -238,6 +238,8 @@ pub struct Workbook {
     project_functions: Option<calc_host::CallableTable>,
     /// The installed VBA project's event owner, which holds the files its macros wrote.
     macro_events: Option<std::rc::Rc<calc_host_vba::WorkbookEvents>>,
+    /// Optional page/host file-store loader for `Workbooks.Open` from macros (dc-oxh8w.75).
+    macro_file_loader: Option<Rc<dyn Fn(&str) -> Result<Vec<u8>, String>>>,
     /// Whether that project runs ([`Macros`]).
     macros: Macros,
     /// An information notice about macros that ran for a marked or network file (dc-15dk).
@@ -393,6 +395,7 @@ impl Workbook {
             calculated_on_open: None,
             project_functions: None,
             macro_events: None,
+            macro_file_loader: None,
             macros,
             macro_note: None,
             addin_functions: None,
@@ -608,6 +611,13 @@ impl Workbook {
         self.macros = Macros::Enabled;
         self.macro_note = note;
         self.macro_events = Some(project.clone());
+        calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+            max_steps: calc_vba::DEFAULT_STEP_BUDGET,
+            backend: None,
+            loader: self.macro_file_loader.clone(),
+            saver: None,
+            grant: None,
+        });
         project.install_with_registry(&mut self.session, functions);
         self.session.notify_workbook_open();
         if self.session.calc_mode() != CalcMode::Manual {
@@ -704,8 +714,29 @@ impl Workbook {
             backend,
         )?;
         self.macro_events = Some(owner.clone());
+        calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+            max_steps,
+            backend,
+            loader: self.macro_file_loader.clone(),
+            saver: None,
+            grant: None,
+        });
         owner.install(&mut self.session);
         Ok(())
+    }
+    /// Supplies the page/host file loader for `Workbooks.Open` from macros (dc-oxh8w.75).
+    pub fn set_macro_file_loader(
+        &mut self,
+        loader: Option<Rc<dyn Fn(&str) -> Result<Vec<u8>, String>>>,
+    ) {
+        self.macro_file_loader = loader.clone();
+        calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+            max_steps: calc_vba::DEFAULT_STEP_BUDGET,
+            backend: None,
+            loader,
+            saver: None,
+            grant: None,
+        });
     }
     /// The files macros wrote since the last call (Chart.Export), oldest first: the path the macro
     /// named and the bytes. The server offers them to the page as downloads (dc-oxh8w.54).

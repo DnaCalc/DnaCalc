@@ -24,6 +24,11 @@ impl WorkbookAutomation {
 
     /// `Worksheet.Rows`/`Columns`, and `Application.Rows`/`Columns` on the active sheet: every row or column.
     fn sheet_axis(&self, target: &ObjectRef, call: &Call<'_>, axis: RangeAxis) -> Reply {
+        if !matches!(target.key, ObjectKey::Worksheet { .. })
+            && let Some(routed) = self.active_book_call(target, call)
+        {
+            return routed;
+        }
         self.with_target(target, |access, meta| {
             no_args(call)?;
             let sheet = match &target.key {

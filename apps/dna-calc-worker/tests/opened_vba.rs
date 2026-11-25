@@ -1236,3 +1236,53 @@ fn a_macro_chart_export_reaches_the_page_as_a_file() {
     let again = server.execute_current(Request::TakeMacroFile, None);
     assert!(again.reply.is_err(), "taking the file empties the queue");
 }
+
+/// dc-oxh8w.75: the browser worker installs the workbook factory on macro enable so `Workbooks.Add`
+/// works and `Workbooks.Open` reads from the page-supplied file loader.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_75__worker_installs_application_factory_and_page_loader() {
+    use dna_calc_worker::workbook::{EnableMode, Workbook};
+    let macro_open = "Private Sub Workbook_Open()\n \
+        Dim added As Workbook\n Set added = Workbooks.Add\n \
+        ThisWorkbook.Worksheets(1).Range(\"A1\").Value2 = added.Name\n \
+        added.Close False\n \
+        Dim other As Workbook\n Set other = Workbooks.Open(\"store.xlsm\")\n \
+        ThisWorkbook.Worksheets(1).Range(\"A2\").Value2 = other.Name\n \
+        other.Close False\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", ""),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", macro_open),
+        ],
+    );
+    let mut book = Workbook::open_with_project_policy(
+        "worker.xlsm",
+        bytes,
+        calc_host::WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
+    book.set_macro_file_loader(Some(std::rc::Rc::new(|path: &str| {
+        if path == "store.xlsm" {
+            Ok(LOCAL.to_vec())
+        } else {
+            Err("missing".into())
+        }
+    })));
+    book.enable_macros_as(EnableMode::Person).unwrap();
+    let sheet = book.host().model().sheets()[0].id();
+    let a1 = book.host().model().cell(calc_value::CellKey::new(sheet, 1, 1).unwrap());
+    let a2 = book.host().model().cell(calc_value::CellKey::new(sheet, 2, 1).unwrap());
+    assert!(
+        matches!(a1, Some(calc_host::CellInput::Text(t)) if t.text().to_string_lossy() == "Book1"),
+        "A1: {a1:?}"
+    );
+    assert!(
+        matches!(a2, Some(calc_host::CellInput::Text(t)) if t.text().to_string_lossy() == "store.xlsm"),
+        "A2: {a2:?}"
+    );
+}
