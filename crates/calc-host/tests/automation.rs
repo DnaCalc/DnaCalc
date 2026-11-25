@@ -8749,6 +8749,107 @@ fn dc_lj4j5__style_flag_puts() {
     assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
 }
 
+/// dc-lj4j5: Style.HorizontalAlignment, VerticalAlignment, IndentLevel, Orientation, Font and Interior
+/// writes update an unused custom style, propagate to ranges that apply the style, and round-trip through save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_alignment_font_and_interior_puts() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine7")]).unwrap());
+    // Alignment puts.
+    invoke_kind(&model, &mine, "HorizontalAlignment", InvokeKind::Put, vec![AutoValue::I4(-4108)]).unwrap(); // xlCenter
+    invoke_kind(&model, &mine, "VerticalAlignment", InvokeKind::Put, vec![AutoValue::I4(-4160)]).unwrap(); // xlTop
+    invoke_kind(&model, &mine, "IndentLevel", InvokeKind::Put, vec![AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &mine, "Orientation", InvokeKind::Put, vec![AutoValue::I4(-45)]).unwrap();
+    assert_eq!(int(invoke(&model, &mine, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    assert_eq!(int(invoke(&model, &mine, "VerticalAlignment", vec![]).unwrap()), -4160);
+    assert_eq!(int(invoke(&model, &mine, "IndentLevel", vec![]).unwrap()), 3);
+    assert_eq!(int(invoke(&model, &mine, "Orientation", vec![]).unwrap()), -45);
+    // Out-of-range / invalid enum gives 1004.
+    for (m, v) in [("HorizontalAlignment", 999), ("VerticalAlignment", 999), ("IndentLevel", 16), ("Orientation", 91)] {
+        let r = invoke_kind(&model, &mine, m, InvokeKind::Put, vec![AutoValue::I4(v)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{m}={v}: {r:?}");
+    }
+    // Style.Font get/put.
+    let font = obj(invoke(&model, &mine, "Font", vec![]).unwrap());
+    invoke_kind(&model, &font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &font, "Italic", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &font, "Size", InvokeKind::Put, vec![AutoValue::I4(14)]).unwrap();
+    invoke_kind(&model, &font, "Name", InvokeKind::Put, vec![AutoValue::text("Arial")]).unwrap();
+    invoke_kind(&model, &font, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert!(matches!(invoke(&model, &font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert!(matches!(invoke(&model, &font, "Italic", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &font, "Name"), "Arial");
+    assert_eq!(int(invoke(&model, &font, "Color", vec![]).unwrap()), 255);
+    // Style.Interior get/put.
+    let interior = obj(invoke(&model, &mine, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 65_280);
+    assert_eq!(int(invoke(&model, &interior, "Pattern", vec![]).unwrap()), 1);
+    // Apply to a cell and verify the cell inherits them and survives save/reopen.
+    let cell = range(&model, "F2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine7")]).unwrap();
+    assert_eq!(int(invoke(&model, &cell, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    assert_eq!(int(invoke(&model, &cell, "IndentLevel", vec![]).unwrap()), 3);
+    assert_eq!(int(invoke(&model, &cell, "Orientation", vec![]).unwrap()), -45);
+    let cell_font = obj(invoke(&model, &cell, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &cell_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &cell_font, "Name"), "Arial");
+    let cell_int = obj(invoke(&model, &cell, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &cell_int, "Color", vec![]).unwrap()), 65_280);
+    let reopened = reopen_formatting(&host);
+    let r_book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let r_styles = obj(invoke(&reopened, &r_book, "Styles", vec![]).unwrap());
+    let r_mine = obj(invoke_kind(&reopened, &r_styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine7")]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_mine, "HorizontalAlignment", vec![]).unwrap()), -4108);
+    let r_font = obj(invoke(&reopened, &r_mine, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &r_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    let r_int = obj(invoke(&reopened, &r_mine, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_int, "Color", vec![]).unwrap()), 65_280);
+}
+
+/// dc-lj4j5 (ww21): Styles.Add accepts BasedOn:=Range and empty name "", and deleting a custom style
+/// in use resets cells using it back to Normal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__styles_add_based_on_empty_name_and_delete_in_use() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    // Format B2, then Styles.Add("FromB2", BasedOn:=Range("B2")).
+    let b2 = range(&model, "B2");
+    invoke_kind(&model, &b2, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.000")]).unwrap();
+    let b2_font = obj(invoke(&model, &b2, "Font", vec![]).unwrap());
+    invoke_kind(&model, &b2_font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let from_b2 = obj(
+        invoke_kind(
+            &model,
+            &styles,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::text("FromB2"), AutoValue::Object(b2.clone())],
+        )
+        .unwrap(),
+    );
+    assert_eq!(text(&model, &from_b2, "NumberFormat"), "0.000");
+    let s_font = obj(invoke(&model, &from_b2, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &s_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    // Non-range BasedOn gives 1004.
+    let bad = invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("BadBased"), AutoValue::I4(1)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    // ww21 Styles.Add.empty.confirm: empty name "" is accepted.
+    let empty = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("")]).unwrap());
+    assert_eq!(text(&model, &empty, "Name"), "");
+    // ww21 Styles.Delete.inUse: deleting an in-use custom style resets the cell to Normal.
+    let d10 = range(&model, "D10");
+    invoke_kind(&model, &d10, "Style", InvokeKind::Put, vec![AutoValue::text("FromB2")]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &d10, "Style", vec![]).unwrap()), "Name"), "FromB2");
+    invoke_kind(&model, &from_b2, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &d10, "Style", vec![]).unwrap()), "Name"), "Normal");
+}
+
 /// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
 /// value is 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8835,7 +8936,7 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
     let last = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::I4(before as i32 + 1)]).unwrap());
     assert_eq!(text(&model, &last, "Name"), "Mine");
-    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::text("")], vec![AutoValue::I4(3)]] {
+    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::I4(3)]] {
         let r = invoke_kind(&model, &styles, "Add", InvokeKind::Method, args.clone());
         assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
     }
@@ -8855,12 +8956,14 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     let there = range(&reopened, "B2");
     let applied = obj(invoke(&reopened, &there, "Style", vec![]).unwrap());
     assert_eq!(text(&reopened, &applied, "Name"), "Mine");
-    // An unused style added in this session deletes; one a cell uses is refused.
+    // An unused style added in this session deletes; deleting one a cell uses reverts the cell to Normal (ww21).
     let spare = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Spare")]).unwrap());
     invoke_kind(&model, &spare, "Delete", InvokeKind::Method, vec![]).unwrap();
     assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
-    let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
-    assert!(r.is_err(), "{r:?}");
+    invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before);
+    let reverted = obj(invoke(&model, &target, "Style", vec![]).unwrap());
+    assert_eq!(text(&model, &reverted, "Name"), "Normal");
 }
 
 /// dc-oxh8w.50: `Application.ActiveWindow` and `Workbook.Windows(1)` answer the workbook's window: ActiveSheet, ActiveCell,

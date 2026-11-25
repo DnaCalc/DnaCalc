@@ -53,32 +53,12 @@ impl WorkbookAutomation {
         if super::conditions::is_condition_part(target) {
             return self.condition_interior_get(target, call);
         }
+        if let ObjectKey::Style { index, .. } = target.key {
+            return self.style_interior_get(target, call, index);
+        }
         let member = call.member.name.as_str();
         self.read_format(target, call, AutoValue::I4, |host, style| {
-            let fill = cell_fill(host, style)?;
-            let kind = fill.and_then(|f| f.pattern_type.as_deref()).unwrap_or("none");
-            let cell = match kind {
-                "none" => None,
-                "solid" => fill.and_then(|f| f.fg_color.as_ref()),
-                _ => fill.and_then(|f| f.bg_color.as_ref()),
-            };
-            match member {
-                "Pattern" => PATTERNS
-                    .iter()
-                    .find(|(_, name)| *name == kind)
-                    .map(|(value, _)| *value)
-                    .ok_or_else(|| AutoError::not_modelled(format!("Interior.Pattern stored as {kind}"), OWNER)),
-                "Color" if kind == "none" => Ok(WHITE),
-                "Color" => color_bgr(host, cell, WHITE),
-                "ColorIndex" if kind == "none" => Ok(NO_COLOR),
-                "ColorIndex" => color_index(host, cell),
-                "PatternColor" if matches!(kind, "none" | "solid") => Err(AutoError::not_modelled(
-                    "Interior.PatternColor of a fill without a pattern",
-                    OWNER,
-                )),
-                "PatternColor" => color_bgr(host, fill.and_then(|f| f.fg_color.as_ref()), 0),
-                _ => unreachable!("registered interior property"),
-            }
+            read_interior_member(host, cell_fill(host, style)?, member)
         })
     }
 
@@ -86,37 +66,70 @@ impl WorkbookAutomation {
         if super::conditions::is_condition_part(target) {
             return self.condition_interior_put(target, call);
         }
+        if let ObjectKey::Style { index, .. } = target.key {
+            return self.style_interior_put(target, call, index);
+        }
         self.put_format(target, call, || {
-            let mut patch = InteriorPatch::default();
-            match call.member.name.as_str() {
-                "Color" => patch.color = Some(FillColor::Rgb(rgb_arg(call)?)),
-                "PatternColor" => patch.pattern_color = Some(FillColor::Rgb(rgb_arg(call)?)),
-                "Pattern" => match integral_format_arg(call)? {
-                    4000 | 4001 | AUTOMATIC_COLOR => {
-                        return Err(AutoError::not_modelled(
-                            "Interior.Pattern gradient and automatic values",
-                            OWNER,
-                        ));
-                    }
-                    value => {
-                        let name = PATTERNS.iter().find(|(v, _)| *v == value).ok_or_else(format_error)?.1;
-                        patch.pattern = Some(name.into());
-                    }
-                },
-                "ColorIndex" => match integral_format_arg(call)? {
-                    NO_COLOR => patch.pattern = Some("none".into()),
-                    AUTOMATIC_COLOR => patch.pattern = Some("none".into()),
-                    index @ 1..=56 => patch.color = Some(FillColor::Indexed(index as u8 + 7)),
-                    _ => return Err(format_error()),
-                },
-                _ => unreachable!("registered interior property"),
-            }
             Ok(FormatPatch {
-                interior: Some(patch),
+                interior: Some(parse_interior_patch(call)?),
                 ..Default::default()
             })
         })
     }
+}
+
+pub(super) fn read_interior_member(host: &HostState, fill: Option<&Fill>, member: &str) -> Result<i32, AutoError> {
+    let kind = fill.and_then(|f| f.pattern_type.as_deref()).unwrap_or("none");
+    let cell = match kind {
+        "none" => None,
+        "solid" => fill.and_then(|f| f.fg_color.as_ref()),
+        _ => fill.and_then(|f| f.bg_color.as_ref()),
+    };
+    match member {
+        "Pattern" => PATTERNS
+            .iter()
+            .find(|(_, name)| *name == kind)
+            .map(|(value, _)| *value)
+            .ok_or_else(|| AutoError::not_modelled(format!("Interior.Pattern stored as {kind}"), OWNER)),
+        "Color" if kind == "none" => Ok(WHITE),
+        "Color" => color_bgr(host, cell, WHITE),
+        "ColorIndex" if kind == "none" => Ok(NO_COLOR),
+        "ColorIndex" => color_index(host, cell),
+        "PatternColor" if matches!(kind, "none" | "solid") => Err(AutoError::not_modelled(
+            "Interior.PatternColor of a fill without a pattern",
+            OWNER,
+        )),
+        "PatternColor" => color_bgr(host, fill.and_then(|f| f.fg_color.as_ref()), 0),
+        _ => unreachable!("registered interior property"),
+    }
+}
+
+pub(super) fn parse_interior_patch(call: &Call<'_>) -> Result<InteriorPatch, AutoError> {
+    let mut patch = InteriorPatch::default();
+    match call.member.name.as_str() {
+        "Color" => patch.color = Some(FillColor::Rgb(rgb_arg(call)?)),
+        "PatternColor" => patch.pattern_color = Some(FillColor::Rgb(rgb_arg(call)?)),
+        "Pattern" => match integral_format_arg(call)? {
+            4000 | 4001 | AUTOMATIC_COLOR => {
+                return Err(AutoError::not_modelled(
+                    "Interior.Pattern gradient and automatic values",
+                    OWNER,
+                ));
+            }
+            value => {
+                let name = PATTERNS.iter().find(|(v, _)| *v == value).ok_or_else(format_error)?.1;
+                patch.pattern = Some(name.into());
+            }
+        },
+        "ColorIndex" => match integral_format_arg(call)? {
+            NO_COLOR => patch.pattern = Some("none".into()),
+            AUTOMATIC_COLOR => patch.pattern = Some("none".into()),
+            index @ 1..=56 => patch.color = Some(FillColor::Indexed(index as u8 + 7)),
+            _ => return Err(format_error()),
+        },
+        _ => unreachable!("registered interior property"),
+    }
+    Ok(patch)
 }
 
 fn rgb_arg(call: &Call<'_>) -> Result<String, AutoError> {
