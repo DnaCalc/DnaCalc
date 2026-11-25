@@ -107,6 +107,9 @@ pub(crate) fn steyx_kernel(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCo
         sum_y2 += dy * dy;
         sum_xy += dx * dy;
     }
+    if !(sum_x2.is_finite() && sum_y2.is_finite() && sum_xy.is_finite()) {
+        return Err(WorksheetErrorCode::Num);
+    }
     if sum_x2 == 0.0 {
         return Err(WorksheetErrorCode::Div0);
     }
