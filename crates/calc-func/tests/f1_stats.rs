@@ -7810,3 +7810,52 @@ fn randbetween_collapses_an_empty_integer_range_to_its_low_end() {
         error(call_random(&mut Fixed(vec![0.5]), "RANDBETWEEN", vec![n(lo), n(hi)]), Num);
     }
 }
+
+/// Excel 20527 (dc-j9k.240-243): CHITEST pairs cells in row-major order whatever the shapes, as long
+/// as the cell counts agree; the degrees of freedom come from the actual range; a zero expected
+/// value is #DIV/0! but a negative one only counts in the statistic; text and blank pairs are skipped.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chitest_pairs_by_cell_count_and_reads_negative_and_zero_expected() {
+    let b = f64::from_bits;
+    for name in ["CHITEST", "CHISQ.TEST"] {
+        // dc-j9k.240: a negative expected cell does not refuse when the statistic stays positive.
+        exact(
+            call(name, vec![
+                arr(vec![vec![b(0xc05d_6834_8823_4c3c)], vec![b(0xc073_7ada_a543_37ab)]]),
+                arr(vec![vec![b(0xc07a_b2df_db82_e234)], vec![b(0x407b_6c9f_bd86_7e2c)]]),
+            ]),
+            b(0x0fd7_efe4_de8f_15e8),
+        );
+        error(call(name, vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]), arr(vec![vec![-1.0, 2.0], vec![3.0, 4.0]])]), Num);
+        // dc-j9k.241/242: same cell count, different shape: df from the actual range.
+        exact(
+            call(name, vec![col(&[1.0, 2.0, 3.0, 4.0]), arr(vec![vec![15.0, 15.0], vec![30.0, 40.0]])]),
+            b(0x3c75_3da3_dd12_50ab),
+        );
+        error(call(name, vec![arr(vec![vec![1.0, 2.0, 3.0]]), col(&[-1.0, -2.0, -3.0])]), Num);
+        exact(call(name, vec![arr(vec![vec![1.0, 2.0, 3.0]]), col(&[1.0, 2.0, 3.0])]), 1.0);
+        error(call(name, vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]), arr(vec![vec![1.0, 2.0, 3.0]])]), NA);
+        // dc-j9k.243: a zero expected value.
+        error(call(name, vec![
+            arr(vec![vec![10.0, 20.0], vec![30.0, 40.0]]), arr(vec![vec![0.0, 1.0], vec![1.0, 1.0]])]), Div0);
+        error(call(name, vec![arr(vec![vec![1.0, 5.0]]), arr(vec![vec![0.0, -100.0]])]), Div0);
+        // Errors in the ranges come first, the actual range before the expected one.
+        let mut sheet = Sheet::new();
+        sheet.column(1, 1, vec![n(1.0), t("x"), n(3.0)]);
+        sheet.column(1, 2, vec![n(2.0), n(2.0), n(2.0)]);
+        sheet.column(1, 3, vec![e(Ref), n(1.0)]);
+        sheet.column(1, 4, vec![e(NA), n(1.0)]);
+        sheet.column(1, 5, vec![n(0.0), n(1.0)]);
+        sheet.column(1, 6, vec![n(1.0), n(5.0)]);
+        sheet.column(1, 7, vec![t("x"), t("y")]);
+        let (a1, a2, a3, a4, a5, a6, a7) = (
+            sheet.area(1, 1, 3, 1), sheet.area(1, 2, 3, 2), sheet.area(1, 3, 2, 3), sheet.area(1, 4, 2, 4),
+            sheet.area(1, 5, 2, 5), sheet.area(1, 6, 2, 6), sheet.area(1, 7, 2, 7));
+        exact(call_on(&mut sheet, name, vec![a1, a2]), (-0.5f64).exp());
+        error(call_on(&mut sheet, name, vec![a3.clone(), a4]), Ref);
+        error(call_on(&mut sheet, name, vec![a6, a3]), Ref);
+        // No numeric pair at all: #DIV/0!.
+        error(call_on(&mut sheet, name, vec![a7, a5]), Div0);
+    }
+}

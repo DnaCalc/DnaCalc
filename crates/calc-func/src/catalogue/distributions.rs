@@ -380,7 +380,9 @@ fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
     validate_paired_singletons(site, a, [0, 1], sv)?;
     let actual = grid(site, a, 0, sv)?;
     let expected = grid(site, a, 1, sv)?;
-    if (actual.rows, actual.cols) != (expected.rows, expected.cols) {
+    // Excel 20527 pairs the cells in row-major order when the counts agree, whatever the shapes,
+    // and takes the degrees of freedom from the actual range.
+    if actual.cells.len() != expected.cells.len() {
         return fail(WorksheetErrorCode::NA);
     }
     let df = if actual.rows > 1 && actual.cols > 1 {
@@ -393,18 +395,26 @@ fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
     if df == 0 {
         return fail(WorksheetErrorCode::NA);
     }
+    // Errors first (the actual range before the expected one), then pairs of numbers only; a zero
+    // expected value is #DIV/0!, a negative one only enters the statistic.
+    for cell in actual.cells.iter().chain(&expected.cells) {
+        if let CoreRef::Error(code) = cell.core_ref() {
+            return fail(code);
+        }
+    }
     let mut statistic = 0.0;
+    let mut pairs = 0usize;
     for (x, e) in actual.cells.iter().zip(&expected.cells) {
-        let (x, e) = match (x.core_ref(), e.core_ref()) {
-            (CoreRef::Error(code), _) | (_, CoreRef::Error(code)) => return fail(code),
-            (CoreRef::Number(x), CoreRef::Number(e)) => (x, e),
-            _ => return fail(WorksheetErrorCode::Value),
-        };
-        if e <= 0.0 {
-            return fail(WorksheetErrorCode::Num);
+        let (CoreRef::Number(x), CoreRef::Number(e)) = (x.core_ref(), e.core_ref()) else { continue };
+        if e == 0.0 {
+            return fail(WorksheetErrorCode::Div0);
         }
         let delta = x - e;
         statistic += delta * delta / e;
+        pairs += 1;
+    }
+    if pairs == 0 {
+        return fail(WorksheetErrorCode::Div0);
     }
     out(site, cft::chisq_dist_rt_kernel(statistic, df as f64))
 }
