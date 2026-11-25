@@ -7786,3 +7786,27 @@ fn dc_ymjf_2_148_ets_five_point_monotone_and_x87_forecast_staging() {
         );
     }
 }
+
+/// Live Excel 16.0.20625.20108 (dc-j9k.185, Touchstone 2026-11-25): RANDBETWEEN is #NUM! only when the
+/// raw bottom exceeds the raw top; otherwise the low end is ceil(bottom) and a top that floors below it
+/// collapses to it ((1.2,1.8) = 2 in 8 of 8 draws, (-0.5,-0.025) = 0, (2.5,3.7) only 3).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn randbetween_collapses_an_empty_integer_range_to_its_low_end() {
+    for (lo, hi, unit, want) in [
+        (1.2, 1.8, 0.0, 2.0),
+        (1.2, 1.8, 0.99, 2.0),
+        (1.5, 1.5, 0.5, 2.0),
+        (-1.5, -1.2, 0.5, -1.0),
+        (-0.5, -0.025, 0.7, 0.0),
+        (0.5, 0.9, 0.3, 1.0),
+        (2.5, 3.7, 0.99, 3.0),
+        (-3.7, -2.5, 0.99, -3.0),
+        (-0.6, -0.5, 0.4, 0.0),
+    ] {
+        exact(call_random(&mut Fixed(vec![unit]), "RANDBETWEEN", vec![n(lo), n(hi)]), want);
+    }
+    for (lo, hi) in [(3.0, 2.0), (2.5, 2.4), (-0.5, -0.6), (2.0, 1.9999999), (5.5, 5.2)] {
+        error(call_random(&mut Fixed(vec![0.5]), "RANDBETWEEN", vec![n(lo), n(hi)]), Num);
+    }
+}
