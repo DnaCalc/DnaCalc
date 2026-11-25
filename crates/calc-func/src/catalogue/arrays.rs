@@ -319,7 +319,14 @@ fn sorted_indices(
 ) -> Step<Vec<usize>> {
     let compare = |i: usize, j: usize| {
         for (key, descending) in keys {
-            let ordering = order(site, &key[i], &key[j])?;
+            let left = &key[i];
+            let right = &key[j];
+            let ordering = order(site, left, right)?;
+            // Excel places blank keys last for either direction.
+            let blank_order = left.is_empty().cmp(&right.is_empty());
+            if blank_order != Ordering::Equal {
+                return Ok(blank_order);
+            }
             if ordering != Ordering::Equal {
                 return Ok(if *descending { ordering.reverse() } else { ordering });
             }
