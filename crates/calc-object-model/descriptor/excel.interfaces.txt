@@ -77,3 +77,11 @@ Page
 # Page.LeftHeader..RightFooter return HeaderFooter, whose Text and Picture return Graphic (dc-oxh8w.45).
 HeaderFooter
 Graphic
+
+# Conditional formatting rule objects (dc-oawf4).
+Top10
+AboveAverage
+UniqueValues
+ColorScale
+Databar
+IconSetCondition
