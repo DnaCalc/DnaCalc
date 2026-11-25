@@ -707,7 +707,7 @@ End Function
         let (mut session, owner) = project();
         second_book("Other.xlsm", OTHER);
         let without = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddOne")]);
-        assert!(matches!(&without, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.42"), "{without:?}");
+        assert!(matches!(&without, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.75"), "{without:?}");
         crate::install_application(crate::ApplicationOptions {
             max_steps: 1_000_000,
             backend: Some(calc_vba::Backend::Interpreter),

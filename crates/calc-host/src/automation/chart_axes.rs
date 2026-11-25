@@ -10,7 +10,7 @@ use super::*;
 use crate::WorkbookCommand;
 use calc_object_model::ReportItem;
 
-const AXES: &str = "dc-oxh8w.48";
+const AXES: &str = "dc-oxh8w.3";
 
 
 #[derive(Clone, Copy)]

@@ -278,7 +278,7 @@ impl WorkbookAutomation {
     pub(super) fn factory(&self) -> Result<Rc<dyn BookFactory>, AutoError> {
         BOOKS
             .with(|books| books.borrow().factory.clone())
-            .ok_or_else(|| AutoError::not_modelled("Workbooks.Add and Workbooks.Open without a workbook factory", "dc-oxh8w.42"))
+            .ok_or_else(|| AutoError::not_modelled("Workbooks.Add and Workbooks.Open without a workbook factory", "dc-oxh8w.75"))
     }
     fn books_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, _| {

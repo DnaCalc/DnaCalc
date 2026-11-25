@@ -99,7 +99,7 @@ impl WorkbookAutomation {
                 .and_then(|view| view.settings)
                 .map(|settings| from_snapshot(&settings))
                 .ok_or_else(|| {
-                    AutoError::not_modelled(format!("{what} read inside a worksheet function call"), "dc-oxh8w.52")
+                    AutoError::not_modelled(format!("{what} read inside a worksheet function call"), "dc-1nbp.6")
                 }),
             Access::Session(session, _) => Ok(from_session(session)),
         })

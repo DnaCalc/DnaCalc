@@ -7980,7 +7980,7 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let count = sheet_names(&host).len();
     // No application factory here, so a copy to a new workbook refuses naming the Workbooks owner (calc-host-vba tests the copy).
     let to_new_book = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{to_new_book:?}");
+    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.75"), "{to_new_book:?}");
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
@@ -8026,7 +8026,7 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     let both = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(second.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let new_book = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{new_book:?}");
+    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.75"), "{new_book:?}");
     assert_eq!(sheet_names(&host).len(), 8);
 }
 
@@ -10020,4 +10020,119 @@ fn dc_6q9t4__protect_allow_arguments_and_user_interface_only_are_refused_typed()
     let r = protect(vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)]);
     assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-ml3k0", .. })), "{r:?}");
     assert!(!flag("ProtectionMode"));
+}
+
+/// dc-p7gpy (rw12 Finding 19): typed refusals must cite OPEN owning beads, never closed ones.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p7gpy_refusals_cite_open_beads() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+
+    // 1. protection.rs: numeric Password -> dc-9b7zd (was closed dc-oxh8w.68)
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let protect = invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::I4(1234)]);
+    assert!(
+        matches!(&protect, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-9b7zd"),
+        "Protect numeric password must cite dc-9b7zd: {protect:?}"
+    );
+
+    // 2. chart_format.rs & chart_axes.rs: unstated Series.Border -> dc-yship (was closed dc-oxh8w.60);
+    //    Chart.Axes without Type / secondary group -> dc-oxh8w.3 (was closed dc-oxh8w.48).
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(
+        &model,
+        &charts,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(240.0), AutoValue::R8(160.0)],
+    )
+    .unwrap());
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    invoke_kind(&model, &range(&model, "A1"), "Value2", InvokeKind::Put, vec![AutoValue::text("X")]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "Value2", InvokeKind::Put, vec![AutoValue::text("Y")]).unwrap();
+    invoke_kind(&model, &range(&model, "A2"), "Value2", InvokeKind::Put, vec![AutoValue::R8(1.0)]).unwrap();
+    invoke_kind(&model, &range(&model, "B2"), "Value2", InvokeKind::Put, vec![AutoValue::R8(2.0)]).unwrap();
+    invoke_kind(
+        &model,
+        &chart,
+        "SetSourceData",
+        InvokeKind::Method,
+        vec![AutoValue::Object(range(&model, "A1:B2"))],
+    )
+    .unwrap();
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let unstated = invoke(&model, &border, "LineStyle", vec![]);
+    assert!(
+        matches!(&unstated, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-yship"),
+        "unstated Series.Border.LineStyle must cite dc-yship: {unstated:?}"
+    );
+    let axes_all = invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&axes_all, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.3"),
+        "Chart.Axes() must cite dc-oxh8w.3: {axes_all:?}"
+    );
+    let axes_sec = invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::I4(2)]);
+    assert!(
+        matches!(&axes_sec, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.3"),
+        "Chart.Axes secondary group must cite dc-oxh8w.3: {axes_sec:?}"
+    );
+
+    // 3. books.rs: Workbooks.Add without factory -> dc-oxh8w.75 (was closed dc-oxh8w.42)
+    calc_host::automation::set_book_factory(None);
+    let books = obj(invoke(&model, &app, "Workbooks", vec![]).unwrap());
+    let add_book = invoke_kind(&model, &books, "Add", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&add_book, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.75"),
+        "Workbooks.Add without factory must cite dc-oxh8w.75: {add_book:?}"
+    );
+
+    // 4. autofilter.rs: host refusal on merged range -> dc-oxh8w.43 (was closed dc-0f1k.24)
+    let merged = range(&model, "D1:E2");
+    invoke_kind(&model, &merged, "Merge", InvokeKind::Method, vec![]).unwrap();
+    let af = invoke_kind(&model, &merged, "AutoFilter", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&af, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.43"),
+        "Range.AutoFilter host refusal must cite dc-oxh8w.43: {af:?}"
+    );
+
+    // 5. application.rs: Application.Calculation inside invocation without UserView.settings -> dc-1nbp.6 (was closed dc-oxh8w.52)
+    struct NoSettingsContext(CellKey);
+    impl UserFunctionContext for NoSettingsContext {
+        fn caller(&self) -> Option<CellKey> {
+            Some(self.0)
+        }
+        fn user_view(&self) -> Option<calc_func::UserView> {
+            Some(calc_func::UserView {
+                active_sheet: self.0.sheet(),
+                selection: self.0,
+                settings: None,
+            })
+        }
+        fn reference_qualifier(&mut self, _: calc_value::SheetId) -> Result<String, String> {
+            Ok("'[book.xlsx]Sheet1'".into())
+        }
+        fn refuse(&mut self, reason: &'static str) -> String {
+            reason.into()
+        }
+        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> {
+            Ok(CalcValue::empty())
+        }
+        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> {
+            Ok(CalcValue::empty())
+        }
+    }
+    let (inv_host, inv_model) = setup();
+    let sheet_id = inv_host.session.borrow().host().sheets()[0].id();
+    let cell = CellKey::new(sheet_id, 1, 1).unwrap();
+    let mut ctx = NoSettingsContext(cell);
+    let loan = Loan(RefCell::new(&mut ctx));
+    let calc_in_udf = INVOCATION.set(&loan, || {
+        invoke(&inv_model, &inv_model.application(), "Calculation", vec![])
+    });
+    assert!(
+        matches!(&calc_in_udf, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-1nbp.6"),
+        "Application.Calculation without UserView.settings must cite dc-1nbp.6: {calc_in_udf:?}"
+    );
 }

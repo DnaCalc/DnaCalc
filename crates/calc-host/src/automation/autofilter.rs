@@ -134,7 +134,7 @@ impl WorkbookAutomation {
             other => Some(geometry::integer(other)?),
         };
         let criteria = if field.is_some() { Self::criterion(call)? } else { None };
-        self.mutate_range(target, call, |session, range| {
+        self.mutate_range_with_owner(target, call, OWNER, |session, range| {
             let mut area = range.areas()[0];
             let sheet = area.sheet();
             let existing = session.host().model().definitions().auto_filter(sheet).map(|f| f.area);

@@ -17,12 +17,6 @@ impl WorkbookAutomation {
         handlers.on("Sheets", "Add", InvokeKind::Method, Self::sheets_add);
         handlers.on("Sheets", "Move", InvokeKind::Method, Self::sheets_move);
         handlers.on("Worksheet", "Name", InvokeKind::Put, Self::worksheet_set_name);
-        // Typed refusals that name the bead owning the work (dc-oxh8w.47 corpus run).
-        for member in ["Protect", "Unprotect"] {
-            handlers.on("Worksheet", member, InvokeKind::Method, |_, _, call| {
-                Err(AutoError::not_modelled(call.label(), "dc-oxh8w.68"))
-            });
-        }
         handlers.on("Worksheet", "Visible", InvokeKind::Get, Self::worksheet_visible);
         handlers.on("Worksheet", "Visible", InvokeKind::Put, Self::worksheet_set_visible);
         handlers.on("Worksheet", "Delete", InvokeKind::Method, Self::worksheet_delete);

@@ -227,8 +227,8 @@ impl WorkbookAutomation {
         let border = self.border_state(target)?;
         let series = matches!(target.key, ObjectKey::Report { item: ReportItem::SeriesBorder(..), .. });
         // A series that states nothing draws in Excel's automatic style, which differs by chart type: its answers wait
-        // for Excel's (dc-oxh8w.60).
-        let unstated = |what: &str| AutoError::not_modelled(format!("{what} of a series outline the file does not state"), "dc-oxh8w.60");
+        // for Excel's (dc-yship).
+        let unstated = |what: &str| AutoError::not_modelled(format!("{what} of a series outline the file does not state"), "dc-yship");
         match call.member.name.as_str() {
             "LineStyle" => {
                 if border.none {
@@ -241,7 +241,7 @@ impl WorkbookAutomation {
                     .dash
                     .as_deref()
                     .map_or(Some(1), |d| LINE_STYLES.iter().find(|(_, p)| *p == Some(d)).map(|(c, _)| *c));
-                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-oxh8w.67"))
+                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-yship"))
             }
             "Weight" => {
                 if series && border.width.is_none() {
