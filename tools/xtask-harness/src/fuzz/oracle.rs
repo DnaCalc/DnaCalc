@@ -918,7 +918,9 @@ type RequestChunk = (usize, Priority, Vec<usize>, Vec<Vec<Arg>>);
 type BatchProvenance = (BTreeMap<String, Value>, BTreeMap<String, usize>);
 
 fn requests_spill(function: &str) -> bool {
-    function == "TRANSPOSE"
+    // ISEVEN/ISODD lift over an array argument and TRIMRANGE returns a trimmed array; read in a
+    // plain cell Excel gives the first element or #SPILL! by position (dc-j9k.235 and siblings).
+    matches!(function, "TRANSPOSE" | "TRIMRANGE" | "ISEVEN" | "ISODD")
         || calc_catalogue::named(function)
             .is_some_and(|entry| entry.id().family() == calc_catalogue::ported::arrays::CODE)
 }
@@ -2527,6 +2529,14 @@ mod tests {
             decoded.as_array().unwrap().get(0, 0).unwrap().as_error(),
             Some(WorksheetErrorCode::Spill)
         );
+    }
+
+    #[test]
+    fn lifting_and_trimming_functions_are_read_as_spills() {
+        for function in ["TRIMRANGE", "ISEVEN", "ISODD", "TRANSPOSE", "WRAPROWS"] {
+            assert!(requests_spill(function), "{function}");
+        }
+        assert!(!requests_spill("ABS"));
     }
 
     #[test]
