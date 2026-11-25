@@ -809,6 +809,56 @@ fn new_cluster_issues(
     Ok(issues)
 }
 
+/// A pull that conflicted leaves the tracker clone mid-merge, and every later filing then fails on
+/// "changes outside the pending batch" (dc-kze9w). Abort that merge; `pull_tracker` redoes the
+/// reconciliation. Returns whether a merge was in progress.
+fn abort_stalled_merge(tracker: &Path) -> Result<bool, String> {
+    let merging = command(tracker, "git", &["rev-parse", "--verify", "-q", "MERGE_HEAD"]).is_ok();
+    if merging {
+        command(tracker, "git", &["merge", "--abort"])?;
+    }
+    Ok(merging)
+}
+
+const MAX_FILING_FAILURES: u32 = 2;
+
+/// The visible alarm: set once filing has failed twice in a row, cleared by the owner deleting it.
+fn stalled(out: &Path) -> Option<String> {
+    fs::read_to_string(out.join("STALLED")).ok()
+}
+
+fn note_filing_failure(out: &Path, error: &str) {
+    let counter = out.join("filing-failures");
+    let failures = fs::read_to_string(&counter)
+        .ok()
+        .and_then(|text| text.trim().parse::<u32>().ok())
+        .unwrap_or(0)
+        + 1;
+    let _ = fs::write(&counter, failures.to_string());
+    if failures >= MAX_FILING_FAILURES {
+        let _ = fs::write(
+            out.join("STALLED"),
+            format!(
+                "fuzz sweep tracker filing failed {failures} times in a row; last error: {error}\n\
+                 Fix the tracker clone, then delete this file and filing-failures.\n"
+            ),
+        );
+    }
+}
+
+fn note_filing_success(out: &Path) {
+    let _ = fs::remove_file(out.join("filing-failures"));
+}
+
+fn push_tracker(tracker: &Path, log: &str) -> Result<(), String> {
+    if command(tracker, "git", &["push"]).is_ok() {
+        return Ok(());
+    }
+    // Rejected: someone pushed first. Pull (with the tracker reconciliation) and push once more.
+    pull_tracker(tracker, log)?;
+    command(tracker, "git", &["push"]).map(|_| ())
+}
+
 fn file_clusters(tracker: &Path, pending: &[PathBuf]) -> Result<(), String> {
     if pending.is_empty() {
         return Ok(());
@@ -831,6 +881,7 @@ fn file_clusters(tracker: &Path, pending: &[PathBuf]) -> Result<(), String> {
         }
         let log = std::env::var("DNACALC_AGENT_LOG")
             .map_err(|_| "cluster filing requires DNACALC_AGENT_LOG")?;
+        abort_stalled_merge(tracker)?;
         let dirty = git(&["status", "--porcelain", "--untracked-files=no"])?;
         let marker = tracker.join(".git/fuzz-cluster-pending");
         if !dirty.is_empty() {
@@ -899,7 +950,7 @@ fn file_clusters(tracker: &Path, pending: &[PathBuf]) -> Result<(), String> {
             if git(&["grep", "-c", "^<<<<<<<", "--", ".beads"]).is_ok() {
                 return Err("tracker contains an unresolved merge conflict".into());
             }
-            git(&["push"])?;
+            push_tracker(tracker, &log)?;
         }
         fs::remove_file(marker).map_err(|e| e.to_string())?;
     }
@@ -964,9 +1015,18 @@ fn execute(options: &Options) -> Result<(), String> {
     }
     loop {
         if let Some(tracker) = &options.tracker {
+            if let Some(text) = stalled(&options.out) {
+                return Err(format!("STALLED, delete {}/STALLED to resume: {text}", options.out.display()));
+            }
             match file_clusters(tracker, &pending) {
-                Ok(()) => pending.clear(),
-                Err(error) if options.runs.is_some() => return Err(error),
+                Ok(()) => {
+                    note_filing_success(&options.out);
+                    pending.clear();
+                }
+                Err(error) if options.runs.is_some() => {
+                    note_filing_failure(&options.out, &error);
+                    return Err(error);
+                }
                 Err(error) => eprintln!("fuzz sweep filing will retry: {error}"),
             }
         }
@@ -1386,5 +1446,52 @@ mod tests {
             handle.join().is_ok(),
             "record_active_case must not panic when writing active-case.json fails"
         );
+    }
+
+    fn git_in(dir: &Path, args: &[&str]) -> String {
+        command(dir, "git", args).unwrap()
+    }
+
+    /// Native-only: drives git in a temporary repository.
+    #[test]
+    fn dc_kze9w_abort_stalled_merge_clears_a_conflicted_pull() {
+        let dir = std::env::temp_dir().join(format!("dnacalc-kze9w-merge-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        git_in(&dir, &["init", "-q", "-b", "master"]);
+        git_in(&dir, &["config", "user.email", "t@example.invalid"]);
+        git_in(&dir, &["config", "user.name", "t"]);
+        fs::write(dir.join("f"), "base\n").unwrap();
+        git_in(&dir, &["add", "f"]);
+        git_in(&dir, &["commit", "-q", "-m", "base"]);
+        git_in(&dir, &["checkout", "-q", "-b", "other"]);
+        fs::write(dir.join("f"), "theirs\n").unwrap();
+        git_in(&dir, &["commit", "-q", "-am", "theirs"]);
+        git_in(&dir, &["checkout", "-q", "master"]);
+        fs::write(dir.join("f"), "ours\n").unwrap();
+        git_in(&dir, &["commit", "-q", "-am", "ours"]);
+        assert!(command(&dir, "git", &["merge", "other"]).is_err());
+        assert!(git_in(&dir, &["status", "--porcelain"]).contains("UU"));
+        assert!(abort_stalled_merge(&dir).unwrap());
+        assert_eq!(git_in(&dir, &["status", "--porcelain"]), "");
+        assert!(!abort_stalled_merge(&dir).unwrap());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Native-only: uses the temporary directory.
+    #[test]
+    fn dc_kze9w_second_consecutive_filing_failure_writes_stalled() {
+        let dir = std::env::temp_dir().join(format!("dnacalc-kze9w-stall-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        note_filing_failure(&dir, "first");
+        assert!(!dir.join("STALLED").exists());
+        note_filing_failure(&dir, "second");
+        let text = fs::read_to_string(dir.join("STALLED")).unwrap();
+        assert!(text.contains("second"));
+        assert!(stalled(&dir).is_some());
+        note_filing_success(&dir);
+        assert!(!dir.join("filing-failures").exists());
+        let _ = fs::remove_dir_all(&dir);
     }
 }

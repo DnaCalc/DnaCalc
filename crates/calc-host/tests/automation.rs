@@ -9369,6 +9369,49 @@ fn dc_oxh8w_43__paste_special_validation_and_comments() {
     );
 }
 
+/// dc-2rjye (rw12 finding 17): the paste-comments test above runs on a workbook with no notes, so it proves nothing about
+/// them. On the structural-base fixture, sheet S has a note on A2: xlPasteComments copies the note and leaves the
+/// destination's contents, xlPasteValidation copies no note.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2rjye__paste_special_comments_copies_a_real_note_and_validation_does_not() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(include_bytes!("fixtures/d2/structural-base.xlsx").to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let sheet_id = host
+        .session
+        .borrow()
+        .host()
+        .sheets()
+        .iter()
+        .find(|s| s.name().text().to_string_lossy() == "S")
+        .expect("sheet S")
+        .id();
+    let notes_at = |address: &str| {
+        let session = host.session.borrow();
+        let (col, row) = address.split_at(1);
+        let key = CellKey::new(sheet_id, row.parse().unwrap(), u32::from(col.as_bytes()[0] - b'A') + 1).unwrap();
+        session.host().model().definitions().review_notes(sheet_id).iter().filter(|n| n.at == key).count()
+    };
+    assert_eq!(notes_at("A2"), 1, "the fixture has a note on S!A2");
+    assert_eq!(notes_at("L40"), 0);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, &format!("S!{address}")), name, InvokeKind::Method, args)
+    };
+    call("A2", "Copy", vec![]).unwrap();
+    call("L40", "PasteSpecial", vec![AutoValue::I4(6)]).unwrap();
+    assert_eq!(notes_at("L40"), 0, "xlPasteValidation copies no note");
+    call("L40", "PasteSpecial", vec![AutoValue::I4(-4144)]).unwrap();
+    assert_eq!(notes_at("L40"), 1, "xlPasteComments copies the note");
+    assert_eq!(cell_text_of(&model, "S!L40"), "", "and not the contents");
+    assert_eq!(notes_at("A2"), 1, "the source keeps its note");
+}
+
 /// dc-oxh8w.67: `Series.Border` (Color, ColorIndex, LineStyle, Weight) and `ColorIndex` of the chart-area borders: stated,
 /// saved to the series' own `a:ln` (the fill stays) and read back after a save; bad values are 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
