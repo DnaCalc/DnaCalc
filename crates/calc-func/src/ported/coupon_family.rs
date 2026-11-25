@@ -129,6 +129,18 @@ fn calendar_days360(
     Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
 }
 
+/// The days of a COUPDAYS Actual/Actual period. A period that starts before 1900-01-01 is counted
+/// on the true calendar, without the day Excel's serials hold at 1900-02-29; any other period is
+/// the difference of its serials (Excel 20430, dc-j9k.369, a 225-row grid of settlement,
+/// maturity and frequency: `=COUPDAYS(1,14589,1,1)` is 365 where `=COUPDAYS(364,384,1,1)` is 366).
+fn calendar_period_days(start: i64, end: i64) -> f64 {
+    if start >= 1 {
+        return actual_days(start, end);
+    }
+    let true_day = |serial: i64| if serial > 60 { serial - 1 } else { serial };
+    (true_day(end) - true_day(start)) as f64
+}
+
 fn actual_days(start: i64, end: i64) -> f64 {
     (end - start) as f64
 }
@@ -199,8 +211,23 @@ pub(crate) fn check_coupon_dates(settlement: f64, maturity: f64) -> Result<(), W
     Ok(())
 }
 
+/// A COUP function's frequency: 1, 2 or 4 after truncation, #NUM! otherwise.
+pub(crate) fn check_coupon_frequency(value: f64) -> Result<(), WorksheetErrorCode> {
+    parse_frequency(value).map(|_| ())
+}
+
+/// A COUP function's basis: 0 to 4 after truncation; a negative basis is #NUM! even where it
+/// would truncate to 0 (Excel 20430: `=COUPNUM(40000,41000,2,-0.5)` is #NUM!).
+pub(crate) fn check_coupon_basis(value: f64) -> Result<(), WorksheetErrorCode> {
+    if value < 0.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
+    parse_basis(value).map(|_| ())
+}
+
 fn parse_coupon_date(value: f64) -> Result<i64, WorksheetErrorCode> {
-    if !value.is_finite() {
+    // A negative date is #NUM! before it truncates (`=COUPPCD(-0.5,4000,2)`), unlike 0.5.
+    if !value.is_finite() || value < 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
     let serial = value.trunc() as i64;
@@ -311,14 +338,18 @@ pub fn coupdays_kernel(
         // anchored COUPNCD/COUPPCD pair changes these integer day counts.
         // Original Excel20131/20430 readings:965/965 Actual/Actual outcomes in the
         // R24 finite Gregorian study. No numerical tolerance enters this rule.
+        // The fictitious 1900-02-29 steps back as 1900-03-01 (`=COUPDAYS(59,60,2,1)` is 181).
         let mut next = ctx;
+        if next.maturity == 60 {
+            next.maturity = 61;
+        }
         loop {
             let previous =
                 coupon_date_before_maturity(next, 1, false).ok_or(WorksheetErrorCode::Num)?;
             if previous <= ctx.settlement {
                 let start =
                     coupon_date_before_maturity(next, 1, true).ok_or(WorksheetErrorCode::Num)?;
-                return Ok(actual_days(start, next.maturity));
+                return Ok(calendar_period_days(start, next.maturity));
             }
             next.maturity = previous;
         }

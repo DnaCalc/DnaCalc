@@ -4323,3 +4323,189 @@ fn xirr_unified_bracket_and_dyadic_bisection_solver_matches_cb28_witnesses() {
         Num,
     );
 }
+
+/// Excel 20430 (dc-j9k.369-.390, Touchstone relay 2026-11-25): the COUP functions and PRICEMAT,
+/// YIELDMAT and ACCRINTM reject a logical in any numeric slot as #VALUE! as it is read, and test
+/// an out-of-range date, frequency and basis as #NUM! in argument order. Each row is a fuzz
+/// patient-zero input and the answer Excel gave.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn securities_error_order_matches_excel_fuzz_rows() {
+    {
+        let r = dated("COUPDAYS", vec![n(f64::from_bits(0x9403bc9438f8db47u64)), n(f64::from_bits(0x4095fa942b0ec881u64)), n(f64::from_bits(0x4000000000000000u64)), n(f64::from_bits(0x4008000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("COUPDAYSNC", vec![n(f64::from_bits(0x40dcf94000000000u64)), b(false), n(f64::from_bits(0x4010000000000000u64)), n(f64::from_bits(0x4000000000000000u64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("COUPDAYSNC", vec![n(f64::from_bits(0x40e8598000000000u64)), n(f64::from_bits(0x40eb48e000000000u64)), n(f64::from_bits(0x3ff0000000000000u64)), b(true)]);
+        error(r, Value);
+    }
+    {
+        let r = dated("COUPNCD", vec![n(f64::from_bits(0x40c0400008000000u64)), n(f64::from_bits(0x40ea8a6000000400u64)), n(f64::from_bits(0x4000000000000000u64)), n(f64::from_bits(0xbef0000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("COUPNCD", vec![b(true), n(f64::from_bits(0x40d1520000000000u64)), n(f64::from_bits(0x4010000000000000u64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("COUPPCD", vec![n(f64::from_bits(0x40c14c0000000000u64)), n(f64::from_bits(0x40e83a0000000000u64)), n(f64::from_bits(0x4008000000000000u64)), t("")]);
+        error(r, Num);
+    }
+    {
+        let r = dated("COUPPCD", vec![n(f64::from_bits(0xad172e79636d18c8u64)), n(f64::from_bits(0x40b0168d9e26c3b7u64)), n(f64::from_bits(0x4000000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("COUPPCD", vec![n(f64::from_bits(0x40dcaf4000000000u64)), n(f64::from_bits(0x40e5fee000000000u64)), b(false)]);
+        error(r, Value);
+    }
+    {
+        let r = dated("COUPPCD", vec![b(true), n(f64::from_bits(0x40d0098000000000u64)), n(f64::from_bits(0x4010000000000000u64)), n(f64::from_bits(0x4008000000000000u64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("PRICEMAT", vec![n(f64::from_bits(0xc202a05f20000000u64)), n(f64::from_bits(0xbfd0000000000000u64)), n(f64::from_bits(0xc076800000000000u64)), n(f64::from_bits(0x4260000000000000u64)), n(f64::from_bits(0xc08f400000000002u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("PRICEMAT", vec![n(f64::from_bits(0x4146924280000000u64)), n(f64::from_bits(0x4146924300000000u64)), n(f64::from_bits(0x3fe0000000000000u64)), n(f64::from_bits(0x3fee3a085e5e446eu64)), n(f64::from_bits(0x3ff0000000000001u64)), n(f64::from_bits(0x4010000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("PRICEMAT", vec![n(f64::from_bits(0x40db4d0000000000u64)), n(f64::from_bits(0x40d2120000000000u64)), n(f64::from_bits(0x40e322a000000000u64)), b(false), n(f64::from_bits(0x3fe412f65e7b87c6u64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("PRICEMAT", vec![n(f64::from_bits(0x40b4660000000000u64)), b(true), n(f64::from_bits(0x40d6ecc000000000u64)), n(f64::from_bits(0x3fe9daea71a1de78u64)), n(f64::from_bits(0x3fc719d67c88fd08u64)), n(f64::from_bits(0x4012000000000000u64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("YIELDMAT", vec![n(f64::from_bits(0x4076800000000000u64)), n(f64::from_bits(0xb1f0000000000000u64)), n(f64::from_bits(0x404e000000000000u64)), n(f64::from_bits(0x3fc0000000000000u64)), n(f64::from_bits(0x3fe0000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("YIELDMAT", vec![n(f64::from_bits(0x410b921000000000u64)), n(f64::from_bits(0x4008000000000000u64)), n(f64::from_bits(0xc020000000000000u64)), n(f64::from_bits(0x3fefd8e78b92e912u64)), n(f64::from_bits(0x4024000000000000u64)), n(f64::from_bits(0x4008000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("YIELDMAT", vec![t("0.1"), n(f64::from_bits(0x40d83c0000000000u64)), n(f64::from_bits(0x40e3ce2000000000u64)), n(f64::from_bits(0xbfcced98101e52feu64)), n(f64::from_bits(0x40adc3b609df1e1cu64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("YIELDMAT", vec![n(f64::from_bits(0x40e3008000000000u64)), n(f64::from_bits(0x40deb70000000000u64)), n(f64::from_bits(0x40b4a10000000000u64)), b(false), n(f64::from_bits(0xc0c302085bbe677au64)), n(f64::from_bits(0x3feccccccccccccdu64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("YIELDMAT", vec![n(f64::from_bits(0x40df458000000000u64)), n(f64::from_bits(0x40d3294000000000u64)), n(f64::from_bits(0x40c97a8000000000u64)), b(false), n(f64::from_bits(0x40bd071aca8ec8dcu64))]);
+        error(r, Value);
+    }
+    {
+        let r = dated("ACCRINTM", vec![n(f64::from_bits(0x40e624e000000000u64)), n(f64::from_bits(0xc008000000000000u64)), n(f64::from_bits(0x3ff0000000000000u64)), n(f64::from_bits(0x40c3880000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("ACCRINTM", vec![n(f64::from_bits(0x3610000000000000u64)), n(f64::from_bits(0xd3a0000000000000u64)), n(f64::from_bits(0xbfc0000000000000u64)), n(f64::from_bits(0x4024000000000000u64)), n(f64::from_bits(0xbff0000000000000u64))]);
+        error(r, Num);
+    }
+    {
+        let r = dated("ACCRINTM", vec![n(f64::from_bits(0x0000000000000000u64)), n(f64::from_bits(0x3fe0000000000000u64)), n(f64::from_bits(0x3fe5f34920475073u64)), n(f64::from_bits(0x412e848000000001u64))]);
+        exact(r, 0.0);
+    }
+    {
+        let r = dated("ACCRINTM", vec![n(f64::from_bits(0x40e2fec000000000u64)), b(true), n(f64::from_bits(0x3fe3ce67dd82e54cu64)), n(f64::from_bits(0x40bef10573dc4c38u64))]);
+        error(r, Value);
+    }
+    // A negative basis is #NUM! before an error value in a required slot is propagated
+    // (live fuzz rows fuzz-PRICEMAT-fc02-000733, fuzz-YIELDMAT-fc02-000777).
+    error(
+        dated("PRICEMAT", vec![n(30000.0), n(12000.0), e(calc_func::value::WorksheetErrorCode::Null), n(-1.0), n(0.5), n(5.0)]),
+        Num,
+    );
+    error(
+        dated("YIELDMAT", vec![n(21000.0), n(11000.0), n(30000.0), n(0.5), e(calc_func::value::WorksheetErrorCode::Name), n(-1.0)]),
+        Num,
+    );
+    // Excel reads serial 0 as a date; the relationship checks fail it afterwards.
+    exact(dated("ACCRINTM", vec![n(0.0), n(40000.0), n(0.05), n(1000.0)]), 5475.833333333333);
+    exact(dated("ACCRINTM", vec![n(0.0), n(0.0), n(0.05), n(1000.0)]), 0.0);
+    error(dated("PRICEMAT", vec![n(0.0), n(40000.0), n(30000.0), n(0.05), n(0.06)]), Num);
+    error(dated("YIELDMAT", vec![n(40000.0), n(0.0), n(30000.0), n(0.05), n(100.0)]), Num);
+}
+
+/// Excel 20430 (dc-j9k.369, relay 2026-11-25, 225-row grid): COUPDAYS with Actual/Actual counts a
+/// period that starts before 1900-01-01 on the true calendar and otherwise the serial difference,
+/// and reads serial 60 as 1900-03-01.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn coupdays_actual_across_1900_leap_day_matches_excel() {
+    for (settlement, maturity, frequency, days) in [
+        (1.0, 14589.0, 1.0, 365.0),
+        (1.0, 101.0, 2.0, 182.0),
+        (364.0, 384.0, 1.0, 366.0),
+        (200.0, 201.0, 2.0, 182.0),
+        (59.0, 60.0, 1.0, 365.0),
+        (59.0, 60.0, 2.0, 181.0),
+        (59.0, 60.0, 4.0, 90.0),
+        (100.0, 101.0, 4.0, 91.0),
+    ] {
+        exact(dated("COUPDAYS", vec![n(settlement), n(maturity), n(frequency), n(1.0)]), days);
+    }
+}
+
+/// Excel 20430 (dc-j9k.391, relay 2026-11-25): the bill functions need the date one year after
+/// settlement to exist, so any settlement in the year 9999 (serial 2958101 on) is #NUM!, whatever
+/// the maturity; 2958100 still calculates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn bills_settled_in_year_9999_are_num_like_excel() {
+    for name in ["TBILLYIELD", "TBILLPRICE", "TBILLEQ"] {
+        let third = if name == "TBILLYIELD" { 95.0 } else { 0.05 };
+        for settlement in [2958101.0, 2958102.0, 2958300.0, 2958464.0] {
+            error(dated(name, vec![n(settlement), n(settlement + 1.0), n(third)]), Num);
+        }
+        assert!(dated(name, vec![n(2958100.0), n(2958101.0), n(third)]).is_ok());
+    }
+    exact(dated("TBILLYIELD", vec![n(2958100.0), n(2958101.0), n(95.0)]), f64::from_bits(0x4032f286bca1af28));
+}
+
+/// Excel 20430 (dc-j9k.395, relay 2026-11-25): RRI whose exponent times ln(base) leaves the binary64
+/// range is #NUM!, not the -1 the power underflows to.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rri_exponent_overflow_is_num_like_excel() {
+    error(
+        call("RRI", vec![n(f64::from_bits(0x0010000000000000)), n(f64::from_bits(0x41999b08a01c4900)), n(0.5)]),
+        Num,
+    );
+}
+
+/// Excel 20430 (dc-j9k.391 follow-up, relay 2026-11-25, fuzz seed 21): TBILLYIELD whose result
+/// overflows binary64 is 0, not #NUM!; the largest finite results are still returned.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn tbillyield_overflow_is_zero_like_excel() {
+    let bits = |h: u64| n(f64::from_bits(h));
+    for exponent in [1u64, 5, 8] {
+        exact(dated("TBILLYIELD", vec![n(1.0), n(62.0), bits(exponent << 52)]), 0.0);
+    }
+    exact(dated("TBILLYIELD", vec![n(1.0), n(62.0), bits(9 << 52)]), 1.0360680208607097e308);
+    exact(dated("TBILLYIELD", vec![n(1.0), n(62.0), bits(0x010 << 52)]), 8.094281412974295e305);
+}
+
+/// Excel 20430 (dc-j9k.391 siblings, relay 2026-11-25, fuzz seed 21): a bill price of exactly 0 is
+/// returned (TBILLPRICE) and a zero TBILLEQ denominator answers 0; the first negative is #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn zero_bill_price_and_zero_tbilleq_denominator_match_excel() {
+    exact(dated("TBILLPRICE", vec![n(40000.0), n(40100.0), n(3.6)]), 0.0);
+    exact(dated("TBILLPRICE", vec![n(0.0), n(360.0), n(1.0)]), 0.0);
+    error(dated("TBILLPRICE", vec![n(40000.0), n(40100.0), n(3.6000001)]), Num);
+    exact(dated("TBILLEQ", vec![n(40000.0), n(40100.0), n(3.6)]), 0.0);
+    exact(dated("TBILLEQ", vec![n(60.0), n(61.0), n(360.0)]), 0.0);
+    error(dated("TBILLEQ", vec![n(40000.0), n(40100.0), n(3.7)]), Num);
+}
+
