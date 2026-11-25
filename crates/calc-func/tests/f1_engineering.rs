@@ -2218,3 +2218,25 @@ fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
 fn imlog2_of_a_pure_imaginary_uses_the_real_route() {
     text(call("IMLOG2", vec![t("0+355i")]), "8.47167521439205+2.2661800709136i");
 }
+
+/// Live Excel 16.0.20625.20108 (dc-j9k.175/.176, Touchstone 2026-11-25): IMLOG2 and the other IMLOG
+/// functions of imaginary-heavy arguments (rows Excel answered and the engine already matched).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imlog_family_matches_live_excel_probes() {
+    for (name, arg, expected) in [
+        ("IMLOG2", "0-355i", "8.47167521439205-2.2661800709136i"),
+        ("IMLOG2", "0+3i", "1.58496250072116+2.2661800709136i"),
+        ("IMLOG10", "0+355i", "2.55022835305509+0.682188176920921i"),
+        ("IMLN", "0+355i", "5.87211778947542+1.5707963267949i"),
+        ("IMLOG2", "1e-10-1e9i", "29.8973528539863-2.2661800709136i"),
+        ("IMLOG2", "0.000001-1000i", "9.96578428466209-2.2661800694709i"),
+        ("IMLOG2", "1e-5-1e9i", "29.8973528539863-2.26618007091358i"),
+        ("IMLOG2", "1e-300-1e5i", "16.6096404744368-2.2661800709136i"),
+        ("IMLOG2", "1e-300-1e3i", "9.96578428466209-2.2661800709136i"),
+        ("IMLOG2", "1e-3-1e9i", "29.8973528539863-2.26618007091215i"),
+        ("IMLOG2", "1-1e9i", "29.8973528539863-2.2661800694709i"),
+    ] {
+        f1_support::text(f1_support::call(name, vec![f1_support::t(arg)]), expected);
+    }
+}
