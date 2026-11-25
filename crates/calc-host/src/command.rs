@@ -70,6 +70,13 @@ pub enum CellEdit {
         /// The complete collection of validation rules.
         rules: Vec<calc_doc_model::Validation>,
     },
+    /// Replace the worksheet’s merged areas.
+    Merges {
+        /// The worksheet to edit.
+        sheet: calc_value::SheetId,
+        /// The complete set of merged areas.
+        areas: Vec<GridArea>,
+    },
     /// Replace the worksheet’s hyperlink records.
     ReviewLinks {
         /// The worksheet to edit.
@@ -193,6 +200,10 @@ impl CellEdit {
                 filter: filter.clone(),
             },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit.clone()),
+            CellEdit::Merges { sheet, areas } => WorkbookOp::SetMerges {
+                sheet: *sheet,
+                areas: areas.clone(),
+            },
             CellEdit::Validations { sheet, rules } => WorkbookOp::SetValidations {
                 sheet: *sheet,
                 rules: rules.clone(),

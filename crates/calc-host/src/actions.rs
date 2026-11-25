@@ -532,6 +532,18 @@ pub enum WorkbookCommand {
         /// Formatting properties to change.
         patch: crate::FormatPatch,
     },
+    /// Merge the ranges (each row of them separately with `across`).
+    MergeCells {
+        /// Ranges to merge.
+        areas: Vec<GridArea>,
+        /// Merge each row of a range separately.
+        across: bool,
+    },
+    /// Unmerge every merged area meeting the ranges.
+    UnmergeCells {
+        /// Ranges to unmerge.
+        areas: Vec<GridArea>,
+    },
     /// Apply a worksheet tab change.
     Sheet {
         /// Target worksheet ID for an existing tab.
@@ -1011,6 +1023,10 @@ pub(crate) fn prepare(
         WorkbookCommand::FormatCells { areas, patch } => {
             crate::format::prepare(host, &areas, &patch)
         }
+        WorkbookCommand::MergeCells { areas, across } => {
+            crate::merge::prepare_merge(host, &areas, across)
+        }
+        WorkbookCommand::UnmergeCells { areas } => crate::merge::prepare_unmerge(host, &areas),
         WorkbookCommand::Sheet { sheet, change } => sheet_edits(host, keys, sheet, change),
         WorkbookCommand::AxisFormat {
             sheet,

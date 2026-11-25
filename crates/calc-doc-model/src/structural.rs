@@ -643,6 +643,12 @@ impl ModelRoot {
                 .collect();
             next = next.with_validations(sheet, rules);
         }
+        for (sheet, areas) in definitions.all_merges() {
+            next = next.with_merges(
+                sheet,
+                areas.iter().filter_map(|a| moved_area(edit, *a)).collect(),
+            );
+        }
         for (sheet, links) in definitions.all_review_links() {
             next = next.with_review_links(
                 sheet,

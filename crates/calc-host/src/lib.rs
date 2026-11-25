@@ -132,6 +132,7 @@ pub use filter::{
     AutoFilter, FilterChange, FilterCriteria, FilterOperator, FilterPredicate, filter_values,
     filter_values_for,
 };
+mod merge;
 mod name_calculation;
 mod names;
 pub use facts::alignment as style_alignment;

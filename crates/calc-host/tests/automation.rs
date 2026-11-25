@@ -6994,3 +6994,114 @@ fn dc_oxh8w_33_range_style_applies_a_named_style_and_survives_reopen() {
     assert_eq!(style_name(&reopened, "D4"), "Hyperlink");
     assert_eq!(style_name(&reopened, "B3"), "Normal");
 }
+
+fn merge_call(model: &WorkbookAutomation, address: &str, member: &str, kind: InvokeKind, args: Vec<AutoValue>) -> Reply {
+    invoke_kind(model, &range(model, address), member, kind, args)
+}
+
+fn merged(model: &WorkbookAutomation, address: &str) -> AutoValue {
+    invoke(model, &range(model, address), "MergeCells", vec![]).unwrap()
+}
+
+fn merge_area_address(model: &WorkbookAutomation, address: &str) -> String {
+    let area = obj(invoke(model, &range(model, address), "MergeArea", vec![]).unwrap());
+    text(model, &area, "Address")
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oc78o_merge_keeps_the_upper_left_value_and_survives_reopen() {
+    let (host, model, _) = blank_report();
+    for (address, value) in [("B2", 1.), ("C2", 2.), ("B3", 3.), ("C3", 4.)] {
+        merge_call(&model, address, "Value2", InvokeKind::Put, vec![AutoValue::R8(value)]).unwrap();
+    }
+    assert!(matches!(merged(&model, "B2"), AutoValue::Bool(false)));
+    merge_call(&model, "B2:C3", "Merge", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(merged(&model, "C3"), AutoValue::Bool(true)));
+    assert!(matches!(merged(&model, "B2:C3"), AutoValue::Bool(true)));
+    assert!(matches!(merged(&model, "B2:D3"), AutoValue::Null));
+    assert!(matches!(merged(&model, "A1"), AutoValue::Bool(false)));
+    assert_eq!(merge_area_address(&model, "C3"), "$B$2:$C$3");
+    assert_eq!(merge_area_address(&model, "A1"), "$A$1");
+    assert!(matches!(cell_text(&model, "B2"), AutoValue::R8(1.)));
+    for covered in ["C2", "B3", "C3"] {
+        assert!(matches!(cell_text(&model, covered), AutoValue::Empty), "{covered}");
+    }
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(merged(&reopened, "C2"), AutoValue::Bool(true)));
+    assert_eq!(merge_area_address(&reopened, "B3"), "$B$2:$C$3");
+    assert!(matches!(cell_text(&reopened, "B2"), AutoValue::R8(1.)));
+    assert!(matches!(merged(&reopened, "D2"), AutoValue::Bool(false)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oc78o_merge_across_merges_each_row_and_unmerge_removes_it() {
+    let (host, model, _) = blank_report();
+    merge_call(&model, "B5:D6", "Merge", InvokeKind::Method, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(merge_area_address(&model, "D6"), "$B$6:$D$6");
+    assert_eq!(merge_area_address(&model, "C5"), "$B$5:$D$5");
+    assert!(matches!(merged(&model, "B5:D6"), AutoValue::Bool(true)));
+    // MergeCells:=False unmerges whatever meets the range.
+    merge_call(&model, "C5", "MergeCells", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(merged(&model, "B5:D5"), AutoValue::Bool(false)));
+    assert!(matches!(merged(&model, "B6"), AutoValue::Bool(true)));
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(merged(&reopened, "B5"), AutoValue::Bool(false)));
+    assert_eq!(merge_area_address(&reopened, "C6"), "$B$6:$D$6");
+    merge_call(&reopened, "A1:Z9", "UnMerge", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(merged(&reopened, "B6"), AutoValue::Bool(false)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oc78o_merge_arguments_and_array_overlap_are_error_1004() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    for args in [vec![AutoValue::text("x")], vec![AutoValue::Bool(true), AutoValue::Bool(true)]] {
+        assert_eq!(excel_error(merge_call(&model, "B2:C3", "Merge", InvokeKind::Method, args)).0, 1004);
+    }
+    assert_eq!(excel_error(merge_call(&model, "B2:C3", "MergeCells", InvokeKind::Put, vec![AutoValue::text("x")])).0, 1004);
+    assert_eq!(excel_error(merge_call(&model, "B2:C3", "UnMerge", InvokeKind::Method, vec![AutoValue::Bool(true)])).0, 1004);
+    assert_eq!(excel_error(merge_call(&model, "B2:C3", "MergeCells", InvokeKind::Get, vec![AutoValue::Bool(true)])).0, 1004);
+    // A merge across part of an array formula is refused.
+    let sheet = host.session.borrow().host().sheets()[0].id();
+    enter(&host, CellKey::new(sheet, 2, 5).unwrap(), "=SEQUENCE(2)");
+    assert_eq!(excel_error(merge_call(&model, "E2:F3", "Merge", InvokeKind::Method, vec![])).0, 1004);
+    assert!(matches!(merged(&model, "E2:F3"), AutoValue::Bool(false)));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oc78o_authored_merges_move_with_inserted_rows_and_undo_restores_them() {
+    let (host, model, _) = blank_report();
+    merge_call(&model, "B3:C4", "Merge", InvokeKind::Method, vec![]).unwrap();
+    merge_call(&model, "1:1", "Insert", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(merge_area_address(&model, "B5"), "$B$4:$C$5");
+    assert!(matches!(merged(&model, "B3"), AutoValue::Bool(false)));
+    let reopened = reopen_formatting(&host);
+    assert_eq!(merge_area_address(&reopened, "C5"), "$B$4:$C$5");
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert_eq!(merge_area_address(&model, "C4"), "$B$3:$C$4");
+    assert!(
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Undo)
+            .accepted()
+    );
+    assert!(matches!(merged(&model, "B3:C4"), AutoValue::Bool(false)));
+}
