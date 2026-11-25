@@ -101,6 +101,17 @@ fn complex_text(
     Ok(text_value(&text))
 }
 
+/// IMDIV and IMSUB: operands with different suffixes are #NUM! (IMSUM and IMPRODUCT: #VALUE!; dc-j9k.348).
+fn complex_text_num_on_mixed_suffix(
+    value: Result<ParsedComplex, WorksheetErrorCode>,
+    operands: &[ParsedComplex],
+) -> Step<CalcValue> {
+    if suffix_from_operands(operands).is_err() {
+        return fail(WorksheetErrorCode::Num);
+    }
+    complex_text(value, operands)
+}
+
 fn unary_complex(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -140,6 +151,32 @@ fn complexes(
         Ok(())
     })?;
     Ok(found)
+}
+
+/// IMSUM and IMPRODUCT read one argument at a time: unreadable text is #NUM!, a suffix that differs from an
+/// earlier one is #VALUE!, then the step (`step` returns the new accumulator or the step's own error).
+/// The first problem in argument order wins (dc-j9k.334, .335).
+fn fold_complexes(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+    start: ParsedComplex,
+    step: fn(ParsedComplex, ParsedComplex) -> Result<ParsedComplex, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let mut acc = start;
+    let mut suffix = None;
+    values(site, a, 0, a.len(), sv, &mut |_, value| {
+        let z = complex_of(site, 0, value)?;
+        if let Some(ch) = z.suffix {
+            match suffix {
+                Some(current) if current != ch => return fail(WorksheetErrorCode::Value),
+                _ => suffix = Some(ch),
+            }
+        }
+        acc = step(acc, z).map_err(Exit::Error)?;
+        Ok(())
+    })?;
+    complex_text(Ok(acc), &[ParsedComplex::new(0.0, 0.0, suffix)])
 }
 
 fn bessel(
@@ -276,7 +313,7 @@ ported_shared_family! {
     51 imdiv |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(x.div(y), &[x, y])
+        complex_text_num_on_mixed_suffix(x.div(y), &[x, y])
     }
     52 impower |s, a, sv| {
         let z = complex_of(s, 0, &a[0])?;
@@ -289,17 +326,25 @@ ported_shared_family! {
     53 imsub |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(Ok(x.sub(y)), &[x, y])
+        complex_text_num_on_mixed_suffix(Ok(x.sub(y)), &[x, y])
     }
     54 imsum |s, a, sv| {
-        let zs = complexes(s, a, sv)?;
-        let sum = zs.iter().fold(ParsedComplex::new(0.0, 0.0, None), |acc, z| acc.add(*z));
-        complex_text(Ok(sum), &zs)
+        fold_complexes(s, a, sv, ParsedComplex::new(0.0, 0.0, None), |acc, z| {
+            let sum = acc.add(z);
+            if sum.re.is_finite() && sum.im.is_finite() { Ok(sum) } else { Err(WorksheetErrorCode::Num) }
+        })
     }
     55 improduct |s, a, sv| {
-        let zs = complexes(s, a, sv)?;
-        let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
-        complex_text(Ok(product), &zs)
+        // An overflowing step is #VALUE! and a component below the normal range is flushed to 0
+        // (dc-j9k.339-.347).
+        fold_complexes(s, a, sv, ParsedComplex::new(1.0, 0.0, None), |acc, z| {
+            let next = acc.mul(z);
+            if !next.re.is_finite() || !next.im.is_finite() {
+                return Err(WorksheetErrorCode::Value);
+            }
+            let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
+            Ok(ParsedComplex::new(flush(next.re), flush(next.im), None))
+        })
     }
     60 besseli |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
     61 besselj |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel) }

@@ -15,7 +15,7 @@
 //! modelled.
 
 use super::aggregate::Held;
-use super::kit::{fail, flag, given, grid, num, num_with_subnormal, numbers, opt, out, out_with_subnormal, reject_logical};
+use super::kit::{fail, flag, given, grid, num, num_without_logical, num_with_subnormal, numbers, opt, out, out_with_subnormal, reject_logical};
 use crate::call::{EvalServices, FunctionFault};
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::DateSystem;
@@ -276,10 +276,10 @@ ported_shared_family! {
         tv_out(s, tv::rri(num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?))
     }
     14 nominal_fn |s, a, sv| {
-        tv_out(s, tv::nominal(num(s, a, 0)?, num(s, a, 1)?))
+        tv_out(s, tv::nominal(num_without_logical(s, a, 0)?, num_without_logical(s, a, 1)?))
     }
     15 effect_fn |s, a, sv| {
-        tv_out(s, tv::effect(num(s, a, 0)?, num(s, a, 1)?))
+        tv_out(s, tv::effect(num_without_logical(s, a, 0)?, num_without_logical(s, a, 1)?))
     }
     16 cumipmt_fn |s, a, sv| {
         cumulative_out(s, cumulative::cumipmt_kernel(required_num(s, a, 0)?, required_num(s, a, 1)?, required_num(s, a, 2)?, required_num(s, a, 3)?, required_num(s, a, 4)?, required_num(s, a, 5)?))

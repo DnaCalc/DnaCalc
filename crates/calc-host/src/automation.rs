@@ -38,6 +38,7 @@ mod cells;
 mod clipboard;
 mod formatting;
 mod window;
+mod protection;
 mod find;
 mod advanced_filter;
 mod autofilter;
@@ -202,6 +203,8 @@ pub struct WorkbookAutomation {
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
     /// Window captions a macro set, by workbook (dc-p3rg9).
     window_captions: RefCell<HashMap<u64, String>>,
+    /// The protection a macro set on each sheet (`None`: it unprotected a sheet the file protects) (dc-oxh8w.68).
+    sheet_protect: RefCell<HashMap<SheetId, Option<protection::SheetProtect>>>,
 }
 
 struct RangeLeases {
@@ -325,6 +328,7 @@ impl WorkbookAutomation {
         Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
         Self::register_books(&mut handlers);
+        Self::register_protection(&mut handlers);
         Self::register_formatting(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
@@ -353,6 +357,7 @@ impl WorkbookAutomation {
             last_goto: RefCell::new(None),
             window_views: RefCell::new(HashMap::new()),
             window_captions: RefCell::new(HashMap::new()),
+            sheet_protect: RefCell::new(HashMap::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.

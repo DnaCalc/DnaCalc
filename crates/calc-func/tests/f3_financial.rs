@@ -13,6 +13,23 @@ use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
 /// Excel 16.0.20625.20108 stores the half power from x87 precision before the reciprocal.
+/// Live Excel (dc-j9k.270): EFFECT and NOMINAL reject a direct logical in either argument.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn effect_and_nominal_reject_direct_logicals() {
+    for name in ["EFFECT", "NOMINAL"] {
+        error(call(name, vec![n(0.1), b(true)]), Value);
+        error(call(name, vec![n(0.1), b(false)]), Value);
+        error(call(name, vec![b(true), n(4.0)]), Value);
+        error(call(name, vec![n(0.1), t("")]), Value);
+        assert!(call(name, vec![n(0.1), t("4")]).is_ok());
+    }
+    exact(call("EFFECT", vec![n(0.1), t("4")]), f64::from_bits(0x3fba937b4a2339b0));
+    // The same probe batch: DOLLARDE and DOLLARFR reject the logical too; PMT, FV, PV, NPER take it as 1.
+    error(call("DOLLARDE", vec![n(1.02), b(true)]), Value);
+    error(call("DOLLARFR", vec![n(1.02), b(true)]), Value);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn half_powers_store_the_square_root_from_x87_precision() {
