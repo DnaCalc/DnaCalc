@@ -57,7 +57,7 @@ unsafe fn probe() -> Option<()> {
     let ordinal: i32 = lines.next()?.parse().ok()?;
     if !matches!(
         ordinal,
-        17 | 47 | 49..=52 | 54 | 55 | 61 | 96 | 97 | 109 | 110 | 122 | 127 | 141
+        17 | 47 | 49..=55 | 61 | 96 | 97 | 109 | 110 | 122 | 127 | 141 | 386
     ) {
         return None;
     }
@@ -69,6 +69,11 @@ unsafe fn probe() -> Option<()> {
         let operand = match kind {
             "bool" => XlOper12::boolean(value.parse().ok()?),
             "number" => XlOper12::number(value.parse().ok()?),
+            "i2" => XlOper12::integer(i32::from(value.parse::<i16>().ok()?)),
+            "miss" if value.is_empty() => XlOper12 {
+                xltype: XL_MISSING,
+                ..XlOper12::default()
+            },
             "text" => arena.text(value).ok()?,
             "reference" => {
                 let mut text = arena.text(value).ok()?;
