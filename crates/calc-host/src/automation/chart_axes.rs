@@ -374,13 +374,6 @@ impl WorkbookAutomation {
     }
     pub(super) fn tick_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let code = super::report::text_arg(one_arg(call)?)?;
-        let kind = self.axis_read(target, "NumberFormat", |a| a.kind.clone())?;
-        if kind != "valAx" {
-            return Err(AutoError::not_modelled(
-                format!("TickLabels.NumberFormat = {code:?} of a category axis (only value-axis formats are written)"),
-                "dc-oxh8w.61",
-            ));
-        }
         // Excel refuses a code it cannot use: the number format engine must be able to apply it.
         let part = Self::chart_token(target)?;
         let usable = self.read_host(target, |s, sheet, _| {
@@ -399,15 +392,12 @@ impl WorkbookAutomation {
     }
     pub(super) fn tick_put_number_format_linked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let on = geometry::boolean(one_arg(call)?)?;
-        let (kind, linked) = self.axis_read(target, "NumberFormatLinked", |a| (a.kind.clone(), a.number_format.is_none()))?;
+        let linked = self.axis_read(target, "NumberFormatLinked", |a| a.number_format.is_none())?;
         if on == linked {
             return Ok(AutoValue::Empty);
         }
         if on {
             return self.axis_labels(target, call, None, Some(None));
-        }
-        if kind != "valAx" {
-            return Err(AutoError::not_modelled("TickLabels.NumberFormatLinked = False of a category axis", "dc-oxh8w.61"));
         }
         // Unlinked, the labels keep the format they show now: General when the source gave none.
         self.axis_labels(target, call, None, Some(Some("General".to_owned())))

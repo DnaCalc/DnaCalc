@@ -236,6 +236,8 @@ pub struct Workbook {
     /// The functions of the workbook's own VBA project, when it runs: a host's add-in functions
     /// are published beside them, never instead of them.
     project_functions: Option<calc_host::CallableTable>,
+    /// The installed VBA project's event owner, which holds the files its macros wrote.
+    macro_events: Option<std::rc::Rc<calc_host_vba::WorkbookEvents>>,
     /// Whether that project runs ([`Macros`]).
     macros: Macros,
     /// An information notice about macros that ran for a marked or network file (dc-15dk).
@@ -390,6 +392,7 @@ impl Workbook {
             inbox: Rc::default(),
             calculated_on_open: None,
             project_functions: None,
+            macro_events: None,
             macros,
             macro_note: None,
             addin_functions: None,
@@ -604,6 +607,7 @@ impl Workbook {
         self.project_functions = Some(own);
         self.macros = Macros::Enabled;
         self.macro_note = note;
+        self.macro_events = Some(project.clone());
         project.install_with_registry(&mut self.session, functions);
         self.session.notify_workbook_open();
         if self.session.calc_mode() != CalcMode::Manual {
@@ -699,8 +703,14 @@ impl Workbook {
             max_steps,
             backend,
         )?;
+        self.macro_events = Some(owner.clone());
         owner.install(&mut self.session);
         Ok(())
+    }
+    /// The files macros wrote since the last call (Chart.Export), oldest first: the path the macro
+    /// named and the bytes. The server offers them to the page as downloads (dc-oxh8w.54).
+    pub fn take_macro_output_files(&mut self) -> Vec<(String, Vec<u8>)> {
+        self.macro_events.as_ref().map(|events| events.take_output_files()).unwrap_or_default()
     }
     pub fn set_vba_events_enabled(&mut self, enabled: bool) {
         self.session.set_workbook_events_enabled(enabled);

@@ -18,7 +18,7 @@ impl WorkbookAutomation {
         handlers.on("Worksheet", "Name", InvokeKind::Put, Self::worksheet_set_name);
         // Typed refusals that name the bead owning the work (dc-oxh8w.47 corpus run).
         handlers.on("Range", "AdvancedFilter", InvokeKind::Method, |_, _, call| {
-            Err(AutoError::not_modelled(call.label(), "dc-oxh8w.67"))
+            Err(AutoError::not_modelled(call.label(), "dc-oxh8w.71"))
         });
         for member in ["Protect", "Unprotect"] {
             handlers.on("Worksheet", member, InvokeKind::Method, |_, _, call| {

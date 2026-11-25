@@ -6604,9 +6604,120 @@ fn dc_oxh8w_31__tick_label_codes_and_unlinking() {
     assert_eq!(text(&model, &labels, "NumberFormat"), "General");
     let bad = invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("")]);
     assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
-    let category = obj(invoke(&model, &axis(1), "TickLabels", vec![]).unwrap());
-    let refused = invoke_kind(&model, &category, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]);
-    assert!(matches!(refused, Err(AutoError::NotModelled { .. })), "{refused:?}");
+}
+
+/// dc-oxh8w.61: `Border` of the chart area and the plot area (Color BGR, LineStyle, Weight) saves `a:ln` beside the fill;
+/// a category axis takes a tick-label format; bad values are 1004; `Series.Border` refuses typed under dc-oxh8w.71.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_61__borders_of_chart_and_plot_area_and_category_axis_formats() {
+    let (host, model, chart, series) = labelled_chart();
+    let border = |owner: &str| {
+        let area = obj(invoke(&model, &chart, owner, vec![]).unwrap());
+        obj(invoke(&model, &area, "Border", vec![]).unwrap())
+    };
+    let area = border("ChartArea");
+    let plot = border("PlotArea");
+    // An unstated outline reads as the default style's: continuous, thin, light grey.
+    assert_eq!(int(invoke(&model, &area, "LineStyle", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &area, "Weight", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &area, "Color", vec![]).unwrap()), 0xD9_D9_D9);
+    invoke_kind(&model, &area, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    invoke_kind(&model, &area, "Weight", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    invoke_kind(&model, &plot, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    invoke_kind(&model, &plot, "LineStyle", InvokeKind::Put, vec![AutoValue::I4(-4115)]).unwrap();
+    assert_eq!(int(invoke(&model, &area, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &area, "Weight", vec![]).unwrap()), 4);
+    assert_eq!(int(invoke(&model, &plot, "LineStyle", vec![]).unwrap()), -4115);
+    let xml = saved_chart_xml(&host);
+    let ln = |xml: &str, from: &str| {
+        let at = xml.find(from).unwrap_or_else(|| panic!("{from}: {xml}"));
+        let start = xml[at..].find("<a:ln").map(|i| at + i).unwrap_or_else(|| panic!("no a:ln after {from}: {xml}"));
+        xml[start..start + xml[start..].find("</a:ln>").unwrap()].to_owned()
+    };
+    let area_ln = ln(&xml, "</c:chart>");
+    assert!(area_ln.contains("w=\"28575\"") && area_ln.contains("<a:srgbClr val=\"FF0000\"/>"), "{xml}");
+    let plot_ln = ln(&xml, "</c:valAx>");
+    assert!(plot_ln.contains("<a:srgbClr val=\"00FF00\"/>") && plot_ln.contains("<a:prstDash val=\"dash\"/>"), "{xml}");
+    invoke_kind(&model, &area, "LineStyle", InvokeKind::Put, vec![AutoValue::I4(-4142)]).unwrap();
+    assert_eq!(int(invoke(&model, &area, "LineStyle", vec![]).unwrap()), -4142);
+    let xml = saved_chart_xml(&host);
+    assert!(ln(&xml, "</c:chart>").contains("<a:noFill/>"), "{xml}");
+    for (target, member, bad) in [
+        (&area, "Color", AutoValue::I4(-1)),
+        (&area, "Color", AutoValue::I4(16_777_216)),
+        (&area, "Color", AutoValue::R8(1.5)),
+        (&area, "LineStyle", AutoValue::I4(7)),
+        (&plot, "Weight", AutoValue::I4(3)),
+    ] {
+        let r = invoke_kind(&model, target, member, InvokeKind::Put, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{member} {bad:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &area, "Weight", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke(&model, &series, "Border", vec![]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+
+    // A category axis states a tick-label format and unlinks.
+    let axis = obj(invoke_kind(&model, &chart, "Axes", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let labels = obj(invoke(&model, &axis, "TickLabels", vec![]).unwrap());
+    invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]).unwrap();
+    assert_eq!(text(&model, &labels, "NumberFormat"), "0.0");
+    assert!(matches!(invoke(&model, &labels, "NumberFormatLinked", vec![]).unwrap(), AutoValue::Bool(false)));
+    let xml = saved_chart_xml(&host);
+    let cat = &xml[xml.find("<c:catAx>").expect("catAx")..xml.find("</c:catAx>").unwrap()];
+    assert!(cat.contains("<c:numFmt formatCode=\"0.0\" sourceLinked=\"0\"/>"), "{xml}");
+    invoke_kind(&model, &labels, "NumberFormatLinked", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(!saved_chart_xml(&host).contains("formatCode=\"0.0\""));
+    invoke_kind(&model, &labels, "NumberFormatLinked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert_eq!(text(&model, &labels, "NumberFormat"), "General");
+}
+
+/// dc-oxh8w.61: the outlines of a chart the file holds are replaced in place (fill kept) or added, and read back after a save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_61__borders_of_a_chart_the_file_holds_survive_a_save() {
+    let open = |bytes: Vec<u8>| {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let chart_of = |model: &WorkbookAutomation| {
+        let book = obj(invoke(model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+        let charts = obj(invoke(model, &book, "Charts", vec![]).unwrap());
+        obj(invoke_kind(model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap())
+    };
+    let border_of = |model: &WorkbookAutomation, chart: &ObjectRef, owner: &str| {
+        let area = obj(invoke(model, chart, owner, vec![]).unwrap());
+        obj(invoke(model, &area, "Border", vec![]).unwrap())
+    };
+    let (host, model) = open(include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec());
+    let chart = chart_of(&model);
+    let fill = obj(invoke(&model, &obj(invoke(&model, &chart, "ChartArea", vec![]).unwrap()), "Interior", vec![]).unwrap());
+    invoke_kind(&model, &fill, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    for owner in ["ChartArea", "PlotArea"] {
+        let border = border_of(&model, &chart, owner);
+        invoke_kind(&model, &border, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+        invoke_kind(&model, &border, "Weight", InvokeKind::Put, vec![AutoValue::I4(-4138)]).unwrap();
+    }
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let (host2, model2) = open(bytes);
+    let chart2 = chart_of(&model2);
+    for owner in ["ChartArea", "PlotArea"] {
+        let border = border_of(&model2, &chart2, owner);
+        assert_eq!(int(invoke(&model2, &border, "Color", vec![]).unwrap()), 255, "{owner}");
+        assert_eq!(int(invoke(&model2, &border, "Weight", vec![]).unwrap()), -4138, "{owner}");
+    }
+    let fill2 = obj(invoke(&model2, &obj(invoke(&model2, &chart2, "ChartArea", vec![]).unwrap()), "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model2, &fill2, "Color", vec![]).unwrap()), 65_280);
+    // A second colour replaces the first: one outline each.
+    invoke_kind(&model2, &border_of(&model2, &chart2, "ChartArea"), "Color", InvokeKind::Put, vec![AutoValue::I4(16_711_680)]).unwrap();
+    let mut again = Vec::new();
+    host2.session.borrow_mut().save(&SavePolicy::default(), &mut again).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(again)), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(document.package().read_part("xl/charts/chart1.xml").unwrap()).unwrap();
+    let after_chart = &xml[xml.find("</c:chart>").unwrap()..];
+    assert_eq!(after_chart.matches("<a:ln").count(), 1, "{xml}");
+    assert!(after_chart.contains("val=\"0000FF\"") && after_chart.contains("val=\"00FF00\""), "{xml}");
 }
 
 /// dc-oxh8w.19: a macro colours a series through Interior.Color (a BGR number); the chart saves the fill, and
@@ -7876,7 +7987,7 @@ fn dc_oxh8w_47__protect_and_advanced_filter_refuse_with_their_owners() {
         assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
     }
     let r = invoke_kind(&model, &range, "AdvancedFilter", InvokeKind::Method, vec![AutoValue::I4(2)]);
-    assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.67"), "{r:?}");
+    assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.71"), "{r:?}");
 }
 
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
@@ -8262,6 +8373,72 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
     let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
     assert!(r.is_err(), "{r:?}");
+}
+
+/// dc-oxh8w.50: `Application.ActiveWindow` and `Workbook.Windows(1)` answer the workbook's window: ActiveSheet, ActiveCell,
+/// Selection, Zoom (10 to 400), ScrollRow/ScrollColumn, the Display* flags and FreezePanes with SplitRow/SplitColumn
+/// (through the stored frozen panes). Out-of-range values and a second window are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_50__window_view_members_and_freeze_panes() {
+    let (host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let windows = obj(invoke(&model, &book, "Windows", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &windows, "Count", vec![]).unwrap()), 1);
+    let first = obj(invoke_kind(&model, &windows, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(first.key, window.key);
+    let r = invoke_kind(&model, &windows, "Item", InvokeKind::Get, vec![AutoValue::I4(2)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    let put = |member: &str, value: AutoValue| invoke_kind(&model, &window, member, InvokeKind::Put, vec![value]);
+    // Zoom
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 100);
+    put("Zoom", AutoValue::I4(150)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 150);
+    for bad in [9, 401, 0, -5] {
+        let r = put("Zoom", AutoValue::I4(bad));
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 150);
+    // Scroll position and flags
+    assert_eq!(int(invoke(&model, &window, "ScrollRow", vec![]).unwrap()), 1);
+    put("ScrollRow", AutoValue::I4(20)).unwrap();
+    put("ScrollColumn", AutoValue::I4(3)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "ScrollRow", vec![]).unwrap()), 20);
+    assert_eq!(int(invoke(&model, &window, "ScrollColumn", vec![]).unwrap()), 3);
+    for (member, bad) in [("ScrollRow", 0), ("ScrollRow", 1_048_577), ("ScrollColumn", 16_385)] {
+        let r = put(member, AutoValue::I4(bad));
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{member} {bad}: {r:?}");
+    }
+    put("ScrollRow", AutoValue::I4(1)).unwrap();
+    put("ScrollColumn", AutoValue::I4(1)).unwrap();
+    assert!(matches!(invoke(&model, &window, "DisplayGridlines", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("DisplayGridlines", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "DisplayGridlines", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &window, "DisplayFormulas", vec![]).unwrap(), AutoValue::Bool(false)));
+    // FreezePanes at C3 freezes two rows and two columns.
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    let r = put("FreezePanes", AutoValue::Bool(true));
+    assert!(r.is_err(), "freezing at the first cell is refused: {r:?}");
+    let c3 = range(&model, "C3");
+    invoke_kind(&model, &c3, "Select", InvokeKind::Method, vec![]).unwrap();
+    put("FreezePanes", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &window, "SplitColumn", vec![]).unwrap()), 2);
+    let active = obj(invoke(&model, &window, "ActiveCell", vec![]).unwrap());
+    assert_eq!(text(&model, &active, "Address"), "$C$3");
+    let sel = obj(invoke(&model, &window, "Selection", vec![]).unwrap());
+    assert_eq!(text(&model, &sel, "Address"), "$C$3");
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &w2, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("FreezePanes", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
+    let sheet = obj(invoke(&model, &window, "ActiveSheet", vec![]).unwrap());
+    assert!(!text(&model, &sheet, "Name").is_empty());
 }
 
 /// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value

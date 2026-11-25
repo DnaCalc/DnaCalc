@@ -352,3 +352,37 @@ refused at assignment to `Worksheet.Cells` (dc-hsa5.12). These runs add no entri
 Together with the 2,757 attempted earlier, all 3,261 hashes in the reconciled cohort have been
 attempted. The 30 attempts without a result in the original run are recorded above. The manifests,
 per-file receipts and aggregate are in `ww20`.
+
+### Whole triage-clean set on this host (dc-oxh8w.47, 2026-11-25)
+
+The 491 `windows/corpus` workbooks (macro-capable files in `r2:dnacalc-corpus/windows/corpus`, 4,141 candidates
+hashed, 491 matched the unstaged list) were copied to `~/corpus-macro/wb` next to the 2,757 from
+`sources/xl-unique`, so 3,248 of the 3,261 triage-clean hashes are staged (the other 13, 12 FUSE and one
+download, were run by ww20 above). Every staged workbook ran again, one fresh Bubblewrap each (limits as above,
+six at a time), `--all --fixtures --macro-level guarded --json`, with a binary built from master after
+dc-oxh8w.46 (Worksheet.Visible, Goto without Reference and the refusal owners .68, .71 and .73 came after it; SHA-256 `182bca2c989d19c661061c16db5488e77dfc106d68a242fe09c5b2efb12a53fd`).
+
+| Workbooks | Count |
+| --- | ---: |
+| Staged and attempted | 3,248 |
+| Opened, project admitted, entries run | 2,147 |
+| Project not admitted | 1,065 |
+| No result (timeout, signal or unreadable output) | 36 |
+
+| Entry outcome | Every workbook (2,147) | 311 distinct projects |
+| --- | ---: | ---: |
+| Success | 787 | 599 |
+| VBA run-time error | 504 | 359 |
+| Typed refusal | 1,216 | 707 |
+| Needs arguments | 19 | 18 |
+| Not callable | 5 | 5 |
+| Failed | 2 | 2 |
+
+The 491 added workbooks admit only 22 (the 2,757 earlier ones admitted 2,125), which agrees with ww20's 28 of 504.
+Admission refusals by cause (1,065): class, designer or unbound document module 590 (UserForm and Sheet modules,
+dc-oxh8w.73), locked VBA project 91, document project compile errors (dc-hsa5.*) about 200 in a long tail
+(undefined Sub or Function 54, `New TestEventServer` 28, parse failures 25, `Range`/`Cells` as assignment target 34,
+undefined xl constants 18), unsupported ThisWorkbook attachment signature 18, xlsm content type 15.
+Top refusals by distinct project (TSV above): `_Application.ActiveWindow` 261 entries / 48 projects (dc-oxh8w.50),
+`Range.AdvancedFilter` 96 / 4 (dc-oxh8w.71), `_Worksheet.Unprotect` 36 / 18 and `_Worksheet.Protect` 5 / 5 (dc-oxh8w.68),
+`Range.Sort` OrderCustom 34 / 13 (dc-oxh8w.43), `_Worksheet.Visible` 27 / 7 (implemented after this run), `Range.End` 23 / 12.

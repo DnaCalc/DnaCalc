@@ -749,6 +749,24 @@ impl Controller {
             }
             return;
         }
+        if let Event::MacroFiles { workbook, count } = event {
+            if self.summary.with_untracked(|s| s.workbook) == workbook {
+                for _ in 0..count {
+                    let controller = *self;
+                    self.send_command(Request::TakeMacroFile, None, move |reply, bytes| {
+                        if let (Ok(Reply::MacroFile { name, .. }), Some(bytes)) = (reply, bytes) {
+                            // The macro named a path; the browser keeps a download's file name only.
+                            let file = name.rsplit(['/', '\\']).next().unwrap_or(&name).to_owned();
+                            match crate::app::download(&file, &bytes) {
+                                Ok(()) => controller.say(format!("A macro wrote {file}; the download started"), false),
+                                Err(error) => controller.say(format!("A macro wrote {file}; the download did not start: {error}"), true),
+                            }
+                        }
+                    });
+                }
+            }
+            return;
+        }
         if let Event::SaveReady { workbook, token } = event {
             let mut download = None;
             self.save_download.update_value(|pending| {
@@ -928,6 +946,7 @@ impl Controller {
             Event::ProjectionFailed { id, .. } => *id,
             Event::Calculation { .. }
             | Event::SaveReady { .. }
+            | Event::MacroFiles { .. }
             | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
@@ -944,6 +963,7 @@ impl Controller {
             Event::TileCompletion(barrier) => mirror.complete(*barrier),
             Event::Calculation { .. }
             | Event::SaveReady { .. }
+            | Event::MacroFiles { .. }
             | Event::WorkbookEventFailed { .. } => {
                 unreachable!("owner controls are handled above")
             }
