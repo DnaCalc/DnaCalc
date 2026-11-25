@@ -2,10 +2,12 @@
 //! (dc-oxh8w.4). Each is one session command (`WorkbookCommand::Sheet`), so undo, recalculation and
 //! events are the ones every other Automation write uses.
 use super::*;
+use calc_object_model::ReportItem;
 use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
 
-/// xlWorksheet, the only sheet type Worksheets.Add makes here.
+/// xlWorksheet, and xlChart (a chart sheet): the sheet types Sheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
+const XL_CHART: i64 = -4109;
 /// The open bead that owns the structural remainders this file refuses.
 const OWNER: &str = "dc-oxh8w.36";
 
@@ -20,7 +22,7 @@ impl WorkbookAutomation {
 
     /// One sheet command; a refusal is Excel's 1004 with the host's reason (a name Excel rejects, the
     /// last visible sheet, ...).
-    fn sheet_command(
+    pub(super) fn sheet_command(
         session: &mut HostSession,
         sheet: Option<SheetId>,
         change: SheetChange,
@@ -47,6 +49,30 @@ impl WorkbookAutomation {
         }
     }
 
+    /// A Before or After argument: a worksheet or a chart sheet's Chart.
+    fn sheet_or_chart_argument(meta: &Snapshot, arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
+        match arg {
+            AutoValue::Object(ObjectRef {
+                key: ObjectKey::Report { sheet, item: ReportItem::Chart(_), .. },
+                ..
+            }) if meta.chart_sheets.contains(sheet) => Ok(Some(*sheet)),
+            other => Self::sheet_argument(other, what),
+        }
+    }
+
+    /// A new chart sheet is named `Chart<n>`, n the lowest not in use (an assumption until the Windows run).
+    pub(super) fn new_chart_sheet_name(model: &ModelRoot) -> String {
+        (1u32..)
+            .map(|n| format!("Chart{n}"))
+            .find(|name| {
+                !model
+                    .sheets()
+                    .iter()
+                    .any(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), name))
+            })
+            .expect("a free sheet name")
+    }
+
     /// Excel names a new sheet `Sheet<n>`, n starting one above the sheet count and rising past names in use.
     fn new_sheet_name(model: &ModelRoot) -> String {
         (model.sheets().len() as u32 + 1..)
@@ -68,8 +94,8 @@ impl WorkbookAutomation {
         let reply = self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
-            let before = Self::sheet_argument(call.arg(0), "Sheets.Add Before as other than a worksheet")?;
-            let after = Self::sheet_argument(call.arg(1), "Sheets.Add After as other than a worksheet")?;
+            let before = Self::sheet_or_chart_argument(&meta, call.arg(0), "Sheets.Add Before as other than a worksheet")?;
+            let after = Self::sheet_or_chart_argument(&meta, call.arg(1), "Sheets.Add After as other than a worksheet")?;
             if before.is_some() && after.is_some() {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
@@ -80,11 +106,16 @@ impl WorkbookAutomation {
             if !(1..=255).contains(&count) {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
-            match call.arg(3) {
-                AutoValue::Missing | AutoValue::Empty => {}
-                other if geometry::integer(other)? == XL_WORKSHEET => {}
-                _ => return Err(AutoError::not_modelled("Sheets.Add of a sheet type other than xlWorksheet", OWNER)),
-            }
+            // Charts.Add makes chart sheets whatever its (absent) Type; Sheets.Add takes xlWorksheet or xlChart.
+            let chart = match (&target.key, call.arg(3)) {
+                (ObjectKey::Charts(_), _) => true,
+                (_, AutoValue::Missing | AutoValue::Empty) => false,
+                (_, other) => match geometry::integer(other)? {
+                    XL_WORKSHEET => false,
+                    XL_CHART => true,
+                    _ => return Err(AutoError::not_modelled("Sheets.Add of a sheet type other than xlWorksheet or xlChart", OWNER)),
+                },
+            };
             let model = session.host().model();
             let order: Vec<SheetId> = model.sheets().iter().map(|s| s.id()).collect();
             let position_of = |sheet: SheetId| {
@@ -106,10 +137,19 @@ impl WorkbookAutomation {
             // Count sheets go in as one block before or after the anchor; the first becomes the active sheet.
             let mut progress = None;
             let mut first_added = None;
+            // Excel numbers a new chart's series from its automatic source: the selection of the sheet it is added from.
+            let from_sheet = meta.active.map(|at| at.sheet());
+            let unique_start = from_sheet
+                .and_then(|sheet| Self::selection_data(session, sheet))
+                .map_or(0, |area| Self::automatic_series(session, area));
             for step in 0..count as usize {
                 let known: Vec<SheetId> = session.host().model().sheets().iter().map(|s| s.id()).collect();
-                let name = Self::new_sheet_name(session.host().model());
-                progress = Self::sheet_command(session, None, SheetChange::Add { name })?.or(progress);
+                let change = if chart {
+                    SheetChange::AddChart { name: Self::new_chart_sheet_name(session.host().model()) }
+                } else {
+                    SheetChange::Add { name: Self::new_sheet_name(session.host().model()) }
+                };
+                progress = Self::sheet_command(session, None, change)?.or(progress);
                 let added = session
                     .host()
                     .model()
@@ -123,6 +163,23 @@ impl WorkbookAutomation {
                     progress =
                         Self::sheet_command(session, Some(added), SheetChange::Move { position: at as u32 })?.or(progress);
                 }
+                if chart {
+                    let receipt = session.dispatch_from(
+                        CommandIngress::Automation,
+                        SkinIntent::Command(WorkbookCommand::ChartCreateEmpty {
+                            sheet: added,
+                            revision: session.host().revision().get(),
+                            kind: "column".into(),
+                            place: [0.0; 4].map(crate::Points::new),
+                            title: None,
+                            legend: true,
+                            unique_start,
+                        }),
+                    );
+                    if let Some(error) = receipt.error {
+                        return Err(AutoError::excel(1004, error.to_string()));
+                    }
+                }
                 first_added.get_or_insert(added);
             }
             let added = first_added.expect("at least one sheet");
@@ -131,13 +188,17 @@ impl WorkbookAutomation {
             session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(crate::Selection::cell(first)));
             Self::settle(session, progress, call)?;
             self.context_changed(session);
-            result = Ok(AutoValue::Object(object(
-                "Worksheet",
-                ObjectKey::Worksheet {
-                    workbook: self.metadata()?.workbook,
-                    sheet: added,
-                },
-            )));
+            result = if chart {
+                Self::chart_of_sheet(&*self.metadata()?, added)
+            } else {
+                Ok(AutoValue::Object(object(
+                    "Worksheet",
+                    ObjectKey::Worksheet {
+                        workbook: self.metadata()?.workbook,
+                        sheet: added,
+                    },
+                )))
+            };
             Ok(AutoValue::Empty)
         });
         reply?;

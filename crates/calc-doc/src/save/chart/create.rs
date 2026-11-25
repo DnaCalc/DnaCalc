@@ -490,6 +490,16 @@ fn frame(chart: &Chart, id: u32, rel: &str) -> Result<Vec<u8>, SaveRefusal> {
             ),
             (0, 0),
         ),
+        // A chart sheet's chart fills the sheet (dc-oxh8w.23).
+        ChartAnchor::Absolute { x, y, width, height }
+            if x >= 0 && y >= 0 && (1..=100_000_000).contains(&width) && (1..=100_000_000).contains(&height) =>
+        {
+            (
+                "absoluteAnchor",
+                format!("<xdr:pos x=\"{x}\" y=\"{y}\"/><xdr:ext cx=\"{width}\" cy=\"{height}\"/>"),
+                (width, height),
+            )
+        }
         _ => {
             return Err(invalid(
                 &chart.part,
@@ -874,21 +884,31 @@ pub(crate) fn add_with(
     let source_xml = super::super::sheets::read_sheet(package, sheet_part)?;
     let xml = parts::current_part(package, out, sheet_part, source_xml.bytes())?;
     let body = format!("<drawing xmlns=\"{MAIN_NAMESPACE}\" xmlns:r=\"{REL}\" r:id=\"{rel}\"/>");
-    let bytes = parts::worksheet_child(
-        &xml,
-        "drawing",
-        body.as_bytes(),
-        &[
-            "legacyDrawing",
-            "legacyDrawingHF",
-            "picture",
-            "oleObjects",
-            "controls",
-            "webPublishItems",
-            "tableParts",
-            "extLst",
-        ],
-    )?;
+    let bytes = if super::super::sheets::is_chart_sheet_part(sheet_part) {
+        parts::root_child(
+            &xml,
+            "chartsheet",
+            "drawing",
+            body.as_bytes(),
+            &["legacyDrawing", "legacyDrawingHF", "drawingHF", "picture", "webPublishItems", "extLst"],
+        )?
+    } else {
+        parts::worksheet_child(
+            &xml,
+            "drawing",
+            body.as_bytes(),
+            &[
+                "legacyDrawing",
+                "legacyDrawingHF",
+                "picture",
+                "oleObjects",
+                "controls",
+                "webPublishItems",
+                "tableParts",
+                "extLst",
+            ],
+        )?
+    };
     parts::put_part(package, out, sheet_part, bytes);
     Ok(())
 }

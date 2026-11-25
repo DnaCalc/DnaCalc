@@ -25,6 +25,15 @@ impl SheetKey {
     }
 }
 
+/// What a sheet is (dc-oxh8w.23): a worksheet, or a chart sheet that holds one chart and no cell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SheetKind {
+    #[default]
+    Worksheet,
+    /// An Excel chart sheet: its chart is in the definitions under the sheet's ID.
+    Chart,
+}
+
 /// The longest sheet name, in UTF-16 code units.
 pub const SHEET_NAME_MAX_UTF16_CODE_UNITS: usize = 31;
 

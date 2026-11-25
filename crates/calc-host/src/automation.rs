@@ -42,6 +42,7 @@ mod navigation;
 mod print;
 mod report;
 mod chart_axes;
+mod chart_sheets;
 mod chart_export;
 mod chart_format;
 mod chart_labels;
@@ -112,8 +113,18 @@ struct Snapshot {
     chart_parts: Rc<Vec<(SheetId, String)>>,
 }
 
-/// The sheets of the workbook that open as `kind` (`chart sheet` or `dialog sheet`).
+/// The sheets of the workbook that open as `kind` (`chart sheet` or `dialog sheet`): a chart sheet is the model's
+/// sheet kind (a loaded one and one a macro made), a dialog sheet a preserved part.
 fn sheet_kinds(host: &crate::HostState, kind: &str) -> Vec<SheetId> {
+    if kind == "chart sheet" {
+        return host
+            .model()
+            .sheets()
+            .iter()
+            .filter(|sheet| sheet.kind() == calc_doc_model::SheetKind::Chart)
+            .map(|sheet| sheet.id())
+            .collect();
+    }
     host.loaded().sheets().iter().filter(|sheet| sheet.preserved_kind() == Some(kind)).map(|sheet| sheet.id()).collect()
 }
 
@@ -265,6 +276,7 @@ impl WorkbookAutomation {
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
         Self::register_structure(&mut handlers);
+        Self::register_chart_sheets(&mut handlers);
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
@@ -960,6 +972,9 @@ impl WorkbookAutomation {
             AutoError::not_modelled("_Application.ActiveSheet without a user view", OWNER)
         })?;
         sheet_name(meta, sheet)?;
+        if meta.chart_sheets.contains(&sheet) {
+            return Self::chart_of_sheet(meta, sheet);
+        }
         Ok(AutoValue::Object(object(
             "Worksheet",
             ObjectKey::Worksheet {

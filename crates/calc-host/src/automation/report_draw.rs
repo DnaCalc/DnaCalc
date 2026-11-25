@@ -963,7 +963,7 @@ impl WorkbookAutomation {
     }
     /// How many series Excel's automatic source gives a chart made over `area` (Q18): a region of text
     /// alone is one series; otherwise the data rows or columns, a label row or column left out.
-    fn automatic_series(session: &HostSession, area: GridArea) -> u32 {
+    pub(super) fn automatic_series(session: &HostSession, area: GridArea) -> u32 {
         let model = session.host().model();
         let all_text = (0..area.row_count()).all(|r| {
             (0..area.column_count()).all(|c| {
@@ -985,7 +985,7 @@ impl WorkbookAutomation {
     }
     /// The data a chart made from the selection plots: a single selected cell with a value stands
     /// for its current region; a selected range stands for itself when it holds a value.
-    fn selection_data(session: &HostSession, sheet: SheetId) -> Option<GridArea> {
+    pub(super) fn selection_data(session: &HostSession, sheet: SheetId) -> Option<GridArea> {
         let selection = session.selection();
         // A workbook nobody selected in has its first cell selected, as Excel opens one.
         let area = match selection.areas.first() {

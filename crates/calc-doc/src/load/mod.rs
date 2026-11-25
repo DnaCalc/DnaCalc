@@ -628,6 +628,17 @@ impl LoadedWorkbook {
         sheet: SheetId,
         charts: &[calc_doc_model::Chart],
     ) -> Result<(), crate::SaveRefusal> {
+        self.check_chart_set_on(sheet, charts, false)
+    }
+
+    /// [`Self::check_chart_set`] for a sheet that may be a chart sheet a session made (`chart_sheet`), which has no
+    /// loaded part: the saver writes it from the model (dc-oxh8w.23).
+    pub fn check_chart_set_on(
+        &self,
+        sheet: SheetId,
+        charts: &[calc_doc_model::Chart],
+        chart_sheet: bool,
+    ) -> Result<(), crate::SaveRefusal> {
         let fail = |detail: &str| crate::SaveRefusal::ChartNotModelled {
             part: "charts".into(),
             detail: detail.into(),
@@ -652,9 +663,22 @@ impl LoadedWorkbook {
         }
         let new = &charts[original.len()..];
         if !anchor_edits.is_empty() || !new.is_empty() {
-            let source = self
-                .sheet(sheet)
-                .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
+            // A chart sheet a session made has no loaded part; the saver writes it from the model (dc-oxh8w.23).
+            let new_chart_sheet = || {
+                chart_sheet
+                    .then(|| {
+                        LoadedSheet::empty(sheet, "dnaCheck".into(), "xl/chartsheets/dnaCheck.xml".into())
+                    })
+            };
+            let owned;
+            let source = match self.sheet(sheet) {
+                Some(source) => source,
+                None => {
+                    owned = new_chart_sheet()
+                        .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
+                    &owned
+                }
+            };
             crate::save::chart::check_frames(&self.package, &self.model, source, &anchor_edits, new)?;
         }
         Ok(())
@@ -2508,7 +2532,12 @@ pub fn load_preserving_sheet_ids(
         .into_iter()
         .zip(&issued)
         .map(|(declared, &id)| {
-            SheetEntry::new(id, declared.key, declared.name, declared.visibility)
+            let kind = if declared.preserved == Some("chart sheet") {
+                calc_doc_model::SheetKind::Chart
+            } else {
+                calc_doc_model::SheetKind::Worksheet
+            };
+            SheetEntry::new(id, declared.key, declared.name, declared.visibility).with_kind(kind)
         })
         .collect();
     let model = ModelRoot::with_definitions(

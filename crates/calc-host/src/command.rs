@@ -888,10 +888,11 @@ pub fn dispatch_slice(
                 .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
         if let WorkbookOp::SetCharts { sheet, charts } = op {
+            let new_chart_sheet = host.model.sheet_by_id(*sheet).is_some_and(|s| s.kind() == calc_doc_model::SheetKind::Chart);
             if host
                 .loaded
                 .sheet(*sheet)
-                .is_none_or(|s| s.protected() || s.is_macro_sheet())
+                .map_or(!new_chart_sheet, |s| s.protected() || s.is_macro_sheet())
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
                     "Chart editing requires an editable worksheet (dc-971p.49)".into(),
@@ -902,7 +903,11 @@ pub fn dispatch_slice(
                 host.model
                     .definitions()
                     .all_charts()
-                    .filter(|(s, _)| s != sheet)
+                    // A chart moved between sheets by one batch (`Chart.Location`) is on the sheet that receives it.
+                    .filter(|(s, _)| {
+                        s != sheet
+                            && !batch.operations.iter().any(|o| matches!(o, WorkbookOp::SetCharts { sheet: other, .. } if other == s))
+                    })
                     .flat_map(|(_, cs)| cs),
             ) {
                 if !parts.insert(chart.part.as_str()) {
@@ -912,7 +917,11 @@ pub fn dispatch_slice(
                 }
             }
             host.loaded
-                .check_chart_set(*sheet, charts)
+                .check_chart_set_on(
+                    *sheet,
+                    charts,
+                    host.model.sheet_by_id(*sheet).is_some_and(|s| s.kind() == calc_doc_model::SheetKind::Chart),
+                )
                 .map_err(|e| CommandError::Document(EditError::SheetOperation(e.to_string())))?;
         }
         if let WorkbookOp::SetReviewLinks { sheet, links } = op {
@@ -1020,7 +1029,13 @@ pub fn dispatch_slice(
             // refused is what the save cannot rewrite: extension-backed rules, unread charts, charts
             // authored since the load, and (for a removal) objects that live on the removed sheet.
             let is_remove = matches!(edit, calc_doc_model::SheetEdit::Remove { .. });
-            let authored_charts = host
+            // A chart sheet holds no cell, so no chart series refers to it: renaming or removing one leaves the
+            // charts a session authored as they are (dc-oxh8w.23).
+            let on_chart_sheet = host
+                .model
+                .sheet_by_id(*sheet)
+                .is_some_and(|s| s.kind() == calc_doc_model::SheetKind::Chart);
+            let authored_charts = !on_chart_sheet && host
                 .model
                 .definitions()
                 .all_charts()
@@ -1049,7 +1064,7 @@ pub fn dispatch_slice(
                 )));
             }
         }
-        let identity = if let calc_doc_model::SheetEdit::Insert { key, .. } = edit {
+        let identity = if let calc_doc_model::SheetEdit::Insert { key, .. } | calc_doc_model::SheetEdit::InsertChartSheet { key, .. } = edit {
             Some(*host.sheet_identities.entry(*key).or_insert_with(|| host.sheet_ids.issue().expect("sheet identity space")))
         } else { None };
         calc_doc::prepare_sheet_edit(&host.model, &batch, &calc_engine::ReferenceRewriter,

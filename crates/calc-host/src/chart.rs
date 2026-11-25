@@ -274,10 +274,13 @@ impl HostState {
     /// The charts on `sheet`, in the drawing's order, with their series as the workbook holds
     /// them now; and how many charts the file holds that could not be read.
     pub fn charts(&self, sheet: SheetId) -> (Vec<ChartView>, usize) {
-        let Some(loaded) = self.loaded.sheet(sheet) else {
-            return (Vec::new(), 0);
+        // A chart sheet a macro made has no loaded part and nothing unread (dc-oxh8w.23).
+        let no_charts = calc_doc_model::SheetCharts::default();
+        let read = match self.loaded.sheet(sheet) {
+            Some(loaded) => loaded.charts(),
+            None if is_chart_sheet(self, sheet) => &no_charts,
+            None => return (Vec::new(), 0),
         };
-        let read = loaded.charts();
         let theme = self.loaded.theme_colors();
         let palette: Vec<String> = (0..6)
             .map(|i| self.theme_accent(i).expect("six theme accents"))
@@ -869,11 +872,12 @@ pub(crate) fn prepare_properties(
     if revision != host.revision().get() {
         return Err("The workbook changed; reopen the chart controls (dc-e5z5)".into());
     }
-    let source = host
-        .loaded()
-        .sheet(sheet)
-        .ok_or("The chart worksheet no longer exists")?;
-    if source.protected() || source.is_macro_sheet() {
+    // A chart sheet a macro made has no loaded part (dc-oxh8w.23).
+    let source = host.loaded().sheet(sheet);
+    if source.is_none() && !is_chart_sheet(host, sheet) {
+        return Err("The chart worksheet no longer exists".into());
+    }
+    if source.is_some_and(|s| s.protected() || s.is_macro_sheet()) {
         return Err(
             "Editing charts on this protected or macro worksheet is not modelled (dc-e5z5)".into(),
         );
@@ -1966,12 +1970,23 @@ pub(crate) struct NewChart {
     pub legend: bool,
 }
 
+/// The frame of the chart on a chart sheet: an absolute anchor over the sheet (dc-oxh8w.23; the size Excel
+/// writes for a new chart sheet at the default page, in EMU).
+pub(crate) const CHART_SHEET_FRAME: calc_doc_model::ChartAnchor =
+    calc_doc_model::ChartAnchor::Absolute { x: 0, y: 0, width: 9_293_678, height: 6_000_000 };
+
+/// Whether the sheet is a chart sheet.
+pub(crate) fn is_chart_sheet(host: &HostState, sheet: SheetId) -> bool {
+    host.model().sheet_by_id(sheet).is_some_and(|s| s.kind() == calc_doc_model::SheetKind::Chart)
+}
+
 fn editable(host: &HostState, sheet: SheetId, fail: &dyn Fn(&str) -> String) -> Result<(), String> {
-    let source = host
-        .loaded()
-        .sheet(sheet)
-        .ok_or_else(|| fail("Save and reopen the new worksheet before creating a chart"))?;
-    if source.protected() || source.is_macro_sheet() {
+    // A chart sheet a macro made has no loaded part yet; the saver writes it from the model.
+    let source = host.loaded().sheet(sheet);
+    if source.is_none() && !is_chart_sheet(host, sheet) {
+        return Err(fail("Save and reopen the new worksheet before creating a chart"));
+    }
+    if source.is_some_and(|s| s.protected() || s.is_macro_sheet()) {
         return Err(fail("Creating charts requires an editable worksheet"));
     }
     if host.loaded().workbook_part().ends_with(".bin") {
@@ -2149,6 +2164,58 @@ pub(crate) fn prepare_create_empty(
     assemble(host, sheet, kind, Vec::new(), 0, false, new, &fail)
 }
 
+/// `Chart.Location`: a chart this session made moves from `sheet` to `to`, a chart sheet (one chart, the sheet's
+/// absolute frame) or a worksheet (a two-cell frame at `place` in points), keeping its part, plots and axes.
+pub(crate) fn prepare_move(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    to: SheetId,
+    place: [f64; 4],
+) -> Result<Vec<crate::CellEdit>, String> {
+    let fail = |s: &str| format!("{s} (dc-oxh8w.42)");
+    if revision != host.revision().get() {
+        return Err(fail("The workbook changed; read the chart again"));
+    }
+    let mut source = host.model().definitions().charts(sheet).to_vec();
+    let imported = host.loaded().model().definitions().charts(sheet).len();
+    let index = source.iter().position(|c| c.part == part).ok_or_else(|| fail("The chart no longer exists"))?;
+    if index < imported {
+        return Err(fail("A chart the file holds is not moved yet"));
+    }
+    if sheet == to {
+        return Err(fail("The chart is on that sheet"));
+    }
+    editable(host, to, &fail)?;
+    let mut chart = source.remove(index);
+    let mut target = host.model().definitions().charts(to).to_vec();
+    let id = host.next_drawing_id(to);
+    if is_chart_sheet(host, to) {
+        if !target.is_empty() {
+            return Err(fail("A chart sheet holds one chart"));
+        }
+        chart.anchor = CHART_SHEET_FRAME;
+    } else {
+        let [left, top, width, height] = place;
+        if ![left, top, width, height].into_iter().all(|v| v.is_finite() && (0.0..=1.0e7).contains(&v)) {
+            return Err(fail("Use a position and a size on the worksheet"));
+        }
+        chart.anchor = calc_doc_model::ChartAnchor::TwoCell {
+            from: host.point_at(to, left, top),
+            to: host.point_at(to, left + width, top + height),
+        };
+    }
+    chart.drawing_id = Some(id);
+    chart.name = format!("Chart {}", id - 1);
+    target.push(chart);
+    host.loaded().check_chart_set_on(to, &target, is_chart_sheet(host, to)).map_err(|e| e.to_string())?;
+    Ok(vec![
+        crate::CellEdit::Charts { sheet, charts: source },
+        crate::CellEdit::Charts { sheet: to, charts: target },
+    ])
+}
+
 /// `Chart.SetSourceData`: the series of a chart this session made become those of `area`, the
 /// chart keeping its type, frame, name, title and legend.
 pub(crate) fn prepare_set_source(
@@ -2206,7 +2273,7 @@ pub(crate) fn prepare_set_source(
     }
     charts[index].plots[0].series = series;
     host.loaded()
-        .check_chart_set(sheet, &charts)
+        .check_chart_set_on(sheet, &charts, is_chart_sheet(host, sheet))
         .map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
@@ -2421,7 +2488,7 @@ fn assemble(
         element_text_complex: Default::default(),
     });
     host.loaded()
-        .check_chart_set(sheet, &charts)
+        .check_chart_set_on(sheet, &charts, is_chart_sheet(host, sheet))
         .map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
@@ -2480,7 +2547,7 @@ pub(crate) fn prepare_frame(
         };
     }
     host.loaded()
-        .check_chart_set(sheet, &charts)
+        .check_chart_set_on(sheet, &charts, is_chart_sheet(host, sheet))
         .map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
