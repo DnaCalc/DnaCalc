@@ -3028,6 +3028,109 @@ mod tests {
     }
 
     #[test]
+    fn sweep_treats_single_call_excel_deadline_answer_row_as_unread_not_crashed() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-sweep-single-deadline-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(&endpoint, json!({"host": "127.0.0.1", "port": port}).to_string()).unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(&order, "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n").unwrap();
+        let broker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut marked_crash = false;
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => {
+                        write_frame(
+                            &mut stream,
+                            b'H',
+                            &json!({
+                                "v": "touchstone/1",
+                                "server": "fake-fuzzer-broker",
+                                "sweep": true,
+                                "envs": {"e-bulk": {"engine": "excel", "version": "16.0", "build": "20625"}}
+                            }),
+                        );
+                    }
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap();
+                        let seq = body["seq"].as_u64().unwrap_or(0);
+                        let mut answer_groups = Vec::new();
+                        let mut total_calls = 0usize;
+                        for g in body["groups"].as_array().into_iter().flatten() {
+                            let n = g["n"].as_u64().unwrap_or(0) as usize;
+                            total_calls += n;
+                            let ty = "x".repeat(n);
+                            let v: Vec<Value> = (0..n)
+                                .map(|idx| {
+                                    let reason = if !marked_crash && idx == 0 {
+                                        marked_crash = true;
+                                        "excel-crashed"
+                                    } else {
+                                        "excel-deadline"
+                                    };
+                                    json!({
+                                        "reason": reason,
+                                        "function": g["f"],
+                                        "detail": format!("simulated {reason}"),
+                                        "worker": "w2"
+                                    })
+                                })
+                                .collect();
+                            let mut ag = json!({"ty": ty, "v": v});
+                            if let Some(o) = g.get("o") {
+                                ag["o"] = o.clone();
+                            } else if let Some(i) = g.get("i") {
+                                ag["i"] = i.clone();
+                            }
+                            answer_groups.push(ag);
+                        }
+                        write_frame(
+                            &mut stream,
+                            b'A',
+                            &json!({
+                                "id": id,
+                                "seq": seq,
+                                "env": "e-bulk",
+                                "w": "w2",
+                                "b": 1,
+                                "g": answer_groups
+                            }),
+                        );
+                        if body["last"].as_bool().unwrap_or(false) {
+                            write_frame(
+                                &mut stream,
+                                b'D',
+                                &json!({"id": id, "calls": total_calls, "envs": ["e-bulk"], "seconds": 0.01}),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+        let command = [
+            "sweep", "--runs", "1", "--order", order.to_str().unwrap(), "--out",
+            out.to_str().unwrap(), "--endpoint", endpoint.to_str().unwrap(),
+        ].map(str::to_owned);
+        let exit = super::super::run(&command);
+        let _ = broker.join();
+        assert_eq!(exit, std::process::ExitCode::SUCCESS);
+        let run = out.join("00000001");
+        assert!(run.join("done.json").is_file());
+        let summary: Value = serde_json::from_slice(&std::fs::read(run.join("00000001/summary.json")).unwrap()).unwrap();
+        let asked = summary["total_asked"].as_u64().unwrap();
+        assert!(asked >= 2, "{summary}");
+        assert_eq!(summary["total_crashed"].as_u64().unwrap(), 1, "only the single excel-crashed row should count as crashed, not excel-deadline rows: {summary}");
+        assert_eq!(summary["total_unread"].as_u64().unwrap(), asked - 1, "single-call excel-deadline rows must score as unread: {summary}");
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    #[test]
     fn sweep_timeout_writes_interrupted_and_gives_up_when_active_case_is_corrupt() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

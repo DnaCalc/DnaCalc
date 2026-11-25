@@ -506,13 +506,31 @@ fn answer_from(letter: char, value: &Value) -> Answer {
                 .collect();
             Answer::Array { rows, cols, cells }
         }
-        'x' => Answer::Crashed {
-            detail: value
+        'x' => {
+            let reason = value
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("excel-crashed");
+            let detail = value
                 .get("detail")
                 .and_then(Value::as_str)
-                .unwrap_or("excel-crashed")
-                .to_string(),
-        },
+                .unwrap_or(reason);
+            if reason == "excel-deadline" {
+                Answer::Unread {
+                    reason: if detail.is_empty() || detail == reason {
+                        reason.to_string()
+                    } else if detail.starts_with(reason) {
+                        detail.to_string()
+                    } else {
+                        format!("{reason}: {detail}")
+                    },
+                }
+            } else {
+                Answer::Crashed {
+                    detail: detail.to_string(),
+                }
+            }
+        }
         _ => Answer::Unread {
             reason: value
                 .get("reason")
@@ -675,6 +693,10 @@ impl Shared {
                 .enumerate()
                 .map(|(index, answer)| {
                     if slot.sweep
+                        && !matches!(
+                            answer,
+                            Some(Answer::Crashed { .. } | Answer::Unread { .. })
+                        )
                         && slot
                             .inputs
                             .as_ref()
@@ -1267,6 +1289,37 @@ mod tests {
             crashed,
             Answer::Crashed {
                 detail: "worker exited".into()
+            }
+        );
+    }
+
+    #[test]
+    fn single_call_excel_deadline_decodes_as_unread_not_crashed() {
+        let deadline = answer_from(
+            'x',
+            &json!({"reason": "excel-deadline", "function": "DEADLINEON", "detail": "batch timed out"}),
+        );
+        assert_eq!(
+            deadline,
+            Answer::Unread {
+                reason: "excel-deadline: batch timed out".into(),
+            }
+        );
+        let deadline_bare = answer_from('x', &json!({"reason": "excel-deadline"}));
+        assert_eq!(
+            deadline_bare,
+            Answer::Unread {
+                reason: "excel-deadline".into(),
+            }
+        );
+        let crashed = answer_from(
+            'x',
+            &json!({"reason": "excel-crashed", "detail": "worker exited"}),
+        );
+        assert_eq!(
+            crashed,
+            Answer::Crashed {
+                detail: "worker exited".into(),
             }
         );
     }

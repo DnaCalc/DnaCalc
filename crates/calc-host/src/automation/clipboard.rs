@@ -133,8 +133,12 @@ impl WorkbookAutomation {
         };
         let transpose = flag(3)?;
         if paste == XL_PASTE_COLUMN_WIDTHS {
-            if transpose || combine.skip_blanks || combine.operation.is_some() {
-                return Err(AutoError::not_modelled("Range.PasteSpecial column widths with Transpose, SkipBlanks or Operation", OWNER));
+            // Excel ww21 ignores Transpose and Add when pasting column widths.
+            if combine.skip_blanks || !matches!(combine.operation, None | Some(XL_PASTE_OPERATION_ADD)) {
+                return Err(AutoError::not_modelled(
+                    "Range.PasteSpecial column widths with SkipBlanks or this Operation",
+                    "dc-2rjye",
+                ));
             }
             return self.paste_clip(target, call, mode, false, false, Combine { column_widths: true, ..combine });
         }

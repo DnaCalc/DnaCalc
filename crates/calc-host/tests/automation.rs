@@ -9307,9 +9307,14 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     assert!(matches!(width("E1"), AutoValue::R8(n) if n == 20.0));
     assert!(matches!(width("F1"), AutoValue::R8(n) if n == 30.0));
     assert_eq!(cell_text_of(&model, "E5"), "", "no cell content is pasted");
-    // The widths stay on the clipboard for a second paste; a destination past column XFD is 1004.
-    call("H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    // Excel ww21: ColumnWidths ignores Add and Transpose, leaving the destination cells alone.
+    fill(&host, (1, 8), &[&["7", "8"]]);
+    call("H1", "PasteSpecial", vec![AutoValue::I4(8), AutoValue::I4(2), AutoValue::Bool(false), AutoValue::Bool(true)])
+        .unwrap();
+    assert!(matches!(width("H1"), AutoValue::R8(n) if n == 20.0));
     assert!(matches!(width("I1"), AutoValue::R8(n) if n == 30.0));
+    assert_eq!(cell_text_of(&model, "H1"), "7");
+    assert_eq!(cell_text_of(&model, "I1"), "8");
     assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
     // xlPasteAllUsingSourceTheme (13) pastes everything within one workbook;
     // xlPasteAllMergingConditionalFormats (14) refuses typed citing dc-2rjye until CF merge is captured.
