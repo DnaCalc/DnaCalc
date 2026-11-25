@@ -9,6 +9,8 @@ mod font;
 mod interior;
 mod merge;
 mod borders;
+mod conditions;
+pub(super) use conditions::is_condition_part;
 mod styles;
 
 const OWNER: &str = "dc-oxh8w.2";
@@ -40,6 +42,7 @@ impl WorkbookAutomation {
         Self::register_range_merge(handlers);
         Self::register_range_borders(handlers);
         Self::register_range_styles(handlers);
+        Self::register_conditions(handlers);
         handlers.on(
             "Range",
             "NumberFormat",

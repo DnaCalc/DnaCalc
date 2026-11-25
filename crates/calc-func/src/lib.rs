@@ -57,7 +57,7 @@ pub use udf::{
     ReferenceRead, RtdCallRead, RtdConnection, RtdConnector, RtdCut, RtdEntry, RtdLease, RtdRead,
     RtdTopicRead, StoredReference, TopicKey, UserCallableIdentity, UserFunction,
     UserFunctionContext, UserFunctionInvocation, UserFunctionStep, UserInvocationFrame,
-    UserReevaluationReason, UserView, read_rtd_call,
+    UserReevaluationReason, UserView, AppSettings, read_rtd_call,
 };
 mod catalogue;
 mod coerce;

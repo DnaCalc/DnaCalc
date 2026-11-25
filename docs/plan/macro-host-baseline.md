@@ -305,8 +305,8 @@ Refusals ranked by distinct project ([TSV](macro-host-corpus-ranking.tsv)):
 Run-time errors by project: error 9 `COM status 0x8002000b` 92 entries / 31 projects, error 5 HAL
 `CapabilityUnavailable` 32 / 21, error 1004 without text 31 / 6.
 
-Open: the 504 unstaged hashes (windows-corpus staging) and the refusal batches above, owned by the beads named
-in the close note of dc-oxh8w.30.
+The Windows portion of the unstaged set is covered by the addendum below. The refusal batches above
+remain with the owners named in the close note of dc-oxh8w.30.
 
 ### After dc-oxh8w.46 (selection, navigation, Rows/Columns, Range.Range)
 
@@ -328,3 +328,25 @@ Excel error. Top refusals now, by distinct project ([TSV](macro-host-corpus-rank
 256 entries / 46 projects (dc-oxh8w.50), `Range.AdvancedFilter` 96 / 4, `_Worksheet.Unprotect` 38 / 20,
 `Range.Sort` OrderCustom 33 / 12 (dc-oxh8w.43), `_Worksheet.Visible` 27 / 7, `Range.End` 23 / 12 (the last four
 dc-oxh8w.47 or dc-oxh8w.43).
+
+### Windows corpus files recovered by SHA-256 (ww20)
+
+ww20 recovered all 491 Windows corpus files from local retained copies and verified each copy against
+the triage-clean SHA-256 list before and after transfer. No copy was opened in Excel. The remaining
+13 hashes belong to the FUSE set (12) and the download set (1) in the member census.
+
+The 491 files ran on dna-firehorse with the same baseline binary (`4171b7f6…4d38`) and Bubblewrap
+limits as the original run. Both invocations ran in Guarded mode, with and without `--fixtures`.
+
+| Outcome | Without fixtures | With fixtures |
+| --- | ---: | ---: |
+| Workbooks attempted | 491 | 491 |
+| Project admitted | 28 | 28 |
+| Project admission refused | 463 | 463 |
+| No result | 0 | 0 |
+| Callable entries | 0 | 0 |
+
+The largest refusal group was 210 copies of the W010 Member Oracle form. Tests using the unresolved
+`OxVba_TestEventServer` reference accounted for another 28 files. These runs add no entries to the
+ranking. Together with the 2,757 attempted earlier, the baseline now covers 3,248 of the 3,261 hashes
+in the reconciled cohort. The manifests, per-file receipts and aggregate are in `ww20`.

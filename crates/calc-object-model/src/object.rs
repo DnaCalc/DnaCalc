@@ -59,6 +59,8 @@ pub enum ObjectKey {
         /// Position among the workbook's named cell styles.
         index: u32,
     },
+    /// The `Styles` collection of a workbook (dc-orxz0).
+    Styles(u64),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
     Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.
@@ -194,6 +196,13 @@ pub enum ReportItem {
     PageSetup,
     /// The worksheet's `HPageBreaks` (`true`) or `VPageBreaks` (`false`) collection.
     PageBreaks(bool),
+    /// One conditional-format rule of the worksheet (`FormatCondition`): its position in the worksheet's rule list.
+    /// (dc-tqcvu)
+    FormatCondition(u32),
+    /// The `Interior` of the `FormatCondition` at that position. (dc-tqcvu)
+    ConditionInterior(u32),
+    /// The `Font` of the `FormatCondition` at that position. (dc-tqcvu)
+    ConditionFont(u32),
     /// One page break: horizontal (`true`) or vertical, and the row or column after the break.
     PageBreak(bool, u32),
 }

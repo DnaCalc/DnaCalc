@@ -50,6 +50,9 @@ impl WorkbookAutomation {
 
     /// Interior members of a range; the series interior shares the class name and keeps its own handlers.
     pub(in crate::automation) fn range_interior_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_interior_get(target, call);
+        }
         let member = call.member.name.as_str();
         self.read_format(target, call, AutoValue::I4, |host, style| {
             let fill = cell_fill(host, style)?;
@@ -80,6 +83,9 @@ impl WorkbookAutomation {
     }
 
     pub(in crate::automation) fn range_interior_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_interior_put(target, call);
+        }
         self.put_format(target, call, || {
             let mut patch = InteriorPatch::default();
             match call.member.name.as_str() {
