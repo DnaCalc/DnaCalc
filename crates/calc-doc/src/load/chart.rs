@@ -568,7 +568,25 @@ fn read_chart_xml(
                 layer.color = element.attribute("val").map(str::to_owned);
             }
         }
-        let plot = chart.plots.last_mut();
+        let mut plot = chart.plots.last_mut();
+        // The outline of a series (dc-oxh8w.67).
+        if names.len() >= 2 && names[names.len() - 2..] == ["ser", "spPr"] && local == "ln" {
+            if let Some(series) = plot.as_mut().and_then(|plot| plot.series.last_mut()) {
+                series.line.width = element.attribute("w").and_then(|w| w.parse().ok());
+            }
+        } else if names.len() >= 3 && names[names.len() - 3..] == ["ser", "spPr", "ln"] {
+            if let Some(series) = plot.as_mut().and_then(|plot| plot.series.last_mut()) {
+                match local.as_str() {
+                    "noFill" => series.line.none = true,
+                    "prstDash" => series.line.dash = val.clone(),
+                    _ => {}
+                }
+            }
+        } else if names.len() >= 4 && names[names.len() - 4..] == ["ser", "spPr", "ln", "solidFill"] && local == "srgbClr" {
+            if let Some(series) = plot.as_mut().and_then(|plot| plot.series.last_mut()) {
+                series.line.color = val.clone().filter(|v| v.len() == 6 && v.bytes().all(|b| b.is_ascii_hexdigit()));
+            }
+        }
         match (parent, local.as_str()) {
             (_, "fld") if in_axis_title
                 && element.name.namespace.as_deref()

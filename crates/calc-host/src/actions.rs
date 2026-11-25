@@ -407,6 +407,21 @@ pub enum WorkbookCommand {
         /// Six-digit RGB color, or `None` for automatic coloring.
         fill: Option<String>,
     },
+    /// Set the outline of a chart series (dc-oxh8w.67).
+    ChartSeriesBorder {
+        /// Worksheet that owns the target.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the target.
+        part: String,
+        /// Zero-based position of the plot within the chart.
+        plot: u32,
+        /// Series index stored in the chart.
+        series: u32,
+        /// The outline the series has afterwards.
+        border: calc_doc_model::ChartBorder,
+    },
     /// Set what a series' data labels show (dc-oxh8w.18); `None` removes the series' own labels.
     ChartSeriesLabels {
         /// Worksheet that owns the target.
@@ -961,6 +976,14 @@ pub(crate) fn prepare(
             series,
             fill,
         } => crate::chart::prepare_series_style(host, sheet, revision, &part, plot, series, fill),
+        WorkbookCommand::ChartSeriesBorder {
+            sheet,
+            revision,
+            part,
+            plot,
+            series,
+            border,
+        } => crate::chart::prepare_series_border(host, sheet, revision, &part, plot, series, border),
         WorkbookCommand::ChartSeriesLabels {
             sheet,
             revision,

@@ -2084,6 +2084,7 @@ fn make_series(
             categories: cats.clone(),
             values: Some(data(cell(headers, minor), cell(length - 1, minor), true)?),
             fill: None,
+            line: Default::default(),
             unique_id: None,
             bubble_sizes: None,
             trendlines: Vec::new(),
@@ -2715,10 +2716,39 @@ pub(crate) fn prepare_series_style(
     if series.fill == fill {
         return Ok(Vec::new());
     }
-    series.fill = fill;
+    series.fill = fill.clone();
+    // The writer paints a stated outline colour with the series colour; the model says the same.
+    if let (Some(fill), Some(_)) = (fill, series.line.color.as_ref())
+        && !series.line.none
+    {
+        series.line.color = Some(fill);
+    }
     host.loaded()
         .check_chart_properties(sheet, chart)
         .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+
+/// `Series.Border`: the outline of one series (dc-oxh8w.67).
+pub(crate) fn prepare_series_border(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot: u32,
+    series: u32,
+    border: calc_doc_model::ChartBorder,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts.iter_mut().find(|c| c.part == part).ok_or("The chart is unavailable")?;
+    let plot = chart.plots.get_mut(plot as usize).ok_or("The plot is unavailable")?;
+    let series = plot.series.iter_mut().find(|s| s.index == series).ok_or("The series is unavailable")?;
+    if series.line == border {
+        return Ok(Vec::new());
+    }
+    series.line = border;
+    host.loaded().check_chart_properties(sheet, chart).map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 

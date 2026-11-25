@@ -259,7 +259,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             bytes.extend(fresh_number("idx", &s.index.to_string()));
             bytes.extend(fresh_number("order", &s.index.to_string()));
             bytes.extend(data_xml_with("tx", s.name.as_ref(), excel));
-            bytes.extend(colour::fresh(s.fill.as_deref()));
+            bytes.extend(colour::fresh_series(s.fill.as_deref(), &s.line));
             // Excel writes `invertIfNegative` (off) on every bar series, after the fill and before
             // the data (Q0, ~/codex-runs/eng1 excel-report chart1.xml). Its other chart types write
             // (dc-piw0.10 Q17): a line series `marker` (none) before the data and `smooth` (0) after
@@ -268,12 +268,12 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             if excel && p.kind == "barChart" {
                 bytes.extend(fresh_number("invertIfNegative", "0"));
             }
-            if excel && scatter && s.fill.is_none() {
+            if excel && scatter && s.fill.is_none() && s.line == calc_doc_model::ChartBorder::default() {
                 bytes.extend(b"<c:spPr><a:ln w=\"38100\"><a:noFill/></a:ln></c:spPr>");
             }
             // An area chart's second series carries the line off at 25400 (Q17 chart6, two series; a third
             // series was not recorded).
-            if excel && p.kind == "areaChart" && position == 1 && s.fill.is_none() {
+            if excel && p.kind == "areaChart" && position == 1 && s.fill.is_none() && s.line == calc_doc_model::ChartBorder::default() {
                 bytes.extend(b"<c:spPr><a:ln w=\"25400\"><a:noFill/></a:ln></c:spPr>");
             }
             if excel && p.kind == "lineChart" {
