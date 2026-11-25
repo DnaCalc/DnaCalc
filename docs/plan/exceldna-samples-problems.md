@@ -3,7 +3,49 @@
 This document collects defects, stale metadata, broken builds, runtime bugs, and documentation mismatches found in [`Excel-DNA/samples`](https://github.com/Excel-DNA/samples) so the samples repository can be cleaned up later (owner approval required before any change to `Excel-DNA/samples`).
 
 - **Inspected commit:** `ba5732c7d67d65fbc8610f714371f178aa0e5a8d` (read-only clone, 2026-11-24).
-- **Phase covered so far:** Static inspection (`dc-z05nj.1`, Linux, no build). Build errors/warnings (`dc-z05nj.2`), Excel runtime findings (`dc-z05nj.3`), and DNA Calc runtime findings (`dc-z05nj.4`) will append to this list.
+- **Phases covered:** Static inspection (`dc-z05nj.1`), Windows builds (`dc-z05nj.2`), and the private Excel follow-up below (`dc-z05nj.3`).
+
+---
+
+## Private Excel follow-up, ww18
+
+Excel 16.0.20625.20108 repeated the 12 previously failing x64 checks and
+exercised 28 of the 78 previously loaded-only artifacts. Ten of these 40
+artifacts passed their functional checks. Thirty had at least one failure.
+The 50 remaining artifacts require RTD calls whose Excel-DNA activation
+creates temporary ProgID and CLSID keys with generated names. This machine's
+rules require the exact keys to be known and recorded before creation.
+
+- **Registration.Sample and UsingLog4Net.** The two packed .NET Framework
+  artifacts per sample again returned `#NAME?` in both package modes. The
+  unpacked controls from ww17 resolved the same calls.
+- **Registration.Sample.FSharp.** Packed `net462` returned `#NAME?` for
+  `dnaFSharpOptional()` and `dnaFSharpOptional(2,"Lane",FALSE)` in both
+  package modes. The unpacked `net462` and packed `net6.0-windows` controls
+  returned the default and supplied values. All four packed Visual Basic
+  controls returned the expected optional answers.
+- **Logging.** Both packed `net472` builds returned `#NAME?` for the
+  exercised exports. In the unpacked `net472` controls, `BadTypes("Lane")`
+  returned `Lane`, and `RepeatedName("Lane")` returned `#VALUE!`.
+  The packed `net6.0-windows` builds returned `Lane` and `Repeated Name (2)`.
+- **RtdPerformance.** Both `v032` and `v110` projects build without including
+  the sibling `Source/` files that implement the add-in. All eight packed
+  artifacts loaded, but `rtdHello()` returned `#NAME?`. The example
+  workbooks require the missing RTD exports as well.
+- **UsingSQLite.** With an owned `Products` table containing item 1 `Chai`,
+  both packed `net6.0-windows` builds returned `Chai`. Both packed `net472`
+  builds returned `#VALUE!`. The test database was removed after the runs.
+- **UsingDAO and UsingRDotNet.** `DBEngineVersion()` and `DatabaseName()`
+  returned `#VALUE!` for all four DAO builds. `TestRDotNet()` returned
+  `#VALUE!` and `MyRnorm(1)` returned `#NUM!` for all four R builds.
+  The results identify runtime failures on this machine.
+- **AddInReloader.** All four packed builds loaded with a synthetic watcher
+  configuration. After the watched file changed, the known-good control
+  add-in's `AddThem(2,3)` still returned `#NAME?`. This captures the missing
+  reload without identifying which watcher or Excel callback failed.
+
+The artifact hashes, observed values, and private-desktop receipts are in
+`C:/Work/DnaCalc/codex-runs/ww18/samples/`.
 
 ---
 

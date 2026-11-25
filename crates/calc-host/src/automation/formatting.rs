@@ -5,6 +5,8 @@ use crate::{
     style_alignment,
 };
 
+mod font;
+
 const OWNER: &str = "dc-oxh8w.2";
 
 // Excel's XlHAlign and XlVAlign values paired with their OOXML spellings.
@@ -29,6 +31,7 @@ const XL_VERTICAL_TEXT: i32 = -4166;
 
 impl WorkbookAutomation {
     pub(super) fn register_formatting(handlers: &mut Handlers<Self>) {
+        Self::register_range_font(handlers);
         handlers.on(
             "Range",
             "NumberFormat",
@@ -109,7 +112,7 @@ impl WorkbookAutomation {
 
     fn horizontal_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.read_alignment(target, call, AutoValue::I4, |alignment| {
-            alignment_value(
+            format_enum_value(
                 HORIZONTAL,
                 alignment.and_then(|a| a.horizontal.as_deref()),
                 call,
@@ -119,7 +122,7 @@ impl WorkbookAutomation {
 
     fn vertical_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.read_alignment(target, call, AutoValue::I4, |alignment| {
-            alignment_value(
+            format_enum_value(
                 VERTICAL,
                 alignment.and_then(|a| a.vertical.as_deref()),
                 call,
@@ -277,6 +280,18 @@ impl WorkbookAutomation {
         value: impl Fn(T) -> AutoValue,
         property: impl Fn(Option<&calc_doc_model::Alignment>) -> Result<T, AutoError>,
     ) -> Reply {
+        self.read_format(target, call, value, |host, style| {
+            property(style_alignment(host.styles(), style))
+        })
+    }
+
+    fn read_format<T: PartialEq>(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        value: impl Fn(T) -> AutoValue,
+        property: impl Fn(&HostState, u32) -> Result<T, AutoError>,
+    ) -> Reply {
         format_arity(call, 0)?;
         self.with_range(target, |access, _, range, _| {
             let Access::Session(session, _) = access else {
@@ -288,22 +303,23 @@ impl WorkbookAutomation {
             let host = session.host();
             let samples = format_samples(host, range.areas())
                 .map_err(|reason| AutoError::not_modelled(reason, OWNER))?;
-            let mut uniform = None;
-            for at in samples {
-                let current = property(style_alignment(host.styles(), host.cell_style(at)))?;
-                if uniform.as_ref().is_some_and(|prior| *prior != current) {
+            let mut values = samples
+                .into_iter()
+                .map(|at| property(host, host.cell_style(at)));
+            let first = values.next().ok_or_else(format_error)??;
+            for current in values {
+                if current? != first {
                     return Ok(AutoValue::Null);
                 }
-                uniform = Some(current);
             }
-            Ok(value(uniform.unwrap_or(property(None)?)))
+            Ok(value(first))
         })
     }
 
     fn put_horizontal_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.put_format(target, call, || {
             Ok(FormatPatch {
-                horizontal: Some(alignment_keyword(HORIZONTAL, call)?),
+                horizontal: Some(format_enum_keyword(HORIZONTAL, call)?),
                 ..Default::default()
             })
         })
@@ -312,7 +328,7 @@ impl WorkbookAutomation {
     fn put_vertical_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.put_format(target, call, || {
             Ok(FormatPatch {
-                vertical: Some(alignment_keyword(VERTICAL, call)?),
+                vertical: Some(format_enum_keyword(VERTICAL, call)?),
                 ..Default::default()
             })
         })
@@ -389,6 +405,7 @@ impl WorkbookAutomation {
         format_arity(call, 1)?;
         self.mutate_areas_with_owner(target, call, OWNER, |_, range| {
             let patch = patch()?;
+            patch.validate().map_err(|_| format_error())?;
             Ok(SkinIntent::Command(WorkbookCommand::FormatCells {
                 areas: range.areas().to_vec(),
                 patch,
@@ -435,7 +452,7 @@ fn integral_format_arg(call: &Call<'_>) -> Result<i32, AutoError> {
     Ok(integer)
 }
 
-fn alignment_value(
+fn format_enum_value(
     values: &[(i32, &str)],
     keyword: Option<&str>,
     call: &Call<'_>,
@@ -452,7 +469,7 @@ fn alignment_value(
         })
 }
 
-fn alignment_keyword(values: &[(i32, &str)], call: &Call<'_>) -> Result<String, AutoError> {
+fn format_enum_keyword(values: &[(i32, &str)], call: &Call<'_>) -> Result<String, AutoError> {
     let value = integral_format_arg(call)?;
     values
         .iter()

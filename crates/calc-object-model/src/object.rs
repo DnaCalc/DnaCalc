@@ -39,6 +39,8 @@ pub enum ObjectKey {
     /// A range: a handle of the session's reference tracker (calc-fml `ReferenceTracker`), so it
     /// follows structural edits and fails typed when its cells are deleted.
     Range(StoredReference),
+    /// A formatting object over a tracked range. Its interface names the formatting component.
+    RangeFormat(StoredReference),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
     Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.

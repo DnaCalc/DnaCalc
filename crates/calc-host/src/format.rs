@@ -215,6 +215,8 @@ pub struct FormatPatch {
     pub subscript: Option<bool>,
     /// Six-digit RGB font color, optionally prefixed with a hash. An empty string selects automatic color.
     pub font_color: Option<String>,
+    /// Font color as an OOXML workbook palette index, from 8 through 63.
+    pub font_color_indexed: Option<u8>,
     /// Six-digit RGB fill color, optionally prefixed with a hash. An empty string clears the fill.
     pub fill: Option<String>,
     /// Replacement settings for the four outer border edges.
@@ -303,9 +305,9 @@ impl FormatPatch {
         if self
             .underline_style
             .as_deref()
-            .is_some_and(|v| !matches!(v, "none" | "single" | "double"))
+            .is_some_and(|v| !matches!(v, "none" | "single" | "double" | "doubleAccounting"))
         {
-            return Err("Choose no underline, single or double underline".into());
+            return Err("Choose an underline style".into());
         }
         if let (Some(on), Some(kind)) = (self.underline, self.underline_style.as_deref()) {
             if on != (kind != "none") {
@@ -317,6 +319,11 @@ impl FormatPatch {
         }
         for c in [&self.font_color, &self.fill].into_iter().flatten() {
             color(c)?;
+        }
+        if self.font_color_indexed.is_some_and(|index| {
+            self.font_color.is_some() || !(8..=63).contains(&index)
+        }) {
+            return Err("Choose one font color from the workbook palette".into());
         }
         if let Some(b) = &self.borders {
             if !matches!(
@@ -502,6 +509,11 @@ pub fn patched_style(
     }
     if let Some(v) = &patch.font_color {
         font.color = color(v)?;
+    } else if let Some(index) = patch.font_color_indexed {
+        font.color = Some(StyleColor {
+            indexed: Some(index.to_string()),
+            ..Default::default()
+        });
     }
     if font != before {
         let id = u32::try_from(table.fonts.len()).map_err(|_| "Too many fonts")?;
