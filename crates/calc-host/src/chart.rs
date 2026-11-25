@@ -22,6 +22,34 @@ use calc_doc::{ChartAnchor, ChartData, DrawingPoint};
 pub use calc_doc_model::ChartTextStyle;
 use calc_doc_model::value::{CalcValue, CellKey, CoreRef, SheetId};
 
+/// The picture formats of `Chart.Export`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExportFormat {
+    /// Portable Network Graphics.
+    Png,
+    /// Graphics Interchange Format.
+    Gif,
+    /// JPEG.
+    Jpg,
+}
+
+/// Draws a chart to the bytes of a picture, `width` by `height` pixels. calc-host cannot depend on the
+/// drawing (it is built on [`ChartView`]), so the application installs it ([`set_chart_exporter`]);
+/// calc-chart-render's `install` is the one implementation.
+pub type ChartExporter = fn(&ChartView, u32, u32, ExportFormat) -> Result<Vec<u8>, String>;
+
+static EXPORTER: std::sync::OnceLock<ChartExporter> = std::sync::OnceLock::new();
+
+/// Install the chart rasteriser; the first installation stays.
+pub fn set_chart_exporter(exporter: ChartExporter) {
+    let _ = EXPORTER.set(exporter);
+}
+
+/// The installed chart rasteriser, if any.
+pub fn chart_exporter() -> Option<ChartExporter> {
+    EXPORTER.get().copied()
+}
+
 /// EMU to a pixel at 96 dots per inch.
 pub const EMU_PER_PIXEL: f64 = 9_525.0;
 

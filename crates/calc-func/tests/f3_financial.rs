@@ -714,6 +714,43 @@ fn yield_rejects_invalid_numeric_dates_as_num() {
     }
 }
 
+/// Excel 16.0.20625 checks each duration date before reading later arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn duration_checks_numeric_dates_before_later_arguments() {
+    for function in ["DURATION", "MDURATION"] {
+        for slot in 0..2 {
+            for (serial, with_invalid_basis) in [
+                (-1.0, Num), (-0.5, Num), (0.0, Value), (0.5, Value), (2_958_466.0, Num),
+            ] {
+                let mut args = vec![n(45_000.0), n(46_000.0), n(0.04), n(0.05), n(2.0)];
+                args[slot] = n(serial);
+                error(dated(function, args.clone()), Num);
+                args.push(t("x"));
+                error(dated(function, args), with_invalid_basis);
+            }
+        }
+    }
+}
+
+/// Typed Excel 16.0.20625 controls for the shared bond duration arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn duration_rejects_logical_arguments_and_checks_frequency_before_basis() {
+    for function in ["DURATION", "MDURATION"] {
+        let ordinary = vec![n(45_000.0), n(46_000.0), n(0.04), n(0.05), n(2.0), n(0.0)];
+        for slot in 0..ordinary.len() {
+            let mut args = ordinary.clone();
+            args[slot] = b(true);
+            error(dated(function, args), Value);
+        }
+        let mut args = ordinary;
+        args[4] = n(0.9);
+        args[5] = t("x");
+        error(dated(function, args), Num);
+    }
+}
+
 /// Original corpus date-zero and adjacent-date failures, confirmed on Excel20527.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -31,6 +31,7 @@ members = [
     "apps/dna-calc-model",
     "apps/dna-calc-protocol",
     "apps/dna-calc-worker",
+    "crates/calc-chart-render",
     "apps/dna-calc-desktop",
     "apps/dnacalc",
     "apps/dna-onecalc-desktop",

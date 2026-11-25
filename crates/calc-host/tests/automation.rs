@@ -33,8 +33,13 @@ struct Host {
     enabled: Cell<bool>,
     commands: Cell<u32>,
     runs: Cell<u32>,
+    files: RefCell<Vec<(String, Vec<u8>)>>,
 }
 impl ApplicationHost for Host {
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
+        self.files.borrow_mut().push((path.to_owned(), bytes.to_vec()));
+        Ok(())
+    }
     fn hwnd(&self) -> isize {
         123
     }
@@ -94,6 +99,7 @@ fn setup_session(session: HostSession) -> (Rc<Host>, Rc<WorkbookAutomation>) {
         enabled: Cell::new(true),
         commands: Cell::new(0),
         runs: Cell::new(0),
+        files: RefCell::new(Vec::new()),
     });
     let model = Rc::new(WorkbookAutomation::new(host.clone()));
     model.context_changed(&host.session.borrow());
@@ -6678,6 +6684,52 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
 }
 
+/// dc-oxh8w.22: Chart.Export counts its arguments (1004), answers False for a filter it has no
+/// encoder for, refuses while no rasteriser is installed (typed, owner dc-oxh8w.22), and otherwise draws the
+/// chart at its frame's size at 100% (300 x 200 points = 400 x 267 pixels) and writes the bytes it gets
+/// through the application host, by the filter name or else the file extension.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_22__chart_export_writes_the_drawn_chart_through_the_host() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B3");
+    let export = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Export", InvokeKind::Method, args);
+    for args in [vec![], vec![AutoValue::text("a.png"), AutoValue::text("PNG"), AutoValue::Bool(false), AutoValue::I4(1)]] {
+        let bad = export(args);
+        assert!(matches!(bad, Err(AutoError::Status(-2147352562))), "{bad:?}");
+    }
+    let nothing_installed = export(vec![AutoValue::text("a.png"), AutoValue::text("PNG")]);
+    assert!(matches!(nothing_installed, Err(AutoError::NotModelled { .. })), "{nothing_installed:?}");
+    assert!(host.files.borrow().is_empty());
+
+    fn stub(_: &ChartView, width: u32, height: u32, format: chart::ExportFormat) -> Result<Vec<u8>, String> {
+        Ok(format!("{format:?} {width}x{height}").into_bytes())
+    }
+    chart::set_chart_exporter(stub);
+    let unknown = export(vec![AutoValue::text("a.bmp"), AutoValue::text("BMP")]);
+    assert!(matches!(unknown, Ok(AutoValue::Bool(false))), "{unknown:?}");
+    assert!(matches!(export(vec![AutoValue::text("a.png"), AutoValue::text("png")]), Ok(AutoValue::Bool(true))));
+    assert!(matches!(export(vec![AutoValue::text("b.gif")]), Ok(AutoValue::Bool(true))));
+    assert!(matches!(export(vec![AutoValue::text("c.dat"), AutoValue::text("JPG")]), Ok(AutoValue::Bool(true))));
+    let files = host.files.borrow();
+    let written: Vec<(&str, &str)> =
+        files.iter().map(|(p, b)| (p.as_str(), std::str::from_utf8(b).unwrap())).collect();
+    assert_eq!(written, [("a.png", "Png 400x267"), ("b.gif", "Gif 400x267"), ("c.dat", "Jpg 400x267")]);
+}
+
 fn interior(model: &WorkbookAutomation, address: &str) -> ObjectRef {
     let target = range(model, address);
     let interior = obj(invoke(model, &target, "Interior", vec![]).unwrap());
@@ -6941,4 +6993,57 @@ fn dc_oxh8w_33_range_style_applies_a_named_style_and_survives_reopen() {
     assert_eq!(style_name(&reopened, "B2"), "Hyperlink");
     assert_eq!(style_name(&reopened, "D4"), "Hyperlink");
     assert_eq!(style_name(&reopened, "B3"), "Normal");
+}
+
+/// dc-oxh8w.23: a loaded chart sheet is a Chart in Sheets and Charts, not a Worksheet: Worksheets counts only the
+/// worksheets (the fixture's Data and After), Charts only the chart sheet, Sheets all four (the dialog sheet
+/// is a DialogSheet in Excel and refuses typed here). Indexes count within the collection, a name
+/// of another kind is Excel's subscript error, and the chart answers its members.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_23__chart_sheets_are_charts_in_sheets_and_charts_collections() {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-and-dialog-sheets.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (_host, model) = setup_session(session);
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let (worksheets, charts, sheets) = (collection("Worksheets"), collection("Charts"), collection("Sheets"));
+    assert_eq!((count(&worksheets), count(&charts), count(&sheets)), (2, 1, 4));
+    let item = |c: &ObjectRef, key: AutoValue| invoke_kind(&model, c, "Item", InvokeKind::Get, vec![key]);
+    // The chart, by place and name, through Charts and Sheets.
+    for (c, key) in [
+        (&charts, AutoValue::I4(1)),
+        (&charts, AutoValue::text("Chart1")),
+        (&sheets, AutoValue::text("Chart1")),
+        (&sheets, AutoValue::I4(2)),
+    ] {
+        let chart = obj(item(c, key.clone()).unwrap_or_else(|e| panic!("{key:?}: {e:?}")));
+        let kind = invoke(&model, &chart, "ChartType", vec![]);
+        assert!(matches!(kind, Ok(AutoValue::I4(51))), "{kind:?}");
+        let _ = chart;
+    }
+    // Worksheets counts worksheets only: Worksheets(2) is After, Worksheets("Chart1") is out of range.
+    let after = obj(item(&worksheets, AutoValue::I4(2)).unwrap());
+    let name = invoke(&model, &after, "Name", vec![]).unwrap();
+    assert!(matches!(&name, AutoValue::Text(t) if t.to_string_lossy() == "After"), "{name:?}");
+    for (c, key) in [
+        (&worksheets, AutoValue::text("Chart1")),
+        (&worksheets, AutoValue::I4(3)),
+        (&charts, AutoValue::I4(2)),
+        (&charts, AutoValue::text("Data")),
+    ] {
+        let bad = item(c, key.clone());
+        assert!(matches!(bad, Err(AutoError::Status(s)) if s == 0x8002_000Bu32 as i32), "{key:?}: {bad:?}");
+    }
+    let dialog = item(&sheets, AutoValue::I4(3));
+    assert!(matches!(dialog, Err(AutoError::NotModelled { .. })), "{dialog:?}");
+    let bad = invoke_kind(&model, &charts, "Item", InvokeKind::Get, vec![]);
+    assert!(bad.is_err());
 }

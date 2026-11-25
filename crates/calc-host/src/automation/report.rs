@@ -151,6 +151,7 @@ impl WorkbookAutomation {
         on("Series", "XValues", Get, Self::series_xvalues_get);
         on("Series", "XValues", Put, Self::series_xvalues_put);
         on("Chart", "Axes", Method, Self::chart_axes);
+        on("Chart", "Export", Method, Self::chart_export);
         for (member, kind) in [
             ("MinimumScale", 0),
             ("MaximumScale", 1),

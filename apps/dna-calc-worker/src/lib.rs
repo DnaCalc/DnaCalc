@@ -2,13 +2,11 @@
 mod autofit;
 pub mod canvas;
 pub mod cells;
-mod chart;
 mod custom_geometry;
 mod drawn;
 mod omml;
 mod picture;
 mod format;
-mod hierarchy;
 pub mod ledger;
 pub mod message;
 mod model_clock;

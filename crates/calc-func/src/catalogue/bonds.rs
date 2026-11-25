@@ -12,7 +12,7 @@
 //! modelled.
 
 use super::financial::{OFFSET_1904, date_1900, required_num, required_number};
-use super::kit::{fail, given, num, num_without_logical};
+use super::kit::{checked_date_serial, fail, given, num, num_without_logical, reject_logical};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
 use crate::locale::DateSystem;
@@ -67,6 +67,28 @@ fn yield_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
         return fail(WorksheetErrorCode::Num);
     }
     Ok(basis)
+}
+
+/// DURATION and MDURATION check each date's range and the frequency as they read them.
+/// A date that truncates to zero fails after reading the remaining arguments.
+fn duration_args(site: &Site<'_>, a: &[CalcValue], sv: &EvalServices<'_>) -> Step<[f64; 6]> {
+    let date = |index: usize| {
+        reject_logical(&a[index])?;
+        checked_date_serial(date_1900(site, a, index, sv)?)
+    };
+    let settlement = date(0)?;
+    let maturity = date(1)?;
+    let coupon = num_without_logical(site, a, 2)?;
+    let yield_rate = num_without_logical(site, a, 3)?;
+    let frequency = num_without_logical(site, a, 4)?;
+    if let Err(error) = bond::freq(frequency) {
+        return fail(bond::map_bond_core_error_to_ws(&error));
+    }
+    let basis = if given(a, 5) { num_without_logical(site, a, 5)? } else { 0.0 };
+    if settlement < 1.0 || maturity < 1.0 {
+        return fail(WorksheetErrorCode::Num);
+    }
+    Ok([settlement, maturity, coupon, yield_rate, frequency, basis])
 }
 
 fn bond_out(site: &Site<'_>, result: Result<f64, bond::BondCoreEvalError>) -> Step<CalcValue> {
@@ -165,12 +187,12 @@ ported_shared_family! {
         bond_out(s, bond::yield_kernel(settlement, maturity, rate, price, redemption, frequency, Some(basis)))
     }
     3 duration_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::duration_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
+        let [settlement, maturity, coupon, yield_rate, frequency, basis] = duration_args(s, a, sv)?;
+        bond_out(s, bond::duration_kernel(settlement, maturity, coupon, yield_rate, frequency, Some(basis)))
     }
     4 mduration_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::mduration_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
+        let [settlement, maturity, coupon, yield_rate, frequency, basis] = duration_args(s, a, sv)?;
+        bond_out(s, bond::mduration_kernel(settlement, maturity, coupon, yield_rate, frequency, Some(basis)))
     }
     5 pricemat_fn |s, a, sv| {
         let (settlement, maturity, issue) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);

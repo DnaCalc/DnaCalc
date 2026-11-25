@@ -235,7 +235,8 @@
         "dna-calc-worker",
         "dna-strand",
         "dna-calc-desktop",
-        "dna-onecalc-desktop"
+        "dna-onecalc-desktop",
+        "calc-chart-render"
       ],
       "reason": "the desktop platform adapter has no product dependency: windows, WebView2, WinHTTP and file dialogs only; the applications and the add-in host build on it (milestone 1 of the OneCalc desktop note)"
     },
@@ -305,6 +306,21 @@
         "dna-onecalc"
       ],
       "reason": "the DNA Calc executable does not carry the OneCalc application; what the two share lives in calc-addin-host, calc-platform-desktop and dna-formula-ui"
+    },
+    {
+      "package": "calc-chart-render",
+      "scope": "closure",
+      "forbidden": [
+        "dna-calc-worker",
+        "dna-calc",
+        "dna-onecalc",
+        "dna-formula-ui",
+        "dna-calc-desktop",
+        "dna-onecalc-desktop",
+        "calc-vba",
+        "calc-host-vba"
+      ],
+      "reason": "dc-oxh8w.22: the chart renderer draws calc-host's ChartView and is called by the applications; it knows no application, skin or macro host"
     }
   ],
   "os_binding_crates": [

@@ -70,6 +70,11 @@ impl calc_object_model::profile::ApplicationHost for DesktopAutomationHost {
     fn path(&self) -> Result<String, calc_object_model::AutoError> {
         self.application.path()
     }
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), calc_object_model::AutoError> {
+        std::fs::write(path, bytes).map_err(|error| {
+            calc_object_model::AutoError::excel(1004, format!("Cannot write {path}: {error}"))
+        })
+    }
 }
 impl calc_host::automation::AutomationHost for DesktopAutomationHost {
     fn with_invocation(
@@ -173,6 +178,7 @@ pub(crate) fn bind_automation(
     let events = session
         .with(calc_host::HostSession::workbook_events_switch)
         .map_err(|error| error.description())?;
+    calc_chart_render::install();
     let host = Rc::new(DesktopAutomationHost {
         application: projection.application_host(),
         native: Rc::downgrade(&addins.native_handle()),
