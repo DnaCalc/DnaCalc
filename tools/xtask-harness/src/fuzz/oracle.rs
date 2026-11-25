@@ -608,6 +608,9 @@ fn drain_one_chunk(
             "refused" => Some(RowOutcome::Unread {
                 reason: detail.clone(),
             }),
+            "excel-deadline" | "excel-deadline-budget" => Some(RowOutcome::Unread {
+                reason: format!("{code}: {detail}"),
+            }),
             "excel-crashed" | "excel-crash-budget" => Some(RowOutcome::Crashed {
                 detail: detail.clone(),
             }),
@@ -2880,6 +2883,144 @@ mod tests {
             assert!(fault["case"]["args"].as_array().is_some_and(|args| !args.is_empty()));
         }
         std::fs::remove_dir_all(tmp).unwrap();
+    }
+
+    #[test]
+    fn sweep_treats_excel_deadline_and_deadline_budget_as_terminal_unread() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-sweep-deadline-codes-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(&endpoint, json!({"host": "127.0.0.1", "port": port}).to_string()).unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(&order, "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n").unwrap();
+        let broker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut seen = 0usize;
+            while let Some((kind, body)) = read_frame(&mut stream) {
+                match kind {
+                    b'H' => {
+                        write_frame(
+                            &mut stream,
+                            b'H',
+                            &json!({
+                                "v": "touchstone/1",
+                                "server": "fake-fuzzer-broker",
+                                "sweep": true,
+                                "envs": {"e-bulk": {"engine": "excel", "version": "16.0", "build": "20625"}}
+                            }),
+                        );
+                    }
+                    b'S' => {
+                        let id = body["id"].as_str().unwrap();
+                        let seq = body["seq"].as_u64().unwrap_or(0);
+                        let code = if seen == 0 {
+                            "excel-deadline"
+                        } else {
+                            "excel-deadline-budget"
+                        };
+                        seen += 1;
+                        write_frame(
+                            &mut stream,
+                            b'X',
+                            &json!({"id": id, "seq": seq, "code": code, "detail": format!("simulated {code}")}),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        });
+        let command = [
+            "sweep", "--runs", "1", "--order", order.to_str().unwrap(), "--out",
+            out.to_str().unwrap(), "--endpoint", endpoint.to_str().unwrap(),
+        ].map(str::to_owned);
+        let exit = super::super::run(&command);
+        let _ = broker.join();
+        assert_eq!(exit, std::process::ExitCode::SUCCESS, "excel-deadline and excel-deadline-budget must be terminal unread, not fatal sweep errors");
+        let run = out.join("00000001");
+        assert!(run.join("done.json").is_file());
+        assert!(!run.join("gave_up.json").exists());
+        let summary: Value = serde_json::from_slice(&std::fs::read(run.join("00000001/summary.json")).unwrap()).unwrap();
+        assert!(summary["total_unread"].as_u64().unwrap() > 0, "{summary}");
+        assert_eq!(summary["total_crashed"].as_u64().unwrap(), 0, "{summary}");
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn sweep_timeout_writes_interrupted_and_gives_up_when_active_case_is_corrupt() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-sweep-corrupt-active-{port}"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(&endpoint, json!({"host": "127.0.0.1", "port": port}).to_string()).unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(&order, "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n").unwrap();
+        let out_for_broker = out.clone();
+        let broker = std::thread::spawn(move || {
+            for attempt in 1..=3usize {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    break;
+                };
+                stream.set_read_timeout(Some(Duration::from_millis(50))).unwrap();
+                let mut saw_submit = false;
+                let started = Instant::now();
+                let active = out_for_broker.join(format!("00000001/{attempt:08}/active-case.json"));
+                while started.elapsed() < Duration::from_secs(5) {
+                    if let Some((kind, _)) = read_frame(&mut stream) {
+                        match kind {
+                            b'H' => {
+                                write_frame(
+                                    &mut stream,
+                                    b'H',
+                                    &json!({
+                                        "v": "touchstone/1",
+                                        "server": "fake-fuzzer-broker",
+                                        "sweep": true,
+                                        "envs": {"e-bulk": {"engine": "excel", "version": "16.0", "build": "20625"}}
+                                    }),
+                                );
+                            }
+                            b'S' => {
+                                saw_submit = true;
+                                let _ = std::fs::write(&active, "{corrupt-truncated");
+                            }
+                            _ => {}
+                        }
+                    } else if saw_submit {
+                        if active.is_file() {
+                            let _ = std::fs::write(&active, "{corrupt-truncated");
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        let command = [
+            "sweep", "--runs", "1", "--order", order.to_str().unwrap(), "--out",
+            out.to_str().unwrap(), "--endpoint", endpoint.to_str().unwrap(),
+            "--function-timeout-seconds", "1",
+        ].map(str::to_owned);
+        let exit = super::super::run(&command);
+        let _ = broker.join();
+        assert_eq!(exit, std::process::ExitCode::SUCCESS, "corrupt active-case.json must not skip interrupted.json or loop retries");
+        let run = out.join("00000001");
+        assert!(run.join("gave_up.json").is_file());
+        for attempt in 1..=3 {
+            let fault: Value = serde_json::from_slice(
+                &std::fs::read(run.join(format!("{attempt:08}/interrupted.json"))).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(fault["harness_fault"], "FunctionDeadline");
+            assert!(fault["case_error"].as_str().is_some(), "{fault}");
+        }
+        let _ = std::fs::remove_dir_all(tmp);
     }
 
     #[test]

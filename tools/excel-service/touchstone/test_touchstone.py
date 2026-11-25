@@ -641,7 +641,100 @@ class StopAndStallTests(unittest.TestCase):
         self.assertEqual(isolation.state, "idle")
         self.assertGreater(isolation.restarts, before)
         status = json.loads((state / "status.json").read_text())
-        self.assertTrue(any("isolation worker restarted" in flag for flag in status["broker_flags"]), status["broker_flags"])
+        self.assertEqual(status["broker_flags"], [], status["broker_flags"])
+        self.assertTrue(status["health"].startswith("OK "), status["health"])
+        self.assertTrue(any("isolation worker restarted" in note for note in status["broker_notes"]), status["broker_notes"])
+        again = conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [ONE]}])
+        self.assertEqual(again.raw(15)[1], [ONE])
+
+    def test_stop_ends_real_broker_run_process_whose_non_daemon_thread_outlives_lock(self):
+        import subprocess as sp
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            runner = (
+                "import asyncio, pathlib, sys, threading, time\n"
+                "from types import SimpleNamespace\n"
+                f"sys.path.insert(0, {str(HERE)!r})\n"
+                "import broker\n"
+                "state = pathlib.Path(sys.argv[1])\n"
+                "opts = SimpleNamespace(state=state, workers=1, local_queue=state / 'queue', hosts=[], "
+                f"worker_command=[sys.executable, {str(HERE / 'fake_worker.py')!r}], "
+                "admission=None, sweep_orphans=False)\n"
+                "instance = broker.Broker(opts)\n"
+                "instance.cpu_name = lambda: 'test cpu'\n"
+                "threading.Thread(target=time.sleep, args=(120,), daemon=False).start()\n"
+                "asyncio.run(instance.run())\n"
+            )
+            child = sp.Popen([sys.executable, "-c", runner, str(state)],
+                             stdout=sp.PIPE, stderr=sp.PIPE)
+            def cleanup_child():
+                if child.poll() is None:
+                    child.kill()
+                    child.wait(5)
+                child.stdout.close()
+                child.stderr.close()
+            self.addCleanup(cleanup_child)
+            deadline = time.monotonic() + 20
+            while not ((state / "endpoint.json").exists() and (state / "run.pid").exists()):
+                if child.poll() is not None or time.monotonic() > deadline:
+                    self.fail(f"real broker subprocess failed to start: rc={child.poll()} err={child.stderr.read().decode()[-400:]}")
+                time.sleep(0.05)
+            out = io.StringIO()
+            with patch("sys.stdout", out):
+                self.command(state, "stop", "--stop-grace", "0.5")
+            self.assertIsNotNone(child.wait(10), "stop left the live Broker.run process running")
+            self.assertIn("ended", out.getvalue())
+            self.assertFalse((state / "run.pid").exists())
+
+    def test_heal_isolation_stall_does_not_race_live_run_batch_or_pin_degraded(self):
+        import broker as broker_module
+        import contextlib
+        broker, state, stop = start_broker(
+            3, {"isolation_stall_seconds": 0, "isolation_fail_seconds": 0.5, "restart_cap": 1, "cooldown": 60.0}
+        )
+        self.addCleanup(stop)
+        from touchstone import client
+        conn = client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name="stall-live")
+        self.addCleanup(conn.close)
+        isolation = broker.isolation_slot()
+        before = isolation.restarts
+
+        async def isolate():
+            broker.batcher.isolate.update({"HANG", "ID"})
+        asyncio.run_coroutine_threadsafe(isolate(), broker.loop).result(3)
+
+        hung = conn.submit_groups([{"f": "HANG", "k": "n", "n": 1, "v": [ONE]}])
+        deadline = time.monotonic() + 10
+        while isolation.state != "busy" and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertEqual(isolation.state, "busy")
+
+        queued = conn.submit_groups([{"f": "ID", "k": "n", "n": 2, "v": [ONE, TWO]}])
+        with self.assertRaises(Exception) as caught:
+            queued.raw(15)
+        self.assertIn("isolation-stalled", str(caught.exception))
+        with self.assertRaises(Exception):
+            hung.raw(15)
+
+        deadline = time.monotonic() + 15
+        while isolation.state != "idle" and time.monotonic() < deadline:
+            time.sleep(0.1)
+        time.sleep(0.7)  # allow any racing run_batch cleanup and a status.json tick to settle
+        self.assertEqual(isolation.state, "idle")
+        self.assertEqual(isolation.restarts, before + 1, "heal_isolation_stall must not race run_batch into double restart")
+        self.assertEqual(broker.window_attempts(isolation), 0, "stall healing must not burn restart cap")
+
+        status = json.loads((state / "status.json").read_text())
+        self.assertEqual(status["broker_flags"], [], status["broker_flags"])
+        self.assertTrue(status["health"].startswith("OK "), status["health"])
+        self.assertIn("isolation worker restarted", status["health"])
+        self.assertTrue(any("isolation worker restarted" in n for n in status.get("broker_notes", [])), status)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as raised:
+            broker_module.command_status(SimpleNamespace(state=state, json=False))
+        self.assertEqual(raised.exception.code, 0, out.getvalue())
+
         again = conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [ONE]}])
         self.assertEqual(again.raw(15)[1], [ONE])
 
@@ -1560,6 +1653,111 @@ class SelfHealingTests(unittest.TestCase):
             # deadline restarts do not count against the cap (cap is 1; every worker is still up and uncapped)
             self.assertEqual([broker.window_attempts(s) for s in broker.slots], [0, 0, 0])
             self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+        finally:
+            stop()
+
+    def test_quarantined_deadline_requests_enforce_budget_reply_excel_deadline_and_respect_origin(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "restart_cap": 1, "deadline_budget": 2})
+        try:
+            from touchstone import client
+            conn = self.connect(state, name="lane-a")
+            other = self.connect(state, name="lane-b")
+            self.addCleanup(conn.close)
+            self.addCleanup(other.close)
+            rid = "aa" * 16
+            with self.assertRaises(client.ServiceError) as caught:
+                conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 12, rid=rid).raw(90)
+            self.assertIn("excel-deadline", str(caught.exception))
+            # Resubmission by the same origin must reply excel-deadline, not excel-crashed.
+            with self.assertRaises(client.ServiceError) as resub:
+                conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 12, rid=rid).raw(30)
+            self.assertIn("excel-deadline", str(resub.exception))
+            self.assertNotIn("excel-crashed", str(resub.exception))
+            # A different origin with the same rid must not be blocked by lane-a's deadline quarantine.
+            self.assertEqual(other.submit_rows("ID", [[number(TWO)]], rid=rid).raw(30)[1], [TWO])
+            # Multi-call quarantined request must count against deadline_budget so a fresh rid is refused immediately.
+            restarts_before = sum(s.restarts for s in broker.slots)
+            with self.assertRaises(client.ServiceError) as budgeted:
+                conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 12).raw(30)
+            self.assertIn("excel-deadline-budget", str(budgeted.exception))
+            self.assertEqual(sum(s.restarts for s in broker.slots), restarts_before)
+            # Deadlines never pollute crash counters or isolate the function as a crasher.
+            self.assertEqual(sum(s.crashes for s in broker.slots), 0)
+            self.assertEqual(broker.crash_counts, {})
+            self.assertNotIn("DEADLINEON", broker.batcher.isolate)
+        finally:
+            stop()
+
+    def test_cobatched_deadline_kill_does_not_charge_or_misattribute_innocent_request(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3})
+        try:
+            from touchstone import client
+            conn_ok = self.connect(state, name="innocent")
+            conn_bad = self.connect(state, name="slow")
+            self.addCleanup(conn_ok.close)
+            self.addCleanup(conn_bad.close)
+            # Pre-seed costs so ID and DEADLINEON share one bulk batch; hold kick until both pieces arrive.
+            done_flag = threading.Event()
+            async def setup_mixed():
+                broker.batcher.costs["ID"] = 25.0
+                broker.batcher.costs["DEADLINEON"] = 25.0
+                orig_kick = broker.kick
+                def hold_kick():
+                    if len(broker.batcher.bulk.order) >= 2:
+                        broker.kick = orig_kick
+                        orig_kick()
+                        done_flag.set()
+                broker.kick = hold_kick
+            asyncio.run_coroutine_threadsafe(setup_mixed(), broker.loop).result(5)
+            p_ok = conn_ok.submit_rows("ID", [[number(ONE)]] * 4, priority="bulk")
+            p_bad = conn_bad.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 4, priority="bulk")
+            self.assertTrue(done_flag.wait(10))
+            self.assertEqual(p_ok.raw(60)[1], [ONE] * 4)
+            ok_req = broker.requests[("tcp:innocent", p_ok.rid)]
+            self.assertEqual(ok_req.deadline_kills, 0, "innocent co-batched request must not be charged a deadline kill")
+            with self.assertRaises(client.ServiceError) as caught:
+                p_bad.raw(60)
+            self.assertIn("excel-deadline", str(caught.exception))
+            self.assertIn("DEADLINEON", str(caught.exception))
+            self.assertNotIn("ID", str(caught.exception))
+            rows = [json.loads(line) for line in (state / "deadline-list.jsonl").read_text().splitlines()]
+            self.assertTrue(rows)
+            self.assertTrue(all(r["function"] == "DEADLINEON" for r in rows), rows)
+            self.assertNotIn("ID", broker.deadline_times)
+            self.assertEqual(broker.crash_counts, {})
+        finally:
+            stop()
+
+    def test_serial_and_addin_deadline_kills_stay_in_deadline_path_not_crash_path(self):
+        broker, state, stop = start_broker(
+            workers=3, extra={"cooldown": 60.0, "restart_cap": 1, "addin_workers": ["TEST.XLAM"]}
+        )
+        try:
+            from touchstone import client
+            conn = self.connect(state, name="special")
+            self.addCleanup(conn.close)
+            serial_slot = next(s for s in broker.slots if s.serial and not s.addins)
+            addin_slot = next(s for s in broker.slots if s.addins == ("TEST.XLAM",))
+
+            with self.assertRaises(client.ServiceError) as serial_err:
+                conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]], order="serial").raw(30)
+            self.assertIn("excel-deadline", str(serial_err.exception))
+            self.assertNotIn("excel-crashed", str(serial_err.exception))
+            self.assertTrue(self.wait_for(lambda: serial_slot.state == "idle", 15))
+            self.assertEqual(serial_slot.crashes, 0)
+            self.assertEqual(broker.window_attempts(serial_slot), 0)
+
+            with self.assertRaises(client.ServiceError) as addin_err:
+                conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]], addins=["TEST.XLAM"]).raw(30)
+            self.assertIn("excel-deadline", str(addin_err.exception))
+            self.assertNotIn("excel-crashed", str(addin_err.exception))
+            self.assertTrue(self.wait_for(lambda: addin_slot.state == "idle", 15))
+            self.assertEqual(addin_slot.crashes, 0)
+            self.assertEqual(broker.window_attempts(addin_slot), 0)
+
+            self.assertEqual(broker.crash_counts, {})
+            self.assertNotIn("DEADLINEON", broker.batcher.isolate)
+            self.assertGreaterEqual(len(broker.deadline_times.get("DEADLINEON", [])), 2)
         finally:
             stop()
 
