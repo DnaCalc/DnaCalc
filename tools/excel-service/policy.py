@@ -1,4 +1,6 @@
 """Fail-closed admission: catalogue declarations, scalar values, no request formulas."""
+import base64
+import binascii
 import json
 import math
 from pathlib import Path
@@ -228,6 +230,70 @@ MAX_CASE_PROBES = 256
 CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
+VBA_RULES = json.loads(Path(__file__).with_name("vba-probe-policy.json").read_text(encoding="ascii"))
+VBA_IDENTIFIER = re.compile(VBA_RULES["identifier"])
+VBA_LEX = re.compile(VBA_RULES["lex"])
+VBA_WORDS = set(VBA_RULES["words"].split()) | set(VBA_RULES["objects"].split())
+VBA_MEMBERS = set(VBA_RULES["members"].split())
+VBA_DECLARES = set(VBA_RULES["declares"].split())
+VBA_REFUSED = set(VBA_RULES["refused"].split())
+VBA_CLASSES = {f'"{name.lower()}"' for name in VBA_RULES["classes"]}
+VBA_ADDRESS = re.compile(r"[A-Za-z]{1,3}[1-9][0-9]{0,6}")
+
+
+def _probe_tokens(source):
+    if (not isinstance(source, str) or not 1 <= formula_chars(source) <= VBA_RULES["max_module_chars"]
+            or any(ch < " " and ch not in "\t\r\n" or ch == "\x7f"
+                   or "\ud800" <= ch <= "\udfff" or ord(ch) > 0xffff for ch in source)):
+        raise ValueError("invalid or oversized VBA module source")
+    tokens = []
+    for token in VBA_LEX.findall(source):
+        if token.startswith("'") or token[0] in " \t":
+            continue
+        tokens.append("\n" if token == "\r\n" else token)
+    return tokens
+
+
+def _check_probe_source(source, modules):
+    tokens = _probe_tokens(source)
+    folded = [t.lower() for t in tokens]
+    declared = {t for previous, t in zip(folded, folded[1:]) if previous in VBA_DECLARES}
+    procedures = {t for i, (previous, t) in enumerate(zip(folded, folded[1:]))
+                  if previous in ("sub", "function") and (not i or folded[i-1] not in ("private", "end"))
+                  and VBA_IDENTIFIER.fullmatch(t)}
+    # Name the forbidden construct even when other tokens in the statement are out of scope.
+    for i, word in enumerate(folded):
+        if word in VBA_REFUSED:
+            name = "Workbooks.Open" if word == "open" and folded[max(0, i-2):i] == ["workbooks", "."] else tokens[i]
+            raise ValueError(f"VBA construct refused: {name}")
+        if word == "createobject":
+            if (i + 3 >= len(folded) or folded[i+1] != "("
+                    or folded[i+2] not in VBA_CLASSES or folded[i+3] != ")"
+                    or i > 0 and folded[i-1] == "."):
+                raise ValueError("VBA construct refused: CreateObject requires one listed literal class")
+    for i, token in enumerate(tokens):
+        word = folded[i]
+        if token.startswith('"') and len(token) > 1 or token[0] in "0123456789" or word.startswith("&h"):
+            continue
+        if token in {".", ":", "=", "<", ">", "+", "-", "*", "/", "\\", "^", "&", "(", ")", ",", "\n"}:
+            continue
+        allowed = (VBA_MEMBERS if i and folded[i-1] == "." else
+                   VBA_WORDS | VBA_DECLARES | declared | modules | {"createobject", "me"})
+        if word not in allowed:
+            raise ValueError(f"VBA construct refused: {token}")
+    return procedures
+
+
+def _vba_address(address):
+    if not isinstance(address, str) or not VBA_ADDRESS.fullmatch(address):
+        return False
+    column = 0
+    i = 0
+    while address[i].isalpha():
+        column = column * 26 + ord(address[i].upper()) - ord("A") + 1
+        i += 1
+    return column <= 16384 and int(address[i:]) <= 1048576
+
 
 class Admission:
     """The same fail-closed rules as validate(), for columnar groups."""
@@ -248,33 +314,9 @@ class Admission:
             raise ValueError("expected 1..%d sheet cases" % MAX_GROUP_CALLS)
         for case in group["v"]:
             sheets, probes = case.get("sheets"), case.get("probes")
-            names = case.get("names", {})
-            if not isinstance(names, dict) or any(not isinstance(formula, str) for formula in names.values()):
-                raise ValueError("defined names need formula text")
-            for formula in names.values():
-                check_formula_length(formula_chars(formula))
-            if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
-                raise ValueError("a sheet case has 1..%d sheets" % MAX_CASE_SHEETS)
+            self._check_case_layout(sheets, case.get("names", {}))
             if not isinstance(probes, list) or not 1 <= len(probes) <= MAX_CASE_PROBES:
                 raise ValueError("a sheet case has 1..%d probes" % MAX_CASE_PROBES)
-            cells = 0
-            for sheet in sheets:
-                if not isinstance(sheet.get("name"), str) or not isinstance(sheet.get("cells", {}), dict):
-                    raise ValueError("a sheet has a name and cells")
-                for cell in sheet.get("cells", {}).values():
-                    if not isinstance(cell, dict) or cell.get("type") not in CASE_CELL_TYPES:
-                        raise ValueError("unsupported layout cell")
-                    if cell["type"] == "formula":
-                        if not isinstance(cell.get("formula"), str):
-                            raise ValueError("a formula cell needs formula text")
-                        check_formula_length(formula_chars(cell["formula"]))
-                    if cell["type"] == "number":
-                        self._numbers([cell["bits"]])
-                    if cell["type"] == "error" and cell.get("code") not in ("#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"):
-                        raise ValueError("unsupported error cell")
-                cells += len(sheet.get("cells", {}))
-            if cells > MAX_CASE_CELLS:
-                raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
             for probe in probes:
                 entry = probe.get("entry")
                 if entry not in (None, "local"):
@@ -289,8 +331,36 @@ class Admission:
                 if entry is not None and not 0 < len(probe["formula"]) <= 255:
                     raise ValueError("a typed entry has 1..255 characters")
 
+    def _check_case_layout(self, sheets, names):
+        if not isinstance(names, dict) or any(not isinstance(formula, str) for formula in names.values()):
+            raise ValueError("defined names need formula text")
+        for formula in names.values():
+            check_formula_length(formula_chars(formula))
+        if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
+            raise ValueError("a sheet case has 1..%d sheets" % MAX_CASE_SHEETS)
+        cells = 0
+        for sheet in sheets:
+            if not isinstance(sheet.get("name"), str) or not isinstance(sheet.get("cells", {}), dict):
+                raise ValueError("a sheet has a name and cells")
+            for cell in sheet.get("cells", {}).values():
+                if not isinstance(cell, dict) or cell.get("type") not in CASE_CELL_TYPES:
+                    raise ValueError("unsupported layout cell")
+                if cell["type"] == "formula":
+                    if not isinstance(cell.get("formula"), str):
+                        raise ValueError("a formula cell needs formula text")
+                    check_formula_length(formula_chars(cell["formula"]))
+                if cell["type"] == "number":
+                    self._numbers([cell["bits"]])
+                if cell["type"] == "error" and cell.get("code") not in ("#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"):
+                    raise ValueError("unsupported error cell")
+            cells += len(sheet.get("cells", {}))
+        if cells > MAX_CASE_CELLS:
+            raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
+
     def check(self, group):
         name = group["f"]
+        if name == "_VBA" or "V" in group["k"].split(","):
+            return self._check_vba_case(group)
         if name == "_CASE":
             return self._check_cases(group)
         spill = bool(group.get("spill"))
@@ -359,6 +429,85 @@ class Admission:
                         raise ValueError("file content must be UTF-8 text of at most 65536 bytes")
             at += w
         check_group_formula_limits(name, tokens, widths, values, n, index)
+
+    def _check_vba_case(self, group):
+        values = group.get("v")
+        if (group["f"] != "_VBA" or group["k"] != "V" or type(group.get("n")) is not int
+                or group["n"] != 1 or not isinstance(values, list) or len(values) != 1
+                or set(group) - {"f", "k", "n", "v", "o", "i"}):
+            raise ValueError("a VBA group contains one VBA case")
+        case = values[0]
+        if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "workbook", "calls", "readback", "event_log"}:
+            raise ValueError("invalid VBA case fields")
+        modules = case["modules"]
+        if not isinstance(modules, list) or not 1 <= len(modules) <= VBA_RULES["max_modules"]:
+            raise ValueError("invalid VBA module count")
+        by_name = {}
+        source_chars = 0
+        for module in modules:
+            if not isinstance(module, dict) or set(module) != {"name", "kind", "source"}:
+                raise ValueError("invalid VBA module fields")
+            name, kind, source = module["name"], module["kind"], module["source"]
+            if (not isinstance(name, str) or not VBA_IDENTIFIER.fullmatch(name)
+                    or kind not in ("standard", "document") or name.lower() in by_name):
+                raise ValueError("invalid or duplicate VBA module name or kind")
+            if not isinstance(source, str):
+                raise ValueError("invalid VBA module source")
+            source_chars += formula_chars(source)
+            by_name[name.lower()] = module
+        if source_chars > VBA_RULES["max_source_chars"]:
+            raise ValueError("oversized VBA module source")
+        entry_points = set()
+        for name, module in by_name.items():
+            procedures = _check_probe_source(module["source"], by_name.keys())
+            if module["kind"] == "standard":
+                entry_points.update(f"{name}.{procedure}" for procedure in procedures)
+        workbook = case["workbook"]
+        if not isinstance(workbook, str) or not 1 <= len(workbook) <= VBA_RULES["max_workbook_chars"]:
+            raise ValueError("invalid or oversized VBA workbook")
+        try:
+            valid_workbook = base64.b64decode(workbook, validate=True).startswith(b"PK\x03\x04")
+        except (binascii.Error, ValueError):
+            valid_workbook = False
+        if not valid_workbook:
+            raise ValueError("invalid VBA workbook encoding")
+        calls = case["calls"]
+        if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
+            raise ValueError("invalid VBA call count")
+        for call in calls:
+            if not isinstance(call, dict) or set(call) != {"procedure", "args"}:
+                raise ValueError("invalid VBA call fields")
+            procedure, args = call["procedure"], call["args"]
+            if not isinstance(procedure, str) or procedure.lower() not in entry_points:
+                raise ValueError("VBA call must name a public standard-module procedure in the case")
+            if not isinstance(args, list) or len(args) > VBA_RULES["max_args"]:
+                raise ValueError("invalid VBA argument count")
+            for arg in args:
+                self._range_cell(arg)
+        sheets = case["sheets"]
+        if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
+            raise ValueError("invalid VBA sheet count")
+        sheet_names = set()
+        for sheet in sheets:
+            if (not isinstance(sheet, dict) or not isinstance(sheet.get("name"), str)
+                    or not 1 <= len(sheet["name"]) <= 31 or sheet["name"].lower() in sheet_names
+                    or not isinstance(sheet.get("cells", {}), dict)
+                    or not all(_vba_address(at) for at in sheet.get("cells", {}))):
+                raise ValueError("invalid or duplicate VBA layout sheet")
+            sheet_names.add(sheet["name"].lower())
+        # Reuse the sheet layout checks; VBA readbacks are addresses, with no formula entry.
+        try:
+            self._check_case_layout(sheets, case["names"])
+        except (AttributeError, KeyError, TypeError) as error:
+            raise ValueError("invalid VBA worksheet layout") from error
+        for field in ("readback", "event_log"):
+            addresses = case[field]
+            if not isinstance(addresses, list) or len(addresses) > VBA_RULES["max_reads"]:
+                raise ValueError(f"invalid VBA {field} count")
+            for place in addresses:
+                sheet, bang, cell = place.rpartition("!") if isinstance(place, str) else ("", "", "")
+                if not bang or sheet.lower() not in sheet_names or not _vba_address(cell):
+                    raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
 
     @classmethod
     def _range_cell(cls, cell):

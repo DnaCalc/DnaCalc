@@ -1,0 +1,17 @@
+{
+  "max_modules": 8,
+  "max_module_chars": 8192,
+  "max_source_chars": 16384,
+  "max_workbook_chars": 32768,
+  "max_calls": 32,
+  "max_args": 16,
+  "max_reads": 128,
+  "identifier": "[A-Za-z][A-Za-z0-9_]{0,30}",
+  "lex": " +_\\r?\\n|'[^\\r\\n]*|\"(?:[^\"\\r\\n]|\"\")*\"|&[Hh][0-9A-Fa-f]+|[0-9]+(?:\\.[0-9]*)?(?:[Ee][+-]?[0-9]+)?|[A-Za-z_][A-Za-z0-9_]*|[ \\t]+|\\r?\\n|.",
+  "declares": "sub function dim const byval byref",
+  "words": "as boolean byte call case cbool cbyte cdbl cint clng const csng cstr currency cvar date dim do double each else elseif empty end err error exit explicit false for function goto if integer is isarray isempty iserror isnull isnumeric lbound left len let long loop lcase mid mod next not nothing null object on option or private public redim replace resume right select set single split step string sub then to trim true typename ubound ucase until val variant while with wend xor and abs array round",
+  "objects": "application activecell activesheet activeworkbook areas cells chart chartobjects charts columns count end group index item name offset parent range resize rows selection sheets thisworkbook usedrange workbook worksheet worksheets",
+  "members": "activate activecell activesheet activeworkbook add address areas calculate cells chart chartobjects charts charttype clear clearcontents column columns count countlarge description end exists haslegend hastitle hidden index item keys left name number numberformat offset orientation raise range remove removeall resize row rows select selectedsheets selection seriescollection sheets text top value value2 worksheet worksheets",
+  "refused": "declare ptrsafe shell getobject open kill mkdir filecopy dir chdir sendkeys environ vbproject vbcomponents vbe xmlhttp serverxmlhttp winhttprequest webservice querytables connections followhyperlink hyperlink msgbox inputbox callbyname saveas savecopyas getsetting savesetting deletesetting",
+  "classes": ["Scripting.Dictionary", "VBScript.RegExp"]
+}

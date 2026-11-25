@@ -16,5 +16,6 @@
   <ItemGroup>
     <EmbeddedResource Include="../../../../crates/calc-catalogue/tests/fixtures/admission-families.tsv"
                       LogicalName="admission-families.tsv" />
+    <EmbeddedResource Include="../../vba-probe-policy.json" LogicalName="vba-probe-policy.json" />
   </ItemGroup>
 </Project>

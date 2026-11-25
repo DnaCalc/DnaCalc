@@ -1,0 +1,131 @@
+using System.Text.RegularExpressions;
+
+namespace Touchstone.Excel;
+
+sealed class RefusedVbaException(string message) : Exception(message);
+
+/// <summary>Checks authored VBA probe source before it can be handed to Excel.</summary>
+static class VbaPolicy
+{
+    static readonly Dictionary<string, object> Rules = ReadRules();
+    static readonly Regex Lex = new((string)Rules["lex"], RegexOptions.CultureInvariant);
+    static readonly Regex Identifier = new(@"\A" + Rules["identifier"] + @"\z", RegexOptions.CultureInvariant);
+    static readonly HashSet<string> Declares = Words("declares");
+    static readonly HashSet<string> AllowedWords = new(Words("words").Concat(Words("objects")).Concat(Declares))
+        { "createobject", "me" };
+    static readonly HashSet<string> Members = Words("members");
+    static readonly HashSet<string> Refused = Words("refused");
+    static readonly HashSet<string> Classes = ((List<object>)Rules["classes"])
+        .Select(c => "\"" + ((string)c).ToLowerInvariant() + "\"").ToHashSet();
+    static readonly HashSet<string> Punctuation = new()
+        { ".", ":", "=", "<", ">", "+", "-", "*", "/", "\\", "^", "&", "(", ")", ",", "\n" };
+
+    static Dictionary<string, object> ReadRules()
+    {
+        using var resource = typeof(VbaPolicy).Assembly.GetManifestResourceStream("vba-probe-policy.json");
+        using var reader = new StreamReader(resource);
+        return (Dictionary<string, object>)Json.Parse(reader.ReadToEnd());
+    }
+
+    public static int Limit(string key) => (int)(long)Rules[key];
+    static HashSet<string> Words(string key) => ((string)Rules[key]).Split(' ').ToHashSet();
+
+    public static bool IsVba(Dictionary<string, object> group) =>
+        Equals(group.GetValueOrDefault("f"), "_VBA")
+        || group.GetValueOrDefault("k") is string tokens && tokens.Split(',').Contains("V");
+
+    public static Dictionary<string, object> CheckGroup(object value)
+    {
+        if (value is not Dictionary<string, object> group
+            || !Equals(group.GetValueOrDefault("f"), "_VBA") || !Equals(group.GetValueOrDefault("k"), "V")
+            || !Equals(group.GetValueOrDefault("n"), 1L)
+            || group.GetValueOrDefault("v") is not List<object> values || values.Count != 1
+            || values[0] is not Dictionary<string, object> probe)
+            throw new RefusedVbaException("a VBA group contains one VBA case");
+        if (probe.GetValueOrDefault("modules") is not List<object> modules
+            || modules.Count < 1 || modules.Count > Limit("max_modules"))
+            throw new RefusedVbaException("invalid VBA module count");
+        var names = new HashSet<string>();
+        var sources = new List<(string name, string kind, string source)>();
+        foreach (var item in modules)
+        {
+            if (item is not Dictionary<string, object> module || module.Count != 3
+                || module.GetValueOrDefault("name") is not string name || !Identifier.IsMatch(name)
+                || module.GetValueOrDefault("kind") is not string kind || kind is not ("standard" or "document")
+                || !names.Add(name.ToLowerInvariant()))
+                throw new RefusedVbaException("invalid or duplicate VBA module name or kind");
+            if (module.GetValueOrDefault("source") is not string source)
+                throw new RefusedVbaException("invalid VBA module source");
+            sources.Add((name.ToLowerInvariant(), kind, source));
+        }
+        if (sources.Sum(m => m.source.Length) > Limit("max_source_chars"))
+            throw new RefusedVbaException("oversized VBA module source");
+        var entryPoints = new HashSet<string>();
+        foreach (var (name, kind, source) in sources)
+        {
+            var procedures = CheckSource(source, names);
+            if (kind == "standard")
+                entryPoints.UnionWith(procedures.Select(p => name + "." + p));
+        }
+        if (probe.GetValueOrDefault("calls") is not List<object> calls
+            || calls.Count < 1 || calls.Count > Limit("max_calls"))
+            throw new RefusedVbaException("invalid VBA call count");
+        foreach (var item in calls)
+        {
+            if (item is not Dictionary<string, object> call || call.Count != 2
+                || call.GetValueOrDefault("procedure") is not string procedure
+                || !entryPoints.Contains(procedure.ToLowerInvariant()))
+                throw new RefusedVbaException("VBA call must name a public standard-module procedure in the case");
+            if (call.GetValueOrDefault("args") is not List<object> args || args.Count > Limit("max_args"))
+                throw new RefusedVbaException("invalid VBA argument count");
+        }
+        return probe;
+    }
+
+    static HashSet<string> CheckSource(string source, HashSet<string> moduleNames)
+    {
+        if (source.Length < 1 || source.Length > Limit("max_module_chars")
+            || source.Any(c => (c < ' ' && c is not ('\t' or '\r' or '\n')) || c == '\x7f' || char.IsSurrogate(c)))
+            throw new RefusedVbaException("invalid or oversized VBA module source");
+        var tokens = Lex.Matches(source).Select(m => m.Value)
+            .Where(t => t[0] is not ('\'' or ' ' or '\t'))
+            .Select(t => t == "\r\n" ? "\n" : t).ToArray();
+        var folded = tokens.Select(t => t.ToLowerInvariant()).ToArray();
+        var declared = new HashSet<string>();
+        var procedures = new HashSet<string>();
+        for (int i = 0; i < folded.Length; i++)
+        {
+            var word = folded[i];
+            if (Refused.Contains(word))
+            {
+                var name = word == "open" && i >= 2 && folded[i - 2] == "workbooks" && folded[i - 1] == "."
+                    ? "Workbooks.Open" : tokens[i];
+                throw new RefusedVbaException("VBA construct refused: " + name);
+            }
+            if (word == "createobject" && (i + 3 >= folded.Length || folded[i + 1] != "("
+                || !Classes.Contains(folded[i + 2]) || folded[i + 3] != ")" || i > 0 && folded[i - 1] == "."))
+                throw new RefusedVbaException("VBA construct refused: CreateObject requires one listed literal class");
+            if (i + 1 < folded.Length && Declares.Contains(word))
+            {
+                var name = folded[i + 1];
+                declared.Add(name);
+                if (word is "sub" or "function" && (i == 0 || folded[i - 1] is not ("private" or "end"))
+                    && Identifier.IsMatch(name))
+                    procedures.Add(name);
+            }
+        }
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            var token = tokens[i];
+            var word = folded[i];
+            if (token[0] == '"' && token.Length > 1 || token[0] is >= '0' and <= '9'
+                || word.StartsWith("&h", StringComparison.Ordinal) || Punctuation.Contains(token))
+                continue;
+            bool allowed = i > 0 && folded[i - 1] == "." ? Members.Contains(word)
+                : AllowedWords.Contains(word) || declared.Contains(word) || moduleNames.Contains(word);
+            if (!allowed)
+                throw new RefusedVbaException("VBA construct refused: " + token);
+        }
+        return procedures;
+    }
+}

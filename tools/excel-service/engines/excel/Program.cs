@@ -37,6 +37,22 @@ static class Program
 
     static int Main(string[] args)
     {
+        if (args is ["--check-vba-policy"])
+        {
+            try
+            {
+                var buffer = new char[65537];
+                int size = Console.In.ReadBlock(buffer, 0, buffer.Length);
+                if (size == buffer.Length) throw new RefusedVbaException("VBA policy input exceeds 64 KiB");
+                VbaPolicy.CheckGroup(Json.Parse(new string(buffer, 0, size)));
+                return 0;
+            }
+            catch (RefusedVbaException e)
+            {
+                Console.Error.WriteLine(e.Message);
+                return 1;
+            }
+        }
         for (int i = 0; i + 1 < args.Length; i += 2)
         {
             switch (args[i])
@@ -335,6 +351,14 @@ static class Program
         var result = new Dictionary<string, object> { ["id"] = id, ["env_id"] = X.EnvId, ["worker"] = Name, ["batch"] = ++Batches };
         try
         {
+            var groupList = (List<object>)req["groups"];
+            if (groupList.Cast<Dictionary<string, object>>().Any(VbaPolicy.IsVba))
+            {
+                if (serial || groupList.Count != 1)
+                    throw new RefusedVbaException("VBA requires one case and no serial mode");
+                VbaPolicy.CheckGroup(groupList[0]);
+                throw new RefusedVbaException("the VBA case worker route is unavailable");
+            }
             // Drift before: recycle and report; the broker re-queues nothing it has not been told about.
             // The previous batch ended with a verified fingerprint; only after an idle spell is it read again.
             var before = DateTime.UtcNow.Ticks - LastVerified > TimeSpan.TicksPerSecond * 5 ? X.Fingerprint() : X.Baseline;
@@ -348,7 +372,6 @@ static class Program
             }
             WatchdogFired = false;
             Interlocked.Exchange(ref DeadlineTicks, DateTime.UtcNow.AddMilliseconds(deadlineMs).Ticks);
-            var groupList = (List<object>)req["groups"];
             var cases = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "L"));
             var special = groupList.Cast<Dictionary<string, object>>().Any(g => ((string)g["k"]).Split(',').Any(t => t == "f" || t.StartsWith("r") || t.StartsWith("m")));
             if ((special || cases) && serial) throw new InvalidOperationException("range/file arguments and sheet cases are not supported in serial mode");
@@ -379,7 +402,7 @@ static class Program
             result["timing"] = timing;
             Send('R', Json.Write(result));
         }
-        catch (RefusedFormulaException e)
+        catch (Exception e) when (e is RefusedFormulaException or RefusedVbaException)
         {
             Interlocked.Exchange(ref DeadlineTicks, 0);
             result["error"] = "refused";

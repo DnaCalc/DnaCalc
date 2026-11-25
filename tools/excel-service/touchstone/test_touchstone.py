@@ -369,6 +369,81 @@ class AdmissionTests(unittest.TestCase):
         cls.policy = policy
         cls.admission = policy.admission(ROOT)
 
+    def vba_group(self, source=None, **changes):
+        if source is None:
+            source = ('Option Explicit\r\nPublic Function Probe(ByVal x As Long) As Long\r\n'
+                      '    Dim result As Long\r\n'
+                      '    result = x + 1 \' Shell is only a comment\r\n'
+                      '    ThisWorkbook.Worksheets("Data").Range("A1").Value2 = "He said ""Open"""\r\n'
+                      '    Probe = result\r\nEnd Function\r\n')
+        case = {"sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
+                "modules": [{"name": "Probes", "kind": "standard", "source": source}],
+                "workbook": "UEsDBA==", "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
+                "readback": ["Data!A1"], "event_log": ["Data!B1"]}
+        return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [dict(case, **changes)]}
+
+    def test_vba_allows_a_workbook_probe_and_a_listed_literal_object(self):
+        self.admission.check(self.vba_group())
+        self.admission.check(self.vba_group('Public Function Probe(ByVal x As Long) As Long\n'
+                                           '    Dim items As Object\n'
+                                           '    Set items = CreateObject("Scripting.Dictionary")\n'
+                                           '    Probe = items.Count + x\nEnd Function\n'))
+
+    def refused_vba_sources(self):
+        refused = [
+            ("Declare", 'Private Declare Sub NativeCall Lib "fixture" ()'),
+            ("PtrSafe", "PtrSafe"), ("Shell", 'sHeLl "fixture"'),
+            ("CreateObject", 'Set obj = CreateObject("Unlisted.Object")'),
+            ("CreateObject", 'Set obj = CreateObject(x)'),
+            ("GetObject", 'Set obj = GetObject("fixture")'),
+            ("Open", 'Open "fixture" For Input As #1'), ("Kill", 'Kill "fixture"'),
+            ("MkDir", 'MkDir "fixture"'), ("FileCopy", 'FileCopy "a", "b"'),
+            ("Dir", 'Probe = Dir("fixture")'), ("ChDir", 'ChDir "fixture"'),
+            ("SendKeys", 'Application.SendKeys "fixture"'), ("Environ", 'Probe = Environ("fixture")'),
+            ("VBProject", 'Set obj = ThisWorkbook.VBProject'),
+            ("XMLHTTP", 'obj = XMLHTTP'), ("MsgBox", 'MsgBox "fixture"'),
+            ("InputBox", 'Probe = Application.InputBox("fixture")'),
+            ("Workbooks.Open", 'Workbooks.Open "C:\\outside.xlsx"'),
+            ("CallByName", 'CallByName obj, "fixture", 1'),
+            ("SaveAs", 'ThisWorkbook.SaveAs "fixture"'),
+        ]
+        for name, line in refused:
+            source = f"Public Function Probe(ByVal x As Long) As Long\n{line}\nEnd Function\n"
+            yield source, name
+
+    def test_vba_refuses_named_constructs(self):
+        for source, name in self.refused_vba_sources():
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "(?i)" + name.replace(".", r"\.")):
+                self.admission.check(self.vba_group(source))
+
+    def test_vba_checks_the_case_shape_limits_and_call_destination(self):
+        source = "Public Function Probe(ByVal x As Long) As Long\nProbe = x\nEnd Function\n"
+        for detail, group in [
+            ("one VBA case", dict(self.vba_group(), n=2)),
+            ("module source", self.vba_group(source + "'" + "x" * 20000)),
+            ("procedure", self.vba_group(calls=[{"procedure": "Other.Probe", "args": []}])),
+            ("workbook", self.vba_group(workbook="!")),
+            ("readback", self.vba_group(readback=["Other!A1"])),
+            ("event_log", self.vba_group(event_log=["Data!A:A"])),
+        ]:
+            with self.subTest(detail=detail), self.assertRaisesRegex(ValueError, detail):
+                self.admission.check(group)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_checks_source_without_starting_excel(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+        for source, refused in [
+            (None, None),
+            *self.refused_vba_sources(),
+            ('Public Sub Probe()\n' + "'" + "x" * 20000, "module source"),
+        ]:
+            with self.subTest(refused=refused):
+                result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(self.vba_group(source)),
+                                        text=True, capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 0 if refused is None else 1, result.stderr)
+                if refused is not None:
+                    self.assertIn(refused.lower(), result.stderr.lower())
+
     def test_sheet_cases_travel_as_one_token_and_are_bounded(self):
         case = protocol.sheet_case([{"name": "Data", "cells": {"B2": number(ONE), "C3": {"type": "text", "value": "x"},
                                                              "D4": {"type": "formula", "formula": "=B2*2"}},
