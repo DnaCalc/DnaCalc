@@ -449,7 +449,11 @@ pub fn confidence_norm_kernel(
     }
     // dc-bc1o: Excel scales the upper inverse by (sd / sqrt(n)), 121 of 121 against Excel's own
     // NORM.S.INV values (docs/research/confidence-normal-arithmetic-2026-11-12.md).
-    Ok(inverse_standard_normal(1.0 - alpha / 2.0)? * (standard_dev / size_int.sqrt()))
+    // Each operation is stored from x87 (dc-j9k.359: with a huge deviation the binary64 product is
+    // one ulp below Excel's).
+    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_div, excel_x87_mul};
+    let z = inverse_standard_normal(1.0 - alpha / 2.0)?;
+    Ok(excel_x87_mul(z, excel_x87_div(standard_dev, excel_sqrt_staged(size_int))))
 }
 
 #[cfg(test)]

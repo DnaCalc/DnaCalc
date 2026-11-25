@@ -8055,3 +8055,17 @@ fn sinh_small_arguments_use_the_stored_expm1_difference() {
         exact(call("SINH", vec![n(b(x))]), b(want));
     }
 }
+
+/// Excel 20527 (dc-j9k.359): CONFIDENCE.NORM scales the inverse by the x87-stored quotient
+/// sd / sqrt(n); with a huge deviation the binary64 product was one ulp low.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn confidence_norm_scales_by_the_stored_quotient() {
+    let b = f64::from_bits;
+    for name in ["CONFIDENCE.NORM", "CONFIDENCE"] {
+        exact(
+            call(name, vec![n(b(0x3fea_74f0_f20f_283a)), n(b(0x7fe1_ccf3_85eb_c8a1)), n(b(0x430c_6bf5_2634_0010))]),
+            b(0x7e30_88a0_a567_ff78),
+        );
+    }
+}
