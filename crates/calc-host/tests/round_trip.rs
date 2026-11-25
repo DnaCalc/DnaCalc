@@ -6705,6 +6705,8 @@ fn contract_p02_manual_range_followup_demand_survives_the_p06_save_metadata() {
     for (address, text) in [("A1", "1"), ("B1", "=A1*2"), ("C1", "=B1+1")] {
         assert!(enter(&mut book, at(s, address), text).accepted());
     }
+    // This test is about a save that does not calculate: CalculateBeforeSave off (dc-oxh8w.66).
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
     book.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
     assert!(
         book.dispatch(SkinIntent::CalculateRange {
@@ -30698,5 +30700,32 @@ fn dc_971p_6__fc1_font_superscript_and_subscript_states_follow_excels_steps() {
         let expect = |text: &str| text.rsplit(':').next().unwrap().to_lowercase();
         assert_eq!(read(up, second_up).to_lowercase(), expect(f[3]), "{}: A1:A2 Superscript", f[0]);
         assert_eq!(read(down, second_down).to_lowercase(), expect(f[4]), "{}: A1:A2 Subscript", f[0]);
+    }
+}
+
+/// Plain Save (no explicit context) passes Application.CalculateBeforeSave: in Manual mode with the
+/// setting on the stale cache is recalculated and `calcOnSave="1"` written; with it put False the
+/// stale cache is kept and `calcOnSave="0"` written (dc-oxh8w.66).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_66__plain_save_passes_calculate_before_save() {
+    for on in [true, false] {
+        let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+            xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="B1"><f>A1*2</f><v>2</v></c></row></sheetData>"#)
+        });
+        let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+        let mut book = session(&bytes);
+        assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(on)).accepted());
+        let mut saved = Vec::new();
+        book.save(&SavePolicy::default(), &mut saved).unwrap();
+        let xml = part_text(&saved, "xl/workbook.xml");
+        assert!(xml.contains(&format!("calcOnSave=\"{}\"", u8::from(on))), "{on}: {xml}");
+        let reopened = session(&saved);
+        let r = reopened.host().sheets()[0].id();
+        let ProjectedValue::FileCached(cache) = value(reopened.host(), at(r, "B1")) else {
+            panic!("file cache");
+        };
+        let want = if on { 10.0 } else { 2.0 };
+        assert_eq!(cache.value(), &cached_of(&CalcValue::number(want)), "{on}");
     }
 }

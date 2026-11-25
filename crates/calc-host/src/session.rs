@@ -815,7 +815,7 @@ impl HostSession {
             policy,
             crate::ExcelSaveContext {
                 operation: crate::SaveOperation::Save,
-                calculate_before_save: false,
+                calculate_before_save: self.host.calculate_before_save(),
                 active_sheet,
                 disabled_sheets: &[],
                 before_save: None,
@@ -910,7 +910,8 @@ impl HostSession {
         let enabled = |sheet| !context.disabled_sheets.contains(&sheet);
         let scope = if !enabled(context.active_sheet) {
             None
-        } else if context.calculate_before_save {
+        } else if context.calculate_before_save && self.calc_mode() == CalcMode::Manual {
+            // Excel offers the option, and applies it to Save, only in manual mode (dc-oxh8w.66).
             Some(if context.disabled_sheets.is_empty() {
                 calc_engine::CalcScope::Workbook
             } else {
