@@ -67,9 +67,13 @@ impl WorkbookAutomation {
             AutoValue::Text(_) => inches
                 .as_text()
                 .and_then(|t| t.trim().parse::<f64>().ok())
+                .filter(|n| n.is_finite())
                 .ok_or_else(geometry::type_mismatch)?,
             _ => return Err(geometry::type_mismatch()),
         };
+        if !inches.is_finite() {
+            return Err(geometry::type_mismatch());
+        }
         Ok(AutoValue::R8(inches * 72.0))
     }
 
@@ -416,18 +420,42 @@ impl WorkbookAutomation {
         })
     }
 
-    /// Assigning False cancels Cut or Copy mode and empties the clipboard's marked range; Excel accepts the
-    /// xlCopy and xlCut constants it reports (a no-op while that mode is on), refused otherwise.
+    /// Assigning False/0/0.0/Empty cancels Cut or Copy mode and empties the clipboard's marked
+    /// range; assigning True/xlCopy/xlCut is uncaptured from Excel and refuses typed (dc-oxh8w.49).
     fn put_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
-        if call.args.len() != 1 {
-            return Err(geometry::bad_count());
-        }
-        match call.arg(0) {
-            AutoValue::Bool(false) => *self.clipboard.borrow_mut() = None,
-            AutoValue::I2(0) | AutoValue::I4(0) => *self.clipboard.borrow_mut() = None,
-            AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => {}
-            _ => return Err(excel_error()),
-        }
-        Ok(AutoValue::Empty)
+        self.with_write(|_| {
+            if call.args.len() != 1 {
+                return Err(geometry::bad_count());
+            }
+            match call.arg(0) {
+                AutoValue::Bool(false)
+                | AutoValue::Empty
+                | AutoValue::I2(0)
+                | AutoValue::I4(0)
+                | AutoValue::Currency(0) => *self.clipboard.borrow_mut() = None,
+                AutoValue::R4(v) if *v == 0.0 => *self.clipboard.borrow_mut() = None,
+                AutoValue::R8(v) if *v == 0.0 => *self.clipboard.borrow_mut() = None,
+                AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => {
+                    return Err(AutoError::not_modelled(
+                        "Application.CutCopyMode = True/xlCopy/xlCut",
+                        "dc-oxh8w.49",
+                    ));
+                }
+                AutoValue::R4(v) if *v == 1.0 || *v == 2.0 => {
+                    return Err(AutoError::not_modelled(
+                        "Application.CutCopyMode = True/xlCopy/xlCut",
+                        "dc-oxh8w.49",
+                    ));
+                }
+                AutoValue::R8(v) if *v == 1.0 || *v == 2.0 => {
+                    return Err(AutoError::not_modelled(
+                        "Application.CutCopyMode = True/xlCopy/xlCut",
+                        "dc-oxh8w.49",
+                    ));
+                }
+                _ => return Err(excel_error()),
+            }
+            Ok(AutoValue::Empty)
+        })
     }
 }

@@ -3038,6 +3038,37 @@ fn dc_cmruz_default_member_assignment_to_a_global_range_call_compiles() {
     }
 }
 
+/// dc-z34rd (rw13 finding 2): the same assignments must also RUN. A late-bound receiver
+/// (`Sheets("Sheet1")`, `ActiveSheet`) reaches `Range("A1") = 3` as a Put on `Range`, whose getter
+/// takes arguments; Excel indexes the getter with the leading arguments and assigns the last.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_z34rd_late_bound_range_assignment_runs() {
+    use calc_host_vba::{ModuleSource, ModuleTarget};
+    for body in [
+        "Sheets(\"Sheet1\").Range(\"A1\") = 3",
+        "ActiveSheet.Range(\"A1\") = 3",
+        "ActiveSheet.Cells(1, 1) = 3",
+        "ActiveSheet.Range(\"A1\").Offset(0, 0) = 3",
+    ] {
+        let mut session = opened(&calc_host::blank_package(), "z34rd.xlsm");
+        let source = format!(
+            "Public Function Go() As String\n {body}\n Go = CStr(Sheets(\"Sheet1\").Range(\"A1\").Value)\nEnd Function\n"
+        );
+        let modules = vec![ModuleSource { name: "Module1".into(), source, target: ModuleTarget::Standard }];
+        let prepared =
+            calc_host_vba::prepare(session.host(), "z34rd.xlsm", &modules, 50_000, Some(calc_vba::Backend::Interpreter))
+                .unwrap_or_else(|e| panic!("{body}: {e:?}"));
+        let record = prepared.run_procedure(&mut session, "Module1.Go", &[]);
+        match record.outcome {
+            calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(t)) => {
+                assert_eq!(t, "3", "{body}")
+            }
+            other => panic!("{body}: {other:?}"),
+        }
+    }
+}
+
 /// dc-y7tqj (rw12 finding 17f): an unbound Document module (e.g. a chart sheet or a sheet whose
 /// codeName is not in `vba_document_names`) must refuse with `FileProjectError::UnsupportedModule`
 /// instead of silently loading as a bare `Class` module.
