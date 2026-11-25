@@ -1750,3 +1750,15 @@ fn search_empty_in_empty_is_value() {
 fn unichar_last_code_point_is_na() {
     error(call("UNICHAR", vec![n(f64::from_bits(0x4130_ffff_0000_0000))]), NA);
 }
+
+/// Live Excel, bit-exact cells (dc-j9k.362): MID reads a start up to 2147483648.99; MIDB stops at the signed
+/// 32-bit bound, so a start that truncates to 2147483648 or more is #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn midb_start_stops_at_the_signed_32_bit_bound() {
+    text(call("MIDB", vec![t("abcd"), n(2147483647.9999995), n(1.0)]), "");
+    error(call("MIDB", vec![t("abcd"), n(2147483648.0), n(1.0)]), Value);
+    error(call("MIDB", vec![t("abcd"), n(2147483648.5), n(1.0)]), Value);
+    text(call("MID", vec![t("abcd"), n(2147483648.5), n(1.0)]), "");
+    error(call("MID", vec![t("abcd"), n(2147483649.0), n(1.0)]), Value);
+}
