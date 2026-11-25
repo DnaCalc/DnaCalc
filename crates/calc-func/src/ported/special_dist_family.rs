@@ -219,6 +219,11 @@ pub fn weibull_dist_kernel(
         excel_exp, excel_expm1_internal, excel_pow_chain, excel_x87_div, excel_x87_mul,
     };
     let ratio = excel_x87_div(x, beta);
+    // Excel 20527 (dc-j9k.255): a stored exponent product alpha * ln(ratio) that overflows is
+    // #NUM!, not an exponential that underflows to zero.
+    if ratio > 0.0 && !excel_x87_mul(alpha, crate::ported::excel_numeric::excel_log(ratio)).is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let power = excel_pow_chain(ratio, alpha);
     if !power.is_finite() {
         return Err(WorksheetErrorCode::Num);

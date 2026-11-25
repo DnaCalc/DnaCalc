@@ -2417,3 +2417,19 @@ fn imexp_past_2_pow_27_scales_the_largest_double() {
     error(call("IMEXP", vec![t("338.501785-232076421.2i")]), Num);
     error(call("IMEXP", vec![t("1-1e9i")]), Num);
 }
+
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.289/.290): COMPLEX reads the suffix first.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_reads_the_suffix_before_the_coefficients() {
+    use calc_func::value::WorksheetErrorCode::{Null, Ref};
+    error(call("COMPLEX", vec![e(Null), n(120.0), n(5.0)]), Value);
+    error(call("COMPLEX", vec![n(1.0), e(Ref), n(5.0)]), Value);
+    error(call("COMPLEX", vec![e(Ref), e(Div0), t("k")]), Value);
+    error(call("COMPLEX", vec![t("x"), n(1.0), e(Ref)]), Ref);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), e(Ref)]), Ref);
+    error(call("COMPLEX", vec![e(Ref), n(2.0), t("i")]), Ref);
+    error(call("COMPLEX", vec![e(Value), e(Ref), t("i")]), Value);
+    error(call("COMPLEX", vec![e(Ref), e(Value), t("i")]), Ref);
+    error(call("COMPLEX", vec![e(Div0), n(1.0)]), Div0);
+}

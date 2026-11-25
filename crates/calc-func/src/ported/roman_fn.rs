@@ -71,7 +71,9 @@ fn roman_form2_under_1000(number: u32) -> String {
             "C".repeat((number / 100) as usize),
             roman_form2_under_100(number % 100)
         ),
-        400..=489 => format!("CD{}", roman_form2_under_100(number - 400)),
+        400..=449 => format!("CD{}", roman_form2_under_100(number - 400)),
+        // Excel's forms 2-4 write 450-489 and 950-989 with L (dc-j9k.360, full grid asked in Excel 20625).
+        450..=489 => format!("LD{}", roman_form2_under_100(number - 450)),
         490..=499 => format!("XD{}", standard_roman(number - 490)),
         500..=899 => {
             let remainder = number - 500;
@@ -81,7 +83,8 @@ fn roman_form2_under_1000(number: u32) -> String {
                 roman_form2_under_100(remainder % 100)
             )
         }
-        900..=989 => format!("CM{}", roman_form2_under_100(number - 900)),
+        900..=949 => format!("CM{}", roman_form2_under_100(number - 900)),
+        950..=989 => format!("LM{}", roman_form2_under_100(number - 950)),
         990..=999 => format!("XM{}", standard_roman(number - 990)),
         _ => unreachable!("number out of range"),
     }
@@ -95,7 +98,9 @@ fn roman_form3_under_1000(number: u32) -> String {
             "C".repeat((number / 100) as usize),
             roman_form2_under_100(number % 100)
         ),
-        400..=489 => format!("CD{}", roman_form2_under_100(number - 400)),
+        400..=449 => format!("CD{}", roman_form2_under_100(number - 400)),
+        // Excel's forms 2-4 write 450-489 and 950-989 with L (dc-j9k.360, full grid asked in Excel 20625).
+        450..=489 => format!("LD{}", roman_form2_under_100(number - 450)),
         490..=494 => format!("XD{}", standard_roman(number - 490)),
         495..=499 => format!("VD{}", standard_roman(number - 495)),
         500..=899 => {
@@ -106,7 +111,8 @@ fn roman_form3_under_1000(number: u32) -> String {
                 roman_form2_under_100(remainder % 100)
             )
         }
-        900..=989 => format!("CM{}", roman_form2_under_100(number - 900)),
+        900..=949 => format!("CM{}", roman_form2_under_100(number - 900)),
+        950..=989 => format!("LM{}", roman_form2_under_100(number - 950)),
         990..=994 => format!("XM{}", standard_roman(number - 990)),
         995..=999 => format!("VM{}", standard_roman(number - 995)),
         _ => unreachable!("number out of range"),
@@ -123,7 +129,9 @@ fn roman_form4_under_1000(number: u32) -> String {
             "C".repeat((number / 100) as usize),
             roman_form2_under_100(number % 100)
         ),
-        400..=489 => format!("CD{}", roman_form2_under_100(number - 400)),
+        400..=449 => format!("CD{}", roman_form2_under_100(number - 400)),
+        // Excel's forms 2-4 write 450-489 and 950-989 with L (dc-j9k.360, full grid asked in Excel 20625).
+        450..=489 => format!("LD{}", roman_form2_under_100(number - 450)),
         490..=494 => format!("XD{}", standard_roman(number - 490)),
         495..=498 => format!("VD{}", standard_roman(number - 495)),
         500..=899 => {
@@ -134,7 +142,8 @@ fn roman_form4_under_1000(number: u32) -> String {
                 roman_form2_under_100(remainder % 100)
             )
         }
-        900..=989 => format!("CM{}", roman_form2_under_100(number - 900)),
+        900..=949 => format!("CM{}", roman_form2_under_100(number - 900)),
+        950..=989 => format!("LM{}", roman_form2_under_100(number - 950)),
         990..=994 => format!("XM{}", standard_roman(number - 990)),
         995..=998 => format!("VM{}", standard_roman(number - 995)),
         _ => unreachable!("number out of range"),

@@ -7897,3 +7897,125 @@ fn lognorm_density_variance_underflow_and_overflow_are_div0() {
         assert!(number(call(name, vec![n(10.0), n(0.0), n(1e-154), flag(true)])) >= 0.0);
     }
 }
+
+/// Excel 20527 (dc-j9k.309, .354): a significance of 309 or more places is #DIV/0! (10^309
+/// overflows) in PERCENTRANK, PERCENTRANK.INC and PERCENTRANK.EXC, after the out-of-range
+/// (#N/A) and the single-member checks; 308 places still answer.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn percentrank_significance_beyond_308_places_is_div0() {
+    for name in ["PERCENTRANK", "PERCENTRANK.INC", "PERCENTRANK.EXC"] {
+        let data = || col(&[1.0, 2.0, 4.0, 7.0, 11.0]);
+        error(call(name, vec![data(), n(3.3), n(309.0)]), Div0);
+        assert!(number(call(name, vec![data(), n(3.3), n(308.99999999)])) > 0.0); // truncates to 308
+        error(call(name, vec![data(), n(4.0), n(1e100)]), Div0);
+        error(call(name, vec![data(), n(100.0), n(309.0)]), NA);
+        error(call(name, vec![data(), n(3.3), n(-400.0)]), Num);
+        exact(call(name, vec![col(&[5.0]), n(5.0), n(309.0)]), 1.0);
+    }
+    exact(call("PERCENTRANK.INC", vec![col(&[1.0, 2.0, 4.0, 7.0, 11.0]), n(4.0), n(308.0)]), 0.5);
+}
+
+/// Excel 20527 (dc-j9k.310/.311/.312/.355/.356): the truncated rank is published from the
+/// 15-digit reading as N * 10^(places - k) / POWER(10, places), so high significance carries the
+/// scale's rounding: PERCENTRANK.INC of these two-member ranges differs from the plain
+/// truncation by 1 to 12 ulps.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn percentrank_publishes_the_fifteen_digit_reading_through_the_decimal_scale() {
+    let b = f64::from_bits;
+    let pair = |lo: u64, hi: u64| col(&[b(lo), b(hi)]);
+    for name in ["PERCENTRANK", "PERCENTRANK.INC"] {
+        exact(
+            call(name, vec![pair(0x403c_80c7_3bcd_cbc0, 0x408b_1fff_7237_acf1), n(b(0x4062_5ffe_0000_0000)), n(b(0x4063_3800_0000_0000))]),
+            b(0x3fc2_1145_962b_771d),
+        );
+        exact(
+            call(name, vec![pair(0x403c_80c7_3bcd_cbc0, 0x408b_1fff_7237_acf1), n(b(0x4052_5ffe_0000_0000)), n(b(0x4063_3800_0000_0000))]),
+            b(0x3fab_716e_2c52_88c6),
+        );
+        exact(
+            call(name, vec![pair(0xc08b_6e83_a2d1_de9e, 0x408d_ccfb_2936_3193), n(b(0x4072_2fc0_0000_0000)), n(b(0x4071_4002_0000_0000))]),
+            b(0x3fe4_6c06_7b1f_2ddf),
+        );
+        exact(
+            call(name, vec![col(&[1.0, 2.0, 4.0, 7.0, 11.0]), n(3.3), n(100.0)]),
+            b(0x3fda_6666_6666_6667),
+        );
+        exact(
+            call(name, vec![col(&[1.0, 2.0, 3.0, 4.0]), n(2.0), n(23.0)]),
+            f64::from_bits(0x3fd5_5555_5555_5550 + 0),
+        );
+    }
+}
+
+/// Excel 20527 (dc-j9k.313, .328, .331): SUMX2MY2, SUMX2PY2 and SUMXMY2 pair the cells in
+/// row-major order when the two ranges have the same count of cells, whatever their shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sum_of_squares_pairs_ranges_of_equal_count_with_different_shapes() {
+    let square = || arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    let column = || col(&[1.0, 2.0, 4.0, 8.0]);
+    exact(call("SUMX2MY2", vec![square(), column()]), -55.0);
+    exact(call("SUMX2PY2", vec![square(), column()]), 115.0);
+    exact(call("SUMXMY2", vec![square(), column()]), 17.0);
+    for name in ["SUMX2MY2", "SUMX2PY2", "SUMXMY2"] {
+        error(call(name, vec![square(), col(&[1.0, 2.0, 3.0])]), NA);
+    }
+}
+
+/// Excel 20527 (dc-j9k.286-288): TINV and T.INV.2T answer #DIV/0! at one degree and #NUM! at more
+/// for a probability of either sign whose magnitude lies from DBL_MIN to 0x001ffffffffffffe;
+/// 0x001fffffffffffff and above are computed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_inverse_two_tailed_refuses_the_first_normal_binade_of_probability() {
+    let b = f64::from_bits;
+    for name in ["TINV", "T.INV.2T"] {
+        for p in [0x0010_0000_0000_0000_u64, 0x0010_0000_0000_0001, 0x0010_0000_0000_0253, 0x001f_ffff_ffff_fffe] {
+            error(call(name, vec![n(b(p)), n(1.0)]), Div0);
+            error(call(name, vec![n(-b(p)), n(1.0)]), Div0);
+            for df in [2.0, 3.0, 4.0, 100.0] {
+                error(call(name, vec![n(b(p)), n(df)]), Num);
+                error(call(name, vec![n(-b(p)), n(df)]), Num);
+            }
+        }
+        assert!(number(call(name, vec![n(b(0x001f_ffff_ffff_ffff)), n(1.0)])) > 0.0);
+        assert!(number(call(name, vec![n(b(0x0020_0000_0000_0000)), n(4.0)])) > 0.0);
+        error(call(name, vec![n(-b(0x001f_ffff_ffff_ffff)), n(1.0)]), Num);
+    }
+}
+
+/// Excel 20527 (dc-j9k.284): GAMMAINV and GAMMA.INV answer #NUM! when the small-shape power seed's
+/// logarithm overflows in the division by the shape (shape DBL_MIN, p = 0.0074), not zero; a seed
+/// that only underflows (p = 0.3) is still zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_inverse_small_shape_seed_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["GAMMAINV", "GAMMA.INV"] {
+        for beta in [b(0x0010_0000_0000_0000), b(0x0010_0000_0000_0002), 1.0, 1e10] {
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0000)), n(beta)]), Num);
+            error(call(name, vec![n(b(0x3f7e_4f76_5fd8_adac)), n(b(0x0010_0000_0000_0002)), n(beta)]), Num);
+        }
+    }
+}
+
+/// Excel 20527 (dc-j9k.255): WEIBULL.DIST and WEIBULL answer #NUM! when the stored exponent
+/// product alpha * ln(x / beta) overflows (a huge shape with a ratio below one), not zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weibull_exponent_product_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["WEIBULL.DIST", "WEIBULL"] {
+        for cumulative in [true, false] {
+            error(
+                call(name, vec![
+                    n(b(0x7f5d_3f1e_e25a_84df)), n(b(0x7fd8_d766_ca02_60b9)), n(b(0x7fc9_c0d7_b054_f143)),
+                    f1_support::b(cumulative),
+                ]),
+                Num,
+            );
+        }
+    }
+}
