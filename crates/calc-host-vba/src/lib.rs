@@ -462,6 +462,20 @@ impl WorkbookEventHandler for WorkbookEvents {
                     source.change_object(target_obj, self.max_steps)
                 })?;
         }
+        // Excel raises the workbook's Sheet event after the sheet's own.
+        if let Some(book) = &self.book {
+            let reference =
+                ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
+            let target_obj = self
+                .automation
+                .acquire_event_range(session, &reference)
+                .map_err(|e| e.description())?;
+            let sheet_obj = self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    book.sheet_change_object(sheet_obj, target_obj, self.max_steps)
+                })?;
+        }
         Ok(())
     }
     fn worksheet_calculate(
@@ -474,6 +488,35 @@ impl WorkbookEventHandler for WorkbookEvents {
             self.automation
                 .with_event_session(session, self.file_project, || {
                     source.calculate_model(self.max_steps)
+                })?;
+        }
+        if let Some(book) = &self.book {
+            let sheet_obj = self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    book.sheet_calculate_object(sheet_obj, self.max_steps)
+                })?;
+        }
+        Ok(())
+    }
+    fn selection_changed(
+        &self,
+        session: &mut calc_host::HostSession,
+        sheet: SheetId,
+        target: &[GridArea],
+    ) -> Result<(), String> {
+        self.require_automatic_events()?;
+        if let Some(book) = &self.book {
+            let reference =
+                ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
+            let target_obj = self
+                .automation
+                .acquire_event_range(session, &reference)
+                .map_err(|e| e.description())?;
+            let sheet_obj = self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    book.sheet_selection_change_object(sheet_obj, target_obj, self.max_steps)
                 })?;
         }
         Ok(())

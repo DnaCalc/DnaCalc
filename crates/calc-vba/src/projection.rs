@@ -878,44 +878,35 @@ impl HostObjectServices for ModelObject {
         let book_events_iid = descriptor::interface_iid_bytes(
             d.id("WorkbookEvents").expect("WorkbookEvents in descriptor"),
         );
-        let range_iid = descriptor::interface_iid_bytes(
-            d.id("Range").expect("Range in descriptor"),
-        );
 
-        let valid = if iface_name == "_Worksheet" {
-            descriptor.interface == doc_events_iid
-                && match descriptor.dispatch_id {
-                    1545 => {
-                        descriptor.name.eq_ignore_ascii_case("Change")
-                            && descriptor.parameters == [EventParameter::Object(Some(range_iid))]
-                    }
-                    279 => {
-                        descriptor.name.eq_ignore_ascii_case("Calculate")
-                            && descriptor.parameters.is_empty()
-                    }
-                    _ => false,
-                }
-        } else if iface_name == "_Workbook" {
-            descriptor.interface == book_events_iid
-                && match descriptor.dispatch_id {
-                    1547 => {
-                        descriptor.name.eq_ignore_ascii_case("BeforeSave")
-                            && descriptor.parameters
-                                == [EventParameter::Boolean, EventParameter::BooleanByRef]
-                    }
-                    1923 => {
-                        descriptor.name.eq_ignore_ascii_case("Open")
-                            && descriptor.parameters.is_empty()
-                    }
-                    1552 => {
-                        descriptor.name.eq_ignore_ascii_case("AddinInstall")
-                            && descriptor.parameters.is_empty()
-                    }
-                    _ => false,
-                }
-        } else {
-            false
+        let host_type = match iface_name.as_str() {
+            "_Worksheet" => "Worksheet",
+            "_Workbook" => "Workbook",
+            _ => "",
         };
+        let expected_events = if host_type == "Worksheet" {
+            doc_events_iid
+        } else {
+            book_events_iid
+        };
+        let valid = descriptor.interface == expected_events
+            && descriptor::document_event(d, host_type, &descriptor.name).is_some_and(
+                |(member, shape)| {
+                    member.dispid == descriptor.dispatch_id
+                        && shape.len() == descriptor.parameters.len()
+                        && shape.iter().zip(&descriptor.parameters).all(|(want, got)| {
+                            match (want, got) {
+                                (descriptor::EventShape::Object, EventParameter::Object(_))
+                                | (descriptor::EventShape::Boolean, EventParameter::Boolean)
+                                | (
+                                    descriptor::EventShape::BooleanByRef,
+                                    EventParameter::BooleanByRef,
+                                ) => true,
+                                _ => false,
+                            }
+                        })
+                },
+            );
         if !valid {
             return Err(13);
         }

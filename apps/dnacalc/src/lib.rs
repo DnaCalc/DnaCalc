@@ -40,7 +40,7 @@ pub const USAGE: &str = "usage: dnacalc <command> [arguments] [options]
   get    <book> <cell>...                 a cell's formula, cached value and calculated value
   set    <book> <cell> <text> [<cell> <text>]... [--out <file>]   enter cells as typed, recalculate, save with --out
   run    <book> --macro <Module.Proc> [--arg <value>]... [--out <file>]   run a public VBA Sub or Function of the file's project
-  run    <book> --all                     run every public entry that needs no argument, each in its own session
+  run    <book> --all [--fixtures]        run every public entry, each in its own session; --fixtures gives required scalar arguments a documented value (Number 1, Boolean True, Text 1)
 workbook options: --json  one JSON document on stdout;  --macro-level off|guarded|unguarded  (default off)
          --locale <culture>  the regional settings TEXT, VALUE and ASC read (default en-US, DNA Calc's own; Excel's are not read)
          NOW and TODAY read this machine's clock (UTC)
@@ -71,6 +71,7 @@ pub(crate) struct Cli {
     pub(crate) macro_name: Option<String>,
     pub(crate) macro_args: Vec<String>,
     pub(crate) all_macros: bool,
+    pub(crate) fixtures: bool,
     pub(crate) locale: String,
 }
 
@@ -88,6 +89,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
         macro_name: None,
         macro_args: Vec::new(),
         all_macros: false,
+        fixtures: false,
         locale: "en-US".into(),
     };
     let mut books = Vec::new();
@@ -101,6 +103,7 @@ fn parse(args: &[String]) -> Result<Cli, Failure> {
             "--json" => cli.json = true,
             "--cells" => cli.list_cells = true,
             "--all" => cli.all_macros = true,
+            "--fixtures" => cli.fixtures = true,
             "--out" => cli.out = Some(value("a file")?),
             "--macro" => cli.macro_name = Some(value("Module.Proc")?),
             "--arg" => cli.macro_args.push(value("a value")?),

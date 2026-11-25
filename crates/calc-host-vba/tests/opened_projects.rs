@@ -1207,16 +1207,16 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
                 .iter()
                 .all(|f| f.reason.contains("dc-snz.15"))
         );
-        assert!(
-            calc_host_vba::prepare_file_project(
-                &grant(),
-                session.host(),
-                "probe.xlsm",
-                1_000_000,
-                backend
-            )
-            .is_err()
-        );
+        // The probe project's Workbook_Sheet* handlers are admitted (dc-d7cgp); a second
+        // preparation of the same project succeeds.
+        calc_host_vba::prepare_file_project(
+            &grant(),
+            session.host(),
+            "probe.xlsm",
+            1_000_000,
+            backend,
+        )
+        .unwrap();
     }
 }
 

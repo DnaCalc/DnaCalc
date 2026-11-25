@@ -8,3 +8,6 @@ mod opened_projects;
 
 #[path = "commands.rs"]
 mod commands;
+
+#[path = "workbook_sheet_events.rs"]
+mod workbook_sheet_events;
