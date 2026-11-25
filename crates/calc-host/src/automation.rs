@@ -189,6 +189,7 @@ impl WorkbookAutomation {
             InvokeKind::Get,
             Self::app_selection,
         );
+        handlers.on("Application", "ActiveCell", InvokeKind::Get, Self::app_selection);
         handlers.on(
             "Application",
             "Volatile",

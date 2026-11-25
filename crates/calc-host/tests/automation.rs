@@ -4638,6 +4638,68 @@ mod xlc {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_text_reference_uses_active_cell_and_quoted_sheet() {
+        let (host, model) = setup();
+        assert!(
+            host.session
+                .borrow_mut()
+                .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                    sheet: None,
+                    change: SheetChange::Add { name: "O'Brien ! data".into() },
+                }))
+                .accepted()
+        );
+        select_cells(&host, (5, 4), (5, 4));
+        model.context_changed(&host.session.borrow());
+        let cases = [
+            ("R[-2]C[1]", "E3", "relative"),
+            ("rC2", "B5", "mixed"),
+            ("'O''Brien ! data'!R[1]C[-1]", "'O''Brien ! data'!C6", "qualified"),
+        ];
+        for (r1c1, a1, value) in cases {
+            done(run(&*model, "xlcFormula", vec![AutoValue::text(value), AutoValue::text(r1c1)]));
+            assert_eq!(text(&model, &range(&model, a1), "Value2"), value);
+        }
+        for bad in ["R[-5]C", "R0C1", "R1C1[1]", "A1", "R1C1+R2C2"] {
+            assert_eq!(
+                run(&*model, "xlcFormula", vec![AutoValue::I4(111), AutoValue::text(bad)]).unwrap_err(),
+                XlcError::Operand("text reference"),
+                "{bad}",
+            );
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_workbook_name_renames_the_requested_sheet() {
+        let (host, model) = setup();
+        let old = sheet_names(&host)[0].clone();
+        done(xlc::execute(&*model, 386, &[AutoValue::text(&old), AutoValue::text("Report")]));
+        assert_eq!(sheet_names(&host)[0], "Report");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn xlc_paste_special_transposes_values_without_copying_formulas() {
+        let (host, model) = setup();
+        enter(&host, at(&host, 30, 1), "=6*7");
+        enter(&host, at(&host, 30, 2), "43");
+        done(run(&*model, "xlcCalculateNow", vec![]));
+        done(run(&*model, "xlcCopy", vec![AutoValue::text("R30C1:R30C2")]));
+        select_cells(&host, (31, 3), (31, 3));
+        model.context_changed(&host.session.borrow());
+        done(xlc::execute(
+            &*model,
+            53,
+            &[AutoValue::I4(3), AutoValue::I4(1), AutoValue::Bool(false), AutoValue::Bool(true)],
+        ));
+        assert_eq!(number(&model, "C31"), 42.0);
+        assert_eq!(number(&model, "C32"), 43.0);
+        assert_eq!(text(&model, &range(&model, "C31"), "Formula"), "42");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_table_matches_the_inventory_and_the_descriptor() {
         let doc = String::from_utf8_lossy(include_bytes!("../../../docs/architecture/C_API_COMMANDS.md")).into_owned();
         let mut seen = std::collections::HashSet::new();
@@ -4844,22 +4906,21 @@ mod xlc {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn implicit_relative_references_receive_the_relative_refusal() {
-        let (_, model) = setup();
+    fn implicit_relative_coordinates_and_whole_axes_translate_to_a1() {
+        let (host, model) = setup();
+        select_cells(&host, (5, 4), (5, 4));
+        model.context_changed(&host.session.borrow());
         let spy = spy(&model);
-        let expected = XlcError::NotModelled {
-            what: "a sheet-qualified or relative text reference",
-            owner: "dc-oxh8w.9",
-        };
-        for operand in [
-            "RC", "R", "c", "R1C", "rC1", "R1C1:RC", "RC1:R2C2", "R1:R", "C2:c",
+        for (operand, a1) in [
+            ("RC", "D5"), ("R", "5:5"), ("c", "D:D"), ("R1C", "D1"), ("rC1", "A5"),
+            ("R1C1:RC", "A1:D5"), ("RC1:R2C2", "A5:B2"), ("R1:R", "1:5"), ("C2:c", "B:D"),
         ] {
-            assert_eq!(
-                run(&spy, "xlcSelect", vec![AutoValue::text(operand)]).unwrap_err(),
-                expected,
-                "{operand}",
-            );
+            spy.calls.borrow_mut().clear();
+            let _ = run(&spy, "xlcSelect", vec![AutoValue::text(operand)]);
+            let expected = format!("_Application.Range Get('{a1}')");
+            assert!(spy.calls.borrow().contains(&expected), "{operand}");
         }
+        spy.calls.borrow_mut().clear();
         assert_eq!(
             run(&spy, "xlcSelect", vec![AutoValue::text("R0C")]).unwrap_err(),
             XlcError::Operand("text reference"),
@@ -4895,7 +4956,7 @@ mod xlc {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn commands_call_the_members_and_pass_refusals_through() {
-        let (_host, model) = setup();
+        let (host, model) = setup();
         let text = AutoValue::text;
         let unmodelled = |what| AutoError::not_modelled(what, "dc-1nbp.5");
         let metadata_shift = |member| {
@@ -5034,10 +5095,7 @@ mod xlc {
                 "xlcCopy",
                 vec![text("R1C1")],
                 &["_Application.Range Get('A1')", "Range.Copy Method()"],
-                Some(AutoError::not_modelled(
-                    "Range.Copy to the clipboard",
-                    "dc-0f1k.24",
-                )),
+                None,
             ),
             (
                 "xlcCopy",
@@ -5067,7 +5125,7 @@ mod xlc {
                     "_Application.Range Get('A5')",
                     "_Worksheet.Paste Method(obj)",
                 ],
-                Some(unmodelled("_Worksheet.Paste")),
+                None,
             ),
             (
                 "xlcPaste",
@@ -5076,7 +5134,7 @@ mod xlc {
                     "_Application.ActiveSheet Get()",
                     "_Worksheet.Paste Method()",
                 ],
-                Some(unmodelled("_Worksheet.Paste")),
+                None,
             ),
             (
                 "xlcDefineName",
@@ -5107,6 +5165,12 @@ mod xlc {
             ),
         ];
         for (symbol, operands, calls, error) in cases {
+            if symbol == "xlcPaste" {
+                value2(&model, "G31", AutoValue::R8(61.0));
+                done(run(&*model, "xlcCopy", vec![text("R31C7")]));
+                select_cells(&host, (30, 7), (30, 7));
+                model.context_changed(&host.session.borrow());
+            }
             let spy = spy(&model);
             let result = run(&spy, symbol, operands);
             assert_eq!(&*spy.calls.borrow(), calls, "{symbol}");
