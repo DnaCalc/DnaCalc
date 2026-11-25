@@ -444,7 +444,9 @@ Public Function OpenWith(ByVal path As String) As String
  OpenWith = book.Name & "/" & Workbooks.Count
 End Function
 Public Function OpenReadOnly(ByVal path As String) As String
- OpenReadOnly = Workbooks.Open(path, 0, True).Name
+ Dim book As Workbook
+ Set book = Workbooks.Open(path, 0, True)
+ OpenReadOnly = book.Name & "/" & book.ReadOnly & "/" & Workbooks(1).ReadOnly
 End Function
 Public Function OpenBadType(ByVal path As String) As String
  OpenBadType = Workbooks.Open(path, "often").Name
@@ -617,7 +619,7 @@ End Function
         assert_eq!(text(opened), "fixture.xlsm/fixture.xlsm/4");
         let with = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenWith"), AutoValue::text("fixture.xlsm")]);
         assert_eq!(text(with), "fixture.xlsm/5", "options after FileName that change nothing here are accepted");
-        for (name, wanted) in [("OpenReadOnly", Some("dc-oxh8w.75")), ("OpenPassword", Some("dc-oxh8w.75")), ("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
+        for (name, wanted) in [("OpenPassword", Some("dc-oxh8w.75")), ("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
             let mut arguments = vec![AutoValue::text(&format!("Other.xlsm!{name}"))];
             if name != "AddChart" {
                 arguments.push(AutoValue::text("fixture.xlsm"));
@@ -633,6 +635,10 @@ End Function
         assert_eq!(text(template), "Book2/6", "a workbook made from a template file is named BookN");
         let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("gone.xlsm")]);
         assert!(matches!(&missing, Err(AutoError::Excel { number: 1004, description }) if description.contains("could not be found")), "{missing:?}");
+        let read_only = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenReadOnly"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(read_only), "fixture.xlsm/True/False", "ReadOnly:=True opens a read-only workbook; the others stay writable");
+        let plain = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
+        assert!(plain.is_ok(), "{plain:?}");
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");

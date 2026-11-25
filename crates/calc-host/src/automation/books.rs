@@ -51,6 +51,8 @@ struct Books {
     active: u64,
     /// Activation history, most recent first: the workbook that becomes active when the active one closes.
     history: Vec<u64>,
+    /// Workbooks opened with `Workbooks.Open ReadOnly:=True`.
+    read_only: Vec<u64>,
     factory: Option<Rc<dyn BookFactory>>,
 }
 
@@ -63,7 +65,7 @@ impl Drop for Books {
 }
 
 thread_local! {
-    static BOOKS: RefCell<Books> = RefCell::new(Books { entries: Vec::new(), next: 1, active: 0, history: Vec::new(), factory: None });
+    static BOOKS: RefCell<Books> = RefCell::new(Books { entries: Vec::new(), next: 1, active: 0, history: Vec::new(), read_only: Vec::new(), factory: None });
 }
 
 /// The next workbook identity of this application; identities are unique across its workbooks.
@@ -179,6 +181,7 @@ impl WorkbookAutomation {
         handlers.on("Workbooks", "Add", InvokeKind::Method, Self::books_add);
         handlers.on("Workbooks", "Open", InvokeKind::Method, Self::books_open);
         handlers.on("Workbook", "Activate", InvokeKind::Method, Self::workbook_activate);
+        handlers.on("Workbook", "ReadOnly", InvokeKind::Get, Self::workbook_read_only);
         handlers.on("Workbooks", "Close", InvokeKind::Method, Self::books_close);
         handlers.on("Workbook", "Close", InvokeKind::Method, Self::workbook_close_own);
     }
@@ -259,8 +262,16 @@ impl WorkbookAutomation {
             let AutoValue::Text(path) = call.arg(0) else {
                 return Err(AutoError::excel(1004, "Workbooks.Open: the file name must be text"));
             };
-            open_options(call)?;
-            Ok(Self::book_object(self.factory()?.open(&path.to_string_lossy())?))
+            let read_only = open_options(call)?;
+            let id = self.factory()?.open(&path.to_string_lossy())?;
+            BOOKS.with(|books| {
+                let mut books = books.borrow_mut();
+                books.read_only.retain(|r| *r != id);
+                if read_only {
+                    books.read_only.push(id);
+                }
+            });
+            Ok(Self::book_object(id))
         })
     }
     fn make_active(id: u64) {
@@ -275,6 +286,13 @@ impl WorkbookAutomation {
     fn workbook_close_own(&self, target: &ObjectRef, _call: &Call<'_>) -> Reply {
         self.with_target(target, |_, _| {
             Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.75"))
+        })
+    }
+    /// `Workbook.ReadOnly`: whether the workbook was opened read-only.
+    fn workbook_read_only(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Bool(BOOKS.with(|books| books.borrow().read_only.contains(&meta.workbook))))
         })
     }
     pub(super) fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -405,6 +423,7 @@ impl WorkbookAutomation {
             let mut books = books.borrow_mut();
             books.entries.retain(|e| e.automation.upgrade().is_some_and(|a| a.workbook_identity().is_ok_and(|w| w != id)));
             books.history.retain(|h| *h != id);
+            books.read_only.retain(|r| *r != id);
             if books.active == id {
                 books.active = books.history.first().copied().unwrap_or(0);
             }
@@ -453,8 +472,8 @@ fn template_kind(value: &AutoValue) -> Option<i32> {
 /// WriteResPassword, IgnoreReadOnlyRecommended, Origin, Delimiter, Editable, Notify, Converter,
 /// AddToMru, Local, CorruptLoad. A wrong type is run-time error 1004. The options that only matter
 /// to a text file, a link prompt, a read-only recommendation or the recent-file list change nothing
-/// for a workbook opened here; the others are refused (dc-oxh8w.75).
-fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
+/// for a workbook opened here; ReadOnly is kept (`Workbook.ReadOnly`); the others are refused (dc-oxh8w.75).
+fn open_options(call: &Call<'_>) -> Result<bool, AutoError> {
     let wrong = |name: &str| AutoError::excel(1004, format!("Workbooks.Open: the {name} argument has the wrong type"));
     let boolean = |index: usize, name: &str| match call.arg(index) {
         AutoValue::Missing | AutoValue::Empty => Ok(None),
@@ -472,9 +491,7 @@ fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
     };
     // UpdateLinks (xlUpdateLinksUserSetting 1 ... 0-3) is not validated by value: Excel treats 0 and 2 and 3 alike for a file without links.
     number(1, "UpdateLinks")?;
-    if boolean(2, "ReadOnly")? == Some(true) {
-        return Err(AutoError::not_modelled("Workbooks.Open ReadOnly:=True", "dc-oxh8w.75"));
-    }
+    let read_only = boolean(2, "ReadOnly")? == Some(true);
     number(3, "Format")?;
     if text(4, "Password")?.is_some_and(|p| !p.is_empty()) {
         return Err(AutoError::not_modelled("Workbooks.Open Password", "dc-oxh8w.75"));
@@ -493,5 +510,5 @@ fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
     if number(14, "CorruptLoad")?.is_some_and(|n| n != 0) {
         return Err(AutoError::not_modelled("Workbooks.Open CorruptLoad other than xlNormalLoad", "dc-oxh8w.75"));
     }
-    Ok(())
+    Ok(read_only)
 }
