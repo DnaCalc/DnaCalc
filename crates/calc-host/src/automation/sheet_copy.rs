@@ -139,18 +139,22 @@ impl WorkbookAutomation {
             .find(|book| book.id == id)
             .and_then(|book| book.runner)
             .ok_or_else(|| AutoError::not_modelled("Sheet copy to a workbook the application does not run", OWNER))?;
-        if let Err(error) = runner.keep_sheets(names) {
-            // The new workbook is not left behind, and the active workbook is as it was.
+        // Any failure from here on leaves no new workbook behind and the active workbook as it was.
+        let abandon = |error: AutoError| {
             let _ = runner.close();
             Self::unregister(id);
-            return Err(error);
-        }
+            error
+        };
+        runner.keep_sheets(names).map_err(abandon)?;
         if remove {
             let mut progress = None;
             for sheet in sheets {
-                progress = Self::sheet_command(session, Some(*sheet), SheetChange::Remove)?.or(progress);
+                match Self::sheet_command(session, Some(*sheet), SheetChange::Remove) {
+                    Ok(next) => progress = next.or(progress),
+                    Err(error) => return Err(abandon(error)),
+                }
             }
-            Self::settle(session, progress, call)?;
+            Self::settle(session, progress, call).map_err(abandon)?;
             self.context_changed(session);
         }
         Ok(AutoValue::Empty)

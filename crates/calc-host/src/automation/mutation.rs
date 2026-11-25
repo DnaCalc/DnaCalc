@@ -478,13 +478,24 @@ impl WorkbookAutomation {
         }
         Ok(SkinIntent::Edit { edits })
     }
+    /// Excel's `Application.Calculate` family acts on every open workbook; which cells it calculates in the others
+    /// is not recorded (dc-gw1be), so with another workbook open the call refuses instead of calculating one.
+    fn refuse_with_other_books(&self, call: &Call<'_>) -> Result<(), AutoError> {
+        no_args(call)?;
+        if self.open_books().is_ok_and(|books| books.len() > 1) {
+            return Err(AutoError::not_modelled("Application.Calculate with several workbooks open", "dc-gw1be"));
+        }
+        Ok(())
+    }
     fn calculate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.refuse_with_other_books(call)?;
         self.mutate(target, call, |_, _| {
             no_args(call)?;
             Ok(SkinIntent::Recalculate)
         })
     }
     fn calculate_full(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.refuse_with_other_books(call)?;
         self.mutate(target, call, |_, _| {
             no_args(call)?;
             Ok(SkinIntent::Calculate {
@@ -494,6 +505,7 @@ impl WorkbookAutomation {
         })
     }
     fn calculate_rebuild(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.refuse_with_other_books(call)?;
         self.mutate(target, call, |_, _| {
             no_args(call)?;
             Ok(SkinIntent::Rebuild)
