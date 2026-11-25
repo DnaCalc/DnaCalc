@@ -35,7 +35,7 @@ impl WorkbookAutomation {
             match access {
                 Access::Invocation(_) => Err(AutoError::not_modelled(
                     "Application.Calculation read inside a worksheet function call",
-                    "dc-oxh8w.33",
+                    "dc-oxh8w.35",
                 )),
                 Access::Session(session, _) => Ok(session.calc_mode()),
             }

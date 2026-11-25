@@ -617,7 +617,7 @@ impl super::LoadedProject {
         } else {
             OBJECT_DENIALS.with(|d| d.borrow().len())
         };
-        let result = self.run_inner(module, name, arguments, max_steps);
+        let result = self.run_inner(module, name, arguments, max_steps, depth > 0);
         RUN_DEPTH.with(|d| d.set(depth));
         let denials = OBJECT_DENIALS.with(|d| {
             if depth == 0 {
@@ -635,6 +635,7 @@ impl super::LoadedProject {
         name: &str,
         arguments: &[ProcedureArg],
         max_steps: u64,
+        nested: bool,
     ) -> Result<ProcedureResult, ProcedureError> {
         use calcvba_runtime::Variant;
         let procedure = api::Session::procedures(&*self.session)
@@ -693,14 +694,28 @@ impl super::LoadedProject {
         let refused = RefCell::new(None);
         let lease = next_lease();
         let failure: RefCell<Option<api::Error>> = RefCell::new(None);
-        let outcome = crate::runtime::spreadsheet::with_context(&EventSpreadsheet, || {
-            EVENT_SCOPE.set((None, lease, &refused), || {
-                api::Session::call_bound(&*self.session, &bound, &args, max_steps).map_err(|e| {
-                    *failure.borrow_mut() = Some(e);
-                    crate::runtime::Error::Backend(String::new())
+        // `Application.Run` from a running procedure runs on that run: inside its spreadsheet
+        // context and refusal scope, with the budget it has left. With no run active on this
+        // thread it is the ordinary top-level call.
+        let reentrant = api::Session::call_bound_reentrant(&*self.session, &bound, &args);
+        let outcome = match reentrant {
+            Err(api::Error::Reentry) if !nested => {
+                crate::runtime::spreadsheet::with_context(&EventSpreadsheet, || {
+                    EVENT_SCOPE.set((None, lease, &refused), || {
+                        api::Session::call_bound(&*self.session, &bound, &args, max_steps).map_err(
+                            |e| {
+                                *failure.borrow_mut() = Some(e);
+                                crate::runtime::Error::Backend(String::new())
+                            },
+                        )
+                    })
                 })
-            })
-        });
+            }
+            other => other.map_err(|e| {
+                *failure.borrow_mut() = Some(e);
+                crate::runtime::Error::Backend(String::new())
+            }),
+        };
         if let Some(reason) = refused.into_inner() {
             return Err(ProcedureError::Refused(reason));
         }

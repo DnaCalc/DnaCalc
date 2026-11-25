@@ -41,6 +41,20 @@ pub enum ObjectKey {
     Range(StoredReference),
     /// A formatting object over a tracked range. Its interface names the formatting component.
     RangeFormat(StoredReference),
+    /// A `Borders` collection (edge 0) or one `Border` (an `XlBordersIndex` from 5 through 12) of a tracked range.
+    RangeEdge {
+        /// Tracked source reference.
+        reference: StoredReference,
+        /// The border index, or 0 for the whole collection.
+        edge: i32,
+    },
+    /// One cell style (`Style`) of a workbook, by its position in the style table's named styles.
+    Style {
+        /// Host identity of the containing workbook.
+        workbook: u64,
+        /// Position among the workbook's named cell styles.
+        index: u32,
+    },
     /// Areas owns one acquisition of the original tracked range, preserving area order.
     Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.

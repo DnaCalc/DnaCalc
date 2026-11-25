@@ -6655,3 +6655,268 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     let reply = invoke_kind(&model, &range(&model, "H20"), "Sort", InvokeKind::Method, vec![key]);
     assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
 }
+
+fn interior(model: &WorkbookAutomation, address: &str) -> ObjectRef {
+    let target = range(model, address);
+    let interior = obj(invoke(model, &target, "Interior", vec![]).unwrap());
+    model.released(&target);
+    interior
+}
+
+fn i4(model: &WorkbookAutomation, target: &ObjectRef, member: &str) -> i32 {
+    match invoke(model, target, member, vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{member} returned {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_defaults_report_no_fill() {
+    let (_, model, _) = blank_report();
+    let cell = interior(&model, "B2");
+    assert_eq!(i4(&model, &cell, "Color"), 16_777_215);
+    assert_eq!(i4(&model, &cell, "ColorIndex"), -4142);
+    assert_eq!(i4(&model, &cell, "Pattern"), -4142);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_color_is_solid_and_survives_reopen() {
+    let (host, model, _) = blank_report();
+    let cells = interior(&model, "B2:C3");
+    // RGB(255, 128, 0) in VBA's byte order.
+    put_font(&model, &cells, "Color", AutoValue::I4(255 | 128 << 8)).unwrap();
+    assert_eq!(i4(&model, &cells, "Color"), 255 | 128 << 8);
+    assert_eq!(i4(&model, &cells, "Pattern"), 1);
+    let mixed = interior(&model, "B2:D3");
+    assert!(matches!(
+        invoke(&model, &mixed, "Color", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    for bad in [AutoValue::I4(-1), AutoValue::I4(0x0100_0000)] {
+        assert_eq!(excel_error(put_font(&model, &cells, "Color", bad)).0, 1004);
+    }
+    assert_eq!(
+        excel_error(invoke(&model, &cells, "Color", vec![AutoValue::I4(1)])).0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    let cell = interior(&reopened, "C3");
+    assert_eq!(i4(&reopened, &cell, "Color"), 255 | 128 << 8);
+    assert_eq!(i4(&reopened, &cell, "Pattern"), 1);
+    assert_eq!(i4(&reopened, &interior(&reopened, "D3"), "Pattern"), -4142);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_color_index_uses_the_palette() {
+    let (host, model, _) = blank_report();
+    let cell = interior(&model, "E5");
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(3)).unwrap();
+    assert_eq!(i4(&model, &cell, "ColorIndex"), 3);
+    assert_eq!(i4(&model, &cell, "Color"), 255);
+    assert_eq!(i4(&model, &cell, "Pattern"), 1);
+    for bad in [0, 57, -4143] {
+        assert_eq!(
+            excel_error(put_font(&model, &cell, "ColorIndex", AutoValue::I4(bad))).0,
+            1004
+        );
+    }
+    let reopened = reopen_formatting(&host);
+    assert_eq!(i4(&reopened, &interior(&reopened, "E5"), "ColorIndex"), 3);
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(-4142)).unwrap();
+    assert_eq!(i4(&model, &cell, "Pattern"), -4142);
+    assert_eq!(i4(&model, &cell, "Color"), 16_777_215);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_interior_pattern_keeps_color_and_pattern_color() {
+    let (host, model, _) = blank_report();
+    let cell = interior(&model, "A7");
+    put_font(&model, &cell, "Color", AutoValue::I4(0x00FF00)).unwrap();
+    put_font(&model, &cell, "Pattern", AutoValue::I4(-4126)).unwrap();
+    assert_eq!(i4(&model, &cell, "Pattern"), -4126);
+    assert_eq!(i4(&model, &cell, "Color"), 0x00FF00);
+    put_font(&model, &cell, "PatternColor", AutoValue::I4(0xFF0000)).unwrap();
+    assert_eq!(i4(&model, &cell, "PatternColor"), 0xFF0000);
+    assert_eq!(i4(&model, &cell, "Color"), 0x00FF00);
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "Pattern", AutoValue::I4(99))).0,
+        1004
+    );
+    let reopened = reopen_formatting(&host);
+    let cell = interior(&reopened, "A7");
+    assert_eq!(i4(&reopened, &cell, "Pattern"), -4126);
+    assert_eq!(i4(&reopened, &cell, "Color"), 0x00FF00);
+    assert_eq!(i4(&reopened, &cell, "PatternColor"), 0xFF0000);
+}
+
+fn border(model: &WorkbookAutomation, address: &str, index: i32) -> ObjectRef {
+    let target = range(model, address);
+    let borders = obj(invoke(model, &target, "Borders", vec![]).unwrap());
+    let one = obj(invoke(model, &borders, "Item", vec![AutoValue::I4(index)]).unwrap());
+    model.released(&target);
+    one
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_border_edges_read_defaults_and_refuse_bad_indexes() {
+    let (_, model, _) = blank_report();
+    let target = range(&model, "B2");
+    let borders = obj(invoke(&model, &target, "Borders", vec![]).unwrap());
+    for bad in [0, 4, 13] {
+        assert_eq!(excel_error(invoke(&model, &borders, "Item", vec![AutoValue::I4(bad)])).0, 1004);
+    }
+    assert_eq!(excel_error(invoke(&model, &borders, "Item", vec![])).0, 1004);
+    let edge = border(&model, "B2", 7);
+    assert_eq!(i4(&model, &edge, "LineStyle"), -4142);
+    assert_eq!(i4(&model, &edge, "Weight"), 2);
+    assert_eq!(i4(&model, &edge, "Color"), 0);
+    assert_eq!(i4(&model, &edge, "ColorIndex"), -4105);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_border_edge_of_a_range_marks_only_that_side_and_the_neighbour() {
+    let (host, model, _) = blank_report();
+    let bottom = border(&model, "B2:C3", 9);
+    put_font(&model, &bottom, "LineStyle", AutoValue::I4(1)).unwrap();
+    put_font(&model, &bottom, "Weight", AutoValue::I4(-4138)).unwrap();
+    put_font(&model, &bottom, "Color", AutoValue::I4(255)).unwrap();
+    assert_eq!(i4(&model, &bottom, "LineStyle"), 1);
+    assert_eq!(i4(&model, &bottom, "Weight"), -4138);
+    assert_eq!(i4(&model, &bottom, "Color"), 255);
+    // The cells above the bottom row have no bottom border; the row below shares it as its top.
+    assert_eq!(i4(&model, &border(&model, "B2:C2", 9), "LineStyle"), -4142);
+    assert_eq!(i4(&model, &border(&model, "B3", 8), "LineStyle"), -4142);
+    assert_eq!(i4(&model, &border(&model, "B4:C4", 8), "LineStyle"), 1);
+    assert_eq!(i4(&model, &border(&model, "B3", 7), "LineStyle"), -4142);
+    put_font(&model, &border(&model, "C3", 9), "LineStyle", AutoValue::I4(-4142)).unwrap();
+    let mixed = border(&model, "B3:C3", 9);
+    assert!(matches!(invoke(&model, &mixed, "LineStyle", vec![]).unwrap(), AutoValue::Null));
+    put_font(&model, &border(&model, "C3", 9), "LineStyle", AutoValue::I4(1)).unwrap();
+    put_font(&model, &border(&model, "C3", 9), "Weight", AutoValue::I4(-4138)).unwrap();
+    put_font(&model, &border(&model, "C3", 9), "Color", AutoValue::I4(255)).unwrap();
+    for bad in [3, 99] {
+        assert_eq!(excel_error(put_font(&model, &bottom, "LineStyle", AutoValue::I4(bad))).0, 1004);
+    }
+    assert_eq!(excel_error(put_font(&model, &bottom, "Weight", AutoValue::I4(3))).0, 1004);
+    assert_eq!(excel_error(put_font(&model, &bottom, "ColorIndex", AutoValue::I4(0))).0, 1004);
+    let reopened = reopen_formatting(&host);
+    let edge = border(&reopened, "C3", 9);
+    assert_eq!(i4(&reopened, &edge, "LineStyle"), 1);
+    assert_eq!(i4(&reopened, &edge, "Weight"), -4138);
+    assert_eq!(i4(&reopened, &edge, "Color"), 255);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_border_line_style_and_weight_combine() {
+    let (_, model, _) = blank_report();
+    let edge = border(&model, "E5", 10);
+    put_font(&model, &edge, "LineStyle", AutoValue::I4(-4119)).unwrap();
+    assert_eq!(i4(&model, &edge, "LineStyle"), -4119);
+    assert_eq!(i4(&model, &edge, "Weight"), 4);
+    put_font(&model, &edge, "LineStyle", AutoValue::I4(-4115)).unwrap();
+    put_font(&model, &edge, "Weight", AutoValue::I4(-4138)).unwrap();
+    assert_eq!(i4(&model, &edge, "LineStyle"), -4115);
+    assert_eq!(i4(&model, &edge, "Weight"), -4138);
+    put_font(&model, &edge, "LineStyle", AutoValue::I4(-4142)).unwrap();
+    assert_eq!(i4(&model, &edge, "LineStyle"), -4142);
+    // A weight set on an edge without a line draws one.
+    put_font(&model, &edge, "Weight", AutoValue::I4(4)).unwrap();
+    assert_eq!(i4(&model, &edge, "LineStyle"), 1);
+    assert_eq!(i4(&model, &edge, "Weight"), 4);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_borders_collection_and_inside_edges() {
+    let (host, model, _) = blank_report();
+    let all = obj(invoke(&model, &range(&model, "B2:C3"), "Borders", vec![]).unwrap());
+    put_font(&model, &all, "LineStyle", AutoValue::I4(1)).unwrap();
+    assert_eq!(i4(&model, &all, "LineStyle"), 1);
+    assert_eq!(i4(&model, &border(&model, "B2:C3", 11), "LineStyle"), 1);
+    assert_eq!(i4(&model, &border(&model, "C2", 7), "LineStyle"), 1);
+    put_font(&model, &border(&model, "B2:C3", 12), "LineStyle", AutoValue::I4(-4142)).unwrap();
+    assert!(matches!(invoke(&model, &all, "LineStyle", vec![]).unwrap(), AutoValue::Null));
+    assert_eq!(excel_error(put_font(&model, &border(&model, "B2", 11), "LineStyle", AutoValue::I4(1))).0, 1004);
+    let reopened = reopen_formatting(&host);
+    assert_eq!(i4(&reopened, &border(&reopened, "B2:C3", 11), "LineStyle"), 1);
+    assert_eq!(i4(&reopened, &border(&reopened, "B2:C3", 12), "LineStyle"), -4142);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_border_around_draws_the_perimeter() {
+    let (host, model, _) = blank_report();
+    let cells = range(&model, "B2:D4");
+    let around = |args: Vec<AutoValue>| invoke_kind(&model, &cells, "BorderAround", InvokeKind::Method, args);
+    around(vec![AutoValue::I4(1), AutoValue::I4(4), AutoValue::I4(3)]).unwrap();
+    for (address, index) in [("B2:B4", 7), ("D2:D4", 10), ("B2:D2", 8), ("B4:D4", 9)] {
+        let edge = border(&model, address, index);
+        assert_eq!(i4(&model, &edge, "LineStyle"), 1);
+        assert_eq!(i4(&model, &edge, "Weight"), 4);
+        assert_eq!(i4(&model, &edge, "ColorIndex"), 3);
+    }
+    assert_eq!(i4(&model, &border(&model, "C3", 7), "LineStyle"), -4142);
+    assert_eq!(excel_error(around(vec![AutoValue::I4(7)])).0, 1004);
+    assert_eq!(excel_error(around(vec![AutoValue::I4(1), AutoValue::I4(9)])).0, 1004);
+    let reopened = reopen_formatting(&host);
+    assert_eq!(i4(&reopened, &border(&reopened, "D3", 10), "Weight"), 4);
+    assert_eq!(i4(&reopened, &border(&reopened, "C3", 10), "LineStyle"), -4142);
+}
+
+fn styled_report() -> (Rc<Host>, Rc<WorkbookAutomation>) {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("../../calc-doc/tests/fixtures/dc_5sr/features.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    setup_session(session)
+}
+
+fn style_name(model: &WorkbookAutomation, address: &str) -> String {
+    let target = range(model, address);
+    match invoke(model, &target, "Style", vec![]).unwrap() {
+        AutoValue::Object(style) => text(model, &style, "Name"),
+        AutoValue::Null => "<mixed>".into(),
+        other => panic!("Style returned {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_range_style_applies_a_named_style_and_survives_reopen() {
+    let (host, model) = styled_report();
+    assert_eq!(style_name(&model, "A1"), "Normal");
+    let normal = obj(invoke(&model, &range(&model, "A1"), "Style", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &normal, "BuiltIn", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &normal, "NumberFormat"), "General");
+    let cells = range(&model, "B2:B3");
+    invoke_kind(&model, &cells, "Style", InvokeKind::Put, vec![AutoValue::text("hyperlink")]).unwrap();
+    assert_eq!(style_name(&model, "B2:B3"), "Hyperlink");
+    assert_eq!(style_name(&model, "A2:B3"), "<mixed>");
+    assert_eq!(i4(&model, &font(&model, "B2"), "Underline"), 2);
+    // A Style object applies too.
+    let link = obj(invoke(&model, &range(&model, "B2"), "Style", vec![]).unwrap());
+    invoke_kind(&model, &range(&model, "D4"), "Style", InvokeKind::Put, vec![AutoValue::Object(link)]).unwrap();
+    assert_eq!(style_name(&model, "D4"), "Hyperlink");
+    for bad in [AutoValue::text("No such style"), AutoValue::I4(3)] {
+        assert_eq!(excel_error(invoke_kind(&model, &cells, "Style", InvokeKind::Put, vec![bad])).0, 1004);
+    }
+    // Applying the style replaces direct formatting.
+    put_font(&model, &font(&model, "B3"), "Bold", AutoValue::Bool(true)).unwrap();
+    invoke_kind(&model, &range(&model, "B3"), "Style", InvokeKind::Put, vec![AutoValue::text("Normal")]).unwrap();
+    assert!(matches!(invoke(&model, &font(&model, "B3"), "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    let reopened = reopen_formatting(&host);
+    assert_eq!(style_name(&reopened, "B2"), "Hyperlink");
+    assert_eq!(style_name(&reopened, "D4"), "Hyperlink");
+    assert_eq!(style_name(&reopened, "B3"), "Normal");
+}

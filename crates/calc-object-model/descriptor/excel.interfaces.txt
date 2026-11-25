@@ -17,6 +17,11 @@ Interior
 Borders
 Border
 Style
+# Styles and conditional formats (dc-oxh8w.33, lane cl5, 2026-11-25): the JSON is regenerated on Windows
+# (cl5 RUN-ON-WINDOWS item 1).
+Styles
+FormatConditions
+FormatCondition
 Areas
 Names
 Name
