@@ -53,10 +53,22 @@ impl WorkbookAutomation {
             ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. } => held.clone(),
             _ => return Err(geometry::type_mismatch()),
         };
-        self.mutate_range(target, call, |session, range| {
+        // A Copy only reads its source: the destination is what is written (a Cut also clears the source).
+        self.mutate(target, call, |session, range| {
+            let range = range.ok_or_else(geometry::type_mismatch)?;
+            if range.area_count() != 1 {
+                return Err(AutoError::not_modelled(
+                    format!("{} multi-area write", call.label()),
+                    "dc-1nbp.6",
+                ));
+            }
             let to = self.resolve(&mut Access::Session(session, false), &held)?;
             if to.area_count() != 1 {
                 return Err(AutoError::not_modelled("Range.Copy to several areas", OWNER));
+            }
+            self.guard_locked(session, &to)?;
+            if cut {
+                self.guard_locked(session, &range)?;
             }
             Ok(SkinIntent::Copy {
                 from: range.areas()[0],
@@ -228,6 +240,8 @@ impl WorkbookAutomation {
                     return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
                 }
             }
+            // The region a one-cell Sort widened to is written too.
+            self.guard_area(session, area)?;
             let mut sort_keys = Vec::new();
             for (held, descending) in &keys {
                 let key = self.resolve(&mut Access::Session(session, false), held)?;

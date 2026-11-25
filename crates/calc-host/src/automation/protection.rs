@@ -5,6 +5,8 @@ use super::*;
 use crate::HostState;
 
 const OWNER: &str = "dc-oxh8w.68";
+/// Allow* arguments, and UserInterfaceOnly on a protected sheet (open).
+const ALLOW_OWNER: &str = "dc-ml3k0";
 
 /// What `Worksheet.Protect` set.
 #[derive(Clone, Debug)]
@@ -85,6 +87,21 @@ impl WorkbookAutomation {
         Ok(())
     }
 
+    /// A macro's write to one area: [`Self::guard_locked`] for a [`GridArea`].
+    pub(super) fn guard_area(&self, session: &HostSession, area: GridArea) -> Result<(), AutoError> {
+        let reference = ReferenceLike::from_areas(vec![area]).map_err(|_| geometry::type_mismatch())?;
+        self.guard_locked(session, &reference)
+    }
+
+    /// A macro's change to something the whole sheet holds (a conditional-format rule): refused with 1004 while the
+    /// sheet is protected for contents, unless `UserInterfaceOnly` was set.
+    pub(super) fn guard_sheet_contents(&self, session: &HostSession, sheet: SheetId) -> Result<(), AutoError> {
+        match self.sheet_protection(session.host(), sheet) {
+            Some(held) if held.contents && !held.user_interface_only => Err(protected_sheet()),
+            _ => Ok(()),
+        }
+    }
+
     fn worksheet_protect(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let sheet = Self::worksheet_sheet(target)?;
         if call.args.len() > 16 {
@@ -110,15 +127,27 @@ impl WorkbookAutomation {
             scenarios: flag(3, true)?,
             user_interface_only: flag(4, false)?,
         };
+        // The Allow* arguments say what a protected sheet still admits: not modelled, so not dropped silently.
         for index in 5..16 {
-            flag(index, false)?;
+            if flag(index, false)? {
+                return Err(AutoError::not_modelled("Worksheet.Protect Allow* arguments", ALLOW_OWNER));
+            }
         }
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             // Protecting a sheet that is already protected leaves its protection as it is.
-            if self.sheet_protection(session.host(), sheet).is_none() {
-                self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
+            match self.sheet_protection(session.host(), sheet) {
+                None => {
+                    self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
+                }
+                Some(held) if protect.user_interface_only && !held.user_interface_only => {
+                    return Err(AutoError::not_modelled(
+                        "Worksheet.Protect with UserInterfaceOnly on a sheet already protected",
+                        ALLOW_OWNER,
+                    ));
+                }
+                Some(_) => {}
             }
             Ok(AutoValue::Empty)
         })
