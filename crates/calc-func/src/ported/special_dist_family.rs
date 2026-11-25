@@ -223,7 +223,7 @@ pub fn weibull_dist_kernel(
     use crate::ported::excel_numeric::{
         excel_exp, excel_expm1_internal, excel_pow_chain, excel_x87_div, excel_x87_mul,
     };
-    // Excel flushes a subnormal x/beta, alpha/beta^alpha or result to zero (dc-j9k.368; live, bit-exact cells).
+    // Excel flushes a subnormal x/beta, alpha/beta^alpha and pdf result to zero (dc-j9k.368; live, bit-exact cells).
     let ftz = |v: f64| if v.is_subnormal() { 0.0 } else { v };
     let ratio = ftz(excel_x87_div(x, beta));
     // The pdf reads beta^alpha first: zero is #DIV/0!, even where the exponent below would overflow (dc-j9k.366).
@@ -249,7 +249,13 @@ pub fn weibull_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
     let value = if cumulative {
-        ftz(-excel_expm1_internal(-power))
+        // A result below 2^-1026 comes back negative (live Excel, powers 2^-1027 .. 2^-1074).
+        let v = -excel_expm1_internal(-power);
+        if v > 0.0 && v.to_bits() < 0x0001_0000_0000_0000 {
+            -v
+        } else {
+            v
+        }
     } else {
         let px = excel_pow_chain(x, alpha - 1.0);
         let e = excel_exp(-power);
@@ -2664,7 +2670,7 @@ mod tests {
         assert!(gamma_kernel(-1.5).unwrap().is_finite());
     }
 
-    /// Live Excel, bit-exact cell inputs (dc-j9k.366/.368): a subnormal x/beta, alpha/beta^alpha or result is
+    /// Live Excel, bit-exact cell inputs (dc-j9k.366/.368): a subnormal x/beta, alpha/beta^alpha or pdf result is
     /// flushed to zero, and the pdf reports a zero beta^alpha (#DIV/0!) before an overflowing exponent (#NUM!).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -2678,6 +2684,13 @@ mod tests {
         // pdf: alpha / beta^alpha is subnormal
         assert_eq!(weibull_dist_kernel(1.0, 1.0, f(0x7fe089be117ada82), false), Ok(0.0));
         assert_eq!(weibull_dist_kernel(7.5, 1.0, 5e307, false), Ok(0.0));
+        // pdf: subnormal results (x = 1e-80, alpha = 3, beta = 1e50), cdf: tiny powers come back negative
+        assert_eq!(weibull_dist_kernel(f(0x2f52f8ac174d6123), 3.0, f(0x4a511b0ec57e649a), false), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(1e-5, 64.0, 1.0, false), Ok(0.0));
+        assert_eq!(weibull_dist_kernel(0.5, 1030.0, 1.0, true).map(f64::to_bits), Ok(0x8000100000000000));
+        assert_eq!(weibull_dist_kernel(0.5, 1027.0, 1.0, true).map(f64::to_bits), Ok(0x800080000000000b));
+        assert_eq!(weibull_dist_kernel(0.5, 1026.0, 1.0, true).map(f64::to_bits), Ok(0x0001000000000006));
+        assert_eq!(weibull_dist_kernel(0.5, 1074.0, 1.0, true).map(f64::to_bits), Ok(0x8000000000000001));
         // pdf: beta^alpha underflows to zero before the exponent overflows
         assert_eq!(
             weibull_dist_kernel(f(0x7fde293fac17034f), f(0x7fd31843a3f2390e), 0.5, false),
@@ -2720,3 +2733,4 @@ mod tests {
         );
     }
 }
+
