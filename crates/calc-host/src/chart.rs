@@ -2164,6 +2164,11 @@ pub(crate) fn prepare_create_empty(
     assemble(host, sheet, kind, Vec::new(), 0, false, new, &fail)
 }
 
+/// Whether the file the workbook was opened from holds the chart part (on any sheet).
+fn file_held(host: &HostState, part: &str) -> bool {
+    host.loaded().model().definitions().all_charts().any(|(_, held)| held.iter().any(|c| c.part == part))
+}
+
 /// `Chart.Location`: a chart this session made moves from `sheet` to `to`, a chart sheet (one chart, the sheet's
 /// absolute frame) or a worksheet (a two-cell frame at `place` in points), keeping its part, plots and axes.
 pub(crate) fn prepare_move(
@@ -2179,11 +2184,8 @@ pub(crate) fn prepare_move(
         return Err(fail("The workbook changed; read the chart again"));
     }
     let mut source = host.model().definitions().charts(sheet).to_vec();
-    let imported = host.loaded().model().definitions().charts(sheet).len();
     let index = source.iter().position(|c| c.part == part).ok_or_else(|| fail("The chart no longer exists"))?;
-    if index < imported {
-        return Err(fail("A chart the file holds is not moved yet"));
-    }
+    let file_held = file_held(host, part);
     if sheet == to {
         return Err(fail("The chart is on that sheet"));
     }
@@ -2206,8 +2208,11 @@ pub(crate) fn prepare_move(
             to: host.point_at(to, left + width, top + height),
         };
     }
-    chart.drawing_id = Some(id);
-    chart.name = format!("Chart {}", id - 1);
+    // A chart the file holds keeps its name and its part: its frame is written anew on the sheet that receives it.
+    if !file_held {
+        chart.drawing_id = Some(id);
+        chart.name = format!("Chart {}", id - 1);
+    }
     target.push(chart);
     host.loaded().check_chart_set_on(to, &target, is_chart_sheet(host, to)).map_err(|e| e.to_string())?;
     Ok(vec![
@@ -2233,12 +2238,11 @@ pub(crate) fn prepare_set_source(
         return Err(fail("The workbook changed; read the chart again"));
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
-    let imported = host.loaded().model().definitions().charts(sheet).len();
     let index = charts
         .iter()
         .position(|c| c.part == part)
         .ok_or_else(|| fail("The chart no longer exists"))?;
-    if index < imported {
+    if file_held(host, part) {
         return Err(fail("The series of a chart the file holds are not replaced yet"));
     }
     if charts[index].plots.len() != 1 {
@@ -2509,12 +2513,11 @@ pub(crate) fn prepare_frame(
         return Err(fail("The workbook changed; read the chart again"));
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
-    let imported = host.loaded().model().definitions().charts(sheet).len();
     let index = charts
         .iter()
         .position(|c| c.part == part)
         .ok_or_else(|| fail("The chart no longer exists"))?;
-    if index < imported {
+    if file_held(host, part) {
         return Err(fail("A chart the file holds keeps its name and place"));
     }
     if let Some(name) = name {

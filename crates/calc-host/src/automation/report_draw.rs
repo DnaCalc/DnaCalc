@@ -28,7 +28,7 @@ pub(super) fn number(value: &AutoValue) -> Result<f64, AutoError> {
 
 /// Which side of a rectangle a Left/Top/Width/Height member is.
 #[derive(Clone, Copy)]
-enum Side {
+pub(super) enum Side {
     Left,
     Top,
     Width,
@@ -183,7 +183,7 @@ impl WorkbookAutomation {
         let name = text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
         self.chart_frame(target, call, Some(name), None)
     }
-    fn chart_frame(
+    pub(super) fn chart_frame(
         &self,
         target: &ObjectRef,
         call: &Call<'_>,

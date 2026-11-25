@@ -5,6 +5,9 @@ Sheets in order: Data (worksheet), Chart1 (chart sheet over Data!A1:B2), Dialog1
 After (worksheet; B1 reads Data and SHEETS()). A sheet-scoped defined name on After pins that
 localSheetId counts the chart and dialog sheets. Cached values are the ones Excel gives them.
 Run: python3 make-fixture.py chart-and-dialog-sheets.xlsx
+With the second argument `embedded` it writes chart-sheet-and-embedded.xlsx instead (dc-oxh8w.48): no dialog sheet and no
+defined name (so a sheet can be removed), and Data holds a bar chart object (A2:B2) beside the chart sheet's column
+chart (A1:B1), to move charts a file holds between a worksheet and a chart sheet.
 """
 import sys, zipfile
 
@@ -38,6 +41,31 @@ parts["xl/charts/chart1.xml"] = """<?xml version="1.0" encoding="UTF-8" standalo
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:chart><c:plotArea><c:layout/><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:ser><c:idx val="0"/><c:order val="0"/><c:val><c:numRef><c:f>Data!$A$1:$B$1</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="2"/><c:pt idx="0"><c:v>2</c:v></c:pt><c:pt idx="1"><c:v>3</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser><c:axId val="1"/><c:axId val="2"/></c:barChart><c:catAx><c:axId val="1"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:crossAx val="2"/></c:catAx><c:valAx><c:axId val="2"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:crossAx val="1"/></c:valAx></c:plotArea><c:plotVisOnly val="1"/></c:chart></c:chartSpace>"""
 parts["xl/dialogsheets/sheet1.xml"] = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <dialogsheet xmlns="{M}"><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><pageMargins left="0.75" right="0.75" top="1" bottom="1" header="0.5" footer="0.5"/></dialogsheet>"""
+
+if sys.argv[2:] == ["embedded"]:
+    import re
+    del parts["xl/dialogsheets/sheet1.xml"]
+    parts["[Content_Types].xml"] = re.sub(r'<Override PartName="/xl/dialogsheets[^>]*/>', "", parts["[Content_Types].xml"]).replace(
+        "</Types>",
+        '<Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>'
+        '<Override PartName="/xl/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>',
+    )
+    parts["xl/workbook.xml"] = re.sub(r"<definedNames>.*</definedNames>", "", re.sub(r'<sheet name="Dialog1"[^>]*/>', "", parts["xl/workbook.xml"]))
+    parts["xl/_rels/workbook.xml.rels"] = re.sub(r'<Relationship Id="rId3"[^>]*/>', "", parts["xl/_rels/workbook.xml.rels"])
+    parts["xl/worksheets/sheet1.xml"] = parts["xl/worksheets/sheet1.xml"].replace(
+        "</sheetData>", f'</sheetData><drawing xmlns:r="{R}" r:id="rId1"/>'
+    )
+    parts["xl/worksheets/sheet2.xml"] = parts["xl/worksheets/sheet2.xml"].replace("Data!B2+Rate", "Data!B2").replace("<v>22</v>", "<v>15</v>").replace("<v>4</v>", "<v>3</v>")
+    parts["xl/worksheets/_rels/sheet1.xml.rels"] = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="{PR}"><Relationship Id="rId1" Type="{D}drawing" Target="../drawings/drawing2.xml"/></Relationships>"""
+    parts["xl/drawings/drawing2.xml"] = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:twoCellAnchor><xdr:from><xdr:col>3</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>3</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>8</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>15</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="2" name="Chart 1"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="{R}" r:id="rId1"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>"""
+    parts["xl/drawings/_rels/drawing2.xml.rels"] = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="{PR}"><Relationship Id="rId1" Type="{D}chart" Target="../charts/chart2.xml"/></Relationships>"""
+    parts["xl/charts/chart2.xml"] = (
+        parts["xl/charts/chart1.xml"].replace("$A$1:$B$1", "$A$2:$B$2").replace("<c:v>2</c:v>", "<c:v>5</c:v>")
+        .replace("<c:v>3</c:v>", "<c:v>15</c:v>").replace('<c:barDir val="col"/>', '<c:barDir val="bar"/>')
+    )
 
 out = sys.argv[1]
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:

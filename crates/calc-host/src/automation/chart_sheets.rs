@@ -47,12 +47,16 @@ impl WorkbookAutomation {
     fn chart_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let name = call.args.last().ok_or_else(geometry::bad_count).and_then(|v| v.as_text().ok_or_else(geometry::type_mismatch))?;
         let (_, sheet, _) = Self::report_key(target)?;
-        self.with_write(|session| {
+        let embedded = {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
-            if !meta.chart_sheets.contains(&sheet) {
-                return Err(AutoError::not_modelled("Chart.Name of an embedded chart", OWNER));
-            }
+            !meta.chart_sheets.contains(&sheet)
+        };
+        if embedded {
+            // The ChartObject's name: `Chart.Name` then reads `<sheet> <name>`.
+            return self.chart_frame(target, call, Some(name), None);
+        }
+        self.with_write(|session| {
             let progress = Self::sheet_command(session, Some(sheet), SheetChange::Rename { name: name.clone() })?;
             Self::settle(session, progress, call)?;
             self.context_changed(session);

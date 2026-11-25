@@ -24,8 +24,11 @@ pub(crate) fn check_frames(
     source: &crate::load::LoadedSheet,
     chart_anchors: &[(&Chart, &Chart)],
     charts: &[Chart],
+    moved_in: &[Chart],
+    removed: &[String],
 ) -> Result<(), SaveRefusal> {
-    create::add_with(package, base, source, chart_anchors, charts, &[], None, &mut Changes::default(), None, None)
+    let moves = create::Moves { moved_in, removed };
+    create::add_with(package, base, source, chart_anchors, charts, &[], None, &mut Changes::default(), None, None, moves)
 }
 
 /// Preflight a sheet's drawing objects after an edit (dc-zjsg.4): the stored ones moved, resized or deleted and the
@@ -46,7 +49,34 @@ pub(crate) fn check_shapes(
         detail: "Save and reopen the new worksheet before adding a shape".into(),
         owner: "dc-zjsg.4",
     })?;
-    create::add_with(package, base, source, &[], &[], &plan.new, Some(&plan), &mut Changes::default(), None, None)
+    create::add_with(package, base, source, &[], &[], &plan.new, Some(&plan), &mut Changes::default(), None, None, create::Moves::default())
+}
+
+/// The charts the session moved from one sheet to another (`Chart.Location`, dc-oxh8w.48): a chart part one sheet
+/// held that another sheet holds now, by part, with the sheet it left and the sheet it reached.
+pub(crate) fn moved_charts(
+    before: &ModelRoot,
+    after: &ModelRoot,
+) -> std::collections::BTreeMap<String, (calc_doc_model::value::SheetId, calc_doc_model::value::SheetId)> {
+    let mut moved = std::collections::BTreeMap::new();
+    for (from, charts) in before.definitions().all_charts() {
+        for chart in charts {
+            if after.definitions().charts(from).iter().any(|c| c.part == chart.part) {
+                continue;
+            }
+            let to = after
+                .definitions()
+                .all_charts()
+                .find(|(to, held)| *to != from && held.iter().any(|c| c.part == chart.part))
+                .map(|(to, _)| to);
+            if let Some(to) = to
+                && !before.definitions().charts(to).iter().any(|c| c.part == chart.part)
+            {
+                moved.insert(chart.part.clone(), (from, to));
+            }
+        }
+    }
+    moved
 }
 
 pub(crate) fn check_unique_chart_part(base: &ModelRoot, part: &str) -> Result<(), SaveRefusal> {
@@ -676,6 +706,7 @@ pub(super) fn finish(
     structural: Option<&super::structural::StructuralEdits>,
     caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
+    let moves = moved_charts(before, after);
     for (sheet, charts) in before.definitions().all_charts() {
         if after.sheet_by_id(sheet).is_none() {
             continue;
@@ -684,14 +715,24 @@ pub(super) fn finish(
         if charts == next {
             continue;
         }
-        if charts.len() > next.len() || charts.iter().zip(next).any(|(a, b)| a.part != b.part) {
+        // The charts that stay on this sheet keep their order; one the session moved is compared with where it went.
+        let kept: Vec<&Chart> = charts.iter().filter(|c| !moves.contains_key(&c.part)).collect();
+        let staying: Vec<&Chart> = next.iter().filter(|c| charts.iter().any(|o| o.part == c.part)).collect();
+        if kept.len() != staying.len() || kept.iter().zip(&staying).any(|(a, b)| a.part != b.part) {
             return Err(SaveRefusal::ChartNotModelled {
                 part: "charts".into(),
                 detail: "Adding and removing charts is not modelled".into(),
                 owner: "dc-e5z5",
             });
         }
-        for (old, new) in charts.iter().zip(next) {
+        let pairs: Vec<(&Chart, &Chart)> = charts
+            .iter()
+            .filter_map(|old| {
+                let now = after.definitions().all_charts().flat_map(|(_, held)| held).find(|c| c.part == old.part)?;
+                Some((old, now))
+            })
+            .collect();
+        for (old, new) in pairs {
             if content_changed(old, new) {
                 // Author in the source coordinate basis, then use the existing structural
                 // pass for every formula, including newly added series.

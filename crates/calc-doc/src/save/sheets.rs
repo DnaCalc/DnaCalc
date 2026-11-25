@@ -266,6 +266,7 @@ pub(super) fn finish(
         .iter()
         .filter(|s| model.sheet_by_id(s.id()).is_none())
         .collect();
+    let mut gone_parts: Vec<String> = Vec::new();
     for sheet in &added {
         let bytes = out
             .rewritten
@@ -288,7 +289,8 @@ pub(super) fn finish(
         }
     }
     for sheet in &removed {
-        if let Some(kind) = sheet.preserved_kind() {
+        // A chart sheet goes with its drawing; its chart, when the session moved it to another sheet, stays.
+        if let Some(kind) = sheet.preserved_kind().filter(|kind| *kind != "chart sheet") {
             return Err(SaveRefusal::PreservedSheetChanged {
                 part: sheet.part().name().to_owned(),
                 kind,
@@ -296,6 +298,30 @@ pub(super) fn finish(
         }
         out.rewritten.remove(sheet.part().name());
         out.removed.push(sheet.part().name().to_owned());
+        if sheet.preserved_kind().is_some() {
+            // The chart sheet's relationships go, and the drawing only it used with them (its chart part stays: the
+            // chart may have moved to another sheet, which then refers to it).
+            if let Some(own) = package.relationships_of(Some(sheet.part().name())) {
+                for r in own.items().iter().filter(|r| r.kind.ends_with("/drawing")) {
+                    let Some(drawing) = r.resolved.as_deref() else { continue };
+                    let shared = package.parts().iter().any(|p| {
+                        p.name() != sheet.part().name()
+                            && package.relationships_of(Some(p.name())).is_some_and(|rels| {
+                                rels.items().iter().any(|o| o.resolved.as_deref() == Some(drawing))
+                            })
+                    });
+                    if !shared {
+                        if let Some(rels) = package.relationships_of(Some(drawing)) {
+                            out.removed.push(rels.part().to_owned());
+                        }
+                        out.rewritten.remove(drawing);
+                        out.removed.push(drawing.to_owned());
+                        gone_parts.push(drawing.to_owned());
+                    }
+                }
+                out.removed.push(own.part().to_owned());
+            }
+        }
     }
     let rels =
         package
@@ -362,6 +388,9 @@ pub(super) fn finish(
     xml = xml.with_bytes(bytes);
     for sheet in removed {
         xml = xml.with_bytes(parts::content_types(&xml, Some(sheet.part().name()), &[])?);
+    }
+    for part in &gone_parts {
+        xml = xml.with_bytes(parts::content_types(&xml, Some(part), &[])?);
     }
     out.content_types = Some(xml.bytes().to_vec());
     Ok(())

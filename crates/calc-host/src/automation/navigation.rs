@@ -136,7 +136,7 @@ impl WorkbookAutomation {
             }
             .ok_or_else(|| AutoError::Status(0x8002_000Bu32 as i32))?;
             if meta.dialog_sheets.contains(&sheet.id()) {
-                return Err(AutoError::not_modelled("a DialogSheet from Sheets", "dc-oxh8w.23"));
+                return Err(AutoError::not_modelled("a DialogSheet from Sheets", "dc-oxh8w.50"));
             }
             if meta.chart_sheets.contains(&sheet.id()) {
                 return Self::chart_of_sheet(meta, sheet.id());

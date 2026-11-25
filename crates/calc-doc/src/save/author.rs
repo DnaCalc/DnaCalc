@@ -402,7 +402,11 @@ pub(super) fn plan(
         model.sheet_by_id(before.id()).is_none_or(|after| after.name() != before.name())
     });
     if (structural.is_some() || sheet_names_changed)
-        && let Some(sheet) = original_sheets.iter().find(|sheet| sheet.preserved_kind().is_some())
+        // A chart sheet the session removed (its chart moved out or went with it, dc-oxh8w.48) is not kept.
+        && let Some(sheet) = original_sheets.iter().find(|sheet| {
+            sheet.preserved_kind().is_some()
+                && !(sheet.preserved_kind() == Some("chart sheet") && model.sheet_by_id(sheet.id()).is_none())
+        })
     {
         return Err(SaveRefusal::PreservedSheetChanged {
             part: sheet.part().name().to_owned(),

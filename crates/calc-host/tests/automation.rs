@@ -7348,6 +7348,99 @@ fn dc_oxh8w_23__chart_location_moves_a_chart_between_sheet_and_object() {
     assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
 }
 
+/// dc-oxh8w.48: a chart a file holds moves between sheets and the save keeps it. The file (made by
+/// `make-fixture.py ... embedded`) has Data with a bar chart object and the chart sheet Chart1 (a column chart).
+/// `Chart.Export` of the chart sheet's chart draws its frame (731.8 x 472.4 points = 976 x 630 pixels);
+/// `Chart.Location` moves it onto Data (the chart sheet goes), then the object onto a new chart sheet (its
+/// frame leaves Data's drawing); the save writes both over the parts the file holds and reopens the same.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_48__file_held_charts_move_between_sheets_and_save() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(
+                include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec(),
+            )),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let charts = collection("Charts");
+    let chart = obj(invoke_kind(&model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    // Export draws the frame of the chart sheet's chart.
+    fn stub(_: &ChartView, width: u32, height: u32, format: chart::ExportFormat) -> Result<Vec<u8>, String> {
+        Ok(format!("{format:?} {width}x{height}").into_bytes())
+    }
+    chart::set_chart_exporter(stub);
+    let exported = invoke_kind(&model, &chart, "Export", InvokeKind::Method, vec![AutoValue::text("sheet.png")]);
+    assert!(matches!(exported, Ok(AutoValue::Bool(true))), "{exported:?}");
+    let written: Vec<(String, String)> =
+        host.files.borrow().iter().map(|(p, b)| (p.clone(), String::from_utf8(b.clone()).unwrap())).collect();
+    assert_eq!(written, [("sheet.png".to_owned(), "Png 976x630".to_owned())]);
+    // Location as object on Data: the chart sheet goes, Data holds two chart objects.
+    let moved = obj(invoke_kind(&model, &chart, "Location", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::text("Data")]).unwrap());
+    assert!(matches!(invoke(&model, &moved, "ChartType", vec![]), Ok(AutoValue::I4(51))));
+    assert_eq!((count(&charts), count(&collection("Sheets"))), (0, 2));
+    let data = obj(invoke_kind(&model, &collection("Worksheets"), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects = obj(invoke_kind(&model, &data, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(count(&objects), 2);
+    // The chart object the file held goes to a new chart sheet named Sales; Data keeps the other.
+    let first = obj(invoke_kind(&model, &objects, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let bar = obj(invoke(&model, &first, "Chart", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &bar, "ChartType", vec![]), Ok(AutoValue::I4(57))));
+    let sales = obj(invoke_kind(&model, &bar, "Location", InvokeKind::Method, vec![AutoValue::I4(1), AutoValue::text("Sales")]).unwrap());
+    assert_eq!(text_of(invoke(&model, &sales, "Name", vec![]).unwrap()), "Sales");
+    assert_eq!((count(&charts), count(&objects)), (1, 1));
+    // The save keeps both, over the file's own chart parts.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default()).expect("the saved package opens");
+    let names: Vec<String> = document.package().parts().iter().map(|p| p.name().to_owned()).collect();
+    let chart_parts: Vec<&String> = names.iter().filter(|n| n.starts_with("xl/charts/chart")).collect();
+    assert_eq!(chart_parts.len(), 2, "{names:?}");
+    // The removed chart sheet's part and the drawing only it used are gone; Data's drawing holds one frame.
+    assert!(!names.iter().any(|n| n == "xl/chartsheets/sheet1.xml" || n == "xl/drawings/drawing1.xml"), "{names:?}");
+    let drawing = String::from_utf8(document.package().read_part("xl/drawings/drawing2.xml").unwrap()).unwrap();
+    assert_eq!(drawing.matches("<xdr:graphicFrame").count(), 1, "{drawing}");
+    let reopened = HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let (_h2, model2) = setup_session(reopened);
+    let book2 = obj(invoke(&model2, &model2.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection2 = |name: &str| obj(invoke(&model2, &book2, name, vec![]).unwrap());
+    let charts2 = collection2("Charts");
+    assert_eq!(int(invoke(&model2, &charts2, "Count", vec![]).unwrap()), 1);
+    let sales2 = obj(invoke_kind(&model2, &charts2, "Item", InvokeKind::Get, vec![AutoValue::text("Sales")]).unwrap());
+    assert!(matches!(invoke(&model2, &sales2, "ChartType", vec![]), Ok(AutoValue::I4(57))));
+    let data2 = obj(invoke_kind(&model2, &collection2("Worksheets"), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects2 = obj(invoke_kind(&model2, &data2, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(int(invoke(&model2, &objects2, "Count", vec![]).unwrap()), 1);
+    let only = obj(invoke_kind(&model2, &objects2, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let column = obj(invoke(&model2, &only, "Chart", vec![]).unwrap());
+    assert!(matches!(invoke(&model2, &column, "ChartType", vec![]), Ok(AutoValue::I4(51))));
+}
+
+/// dc-oxh8w.48: `Chart.Name = ...` of an embedded chart names its ChartObject; `Chart.Name` then reads `<sheet> <name>`,
+/// as `ChartObject.Name` does.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_48__chart_name_put_names_an_embedded_chart() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"]]);
+    let objects = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(&model, &objects, "Add", InvokeKind::Method, vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(200.0), AutoValue::R8(100.0)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 Chart 1");
+    invoke_kind(&model, &chart, "Name", InvokeKind::Put, vec![AutoValue::text("Takings")]).unwrap();
+    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 Takings");
+    assert_eq!(text_of(invoke(&model, &frame, "Name", vec![]).unwrap()), "Takings");
+}
+
 /// dc-oxh8w.11: `HPageBreaks` and `VPageBreaks` list the automatic breaks of the one pagination route as well as the
 /// manual ones, as Excel does. Letter portrait, default margins, 100%, A1:J120 of 15 pt rows and 8.43 character columns
 /// (Excel PB1 case c1, 16.0.20527: pages 6, H A48 and A95, V J1, all xlPageBreakAutomatic).

@@ -655,7 +655,7 @@ fn text_patches(ix: &Index<'_>, at: usize, obj: &El, now: &Shape, out: &mut Vec<
 /// written as it is now. Everything else stays byte for byte.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn edit(xml: &XmlPart, edits: &BTreeMap<u32, StoredEdit<'_>>) -> Result<Vec<u8>, SaveRefusal> {
-    edit_with_charts(xml, edits, &BTreeMap::new())
+    edit_with_charts(xml, edits, &BTreeMap::new(), &BTreeSet::new())
 }
 
 /// Like [`edit`], also rewriting the anchors of chart frames whose `c:chart` / `cx:chart` relationship id appears in
@@ -664,10 +664,12 @@ pub(crate) fn edit_with_charts(
     xml: &XmlPart,
     edits: &BTreeMap<u32, StoredEdit<'_>>,
     chart_anchors: &BTreeMap<String, ChartAnchor>,
+    deleted_charts: &BTreeSet<String>,
 ) -> Result<Vec<u8>, SaveRefusal> {
     let ix = index(xml)?;
     let mut patches = Vec::new();
     let mut matched_charts: BTreeSet<String> = BTreeSet::new();
+    let mut matched_deleted: BTreeSet<String> = BTreeSet::new();
     for (child, id) in ix.top() {
         let c = &ix.els[child];
         if let Some(edit) = id.and_then(|id| edits.get(&id)) {
@@ -689,7 +691,18 @@ pub(crate) fn edit_with_charts(
             }
             continue;
         }
-        if chart_anchors.is_empty() {
+        if chart_anchors.is_empty() && deleted_charts.is_empty() {
+            continue;
+        }
+        // A chart frame whose chart the session moved to another sheet goes (dc-oxh8w.48).
+        let gone: BTreeSet<&str> = (child..ix.els.len())
+            .take_while(|&i| ix.els[i].start < c.end)
+            .filter_map(|i| ix.els[i].chart_rel.as_deref())
+            .filter(|rel| deleted_charts.contains(*rel))
+            .collect();
+        if !gone.is_empty() {
+            patches.push(((c.start, c.end), Vec::new()));
+            matched_deleted.extend(gone.iter().map(|r| (*r).to_owned()));
             continue;
         }
         let mut found: BTreeSet<&str> = BTreeSet::new();
@@ -729,6 +742,9 @@ pub(crate) fn edit_with_charts(
             return Err(refuse("A chart anchor to rewrite has no supported anchor element"));
         }
         matched_charts.insert(rel.to_owned());
+    }
+    if matched_deleted.len() != deleted_charts.len() {
+        return Err(refuse("A chart frame to remove was not found in its drawing"));
     }
     if matched_charts.len() != chart_anchors.len() {
         return Err(refuse("A chart anchor to rewrite was not found in its drawing"));
@@ -824,6 +840,7 @@ mod tests {
     #[allow(non_snake_case)]
     fn dw5_dc_zjsg_14__chart_anchor_rewrite_preserves_edit_as_and_alternatives() {
         use super::{ChartAnchor, DrawingPoint, XmlPart, edit_with_charts};
+        use std::collections::BTreeSet;
         use std::collections::BTreeMap;
         let xdr = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
         let a = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -870,7 +887,7 @@ mod tests {
                 },
             ),
         ]);
-        let out = String::from_utf8(edit_with_charts(&part, &BTreeMap::new(), &anchors).unwrap()).unwrap();
+        let out = String::from_utf8(edit_with_charts(&part, &BTreeMap::new(), &anchors, &BTreeSet::new()).unwrap()).unwrap();
         let expected = xml
             .replace("<xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>17</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>")
             .replace("<xdr:row>30</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>28</xdr:row><xdr:rowOff>127000</xdr:rowOff></xdr:to>");
@@ -883,6 +900,6 @@ mod tests {
                 to: DrawingPoint::default(),
             },
         )]);
-        assert!(edit_with_charts(&part, &BTreeMap::new(), &missing).is_err());
+        assert!(edit_with_charts(&part, &BTreeMap::new(), &missing, &BTreeSet::new()).is_err());
     }
 }

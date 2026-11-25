@@ -614,7 +614,7 @@ impl LoadedWorkbook {
                     detail: "Save and reopen the new worksheet before moving a chart".into(),
                     owner: "dc-zjsg.14",
                 })?;
-                crate::save::chart::check_frames(&self.package, &self.model, source, &[(original, chart)], &[])?;
+                crate::save::chart::check_frames(&self.package, &self.model, source, &[(original, chart)], &[], &[], &[])?;
             }
             Ok(())
         } else {
@@ -645,15 +645,31 @@ impl LoadedWorkbook {
             owner: "dc-971p.49",
         };
         let original = self.model.definitions().charts(sheet);
-        if charts.len() < original.len()
-            || charts.iter().zip(original).any(|(a, b)| a.part != b.part)
-        {
+        // A chart the file holds on another sheet and `charts` holds now was moved here (`Chart.Location`,
+        // dc-oxh8w.48): its frame is written over its part. One of `original` that `charts` no longer holds went.
+        let elsewhere = |part: &str| {
+            self.model
+                .definitions()
+                .all_charts()
+                .any(|(other, held)| other != sheet && held.iter().any(|c| c.part == part))
+        };
+        let in_original = |part: &str| original.iter().any(|o| o.part == part);
+        let kept: Vec<&calc_doc_model::Chart> = charts.iter().filter(|c| in_original(&c.part)).collect();
+        let left: Vec<&calc_doc_model::Chart> =
+            original.iter().filter(|o| !charts.iter().any(|c| c.part == o.part)).collect();
+        let stays: Vec<&calc_doc_model::Chart> = original.iter().filter(|o| !left.iter().any(|l| l.part == o.part)).collect();
+        if kept.len() != stays.len() || kept.iter().zip(&stays).any(|(a, b)| a.part != b.part) {
             return Err(fail(
                 "Removing or reordering imported chart frames is not modelled",
             ));
         }
+        let moved_in: Vec<calc_doc_model::Chart> =
+            charts.iter().filter(|c| !in_original(&c.part) && elsewhere(&c.part)).cloned().collect();
+        let new: Vec<calc_doc_model::Chart> =
+            charts.iter().filter(|c| !in_original(&c.part) && !elsewhere(&c.part)).cloned().collect();
+        let removed: Vec<String> = left.iter().map(|c| c.part.clone()).collect();
         let mut anchor_edits = Vec::new();
-        for (old, new) in original.iter().zip(charts).filter(|(old, new)| old != new) {
+        for (old, new) in stays.iter().copied().zip(kept.iter().copied()).filter(|(old, new)| old != new) {
             if crate::save::chart::content_changed(old, new) {
                 crate::save::chart::source(&self.package, &self.model, old, new)?;
             }
@@ -661,8 +677,21 @@ impl LoadedWorkbook {
                 anchor_edits.push((old, new));
             }
         }
-        let new = &charts[original.len()..];
-        if !anchor_edits.is_empty() || !new.is_empty() {
+        for chart in &moved_in {
+            let was = self
+                .model
+                .definitions()
+                .all_charts()
+                .flat_map(|(_, held)| held)
+                .find(|c| c.part == chart.part);
+            if let Some(was) = was
+                && crate::save::chart::content_changed(was, chart)
+            {
+                crate::save::chart::source(&self.package, &self.model, was, chart)?;
+            }
+        }
+        let new = &new[..];
+        if !anchor_edits.is_empty() || !new.is_empty() || !moved_in.is_empty() || !removed.is_empty() {
             // A chart sheet a session made has no loaded part; the saver writes it from the model (dc-oxh8w.23).
             let new_chart_sheet = || {
                 chart_sheet
@@ -679,7 +708,7 @@ impl LoadedWorkbook {
                     &owned
                 }
             };
-            crate::save::chart::check_frames(&self.package, &self.model, source, &anchor_edits, new)?;
+            crate::save::chart::check_frames(&self.package, &self.model, source, &anchor_edits, new, &moved_in, &removed)?;
         }
         Ok(())
     }

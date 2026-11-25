@@ -551,32 +551,46 @@ pub(super) fn finish(
     structural: Option<&super::super::structural::StructuralEdits>,
     caches: Option<&cache::CacheSource<'_>>,
 ) -> Result<(), SaveRefusal> {
+    let moves = super::moved_charts(before, after);
     let touched: BTreeSet<_> = after
         .definitions()
         .all_charts()
         .map(|(sheet, _)| sheet)
         .chain(after.definitions().all_shapes().map(|(sheet, _)| sheet))
+        .chain(moves.values().map(|(from, _)| *from).filter(|from| after.sheet_by_id(*from).is_some()))
         .collect();
     for sheet in touched {
         let charts = after.definitions().charts(sheet);
         let original = before.definitions().charts(sheet);
-        // Source frames keep their identities and order. Newly authored frames can disappear on Undo.
-        if charts.len() < original.len()
-            || !charts.iter().zip(original).all(|(a, b)| a.part == b.part)
-        {
+        // Source frames keep their identities and order; one the session moved to another sheet leaves (its frame
+        // goes) or arrives (its frame is written anew over the same part). Newly authored frames can disappear on
+        // Undo.
+        let stays: Vec<&Chart> = original.iter().filter(|c| moves.get(&c.part).is_none_or(|(from, _)| *from != sheet)).collect();
+        let removed: Vec<String> =
+            original.iter().filter(|c| moves.get(&c.part).is_some_and(|(from, _)| *from == sheet)).map(|c| c.part.clone()).collect();
+        let arrived = |c: &Chart| moves.get(&c.part).is_some_and(|(_, to)| *to == sheet);
+        let kept: Vec<&Chart> = charts.iter().filter(|c| original.iter().any(|o| o.part == c.part)).collect();
+        if kept.len() != stays.len() || !kept.iter().zip(&stays).all(|(a, b)| a.part == b.part) {
             return Err(invalid(
                 "charts",
                 "Removing or reordering imported chart frames is not modelled",
             ));
         }
-        let new = &charts[original.len()..];
-        let chart_anchors: Vec<(&Chart, &Chart)> = original
+        let moved_in: Vec<Chart> = charts.iter().filter(|c| arrived(c)).cloned().collect();
+        let new: Vec<Chart> = charts
             .iter()
-            .zip(charts)
+            .filter(|c| !original.iter().any(|o| o.part == c.part) && !arrived(c))
+            .cloned()
+            .collect();
+        let new = &new[..];
+        let chart_anchors: Vec<(&Chart, &Chart)> = stays
+            .iter()
+            .copied()
+            .zip(kept.iter().copied())
             .filter(|(old, now)| old.anchor != now.anchor)
             .collect();
         let plan = super::stored::plan(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
-        if new.is_empty() && plan.is_empty() && chart_anchors.is_empty() {
+        if new.is_empty() && plan.is_empty() && chart_anchors.is_empty() && moved_in.is_empty() && removed.is_empty() {
             continue;
         }
         let source = sheets.iter().find(|s| s.id() == sheet).ok_or_else(|| {
@@ -596,9 +610,20 @@ pub(super) fn finish(
             out,
             structural.map(|edits| (edits, before)),
             caches,
+            Moves { moved_in: &moved_in, removed: &removed },
         )?;
     }
     Ok(())
+}
+
+/// The charts of a sheet that came from or went to another sheet (`Chart.Location`, dc-oxh8w.48): their chart parts
+/// are the ones the file holds, so the frames move and no chart part is written.
+#[derive(Default)]
+pub(crate) struct Moves<'a> {
+    /// The charts that arrived: a frame is written over the part the package already holds.
+    pub(crate) moved_in: &'a [Chart],
+    /// The parts that left: their frames go from the drawing.
+    pub(crate) removed: &'a [String],
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -613,6 +638,7 @@ pub(crate) fn add_with(
     out: &mut Changes,
     structural: Option<(&super::super::structural::StructuralEdits, &ModelRoot)>,
     caches: Option<&cache::CacheSource<'_>>,
+    moves: Moves<'_>,
 ) -> Result<(), SaveRefusal> {
     let sheet_part = source.part().name();
     let drawings = package
@@ -631,7 +657,7 @@ pub(crate) fn add_with(
             "The worksheet has an unsupported drawing relationship",
         ));
     }
-    if drawings.is_empty() && !chart_anchors.is_empty() {
+    if drawings.is_empty() && (!chart_anchors.is_empty() || !moves.removed.is_empty()) {
         return Err(invalid(
             sheet_part,
             "Rewriting a chart anchor requires an existing drawing part",
@@ -693,11 +719,28 @@ pub(crate) fn add_with(
             chart_map.insert(first.id.clone(), now.anchor);
         }
     }
+    let mut deleted: BTreeSet<String> = BTreeSet::new();
+    if !moves.removed.is_empty() {
+        let rels = package
+            .relationships_of(Some(&drawing))
+            .ok_or_else(|| invalid(&drawing, "The drawing has no relationships for the chart frame"))?;
+        for part in moves.removed {
+            let mut matching = rels.items().iter().filter(|r| {
+                (r.kind == CHART || r.kind == CHARTEX)
+                    && r.mode == TargetMode::Internal
+                    && r.resolved.as_deref() == Some(part.as_str())
+            });
+            let (Some(first), None) = (matching.next(), matching.next()) else {
+                return Err(invalid(part, "The chart frame relationship was not found uniquely in its drawing"));
+            };
+            deleted.insert(first.id.clone());
+        }
+    }
     let empty = format!("<xdr:wsDr xmlns:xdr=\"{XDR}\"/>");
     let mut xml = parts::current_part(package, out, &drawing, empty.as_bytes())?;
     let original_xml = xml.with_bytes(xml.bytes().to_vec());
     let shape_edits = plan.map(|p| &p.edits);
-    if shape_edits.is_some_and(|e| !e.is_empty()) || !chart_map.is_empty() {
+    if shape_edits.is_some_and(|e| !e.is_empty()) || !chart_map.is_empty() || !deleted.is_empty() {
         // The model holds anchors as they were before the session's row and column edits, which the save moves the
         // stored part through. With such edits on this sheet the stored objects are edited in the part as the file
         // stores it, then the part goes through the same moves (as a new frame does, `finish_body`).
@@ -707,12 +750,12 @@ pub(crate) fn add_with(
         match moved {
             Some(_) => {
                 let stored = super::super::strings::read_part(package, &drawing)?;
-                let edited = super::stored::edit_with_charts(&stored, edits, &chart_map)?;
+                let edited = super::stored::edit_with_charts(&stored, edits, &chart_map, &deleted)?;
                 let body = moved_part(edited, &drawing, source, structural)?;
                 xml = xml.with_bytes(body);
             }
             None => {
-                let edited = super::stored::edit_with_charts(&xml, edits, &chart_map)?;
+                let edited = super::stored::edit_with_charts(&xml, edits, &chart_map, &deleted)?;
                 xml = xml.with_bytes(edited);
             }
         }
@@ -739,7 +782,7 @@ pub(crate) fn add_with(
     // A chart a macro made keeps its identity when the drawing leaves it free (its name `Chart N`
     // is that identity less one); the shapes take theirs around it.
     let mut chart_ids: std::collections::BTreeMap<&str, u32> = Default::default();
-    for chart in new {
+    for chart in new.iter().chain(moves.moved_in) {
         if let Some(id) = chart.drawing_id.filter(|id| !ids.contains(id)) {
             ids.insert(id);
             chart_ids.insert(chart.part.as_str(), id);
@@ -826,6 +869,25 @@ pub(crate) fn add_with(
         let body = frame(chart, id, &rel)?;
         let body = finish_body(body, &drawing, source, structural)?;
         frames.extend(body);
+    }
+    // A chart that arrived from another sheet keeps its part: only its frame is written here.
+    for chart in moves.moved_in {
+        if package.part(&chart.part).is_none() {
+            return Err(invalid(&chart.part, "A moved chart's part is not in the package"));
+        }
+        let rel = parts::ensure_relationship(package, out, &drawing, CHART, &chart.part)?;
+        let id = match chart_ids.get(chart.part.as_str()) {
+            Some(id) => *id,
+            None => {
+                let id = (2..=u32::MAX)
+                    .find(|i| !ids.contains(i))
+                    .ok_or_else(|| invalid(&drawing, "No frame identity is available"))?;
+                ids.insert(id);
+                id
+            }
+        };
+        let body = frame(chart, id, &rel)?;
+        frames.extend(finish_body(body, &drawing, source, structural)?);
     }
     // The pictures' image parts, each with its relationship from the drawing.
     let mut media = super::super::shapes::MediaRels::new();

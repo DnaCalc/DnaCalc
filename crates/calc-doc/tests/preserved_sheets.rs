@@ -159,9 +159,10 @@ fn preserved_sheets__a_save_refuses_to_change_or_remove_them() {
         ),
         (DIALOG_PART, "dialog sheet"),
     );
+    // A chart sheet can go (dc-oxh8w.48), but the dialog sheet is still a preserved part that may name sheets.
     refused(
         sheet_edited(&loaded, SheetEdit::Remove { sheet: chart }),
-        (CHART_PART, "chart sheet"),
+        (DIALOG_PART, "dialog sheet"),
     );
     // Even another sheet's rename can invalidate references in preserved parts.
     let after = sheet(&loaded, "After");
