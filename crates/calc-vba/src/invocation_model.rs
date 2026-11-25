@@ -552,6 +552,7 @@ impl InvocationModel {
     }
 
     fn worksheet_func(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        let through_application = worksheet_function::take_application_call();
         let name = call.member.name.as_str();
         let mut end = call.args.len();
         while end > 0 && call.arg(end - 1).is_missing() {
@@ -571,7 +572,7 @@ impl InvocationModel {
             }
         }
         let value = Self::with_ctx(|ctx| ctx.worksheet_function(name, &args))?;
-        if matches!(value, Value::Error(_)) {
+        if matches!(value, Value::Error(_)) && !through_application {
             return Err(AutoError::excel(
                 1004,
                 format!("WorksheetFunction.{name} could not calculate"),

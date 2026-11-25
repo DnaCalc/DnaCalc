@@ -120,10 +120,18 @@ fn project(
     policy: calc_macro_security::VbaPolicy,
     backend: calc_vba::Backend,
 ) -> (HostSession, Rc<calc_host_vba::WorkbookEvents>) {
+    project_with(MODULE, policy, backend)
+}
+
+fn project_with(
+    module: &str,
+    policy: calc_macro_security::VbaPolicy,
+    backend: calc_vba::Backend,
+) -> (HostSession, Rc<calc_host_vba::WorkbookEvents>) {
     let bytes = vba_project::replace_sources(
         LOCAL,
         &[
-            ("Module1", MODULE),
+            ("Module1", module),
             ("PrivateModule", "Option Private Module\n"),
             ("Sheet1", ""),
             ("ThisWorkbook", ""),
@@ -418,6 +426,37 @@ fn documented_excel_enumeration_members_compile_under_option_explicit() {
         for (i, (name, expected)) in names.iter().enumerate() {
             let run = owner.run_procedure(&mut session, &format!("Module1.C{i}"), &[]);
             assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Number(*expected)), "{backend:?} {name}");
+        }
+    }
+}
+
+const APP_FUNCTIONS: &str = "\
+Public Sub Funcs()
+ Range(\"C1\").Value2 = 4
+ Range(\"C2\").Value2 = \"x\"
+ Range(\"A1\").Value2 = Application.Match(5, Array(3, 5, 7), 0)
+ Range(\"A2\").Value2 = Application.CountA(Range(\"C1:C3\"))
+ Range(\"A3\").Value2 = Application.CountIf(Range(\"C1:C3\"), \">1\")
+ Range(\"A4\").Value2 = Application.Transpose(Array(8, 9))(2, 1)
+ Range(\"A5\").Value2 = IIf(IsError(Application.Match(9, Array(3, 5), 0)), 1, 0)
+End Sub
+";
+
+/// dc-711ye: Excel's Application answers the worksheet-function names (Application.Match,
+/// CountA, CountIf, Transpose) that its type library does not declare; they compile and calculate.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_711ye__application_answers_worksheet_function_names() {
+    for backend in backends() {
+        let (mut session, owner) = project_with(APP_FUNCTIONS, calc_macro_security::VbaPolicy::Guarded, backend);
+        let run = owner.run_procedure(&mut session, "Module1.Funcs", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {run:?}");
+        for (row, expected) in [(1, 2.0), (2, 2.0), (3, 1.0), (4, 9.0), (5, 1.0)] {
+            assert!(
+                matches!(cell(&session, row, 1), Some(calc_host::CellInput::Number(n)) if n.get() == expected),
+                "{backend:?} A{row}: {:?}",
+                cell(&session, row, 1)
+            );
         }
     }
 }

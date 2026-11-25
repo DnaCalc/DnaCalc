@@ -431,6 +431,7 @@ impl DescriptorTypeLibResolver {
                 meta.vtable_slot_bound = Some(7);
                 members.push(meta);
             }
+            members.extend(application_alias_metadata(descriptor, Some(global_iid)));
             let member_name_to_token = unique_name_tokens(&members);
             return Some(TypeLibMetadataBlob {
                 constants: vec![],
@@ -465,6 +466,10 @@ impl DescriptorTypeLibResolver {
                 continue;
             }
             members.push(member_to_metadata(descriptor, iface_id, member));
+        }
+        if descriptor.id("Application").map(|app| descriptor.default_interface(app)) == Some(iface_id) {
+            let iid = Guid::parse(&descriptor.ty(iface_id).guid).map(guid_to_com_iid);
+            members.extend(application_alias_metadata(descriptor, iid));
         }
         let events = coclass_events(descriptor, requested_ty, self.events);
         let member_name_to_token = unique_name_tokens(&members);
@@ -524,6 +529,54 @@ impl TypeLibResolver for DescriptorTypeLibResolver {
             library => self.resolve_descriptor_library(library, request),
         }
     }
+}
+
+/// First token of the worksheet-function names Excel's `Application` answers though its type
+/// library does not declare them (`Application.Match`, `.CountA`, `.Transpose`, dc-711ye).
+pub(crate) const APPLICATION_ALIAS_BASE: i32 = 0x4000_0000;
+
+/// The `WorksheetFunction` methods `Application` does not declare itself, in token order: the
+/// member at index `i` has token [`APPLICATION_ALIAS_BASE`] + `i`.
+pub(crate) fn application_alias_members(descriptor: &Descriptor) -> Vec<&Member> {
+    let (Some(app), Some(functions)) = (descriptor.id("Application"), descriptor.id("WorksheetFunction"))
+    else {
+        return Vec::new();
+    };
+    let app = descriptor.default_interface(app);
+    let functions = descriptor.default_interface(functions);
+    let mut seen = HashSet::new();
+    descriptor
+        .members(functions)
+        .into_iter()
+        .filter(|m| m.invoke == InvokeKind::Method && m.dispid != 0)
+        .filter(|m| descriptor.members(app).iter().all(|a| !a.name.eq_ignore_ascii_case(&m.name)))
+        .filter(|m| seen.insert(m.name.to_ascii_lowercase()))
+        .collect()
+}
+
+/// Blob members for [`application_alias_members`]: late-by-token methods on the Application.
+fn application_alias_metadata(
+    descriptor: &Descriptor,
+    iid: Option<ComInterfaceIid>,
+) -> Vec<TypeLibMemberMetadata> {
+    let Some(functions) = descriptor.id("WorksheetFunction") else {
+        return Vec::new();
+    };
+    let functions = descriptor.default_interface(functions);
+    application_alias_members(descriptor)
+        .into_iter()
+        .enumerate()
+        .map(|(index, member)| {
+            let mut meta = member_to_metadata(descriptor, functions, member);
+            meta.token = APPLICATION_ALIAS_BASE + index as i32;
+            meta.interface_iid = iid;
+            meta.is_dual = false;
+            meta.source_typekind = Some(SourceTypeKind::Dispatch);
+            meta.vtable_slot = None;
+            meta.vtable_slot_bound = Some(7);
+            meta
+        })
+        .collect()
 }
 
 fn unique_name_tokens(members: &[TypeLibMemberMetadata]) -> Vec<(String, i32)> {

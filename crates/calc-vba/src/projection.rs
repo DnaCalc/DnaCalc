@@ -286,6 +286,11 @@ fn to_invoke_kind(kind: DynamicMemberKind) -> InvokeKind {
     }
 }
 
+fn d_is_application(iface: InterfaceId) -> bool {
+    let d = Descriptor::get();
+    d.id("Application").map(|app| d.default_interface(app)) == Some(iface)
+}
+
 fn lookup_member_by_dispid(
     iface: InterfaceId,
     dispid: i32,
@@ -587,10 +592,40 @@ impl ModelObject {
             TypeLibMemberInvokeKind::PropertyPut => InvokeKind::Put,
             TypeLibMemberInvokeKind::PropertyPutRef => InvokeKind::Putref,
         };
+        let (values, names) = unpack_dynamic_args(args);
+        if member_dispid >= crate::descriptor::APPLICATION_ALIAS_BASE {
+            let index = (member_dispid - crate::descriptor::APPLICATION_ALIAS_BASE) as usize;
+            let alias = crate::descriptor::application_alias_members(Descriptor::get())
+                .get(index)
+                .copied()
+                .ok_or_else(|| fault(438, format!("unknown member dispid {member_dispid}")))?;
+            return self.invoke_application_alias(alias, &values, &names);
+        }
         let member = lookup_member_by_dispid(self.object.interface, member_dispid, kind)
             .ok_or_else(|| fault(438, format!("unknown member dispid {member_dispid}")))?;
-        let (values, names) = unpack_dynamic_args(args);
         self.invoke_member(member, &values, &names)
+    }
+
+    /// `Application.<name>(...)` for a worksheet-function name: the call `WorksheetFunction.<name>`
+    /// answers, except that a worksheet error comes back as a value (dc-711ye).
+    fn invoke_application_alias(
+        &self,
+        member: &'static Member,
+        values: &[Variant],
+        names: &[Option<&str>],
+    ) -> Result<Variant, api::TypedFault> {
+        let d = Descriptor::get();
+        let functions_member = d
+            .member(self.object.interface, "WorksheetFunction", InvokeKind::Get)
+            .ok_or_else(|| fault(438, "Application.WorksheetFunction missing from descriptor"))?;
+        let functions = self.invoke_member(functions_member, &[], &[])?;
+        let target = functions
+            .as_object_ref()
+            .and_then(|r| unwrap_model_object(&r))
+            .ok_or_else(|| fault(438, "Application.WorksheetFunction is not an object"))?;
+        calc_object_model::profile::worksheet_function::call_as_application(|| {
+            target.invoke_member(member, values, names)
+        })
     }
 
     fn invoke_late(
@@ -631,6 +666,14 @@ impl ModelObject {
             if let Some(target) = inner.as_object_ref().and_then(|r| unwrap_model_object(&r)) {
                 return target.invoke_late(None, kind, values, names);
             }
+        }
+        if let Some(name) = name
+            && d_is_application(self.object.interface)
+            && let Some(alias) = crate::descriptor::application_alias_members(Descriptor::get())
+                .into_iter()
+                .find(|m| m.name.eq_ignore_ascii_case(name))
+        {
+            return self.invoke_application_alias(alias, values, names);
         }
         Err(fault(438, format!("unknown member {name:?}")))
     }

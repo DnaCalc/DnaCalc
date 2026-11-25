@@ -39,6 +39,25 @@ pub fn register<C>(
     );
 }
 
+thread_local! {
+    static AS_APPLICATION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Mark the next worksheet-function call as made through `Application.<name>` (dc-711ye):
+/// Excel returns the worksheet error value there where `WorksheetFunction.<name>` raises 1004.
+/// The flag is consumed by [`take_application_call`] at the start of the call.
+pub fn call_as_application<T>(call: impl FnOnce() -> T) -> T {
+    AS_APPLICATION.with(|flag| flag.set(true));
+    let result = call();
+    AS_APPLICATION.with(|flag| flag.set(false));
+    result
+}
+
+/// Whether the call now starting was made through `Application.<name>`; clears the mark.
+pub fn take_application_call() -> bool {
+    AS_APPLICATION.with(|flag| flag.replace(false))
+}
+
 /// COM spells dotted catalogue names with underscores (Norm_S_Dist, T_Dist_2T).
 pub fn catalogue_name(name: &str) -> String {
     name.replace('_', ".").to_ascii_uppercase()
@@ -51,6 +70,7 @@ pub fn dispatch(
     mut argument: impl FnMut(&AutoValue) -> Result<CalcValue, AutoError>,
     mut invoke: impl FnMut(&str, &[CalcValue]) -> Result<CalcValue, AutoError>,
 ) -> Result<AutoValue, AutoError> {
+    let through_application = take_application_call();
     let name = catalogue_name(&call.member.name);
     // Missing catalogue entries name the requested member even when a client catches 1004.
     if calc_func::catalogue()
@@ -82,6 +102,9 @@ pub fn dispatch(
         .map(&mut argument)
         .collect::<Result<Vec<_>, _>>()?;
     let result = invoke(&name, &args)?;
+    if result.as_error().is_some() && through_application {
+        return from_calc(&result);
+    }
     if result.as_error().is_some() {
         // E7 has not yet measured the exact description. This provisional text is explicitly
         // required by the owner; tests name that limitation.
