@@ -53,3 +53,10 @@ value agreed. The `RUN` VBA case needs the VBA macro in the comparison
 fixture. The native Excel12 ingress remains with dc-17spk.16 and
 dc-17spk.17. The raw snapshots and the eight direct StatusBar probes are
 in `C:/Work/DnaCalc/codex-runs/ww18/xlc2/`.
+
+`ww18-execute-excel4-macro.json` adds 16 C4 cases from direct IDispatch calls.
+Both fresh sessions agreed on the result types, values, errors and sheet
+effects. `1+2` returned a double 3, `1/0` returned a Variant error, and
+`=1+2` raised a dispatch exception. SELECT, FORMULA, FORMULA.FILL, MESSAGE
+and ECHO returned Boolean TRUE. The CalcHost object model refused all 16
+calls because `_Application.ExecuteExcel4Macro` has no handler.

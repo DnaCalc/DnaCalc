@@ -39,6 +39,8 @@ pub enum ObjectKey {
     /// A range: a handle of the session's reference tracker (calc-fml `ReferenceTracker`), so it
     /// follows structural edits and fails typed when its cells are deleted.
     Range(StoredReference),
+    /// A formatting object over a tracked range. Its interface names the formatting component.
+    RangeFormat(StoredReference),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
     Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.
@@ -107,6 +109,8 @@ pub enum ReportItem {
     SeriesCollection(String),
     /// One series of a chart (chart part, zero-based place across the plots).
     Series(String, u32),
+    /// The data labels of one series (chart part, place across the plots). (dc-oxh8w.18)
+    DataLabels(String, u32),
     /// One axis of a chart: chart part and `XlAxisType` (1 category, 2 value). (dc-oxh8w.11)
     Axis(String, u8),
     /// The title of one axis (chart part, axis type). (dc-oxh8w.12)

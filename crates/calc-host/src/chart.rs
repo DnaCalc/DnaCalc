@@ -2486,6 +2486,46 @@ pub(crate) fn prepare_legend(
 
 /// Series colour editing uses the retained DrawingML writer; an empty colour restores inheritance.
 #[allow(clippy::too_many_arguments)]
+/// A series' data labels (dc-oxh8w.18): the retained writer saves `c:dLbls`.
+pub(crate) fn prepare_series_labels(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot: u32,
+    series: u32,
+    labels: Option<calc_doc_model::ChartLabels>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    let plot = chart.plots.get_mut(plot as usize).ok_or("The plot is unavailable")?;
+    if !matches!(
+        plot.kind.as_str(),
+        "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
+    ) {
+        return Err("Data labels of this chart type are not modelled (dc-oxh8w.18)".into());
+    }
+    let series = plot
+        .series
+        .iter_mut()
+        .find(|s| s.index == series)
+        .ok_or("The series is unavailable")?;
+    if series.labels == labels {
+        return Ok(Vec::new());
+    }
+    // The writer states every part of a label, so a reopened series reads as not the simple value-only form.
+    series.show_values = labels.as_ref().map(|_| false);
+    series.value_labels_source_linked = false;
+    series.labels = labels;
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
 pub(crate) fn prepare_series_style(
     host: &HostState,
     sheet: SheetId,

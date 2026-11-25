@@ -314,11 +314,9 @@ impl WorkbookAutomation {
         &self,
         target: &ObjectRef,
         call: &Call<'_>,
-        mut intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
+        intent: impl FnMut(&HostSession, ReferenceLike) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
-        self.mutate(target, call, |session, reference| {
-            intent(session, reference.ok_or_else(geometry::type_mismatch)?)
-        })
+        self.mutate_areas_with_owner(target, call, OWNER, intent)
     }
     pub(super) fn mutate_areas_with_owner(
         &self,
@@ -555,6 +553,7 @@ impl WorkbookAutomation {
             self.validate(target, &meta)?;
             let reference = match &target.key {
                 ObjectKey::Range(held)
+                | ObjectKey::RangeFormat(held)
                 | ObjectKey::RangeView {
                     reference: held, ..
                 } => Some(self.resolve(&mut Access::Session(session, false), held)?),
