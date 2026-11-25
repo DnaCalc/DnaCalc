@@ -9,7 +9,7 @@ use crate::WorkbookCommand;
 use calc_doc_model::ChartLabels;
 use calc_object_model::ReportItem;
 
-const POINTS: &str = "dc-oxh8w.29";
+const POINTS: &str = "dc-oxh8w.58";
 
 /// `XlDataLabelPosition` and the `c:dLblPos` value it stands for.
 const POSITIONS: [(i32, &str); 9] = [
