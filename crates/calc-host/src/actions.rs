@@ -110,6 +110,21 @@ pub enum ConditionalChange {
         dxf: Box<calc_doc_model::DifferentialFormat>,
     },
 }
+/// Edit to the workbook's named cell styles (dc-orxz0).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StyleChange {
+    /// Add a named style whose format copies the Normal style's.
+    Add {
+        /// The new style's name.
+        name: String,
+    },
+    /// Delete a style added after the workbook was opened and not used by any cell format.
+    Remove {
+        /// Position among the workbook's named styles.
+        index: u32,
+    },
+}
+
 /// Authored workbook commands submitted through [`crate::HostSession::dispatch`].
 ///
 /// Add a worksheet to an in-memory workbook and check the new sheet count.
@@ -655,6 +670,11 @@ pub enum WorkbookCommand {
         /// Column coordinate of the split's top-left visible cell.
         column: u32,
     },
+    /// Add or delete a named cell style.
+    StyleTable {
+        /// What to do with the style table.
+        change: StyleChange,
+    },
     /// Apply a conditional formatting edit on a worksheet.
     Conditional {
         /// Worksheet that owns the target.
@@ -1152,6 +1172,7 @@ pub(crate) fn prepare(
             index,
             change,
         } => conditional_edits(host, sheet, revision, index, change),
+        WorkbookCommand::StyleTable { change } => style_table_edits(host, change),
         WorkbookCommand::Replace {
             options,
             replacement,
@@ -1373,6 +1394,53 @@ pub(crate) fn axis_format_edits(
     let kept = crate::shapes::kept_sizes(host, sheet, &edits);
     edits.extend(kept);
     Ok(edits)
+}
+
+fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEdit>, String> {
+    let mut styles = (**host.styles()).clone();
+    match change {
+        StyleChange::Add { name } => {
+            let trimmed = name.trim();
+            if trimmed.is_empty() || trimmed.encode_utf16().count() > 255 {
+                return Err("Use a style name of 1 to 255 characters".into());
+            }
+            if styles.cell_styles.iter().any(|s| s.name.to_lowercase() == trimmed.to_lowercase()) {
+                return Err("A style with this name already exists".into());
+            }
+            let normal = styles
+                .cell_styles
+                .iter()
+                .find(|s| s.name == "Normal")
+                .map(|s| s.xf_id)
+                .ok_or("The workbook has no Normal style to copy")?;
+            let base = styles
+                .cell_style_formats
+                .get(normal as usize)
+                .ok_or("The Normal style's format is missing")?
+                .clone();
+            let xf_id = styles.cell_style_formats.len() as u32;
+            styles.cell_style_formats.push(base);
+            styles.cell_styles.push(calc_doc_model::CellStyle {
+                name: trimmed.to_owned(),
+                xf_id,
+                builtin_id: None,
+                custom_builtin: false,
+                hidden: false,
+            });
+        }
+        StyleChange::Remove { index } => {
+            let index = index as usize;
+            if index < host.loaded().styles().cell_styles.len() {
+                return Err("A style the file holds cannot be deleted yet (dc-oxh8w.63)".into());
+            }
+            let style = styles.cell_styles.get(index).ok_or("The style is unavailable")?;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(style.xf_id)) {
+                return Err("The style is in use; deleting it needs the cell formats reset (dc-oxh8w.63)".into());
+            }
+            styles.cell_styles.remove(index);
+        }
+    }
+    Ok(vec![CellEdit::Styles(std::sync::Arc::new(styles))])
 }
 
 pub(crate) fn conditional_edits(
