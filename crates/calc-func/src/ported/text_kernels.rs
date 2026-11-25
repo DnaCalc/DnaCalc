@@ -376,9 +376,8 @@ pub(crate) fn search(
     let pattern = find_text.utf16_code_units();
     let hay = within_text.utf16_code_units();
     if pattern.is_empty() {
-        if hay.is_empty() && start_num == 1 {
-            return Ok(1.0);
-        }
+        // Excel 20527 fuzz sweep (dc-j9k.166): SEARCH("","") is #VALUE!; an empty needle needs a
+        // start inside the text.
         let length = if pairs {
             slice_character_count(within_text)
         } else {
@@ -499,7 +498,9 @@ pub(crate) fn unichar(n: f64) -> Result<ExcelText, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Value);
     }
     let codepoint = n as u32;
-    if (0xD800..=0xDFFF).contains(&codepoint) {
+    // Excel 20527 fuzz sweep (dc-j9k.198): U+10FFFF is #N/A like the surrogates. Whether the other
+    // noncharacters (U+FFFE, U+FFFF and each plane's last two) are too is not measured (dc-j9k.228).
+    if (0xD800..=0xDFFF).contains(&codepoint) || codepoint == 0x10FFFF {
         return Err(WorksheetErrorCode::NA);
     }
     let scalar = char::from_u32(codepoint).ok_or(WorksheetErrorCode::Value)?;

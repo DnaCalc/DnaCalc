@@ -1736,3 +1736,17 @@ fn textbefore_after_long_array_delimiters_are_value() {
         Value,
     );
 }
+
+/// Excel 20527 (standing fuzz sweep, dc-j9k.166): SEARCH of empty text in empty text is #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn search_empty_in_empty_is_value() {
+    error(call("SEARCH", vec![t(""), t("")]), Value);
+}
+
+/// Excel 20527 (standing fuzz sweep, dc-j9k.198): UNICHAR(1114111) is #N/A.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn unichar_last_code_point_is_na() {
+    error(call("UNICHAR", vec![n(f64::from_bits(0x4130_ffff_0000_0000))]), NA);
+}
