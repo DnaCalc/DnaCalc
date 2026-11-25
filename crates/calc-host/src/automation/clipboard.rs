@@ -216,6 +216,7 @@ impl WorkbookAutomation {
             .iter()
             .filter_map(|edit| match edit {
                 CellEdit::Set { at, .. } => Some(*at),
+                CellEdit::Clear { area } => Some(area.first()),
                 _ => None,
             })
             .collect();
@@ -233,29 +234,32 @@ impl WorkbookAutomation {
             current.insert(cell.at(), number);
         }
         for edit in plan.edits_mut().iter_mut() {
-            match edit {
-                CellEdit::Set { at, input } => {
-                    let CellInput::Number(source) = input else {
-                        return Err(refuse("with a source that is not a number"));
-                    };
-                    let (dest, source) = (current[at], source.get());
-                    let result = match operation {
-                        XL_PASTE_OPERATION_ADD => dest + source,
-                        XL_PASTE_OPERATION_SUBTRACT => dest - source,
-                        XL_PASTE_OPERATION_MULTIPLY => dest * source,
-                        _ if source == 0.0 => {
-                            *input = CellInput::Error(WorksheetErrorCode::Div0);
-                            continue;
-                        }
-                        _ => dest / source,
-                    };
-                    *input = crate::FiniteNumber::new(result)
-                        .map(CellInput::Number)
-                        .unwrap_or(CellInput::Error(WorksheetErrorCode::Num));
+            // A blank source cell counts as zero.
+            let (at, source) = match edit {
+                CellEdit::Set { at, input } => match input {
+                    CellInput::Number(source) => (*at, source.get()),
+                    _ => return Err(refuse("with a source that is not a number")),
+                },
+                CellEdit::Clear { area } => (area.first(), 0.0),
+                _ => continue,
+            };
+            let dest = current[&at];
+            let result = match operation {
+                XL_PASTE_OPERATION_ADD => dest + source,
+                XL_PASTE_OPERATION_SUBTRACT => dest - source,
+                XL_PASTE_OPERATION_MULTIPLY => dest * source,
+                _ if source == 0.0 => {
+                    *edit = CellEdit::Set { at, input: CellInput::Error(WorksheetErrorCode::Div0) };
+                    continue;
                 }
-                CellEdit::Clear { .. } => return Err(refuse("with a blank source cell (use SkipBlanks)")),
-                _ => {}
-            }
+                _ => dest / source,
+            };
+            *edit = CellEdit::Set {
+                at,
+                input: crate::FiniteNumber::new(result)
+                    .map(CellInput::Number)
+                    .unwrap_or(CellInput::Error(WorksheetErrorCode::Num)),
+            };
         }
         Ok(())
     }
