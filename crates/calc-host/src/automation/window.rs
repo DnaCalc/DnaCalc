@@ -3,13 +3,13 @@
 //! and `SplitRow`/`SplitColumn` read and write the sheet's stored frozen panes through `WorkbookCommand::FreezePanes`
 //! (the command the Freeze Panes menu uses). `Zoom`, `ScrollRow`, `ScrollColumn` and the `Display*` flags are
 //! held for the macro session per worksheet, seeded from the stored sheet view; they are not written to the saved
-//! file and do not move the application's own view (remainder: dc-oxh8w.64). Errors: out-of-range Zoom (10 to
+//! file and do not move the application's own view (remainder: dc-oxh8w.67). Errors: out-of-range Zoom (10 to
 //! 400), scroll positions and non-numeric values are 1004; a wrong type is a type mismatch.
 use super::*;
 use crate::{CommandIngress, SkinIntent, WorkbookCommand};
 use calc_object_model::{Descriptor, Handler};
 
-const REMAINDER: &str = "dc-oxh8w.64";
+const REMAINDER: &str = "dc-oxh8w.67";
 
 /// The flags `Window` exposes, with Excel's defaults for a fresh window.
 const FLAGS: &[(&str, bool)] = &[

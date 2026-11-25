@@ -26,6 +26,11 @@ pub struct HostOptions {
     /// The calculation mode [`crate::step`] follows; `None` follows the mode the package's
     /// `calcPr` declares ([`HostState::calc_mode`]).
     pub calc_mode: Option<CalcMode>,
+    /// `Application.CalculateBeforeSave` as a macro put it; `None` follows the file's `calcOnSave`.
+    pub calculate_before_save: Option<bool>,
+    /// `Workbook.PrecisionAsDisplayed` as a macro put it (only False: the engine always keeps full
+    /// precision); `None` follows the file's `fullPrecision`.
+    pub precision_as_displayed: Option<bool>,
     /// The host's locale profile (decimal and group separators, currency, date order), which
     /// TEXT, VALUE, FIXED, DOLLAR and number text read as a number use. `None` refuses them.
     pub locale: Option<FormatProfile>,
@@ -578,12 +583,12 @@ impl HostState {
     /// The workbook's CalculateBeforeSave: the `calcOnSave` its file carries, true when it says
     /// nothing (dc-1nbp.14).
     pub fn calculate_before_save(&self) -> bool {
-        self.loaded.calc_on_save()
+        self.options.calculate_before_save.unwrap_or_else(|| self.loaded.calc_on_save())
     }
 
     /// `Workbook.PrecisionAsDisplayed`: `calcPr/@fullPrecision` false (dc-oxh8w.40).
     pub fn precision_as_displayed(&self) -> bool {
-        !self.loaded.full_precision()
+        self.options.precision_as_displayed.unwrap_or_else(|| !self.loaded.full_precision())
     }
 
     /// The calculation context every recalculation of this host applies: the date system the

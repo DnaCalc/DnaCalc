@@ -416,7 +416,7 @@ impl HostState {
     /// The sheet and cell the person has active: the session's selection, else the workbook's
     /// active sheet (its first sheet) at A1, as Excel always has an active sheet.
     pub fn user_view(&self) -> Option<calc_func::UserView> {
-        self.user_view.or_else(|| {
+        let view = self.user_view.or_else(|| {
             let sheet = self
                 .loaded()
                 .active_sheet()
@@ -425,8 +425,28 @@ impl HostState {
             Some(calc_func::UserView {
                 active_sheet: sheet,
                 selection: calc_value::CellKey::new(sheet, 1, 1).ok()?,
+                settings: None,
             })
-        })
+        })?;
+        Some(calc_func::UserView { settings: Some(self.app_settings()), ..view })
+    }
+    /// The application and workbook settings a worksheet function reads through the object model
+    /// (dc-oxh8w.52): the same values the session's own reads answer.
+    pub fn app_settings(&self) -> calc_func::AppSettings {
+        let iteration = self.model().definitions().iteration();
+        calc_func::AppSettings {
+            calculation: match self.calc_mode() {
+                calc_doc::CalcMode::Manual => -4135,
+                calc_doc::CalcMode::AutomaticExceptTables => 2,
+                calc_doc::CalcMode::Automatic => -4105,
+            },
+            calculate_before_save: self.calculate_before_save(),
+            iteration: iteration.enabled(),
+            max_iterations: iteration.max_iterations(),
+            max_change_bits: iteration.max_change().to_bits(),
+            date1904: self.declared_date1904(),
+            precision_as_displayed: self.precision_as_displayed(),
+        }
     }
     /// Install a connector for RTD subscriptions and refresh the function bindings.
     pub fn set_rtd_connector(&mut self, connector: std::rc::Rc<dyn calc_fml::RtdConnector>) {

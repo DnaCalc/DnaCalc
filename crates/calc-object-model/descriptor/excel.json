@@ -91521,6 +91521,150 @@
      "return": "VOID"
     }
    ]
+  },
+  {
+   "name": "Pages",
+   "kind": "dispatch",
+   "guid": "{000244A3-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Item",
+     "dispid": 170,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "Page*"
+    },
+    {
+     "name": "_Default",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "Page*"
+    },
+    {
+     "name": "Count",
+     "dispid": 118,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IUnknown*"
+    }
+   ]
+  },
+  {
+   "name": "Page",
+   "kind": "dispatch",
+   "guid": "{000244A2-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "LeftHeader",
+     "dispid": 1018,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    },
+    {
+     "name": "CenterHeader",
+     "dispid": 1011,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    },
+    {
+     "name": "RightHeader",
+     "dispid": 1026,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    },
+    {
+     "name": "LeftFooter",
+     "dispid": 1017,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    },
+    {
+     "name": "CenterFooter",
+     "dispid": 1010,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    },
+    {
+     "name": "RightFooter",
+     "dispid": 1025,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HeaderFooter*"
+    }
+   ]
   }
  ]
 }

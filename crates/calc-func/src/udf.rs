@@ -420,6 +420,30 @@ pub struct UserView {
     pub active_sheet: crate::value::SheetId,
     /// The selected cell (a host with a one-cell selection; a larger one is not modelled).
     pub selection: CellKey,
+    /// The application and workbook settings VBA reads (`Application.Calculation` and the
+    /// others), as the host holds them for this evaluation. `None` when the host does not model
+    /// them: the reads are then typed refusals.
+    pub settings: Option<AppSettings>,
+}
+
+/// The settings a worksheet function can read through the object model, as one snapshot
+/// (dc-oxh8w.52). The host fills it from the same state its own session reads answer from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AppSettings {
+    /// `Application.Calculation`: -4105 automatic, -4135 manual or 2 semiautomatic.
+    pub calculation: i32,
+    /// `Application.CalculateBeforeSave`.
+    pub calculate_before_save: bool,
+    /// `Application.Iteration`.
+    pub iteration: bool,
+    /// `Application.MaxIterations`.
+    pub max_iterations: u32,
+    /// `Application.MaxChange`, as binary64 bits.
+    pub max_change_bits: u64,
+    /// `Workbook.Date1904`.
+    pub date1904: bool,
+    /// `Workbook.PrecisionAsDisplayed`.
+    pub precision_as_displayed: bool,
 }
 
 /// Services borrowed only for one synchronous call. The evaluator owns the reader and caller;
