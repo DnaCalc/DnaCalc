@@ -42,6 +42,7 @@ mod navigation;
 mod print;
 mod report;
 mod chart_axes;
+mod chart_labels;
 mod report_draw;
 mod structure;
 mod value;

@@ -217,10 +217,18 @@ fn source_with_xml(
                 keep.categories = original.categories.clone();
                 keep.values = original.values.clone();
                 keep.fill = original.fill.clone();
+                keep.labels = original.labels.clone();
+                keep.show_values = original.show_values;
+                keep.value_labels_source_linked = original.value_labels_source_linked;
                 if keep != *original {
                     return Err(invalid(
                         "Changing series formatting is not modelled (dc-971p.46)",
                     ));
+                }
+            }
+            if series.labels != old.series.iter().find(|s| s.index == series.index).and_then(|s| s.labels.clone()) {
+                if let Some(labels) = &series.labels {
+                    valid_labels(labels).map_err(invalid)?;
                 }
             }
             if series.fill
@@ -988,6 +996,9 @@ fn plot_series(
         if s.fill.is_some() {
             added.extend(colour::fresh(s.fill.as_deref()));
         }
+        if let Some(labels) = s.labels.as_ref() {
+            added.extend(labels_xml(labels));
+        }
         for (slot, data) in [
             (
                 if after.kind == "scatterChart" {
@@ -1035,6 +1046,100 @@ fn plot_series(
         patches.push(((at, at), fresh_number("holeSize", "50")));
     }
     Ok(())
+}
+/// The positions `c:dLblPos` allows.
+const LABEL_POSITIONS: [&str; 9] = ["bestFit", "ctr", "inEnd", "inBase", "outEnd", "t", "b", "l", "r"];
+/// The `c:dLbls` children that state what a label shows and where; a rewrite replaces exactly these.
+const LABEL_GROUP: [&str; 8] =
+    ["delete", "dLblPos", "showLegendKey", "showVal", "showCatName", "showSerName", "showPercent", "showBubbleSize"];
+
+fn valid_labels(labels: &calc_doc_model::ChartLabels) -> Result<(), &'static str> {
+    if labels.position.as_deref().is_some_and(|p| !LABEL_POSITIONS.contains(&p)) {
+        return Err("The data label position is not supported (dc-oxh8w.18)");
+    }
+    if labels
+        .separator
+        .as_deref()
+        .is_some_and(|t| t.chars().any(|c| (c < ' ' && !matches!(c, '\t' | '\n' | '\r')) || matches!(c, '\u{fffe}' | '\u{ffff}')))
+    {
+        return Err("The data label separator contains unsupported text (dc-oxh8w.18)");
+    }
+    Ok(())
+}
+/// The children of a `c:dLbls` that state what a label shows (in schema order), each carrying the chart namespace.
+fn labels_group(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
+    if labels.deleted {
+        return fresh_number("delete", "1");
+    }
+    let flag = |on: bool| if on { "1" } else { "0" };
+    let mut bytes = Vec::new();
+    if let Some(position) = labels.position.as_deref() {
+        bytes.extend(fresh_number("dLblPos", position));
+    }
+    for (name, on) in [
+        ("showLegendKey", false),
+        ("showVal", labels.value),
+        ("showCatName", labels.category),
+        ("showSerName", labels.series),
+        ("showPercent", labels.percent),
+        ("showBubbleSize", false),
+    ] {
+        bytes.extend(fresh_number(name, flag(on)));
+    }
+    if let Some(separator) = labels.separator.as_deref() {
+        bytes.extend(format!("<c:separator xmlns:c=\"{C}\">{}</c:separator>", plain_text(separator)).into_bytes());
+    }
+    bytes
+}
+/// A whole new `c:dLbls`.
+fn labels_xml(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
+    let mut bytes = format!("<c:dLbls xmlns:c=\"{C}\">").into_bytes();
+    bytes.extend(labels_group(labels));
+    bytes.extend_from_slice(b"</c:dLbls>");
+    bytes
+}
+/// Rewrite an existing series `c:dLbls` to state `after`, keeping its point overrides, number format, shape and text
+/// properties; `None` removes it. Returns the end of the element.
+fn labels_patch(
+    reader: &mut Reader<'_>,
+    span: (usize, usize),
+    after: Option<&calc_doc_model::ChartLabels>,
+    patches: &mut Vec<Patch>,
+) -> Result<usize, SaveRefusal> {
+    let mut group = Vec::new();
+    let mut tail = None;
+    let (close, end) = loop {
+        match reader.expect()? {
+            (XmlEvent::Start(e), s) => {
+                let end = reader.element_end()?;
+                if e.name.namespace.as_deref() == Some(C) {
+                    if LABEL_GROUP.contains(&e.name.local.as_str()) || e.name.local == "separator" {
+                        group.push((s.0, end));
+                    } else if matches!(e.name.local.as_str(), "showLeaderLines" | "leaderLines" | "extLst") {
+                        tail.get_or_insert(s.0);
+                    }
+                }
+            }
+            (XmlEvent::End(_), (close, end)) => break (close, end),
+            _ => {}
+        }
+    };
+    let Some(after) = after else {
+        patches.push(((span.0, end), Vec::new()));
+        return Ok(end);
+    };
+    let fresh = labels_group(after);
+    match group.split_first() {
+        Some((first, rest)) => {
+            patches.push((*first, fresh));
+            patches.extend(rest.iter().map(|s| (*s, Vec::new())));
+        }
+        None => {
+            let at = tail.unwrap_or(close);
+            patches.push(((at, at), fresh));
+        }
+    }
+    Ok(end)
 }
 fn data_xml(slot: &str, data: Option<&ChartData>) -> Vec<u8> {
     data_xml_with(slot, data, false)
@@ -1119,6 +1224,8 @@ fn series_source(
                         colour::replace(xml, reader, s, after.fill.as_deref(), false)?;
                     patches.push(((s.0, end), bytes));
                     end
+                } else if before.labels != after.labels && e.name.is(C, "dLbls") {
+                    labels_patch(reader, s, after.labels.as_ref(), patches)?
                 } else {
                     reader.element_end()?
                 };
@@ -1141,6 +1248,26 @@ fn series_source(
     }
     if before.fill != after.fill && children.iter().filter(|(n, _)| n.is(C, "spPr")).count() > 1 {
         return Err(reader.invalid("Duplicate series shape records (dc-971p.58)"));
+    }
+    if before.labels != after.labels {
+        if children.iter().filter(|(n, _)| n.is(C, "dLbls")).count() > 1 {
+            return Err(reader.invalid("Duplicate series data labels (dc-oxh8w.18)"));
+        }
+        if !children.iter().any(|(n, _)| n.is(C, "dLbls")) {
+            if let Some(labels) = after.labels.as_ref() {
+                let at = children
+                    .iter()
+                    .find(|(n, _)| {
+                        n.namespace.as_deref() == Some(C)
+                            && matches!(
+                                n.local.as_str(),
+                                "trendline" | "errBars" | "cat" | "val" | "xVal" | "yVal" | "bubbleSize" | "smooth" | "shape" | "extLst"
+                            )
+                    })
+                    .map_or(close, |(_, s)| s.0);
+                patches.push(((at, at), labels_xml(labels)));
+            }
+        }
     }
     let rank = |name: &str| match name {
         "idx" => 0,
@@ -1688,6 +1815,45 @@ fn valid_log_axis(axis: &calc_doc_model::ChartAxis) -> Result<(), &'static str> 
 #[cfg(test)]
 mod colour_order_tests {
     use super::*;
+    fn rewrite_labels(body: &str, after: Option<calc_doc_model::ChartLabels>) -> String {
+        let xml = XmlPart::new(
+            "chart.xml".into(),
+            format!(r#"<c:ser xmlns:c="{C}"><c:idx val="0"/><c:order val="0"/>{body}<c:val><c:numLit/></c:val></c:ser>"#)
+                .into_bytes(),
+            crate::xml::XmlLimits::default(),
+        );
+        let before = ChartSeries { labels: Some(calc_doc_model::ChartLabels { value: true, ..Default::default() }), ..Default::default() };
+        let after = ChartSeries { labels: after, ..Default::default() };
+        let mut reader = Reader::new(&xml);
+        let (_, span) = reader.expect().unwrap();
+        let mut patches = Vec::new();
+        series_source(&xml, &mut reader, span, &before, &after, "barChart", "barChart", None, &mut patches).unwrap();
+        patches.sort_by_key(|(span, _)| *span);
+        let mut splice = Splice::new(xml.bytes());
+        for ((start, end), bytes) in patches {
+            splice.replace((start, end), &bytes);
+        }
+        String::from_utf8(splice.finish()).unwrap().replace(&format!(" xmlns:c=\"{C}\""), "")
+    }
+    /// dc-oxh8w.18: rewriting a retained `c:dLbls` replaces what the labels show and keeps the rest of the element.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn retained_data_labels_are_rewritten_in_place() {
+        let existing = "<c:dLbls><c:dLbl><c:idx val=\"1\"/><c:showVal val=\"0\"/></c:dLbl><c:numFmt formatCode=\"0\" sourceLinked=\"0\"/><c:txPr/><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/><c:showLeaderLines val=\"1\"/></c:dLbls>";
+        let labels = calc_doc_model::ChartLabels { series: true, position: Some("inEnd".into()), ..Default::default() };
+        let text = rewrite_labels(existing, Some(labels));
+        assert!(text.contains("<c:dLbl><c:idx val=\"1\"/>"), "{text}");
+        assert!(text.contains("<c:numFmt formatCode=\"0\" sourceLinked=\"0\"/><c:txPr/><c:dLblPos val=\"inEnd\"/><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"0\"/><c:showSerName val=\"1\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/><c:showLeaderLines val=\"1\"/></c:dLbls>"), "{text}");
+        assert_eq!(text.matches("showVal").count(), 2, "{text}");
+        // Removing the labels drops the element; deleting states `c:delete`.
+        assert!(!rewrite_labels(existing, None).contains("dLbls"));
+        let deleted = rewrite_labels(existing, Some(calc_doc_model::ChartLabels { deleted: true, ..Default::default() }));
+        assert!(deleted.contains("<c:txPr/><c:delete val=\"1\"/><c:showLeaderLines val=\"1\"/>"), "{deleted}");
+        // A series with no `c:dLbls` gains one before its data.
+        let fresh = rewrite_labels("", Some(calc_doc_model::ChartLabels { category: true, ..Default::default() }));
+        assert!(fresh.contains("<c:order val=\"0\"/><c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"1\"/>"), "{fresh}");
+        assert!(fresh.contains("</c:dLbls><c:val>"), "{fresh}");
+    }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn missing_name_and_shape_follow_series_schema_order() {

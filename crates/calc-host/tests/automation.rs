@@ -5931,6 +5931,99 @@ fn dc_oxh8w_12__tick_label_number_format_through_the_object_model() {
     assert!(xml.contains("formatCode=\"0.00\""), "{xml}");
 }
 
+/// A column chart over A1:B3 and its first series, for the data label tests.
+fn labelled_series() -> (Rc<Host>, Rc<WorkbookAutomation>, ObjectRef) {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B3");
+    let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    (host, model, series)
+}
+
+fn saved_chart_xml(host: &Host) -> String {
+    saved_part(&mut host.session.borrow_mut(), "xl/charts/")
+        .replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "")
+}
+
+/// dc-oxh8w.18: a macro turns a series' data labels on and off; the chart saves them and invalid arguments are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_18__a_macro_toggles_series_data_labels_and_the_chart_saves_them() {
+    let (host, model, series) = labelled_series();
+    let get = || invoke(&model, &series, "HasDataLabels", vec![]).unwrap();
+    let put = |v: bool| invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![AutoValue::Bool(v)]);
+    assert!(matches!(get(), AutoValue::Bool(false)));
+    // No labels: the DataLabels object is Excel's 1004.
+    let none = invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![]);
+    assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
+    put(true).unwrap();
+    assert!(matches!(get(), AutoValue::Bool(true)));
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<c:showVal val=\"1\"/>"), "{xml}");
+    assert!(xml.contains("<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/>"), "{xml}");
+    // ApplyDataLabels: category name and percent; ShowNone removes them.
+    invoke_kind(&model, &series, "ApplyDataLabels", InvokeKind::Method, vec![AutoValue::I4(5)]).unwrap();
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<c:showVal val=\"0\"/><c:showCatName val=\"1\"/><c:showSerName val=\"0\"/><c:showPercent val=\"1\"/>"), "{xml}");
+    invoke_kind(&model, &series, "ApplyDataLabels", InvokeKind::Method, vec![AutoValue::I4(-4142)]).unwrap();
+    assert!(matches!(get(), AutoValue::Bool(false)));
+    let xml = saved_chart_xml(&host);
+    assert!(!xml.contains("<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"1\"/>"), "{xml}");
+    put(true).unwrap();
+    put(false).unwrap();
+    assert!(matches!(get(), AutoValue::Bool(false)));
+    // Invalid types and argument counts.
+    for bad in [0, 1, 6, 7, 99] {
+        let r = invoke_kind(&model, &series, "ApplyDataLabels", InvokeKind::Method, vec![AutoValue::I4(bad)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    let r = invoke_kind(&model, &series, "ApplyDataLabels", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::I4(2)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(1)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+}
+
+/// dc-oxh8w.18: the `DataLabels` members (run once the descriptor holds DataLabels, RUN-ON-WINDOWS).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_18__data_labels_members_through_the_object_model() {
+    if calc_object_model::Descriptor::get().id("DataLabels").is_none() {
+        eprintln!("dc-oxh8w.18: descriptor lacks DataLabels; member round trip not run");
+        return;
+    }
+    let (host, model, series) = labelled_series();
+    invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let labels = obj(invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![]).unwrap());
+    let flag = |name: &str| matches!(invoke(&model, &labels, name, vec![]).unwrap(), AutoValue::Bool(true));
+    assert!(flag("ShowValue") && !flag("ShowCategoryName") && !flag("ShowSeriesName") && !flag("ShowPercentage"));
+    invoke_kind(&model, &labels, "ShowSeriesName", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &labels, "Position", InvokeKind::Put, vec![AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &labels, "Separator", InvokeKind::Put, vec![AutoValue::text("; ")]).unwrap();
+    assert!(flag("ShowSeriesName"));
+    assert_eq!(int(invoke(&model, &labels, "Position", vec![]).unwrap()), 3);
+    assert_eq!(text(&model, &labels, "Separator"), "; ");
+    let bad = invoke_kind(&model, &labels, "Position", InvokeKind::Put, vec![AutoValue::I4(12345)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<c:dLblPos val=\"inEnd\"/>"), "{xml}");
+    assert!(xml.contains("<c:showSerName val=\"1\"/>"), "{xml}");
+    assert!(xml.contains("<c:separator>; </c:separator>"), "{xml}");
+}
+
 /// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
