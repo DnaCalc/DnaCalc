@@ -486,6 +486,7 @@ pub struct LoadedWorkbook {
     compatibility_version: u32,
     calc_mode: CalcMode,
     calc_on_save: bool,
+    full_precision: bool,
     /// The sheet `<workbookView activeTab>` names (dc-uar).
     active_sheet: Option<SheetId>,
     defined_names_not_loaded: usize,
@@ -1324,6 +1325,12 @@ impl LoadedWorkbook {
         self.calc_on_save
     }
 
+    /// The workbook's `calcPr` `fullPrecision`: false is Excel's "Set precision as displayed",
+    /// `Workbook.PrecisionAsDisplayed` true. True where the file does not say (CT_CalcPr).
+    pub fn full_precision(&self) -> bool {
+        self.full_precision
+    }
+
     /// The active sheet: the one the first `<workbookView>`'s `activeTab` names (the first sheet
     /// when it names none), `None` when it names no sheet of the workbook (dc-uar).
     pub fn active_sheet(&self) -> Option<SheetId> {
@@ -1707,6 +1714,7 @@ struct WorkbookPart {
     compatibility_version: u32,
     calc_mode: CalcMode,
     calc_on_save: bool,
+    full_precision: bool,
     /// The first `workbookView`'s `activeTab`, 0 when it states none.
     active_tab: usize,
     /// `calcPr`'s `iterate`, `iterateCount` and `iterateDelta`.
@@ -1748,6 +1756,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut compatibility_version = None;
     let mut calc_mode = CalcMode::Automatic;
     let mut calc_on_save = true;
+    let mut full_precision = true;
     let mut active_tab: Option<usize> = None;
     let mut iteration = IterationSettings::EXCEL_DEFAULT;
     let mut defined_names = Vec::new();
@@ -1844,6 +1853,12 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 None | Some("1" | "true") => true,
                 Some("0" | "false") => false,
                 Some(_) => return Err(events.invalid("a calcPr whose calcOnSave is not a boolean")),
+            };
+            // `fullPrecision` false is Excel's "Set precision as displayed" (PrecisionAsDisplayed).
+            full_precision = match element.attribute("fullPrecision").map(str::trim) {
+                None | Some("1" | "true") => true,
+                Some("0" | "false") => false,
+                Some(_) => return Err(events.invalid("a calcPr whose fullPrecision is not a boolean")),
             };
             // L3 (dc-m3u): the iterative-calculation settings, Excel's defaults where absent.
             let defaults = IterationSettings::EXCEL_DEFAULT;
@@ -2051,6 +2066,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
         compatibility_version: compatibility_version.unwrap_or(1),
         calc_mode,
         calc_on_save,
+        full_precision,
         active_tab: active_tab.unwrap_or(0),
         iteration,
         defined_names,
@@ -2164,6 +2180,7 @@ pub fn load_preserving_sheet_ids(
         compatibility_version,
         calc_mode,
         calc_on_save,
+        full_precision,
         active_tab,
         iteration,
         defined_names,
@@ -2564,6 +2581,7 @@ pub fn load_preserving_sheet_ids(
         compatibility_version,
         calc_mode,
         calc_on_save,
+        full_precision,
         active_sheet: issued.get(active_tab).copied(),
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,

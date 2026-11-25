@@ -149,6 +149,8 @@ pub struct WorkbookAutomation {
     next_workbook: Cell<u64>,
     /// `Application.ScreenUpdating`: a flag the application holds; no renderer is attached here.
     screen_updating: Cell<bool>,
+    /// `Application.MultiThreadedCalculation`: Enabled, ThreadMode (XlThreadMode) and the manual ThreadCount.
+    multithreaded: Cell<(bool, i32, i32)>,
     /// `Application.StatusBar`: the text set, or None for the default status.
     status_bar: RefCell<Option<String>>,
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
@@ -305,6 +307,7 @@ impl WorkbookAutomation {
             snapshot: RefCell::new(None),
             next_workbook: Cell::new(1),
             screen_updating: Cell::new(true),
+            multithreaded: Cell::new((true, 0, 1)),
             status_bar: RefCell::new(None),
             ranges: RefCell::default(),
             find: RefCell::default(),
