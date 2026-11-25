@@ -204,6 +204,33 @@ fn interned(text: String) -> &'static str {
     })
 }
 
+/// How deep `Application.Run` may nest before it raises VBA's "Out of stack space" (error 28).
+/// Excel's own limit is not measured here (dc-oxh8w.34, RUN-ON-WINDOWS); this keeps the native stack safe.
+const RUN_NESTING_LIMIT: usize = 48;
+
+thread_local! {
+    static RUN_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+struct RunDepth;
+impl RunDepth {
+    fn enter() -> Option<Self> {
+        RUN_DEPTH.with(|depth| {
+            if depth.get() >= RUN_NESTING_LIMIT {
+                None
+            } else {
+                depth.set(depth.get() + 1);
+                Some(RunDepth)
+            }
+        })
+    }
+}
+impl Drop for RunDepth {
+    fn drop(&mut self) {
+        RUN_DEPTH.with(|depth| depth.set(depth.get() - 1));
+    }
+}
+
 impl WorkbookEvents {
     /// `Application.Run "Name", args...` from a running procedure: the same invocation, nested.
     /// Excel's own errors: an unknown macro raises 1004 with its message; the macro's run-time
@@ -225,7 +252,7 @@ impl WorkbookEvents {
                 if !self.automation.matches_workbook_name(&book)? {
                     return Err(AutoError::not_modelled(
                         "_Application.Run of another workbook's project",
-                        "dc-80m0f",
+                        "dc-oxh8w.42",
                     ));
                 }
                 request
@@ -260,6 +287,9 @@ impl WorkbookEvents {
                 }
             });
         }
+        let Some(_depth) = RunDepth::enter() else {
+            return Err(AutoError::excel(28, "Out of stack space"));
+        };
         let (result, _denials) =
             self.project.run_procedure_recorded(&entry.module, &entry.name, &args, self.max_steps);
         match result {

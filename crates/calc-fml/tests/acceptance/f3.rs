@@ -53,6 +53,58 @@ fn sequence_argument_coercion_order() {
     }
 }
 
+/// Excel 16.0.20625 preserves the XPath node count even when a node gives #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn filterxml_preserves_errors_per_xpath_node() {
+    let mut book = Book::new();
+    let error = e(W::Value);
+    for (formula, expected) in [
+        (
+            r#"=FILTERXML("<a><b>x<c>y</c>z</b></a>","//b/text()")"#,
+            rows(&[&[error.clone()], &[error.clone()]]),
+        ),
+        (
+            r#"=FILTERXML("<a><b id=""8"">x<c/>z</b></a>","//b/text() | //b/@id")"#,
+            rows(&[&[n(8.0)], &[error.clone()], &[error.clone()]]),
+        ),
+        (
+            r#"=FILTERXML("<a><b> <c/>7</b></a>","//b[text()[1]=""7""]")"#,
+            n(7.0),
+        ),
+        (
+            r#"=FILTERXML("<a><b><![CDATA[ ]]>7</b><b>8</b></a>","//b/text()")"#,
+            rows(&[&[error.clone()], &[error.clone()], &[error.clone()]]),
+        ),
+        (r#"=FILTERXML("<a><b>x</b></a>","//b/text()")"#, error),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
+/// Excel 16.0.20625 uses a tolerant floor for XMATCH and XLOOKUP mode arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn lookup_modes_floor_with_excel_integer_tolerance() {
+    let mut book = Book::new();
+    book.number("H1", -(2.0_f64.powi(-100)))
+        .number("H2", f64::from_bits(1.0_f64.to_bits() - 1))
+        .number("H3", f64::from_bits((-1.0_f64).to_bits() + 1));
+    for (formula, expected) in [
+        ("=XMATCH(15,{10;20;30},H1)", e(W::NA)),
+        ("=XMATCH(15,{10;20;30},-0.75)", n(1.0)),
+        ("=XMATCH(15,{10;20;30},H2)", n(2.0)),
+        ("=XMATCH(15,{10;20;30},H3)", n(1.0)),
+        ("=XMATCH(15,{10;20;30},1,H1)", e(W::Value)),
+        ("=XMATCH(15,{10;20;30},1,H2)", n(2.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,H1)", n(99.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,H2)", n(200.0)),
+        ("=XLOOKUP(15,{10;20;30},{100;200;300},99,1,H1)", e(W::Value)),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sortby_lifts_each_order_argument() {

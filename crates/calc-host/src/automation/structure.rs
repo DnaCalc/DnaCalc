@@ -7,7 +7,7 @@ use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, Sk
 /// xlWorksheet, the only sheet type Worksheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
 /// The open bead that owns the structural remainders this file refuses.
-const OWNER: &str = "dc-oxh8w.36";
+const OWNER: &str = "dc-oxh8w.43";
 
 impl WorkbookAutomation {
     pub(super) fn register_structure(handlers: &mut Handlers<Self>) {
@@ -20,7 +20,7 @@ impl WorkbookAutomation {
 
     /// One sheet command; a refusal is Excel's 1004 with the host's reason (a name Excel rejects, the
     /// last visible sheet, ...).
-    fn sheet_command(
+    pub(super) fn sheet_command(
         session: &mut HostSession,
         sheet: Option<SheetId>,
         change: SheetChange,
@@ -36,7 +36,7 @@ impl WorkbookAutomation {
         }
     }
 
-    fn sheet_argument(arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
+    pub(super) fn sheet_argument(arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
         match arg {
             AutoValue::Missing | AutoValue::Empty => Ok(None),
             AutoValue::Object(ObjectRef {
@@ -144,7 +144,7 @@ impl WorkbookAutomation {
         result
     }
 
-    fn worksheet_sheet(target: &ObjectRef) -> Result<SheetId, AutoError> {
+    pub(super) fn worksheet_sheet(target: &ObjectRef) -> Result<SheetId, AutoError> {
         match target.key {
             ObjectKey::Worksheet { sheet, .. } => Ok(sheet),
             _ => Err(geometry::type_mismatch()),

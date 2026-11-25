@@ -46,6 +46,7 @@ mod chart_export;
 mod chart_format;
 mod chart_labels;
 mod report_draw;
+mod sheet_copy;
 mod structure;
 mod value;
 
@@ -265,6 +266,7 @@ impl WorkbookAutomation {
         Self::register_navigation(&mut handlers);
         Self::register_mutation(&mut handlers);
         Self::register_structure(&mut handlers);
+        Self::register_sheet_copy(&mut handlers);
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
@@ -1516,7 +1518,7 @@ fn read_session(
             value if strict_provenance && event_input_needs_provenance(value) => Err(
                 AutoError::not_modelled(
                     "File-project event reads with cached or uncertified provenance",
-                    "dc-oxh8w.37",
+                    "dc-oxh8w.38",
                 ),
             ),
             ProjectedValue::Empty => Ok(CalcValue::empty()),

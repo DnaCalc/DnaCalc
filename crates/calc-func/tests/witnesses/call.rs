@@ -453,7 +453,10 @@ pub fn calculate_with_reference_text(
             }
         }
     }
+    // A range argument sits at a known place (Q!$A$1 for the first, call at a time), so its row and
+    // column are known; a scalar argument's row is known only through the bulk layout's column.
     if has_reference
+        && !has_range
         && (target.spelling() == "ROW" || (target.spelling() == "COLUMN" && !bulk_layout))
     {
         return "fault:WitnessReferencePosition".to_owned();
@@ -858,6 +861,31 @@ mod tests {
         assert_eq!(calculate("ROW", &text, None, Some(&bulk), true), "fault:WitnessReferencePosition");
         assert_eq!(calculate("COLUMN", &text, None, Some(&cells), true), "fault:WitnessReferencePosition");
         assert!(calculate("FORMULATEXT", &text, None, Some(&cells), true).starts_with("fault:"));
+    }
+
+    /// dc-mlhgn: the call-at-a-time worker places an `rRxC` range at `Q!$A$1` (row 1, column 1 for
+    /// the first range), so ROW and COLUMN of a range argument are known without a bulk layout.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn row_and_column_of_a_range_argument_use_its_known_placement() {
+        let bulk = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let one = format!("0x{:016x}", 1f64.to_bits());
+        let range = [json!({"range": [["0x3ff0000000000000", "0x4000000000000000"], ["0x4008000000000000", "0x4010000000000000"]]})];
+        for context in [Some(&bulk), None] {
+            // A 2 x 2 range answers its columns as a 1 x 2 row and its rows as a 2 x 1 column.
+            let column = calculate("COLUMN", &range, None, context, true);
+            assert!(column.contains("\"rows\":1,\"columns\":2"), "{column}");
+            assert!(column.contains("3ff0000000000000") && column.contains("4000000000000000"), "{column}");
+            let row = calculate("ROW", &range, None, context, true);
+            assert!(row.contains("\"rows\":2,\"columns\":1"), "{row}");
+            let single = [json!({"range": [["0x4008000000000000"]]})];
+            assert_eq!(calculate("COLUMN", &single, None, context, true), one);
+            assert_eq!(calculate("ROW", &single, None, context, true), one);
+        }
     }
 
     /// The Lists-in-Cells beta functions are #NAME? below compatibility version 3 (Excel

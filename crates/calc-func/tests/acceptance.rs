@@ -2189,6 +2189,21 @@ const IF: (Notation, &str) = (Notation::Call, "IF");
 const COUNT: (Notation, &str) = (Notation::Call, "COUNT");
 const COUNTIF: (Notation, &str) = (Notation::Call, "COUNTIF");
 
+/// Excel 16.0.20625.20108, dc-j9k.170. Both infix half powers round the
+/// square root to binary64 before a negative exponent takes its reciprocal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn infix_half_powers_store_the_square_root_from_pc64() {
+    let target = surface(Notation::Infix, "^");
+    let mode = NumericMode::Fast;
+    let base = f64::from_bits(0x3ff0_0000_0028_3c23);
+    for (exponent, expected) in [(0.5, 0x3ff0_0000_0014_1e12), (-0.5, 0x3fef_ffff_ffd7_c3dc)] {
+        let mut args = Recorded::new(vec![CalcValue::number(base), CalcValue::number(exponent)]);
+        let actual = run(target, &mut args, &mode).unwrap();
+        assert_eq!(actual.as_number().unwrap().to_bits(), expected);
+    }
+}
+
 /// Excel 16.0.20527, dc-1943 Q1: EXP creates a real subnormal, which + and - retain,
 /// while multiplication, division and exponentiation flush their subnormal results.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
