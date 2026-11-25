@@ -1,6 +1,8 @@
 //! `Range.Style` and the members of one `Style`: the Cell Styles gallery's apply command over named cell styles.
 use super::*;
 
+const STYLE_OWNER: &str = "dc-lj4j5";
+
 impl WorkbookAutomation {
     pub(super) fn register_range_styles(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Style", InvokeKind::Get, Self::range_style);
@@ -11,9 +13,14 @@ impl WorkbookAutomation {
         handlers.on("Styles", "_Default", InvokeKind::Get, Self::styles_item);
         handlers.on("Styles", "Add", InvokeKind::Method, Self::styles_add);
         handlers.on("Style", "Delete", InvokeKind::Method, Self::style_delete);
+        handlers.on("Style", "Font", InvokeKind::Get, Self::style_font);
+        handlers.on("Style", "Interior", InvokeKind::Get, Self::style_interior);
         handlers.on("Style", "NumberFormat", InvokeKind::Put, Self::style_put_number_format);
         for member in ["WrapText", "ShrinkToFit", "Locked", "FormulaHidden"] {
             handlers.on("Style", member, InvokeKind::Put, Self::style_put_flag);
+        }
+        for member in ["HorizontalAlignment", "VerticalAlignment", "IndentLevel", "Orientation"] {
+            handlers.on("Style", member, InvokeKind::Put, Self::style_put_alignment);
         }
         for member in [
             "Name",
@@ -126,7 +133,7 @@ impl WorkbookAutomation {
                 "HorizontalAlignment" | "VerticalAlignment" | "WrapText" | "ShrinkToFit" | "IndentLevel" | "Orientation"
                 | "Locked" | "FormulaHidden" => {
                     let base = styles.cell_style_formats.get(style.xf_id as usize).ok_or_else(|| {
-                        AutoError::not_modelled(format!("{} of a missing style format", call.label()), "dc-oxh8w.63")
+                        AutoError::not_modelled(format!("{} of a missing style format", call.label()), STYLE_OWNER)
                     })?;
                     let alignment = base.alignment.as_ref();
                     match call.member.name.as_str() {
@@ -141,7 +148,7 @@ impl WorkbookAutomation {
                         "IndentLevel" => {
                             let indent = alignment.and_then(|a| a.indent.as_deref()).unwrap_or("0");
                             AutoValue::I4(indent.parse().map_err(|_| {
-                                AutoError::not_modelled(format!("Style.IndentLevel stored as {indent}"), "dc-oxh8w.63")
+                                AutoError::not_modelled(format!("Style.IndentLevel stored as {indent}"), STYLE_OWNER)
                             })?)
                         }
                         "Orientation" => {
@@ -153,7 +160,7 @@ impl WorkbookAutomation {
                                 _ => {
                                     return Err(AutoError::not_modelled(
                                         format!("Style.Orientation stored as {rotation}"),
-                                        "dc-oxh8w.63",
+                                        STYLE_OWNER,
                                     ));
                                 }
                             })
@@ -191,7 +198,7 @@ impl WorkbookAutomation {
         format_arity(call, 0)?;
         self.with_target(target, |access, _| {
             let Access::Session(session, _) = access else {
-                return Err(AutoError::not_modelled("Styles.Count inside a worksheet invocation", "dc-oxh8w.63"));
+                return Err(AutoError::not_modelled("Styles.Count inside a worksheet invocation", STYLE_OWNER));
             };
             Ok(AutoValue::I4(session.host().styles().cell_styles.len() as i32))
         })
@@ -202,7 +209,7 @@ impl WorkbookAutomation {
         format_arity(call, 1)?;
         self.with_target(target, |access, meta| {
             let Access::Session(session, _) = access else {
-                return Err(AutoError::not_modelled("Styles.Item inside a worksheet invocation", "dc-oxh8w.63"));
+                return Err(AutoError::not_modelled("Styles.Item inside a worksheet invocation", STYLE_OWNER));
             };
             let styles = session.host().styles();
             let found = match call.arg(0) {
@@ -220,7 +227,7 @@ impl WorkbookAutomation {
         })
     }
 
-    /// `Styles.Add(Name, BasedOn)`: a new style with Normal's format. `BasedOn` is refused (dc-oxh8w.63).
+    /// `Styles.Add(Name, BasedOn)`: a new style with Normal's format, or `BasedOn`'s first cell's format.
     fn styles_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.is_empty() || call.args.len() > 2 {
             return Err(geometry::bad_count());
@@ -229,15 +236,33 @@ impl WorkbookAutomation {
             return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
         };
         let name = name.to_string_lossy();
-        if !call.arg(1).is_missing() {
-            return Err(AutoError::not_modelled("Styles.Add with BasedOn", "dc-oxh8w.63"));
-        }
+        let based_on = match call.arg(1) {
+            AutoValue::Missing | AutoValue::Empty => None,
+            AutoValue::Object(ObjectRef {
+                key: ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. },
+                ..
+            }) => {
+                let mut cell_style = None;
+                self.with_access(|mut access| {
+                    let resolved = self.resolve(&mut access, held)?;
+                    let Access::Session(session, _) = access else {
+                        return Err(AutoError::not_modelled("Styles.Add inside a worksheet invocation", STYLE_OWNER));
+                    };
+                    cell_style = Some(session.host().cell_style(resolved.areas()[0].first()));
+                    Ok(AutoValue::Empty)
+                })?;
+                cell_style
+            }
+            _ => return Err(format_error()),
+        };
         let workbook = self.metadata()?.workbook;
         let _ = target;
         let index = self.with_write(|session| {
             let receipt = session.dispatch_from(
                 crate::CommandIngress::Automation,
-                SkinIntent::Command(WorkbookCommand::StyleTable { change: crate::StyleChange::Add { name: name.clone() } }),
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Add { name: name.clone(), based_on },
+                }),
             );
             if receipt.error.is_some() {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
@@ -247,6 +272,177 @@ impl WorkbookAutomation {
         })?;
         let AutoValue::I4(index) = index else { return Err(format_error()) };
         Ok(AutoValue::Object(object("Style", ObjectKey::Style { workbook, index: index as u32 })))
+    }
+
+    fn style_font(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let ObjectKey::Style { workbook, index } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled("Style.Font inside a worksheet invocation", STYLE_OWNER));
+            };
+            session
+                .host()
+                .styles()
+                .cell_styles
+                .get(index as usize)
+                .ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            Ok(AutoValue::Object(object("Font", ObjectKey::Style { workbook, index })))
+        })
+    }
+
+    fn style_interior(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let ObjectKey::Style { workbook, index } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled("Style.Interior inside a worksheet invocation", STYLE_OWNER));
+            };
+            session
+                .host()
+                .styles()
+                .cell_styles
+                .get(index as usize)
+                .ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            Ok(AutoValue::Object(object("Interior", ObjectKey::Style { workbook, index })))
+        })
+    }
+
+    pub(super) fn style_font_get(&self, target: &ObjectRef, call: &Call<'_>, index: u32) -> Reply {
+        format_arity(call, 0)?;
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled(format!("{} inside a worksheet invocation", call.label()), STYLE_OWNER));
+            };
+            let host = session.host();
+            let styles = host.styles();
+            let style = styles.cell_styles.get(index as usize).ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            let base = styles.cell_style_formats.get(style.xf_id as usize).ok_or_else(|| {
+                AutoError::not_modelled("Style.Font of a missing style format", STYLE_OWNER)
+            })?;
+            let font = match base.font_id {
+                Some(id) => styles.fonts.get(id as usize),
+                None => styles.fonts.first(),
+            };
+            super::font::read_font_member(host, font, call)
+        })
+    }
+
+    pub(super) fn style_font_put(&self, target: &ObjectRef, call: &Call<'_>, index: u32) -> Reply {
+        format_arity(call, 1)?;
+        let patch = super::font::parse_font_patch(call)?;
+        patch.validate().map_err(|_| format_error())?;
+        let _ = target;
+        let member = call.member.name.as_str();
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Font { index, patch: Box::new(patch.clone()) },
+                }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.Font.{member}: {error:?}"), STYLE_OWNER));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    pub(super) fn style_interior_get(&self, target: &ObjectRef, call: &Call<'_>, index: u32) -> Reply {
+        format_arity(call, 0)?;
+        let member = call.member.name.as_str();
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled(format!("{} inside a worksheet invocation", call.label()), STYLE_OWNER));
+            };
+            let host = session.host();
+            let styles = host.styles();
+            let style = styles.cell_styles.get(index as usize).ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            let base = styles.cell_style_formats.get(style.xf_id as usize).ok_or_else(|| {
+                AutoError::not_modelled("Style.Interior of a missing style format", STYLE_OWNER)
+            })?;
+            let fill = match base.fill_id {
+                Some(id) => styles.fills.get(id as usize),
+                None => styles.fills.first(),
+            };
+            Ok(AutoValue::I4(super::interior::read_interior_member(host, fill, member)?))
+        })
+    }
+
+    pub(super) fn style_interior_put(&self, target: &ObjectRef, call: &Call<'_>, index: u32) -> Reply {
+        format_arity(call, 1)?;
+        let patch = super::interior::parse_interior_patch(call)?;
+        let _ = target;
+        let member = call.member.name.as_str();
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Interior { index, patch: patch.clone() },
+                }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.Interior.{member}: {error:?}"), STYLE_OWNER));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    /// `Style.HorizontalAlignment/VerticalAlignment/IndentLevel/Orientation = value` for an unused style (dc-lj4j5).
+    fn style_put_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Style { index, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let member = call.member.name.as_str();
+        let (mut horizontal, mut vertical, mut indent, mut rotation) = (None, None, None, None);
+        match member {
+            "HorizontalAlignment" => horizontal = Some(format_enum_keyword(HORIZONTAL, call)?),
+            "VerticalAlignment" => vertical = Some(format_enum_keyword(VERTICAL, call)?),
+            "IndentLevel" => {
+                let level = integral_format_arg(call)?;
+                if !(0..=15).contains(&level) {
+                    return Err(format_error());
+                }
+                indent = Some(level as u16);
+            }
+            "Orientation" => {
+                rotation = Some(match integral_format_arg(call)? {
+                    n @ -90..=90 => n as i16,
+                    -4128 => 0,
+                    -4171 => 90,
+                    -4170 => -90,
+                    XL_VERTICAL_TEXT => 255,
+                    _ => return Err(format_error()),
+                });
+            }
+            _ => unreachable!("registered style alignment property"),
+        }
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Alignment {
+                        index,
+                        horizontal: horizontal.clone(),
+                        vertical: vertical.clone(),
+                        indent,
+                        rotation,
+                    },
+                }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.{member}: {error:?}"), STYLE_OWNER));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
     }
 
     /// `Style.NumberFormat = code` for a style no cell format uses; one in use is refused (dc-lj4j5).
@@ -314,7 +510,7 @@ impl WorkbookAutomation {
                 SkinIntent::Command(WorkbookCommand::StyleTable { change: crate::StyleChange::Remove { index } }),
             );
             if let Some(error) = receipt.error {
-                return Err(AutoError::not_modelled(format!("Style.Delete: {error:?}"), "dc-oxh8w.63"));
+                return Err(AutoError::not_modelled(format!("Style.Delete: {error:?}"), STYLE_OWNER));
             }
             self.context_changed(session);
             Ok(AutoValue::Empty)
