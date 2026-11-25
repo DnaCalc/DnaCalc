@@ -787,7 +787,9 @@ impl HostSession {
         out: &mut dyn PackageWrite,
     ) -> Result<SaveReceipt, SaveFailed> {
         let save = self.begin_save(policy)?;
-        self.finish_save_synchronously(save)?.write(out)
+        let receipt = self.finish_save_synchronously(save)?.write(out)?;
+        self.notify_after_save(true);
+        Ok(receipt)
     }
 
     /// Starts an ordinary Save with the session’s active worksheet and save settings.
@@ -1786,7 +1788,16 @@ impl HostSession {
             }
         }
         if self.selection != selection {
+            let left = self.selection.active.map(|at| at.sheet());
             self.select_quietly(selection, receipt);
+            let entered = self.selection.active.map(|at| at.sheet());
+            if let (Some(old), Some(new)) = (left, entered)
+                && old != new
+            {
+                // Excel: the left sheet's events, then the entered sheet's; sheet level before workbook.
+                self.notify_document_event(crate::DocumentEvent::SheetDeactivate { sheet: old });
+                self.notify_document_event(crate::DocumentEvent::SheetActivate { sheet: new });
+            }
             let sheet = self.selection.active.map(|at| at.sheet())
                 .or_else(|| self.selection.areas.first().map(|area| area.sheet()));
             if let Some(sheet) = sheet {

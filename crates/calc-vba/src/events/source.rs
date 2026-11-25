@@ -324,6 +324,40 @@ impl EventSource {
         )
     }
 
+    /// An argument-less document event (`Activate`, `Deactivate`) against the attached host model.
+    pub fn plain_model(&self, name: &str, max_steps: u64) -> Result<(), String> {
+        self.raise(name, &mut [], None, max_steps, next_lease())
+    }
+
+    /// An event whose one argument is a worksheet (`SheetActivate`, `SheetDeactivate`, `NewSheet`).
+    pub fn sheet_event_object(&self, name: &str, sheet: ObjectRef, max_steps: u64) -> Result<(), String> {
+        let sheet_obj = projection::wrap_object(self.model.clone(), sheet, None, None);
+        self.raise(name, &mut [api::Value::Object(Some(sheet_obj))], None, max_steps, next_lease())
+    }
+
+    /// `Worksheet_SelectionChange(Target)` / `Worksheet_BeforeDoubleClick`-shaped events whose one
+    /// argument is a range.
+    pub fn range_event_object(&self, name: &str, target: ObjectRef, max_steps: u64) -> Result<(), String> {
+        let lease = next_lease();
+        let target_obj = projection::wrap_object(self.model.clone(), target, Some(lease), None);
+        self.raise(name, &mut [api::Value::Object(Some(target_obj))], None, max_steps, lease)
+    }
+
+    /// `Workbook_AfterSave(Success)`.
+    pub fn after_save_model(&self, success: bool, max_steps: u64) -> Result<(), String> {
+        self.raise("AfterSave", &mut [api::Value::Boolean(success)], None, max_steps, next_lease())
+    }
+
+    /// `Workbook_BeforeClose(Cancel)`: whether the handler set Cancel.
+    pub fn before_close_model(&self, max_steps: u64) -> Result<bool, String> {
+        let mut args = [api::Value::Boolean(false)];
+        self.raise("BeforeClose", &mut args, None, max_steps, next_lease())?;
+        match args[0] {
+            api::Value::Boolean(cancel) => Ok(cancel),
+            _ => Err("invalid BeforeClose Cancel writeback (dc-oxh8w.27)".into()),
+        }
+    }
+
     pub fn calculate(&self, context: &dyn EventReadContext, max_steps: u64) -> Result<(), String> {
         self.raise("Calculate", &mut [], Some(context), max_steps, next_lease())
     }

@@ -99,7 +99,7 @@ impl WorkbookAutomation {
     }
     /// The sheets a Sheets-typed collection lists, in workbook order: all, the worksheets (a sheet that is
     /// neither a chart sheet nor a dialog sheet), or the chart sheets.
-    fn listed<'a>(&self, target: &ObjectRef, meta: &'a Snapshot) -> Vec<&'a calc_doc_model::SheetEntry> {
+    pub(super) fn listed<'a>(&self, target: &ObjectRef, meta: &'a Snapshot) -> Vec<&'a calc_doc_model::SheetEntry> {
         let chart = |s: &&calc_doc_model::SheetEntry| meta.chart_sheets.contains(&s.id());
         let all = meta.model.sheets().iter();
         match target.key {

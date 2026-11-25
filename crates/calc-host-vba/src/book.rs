@@ -105,7 +105,7 @@ impl BookFactory for Factory {
     }
     fn open(&self, path: &str) -> Result<u64, AutoError> {
         let loader = self.options.loader.as_ref().ok_or_else(|| {
-            AutoError::not_modelled("Workbooks.Open without a file loader", "dc-oxh8w.50")
+            AutoError::not_modelled("Workbooks.Open without a file loader", "dc-oxh8w.56")
         })?;
         let bytes = loader(path).map_err(|_| {
             AutoError::excel(

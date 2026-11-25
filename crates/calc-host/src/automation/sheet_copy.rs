@@ -16,10 +16,17 @@ const NAME_LIMIT: usize = 31;
 impl WorkbookAutomation {
     pub(super) fn register_sheet_copy(handlers: &mut Handlers<Self>) {
         handlers.on("Worksheet", "Copy", InvokeKind::Method, Self::worksheet_copy);
+        handlers.on("Sheets", "Copy", InvokeKind::Method, Self::sheets_copy);
     }
 
     /// Excel names the clone `<name> (n)`, n from 2 up past names in use, the base cut so the whole fits.
     fn copy_name(model: &ModelRoot, source: &str) -> String {
+        // A copy of "Sheet1 (2)" is "Sheet1 (3)": a trailing " (n)" is not part of the base (unmeasured: RUN-ON-WINDOWS).
+        let source = match source.rfind(" (") {
+            Some(at) if source.ends_with(')') && source[at + 2..source.len() - 1].chars().all(|c| c.is_ascii_digit())
+                && source.len() - 1 > at + 2 => &source[..at],
+            _ => source,
+        };
         (2u32..)
             .map(|n| {
                 let suffix = format!(" ({n})");
@@ -44,6 +51,45 @@ impl WorkbookAutomation {
 
     fn worksheet_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let source = Self::worksheet_sheet(target)?;
+        let (before, after) = Self::copy_anchors(call)?;
+        let reply = self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            Self::copy_one(session, source, before, after, call)?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        });
+        reply
+    }
+
+    /// Sheets.Copy / Worksheets.Copy: every worksheet the collection lists is copied, in order, to the
+    /// Before or After anchor (each copy lands after the previous one, or before the same anchor).
+    fn sheets_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let (before, after) = Self::copy_anchors(call)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let listed: Vec<SheetId> = self.listed(target, &meta).iter().map(|s| s.id()).collect();
+            if matches!(target.key, ObjectKey::Charts(_)) || listed.iter().any(|s| meta.chart_sheets.contains(s)) {
+                return Err(AutoError::not_modelled("Sheets.Copy of chart sheets", OWNER));
+            }
+            // Refuse before anything changes.
+            for source in &listed {
+                Self::check_copyable(session.host().model(), *source)?;
+            }
+            let mut after = after;
+            for source in listed {
+                let added = Self::copy_one(session, source, before, after, call)?;
+                if after.is_some() {
+                    after = Some(added);
+                }
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    fn copy_anchors(call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
         }
@@ -55,31 +101,45 @@ impl WorkbookAutomation {
         if before.is_none() && after.is_none() {
             return Err(AutoError::not_modelled("Worksheet.Copy to a new workbook", OWNER));
         }
-        let mut result = Ok(AutoValue::Empty);
-        let reply = self.with_write(|session| {
-            let meta = self.metadata()?;
-            self.validate(target, &meta)?;
-            let model = session.host().model();
-            let refuse = |what: &str| Err(AutoError::not_modelled(format!("Worksheet.Copy of a sheet with {what}"), OWNER));
-            let defs = model.definitions();
-            if defs.charts(source).iter().any(|c| !c.part.is_empty()) {
-                return refuse("charts read from a file");
-            }
-            if !defs.shapes(source).is_empty() {
-                return refuse("drawing objects");
-            }
-            if !defs.sparklines(source).is_empty() {
-                return refuse("sparklines");
-            }
-            if !defs.review_notes(source).is_empty() || !defs.review_links(source).is_empty() {
-                return refuse("notes or hyperlinks");
-            }
-            if defs.tables().iter().any(|t| t.sheet == source) || defs.auto_filter(source).is_some_and(|f| f.unsupported) {
-                return refuse("tables or an AutoFilter the host does not model");
-            }
-            if defs.names().iter().any(|n| n.scope == calc_doc_model::NameScope::Sheet(source)) {
-                return refuse("sheet-local names");
-            }
+        Ok((before, after))
+    }
+
+    /// Sheet state the clone cannot carry refuses the copy, typed.
+    fn check_copyable(model: &ModelRoot, source: SheetId) -> Result<(), AutoError> {
+        let refuse = |what: &str| Err(AutoError::not_modelled(format!("Worksheet.Copy of a sheet with {what}"), OWNER));
+        let defs = model.definitions();
+        if defs.charts(source).iter().any(|c| !c.part.is_empty()) {
+            return refuse("charts read from a file");
+        }
+        if !defs.shapes(source).is_empty() {
+            return refuse("drawing objects");
+        }
+        if !defs.sparklines(source).is_empty() {
+            return refuse("sparklines");
+        }
+        if !defs.review_notes(source).is_empty() || !defs.review_links(source).is_empty() {
+            return refuse("notes or hyperlinks");
+        }
+        if defs.tables().iter().any(|t| t.sheet == source) || defs.auto_filter(source).is_some_and(|f| f.unsupported) {
+            return refuse("tables or an AutoFilter the host does not model");
+        }
+        if defs.names().iter().any(|n| n.scope == calc_doc_model::NameScope::Sheet(source)) {
+            return refuse("sheet-local names");
+        }
+        Ok(())
+    }
+
+    /// Copies one worksheet next to an anchor; returns the new sheet.
+    fn copy_one(
+        session: &mut HostSession,
+        source: SheetId,
+        before: Option<SheetId>,
+        after: Option<SheetId>,
+        call: &Call<'_>,
+    ) -> Result<SheetId, AutoError> {
+        let model = session.host().model();
+        Self::check_copyable(model, source)?;
+        let defs = model.definitions();
             let order: Vec<SheetId> = model.sheets().iter().map(|s| s.id()).collect();
             let position_of = |sheet: SheetId| {
                 order
@@ -222,12 +282,7 @@ impl WorkbookAutomation {
             let first = CellKey::new(added, 1, 1).map_err(|_| geometry::type_mismatch())?;
             session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(crate::Selection::cell(first)));
             Self::settle(session, progress, call)?;
-            self.context_changed(session);
-            result = Ok(AutoValue::Empty);
-            Ok(AutoValue::Empty)
-        });
-        reply?;
-        result
+        Ok(added)
     }
 }
 

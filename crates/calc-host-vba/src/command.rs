@@ -75,6 +75,12 @@ impl WorkbookEvents {
         self.project.procedures()
     }
 
+    /// The files macro members wrote since the last call (Chart.Export), oldest first, as the
+    /// path the macro named and the bytes. The shell stores them; this crate has no file system.
+    pub fn take_output_files(&self) -> Vec<(String, Vec<u8>)> {
+        std::mem::take(&mut *self.application.files.borrow_mut())
+    }
+
     /// The invocation log of this project, oldest first.
     pub fn invocations(&self) -> Vec<InvocationRecord> {
         self.invocations.borrow().clone()
@@ -267,7 +273,7 @@ impl WorkbookEvents {
                     BookTarget::Other(None) => {
                         return Err(AutoError::not_modelled(
                             "_Application.Run back into the workbook that is running",
-                            "dc-oxh8w.50",
+                            "dc-oxh8w.56",
                         ));
                     }
                     BookTarget::Closed => return Err(cannot_run(name)),
@@ -456,7 +462,7 @@ End Function
         assert!(matches!(missing, Err(AutoError::Excel { number: 1004, .. })), "{missing:?}");
         // Running back into the workbook whose macro is running is a refusal naming its owner.
         let back = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CallBack")]);
-        assert!(matches!(&back, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.50"), "{back:?}");
+        assert!(matches!(&back, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{back:?}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -500,7 +506,7 @@ End Function
             }
             // Another workbook's sheets are not this automation's: a typed refusal.
             let sheets = get(&by_name, "Workbook", "Worksheets", vec![]);
-            assert!(matches!(&sheets, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.50"), "{sheets:?}");
+            assert!(matches!(&sheets, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{sheets:?}");
             let activate = Descriptor::get().member(by_name.interface, "Activate", InvokeKind::Method).unwrap();
             model.invoke(&by_name, &Call { interface: by_name.interface, member: activate, args: vec![], lcid: 0 }).unwrap();
             let active = get(&app, "Application", "ActiveWorkbook", vec![]).unwrap();

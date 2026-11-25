@@ -149,7 +149,7 @@ mod envelope;
 mod events;
 pub use envelope::{CommandJournal, CommandRefusal, CommandStamp};
 pub use events::{
-    WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler,
+    DocumentEvent, MacroObservation, ObservedProvenance, WorkbookEvent, WorkbookEventFailure, WorkbookEventFailures, WorkbookEventHandler,
     WorkbookEventObserver, WorkbookEventObserverId,
 };
 mod flash_fill;

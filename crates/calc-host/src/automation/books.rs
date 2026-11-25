@@ -210,7 +210,7 @@ impl WorkbookAutomation {
                 AutoValue::Missing => {}
                 AutoValue::I2(-4167) | AutoValue::I4(-4167) => {}
                 AutoValue::R8(n) if *n == -4167. => {}
-                _ => return Err(AutoError::not_modelled("Workbooks.Add Template", "dc-oxh8w.50")),
+                _ => return Err(AutoError::not_modelled("Workbooks.Add Template", "dc-oxh8w.56")),
             }
             Ok(Self::book_object(self.factory()?.add()?))
         })
@@ -224,7 +224,7 @@ impl WorkbookAutomation {
                 return Err(AutoError::excel(1004, "Workbooks.Open: the file name must be text"));
             };
             if call.args.iter().skip(1).any(|a| !a.is_missing()) {
-                return Err(AutoError::not_modelled("Workbooks.Open options after FileName", "dc-oxh8w.50"));
+                return Err(AutoError::not_modelled("Workbooks.Open options after FileName", "dc-oxh8w.56"));
             }
             Ok(Self::book_object(self.factory()?.open(&path.to_string_lossy())?))
         })
@@ -238,7 +238,7 @@ impl WorkbookAutomation {
     }
     /// A call whose target belongs to another open workbook goes to that workbook's own session.
     /// Only the members that read the workbook's identity route; the rest of its objects name
-    /// ranges and sheets this automation does not hold (dc-oxh8w.50).
+    /// ranges and sheets this automation does not hold (dc-oxh8w.56).
     pub(super) fn foreign_call(&self, target: &ObjectRef, call: &Call<'_>) -> Option<Reply> {
         let id = match target.key {
             ObjectKey::Workbook(id) => id,
@@ -262,7 +262,7 @@ impl WorkbookAutomation {
         if !routed {
             return Some(Err(AutoError::not_modelled(
                 format!("{} of another open workbook", call.label()),
-                "dc-oxh8w.50",
+                "dc-oxh8w.56",
             )));
         }
         if no_args(call).is_err() {

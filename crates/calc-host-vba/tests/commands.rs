@@ -74,6 +74,18 @@ Public Sub TakesRange(ByVal r As Range)
 End Sub
 Public Sub TakesRest(ParamArray rest() As Variant)
 End Sub
+Public Sub ExportChart()
+ Dim frame As Object
+ Application.Range(\"A1\").Value2 = \"Region\"
+ Application.Range(\"B1\").Value2 = \"Q1\"
+ Application.Range(\"A2\").Value2 = \"North\"
+ Application.Range(\"B2\").Value2 = 10
+ Application.Range(\"A3\").Value2 = \"South\"
+ Application.Range(\"B3\").Value2 = 30
+ Set frame = Application.ActiveSheet.ChartObjects.Add(10, 10, 300, 200)
+ frame.Chart.SetSourceData Application.Range(\"A1:B3\")
+ frame.Chart.Export \"out.png\", \"PNG\"
+End Sub
 Public Sub NeedsWindow()
  Application.ActiveWindow.Zoom = 50
 End Sub
@@ -271,5 +283,29 @@ fn application_run_recursion_ends_within_the_calls_step_budget() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
         let run = owner.run_procedure(&mut session, "Module1.RunForever", &[]);
         assert!(matches!(&run.outcome, Outcome::RuntimeError { number: 28, .. }), "{backend:?} {run:?}");
+    }
+}
+
+/// A macro's Chart.Export reaches the host's file output: the project's host keeps the bytes
+/// and the shell takes them (dc-oxh8w.37).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_macro_chart_export_writes_through_the_host_file_output() {
+    fn stub(
+        _: &calc_host::chart::ChartView,
+        width: u32,
+        height: u32,
+        format: calc_host::chart::ExportFormat,
+    ) -> Result<Vec<u8>, String> {
+        Ok(format!("{format:?} {width}x{height}").into_bytes())
+    }
+    calc_host::chart::set_chart_exporter(stub);
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Full, backend);
+        assert!(owner.take_output_files().is_empty());
+        let run = owner.run_procedure(&mut session, "Module1.ExportChart", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{run:?}");
+        assert_eq!(owner.take_output_files(), [("out.png".to_owned(), b"Png 400x267".to_vec())]);
+        assert!(owner.take_output_files().is_empty(), "taking the files empties the list");
     }
 }

@@ -1446,6 +1446,30 @@ class SelfHealingTests(unittest.TestCase):
         finally:
             stop()
 
+    def test_a_deadline_kill_is_a_timeout_answer_with_its_own_budget_never_a_crash(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "crash_budget": 3})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            n = 12
+            pending = conn.submit_groups([{"f": "DEADLINEON", "k": "n", "n": n, "v": [self.CRASH_MARK] * n}])
+            letters, answers = pending.raw(90)
+            # the crash budget (3) never refuses these: each call is its own timeout row, with its arguments
+            self.assertEqual(letters, ["x"] * n)
+            self.assertEqual({(a["reason"], a["function"], tuple(a["args"])) for a in answers},
+                             {("excel-deadline", "DEADLINEON", (self.CRASH_MARK,))})
+            self.assertFalse((state / "crash-list.jsonl").exists() and (state / "crash-list.jsonl").read_text().strip())
+            self.assertEqual(broker.crash_times, {})
+            self.assertEqual(len(broker.deadline_times["DEADLINEON"]), n)
+            self.assertEqual(len((state / "deadline-list.jsonl").read_text().splitlines()), n)
+            self.assertTrue(self.wait_for(lambda: all(s.state == "idle" for s in broker.slots), 20))
+            # a real crash of another function is still counted as a crash
+            crash = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": 1, "v": [self.CRASH_MARK]}]).raw(60)
+            self.assertEqual(crash[1][0]["reason"], "excel-crashed")
+            self.assertEqual(len(broker.crash_times["CRASHON"]), 1)
+        finally:
+            stop()
+
     def test_a_function_whose_every_call_crashes_stops_at_the_budget_and_the_workers_stay_up(self):
         broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "crash_budget": 3})
         try:

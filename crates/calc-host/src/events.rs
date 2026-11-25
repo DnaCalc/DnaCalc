@@ -39,6 +39,37 @@ pub enum WorkbookEvent {
         /// Requested save operation.
         operation: SaveOperation,
     },
+    /// A document event raised by a host action other than a cell write or calculation.
+    Document(DocumentEvent),
+}
+
+/// Excel document events raised from the host action that causes them (dc-oxh8w.27).
+/// The runtime delivers each to the sheet's module first, then to the workbook's, as Excel
+/// does for events at two levels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DocumentEvent {
+    /// A save finished; `success` is false when it failed after BeforeSave allowed it.
+    AfterSave {
+        /// Whether the save succeeded.
+        success: bool,
+    },
+    /// The workbook is closing; a handler may cancel it.
+    BeforeClose,
+    /// A worksheet or chart sheet was added.
+    NewSheet {
+        /// The new sheet.
+        sheet: SheetId,
+    },
+    /// A sheet stopped being the active sheet.
+    SheetDeactivate {
+        /// The sheet that was left.
+        sheet: SheetId,
+    },
+    /// A sheet became the active sheet.
+    SheetActivate {
+        /// The sheet that was entered.
+        sheet: SheetId,
+    },
 }
 
 /// One registered owner. It supplies runtime-wired document sources, not handler names.
@@ -71,6 +102,14 @@ pub trait WorkbookEventHandler {
         _target: &[GridArea],
     ) -> Result<(), String> {
         Ok(())
+    }
+    /// Handle a document event; return true to cancel (BeforeClose's Cancel).
+    fn document_event(
+        &self,
+        _session: &mut HostSession,
+        _event: &DocumentEvent,
+    ) -> Result<bool, String> {
+        Ok(false)
     }
     /// Return the save outcome, including any edits to apply before pinning the revision.
     fn before_save(
@@ -126,6 +165,15 @@ pub trait WorkbookEventObserver {
         _session: &mut HostSession,
         _sheet: SheetId,
         _target: &[GridArea],
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    /// Observe a document event after the owning handler; set `cancel` to cancel BeforeClose.
+    fn document_event(
+        &self,
+        _session: &mut HostSession,
+        _event: &DocumentEvent,
+        _cancel: &mut bool,
     ) -> Result<(), String> {
         Ok(())
     }
@@ -188,7 +236,35 @@ pub struct WorkbookEventFailures {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WorkbookEventObserverId(u64);
 
+/// Why a value a macro read is not a plain calculated or authored value (dc-oxh8w.38).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObservedProvenance {
+    /// The cell holds the value loaded from the file; no calculation produced it.
+    FileCache,
+    /// The cell's last value is stale: its inputs changed and it has not been recalculated.
+    Stale,
+    /// The calculation read an external link.
+    ExternalLink,
+    /// The calculation was held by a circular-reference rule.
+    CircularHeld,
+    /// The calculation read an imported or boundary cache, or carries observations.
+    CachedInputs,
+    /// The calculation carries no stamp certifying its reads.
+    Uncertified,
+}
+
+/// A macro or event read of a cell whose value is a cache or uncertified. The read is admitted,
+/// as Excel returns the loaded cache; the record keeps its provenance traceable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MacroObservation {
+    /// The cell read.
+    pub at: calc_value::CellKey,
+    /// Why its value is not a plain calculated value.
+    pub provenance: ObservedProvenance,
+}
+
 pub(crate) struct WorkbookEventState {
+    pub(crate) observations: std::cell::RefCell<VecDeque<MacroObservation>>,
     owner: Option<Rc<dyn WorkbookEventHandler>>,
     observers: BTreeMap<WorkbookEventObserverId, Rc<dyn WorkbookEventObserver>>,
     application_observer: Option<WorkbookEventObserverId>,
@@ -204,6 +280,7 @@ pub(crate) struct WorkbookEventState {
 impl Default for WorkbookEventState {
     fn default() -> Self {
         Self {
+            observations: Default::default(),
             owner: None,
             observers: BTreeMap::new(),
             application_observer: None,
@@ -322,6 +399,19 @@ impl HostSession {
             }
         }
         first_failure.map_or(Ok(()), Err)
+    }
+
+    /// The cached or uncertified cell values macros have read since the last drain (bounded to
+    /// the latest 1024), oldest first.
+    pub fn take_macro_observations(&mut self) -> Vec<MacroObservation> {
+        self.workbook_events.observations.get_mut().drain(..).collect()
+    }
+    pub(crate) fn record_macro_observation(&self, observation: MacroObservation) {
+        let mut log = self.workbook_events.observations.borrow_mut();
+        if log.len() == 1024 {
+            log.pop_front();
+        }
+        log.push_back(observation);
     }
 
     /// Inspect the bounded event report without editing or invalidating the workbook.
@@ -519,6 +609,30 @@ impl HostSession {
                 observer.after_calculate(session)
             });
         }
+    }
+    /// Raise a document event: the owning handler, then the observers. Returns whether any
+    /// of them cancelled (only BeforeClose can be cancelled).
+    pub(crate) fn notify_document_event(&mut self, event: DocumentEvent) -> bool {
+        let mut cancel = false;
+        if let Some(owner) = self.event_owner() {
+            match owner.document_event(self, &event) {
+                Ok(c) => cancel |= c,
+                Err(reason) => self.record_event_failure(WorkbookEvent::Document(event.clone()), reason),
+            }
+        }
+        let _ = self.notify_observers(WorkbookEvent::Document(event.clone()), |observer, session| {
+            observer.document_event(session, &event, &mut cancel)
+        });
+        cancel && matches!(event, DocumentEvent::BeforeClose)
+    }
+    /// The application finished a save: raises `AfterSave(Success)`.
+    pub fn notify_after_save(&mut self, success: bool) {
+        self.notify_document_event(DocumentEvent::AfterSave { success });
+    }
+    /// The application is closing the workbook: raises `BeforeClose`; true when a handler
+    /// set Cancel and the close must not proceed.
+    pub fn notify_before_close(&mut self) -> bool {
+        self.notify_document_event(DocumentEvent::BeforeClose)
     }
     pub(crate) fn notify_observers_before_save(
         &mut self,
