@@ -8463,6 +8463,28 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
+/// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
+/// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_69__window_caption_type_number_visible_and_activate() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    assert_eq!(text(&model, &window, "Caption"), text(&model, &book, "Name"));
+    assert_eq!(int(invoke(&model, &window, "Type", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &window, "WindowNumber", vec![]).unwrap()), 1);
+    assert!(matches!(invoke(&model, &window, "Visible", vec![]).unwrap(), AutoValue::Bool(true)));
+    invoke_kind(&model, &window, "Activate", InvokeKind::Method, vec![]).unwrap();
+    let active = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    assert_eq!(active.key, book.key);
+    let r = invoke_kind(&model, &window, "Activate", InvokeKind::Method, vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+    let r = invoke(&model, &window, "Caption", vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+}
+
 /// dc-oxh8w.63: the alignment and protection members of a `Style` read the style's own format: Normal and a style a
 /// macro adds answer Excel's defaults, `Value` and the default member name the style, and an argument is 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

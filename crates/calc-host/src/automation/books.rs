@@ -229,7 +229,7 @@ impl WorkbookAutomation {
             Ok(Self::book_object(self.factory()?.open(&path.to_string_lossy())?))
         })
     }
-    fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+    pub(super) fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
             BOOKS.with(|books| books.borrow_mut().active = meta.workbook);
