@@ -9278,12 +9278,14 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     call("H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
     assert!(matches!(width("I1"), AutoValue::R8(n) if n == 30.0));
     assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
-    // xlPasteAllUsingSourceTheme (13) and xlPasteAllMergingConditionalFormats (14) paste everything within one workbook.
-    for (paste, at) in [(13, "A10"), (14, "A13")] {
-        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
-    }
+    // xlPasteAllUsingSourceTheme (13) pastes everything within one workbook;
+    // xlPasteAllMergingConditionalFormats (14) refuses typed citing dc-2rjye until CF merge is captured.
+    call("A10", "PasteSpecial", vec![AutoValue::I4(13)]).unwrap();
     assert_eq!(cell_text_of(&model, "B11"), "4");
-    assert_eq!(cell_text_of(&model, "B14"), "4");
+    assert!(matches!(
+        call("A13", "PasteSpecial", vec![AutoValue::I4(14)]),
+        Err(AutoError::NotModelled { owner: "dc-2rjye", .. })
+    ));
 }
 
 /// dc-oxh8w.43: `PasteSpecial` xlPasteValuesAndNumberFormats (12), xlPasteFormulasAndNumberFormats (11) and
@@ -10522,4 +10524,238 @@ fn dc_y7tqj_calculation_state_stays_pending_after_cancel() {
     }
     let state = invoke(&model, &model.application(), "CalculationState", vec![]).unwrap();
     assert!(matches!(state, AutoValue::I4(2)), "Application.CalculationState after cancel must be 2, got {state:?}");
+}
+
+/// dc-y7tqj (rw12 finding 24a/24b): xlPasteAllMergingConditionalFormats (14) refuses typed citing
+/// dc-2rjye instead of stripping destination CF, and PasteSpecial Operation blank-on-blank refuses
+/// typed citing dc-2rjye instead of writing 0/#DIV/0!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_paste_special_merging_cf_and_blank_operation_refuse_typed() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(&host, (1, 1), &[&["10"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    // Add a conditional format on destination C1.
+    let fcs = obj(invoke(&model, &range(&model, "C1"), "FormatConditions", vec![]).unwrap());
+    invoke_kind(
+        &model,
+        &fcs,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("0")],
+    )
+    .unwrap();
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    assert_eq!(host.session.borrow().host().model().definitions().conditional_rules(sheet_id).len(), 1);
+    call("A1", "Copy", vec![]).unwrap();
+    let merge_cf = call("C1", "PasteSpecial", vec![AutoValue::I4(14)]);
+    assert!(
+        matches!(&merge_cf, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
+        "xlPasteAllMergingConditionalFormats must refuse typed citing dc-2rjye, got {merge_cf:?}"
+    );
+    assert_eq!(
+        host.session.borrow().host().model().definitions().conditional_rules(sheet_id).len(),
+        1,
+        "refused PasteSpecial(14) must not strip destination conditional formatting"
+    );
+    // Blank source onto blank destination with Operation Add or Divide refuses typed citing dc-2rjye.
+    call("D1", "Copy", vec![]).unwrap();
+    for op in [2, 3, 4, 5] {
+        let res = call("E1", "PasteSpecial", vec![AutoValue::I4(-4163), AutoValue::I4(op)]);
+        assert!(
+            matches!(&res, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
+            "blank-on-blank Operation {op} must refuse typed citing dc-2rjye, got {res:?}"
+        );
+        assert_eq!(cell_text_of(&model, "E1"), "", "blank destination must stay blank on op {op}");
+    }
+}
+
+/// dc-y7tqj (rw12 finding 24c): Worksheet.Names validates deleted sheet, Name.Parent returns the
+/// Worksheet for a sheet-scoped name (Workbook for global), and Sheet1.Names.Add("Sheet2!X", ...)
+/// refuses typed instead of escaping scope.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_worksheet_names_parent_scope_and_deleted_sheet() {
+    let (_host, model) = setup();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let sheets = obj(invoke(&model, &book, "Worksheets", vec![]).unwrap());
+    let s1 = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let s2 = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let s1_name = text(&model, &s1, "Name");
+    let s2_name = text(&model, &s2, "Name");
+    let s1_names = obj(invoke(&model, &s1, "Names", vec![]).unwrap());
+    let s2_names = obj(invoke(&model, &s2, "Names", vec![]).unwrap());
+    let book_names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+
+    let local = obj(
+        invoke_kind(&model, &s1_names, "Add", InvokeKind::Method, vec![AutoValue::text("Loc"), AutoValue::text("=1")])
+            .unwrap(),
+    );
+    let global = obj(
+        invoke_kind(&model, &book_names, "Add", InvokeKind::Method, vec![AutoValue::text("Glob"), AutoValue::text("=2")])
+            .unwrap(),
+    );
+    let local_parent = obj(invoke(&model, &local, "Parent", vec![]).unwrap());
+    assert_eq!(local_parent.key, s1.key, "sheet-scoped Name.Parent must be Worksheet");
+    assert_eq!(text(&model, &local_parent, "Name"), s1_name);
+    let global_parent = obj(invoke(&model, &global, "Parent", vec![]).unwrap());
+    assert_eq!(global_parent.key, book.key, "workbook-scoped Name.Parent must be Workbook");
+
+    let escape = invoke_kind(
+        &model,
+        &s1_names,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::text(&format!("{s2_name}!Escaped")), AutoValue::text("=3")],
+    );
+    assert!(
+        matches!(&escape, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.43"),
+        "Sheet1.Names.Add with Sheet2! prefix must refuse typed, got {escape:?}"
+    );
+    // Deleting Sheet2 must invalidate the held Sheet2.Names collection.
+    invoke_kind(&model, &s2, "Delete", InvokeKind::Method, vec![]).unwrap();
+    let after_del = invoke(&model, &s2_names, "Count", vec![]);
+    assert!(after_del.is_err(), "deleted sheet's Names collection must error, got {after_del:?}");
+}
+
+/// dc-y7tqj (rw12 finding 24d/24e/24f/24g): CutCopyMode accepts 0.0/Empty and refuses True/1/2
+/// typed; Range.Activate refuses multi-cell ranges; InchesToPoints rejects NaN/inf; Application.Goto
+/// tracks row/column shifts via StoredReference and refuses foreign-workbook ranges.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_cut_copy_activate_inches_and_goto_edges() {
+    let (_host, model) = setup();
+    let app = model.application();
+    // 24d: CutCopyMode = 0.0 / Empty clears; True / 1 / 2 refuse typed citing dc-oxh8w.49.
+    for clear_val in [AutoValue::R8(0.0), AutoValue::Empty] {
+        invoke_kind(&model, &range(&model, "A1"), "Copy", InvokeKind::Method, vec![]).unwrap();
+        assert!(matches!(invoke(&model, &app, "CutCopyMode", vec![]).unwrap(), AutoValue::I4(1)));
+        invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![clear_val.clone()])
+            .unwrap_or_else(|e| panic!("CutCopyMode = {clear_val:?} must clear: {e:?}"));
+        assert!(matches!(invoke(&model, &app, "CutCopyMode", vec![]).unwrap(), AutoValue::Bool(false)));
+    }
+    invoke_kind(&model, &range(&model, "A1"), "Copy", InvokeKind::Method, vec![]).unwrap();
+    for val in [AutoValue::Bool(true), AutoValue::I4(1), AutoValue::I4(2)] {
+        let res = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![val.clone()]);
+        assert!(
+            matches!(&res, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.49"),
+            "CutCopyMode = {val:?} must refuse typed citing dc-oxh8w.49, got {res:?}"
+        );
+    }
+
+    // 24e: Range.Activate with multi-cell range overlapping selection refuses typed (not silently keeping A1:B2).
+    invoke_kind(&model, &range(&model, "A1:B2"), "Select", InvokeKind::Method, vec![]).unwrap();
+    let partial = invoke_kind(&model, &range(&model, "B2:D5"), "Activate", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&partial, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.49"),
+        "multi-cell Range.Activate must refuse typed citing dc-oxh8w.49, got {partial:?}"
+    );
+
+    // 24f: InchesToPoints rejects "NaN", "inf", "-inf" with DISP_E_TYPEMISMATCH.
+    for bad in ["NaN", "inf", "-inf", "Infinity"] {
+        let res = invoke_kind(&model, &app, "InchesToPoints", InvokeKind::Method, vec![AutoValue::text(bad)]);
+        assert!(
+            matches!(res, Err(AutoError::Status(s)) if s == 0x8002_0005u32 as i32),
+            "InchesToPoints({bad:?}) must return DISP_E_TYPEMISMATCH, got {res:?}"
+        );
+    }
+
+    // 24g: Goto tracks row insertion shifts via StoredReference and refuses foreign-workbook ranges.
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(range(&model, "C5"))]).unwrap();
+    let row1 = obj(invoke(&model, &range(&model, "A1"), "EntireRow", vec![]).unwrap());
+    invoke_kind(&model, &row1, "Insert", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &range(&model, "A1"), "Select", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![]).unwrap();
+    let sel = text(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Address");
+    assert_eq!(sel, "$C$6", "Goto without Reference must track inserted row shift from C5 to C6");
+
+    let (_other_host, other_model) = setup();
+    let foreign_range = range(&other_model, "B2");
+    let foreign_goto = invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(foreign_range)]);
+    assert!(
+        matches!(&foreign_goto, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.49"),
+        "Goto with foreign-workbook range must refuse typed citing dc-oxh8w.49, got {foreign_goto:?}"
+    );
+}
+
+/// dc-y7tqj (rw12 finding 24h): Series.Border.ColorIndex = -4105 (and ChartArea.Border.ColorIndex =
+/// -4105) must read back as -4105 (xlColorIndexAutomatic).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_series_border_color_index_automatic_reads_back() {
+    let (_host, model, chart, series) = labelled_chart();
+    let border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    invoke_kind(&model, &border, "ColorIndex", InvokeKind::Put, vec![AutoValue::I4(5)]).unwrap();
+    invoke_kind(&model, &border, "ColorIndex", InvokeKind::Put, vec![AutoValue::I4(-4105)]).unwrap();
+    let got = invoke(&model, &border, "ColorIndex", vec![])
+        .expect("Series.Border.ColorIndex = -4105 must read back");
+    assert_eq!(int(got), -4105);
+    let area = obj(invoke(&model, &obj(invoke(&model, &chart, "ChartArea", vec![]).unwrap()), "Border", vec![]).unwrap());
+    invoke_kind(&model, &area, "ColorIndex", InvokeKind::Put, vec![AutoValue::I4(3)]).unwrap();
+    invoke_kind(&model, &area, "ColorIndex", InvokeKind::Put, vec![AutoValue::I4(-4105)]).unwrap();
+    assert_eq!(int(invoke(&model, &area, "ColorIndex", vec![]).unwrap()), -4105);
+}
+
+/// dc-y7tqj (rw12 finding 24i): Chart.Location moving from a chart sheet onto a worksheet must roll
+/// back ChartMove if removing the vacated chart sheet fails (e.g. on a macro-enabled .xlsm).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_chart_location_rolls_back_when_chart_sheet_removal_fails() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(
+                include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm").to_vec(),
+            )),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let charts = obj(invoke(&model, &book, "Charts", vec![]).unwrap());
+    let chart = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sheet1 = obj(
+        invoke_kind(
+            &model,
+            &obj(invoke(&model, &book, "Worksheets", vec![]).unwrap()),
+            "Item",
+            InvokeKind::Get,
+            vec![AutoValue::I4(1)],
+        )
+        .unwrap(),
+    );
+    let sheet1_name = text(&model, &sheet1, "Name");
+    let moved = invoke_kind(
+        &model,
+        &chart,
+        "Location",
+        InvokeKind::Method,
+        vec![AutoValue::I4(2), AutoValue::text(&sheet1_name)],
+    );
+    assert!(moved.is_err(), "removing a chart sheet in an .xlsm workbook must fail");
+    let sheet1_charts = obj(invoke_kind(&model, &sheet1, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(
+        int(invoke(&model, &sheet1_charts, "Count", vec![]).unwrap()),
+        0,
+        "failed Chart.Location must roll back ChartMove so Sheet1 gets no leaked chart object"
+    );
+    // And the chart sheet itself must still hold its chart (not left empty/vacated).
+    let session = host.session.borrow();
+    let chart_sheet_id = session
+        .host()
+        .model()
+        .sheets()
+        .iter()
+        .find(|s| s.kind() == calc_doc_model::SheetKind::Chart)
+        .expect("chart sheet remains")
+        .id();
+    assert_eq!(
+        session.host().model().definitions().charts(chart_sheet_id).len(),
+        1,
+        "chart sheet must retain its chart after Chart.Location rollback"
+    );
 }

@@ -503,7 +503,13 @@ impl WorkbookAutomation {
         })
     }
     fn name_parent(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_name(target, call, |_, meta, _| {
+        self.with_name(target, call, |_, meta, definition| {
+            if let calc_doc_model::NameScope::Sheet(sheet) = definition.scope {
+                return Ok(AutoValue::Object(object(
+                    "Worksheet",
+                    ObjectKey::Worksheet { workbook: meta.workbook, sheet },
+                )));
+            }
             Ok(AutoValue::Object(object(
                 "Workbook",
                 ObjectKey::Workbook(meta.workbook),

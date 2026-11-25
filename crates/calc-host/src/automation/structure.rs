@@ -468,6 +468,14 @@ impl WorkbookAutomation {
                         .find(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), &wanted))
                         .map(|s| s.id())
                         .ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))?;
+                    if let ObjectKey::SheetNames { sheet: owner_sheet, .. } = target.key
+                        && owner_sheet != sheet
+                    {
+                        return Err(AutoError::not_modelled(
+                            "Worksheet.Names.Add with another worksheet's qualifier",
+                            OWNER,
+                        ));
+                    }
                     calc_doc_model::NameScope::Sheet(sheet)
                 }
             };

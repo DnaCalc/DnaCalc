@@ -152,8 +152,14 @@ impl WorkbookAutomation {
             }
             // A chart sheet left without its chart goes (Excel: the chart's sheet is gone once the chart is an object).
             if on_chart_sheet {
-                let progress = Self::sheet_command(session, Some(from), SheetChange::Remove)?;
-                Self::settle(session, progress, call)?;
+                let removed = Self::sheet_command(session, Some(from), SheetChange::Remove)
+                    .and_then(|progress| Self::settle(session, progress, call));
+                if let Err(err) = removed {
+                    // Roll back the chart move so the vacated chart sheet is not left orphaned.
+                    session.dispatch_from(CommandIngress::Automation, SkinIntent::Undo);
+                    self.context_changed(session);
+                    return Err(err);
+                }
             }
             // The chart's sheet is the active one, as after Excel's move.
             let first = CellKey::new(to, 1, 1).map_err(|_| geometry::type_mismatch())?;
