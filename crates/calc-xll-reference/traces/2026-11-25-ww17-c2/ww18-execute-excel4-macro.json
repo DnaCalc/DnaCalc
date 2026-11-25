@@ -1,0 +1,472 @@
+{
+  "capture_sha256": "948cc4bddc6fba8a64d905e7271dfbb71e163a57ea16e745f27aa5ab4d0863fa",
+  "repeat_sha256": "cf5a16da4191030081842df1cc634666ff52a68fcf0b1b520bfdfe93f576571a",
+  "repeated": 16,
+  "differences": 16,
+  "observations": [
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": 3.0,
+        "bits": "0x4008000000000000",
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 5
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro 1+2",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "1+2",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": null,
+        "bits": null,
+        "text": "There's a problem with this formula.\n\nNot trying to type a formula?\nWhen the first character is an equal (\"=\") or minus (\"-\") sign, Excel thinks it's a formula:\n\n\u2022 you type:   =1+1, cell shows:   2\n\nTo get around this, type an apostrophe ( ' ) first:\n\n\u2022 you type:   '=1+1, cell shows:   =1+1",
+        "excelCode": "800a03ec",
+        "hresult": "80020009",
+        "variantType": 0
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro =1+2",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "=1+2",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": 6.0,
+        "bits": "0x4018000000000000",
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 5
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro SUM(1,2,3)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "SUM(1,2,3)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": -2146826281,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 10
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro 1/0",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "1/0",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": 7.0,
+        "bits": "0x401c000000000000",
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 5
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro GET.CELL(5,Sheet1!R1C1)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "GET.CELL(5,Sheet1!R1C1)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": null,
+        "bits": null,
+        "text": "ExecuteExcel4Macro method of Application class failed",
+        "excelCode": "800a03ec",
+        "hresult": "80020009",
+        "variantType": 0
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro GET.CELL(5,R1C1)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "GET.CELL(5,R1C1)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": "16.0",
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 8
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro GET.WORKSPACE(2)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "GET.WORKSPACE(2)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": -2146826259,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 10
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro WW18UNKNOWN(1)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "WW18UNKNOWN(1)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro SELECT(\"R2C2\")",
+      "after": {
+        "selection": "$B$2",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "SELECT(\"R2C2\")",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro FORMULA(\"=RC[-1]+5\",\"R2C2\")",
+      "after": {
+        "selection": "$A$1",
+        "B2": "=RC[-1]+5",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "FORMULA(\"=RC[-1]+5\",\"R2C2\")",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro FORMULA.FILL(\"=R[-1]C+10\",\"R2C2:R3C2\")",
+      "after": {
+        "selection": "$A$1",
+        "B2": "=R[-1]C+10",
+        "B3": "=R[-1]C+10",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "FORMULA.FILL(\"=R[-1]C+10\",\"R2C2:R3C2\")",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro MESSAGE(TRUE,\"ww18\")",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "ww18",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "MESSAGE(TRUE,\"ww18\")",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro MESSAGE(FALSE)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": false,
+        "screenUpdating": true
+      },
+      "inputs": [
+        "MESSAGE(FALSE)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro ECHO(FALSE)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": false
+      },
+      "inputs": [
+        "ECHO(FALSE)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": true,
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 11
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro ECHO(TRUE)",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "ECHO(TRUE)",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    },
+    {
+      "observed": "2026-11-25T02:00:52.7214926Z",
+      "answer": {
+        "value": "=",
+        "bits": null,
+        "text": "",
+        "excelCode": "00000000",
+        "hresult": "00000000",
+        "variantType": 8
+      },
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "case": "ExecuteExcel4Macro ",
+      "after": {
+        "selection": "$A$1",
+        "B2": "",
+        "B3": "",
+        "statusBar": "FALSE",
+        "screenUpdating": true
+      },
+      "inputs": [
+        "",
+        "Sheet1 A1=7, B1=A1*2, B2:B3 blank, A1 selected"
+      ],
+      "build": "16.0.20625.20108",
+      "lane": "ww18",
+      "dna_calc": {
+        "result": "Err(NotModelled { what: \"_Application.ExecuteExcel4Macro\", owner: \"dc-1nbp.5\" })"
+      }
+    }
+  ]
+}

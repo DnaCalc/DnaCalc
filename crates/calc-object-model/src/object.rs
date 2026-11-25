@@ -109,6 +109,8 @@ pub enum ReportItem {
     SeriesCollection(String),
     /// One series of a chart (chart part, zero-based place across the plots).
     Series(String, u32),
+    /// The data labels of one series (chart part, place across the plots). (dc-oxh8w.18)
+    DataLabels(String, u32),
     /// One axis of a chart: chart part and `XlAxisType` (1 category, 2 value). (dc-oxh8w.11)
     Axis(String, u8),
     /// The title of one axis (chart part, axis type). (dc-oxh8w.12)
