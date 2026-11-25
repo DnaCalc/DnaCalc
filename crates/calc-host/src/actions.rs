@@ -100,6 +100,13 @@ pub enum ConditionalChange {
     },
     /// Delete the selected rule.
     Remove,
+    /// Replace the differential format (`dxf`) the selected rule applies: what a macro sets through
+    /// `FormatCondition.Interior` and `.Font` (dc-tqcvu). The rule must own its format; one shared with
+    /// another rule is refused rather than changed under that rule.
+    Format {
+        /// The rule's new differential format.
+        dxf: Box<calc_doc_model::DifferentialFormat>,
+    },
 }
 /// Authored workbook commands submitted through [`crate::HostSession::dispatch`].
 ///
@@ -1424,21 +1431,28 @@ pub(crate) fn conditional_edits(
             stop,
         } => {
             let areas = ranges(applies)?;
-            let color = crate::format::color(color)?.ok_or("Choose a fill colour")?;
-            let dxf = calc_doc_model::DifferentialFormat {
-                fill: Some(calc_doc_model::Fill {
-                    pattern_type: Some("solid".into()),
-                    // Excel takes a differential format's solid fill from bgColor.
-                    bg_color: Some(color),
+            // An empty colour is a rule without formatting (what `FormatConditions.Add` makes): its own
+            // format, never shared, so a later `Format` change touches this rule only.
+            let unformatted = color.trim().is_empty();
+            let dxf = if unformatted {
+                calc_doc_model::DifferentialFormat::default()
+            } else {
+                let color = crate::format::color(color)?.ok_or("Choose a fill colour")?;
+                calc_doc_model::DifferentialFormat {
+                    fill: Some(calc_doc_model::Fill {
+                        pattern_type: Some("solid".into()),
+                        // Excel takes a differential format's solid fill from bgColor.
+                        bg_color: Some(color),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
+                }
             };
             let mut styles = (**host.styles()).clone();
             let id = styles
                 .differential_formats
                 .iter()
-                .position(|old| old == &dxf)
+                .position(|old| !unformatted && old == &dxf)
                 .unwrap_or_else(|| {
                     let id = styles.differential_formats.len();
                     styles.differential_formats.push(dxf);
@@ -1533,6 +1547,31 @@ pub(crate) fn conditional_edits(
                 rules[i].stop =
                     stop && !matches!(parsed.kind.as_str(), "colorScale" | "dataBar" | "iconSet");
                 rules[i].authored = true;
+            }
+            ConditionalChange::Format { dxf } => {
+                let id = parsed
+                    .dxf
+                    .ok_or("This rule has no format of its own to change (dc-tqcvu)")?
+                    as usize;
+                let shared = rules.iter().enumerate().any(|(n, other)| {
+                    n != i
+                        && crate::conditional_rule(other)
+                            .map(|r| r.dxf == parsed.dxf)
+                            .unwrap_or(true)
+                });
+                if id < host.loaded().styles().differential_formats.len() {
+                    return Err("This rule's format came from the file; changing it needs a new format record (dc-oxh8w.62)".into());
+                }
+                if shared {
+                    return Err("This rule shares its format with another rule; changing it would change both (dc-tqcvu)".into());
+                }
+                let mut styles = (**host.styles()).clone();
+                *styles
+                    .differential_formats
+                    .get_mut(id)
+                    .ok_or("The rule's format is missing from the styles part")? = *dxf;
+                rules[i].authored = true;
+                staged_styles = Some(styles);
             }
             ConditionalChange::Remove => {
                 if parsed.extension_id.is_some() {

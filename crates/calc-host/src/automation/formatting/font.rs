@@ -41,6 +41,9 @@ impl WorkbookAutomation {
     }
 
     fn get_font_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_font_get(target, call);
+        }
         let member = call.member.name.as_str();
         match member {
             "Bold" | "Italic" => self.read_format(target, call, AutoValue::Bool, |host, style| {
@@ -93,6 +96,9 @@ impl WorkbookAutomation {
     }
 
     fn put_font_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if super::conditions::is_condition_part(target) {
+            return self.condition_font_put(target, call);
+        }
         self.put_format(target, call, || {
             let mut patch = FormatPatch::default();
             match call.member.name.as_str() {
