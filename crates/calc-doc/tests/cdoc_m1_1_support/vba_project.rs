@@ -81,18 +81,7 @@ fn replace_project(
                 .collect();
             attributes + text
         };
-        // MS-OVBA literal-only compressed chunks. No copied caches or p-code is
-        // executed by the source frontend; the original directory/offset stays valid.
-        bytes.push(1);
-        for chunk in text.as_bytes().chunks(3600) {
-            let mut literals = Vec::new();
-            for group in chunk.chunks(8) {
-                literals.push(0);
-                literals.extend_from_slice(group);
-            }
-            bytes.extend_from_slice(&(0xb000u16 | (literals.len() as u16 - 1)).to_le_bytes());
-            bytes.extend_from_slice(&literals);
-        }
+        bytes.extend(calc_doc::compress_vba_stream(text.as_bytes()));
         compound
             .create_stream(&path)
             .unwrap()

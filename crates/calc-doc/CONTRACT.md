@@ -15,5 +15,8 @@ authored workbook as CalcDoc model and keeps package metadata for round trips.
   verification in dc-kapl.2.1.
 - The acceptance, binary conversion and authoring tests exercise the codec (`tests/acceptance.rs`,
   `tests/dc_4j0e_xls.rs`, `tests/dc_5sr_xlsb.rs`, `tests/d1_authoring.rs`).
+- `write_vba_project` authors a deterministic source-only VBA project from Windows-1252 module
+  bodies. `source_vba_package` embeds it in a fresh .xlsm and binds its document modules by code
+  name. The writer encodes source and metadata without executing code (`src/vba_write.rs`).
 
 Surface: e6c5c73f8c5ed012 at 4fb74eaf

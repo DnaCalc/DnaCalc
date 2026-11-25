@@ -48,3 +48,6 @@ mod session_file;
 
 #[path = "vba_udf_names.rs"]
 mod vba_udf_names;
+
+#[path = "vba_writer.rs"]
+mod vba_writer;

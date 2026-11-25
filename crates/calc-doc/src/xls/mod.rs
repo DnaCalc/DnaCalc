@@ -9,7 +9,7 @@
 //! [`LegacyReport`], never fatal.
 
 pub(crate) mod cfb;
-mod cfb_write;
+pub(crate) mod cfb_write;
 pub(crate) mod codepage;
 mod chart;
 mod crypto;
