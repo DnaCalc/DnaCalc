@@ -30,6 +30,25 @@ impl Scale {
     }
 }
 
+/// The primary axis of a chart for `Axes(kind)`: by axis kind, not by place in the XML. A scatter chart's
+/// xlCategory is its horizontal value axis and xlValue the vertical one.
+fn axis_of(c: &calc_doc_model::Chart, kind: u8) -> Option<&calc_doc_model::ChartAxis> {
+    let plot = c.plots.first()?;
+    let mine: Vec<&calc_doc_model::ChartAxis> =
+        plot.axis_ids.iter().filter_map(|id| c.axes.iter().find(|a| a.id == *id)).collect();
+    if plot.kind == "scatterChart" {
+        let horizontal = |a: &&calc_doc_model::ChartAxis| matches!(a.position.as_deref(), Some("b" | "t"));
+        let found = mine.iter().find(|a| (kind == 1) == horizontal(a) && a.kind == "valAx");
+        return found.copied().or_else(|| mine.get(usize::from(kind) - 1).copied());
+    }
+    let wanted = |a: &&calc_doc_model::ChartAxis| match kind {
+        1 => matches!(a.kind.as_str(), "catAx" | "dateAx"),
+        2 => a.kind == "valAx",
+        _ => a.kind == "serAx",
+    };
+    mine.into_iter().find(wanted)
+}
+
 impl WorkbookAutomation {
     fn axis_key(target: &ObjectRef) -> Result<u8, AutoError> {
         match &target.key {
@@ -47,20 +66,23 @@ impl WorkbookAutomation {
         if call.arg(0).is_missing() {
             return Err(AutoError::not_modelled("Chart.Axes without a Type (the Axes collection)", AXES));
         }
+        if call.args.len() > 2 {
+            return Err(geometry::bad_count());
+        }
         let kind = geometry::integer(call.arg(0))?;
-        if !matches!(call.arg(1), AutoValue::Missing) && geometry::integer(call.arg(1))? != 1 {
-            return Err(AutoError::not_modelled("Chart.Axes on the secondary axis group", AXES));
+        if !(1..=3).contains(&kind) {
+            return Err(AutoError::excel(1004, "Unable to get the Axes property of the Chart class"));
+        }
+        if !matches!(call.arg(1), AutoValue::Missing) {
+            match geometry::integer(call.arg(1))? {
+                1 => {}
+                2 => return Err(AutoError::not_modelled("Chart.Axes on the secondary axis group", AXES)),
+                _ => return Err(AutoError::excel(1004, "Unable to get the Axes property of the Chart class")),
+            }
         }
         let part = Self::chart_token(target)?;
         let (workbook, sheet, _) = Self::report_key(target)?;
-        let found = self.real_chart(target, |c| {
-            let ids = c.plots.first().map(|p| p.axis_ids.clone()).unwrap_or_default();
-            let place = usize::try_from(kind - 1).ok().filter(|p| *p < 2);
-            place.and_then(|p| ids.get(p)).is_some_and(|id| c.axes.iter().any(|a| a.id == *id))
-        })?;
-        if !(1..=2).contains(&kind) {
-            return Err(AutoError::not_modelled("Chart.Axes of the series axis type", AXES));
-        }
+        let found = self.real_chart(target, |c| axis_of(c, kind as u8).is_some())?;
         if !found {
             return Err(AutoError::excel(1004, "Unable to get the Axes property of the Chart class"));
         }
@@ -74,11 +96,8 @@ impl WorkbookAutomation {
         what: &str,
         read: impl Fn(&calc_doc_model::ChartAxis) -> T,
     ) -> Result<T, AutoError> {
-        let kind = Self::axis_key(target)? as usize;
-        self.real_chart(target, |c| {
-            let id = c.plots.first().and_then(|p| p.axis_ids.get(kind - 1)).copied();
-            id.and_then(|id| c.axes.iter().find(|a| a.id == id)).map(&read)
-        })?
+        let kind = Self::axis_key(target)?;
+        self.real_chart(target, |c| axis_of(c, kind).map(&read))?
         .ok_or_else(|| AutoError::excel(1004, format!("Unable to get the {what} property of the Axis class")))
     }
 
@@ -190,7 +209,7 @@ impl WorkbookAutomation {
     }
 
     fn axis_put_value(&self, target: &ObjectRef, call: &Call<'_>, scale: Scale) -> Reply {
-        let v = number(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let v = number(one_arg(call)?)?;
         if !v.is_finite() || (matches!(scale, Scale::Unit) && v <= 0.0) {
             return Err(AutoError::excel(1004, "Unable to set the property of the Axis class"));
         }
@@ -198,15 +217,26 @@ impl WorkbookAutomation {
     }
 
     fn axis_put_auto(&self, target: &ObjectRef, call: &Call<'_>, scale: Scale) -> Reply {
-        if geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)? {
+        if geometry::boolean(one_arg(call)?)? {
             return self.axis_write(target, call, scale, None);
         }
         // False from automatic freezes the scale the chart shows now.
-        let auto = self.axis_read(target, scale.name(), |a| match scale {
-            Scale::Minimum => a.minimum.is_none(),
-            Scale::Maximum => a.maximum.is_none(),
-            Scale::Unit => a.major_unit.is_none(),
+        let (kind, auto) = self.axis_read(target, scale.name(), |a| {
+            (
+                a.kind.clone(),
+                match scale {
+                    Scale::Minimum => a.minimum.is_none(),
+                    Scale::Maximum => a.maximum.is_none(),
+                    Scale::Unit => a.major_unit.is_none(),
+                },
+            )
         })?;
+        if kind != "valAx" {
+            return Err(AutoError::excel(
+                1004,
+                format!("Unable to set the {}IsAuto property of the Axis class", scale.name()),
+            ));
+        }
         if auto {
             let current = self.computed_scale(target, scale)?;
             return self.axis_write(target, call, scale, Some(current));
@@ -256,7 +286,7 @@ impl WorkbookAutomation {
         Ok(AutoValue::Bool(self.axis_read(target, "ReversePlotOrder", |a| a.reversed)?))
     }
     pub(super) fn axis_put_reversed(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let on = geometry::boolean(one_arg(call)?)?;
         let (_, sheet, _) = Self::report_key(target)?;
         let part = Self::chart_token(target)?;
         let mut axis = self.axis_read(target, "ReversePlotOrder", |a| a.clone())?;
@@ -294,7 +324,7 @@ impl WorkbookAutomation {
         Ok(AutoValue::Bool(self.axis_read(target, "HasTitle", |a| a.title.is_some())?))
     }
     pub(super) fn axis_put_has_title(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let on = geometry::boolean(one_arg(call)?)?;
         let has = self.axis_read(target, "HasTitle", |a| a.title.is_some())?;
         if on == has {
             return Ok(AutoValue::Empty);
@@ -318,7 +348,7 @@ impl WorkbookAutomation {
         }
     }
     pub(super) fn axis_title_put_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let text = super::report::text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let text = super::report::text_arg(one_arg(call)?)?;
         if self.axis_read(target, "Text", |a| a.title.is_none())? {
             return Err(AutoError::excel(-2147024809, "This object has no title."));
         }
@@ -343,7 +373,7 @@ impl WorkbookAutomation {
         Ok(AutoValue::Bool(self.axis_read(target, "NumberFormatLinked", |a| a.number_format.is_none())?))
     }
     pub(super) fn tick_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let code = super::report::text_arg(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let code = super::report::text_arg(one_arg(call)?)?;
         let kind = self.axis_read(target, "NumberFormat", |a| a.kind.clone())?;
         if kind != "valAx" || !matches!(code.as_str(), "0" | "0.00" | "#,##0" | "#,##0.00" | "0%" | "0.00%" | "General") {
             return Err(AutoError::not_modelled(
@@ -355,10 +385,18 @@ impl WorkbookAutomation {
         self.axis_labels(target, call, None, Some(value))
     }
     pub(super) fn tick_put_number_format_linked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let on = geometry::boolean(call.args.last().ok_or_else(geometry::bad_count)?)?;
+        let on = geometry::boolean(one_arg(call)?)?;
         if !on {
             return Err(AutoError::not_modelled("TickLabels.NumberFormatLinked = False (keeps the displayed format)", "dc-oxh8w.12"));
         }
         self.axis_labels(target, call, None, Some(None))
+    }
+}
+
+/// The one value of a property put: any other count is an argument error.
+fn one_arg<'a>(call: &'a Call<'_>) -> Result<&'a AutoValue, AutoError> {
+    match &call.args[..] {
+        [v] => Ok(v),
+        _ => Err(geometry::bad_count()),
     }
 }

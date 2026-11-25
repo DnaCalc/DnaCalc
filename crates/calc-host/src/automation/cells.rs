@@ -5,6 +5,9 @@ use super::*;
 use crate::{SortKey, SortOptions, Axis, AxisChange, AxisEdit, SkinIntent, WorkbookCommand};
 use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
+/// The open bead that owns the structural remainders this file refuses.
+const OWNER: &str = "dc-oxh8w.28";
+
 const XL_SHIFT_DOWN: i64 = -4121;
 const XL_SHIFT_TO_RIGHT: i64 = -4161;
 const XL_SHIFT_UP: i64 = -4162;
@@ -76,12 +79,20 @@ impl WorkbookAutomation {
             match call.arg(1) {
                 AutoValue::Missing | AutoValue::Empty => {}
                 other if geometry::integer(other)? == 0 => {}
+                other if geometry::integer(other)? != 1 => {
+                    return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+                }
                 _ => {
                     return Err(AutoError::not_modelled(
                         "Range.Insert CopyOrigin xlFormatFromRightOrBelow",
                         OWNER,
                     ));
                 }
+            }
+        }
+        if let Some(other) = Some(call.arg(0)).filter(|a| !a.is_missing() && !matches!(a, AutoValue::Empty)) {
+            if ![XL_SHIFT_DOWN, XL_SHIFT_TO_RIGHT, XL_SHIFT_UP, XL_SHIFT_TO_LEFT].contains(&geometry::integer(other)?) {
+                return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
         }
         let shift = match call.arg(0) {
@@ -104,7 +115,8 @@ impl WorkbookAutomation {
                     .map(SkinIntent::EditAxis)
                     .map_err(|_| AutoError::excel(1004, "Application-defined or object-defined error"))
             };
-            if whole_rows && !whole_columns {
+            // The whole sheet is every row: deleting it clears every cell and adjusts references as Excel does.
+            if whole_rows {
                 return axis_edit(Axis::Rows, first.row(), area.row_count());
             }
             if whole_columns {
@@ -145,13 +157,27 @@ impl WorkbookAutomation {
         if given(3) || given(8) || given(15) {
             return refuse("Type, OrderCustom and SubField1");
         }
-        if number(10, 2)? != 2 {
+        let bad = || AutoError::excel(1004, "Application-defined or object-defined error");
+        // xlGuess 0, xlYes 1, xlNo 2; xlSortColumns 1, xlSortRows 2; xlPinYin 1, xlStroke 2; DataOption 0 or 1.
+        let header = number(7, 2)?;
+        let orientation = number(10, 2)?;
+        let method = number(11, 1)?;
+        let (order_a, order_b, order_c) = (number(1, 1)?, number(4, 1)?, number(6, 1)?);
+        if !(0..=2).contains(&header)
+            || !(1..=2).contains(&orientation)
+            || !(1..=2).contains(&method)
+            || ![number(12, 0)?, number(13, 0)?, number(14, 0)?].iter().all(|d| (0..=1).contains(d))
+            || ![order_a, order_b, order_c].iter().all(|o| (1..=2).contains(o))
+        {
+            return Err(bad());
+        }
+        if orientation != 2 {
             return refuse("Orientation other than xlSortRows");
         }
-        if number(11, 1)? != 1 || number(12, 0)? != 0 || number(13, 0)? != 0 || number(14, 0)? != 0 {
+        if method != 1 || number(12, 0)? != 0 || number(13, 0)? != 0 || number(14, 0)? != 0 {
             return refuse("SortMethod and DataOption");
         }
-        let header = match number(7, 2)? {
+        let header = match header {
             1 => true,
             2 => false,
             _ => return refuse("Header xlGuess"),
@@ -185,9 +211,13 @@ impl WorkbookAutomation {
             return refuse("without Key1");
         }
         self.mutate_range(target, call, |session, range| {
-            let area = range.areas()[0];
+            let mut area = range.areas()[0];
+            // Sorting one cell sorts its current region, as Excel does.
             if area.cell_count() == 1 {
-                return Err(AutoError::not_modelled("Range.Sort of one cell (current region)", OWNER));
+                area = Self::current_region(session.host().model(), area.first());
+                if area.cell_count() == 1 {
+                    return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+                }
             }
             let mut sort_keys = Vec::new();
             for (held, descending) in &keys {
@@ -210,5 +240,39 @@ impl WorkbookAutomation {
             }))
         })?;
         Ok(AutoValue::Bool(true))
+    }
+}
+
+impl WorkbookAutomation {
+    /// The block of non-empty cells around `at`, grown through every neighbouring non-empty cell (Excel's CurrentRegion).
+    pub(super) fn current_region(model: &calc_doc_model::ModelRoot, at: CellKey) -> GridArea {
+        let sheet = at.sheet();
+        let occupied = |row: u32, column: u32| {
+            CellKey::new(sheet, row, column).is_ok_and(|key| model.cell(key).is_some())
+        };
+        let (mut top, mut left, mut bottom, mut right) = (at.row(), at.column(), at.row(), at.column());
+        loop {
+            let (t, l, b, r) = (top.saturating_sub(1).max(1), left.saturating_sub(1).max(1), (bottom + 1).min(MAX_ROWS), (right + 1).min(MAX_COLUMNS));
+            let ring_has = |row: u32, column: u32| occupied(row, column);
+            let mut grown = (top, left, bottom, right);
+            if t < top && (l..=r).any(|c| ring_has(t, c)) {
+                grown.0 = t;
+            }
+            if b > bottom && (l..=r).any(|c| ring_has(b, c)) {
+                grown.2 = b;
+            }
+            if l < left && (t..=b).any(|row| ring_has(row, l)) {
+                grown.1 = l;
+            }
+            if r > right && (t..=b).any(|row| ring_has(row, r)) {
+                grown.3 = r;
+            }
+            if grown == (top, left, bottom, right) {
+                break;
+            }
+            (top, left, bottom, right) = grown;
+        }
+        let corner = |row, column| CellKey::new(sheet, row, column).expect("inside the grid");
+        GridArea::new(corner(top, left), corner(bottom, right)).expect("an ordered area")
     }
 }

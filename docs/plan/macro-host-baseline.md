@@ -135,7 +135,62 @@ errors 91 and 424 are Functions that read `Application.Caller` or `ThisWorkbook`
 meant to get from a worksheet call; calling them as commands without a caller fails in Excel too.
 C API (`xlc*`) and XLM routes are not measured here (dc-17spk.16, dc-17spk.19).
 
+### After workbook-level sheet events (dc-d7cgp, 2026-11-25)
+
+The first pass above refused 3,897 workbooks on `Workbook_SheetCalculate`. Admission now takes
+every Excel `Workbook_*` and `Worksheet_*` event the descriptor declares (`WorkbookEvents`,
+`DocEvents`) whose arguments are objects or Booleans; the host raises the workbook's
+`SheetChange`, `SheetCalculate` and `SheetSelectionChange` after the sheet's own event and
+never raises the others (an unraised event does not fire; Excel raises it only for the user
+action that causes it). Events with a Long, String or enumeration argument (`SyncEvent`) stay
+refused. Same 4,402 workbooks, debug binary SHA-256
+`b4d3a32702b5fc77b68004f566bc81d1ad468f8ead2f9fe6be7418ac482f63f6`, same sandbox. The ranking
+TSV is regenerated; the entries TSV is the first pass only (the new run has 76,971 rows).
+
+| Workbook outcome | Before | After |
+| --- | ---: | ---: |
+| Project admitted, entries run | 283 | 4,180 |
+| Workbook_Sheet* / AfterSave handler refuses admission | 3,897 | 0 |
+| No VBA project in the file | 110 | 110 |
+| Workbook package content type refused | 110 | 110 |
+| Class, designer or unbound document module; `New Scripting.Dictionary` | 2 | 2 |
+
+| Entry outcome | Before (283 workbooks) | After (4,180 workbooks) |
+| --- | ---: | ---: |
+| Success | 724 | 16,871 (Subs 4,167, Functions 12,704) |
+| VBA run-time error | 793 | 13,214 (91: 8,542; 424: 4,171; 438: 196; 53: 155; 70: 147; 5: 2; 7: 1) |
+| Typed refusal | 533 | 11,623 (Subs 4,164, Functions 7,459) |
+| Needs arguments | 2,292 | 35,263 (Subs 16,676, Functions 18,587) |
+| Total entries | 4,342 | 76,971 |
+
+Run-time errors 53 and 70 are Guarded denials of file and FFI access (155 `Ffi`, 142 `FsRead`
+denials recorded). The 4,155 workbooks behind `_Application.Build` are mostly copies of the
+engine's probe project; read the ranking as members, not independent macros.
+
+### Argument fixtures (dc-gync0, 2026-11-25)
+
+`dnacalc run <book> --all --fixtures` gives each required scalar parameter a documented value
+and runs the entry: Number 1 (Long, Integer, Byte, Single, Double, Currency, Date, Variant),
+Boolean True, Text "1". An entry with a ParamArray, an object, array or record parameter, or a
+LongLong or Decimal parameter stays `needs-arguments`. Each fixture row says `"arguments": "fixture"`.
+The fixture is a probe value, not an Excel answer: a success means the entry ran without a
+run-time error for those inputs, nothing more. Measured over the first 1,598 admitted workbooks
+of the list (hash order, 29,403 entries; the run was stopped there, the other 2,582 workbooks
+are not run with fixtures), same sandbox and binary as above except the Date and Currency
+conversion added after this run (3 entries with a Date parameter were `not-callable`).
+
+| Entry outcome | Without fixtures | With fixtures |
+| --- | ---: | ---: |
+| Success | 6,454 | 13,936 |
+| VBA run-time error | 5,043 | 7,330 |
+| Typed refusal | 4,437 | 4,867 |
+| Needs arguments | 13,469 | 3,267 |
+| Not callable | 0 | 3 |
+
+Of the 10,202 entries the fixtures made runnable: 7,482 succeed, 2,287 end in a run-time error
+(mostly `array has no bounds`, where a Variant parameter expects an array, and 91/424 object
+errors), 430 are typed refusals, 3 not callable.
+
 Still open (dc-gync0): the 3,265-hash cohort per-entry run (needs the SHA store on this host or a Windows
 run: `dnacalc run <book> --all --macro-level guarded --json` under the same sandbox, steps in
-the lane's RUN-ON-WINDOWS.txt), argument fixtures for the 2,292 `needs-arguments` entries,
-`Workbook_Sheet*` event admission (dc-d7cgp), Application.Run between procedures (dc-80m0f).
+the lane's RUN-ON-WINDOWS.txt; the owning bead is named in dc-gync0's close note); Application.Run between procedures (dc-80m0f, needs a CalcVBA reentrant dynamic call).

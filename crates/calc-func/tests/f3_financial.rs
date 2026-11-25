@@ -3366,6 +3366,26 @@ fn mirr_discount_and_root_stages_follow_native_controls() {
     error(mirr(&[-1.0, 0.0, 0.0, 0.0, 2.0], 1e100, 1e100), Div0);
 }
 
+/// Touchstone Excel 16.0.20625.20108, dc-ypa4. With zero rates the
+/// discounted ratio is the last cashflow exactly. These roots round to a
+/// binary64 midpoint in x87 precision before the binary64 store.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_degree_two_stores_the_x87_square_root() {
+    for (ratio, expected) in [
+        (0x3ff0_0000_0000_0003, 0x3cc0_0000_0000_0000),
+        (0x3ff0_0000_0000_0007, 0x3cd0_0000_0000_0000),
+        (0x3fef_ffff_ffff_fff3, 0xbcc8_0000_0000_0000),
+        (0x3ff0_0000_0000_001f, 0x3cf0_0000_0000_0000),
+    ] {
+        let flows = [-1.0, 0.0, f64::from_bits(ratio)];
+        exact(
+            call("MIRR", vec![col(&flows), n(0.0), n(0.0)]),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Excel 20625 returns #NUM! for overflow in either function with a finite divisor.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

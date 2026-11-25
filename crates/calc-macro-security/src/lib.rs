@@ -349,7 +349,8 @@ mod origin_tests {
     /// The one decision both desktop applications share (dc-2nn1): zones 3 and 4, the network and
     /// an unverified origin are blocked; this computer, the intranet, trusted sites and an
     /// unmarked local file are not.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn one_block_decision_for_every_origin() {
         assert_eq!(FileOrigin::default(), FileOrigin::Unknown);
         for (origin, block) in [

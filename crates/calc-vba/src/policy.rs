@@ -161,7 +161,8 @@ pub fn predict_lexical(sources: &[&str]) -> Prediction {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn no_policy_means_no_wrapper_and_an_empty_audit() {
         set_thread_policy(None);
         assert_eq!(thread_policy(), None);

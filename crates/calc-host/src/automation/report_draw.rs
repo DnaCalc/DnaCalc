@@ -68,6 +68,8 @@ impl WorkbookAutomation {
                     | ReportItem::ChartShape(part)
                     | ReportItem::SeriesCollection(part)
                     | ReportItem::Series(part, _)
+                    | ReportItem::DataLabels(part, _)
+                    | ReportItem::SeriesInterior(part, _)
                     | ReportItem::Axis(part, _)
                     | ReportItem::AxisTitle(part, _)
                     | ReportItem::TickLabels(part, _),
@@ -654,9 +656,9 @@ impl WorkbookAutomation {
     fn excel_reference(canonical: &str) -> String {
         crate::chart::excel_reference(canonical)
     }
-    fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
+    pub(super) fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
         let ObjectKey::Report {
-            item: ReportItem::Series(_, place),
+            item: ReportItem::Series(_, place) | ReportItem::DataLabels(_, place) | ReportItem::SeriesInterior(_, place),
             ..
         } = &target.key
         else {

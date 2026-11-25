@@ -280,7 +280,12 @@ Axes (dc-oxh8w.11): `Chart.Axes(xlCategory|xlValue)` and `Axis.MinimumScale`, `M
 (dc-oxh8w.13). Chart.Export is dc-oxh8w.22; chart sheets, secondary axis groups and the Axes collection are dc-oxh8w.23.
 Axis titles and tick-label formats (dc-oxh8w.12): `Axis.HasTitle`, `AxisTitle.Text/Caption` and `TickLabels.NumberFormat/NumberFormatLinked` over
 `WorkbookCommand::ChartAxisLabels`; the writer saves `c:title` and `c:numFmt` (retained and newly made charts). Formats beyond the six the
-loader reads, data labels and series/plot/chart-area formatting are dc-oxh8w.18 and dc-oxh8w.19.
+loader reads, plot/chart-area formatting, `Format.Fill` and `Border` are dc-oxh8w.31.
+Series colour (dc-oxh8w.19): `Series.Interior` and `Interior.Color` (BGR number) over `WorkbookCommand::ChartSeriesStyle`; the Range.Interior handler (dc-oxh8w.2) must take over `ReportItem::SeriesInterior`.
+Data labels (dc-oxh8w.18): `Series.HasDataLabels`, `Series.ApplyDataLabels` and `Series.DataLabels` with `DataLabels.ShowValue/ShowCategoryName/
+ShowSeriesName/ShowPercentage/Position/Separator` over `WorkbookCommand::ChartSeriesLabels`; the writer saves `c:dLbls` (rewritten in place on a
+retained series, new on a made one). The DataLabels members register once the descriptor holds the type (Windows regeneration); labels of single
+points, Position defaults and label text formatting are dc-oxh8w.29.
 
 What is not Excel's yet: a table name that is not a defined-name shape (`1bad name`, `R1C1`) is
 refused where Excel accepts it; `ListObjects.Add` with xlNo, or without xlYes over a first row that

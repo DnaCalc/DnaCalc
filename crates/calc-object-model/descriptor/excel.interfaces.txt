@@ -12,6 +12,11 @@ _Worksheet
 Worksheet          # coclass
 DocEvents
 Range
+Font
+Interior
+Borders
+Border
+Style
 Areas
 Names
 Name
@@ -50,3 +55,9 @@ HPageBreaks
 HPageBreak
 VPageBreaks
 VPageBreak
+DataLabels
+DataLabel
+ChartArea
+PlotArea
+ChartFormat
+ChartFillFormat

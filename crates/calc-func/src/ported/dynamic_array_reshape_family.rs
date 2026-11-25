@@ -139,6 +139,22 @@ pub(crate) fn parse_integer(prepared: &CalcValue) -> Result<isize, DynamicArrayR
     Ok(truncated as isize)
 }
 
+pub(crate) fn slice_count(
+    arg: Option<&CalcValue>,
+    default: isize,
+) -> Result<isize, DynamicArrayReshapeEvalError> {
+    let Some(value) = arg.filter(|value| !value.is_missing()) else {
+        return Ok(default);
+    };
+    let raw = coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    if !raw.is_finite() {
+        return Err(DynamicArrayReshapeEvalError::InvalidCount);
+    }
+    // Excel truncates TAKE and DROP counts toward zero. Saturation beyond the grid's
+    // dimensions is harmless because the span is bounded by the input length.
+    Ok(raw as isize)
+}
+
 fn parse_integer_calc(value: &CalcValue) -> Result<isize, DynamicArrayReshapeEvalError> {
     // The same scalar-context rule `parse_integer` reads through `coerce_prepared_to_number`
     // (a blank count is 0), so the two prep helpers stay equivalent on a blank argument.
@@ -339,7 +355,7 @@ pub(crate) fn take_span(
         let take = usize::min(count as usize, len);
         Ok((0, take))
     } else {
-        let take = usize::min((-count) as usize, len);
+        let take = usize::min(count.unsigned_abs(), len);
         Ok((len - take, len))
     }
 }
@@ -351,7 +367,7 @@ pub(crate) fn drop_span(
     let (start, end) = if count >= 0 {
         (usize::min(count as usize, len), len)
     } else {
-        (0, len.saturating_sub((-count) as usize))
+        (0, len.saturating_sub(count.unsigned_abs()))
     };
     if start >= end {
         return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
@@ -361,18 +377,8 @@ pub(crate) fn drop_span(
 
 pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => {
-            array.shape().rows as isize
-        }
-        Some(arg) => parse_integer(arg)?,
-        None => return Err(DynamicArrayReshapeEvalError::InvalidCount),
-    };
-    let col_count = if let Some(arg) = args.get(2) {
-        parse_integer(arg)?
-    } else {
-        array.shape().cols as isize
-    };
+    let row_count = slice_count(args.get(1), array.shape().rows as isize)?;
+    let col_count = slice_count(args.get(2), array.shape().cols as isize)?;
     let (row_start, row_end) = take_span(array.shape().rows, row_count)?;
     let (col_start, col_end) = take_span(array.shape().cols, col_count)?;
     let rows = row_end - row_start;
@@ -388,16 +394,8 @@ pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayR
 
 pub fn eval_drop_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => 0,
-        Some(arg) => parse_integer(arg)?,
-        None => return Err(DynamicArrayReshapeEvalError::InvalidCount),
-    };
-    let col_count = if let Some(arg) = args.get(2) {
-        parse_integer(arg)?
-    } else {
-        0
-    };
+    let row_count = slice_count(args.get(1), 0)?;
+    let col_count = slice_count(args.get(2), 0)?;
     let (row_start, row_end) = drop_span(array.shape().rows, row_count)?;
     let (col_start, col_end) = drop_span(array.shape().cols, col_count)?;
     let rows = row_end - row_start;
