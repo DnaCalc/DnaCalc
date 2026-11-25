@@ -265,6 +265,8 @@ fn read_tree(root: &Node, part: &str, name: String, anchor: ChartAnchor) -> Opti
         element_text: Default::default(),
         area_fill: None,
         plot_fill: None,
+        area_border: Default::default(),
+        plot_border: Default::default(),
         element_text_complex: Default::default(),
     })
 }

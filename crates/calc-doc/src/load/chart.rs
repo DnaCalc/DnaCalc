@@ -272,6 +272,8 @@ fn read_chart_xml(
         element_text: Default::default(),
         area_fill: None,
         plot_fill: None,
+        area_border: Default::default(),
+        plot_border: Default::default(),
         element_text_complex: Default::default(),
     };
     // The path of local names below chartSpace, and where in a series the reading is.
@@ -364,6 +366,29 @@ fn read_chart_xml(
         if axis_shape_seen && axis_line_seen && axis_no_fill_seen && !axis_line_invalid && let Some(axis) = chart.axes.last_mut() { axis.line_hidden = true; }
         }
         if names.as_slice() == ["chart", "plotArea"] && local == "valAx" { grid_axis = grid_plot_area && element.name.is(CHART_NAMESPACE, "valAx"); }
+        // The outline of the chart area and of the plot area (dc-oxh8w.61).
+        {
+            let outline = match names.as_slice() {
+                ["spPr"] | ["spPr", "ln"] | ["spPr", "ln", "solidFill"] => Some(&mut chart.area_border),
+                ["chart", "plotArea", "spPr"] | ["chart", "plotArea", "spPr", "ln"] | ["chart", "plotArea", "spPr", "ln", "solidFill"] => {
+                    Some(&mut chart.plot_border)
+                }
+                _ => None,
+            };
+            if let Some(border) = outline {
+                match (names.last().copied(), local.as_str()) {
+                    (Some("spPr"), "ln") => {
+                        border.width = element.attribute("w").and_then(|w| w.parse().ok());
+                    }
+                    (Some("ln"), "noFill") => border.none = true,
+                    (Some("ln"), "prstDash") => border.dash = val.clone(),
+                    (Some("solidFill"), "srgbClr") => {
+                        border.color = val.clone().filter(|v| v.len() == 6 && v.bytes().all(|b| b.is_ascii_hexdigit()));
+                    }
+                    _ => {}
+                }
+            }
+        }
         let drawing = "http://schemas.openxmlformats.org/drawingml/2006/main";
         if axis_scope && matches!(chart.axes.last().map(|axis| axis.kind.as_str()), Some("catAx" | "valAx")) {
             if matches!(names.as_slice(), ["chart", "plotArea", "catAx" | "valAx"]) && element.name.is(CHART_NAMESPACE, "spPr") {
@@ -590,7 +615,7 @@ fn read_chart_xml(
                     ..Default::default()
                 });
             }
-            (Some("valAx"), "numFmt") if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
+            (Some("valAx" | "catAx" | "dateAx" | "serAx"), "numFmt") if element.name.namespace.as_deref() == Some(CHART_NAMESPACE) => {
                 if let Some(axis) = chart.axes.last_mut() {
                     let code = element.attribute("formatCode");
                     axis.number_format = if !axis_number_format_seen && matches!(element.attribute("sourceLinked"), Some("0" | "false"))
