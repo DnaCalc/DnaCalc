@@ -6,6 +6,8 @@
 //! [`blank_package`] returns the bytes; the caller opens them as it opens any package
 //! ([`crate::open`] over a [`crate::MemorySource`]).
 
+use std::fmt::Write;
+
 const CONTENT_TYPES: &str = concat!(
     r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
     r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">"#,
@@ -28,7 +30,7 @@ const PACKAGE_RELATIONSHIPS: &str = concat!(
 const WORKBOOK: &str = concat!(
     r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
     r#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
-    r#"<DATEPR/><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>"#,
+    r#"<DATEPR/><SHEETS/>"#,
     r#"<calcPr calcId="191029"/>"#,
     r#"</workbook>"#
 );
@@ -115,7 +117,16 @@ pub(crate) fn blank_package_with(
     date_1904: bool,
     project: Option<Project<'_>>,
 ) -> Vec<u8> {
-    let name = escaped(sheet);
+    let code_name = project.as_ref().and_then(|p| p.sheet_code_name);
+    blank_package_with_sheets(&[(sheet, code_name)], date_1904, project)
+}
+
+/// The blank workbook with all requested tabs and their optional VBA code names.
+pub(crate) fn blank_package_with_sheets(
+    sheets: &[(&str, Option<&str>)],
+    date_1904: bool,
+    project: Option<Project<'_>>,
+) -> Vec<u8> {
     let workbook_code_name = project
         .as_ref()
         .and_then(|p| p.workbook_code_name)
@@ -127,64 +138,83 @@ pub(crate) fn blank_package_with(
     } else {
         format!("<workbookPr{date}{workbook_code_name}/>")
     };
-    let workbook = WORKBOOK
-        .replace(r#"name="Sheet1""#, &format!(r#"name="{name}""#))
-        .replace("<DATEPR/>", &workbook_pr);
-    let Some(project) = project else {
-        return crate::save::new_archive(&[
-            ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
-            ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
-            ("xl/workbook.xml", workbook.as_bytes()),
-            (
-                "xl/_rels/workbook.xml.rels",
-                WORKBOOK_RELATIONSHIPS.as_bytes(),
+    let mut content_types = CONTENT_TYPES.trim_end_matches("</Types>").to_owned();
+    let mut relationships = WORKBOOK_RELATIONSHIPS
+        .trim_end_matches("</Relationships>")
+        .to_owned();
+    let mut sheet_elements = "<sheets>".to_owned();
+    let mut worksheets = Vec::with_capacity(sheets.len());
+    for (index, (sheet, code_name)) in sheets.iter().enumerate() {
+        let sheet_id = index + 1;
+        let rel_id = if index == 0 { 1 } else { index + 4 };
+        let path = format!("worksheets/sheet{sheet_id}.xml");
+        let _ = write!(
+            sheet_elements,
+            r#"<sheet name="{}" sheetId="{sheet_id}" r:id="rId{rel_id}"/>"#,
+            escaped(sheet),
+        );
+        if index > 0 {
+            let _ = write!(
+                content_types,
+                r#"<Override PartName="/xl/{path}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>"#,
+            );
+            let _ = write!(
+                relationships,
+                r#"<Relationship Id="rId{rel_id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="{path}"/>"#,
+            );
+        }
+        let xml = match code_name {
+            Some(code_name) => WORKSHEET.replace(
+                "<sheetData/>",
+                &format!(
+                    r#"<sheetPr codeName="{}"/><sheetData/>"#,
+                    escaped(code_name)
+                ),
             ),
-            ("xl/worksheets/sheet1.xml", WORKSHEET.as_bytes()),
-            ("xl/styles.xml", STYLES.as_bytes()),
-            ("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()),
-        ])
-        .expect("seven small parts fit a ZIP archive");
-    };
-    let content_types = CONTENT_TYPES
-        .replace(
+            None => WORKSHEET.to_owned(),
+        };
+        worksheets.push((format!("xl/{path}"), xml));
+    }
+    sheet_elements.push_str("</sheets>");
+    let workbook = WORKBOOK
+        .replace("<DATEPR/>", &workbook_pr)
+        .replace("<SHEETS/>", &sheet_elements);
+    if project.is_some() {
+        content_types = content_types.replace(
             crate::SpreadsheetFormat::Xlsx.content_type(),
             crate::SpreadsheetFormat::Xlsm.content_type(),
-        )
-        .replace(
-            "</Types>",
-            &format!(
-                r#"<Override PartName="/xl/vbaProject.bin" ContentType="{}"/></Types>"#,
-                crate::VBA_PROJECT_CONTENT_TYPE
-            ),
         );
-    let relationships = WORKBOOK_RELATIONSHIPS.replace(
-        "</Relationships>",
-        &format!(
-            r#"<Relationship Id="rId4" Type="{}" Target="vbaProject.bin"/></Relationships>"#,
-            crate::vba::VBA_PROJECT
-        ),
-    );
-    let worksheet = match project.sheet_code_name {
-        Some(code_name) => WORKSHEET.replace(
-            "<sheetData/>",
-            &format!(
-                r#"<sheetPr codeName="{}"/><sheetData/>"#,
-                escaped(code_name)
-            ),
-        ),
-        None => WORKSHEET.to_owned(),
-    };
-    crate::save::new_archive(&[
+        let _ = write!(
+            content_types,
+            r#"<Override PartName="/xl/vbaProject.bin" ContentType="{}"/>"#,
+            crate::VBA_PROJECT_CONTENT_TYPE,
+        );
+        let _ = write!(
+            relationships,
+            r#"<Relationship Id="rId4" Type="{}" Target="vbaProject.bin"/>"#,
+            crate::vba::VBA_PROJECT,
+        );
+    }
+    content_types.push_str("</Types>");
+    relationships.push_str("</Relationships>");
+
+    let mut parts = vec![
         ("[Content_Types].xml", content_types.as_bytes()),
         ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
         ("xl/workbook.xml", workbook.as_bytes()),
         ("xl/_rels/workbook.xml.rels", relationships.as_bytes()),
-        ("xl/worksheets/sheet1.xml", worksheet.as_bytes()),
-        ("xl/styles.xml", STYLES.as_bytes()),
-        ("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()),
-        ("xl/vbaProject.bin", project.part),
-    ])
-    .expect("eight parts fit a ZIP archive")
+    ];
+    parts.extend(
+        worksheets
+            .iter()
+            .map(|(path, xml)| (path.as_str(), xml.as_bytes())),
+    );
+    parts.push(("xl/styles.xml", STYLES.as_bytes()));
+    parts.push(("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()));
+    if let Some(project) = project {
+        parts.push(("xl/vbaProject.bin", project.part));
+    }
+    crate::save::new_archive(&parts).expect("blank workbook parts fit in a ZIP archive")
 }
 
 #[cfg(test)]

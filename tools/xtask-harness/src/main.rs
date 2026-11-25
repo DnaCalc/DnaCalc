@@ -174,6 +174,8 @@ mod site;
 mod sweep;
 #[cfg(not(target_arch = "wasm32"))]
 mod verdict;
+#[cfg(not(target_arch = "wasm32"))]
+mod vba_case;
 // The witness command reads Excel through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod witness;
@@ -210,6 +212,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "release" => site::downloads::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "witness" => witness::run(rest),
+        Some((command, rest)) if command == "vba-case" => vba_case::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "fuzz" => fuzz::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -264,6 +267,8 @@ fn main() -> ExitCode {
             usages.push(collation::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(witness::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(vba_case::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(fuzz::USAGE);
             eprintln!(

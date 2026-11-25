@@ -11,10 +11,14 @@ A call that crashed Excel when it ran alone is answered, not failed: letter "x" 
 Test for it with is_crashed(row); the service never retries such a call. A function with too many crashed calls in an
 hour has its remaining suspect calls refused: ServiceError "excel-crash-budget: ... not run" (resubmit later).
 """
+import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import socket
+import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -61,6 +65,7 @@ class Pending:
         self.values = [None] * calls
         self.inputs = {}
         self.error = None
+        self.error_code = None
         self.env_ids = set()
         self.env_by_position = [None] * calls
         self.t_submit = time.monotonic()
@@ -86,9 +91,10 @@ class Pending:
         if frame.get("order"):
             self.order = frame["order"]
 
-    def resolve(self, error=None):
+    def resolve(self, error=None, code=None):
         if error and not self.error:
             self.error = error
+            self.error_code = code
         self.t_done = time.monotonic()
         self.event.set()
         for callback in self.callbacks:
@@ -106,7 +112,10 @@ class Pending:
         if not self.event.wait(timeout):
             raise TimeoutError(f"Excel question {self.rid} timed out")
         if self.error:
-            raise ServiceError({"id": self.rid, "ok": False, "error": self.error})
+            response = {"id": self.rid, "ok": False, "error": self.error}
+            if self.error_code is not None:
+                response["code"] = self.error_code
+            raise ServiceError(response)
         return self.letters, self.values
 
     def result(self, timeout=None):
@@ -268,16 +277,18 @@ class Connection:
                 pending.resolve()
         elif kind == protocol.ERROR:
             rid = body.get("id")
+            code = body.get("code")
+            error = f"{code}: {body.get('detail')}"
             with self.lock:
                 pending = self.pending.pop(rid, None)
             if pending:
-                pending.resolve(f"{body.get('code')}: {body.get('detail')}")
+                pending.resolve(error, code)
             elif rid is None:
                 with self.lock:
                     waiting = list(self.pending.values())
                     self.pending.clear()
                 for p in waiting:
-                    p.resolve(f"{body.get('code')}: {body.get('detail')}")
+                    p.resolve(error, code)
 
     def wait_hello(self, timeout=10):
         if not self.hello.wait(timeout):
@@ -311,6 +322,41 @@ class Connection:
         self._submit(pending, protocol.submit_frames(rid, groups, opts))
         return pending
 
+    def vba_case(self, case, *, timeout=60, rid=None):
+        """Ask one authored VBA case using a locally built .xlsm. Return a one-row reply.
+
+        The Windows worker requires approval of the exact prepared case. Numbers in
+        arguments and in the reply use the usual Touchstone binary64 hex encoding.
+        """
+        workbook = _build_vba_workbook(case)
+        row = [protocol.vba_case(case, workbook)]
+        pending = self.submit_rows(protocol.VBA_FUNCTION, [row], priority="interactive", rid=rid)
+        reply = pending.result(timeout)
+        answer, = reply["rows"]
+        if answer["type"] != "vba_case":
+            code = answer["reason"] if is_crashed(answer) else answer["type"]
+            detail = answer.get("detail") or "worker returned no VBA case answer"
+            raise ServiceError({
+                "id": pending.rid, "ok": False, "code": code, "error": f"{code}: {detail}",
+                "row": answer,
+            })
+        sent = row[0]["value"]
+        if (len(answer["calls"]) != len(sent["calls"])
+                or [item["at"] for item in answer["sheet_state"]] != sent["readback"]
+                or [item["at"] for item in answer["event_log"]] != sent["event_log"]):
+            raise ServiceError({
+                "id": pending.rid, "ok": False, "error": "incomplete or reordered VBA case answer",
+            })
+        env = self.envs.get(reply["env_id"], {}).get("env", {})
+        sources = json.dumps(sent["modules"], sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        reply.update(
+            engine=env.get("engine"), cpu=env.get("cpu"), lane=self.lane,
+            source_sha256=hashlib.sha256(sources.encode("ascii")).hexdigest(),
+            workbook_sha256=hashlib.sha256(workbook).hexdigest(),
+            request_sha256=hashlib.sha256(protocol.dumps(sent)).hexdigest(),
+        )
+        return reply
+
     def _submit(self, pending, frames):
         pending.frames_sent = frames
         with self.lock:
@@ -332,3 +378,72 @@ class Connection:
             self.sock.close()
         except OSError:
             pass
+
+
+def _build_vba_workbook(case):
+    """Use CalcDoc through the linked xtask harness. No workbook file is accepted from the caller."""
+    root = Path(__file__).resolve().parents[3]
+    harness = os.environ.get("DNACALC_XTASK_HARNESS")
+    command = [harness] if harness else ["cargo", "xtask"]
+    built = subprocess.run(
+        [*command, "vba-case", "build"], input=protocol.dumps(case), cwd=root,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+    )
+    if built.returncode != 0:
+        detail = built.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"CalcDoc could not build the VBA workbook: {detail}")
+    return built.stdout
+
+
+def _write_vba_capture(out, case, reply):
+    if reply["engine"] != "excel" or reply["excel_build"] is None:
+        raise ServiceError({"error": "the VBA answer has no Excel build provenance"})
+    directory = out / reply["source_sha256"]
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{reply['id']}.json"
+    stream = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False)
+    temporary = Path(stream.name)
+    try:
+        with stream:
+            json.dump({"case": case, "reply": reply}, stream, indent=2, ensure_ascii=True)
+            stream.write("\n")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
+
+def _main():
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="cargo xtask vba-case")
+    modes = parser.add_subparsers(dest="mode", required=True)
+    prepare = modes.add_parser("prepare", help="write the exact group for offline case approval")
+    prepare.add_argument("case", type=Path)
+    capture = modes.add_parser("capture", help="ask Excel and retain the reply with provenance")
+    capture.add_argument("case", type=Path)
+    capture.add_argument("--out", required=True, type=Path)
+    capture.add_argument("--timeout", type=float, default=60.0)
+    args = parser.parse_args()
+    if args.mode == "capture" and (not math.isfinite(args.timeout) or args.timeout <= 0):
+        parser.error("--timeout must be a positive finite number of seconds")
+    try:
+        case = json.loads(args.case.read_text(encoding="utf-8"), object_pairs_hook=v1.unique_pairs)
+        if args.mode == "prepare":
+            row = [protocol.vba_case(case, _build_vba_workbook(case))]
+            group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
+            protocol.submit_frames("0" * 32, [group])  # check the same frame size the live client uses
+            print(protocol.dumps(group).decode("ascii"))
+        else:
+            conn = Connection.open(name="vba-case")
+            try:
+                reply = conn.vba_case(case, timeout=args.timeout)
+            finally:
+                conn.close()
+            print(_write_vba_capture(args.out, case, reply))
+    except (OSError, ServiceError, ValueError) as error:
+        parser.exit(1, f"vba-case: {error}\n")
+
+
+if __name__ == "__main__":
+    _main()

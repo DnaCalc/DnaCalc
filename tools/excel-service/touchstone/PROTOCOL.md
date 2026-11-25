@@ -91,6 +91,51 @@ A probe using a VBA error handler can return `Array("Touchstone.Vba.Err", CLng(E
 report those exact values. A COM invocation failure uses the service's worker error path. Workbook-local
 `Workbooks.Open` calls are refused by the current source allowlist, since the request carries one workbook.
 
+#### Ask from Linux
+
+Save an authored case as `probe.json`. The client supplies the workbook bytes and defaults
+`names`, `readback` and `event_log` to empty.
+
+```json
+{
+  "sheets": [{"name": "Data", "cells": {}}],
+  "modules": [{
+    "name": "Module1",
+    "kind": "standard",
+    "source": "Public Function Probe(ByVal x As Variant) As Variant\n    Probe = x * 2\nEnd Function\n"
+  }],
+  "calls": [{"procedure": "Module1.Probe", "args": [{"type": "number", "bits": "4035000000000000"}]}],
+  "readback": ["Data!A1"]
+}
+```
+
+Prepare the exact group for the coordinator to approve on the worker host. After approval,
+capture the answer over the socket.
+
+```sh
+cargo xtask vba-case prepare probe.json > probe.group.json
+cargo xtask vba-case capture probe.json --out ~/codex-runs/my-lane/vba-captures
+```
+
+`cargo xtask vba-case build probe.json > probe.xlsm` outputs the workbook. A Python caller
+can use `Connection.vba_case(case, timeout=60)` from `touchstone.client`. It returns a
+one-row reply with typed values and the Excel build, CPU, lane, and hashes. Refusals expose
+the service code in `ServiceError.response["code"]`. The source checks refuse external
+declarations, shell commands, file and network operations, dialogs, VBE access, and COM
+activation outside the listed literal classes.
+
+Each capture is stored under `<out>/<source_sha256>/<request-id>.json` with its typed case
+and reply. The source hash covers the ordered module names, kinds, and source text. Compare
+against a frozen CalcVBA prediction in the same form as `reply.rows[0]` to keep a bank row
+only when the complete case differs.
+
+```sh
+cargo xtask vba-case witness capture.json prediction.json --out ~/codex-runs/my-lane/bank-rows
+```
+
+The WitnessSet keeps the procedure names, hex argument bits, and complete typed outcomes,
+including event order and VBA Err details, with the capture's provenance.
+
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,
 `t` text, `b` boolean, `e` error name (`"#N/A"`, `"#SPILL!"`), `z` blank, `x` Excel crashed on this call run alone (`{"reason": "excel-crashed", "function", "k", "args", "detail", "worker"}`; never retried),

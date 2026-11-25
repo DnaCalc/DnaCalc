@@ -152,7 +152,7 @@ pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError
 pub use vba::{VBA_PROJECT_CONTENT_TYPE, VbaProjectPart, VbaReadError, VbaReadPolicy};
 pub use vba_write::{
     SourceModule, SourceModuleKind, VbaWriteError, compress_vba_stream, source_vba_package,
-    write_vba_project,
+    source_vba_package_for_sheets, write_vba_project,
 };
 pub use xls::{LegacyFormat, LegacyReport};
 pub use xml::{

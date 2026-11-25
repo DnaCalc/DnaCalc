@@ -1,5 +1,6 @@
 //! Author an Excel project from VBA source, using the MS-OVBA stream layout.
 
+use crate::model::{SheetName, value::ExcelText};
 use crate::xls::cfb_write::{self, Node};
 use std::collections::BTreeSet;
 use std::fmt::{self, Write};
@@ -43,6 +44,10 @@ pub enum VbaWriteError {
     ModuleName(String),
     /// This module's source contains attributes, a NUL or text outside Windows-1252.
     Source(String),
+    /// Invalid or duplicate tab name.
+    SheetName(String),
+    /// A workbook must have at least one sheet.
+    NoSheets,
     /// The source project exceeds a size limit.
     Limit(&'static str),
 }
@@ -57,6 +62,8 @@ impl fmt::Display for VbaWriteError {
                 f,
                 "invalid source in VBA module {name:?}: expected Windows-1252 code without module attributes or NUL"
             ),
+            Self::SheetName(name) => write!(f, "invalid or duplicate worksheet name {name:?}"),
+            Self::NoSheets => f.write_str("a macro-enabled workbook needs at least one sheet"),
             Self::Limit(limit) => write!(f, "VBA project exceeds {limit} limit"),
         }
     }
@@ -71,12 +78,10 @@ pub fn write_vba_project(modules: &[SourceModule<'_>]) -> Result<Vec<u8>, VbaWri
         return Err(VbaWriteError::Limit("module count"));
     }
     let mut names = BTreeSet::from(["dir".to_owned(), "_vba_project".to_owned()]);
-    let mut streams = vec![
-        (
-            "_VBA_PROJECT".to_owned(),
-            Node::Stream(vec![0xcc, 0x61, 0xff, 0xff, 0, 1, 0]),
-        ),
-    ];
+    let mut streams = vec![(
+        "_VBA_PROJECT".to_owned(),
+        Node::Stream(vec![0xcc, 0x61, 0xff, 0xff, 0, 1, 0]),
+    )];
     let mut bytes = 0;
     for module in modules {
         let mut chars = module.name.bytes();
@@ -116,22 +121,58 @@ pub fn write_vba_project(modules: &[SourceModule<'_>]) -> Result<Vec<u8>, VbaWri
 /// Write a blank .xlsm whose single worksheet is `Sheet1`, with the supplied VBA modules.
 /// Empty document modules fill in `ThisWorkbook` and `Sheet1` when omitted.
 pub fn source_vba_package(modules: &[SourceModule<'_>]) -> Result<Vec<u8>, VbaWriteError> {
+    source_vba_package_for_sheets(&[SHEET_CODE_NAME], modules)
+}
+
+/// Write a blank .xlsm with the requested worksheet tabs in order. The VBA document code
+/// names are `ThisWorkbook` and `Sheet1`, `Sheet2`, and so on, independent of the tab labels.
+pub fn source_vba_package_for_sheets(
+    sheet_names: &[&str],
+    modules: &[SourceModule<'_>],
+) -> Result<Vec<u8>, VbaWriteError> {
+    if sheet_names.is_empty() {
+        return Err(VbaWriteError::NoSheets);
+    }
+    if sheet_names.len() >= MAX_MODULES || modules.len() > MAX_MODULES {
+        return Err(VbaWriteError::Limit("module count"));
+    }
+    let mut tabs = BTreeSet::new();
+    for name in sheet_names {
+        let text = ExcelText::from_utf16_code_units(name.encode_utf16().collect());
+        if SheetName::new(text).is_err()
+            || name.chars().any(char::is_control)
+            || !tabs.insert(name.to_lowercase())
+        {
+            return Err(VbaWriteError::SheetName((*name).to_owned()));
+        }
+    }
+    let code_names: Vec<_> = (1..=sheet_names.len())
+        .map(|index| format!("Sheet{index}"))
+        .collect();
+    let documents: Vec<_> = std::iter::once((SourceModuleKind::Workbook, WORKBOOK_CODE_NAME))
+        .chain(
+            code_names
+                .iter()
+                .map(|name| (SourceModuleKind::Worksheet, name.as_str())),
+        )
+        .collect();
+
     let mut project = modules.to_vec();
-    for module in modules {
-        let document = match module.kind {
-            SourceModuleKind::Workbook => WORKBOOK_CODE_NAME,
-            SourceModuleKind::Worksheet => SHEET_CODE_NAME,
-            _ => continue,
-        };
-        if module.name != document {
+    for module in modules.iter().filter(|module| {
+        matches!(
+            module.kind,
+            SourceModuleKind::Workbook | SourceModuleKind::Worksheet
+        )
+    }) {
+        if !documents.contains(&(module.kind, module.name)) {
             return Err(VbaWriteError::ModuleName(module.name.to_owned()));
         }
     }
-    for (kind, name) in [
-        (SourceModuleKind::Workbook, WORKBOOK_CODE_NAME),
-        (SourceModuleKind::Worksheet, SHEET_CODE_NAME),
-    ] {
-        if !modules.iter().any(|module| module.kind == kind) {
+    for (kind, name) in documents {
+        if !modules
+            .iter()
+            .any(|module| module.kind == kind && module.name == name)
+        {
             project.push(SourceModule {
                 name,
                 kind,
@@ -139,14 +180,20 @@ pub fn source_vba_package(modules: &[SourceModule<'_>]) -> Result<Vec<u8>, VbaWr
             });
         }
     }
+
+    let sheets: Vec<_> = sheet_names
+        .iter()
+        .zip(&code_names)
+        .map(|(tab, code)| (*tab, Some(code.as_str())))
+        .collect();
     let part = write_vba_project(&project)?;
-    Ok(crate::blank::blank_package_with(
-        SHEET_CODE_NAME,
+    Ok(crate::blank::blank_package_with_sheets(
+        &sheets,
         false,
         Some(crate::blank::Project {
             part: &part,
             workbook_code_name: Some(WORKBOOK_CODE_NAME),
-            sheet_code_name: Some(SHEET_CODE_NAME),
+            sheet_code_name: None,
         }),
     ))
 }

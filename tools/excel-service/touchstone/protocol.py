@@ -33,6 +33,7 @@ and cleared before the next case.
 Frames: 4-byte big-endian length, then a type byte and a JSON body; a type byte >= 0x80
 marks a zlib-compressed body.
 """
+import base64
 import json
 import re
 import struct
@@ -122,6 +123,8 @@ def _token(arg):
         return "f", arg["content"]
     if kind == "sheet_case":
         return "L", arg["value"]
+    if kind == "vba_case":
+        return "V", arg["value"]
     raise ValueError("unsupported argument type " + str(kind))
 
 
@@ -174,6 +177,17 @@ def sheet_case(sheets, probes, names=None):
     return {"type": "sheet_case", "value": {"sheets": sheets, "names": names or {}, "probes": probes}}
 
 
+def vba_case(case, workbook):
+    """One authored VBA case and the CalcDoc-built workbook that carries its source."""
+    required = {"sheets", "modules", "calls"}
+    defaults = {"names": {}, "readback": [], "event_log": []}
+    if not isinstance(case, dict) or not required <= case.keys() <= required.union(defaults):
+        raise ValueError("VBA case needs sheets, modules and calls, with optional names, readback and event_log")
+    return {"type": "vba_case", "value": {
+        **defaults, **case, "workbook": base64.b64encode(workbook).decode("ascii"),
+    }}
+
+
 def is_vba_group(group):
     return group["f"] == VBA_FUNCTION or "V" in group["k"].split(",")
 
@@ -223,6 +237,8 @@ def group_to_rows(group):
                 row.append({"type": "file", "content": value})
             elif token == "L":
                 row.append({"type": "sheet_case", "value": value})
+            elif token == "V":
+                row.append({"type": "vba_case", "value": value})
             elif token[0] in "rm":
                 r, c = (int(x) for x in token[1:].split("x"))
                 row.append({"type": "range" if token[0] == "r" else "mixed_array", "values": [value[a * c:(a + 1) * c] for a in range(r)]})
