@@ -382,8 +382,11 @@ fn makearray_task(
     let rows = dimension(site, &a[0])?;
     let cols = dimension(site, &a[1])?;
     let f = lambda(a, 2, 2)?;
+    // No dimension above the sheet's rows, no result this engine could not hold: a typed
+    // refusal before anything is built (dc-ztvv.26.132; Excel's own answer is unmeasured).
     let count = rows
         .checked_mul(cols)
+        .filter(|count| rows <= 1_048_576 && cols <= 1_048_576 && *count <= 1 << 26)
         .ok_or_else(|| site.not_modelled(None))?;
     Ok(helper(
         site,

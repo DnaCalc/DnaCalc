@@ -51,6 +51,8 @@ pub enum DynamicArrayReshapeEvalError {
     Preparation(CoercionError),
     InvalidSelector,
     InvalidCount,
+    /// The result cannot spill on any sheet (more than 16,384 columns, or more cells than the grid): #SPILL!.
+    Unspillable,
     EmptyArrayResult,
     DimensionTooSmall,
     InvalidIgnoreMode,
@@ -408,11 +410,45 @@ pub fn eval_drop_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayR
     build_array(rows, cols, cells)
 }
 
+/// Most rows or columns a generated array may have (Excel 16.0.20527, dc-ztvv.26.132).
+pub(crate) const GRID_ROWS: usize = 1_048_576;
+pub(crate) const GRID_COLS: usize = 16_384;
+/// Most cells this engine builds for one generated array. Excel itself gives no answer
+/// within its deadline from 100 million cells; a larger result is a typed refusal (dc-ztvv.26.132).
+pub(crate) const GENERATED_CELL_LIMIT: usize = 1 << 26;
+
+/// Checks a generated array's shape before any cell is built. `Ok(false)` is a result this
+/// engine does not build (`NotModelled`); an unspillable one is `Unspillable`.
+pub(crate) fn check_generated_shape(rows: usize, cols: usize) -> Result<(), DynamicArrayReshapeEvalError> {
+    if cols > GRID_COLS || rows.saturating_mul(cols) > GRID_ROWS.saturating_mul(GRID_COLS) {
+        return Err(DynamicArrayReshapeEvalError::Unspillable);
+    }
+    if rows.saturating_mul(cols) > GENERATED_CELL_LIMIT {
+        return Err(DynamicArrayReshapeEvalError::Preparation(CoercionError::NotModelled));
+    }
+    Ok(())
+}
+
+/// EXPAND's target dimension: truncated; below 1 or from 2^31 is #VALUE!, above 1,048,576 is #NUM!.
+fn expand_dimension(value: &CalcValue) -> Result<usize, DynamicArrayReshapeEvalError> {
+    let raw = coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    if !raw.is_finite() || raw.trunc() < 1.0 || raw >= 2_147_483_648.0 {
+        return Err(DynamicArrayReshapeEvalError::InvalidCount);
+    }
+    let count = raw.trunc() as usize;
+    if count > GRID_ROWS {
+        return Err(DynamicArrayReshapeEvalError::Preparation(CoercionError::WorksheetError(
+            WorksheetErrorCode::Num,
+        )));
+    }
+    Ok(count)
+}
+
 pub fn eval_expand_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let target_rows = parse_positive_integer(&args[1])?;
+    let target_rows = expand_dimension(&args[1])?;
     let target_cols = if let Some(arg) = args.get(2) {
-        parse_positive_integer(arg)?
+        expand_dimension(arg)?
     } else {
         array.shape().cols
     };
@@ -430,6 +466,7 @@ pub fn eval_expand_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
     } else {
         CalcValue::error(WorksheetErrorCode::NA)
     };
+    check_generated_shape(target_rows, target_cols)?;
     let mut cells = Vec::with_capacity(target_rows * target_cols);
     for row in 0..target_rows {
         for col in 0..target_cols {
@@ -1016,6 +1053,7 @@ pub fn map_dynamic_array_reshape_error_to_ws(
         }
         DynamicArrayReshapeEvalError::Preparation(CoercionError::WorksheetError(code)) => *code,
         DynamicArrayReshapeEvalError::EmptyArrayResult => WorksheetErrorCode::Calc,
+        DynamicArrayReshapeEvalError::Unspillable => WorksheetErrorCode::Spill,
         DynamicArrayReshapeEvalError::DimensionTooSmall => WorksheetErrorCode::Value,
     }
 }
@@ -1052,14 +1090,19 @@ impl SequenceWork {
         if !raw_rows.is_finite() || !raw_cols.is_finite() || raw_rows < 0.0 || raw_cols < 0.0 {
             return Err(DynamicArrayReshapeEvalError::InvalidCount);
         }
-        let rows = super::text_kernels::date_integer_floor(raw_rows) as usize;
-        let cols = super::text_kernels::date_integer_floor(raw_cols) as usize;
+        // Excel checks each floored dimension against the sheet's rows before the empty case.
+        let floor_rows = super::text_kernels::date_integer_floor(raw_rows);
+        let floor_cols = super::text_kernels::date_integer_floor(raw_cols);
+        if floor_rows > GRID_ROWS as f64 || floor_cols > GRID_ROWS as f64 {
+            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        }
+        let rows = floor_rows as usize;
+        let cols = floor_cols as usize;
         if rows == 0 || cols == 0 {
             return Err(DynamicArrayReshapeEvalError::EmptyArrayResult);
         }
-        let count = ArrayShape { rows, cols }
-            .cell_count()
-            .ok_or(DynamicArrayReshapeEvalError::InvalidCount)?;
+        check_generated_shape(rows, cols)?;
+        let count = rows * cols;
         Ok(Self {
             rows,
             cols,
