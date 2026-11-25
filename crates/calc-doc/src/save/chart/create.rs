@@ -762,6 +762,7 @@ pub(crate) fn add_with(
             }
         }
     }
+    parts::remove_relationship_ids(package, out, &drawing, &deleted)?;
     let mut ids = BTreeSet::new();
     let mut reader = Reader::new(&xml);
     match reader.expect()? {

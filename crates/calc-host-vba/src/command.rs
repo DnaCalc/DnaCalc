@@ -274,14 +274,8 @@ impl WorkbookEvents {
                 }
             }
             None => {
-                // Not in this workbook: Excel's Run also finds the procedure in the other open workbooks.
-                if self.resolve(name.trim().trim_matches('\'')).is_err() {
-                    for runner in self.automation.other_runners()? {
-                        if runner.knows(name.trim().trim_matches('\'')) {
-                            return runner.run(name, name.trim().trim_matches('\''), arguments);
-                        }
-                    }
-                }
+                // ww21 Application.Run.bare.*: a bare procedure name from VBA resolves only in this
+                // workbook's project regardless of which workbook is active; otherwise Excel raises 1004.
                 name
             }
         };
@@ -401,7 +395,10 @@ mod tests {
 
     /// A second workbook the application owns: its own session, project and automation.
     fn second_book(name: &str, source: &str) {
-        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        second_book_from(name, source, include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm"));
+    }
+
+    fn second_book_from(name: &str, source: &str, bytes: &[u8]) {
         let mut session = HostSession::open(
             Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
             &OpenPolicy::default(),
@@ -489,6 +486,26 @@ Public Function CopyAllToNew() As String
  ThisWorkbook.Worksheets.Copy
  CopyAllToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & ThisWorkbook.Worksheets.Count & "/" & n
 End Function
+Public Function CopyOneOfTwo() As String
+ ThisWorkbook.Worksheets.Add
+ ThisWorkbook.Worksheets(1).Copy
+ CopyOneOfTwo = ActiveWorkbook.Worksheets.Count & "/" & ThisWorkbook.Worksheets.Count & "/" & Workbooks.Count
+End Function
+Public Function CopyBeforeForeign() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ ThisWorkbook.Worksheets(1).Copy Before:=other.Worksheets(1)
+End Function
+Public Function MoveBeforeInGroup() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Add
+ src.Worksheets.Add
+ src.Worksheets(Array(2, 3)).Move Before:=src.Worksheets(2)
+End Function
+Public Function CountBooks() As String
+ CountBooks = Workbooks.Count & "/" & ActiveWorkbook.Name & "/" & ThisWorkbook.Name
+End Function
 Public Function CopyArrayToNew() As String
  ThisWorkbook.Worksheets(Array(1, 2)).Copy
  CopyArrayToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & (ActiveWorkbook.Worksheets(1).Name = ThisWorkbook.Worksheets(1).Name) & "/" & ThisWorkbook.Worksheets.Count
@@ -527,6 +544,34 @@ End Function
 Public Function AddOne() As String
  Workbooks.Add
  AddOne = ActiveWorkbook.Name & "/" & Workbooks.Count
+End Function
+Public Function AddFromWithPath(ByVal path As String) As String
+ Dim wb As Workbook
+ Set wb = Workbooks.Add(path)
+ AddFromWithPath = wb.Name & "|" & wb.Path
+End Function
+Public Function OpenBadUpdateLinks(ByVal path As String) As String
+ OpenBadUpdateLinks = Workbooks.Open(path, 99).Name
+End Function
+Public Function AfterCloseName() As String
+ Dim wb As Workbook
+ Set wb = Workbooks.Add
+ wb.Close False
+ AfterCloseName = wb.Name
+End Function
+Public Function CloseReadOnlySave(ByVal path As String) As String
+ Dim wb As Workbook
+ Set wb = Workbooks.Open(path, 0, True)
+ wb.Worksheets(1).Range("A1").Value = 8
+ wb.Close True
+ CloseReadOnlySave = "closed"
+End Function
+Public Function CloseWritableSave(ByVal path As String) As String
+ Dim wb As Workbook
+ Set wb = Workbooks.Open(path)
+ wb.Worksheets(1).Range("A1").Value = 123
+ wb.Close True
+ CloseWritableSave = "closed"
 End Function
 "#;
 
@@ -673,6 +718,7 @@ End Function
                     Err("missing".into())
                 }
             })),
+            saver: None,
             grant: None,
         });
         let added = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddOne")]);
@@ -683,7 +729,7 @@ End Function
         assert_eq!(text(opened), "fixture.xlsm/fixture.xlsm/4");
         let with = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenWith"), AutoValue::text("fixture.xlsm")]);
         assert_eq!(text(with), "fixture.xlsm/5", "options after FileName that change nothing here are accepted");
-        for (name, wanted) in [("OpenPassword", Some("dc-oxh8w.75")), ("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
+        for (name, wanted) in [("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
             let mut arguments = vec![AutoValue::text(&format!("Other.xlsm!{name}"))];
             if name != "AddChart" {
                 arguments.push(AutoValue::text("fixture.xlsm"));
@@ -711,19 +757,29 @@ End Function
         let all = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveAllToNew")]);
         assert!(matches!(all, Err(AutoError::Excel { number: 1004, .. })), "every sheet cannot leave: {all:?}");
         let template = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddFrom"), AutoValue::text("fixture.xlsm")]);
-        assert_eq!(text(template), "Book9/13", "a workbook made from a template file is named BookN");
+        assert_eq!(text(template), "fixture1/13", "ww21: a workbook made from a template file is named <stem>N");
         let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("gone.xlsm")]);
         assert!(matches!(&missing, Err(AutoError::Excel { number: 1004, description }) if description.contains("could not be found")), "{missing:?}");
         let read_only = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenReadOnly"), AutoValue::text("fixture.xlsm")]);
         assert_eq!(text(read_only), "fixture.xlsm/True/False", "ReadOnly:=True opens a read-only workbook; the others stay writable");
         let plain = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
         assert!(plain.is_ok(), "{plain:?}");
-        // An unqualified name the running workbook does not hold is found in the other open workbooks;
-        // its own procedures come first.
-        let found = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("WhoAmI")]);
-        assert_eq!(text(found), "Other.xlsm");
+        // ww21 Application.Run.bare.*: an unqualified name not in the running workbook raises 1004.
+        let not_here = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("WhoAmI")]);
+        assert!(matches!(&not_here, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{not_here:?}");
         let nowhere = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("NoSuchProcedure")]);
         assert!(matches!(&nowhere, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{nowhere:?}");
+        // A copy that fails leaves no orphan workbook behind and the active workbook as it was.
+        let before = text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")]));
+        // local.xlsm holds defined names the save cannot rewrite, so dropping the other sheet is refused.
+        let failed = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyOneOfTwo")]);
+        assert!(matches!(failed, Err(AutoError::Excel { number: 1004, .. })), "{failed:?}");
+        assert_eq!(text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")])), before, "no orphan BookN after a failed copy");
+        // Anchors the host cannot place faithfully are typed refusals (dc-fa8cx), never an alias or a guessed order.
+        for name in ["CopyBeforeForeign", "MoveBeforeInGroup"] {
+            let r = run(&mut session, &owner, &[AutoValue::text(&format!("Other.xlsm!{name}"))]);
+            assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "{name}: {r:?}");
+        }
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
@@ -804,6 +860,98 @@ End Function
             text(got),
             "ActiveBook.xlsx|Sheet1|Cases|Sheet1|Sheet1|OtherOnly|99|99|$C$4:ActiveBook.xlsx|$C$4:ActiveBook.xlsx|ActiveBook.xlsx|ActiveBook.xlsx|ActiveBook.xlsx:Sheet1:$C$4|Cases:$B$2|10|77:"
         );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_oxh8w_75__ww21_multi_workbook_rules() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        let saved: Rc<std::cell::RefCell<Vec<(String, Vec<u8>)>>> = Rc::new(std::cell::RefCell::new(Vec::new()));
+        let sink = saved.clone();
+        crate::install_application(crate::ApplicationOptions {
+            max_steps: 1_000_000,
+            backend: Some(calc_vba::Backend::Interpreter),
+            loader: Some(Rc::new(|path: &str| {
+                if path == "fixture.xlsm" || path == "dir/Data.xlsm" {
+                    Ok(include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm").to_vec())
+                } else if path == "encrypted.xlsx" {
+                    let mut ole = vec![0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+                    ole.extend_from_slice(&[0u8; 64]);
+                    Ok(ole)
+                } else {
+                    Err("missing".into())
+                }
+            })),
+            saver: Some(Rc::new(move |path: &str, bytes: &[u8]| {
+                sink.borrow_mut().push((path.to_owned(), bytes.to_vec()));
+                Ok(())
+            })),
+            grant: None,
+        });
+        // ww21 Application.Run.bare.*: bare name never searches other open workbooks regardless of active book.
+        let bare = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("WhoAmI")]);
+        assert!(
+            matches!(&bare, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")),
+            "bare Run must return 1004: {bare:?}"
+        );
+        // ww21 Workbooks.Add.Template: Data.xlsm -> Data1 with empty Path, second -> Data2.
+        let t1 = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddFromWithPath"), AutoValue::text("dir/Data.xlsm")]);
+        assert_eq!(text(t1), "Data1|");
+        let t2 = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddFromWithPath"), AutoValue::text("dir/Data.xlsm")]);
+        assert_eq!(text(t2), "Data2|");
+        // ww21 Workbooks.Open.password.unencrypted: Password ignored for unencrypted workbook.
+        let pw_plain = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenPassword"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(pw_plain), "fixture.xlsm");
+        // Encrypted workbook with Password refuses citing dc-oxh8w.75.
+        let pw_enc = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenPassword"), AutoValue::text("encrypted.xlsx")]);
+        assert!(matches!(&pw_enc, Err(AutoError::NotModelled { owner: "dc-oxh8w.75", .. })), "{pw_enc:?}");
+        // ww21 Workbooks.Open.badUpdateLinks: out-of-range UpdateLinks gives 1004.
+        let bad_ul = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenBadUpdateLinks"), AutoValue::text("fixture.xlsm")]);
+        assert!(matches!(bad_ul, Err(AutoError::Excel { number: 1004, .. })), "{bad_ul:?}");
+        // ww21 VBA.AfterClose: accessing held Workbook after Close fails disconnected.
+        let after_close = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AfterCloseName")]);
+        assert!(after_close.is_err(), "held Workbook after Close must fail: {after_close:?}");
+        // ww21 Workbook.Close(True) on read-only refuses citing dc-oxh8w.75 (Save As dialog) without writing.
+        let ro_close = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CloseReadOnlySave"), AutoValue::text("fixture.xlsm")]);
+        assert!(matches!(&ro_close, Err(AutoError::NotModelled { owner: "dc-oxh8w.75", .. })), "{ro_close:?}");
+        assert!(saved.borrow().is_empty(), "read-only Close(True) must not write bytes");
+        // Workbook.Close(True) on a writable opened workbook writes saved bytes that reopen with the edit.
+        let rw_close = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CloseWritableSave"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(rw_close), "closed");
+        let written = saved.borrow();
+        assert_eq!(written.len(), 1);
+        assert_eq!(written[0].0, "fixture.xlsm");
+        let reopened = HostSession::open(
+            Arc::new(MemorySource::new(written[0].1.clone()).named("fixture.xlsm")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let sheet = reopened.host().model().sheets()[0].id();
+        let a1 = reopened.host().model().cell(calc_value::CellKey::new(sheet, 1, 1).unwrap());
+        assert!(matches!(a1, Some(calc_host::CellInput::Number(n)) if n.get() == 123.0), "{a1:?}");
+    }
+
+    /// dc-nxq05: one sheet of several copied out of a macro-enabled workbook makes a workbook of that sheet.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn copy_of_one_sheet_of_a_macro_workbook_makes_a_new_workbook() {
+        let (mut session, owner) = project();
+        second_book_from("Other.xlsm", OTHER, include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/provider.xlsm"));
+        crate::install_application(crate::ApplicationOptions {
+            max_steps: 1_000_000,
+            backend: Some(calc_vba::Backend::Interpreter),
+            loader: None,
+            saver: None,
+            grant: None,
+        });
+        let count = match run(&mut session, &owner, &[AutoValue::text("Other.xlsm!BookCount")]) {
+            Ok(AutoValue::R8(n)) => n as i64,
+            other => panic!("{other:?}"),
+        };
+        let one = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyOneOfTwo")]);
+        assert_eq!(text(one), format!("1/{}/{}", 2, count + 1), "{count}");
     }
 
     fn project() -> (HostSession, Rc<WorkbookEvents>) {

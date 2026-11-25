@@ -59,6 +59,17 @@ impl WorkbookAutomation {
         }
     }
 
+    /// A Before or After worksheet of this workbook. One of another workbook is a typed refusal: its sheet identity
+    /// means nothing here (Excel copies or moves into that workbook).
+    pub(super) fn local_sheet_argument(&self, arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
+        if let AutoValue::Object(ObjectRef { key: ObjectKey::Worksheet { workbook, .. }, .. }) = arg {
+            if *workbook != self.workbook_identity()? {
+                return Err(AutoError::not_modelled("Worksheet.Copy or Move Before/After a worksheet of another workbook", "dc-fa8cx"));
+            }
+        }
+        Self::sheet_argument(arg, what)
+    }
+
     /// A Before or After argument: a worksheet or a chart sheet's Chart.
     fn sheet_or_chart_argument(meta: &Snapshot, arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
         match arg {
@@ -305,7 +316,7 @@ impl WorkbookAutomation {
 
     fn worksheet_move(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let sheet = Self::worksheet_sheet(target)?;
-        let (before, after) = Self::move_anchors(call)?;
+        let (before, after) = self.move_anchors(call)?;
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
@@ -321,7 +332,7 @@ impl WorkbookAutomation {
     /// Sheets.Move / Worksheets.Move: every sheet the collection lists moves, in order, to the Before or
     /// After anchor, or into a new workbook when neither is given.
     fn sheets_move(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let (before, after) = Self::move_anchors(call)?;
+        let (before, after) = self.move_anchors(call)?;
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
@@ -331,6 +342,9 @@ impl WorkbookAutomation {
             }
             if before.is_none() && after.is_none() {
                 return self.copy_to_new_book(session, &listed, true, call);
+            }
+            if before.or(after).is_some_and(|anchor| listed.contains(&anchor)) {
+                return Err(AutoError::not_modelled("Sheets.Move with a Before or After sheet inside the moved group", "dc-fa8cx"));
             }
             let mut after = after;
             for sheet in listed {
@@ -344,12 +358,12 @@ impl WorkbookAutomation {
         })
     }
 
-    fn move_anchors(call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
+    fn move_anchors(&self, call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
         }
-        let before = Self::sheet_argument(call.arg(0), "Worksheet.Move Before as other than a worksheet")?;
-        let after = Self::sheet_argument(call.arg(1), "Worksheet.Move After as other than a worksheet")?;
+        let before = self.local_sheet_argument(call.arg(0), "Worksheet.Move Before as other than a worksheet")?;
+        let after = self.local_sheet_argument(call.arg(1), "Worksheet.Move After as other than a worksheet")?;
         if before.is_some() && after.is_some() {
             return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
         }

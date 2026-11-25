@@ -7827,6 +7827,55 @@ fn dc_oxh8w_48__file_held_charts_move_between_sheets_and_save() {
     assert!(matches!(invoke(&model2, &column, "ChartType", vec![]), Ok(AutoValue::I4(51))));
 }
 
+/// dc-3qsm0: a chart-sheet chart moved onto a sheet keeps the content edits made after the move (its source sheet is
+/// deleted), and an embedded chart moved to a chart sheet leaves no relationship to its part in the old drawing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_3qsm0__moved_charts_save_their_edits_and_leave_no_dangling_rels() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(
+                include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec(),
+            )),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let charts = collection("Charts");
+    let chart = obj(invoke_kind(&model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let moved = obj(invoke_kind(&model, &chart, "Location", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::text("Data")]).unwrap());
+    invoke_kind(&model, &moved, "HasTitle", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let title = obj(invoke(&model, &moved, "ChartTitle", vec![]).unwrap());
+    invoke_kind(&model, &title, "Text", InvokeKind::Put, vec![AutoValue::text("Moved title")]).unwrap();
+    let data = obj(invoke_kind(&model, &collection("Worksheets"), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects = obj(invoke_kind(&model, &data, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let first = obj(invoke_kind(&model, &objects, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let bar = obj(invoke(&model, &first, "Chart", vec![]).unwrap());
+    obj(invoke_kind(&model, &bar, "Location", InvokeKind::Method, vec![AutoValue::I4(1), AutoValue::text("Sales")]).unwrap());
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default()).expect("the saved package opens");
+    // Every chart relationship of a drawing is used by a frame of that drawing.
+    for part in document.package().parts().iter().map(|p| p.name().to_owned()).filter(|n| n.starts_with("xl/drawings/drawing")) {
+        let rels_name = format!("xl/drawings/_rels/{}.rels", part.rsplit('/').next().unwrap());
+        let Ok(rels) = document.package().read_part(&rels_name) else { continue };
+        let (rels, drawing) = (String::from_utf8(rels).unwrap(), String::from_utf8(document.package().read_part(&part).unwrap()).unwrap());
+        let links = rels.matches("relationships/chart\"").count();
+        assert_eq!(links, drawing.matches("<xdr:graphicFrame").count(), "{part}: {rels} / {drawing}");
+    }
+    let (_h2, model2) = setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap());
+    let book2 = obj(invoke(&model2, &model2.application(), "ActiveWorkbook", vec![]).unwrap());
+    let data2 = obj(invoke_kind(&model2, &obj(invoke(&model2, &book2, "Worksheets", vec![]).unwrap()), "Item", InvokeKind::Get, vec![AutoValue::text("Data")]).unwrap());
+    let objects2 = obj(invoke_kind(&model2, &data2, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let only = obj(invoke_kind(&model2, &objects2, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let column = obj(invoke(&model2, &only, "Chart", vec![]).unwrap());
+    let title2 = obj(invoke(&model2, &column, "ChartTitle", vec![]).unwrap());
+    assert_eq!(text_of(invoke(&model2, &title2, "Text", vec![]).unwrap()), "Moved title");
+}
+
 /// dc-oxh8w.48: `Chart.Name = ...` of an embedded chart names its ChartObject; `Chart.Name` then reads `<sheet> <name>`,
 /// as `ChartObject.Name` does.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

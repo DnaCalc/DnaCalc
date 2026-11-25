@@ -235,6 +235,7 @@ fn is_transient_infra_error(error: &str) -> bool {
         || lower.contains("timed out")
         || lower.contains("worker-down")
         || lower.contains("sweep-deferred")
+        || lower.contains("isolation-stalled")
         || lower == "sweep paused"
         || lower.contains("broken pipe")
         || lower.contains("connection refused")
@@ -467,12 +468,13 @@ thread_local! {
 
 pub(super) fn record_active_case(phase: &str, function: &str, args: &[Value], batch: &[&[Value]]) {
     ACTIVE_CASE.with(|path| {
-        if let Some(path) = path.get() {
-            write_json(
+        if let Some(path) = path.get()
+            && let Err(error) = write_json(
                 path,
                 &json!({"phase": phase, "function": function, "args": args, "batch": batch}),
             )
-            .unwrap_or_else(|error| panic!("cannot record sweep case: {error}"));
+        {
+            eprintln!("sweep: cannot record active case: {error}");
         }
     });
 }
@@ -623,7 +625,10 @@ fn attempt_run(
             interruption["limit_seconds"] = json!(options.function_timeout.as_secs());
             let active = out.join("active-case.json");
             if active.is_file() {
-                interruption["case"] = read_json(&active)?;
+                match read_json::<Value>(&active) {
+                    Ok(case) => interruption["case"] = case,
+                    Err(case_err) => interruption["case_error"] = json!(case_err),
+                }
             }
             interruption["worker"] = json!(failure.message);
             format!(
@@ -1340,5 +1345,46 @@ mod tests {
         assert!(out.join("00000005/done.json").is_file());
         assert_eq!(numbered(out).unwrap().len(), 2);
         let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn sweep_treats_isolation_stalled_as_transient_infra_error() {
+        let msg = "touchstone request failed: isolation-stalled: the isolated queue stalled; its worker was restarted, resubmit the call";
+        assert!(
+            is_transient_infra_error(msg),
+            "isolation-stalled must be treated as a transient infrastructure error"
+        );
+        let tmp = std::env::temp_dir().join(format!(
+            "dnacalc-fuzz-isolation-stalled-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&tmp);
+        let run = tmp.join("00000001");
+        for attempt in 1..=3u64 {
+            let dir = run.join(format!("{attempt:08}"));
+            fs::create_dir_all(&dir).unwrap();
+            write_json(&dir.join("interrupted.json"), &json!({"error": msg})).unwrap();
+        }
+        let (count, _, _) = persistent_failures(&run).unwrap();
+        assert_eq!(count, 0, "isolation-stalled must not burn persistent_failures");
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn record_active_case_does_not_panic_on_missing_directory() {
+        let missing = std::env::temp_dir()
+            .join(format!("dnacalc-missing-active-case-{}", std::process::id()))
+            .join("does-not-exist")
+            .join("active-case.json");
+        let handle = std::thread::spawn(move || {
+            ACTIVE_CASE.with(|cell| {
+                let _ = cell.set(missing);
+            });
+            record_active_case("dna", "ABS", &[json!("0x3ff0000000000000")], &[]);
+        });
+        assert!(
+            handle.join().is_ok(),
+            "record_active_case must not panic when writing active-case.json fails"
+        );
     }
 }

@@ -9,16 +9,19 @@ use calc_host::{
 use calc_object_model::{AutoError, AutoValue, Call, ObjectModel, ObjectRef};
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::Arc,
 };
 
 type Reply = Result<AutoValue, AutoError>;
+type FileSaver = Rc<dyn Fn(&str, &[u8]) -> Result<(), String>>;
 
 /// A workbook whose session the application holds.
 struct OwnedBook {
     events: Rc<WorkbookEvents>,
     session: RefCell<HostSession>,
+    saver: Option<FileSaver>,
 }
 
 impl OwnedBook {
@@ -52,6 +55,29 @@ impl BookRunner for OwnedBook {
             return Err(AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.75"));
         }
         Ok(!session.notify_before_close())
+    }
+    fn close_saving(&self, destination: &str) -> Result<bool, AutoError> {
+        let mut session = self.session.try_borrow_mut().map_err(|_| {
+            AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.75")
+        })?;
+        if self.events.automation.is_lent() {
+            return Err(AutoError::not_modelled("Workbook.Close of a workbook whose macro is running", "dc-oxh8w.75"));
+        }
+        let Some(saver) = &self.saver else {
+            return Err(AutoError::not_modelled(
+                "Workbook.Close with SaveChanges True without a file saver",
+                "dc-oxh8w.75",
+            ));
+        };
+        if session.notify_before_close() {
+            return Ok(false);
+        }
+        let mut bytes = Vec::new();
+        session
+            .save(&calc_host::SavePolicy::default(), &mut bytes)
+            .map_err(|why| AutoError::excel(1004, why.to_string()))?;
+        saver(destination, &bytes).map_err(|why| AutoError::excel(1004, why))?;
+        Ok(true)
     }
     fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
         self.lent(|| Err(calc_host::automation::busy()), || self.events.automation.keep_sheets(&names))
@@ -91,7 +117,10 @@ impl WorkbookEvents {
     /// workbooks' `Workbooks(...)` and `Application.Run`. Install the project in the session
     /// first. `activate` makes it the active workbook.
     pub fn adopt(self: &Rc<Self>, session: HostSession, activate: bool) {
-        let runner = Rc::new(OwnedBook { events: self.clone(), session: RefCell::new(session) });
+        self.adopt_with_saver(session, activate, None);
+    }
+    fn adopt_with_saver(self: &Rc<Self>, session: HostSession, activate: bool, saver: Option<FileSaver>) {
+        let runner = Rc::new(OwnedBook { events: self.clone(), session: RefCell::new(session), saver });
         self.automation.register_owned(runner, activate);
     }
 }
@@ -103,6 +132,8 @@ pub struct ApplicationOptions {
     /// The file bytes of a path `Workbooks.Open` names; `None` leaves `Open` refused. The host
     /// supplies it (the desktop reads the file system, a page its file store).
     pub loader: Option<Rc<dyn Fn(&str) -> Result<Vec<u8>, String>>>,
+    /// Writes saved bytes when `Workbook.Close(SaveChanges:=True)` saves a workbook; `None` refuses.
+    pub saver: Option<FileSaver>,
     /// Lets an opened file's own VBA project run; without it a file opens with no macros.
     pub grant: Option<ProjectGrant>,
 }
@@ -110,6 +141,7 @@ pub struct ApplicationOptions {
 struct Factory {
     options: ApplicationOptions,
     blank: Cell<u32>,
+    stems: RefCell<HashMap<String, u32>>,
 }
 
 impl Factory {
@@ -160,7 +192,11 @@ impl Factory {
         };
         let id = events.automation.workbook_identity()?;
         calc_host::automation::set_book_read_only(id, read_only);
-        let runner = Rc::new(OwnedBook { events: events.clone(), session: RefCell::new(session) });
+        let runner = Rc::new(OwnedBook {
+            events: events.clone(),
+            session: RefCell::new(session),
+            saver: self.options.saver.clone(),
+        });
         events.automation.register_owned(runner.clone(), true);
         if has_file_project {
             runner.session.borrow_mut().notify_workbook_open();
@@ -168,6 +204,18 @@ impl Factory {
         Ok(id)
     }
 }
+
+/// File stem for `Workbooks.Add(Template:=path)` naming (ww21: `Data.xlsx` -> `Data1`).
+fn template_stem(path: &str) -> &str {
+    let base = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    let stem = match base.rfind('.') {
+        Some(dot) if dot > 0 => &base[..dot],
+        _ => base,
+    };
+    if stem.is_empty() { "Book" } else { stem }
+}
+
+const OLE2_MAGIC: &[u8; 8] = &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
 impl Factory {
     fn read(&self, path: &str) -> Result<Vec<u8>, AutoError> {
@@ -191,23 +239,45 @@ impl BookFactory for Factory {
     }
     fn add_from(&self, path: &str) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
-        let n = self.blank.get() + 1;
-        self.blank.set(n);
-        // A new workbook made from a template is named BookN and has the template's contents and macros.
-        self.create(&format!("Book{n}"), bytes, self.options.grant.as_ref(), false)
+        let stem = template_stem(path);
+        let mut stems = self.stems.borrow_mut();
+        let count = stems.entry(stem.to_ascii_lowercase()).or_insert(0);
+        *count += 1;
+        let name = format!("{stem}{count}");
+        // ww21 Workbooks.Add.Template: a workbook made from Data.xlsx is named Data1 (empty Path).
+        self.create(&name, bytes, self.options.grant.as_ref(), false)
     }
     fn add_package(&self, bytes: Vec<u8>) -> Result<u64, AutoError> {
         let n = self.blank.get() + 1;
         self.blank.set(n);
         self.create(&format!("Book{n}"), bytes, None, false)
     }
-    fn open(&self, path: &str, read_only: bool) -> Result<u64, AutoError> {
+    fn open(&self, path: &str) -> Result<u64, AutoError> {
+        self.open_with_options(path, false, None)
+    }
+    fn open_with_options(
+        &self,
+        path: &str,
+        read_only: bool,
+        password: Option<&str>,
+    ) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
+        if bytes.starts_with(OLE2_MAGIC) && password.is_some_and(|p| !p.is_empty()) {
+            return Err(AutoError::not_modelled(
+                "Workbooks.Open Password for encrypted workbook",
+                "dc-oxh8w.75",
+            ));
+        }
+        // ww21 Workbooks.Open.password.unencrypted: Password is ignored for unencrypted files.
         self.create(path, bytes, self.options.grant.as_ref(), read_only)
     }
 }
 
 /// Install the workbook factory of this application thread.
 pub fn install_application(options: ApplicationOptions) {
-    set_book_factory(Some(Rc::new(Factory { options, blank: Cell::new(0) })));
+    set_book_factory(Some(Rc::new(Factory {
+        options,
+        blank: Cell::new(0),
+        stems: RefCell::new(HashMap::new()),
+    })));
 }
