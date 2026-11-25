@@ -529,6 +529,35 @@ pub(crate) fn excel_x87_mul_add(a: f64, b: f64, c: f64) -> f64 {
     Native::store(&Native::add(&product, &load(c), CW), CW)
 }
 
+/// `10^k` as Excel's x87 integer power forms it: right-to-left binary exponentiation with every
+/// product at precision 64, stored once to binary64. It is the correctly rounded power for every
+/// `k` in 1..=308 except 126, where it is one ULP above (live Excel 20430, DOLLARDE and DOLLARFR
+/// scale, 308 exponents, dc-j9k.361/.363/.364).
+pub(crate) fn excel_x87_pow10(k: u32) -> f64 {
+    let mut result = load(1.0);
+    let mut square = load(10.0);
+    let mut rest = k;
+    while rest != 0 {
+        if rest & 1 == 1 {
+            result = Native::mul(&result, &square, CW);
+        }
+        rest >>= 1;
+        if rest != 0 {
+            square = Native::mul(&square, &square, CW);
+        }
+    }
+    Native::store(&result, CW)
+}
+
+/// `RN53(a + RN64(b / c))`: the quotient stays at precision 64 and is added to `a` before the one
+/// store to binary64. DOLLARFR forms `whole + (fraction * denominator stored as binary64) / scale` this way
+/// (live Excel 20430: where a store after the quotient is 1 ULP off on a large whole part,
+/// dc-j9k.363); DOLLARDE does not (pinned W111 rows).
+pub(crate) fn excel_x87_add_quotient(a: f64, b: f64, c: f64) -> f64 {
+    let quotient = Native::div(&load(b), &load(c), CW);
+    Native::store(&Native::add(&load(a), &quotient, CW), CW)
+}
+
 /// `RN53(RN64(a / b))` — the x87 double-rounded quotient (W109: XNPV's
 /// per-term `value / pow`). Bit-exact to 64-bit Excel on `x86_64`.
 pub(crate) fn excel_x87_div(a: f64, b: f64) -> f64 {

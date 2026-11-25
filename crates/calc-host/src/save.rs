@@ -250,6 +250,51 @@ pub fn prepare_save_with_cache_policy(
     prepare_save_operation(host, policy, cache_policy, false, None)
 }
 
+pub(crate) fn effective_save_policy(host: &HostState, policy: &SavePolicy) -> SavePolicy {
+    if host.sheet_view_overrides.is_empty() {
+        return policy.clone();
+    }
+    let mut views = policy.views.as_deref().cloned().unwrap_or_else(|| calc_doc::SaveViews {
+        revision: host.revision().get(),
+        active_sheet: None,
+        sheets: BTreeMap::new(),
+    });
+    for (&sheet, o) in &host.sheet_view_overrides {
+        if host.model.sheet_by_id(sheet).is_none() {
+            continue;
+        }
+        if let Some(existing) = views.sheets.get_mut(&sheet) {
+            if existing.zoom.is_none() {
+                existing.zoom = o.zoom;
+            }
+            if existing.top_left.is_none() {
+                existing.top_left = o.top_left;
+            }
+            if existing.show_grid_lines.is_none() {
+                existing.show_grid_lines = o.show_grid_lines;
+            }
+            if existing.show_row_col_headers.is_none() {
+                existing.show_row_col_headers = o.show_row_col_headers;
+            }
+            if existing.show_formulas.is_none() {
+                existing.show_formulas = o.show_formulas;
+            }
+            if existing.show_zeros.is_none() {
+                existing.show_zeros = o.show_zeros;
+            }
+            if existing.show_outline_symbols.is_none() {
+                existing.show_outline_symbols = o.show_outline_symbols;
+            }
+        } else if let Some(view) = host.sheet_view(sheet) {
+            views.sheets.insert(sheet, view);
+        }
+    }
+    SavePolicy {
+        views: Some(Arc::new(views)),
+        ..policy.clone()
+    }
+}
+
 pub(crate) fn prepare_save_operation(
     host: &HostState,
     policy: &SavePolicy,
@@ -265,6 +310,7 @@ pub(crate) fn prepare_save_operation(
         results: host.engine.result_view(),
         active_calculation: host.work.as_ref().map(|work| work.admission().command),
     };
+    let effective = effective_save_policy(host, policy);
     prepare_image(
         &host.loaded,
         &host.model,
@@ -272,7 +318,7 @@ pub(crate) fn prepare_save_operation(
         &host.axis_edits,
         host.calc_mode(),
         pin,
-        policy,
+        &effective,
         calculation,
         calculate_before_save,
     )

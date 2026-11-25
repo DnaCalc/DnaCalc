@@ -1429,6 +1429,18 @@ fn read_view(events: &mut Events<'_>) -> Result<super::geometry::SheetView, Load
                     .and_then(|s| s.parse::<u16>().ok())
                     .filter(|n| (10..=400).contains(n));
                 view.top_left = element.attribute("topLeftCell").and_then(address::cell);
+                let xml_bool = |name: &str| {
+                    element.attribute(name).and_then(|s| match collapsed(s) {
+                        "1" | "true" => Some(true),
+                        "0" | "false" => Some(false),
+                        _ => None,
+                    })
+                };
+                view.show_grid_lines = xml_bool("showGridLines");
+                view.show_row_col_headers = xml_bool("showRowColHeaders");
+                view.show_formulas = xml_bool("showFormulas");
+                view.show_zeros = xml_bool("showZeros");
+                view.show_outline_symbols = xml_bool("showOutlineSymbols");
                 let mut active_pane = "topLeft".to_owned();
                 let mut selections: Vec<SelectionRecord> = Vec::new();
                 loop {

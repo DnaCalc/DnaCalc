@@ -109,7 +109,9 @@ impl WorkbookAutomation {
 
     /// `Interior.Color` of a series: the colour the chart draws it in, as the BGR number VBA uses.
     pub(super) fn interior_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::RangeFormat(_)) || super::formatting::is_condition_part(target) {
+        if matches!(target.key, ObjectKey::RangeFormat(_) | ObjectKey::Style { .. })
+            || super::formatting::is_condition_part(target)
+        {
             return self.range_interior_get(target, call);
         }
         match Self::paint_of(target) {
@@ -120,7 +122,9 @@ impl WorkbookAutomation {
     }
 
     pub(super) fn interior_put_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::RangeFormat(_)) || super::formatting::is_condition_part(target) {
+        if matches!(target.key, ObjectKey::RangeFormat(_) | ObjectKey::Style { .. })
+            || super::formatting::is_condition_part(target)
+        {
             return self.range_interior_put(target, call);
         }
         let paint = Self::paint_of(target).ok_or_else(|| AutoError::not_modelled("Range.Interior.Color", "dc-oxh8w.2"))?;

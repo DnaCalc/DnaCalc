@@ -746,7 +746,10 @@ pub(super) fn finish(
 ) -> Result<(), SaveRefusal> {
     let moves = moved_charts(before, after);
     for (sheet, charts) in before.definitions().all_charts() {
-        if after.sheet_by_id(sheet).is_none() {
+        // A deleted source sheet (a chart sheet whose chart moved onto a sheet) still has its moved charts' content edits
+        // to write: those charts live on in the part the move keeps.
+        let gone = after.sheet_by_id(sheet).is_none();
+        if gone && !charts.iter().any(|c| moves.contains_key(&c.part)) {
             continue;
         }
         let next = after.definitions().charts(sheet);
@@ -756,7 +759,7 @@ pub(super) fn finish(
         // The charts that stay on this sheet keep their order; one the session moved is compared with where it went.
         let kept: Vec<&Chart> = charts.iter().filter(|c| !moves.contains_key(&c.part)).collect();
         let staying: Vec<&Chart> = next.iter().filter(|c| charts.iter().any(|o| o.part == c.part)).collect();
-        if kept.len() != staying.len() || kept.iter().zip(&staying).any(|(a, b)| a.part != b.part) {
+        if !gone && (kept.len() != staying.len() || kept.iter().zip(&staying).any(|(a, b)| a.part != b.part)) {
             return Err(SaveRefusal::ChartNotModelled {
                 part: "charts".into(),
                 detail: "Adding and removing charts is not modelled".into(),
@@ -765,6 +768,7 @@ pub(super) fn finish(
         }
         let pairs: Vec<(&Chart, &Chart)> = charts
             .iter()
+            .filter(|old| !gone || moves.contains_key(&old.part))
             .filter_map(|old| {
                 let now = after.definitions().all_charts().flat_map(|(_, held)| held).find(|c| c.part == old.part)?;
                 Some((old, now))
@@ -1226,6 +1230,7 @@ fn labels_xml(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
 /// Rewrite an existing series `c:dLbls` to state `after`, keeping its point overrides, number format, shape and text
 /// properties; `None` removes it. Returns the end of the element.
 fn labels_patch(
+    xml: &XmlPart,
     reader: &mut Reader<'_>,
     span: (usize, usize),
     before: Option<&calc_doc_model::ChartLabels>,
@@ -1294,6 +1299,11 @@ fn labels_patch(
         patches.push(((span.0, end), Vec::new()));
         return Ok(end);
     };
+    // A self-closing `<c:dLbls/>` has no inside to splice into: it is replaced whole.
+    if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty() {
+        patches.push(((span.0, end), labels_xml(after)));
+        return Ok(end);
+    }
     // Points the session changed or took away are rewritten or removed; ones it added are written after the last.
     let (was, now) = (before.map(|b| &b.points[..]).unwrap_or(&[]), &after.points[..]);
     for (idx, at) in &stored {
@@ -1427,7 +1437,7 @@ fn series_source(
                     patches.push(((s.0, end), bytes));
                     end
                 } else if before.labels != after.labels && e.name.is(C, "dLbls") {
-                    labels_patch(reader, s, before.labels.as_ref(), after.labels.as_ref(), patches)?
+                    labels_patch(xml, reader, s, before.labels.as_ref(), after.labels.as_ref(), patches)?
                 } else {
                     reader.element_end()?
                 };
@@ -1451,6 +1461,8 @@ fn series_source(
     if (before.fill != after.fill || before.line != after.line) && children.iter().filter(|(n, _)| n.is(C, "spPr")).count() > 1 {
         return Err(reader.invalid("Duplicate series shape records (dc-971p.58)"));
     }
+    // A new `c:dLbls` is pushed after a new `c:spPr` that lands at the same offset (schema order: spPr, then dLbls).
+    let mut fresh_labels: Option<((usize, usize), Vec<u8>)> = None;
     if before.labels != after.labels {
         if children.iter().filter(|(n, _)| n.is(C, "dLbls")).count() > 1 {
             return Err(reader.invalid("Duplicate series data labels (dc-oxh8w.18)"));
@@ -1467,7 +1479,7 @@ fn series_source(
                             )
                     })
                     .map_or(close, |(_, s)| s.0);
-                patches.push(((at, at), labels_xml(labels)));
+                fresh_labels = Some(((at, at), labels_xml(labels)));
             }
         }
     }
@@ -1519,6 +1531,7 @@ fn series_source(
                     .map_or(close, |(_, s)| s.0);
                 patches.push(((at, at), colour::fresh_series(after.fill.as_deref(), &after.line)));
             }
+            patches.extend(fresh_labels.take());
         }
         if old == new {
             continue;
@@ -2100,6 +2113,43 @@ mod colour_order_tests {
         let fresh = rewrite_labels("", Some(calc_doc_model::ChartLabels { category: true, ..Default::default() }));
         assert!(fresh.contains("<c:order val=\"0\"/><c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"1\"/>"), "{fresh}");
         assert!(fresh.contains("</c:dLbls><c:val>"), "{fresh}");
+    }
+    /// dc-3qsm0: a self-closing `c:dLbls` gains its children inside the element, not after its `/>`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn self_closing_data_labels_are_filled_in_place() {
+        let text = rewrite_labels("<c:dLbls/>", Some(calc_doc_model::ChartLabels { category: true, ..Default::default() }));
+        assert!(text.contains("<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"1\"/>"), "{text}");
+        assert!(text.contains("</c:dLbls><c:val>"), "{text}");
+        assert_eq!(text.matches("<c:dLbls").count(), 1, "{text}");
+    }
+    /// dc-3qsm0: a series gaining labels and a fill writes `c:spPr` before `c:dLbls` (schema order).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn new_labels_follow_new_shape_properties() {
+        let xml = XmlPart::new(
+            "chart.xml".into(),
+            format!(r#"<c:ser xmlns:c="{C}"><c:idx val="0"/><c:order val="0"/><c:val><c:numLit/></c:val></c:ser>"#).into_bytes(),
+            crate::xml::XmlLimits::default(),
+        );
+        let before = ChartSeries::default();
+        let after = ChartSeries {
+            fill: Some("FF0000".into()),
+            labels: Some(calc_doc_model::ChartLabels { value: true, ..Default::default() }),
+            ..Default::default()
+        };
+        let mut reader = Reader::new(&xml);
+        let (_, span) = reader.expect().unwrap();
+        let mut patches = Vec::new();
+        series_source(&xml, &mut reader, span, &before, &after, "barChart", "barChart", None, &mut patches).unwrap();
+        patches.sort_by_key(|(span, _)| (span.0, span.1));
+        let mut splice = Splice::new(xml.bytes());
+        for ((start, end), bytes) in patches {
+            splice.replace((start, end), &bytes);
+        }
+        let text = String::from_utf8(splice.finish()).unwrap();
+        let (sp, lb) = (text.find("<c:spPr").expect("spPr"), text.find("<c:dLbls").expect("dLbls"));
+        assert!(sp < lb, "{text}");
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -1291,6 +1291,11 @@ pub fn rri(periods: f64, present_value: f64, future_value: f64) -> Result<f64, F
 
     // periods==1 is an exact identity route, not merely an exponent that
     // happens to equal one. Adjacent binary64 period values take the raw chain.
+    // An exponent times ln(base) that overflows binary64 is #NUM!, where the power would
+    // underflow to 0 and answer -1 (Excel 20430, dc-j9k.395).
+    if periods != 1.0 && !(reciprocal * base.ln()).is_finite() {
+        return Err(FinancialError::Num);
+    }
     let powered = if periods == 1.0 {
         base
     } else {

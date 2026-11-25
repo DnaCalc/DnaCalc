@@ -83,6 +83,16 @@ pub struct SheetView {
     pub active_pane: u8,
     /// A separate split window, whose positions are stored in twips rather than band counts.
     pub split_window: bool,
+    /// Whether gridlines are shown (`showGridLines`; Excel defaults to true).
+    pub show_grid_lines: Option<bool>,
+    /// Whether row and column headers are shown (`showRowColHeaders`; Excel defaults to true).
+    pub show_row_col_headers: Option<bool>,
+    /// Whether formulas rather than their results are shown (`showFormulas`; Excel defaults to false).
+    pub show_formulas: Option<bool>,
+    /// Whether zero values are shown (`showZeros`; Excel defaults to true).
+    pub show_zeros: Option<bool>,
+    /// Whether outline symbols are shown (`showOutlineSymbols`; Excel defaults to true).
+    pub show_outline_symbols: Option<bool>,
 }
 impl SheetView {
     /// Return the geometry of the worksheet's pane layout.

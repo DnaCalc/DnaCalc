@@ -299,6 +299,11 @@ fn tbill_days(settlement: f64, maturity: f64) -> Result<f64, DiscountBillYearfra
     let num = || DiscountBillYearfracEvalError::Domain(WorksheetErrorCode::Num);
     let (year, month, day) =
         ymd_from_excel_serial(WorkbookDateSystem::System1900, settlement as f64).ok_or_else(num)?;
+    // A settlement in the year 9999 has no date a year on: #NUM! whatever the maturity
+    // (live Excel 20430, dc-j9k.391).
+    if year >= 9999 {
+        return Err(num());
+    }
     let one_year_out = excel_serial_from_ymd(WorkbookDateSystem::System1900, year + 1, month, day)
         .ok_or_else(num)? as i64;
     if maturity > one_year_out {
@@ -326,8 +331,9 @@ pub fn tbillprice_kernel(
     }
     let dsm = tbill_days(settlement, maturity)?;
     let price = 100.0 * (1.0 - discount * dsm / 360.0);
-    // Excel publishes #NUM! rather than a non-positive price (live Excel 20430, W111-5 G8-03).
-    if price <= 0.0 {
+    // Excel publishes #NUM! rather than a negative price (live Excel 20430, W111-5 G8-03), and 0
+    // where the price is exactly 0 (`=TBILLPRICE(40000,40100,3.6)`, relay 2026-11-25).
+    if price < 0.0 {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Num,
         ));
@@ -356,7 +362,9 @@ pub fn tbillyield_kernel(
     // `*360/dsm` form differs by 1 ULP on hundreds of settlement/price rows.
     let spread = excel_x87_sub(100.0, pr);
     let ratio = excel_x87_div(spread, pr);
-    Ok(excel_x87_mul(ratio, excel_x87_div(360.0, dsm)))
+    // A yield that overflows binary64 is 0, not an error (Excel 20430: `=TBILLYIELD(1,62,2^-1022)`).
+    let yield_ = excel_x87_mul(ratio, excel_x87_div(360.0, dsm));
+    Ok(if yield_.is_finite() { yield_ } else { 0.0 })
 }
 
 pub fn tbilleq_kernel(
@@ -379,7 +387,11 @@ pub fn tbilleq_kernel(
         return tbilleq_long_bill(dsm, discount);
     }
     let denom = 360.0 - discount * dsm;
-    if denom <= 0.0 {
+    // A zero denominator answers 0, a negative one #NUM! (`=TBILLEQ(40000,40100,3.6)` is 0).
+    if denom == 0.0 {
+        return Ok(0.0);
+    }
+    if denom < 0.0 {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Num,
         ));

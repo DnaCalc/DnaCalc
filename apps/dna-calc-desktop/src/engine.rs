@@ -227,6 +227,7 @@ fn install_workbook_loader(folder: Option<&std::path::Path>) {
             };
             std::fs::read(&full).map_err(|e| format!("{}: {e}", full.display()))
         })),
+        saver: None,
         grant: None,
     });
 }

@@ -44,6 +44,9 @@ impl WorkbookAutomation {
         if super::conditions::is_condition_part(target) {
             return self.condition_font_get(target, call);
         }
+        if let ObjectKey::Style { index, .. } = target.key {
+            return self.style_font_get(target, call, index);
+        }
         let member = call.member.name.as_str();
         match member {
             "Bold" | "Italic" => self.read_format(target, call, AutoValue::Bool, |host, style| {
@@ -99,60 +102,94 @@ impl WorkbookAutomation {
         if super::conditions::is_condition_part(target) {
             return self.condition_font_put(target, call);
         }
-        self.put_format(target, call, || {
-            let mut patch = FormatPatch::default();
-            match call.member.name.as_str() {
-                "Bold" => {
-                    patch.bold = Some(geometry::boolean(call.arg(0)).map_err(|_| format_error())?)
-                }
-                "Italic" => {
-                    patch.italic = Some(geometry::boolean(call.arg(0)).map_err(|_| format_error())?)
-                }
-                "Underline" => {
-                    let keyword = format_enum_keyword(UNDERLINES, call)?;
-                    if keyword == "singleAccounting" {
-                        return Err(AutoError::not_modelled(
-                            "Font.Underline single accounting style",
-                            OWNER,
-                        ));
-                    }
-                    patch.underline_style = Some(keyword);
-                }
-                "Size" => {
-                    let size = super::super::report_draw::number(call.arg(0))
-                        .map_err(|_| format_error())?;
-                    patch.font_size = Some(size.to_string());
-                }
-                "Name" => {
-                    let AutoValue::Text(text) = call.arg(0) else {
-                        return Err(format_error());
-                    };
-                    patch.font_name = Some(
-                        String::from_utf16(text.utf16_code_units()).map_err(|_| format_error())?,
-                    );
-                }
-                "Color" => {
-                    let rgb = integral_format_arg(call)?;
-                    if !(0..=0x00FF_FFFF).contains(&rgb) {
-                        return Err(format_error());
-                    }
-                    patch.font_color = Some(format!("{:06X}", reverse_rgb(rgb as u32)));
-                }
-                "ColorIndex" => match integral_format_arg(call)? {
-                    AUTOMATIC_COLOR => patch.font_color = Some(String::new()),
-                    NO_COLOR => {
-                        return Err(AutoError::not_modelled(
-                            "Font.ColorIndex xlColorIndexNone",
-                            OWNER,
-                        ));
-                    }
-                    index @ 1..=56 => patch.font_color_indexed = Some(index as u8 + 7),
-                    _ => return Err(format_error()),
-                },
-                _ => unreachable!("registered font property"),
+        if let ObjectKey::Style { index, .. } = target.key {
+            return self.style_font_put(target, call, index);
+        }
+        self.put_format(target, call, || parse_font_patch(call))
+    }
+}
+
+pub(super) fn parse_font_patch(call: &Call<'_>) -> Result<FormatPatch, AutoError> {
+    let mut patch = FormatPatch::default();
+    match call.member.name.as_str() {
+        "Bold" => patch.bold = Some(geometry::boolean(call.arg(0)).map_err(|_| format_error())?),
+        "Italic" => patch.italic = Some(geometry::boolean(call.arg(0)).map_err(|_| format_error())?),
+        "Underline" => {
+            let keyword = format_enum_keyword(UNDERLINES, call)?;
+            if keyword == "singleAccounting" {
+                return Err(AutoError::not_modelled(
+                    "Font.Underline single accounting style",
+                    OWNER,
+                ));
             }
-            Ok(patch)
-        })
+            patch.underline_style = Some(keyword);
+        }
+        "Size" => {
+            let size = super::super::report_draw::number(call.arg(0)).map_err(|_| format_error())?;
+            patch.font_size = Some(size.to_string());
+        }
+        "Name" => {
+            let AutoValue::Text(text) = call.arg(0) else {
+                return Err(format_error());
+            };
+            patch.font_name = Some(String::from_utf16(text.utf16_code_units()).map_err(|_| format_error())?);
+        }
+        "Color" => {
+            let rgb = integral_format_arg(call)?;
+            if !(0..=0x00FF_FFFF).contains(&rgb) {
+                return Err(format_error());
+            }
+            patch.font_color = Some(format!("{:06X}", reverse_rgb(rgb as u32)));
+        }
+        "ColorIndex" => match integral_format_arg(call)? {
+            AUTOMATIC_COLOR => patch.font_color = Some(String::new()),
+            NO_COLOR => {
+                return Err(AutoError::not_modelled(
+                    "Font.ColorIndex xlColorIndexNone",
+                    OWNER,
+                ));
+            }
+            index @ 1..=56 => patch.font_color_indexed = Some(index as u8 + 7),
+            _ => return Err(format_error()),
+        },
+        _ => unreachable!("registered font property"),
+    }
+    Ok(patch)
+}
+
+pub(super) fn read_font_member(
+    host: &HostState,
+    font: Option<&Font>,
+    call: &Call<'_>,
+) -> Reply {
+    match call.member.name.as_str() {
+        "Bold" => Ok(AutoValue::Bool(font.is_some_and(|f| f.bold))),
+        "Italic" => Ok(AutoValue::Bool(font.is_some_and(|f| f.italic))),
+        "Underline" => {
+            let keyword = font.and_then(|f| f.underline.as_deref());
+            Ok(AutoValue::I4(format_enum_value(UNDERLINES, keyword, call)?))
+        }
+        "Name" => {
+            let name = font
+                .and_then(|f| f.name.clone())
+                .or_else(|| host.default_font_name().map(str::to_owned))
+                .ok_or_else(|| {
+                    AutoError::not_modelled("Font.Name from an unavailable font name", OWNER)
+                })?;
+            Ok(AutoValue::text(&name))
+        }
+        "Size" => {
+            let size = font.and_then(|f| f.size.as_deref()).unwrap_or("11");
+            let v = size
+                .parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite() && *v > 0.0)
+                .ok_or_else(|| AutoError::not_modelled(format!("Font.Size stored as {size}"), OWNER))?;
+            Ok(AutoValue::R8(v))
+        }
+        "Color" => Ok(AutoValue::I4(font_color(host, font.and_then(|f| f.color.as_ref()))?)),
+        "ColorIndex" => Ok(AutoValue::I4(font_color_index(host, font.and_then(|f| f.color.as_ref()))?)),
+        _ => unreachable!("registered font property"),
     }
 }
 

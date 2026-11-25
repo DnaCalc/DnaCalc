@@ -203,6 +203,8 @@ pub struct WorkbookAutomation {
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
     /// Window captions a macro set, by workbook (dc-p3rg9).
     window_captions: RefCell<HashMap<u64, String>>,
+    /// Window states (`XlWindowState`) a macro set, by workbook (dc-p3rg9).
+    window_states: RefCell<HashMap<u64, i32>>,
     /// The protection a macro set on each sheet (`None`: it unprotected a sheet the file protects) (dc-oxh8w.68).
     sheet_protect: RefCell<HashMap<SheetId, Option<protection::SheetProtect>>>,
 }
@@ -357,6 +359,7 @@ impl WorkbookAutomation {
             last_goto: RefCell::new(None),
             window_views: RefCell::new(HashMap::new()),
             window_captions: RefCell::new(HashMap::new()),
+            window_states: RefCell::new(HashMap::new()),
             sheet_protect: RefCell::new(HashMap::new()),
         }
     }
@@ -643,6 +646,7 @@ impl WorkbookAutomation {
     }
     fn validate(&self, target: &ObjectRef, meta: &Snapshot) -> Result<(), AutoError> {
         let workbook = match target.key {
+            ObjectKey::Windows(0) => None,
             ObjectKey::Workbook(id)
             | ObjectKey::Sheets(id)
             | ObjectKey::Worksheets(id)
