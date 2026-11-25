@@ -382,11 +382,15 @@ fn makearray_task(
     let rows = dimension(site, &a[0])?;
     let cols = dimension(site, &a[1])?;
     let f = lambda(a, 2, 2)?;
-    // No dimension above the sheet's rows, no result this engine could not hold: a typed
-    // refusal before anything is built (dc-ztvv.26.132; Excel's own answer is unmeasured).
+    // Excel 16.0.20625 (Touchstone, dc-shqi1): rows > 1,048,576 or cols > 16,384 return #SPILL!
+    // without evaluating; larger in-grid arrays refuse as not modelled (dc-ztvv.26).
+    use crate::ported::dynamic_array_reshape_family::{GENERATED_CELL_LIMIT, GRID_COLS, GRID_ROWS};
+    if rows > GRID_ROWS || cols > GRID_COLS {
+        return fail(W::Spill);
+    }
     let count = rows
         .checked_mul(cols)
-        .filter(|count| rows <= 1_048_576 && cols <= 1_048_576 && *count <= 1 << 26)
+        .filter(|count| *count <= GENERATED_CELL_LIMIT)
         .ok_or_else(|| site.not_modelled(None))?;
     Ok(helper(
         site,

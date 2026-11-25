@@ -149,6 +149,29 @@ fn run(
     result(site, kernel(&args))
 }
 
+/// WRAPROWS and WRAPCOLS treat a one-cell reference to an error or blank cell as that scalar cell
+/// (Excel 16.0.20625, Touchstone sheet cases, dc-shqi1): an error cell wins over a bad count and
+/// a blank cell is #VALUE! before the count. A one-cell reference to a value stays a 1x1 array so
+/// the host publishes a 1x1 spill (`fn2_q013`: `=WRAPCOLS(Data!B1,2,"pad")`).
+fn run_wrap(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    kernel: fn(&[CalcValue]) -> Result<CalcValue, E>,
+) -> Step<CalcValue> {
+    let mut args = prepared(site, a, sv)?;
+    if a[0].as_reference().is_some()
+        && let Some(array) = args[0].as_array()
+        && array.shape() == (ArrayShape { rows: 1, cols: 1 })
+    {
+        let cell = array.get(0, 0).expect("one cell");
+        if matches!(cell.core_ref(), CoreRef::Error(_) | CoreRef::Empty) {
+            args[0] = cell.clone();
+        }
+    }
+    result(site, kernel(&args))
+}
+
 /// TAKE (`take`) or DROP of a reference to one area: the reference to the rows and columns kept,
 /// or `None` for an array argument. Excel returns a reference here: `=_xlfn.DROP(Data!A1:A3,1)`
 /// entered as a legacy formula outside rows 1 to 3 is #VALUE!, the implicit intersection of the
@@ -287,6 +310,7 @@ fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
             } else if a.is_finite() && b.is_finite() {
                 // Excel 16.0.20625 orders binary64 keys exactly (probed 1 and 3 ulps apart in
                 // both directions): unlike the comparison operators, adjacent doubles never tie.
+                site.binary64()?;
                 Ok(a.partial_cmp(&b).unwrap_or(Ordering::Equal))
             } else {
                 comparison::numbers(site, a, b)
@@ -845,10 +869,10 @@ ported_shared_family! {
         }
     }
     14 wraprows_fn |s, a, sv| {
-        run(s, a, sv, k::eval_wraprows_prepared)
+        run_wrap(s, a, sv, k::eval_wraprows_prepared)
     }
     15 wrapcols_fn |s, a, sv| {
-        run(s, a, sv, k::eval_wrapcols_prepared)
+        run_wrap(s, a, sv, k::eval_wrapcols_prepared)
     }
     16 expand_fn |s, a, sv| {
         source_error(a)?;

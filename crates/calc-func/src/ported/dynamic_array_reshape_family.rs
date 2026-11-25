@@ -413,9 +413,9 @@ pub fn eval_drop_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayR
 /// Most rows or columns a generated array may have (Excel 16.0.20527, dc-ztvv.26.132).
 pub(crate) const GRID_ROWS: usize = 1_048_576;
 pub(crate) const GRID_COLS: usize = 16_384;
-/// Most cells this engine builds for one generated array. Excel itself gives no answer
-/// within its deadline from 100 million cells; a larger result is a typed refusal (dc-ztvv.26.132).
-pub(crate) const GENERATED_CELL_LIMIT: usize = 1 << 26;
+/// Most cells this engine builds for one generated array (matching RANDARRAY_LIMIT = 1,048,576,
+/// ~24-32 MiB so wasm32 never OOMs); larger in-grid results are a typed refusal (dc-ztvv.26).
+pub(crate) const GENERATED_CELL_LIMIT: usize = 1 << 20;
 
 /// Checks a generated array's shape before any cell is built. `Ok(false)` is a result this
 /// engine does not build (`NotModelled`); an unspillable one is `Unspillable`.
@@ -583,7 +583,7 @@ fn wrap_count_checked(count: f64) -> Result<usize, DynamicArrayReshapeEvalError>
 
 fn wrap_vector(value: &CalcValue) -> Result<CalcArray, DynamicArrayReshapeEvalError> {
     let source = materialize_array_arg(value);
-    if matches!(value.core_ref(), CoreRef::Empty)
+    if matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing)
         || (source.shape().rows > 1 && source.shape().cols > 1)
     {
         return Err(DynamicArrayReshapeEvalError::Preparation(
@@ -597,8 +597,14 @@ fn wrap_vector(value: &CalcValue) -> Result<CalcArray, DynamicArrayReshapeEvalEr
 fn wrap_prepare(
     args: &[CalcValue],
 ) -> Result<Result<(CalcArray, usize), CalcValue>, DynamicArrayReshapeEvalError> {
-    if let CoreRef::Error(_) = args[0].core_ref() {
-        return Ok(Err(args[0].clone()));
+    match args[0].core_ref() {
+        CoreRef::Error(_) => return Ok(Err(args[0].clone())),
+        CoreRef::Empty | CoreRef::Missing => {
+            return Err(DynamicArrayReshapeEvalError::Preparation(
+                CoercionError::UnsupportedValueKind("wrap vector"),
+            ));
+        }
+        _ => {}
     }
     let count =
         coerce_prepared_to_number(&args[1]).map_err(DynamicArrayReshapeEvalError::Preparation)?;
@@ -1107,7 +1113,7 @@ impl SequenceWork {
             return Err(DynamicArrayReshapeEvalError::InvalidCount);
         }
         // Excel checks each floored dimension against the sheet's rows before the empty case; a
-        // negative dimension within 2^-23 of zero floors to zero (#CALC!, Excel 20527).
+        // negative dimension within 2^-23 + 2^-34 (0xbe80020000000000) of zero floors to zero (#CALC!).
         let floor_rows = super::text_kernels::date_integer_floor(raw_rows);
         let floor_cols = super::text_kernels::date_integer_floor(raw_cols);
         if floor_rows < 0.0 || floor_cols < 0.0 {

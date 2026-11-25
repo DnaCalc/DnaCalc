@@ -276,20 +276,25 @@ ported_shared_family! {
     43 imlog10 |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            let re = if z.im == 0.0 {
+            let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
+            // Pure real or pure imaginary arguments use the real x87 LOG10_E route (Excel
+            // 16.0.20625.20108, 8/8 probes 0+8i..0+356i, dc-shqi1); subnormal parts after
+            // dividing by ln(10) flush to 0 (IMLOG10("1e9-3e-299i") = "9").
+            let re = if z.im == 0.0 || z.re == 0.0 {
                 crate::ported::excel_numeric::excel_x87_mul(
-                    crate::ported::excel_numeric::excel_log(z.re.abs()),
+                    crate::ported::excel_numeric::excel_log(if z.im == 0.0 { z.re.abs() } else { z.im.abs() }),
                     std::f64::consts::LOG10_E,
                 )
             } else {
                 ln.re / crt_log(10.0)
             };
-            Ok(ParsedComplex::new(re, ln.im / crt_log(10.0), None))
+            Ok(ParsedComplex::new(flush(re), flush(ln.im / crt_log(10.0)), None))
         })
     }
     44 imlog2 |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
+            let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
             let re = if z.im == 0.0 || z.re == 0.0 {
                 // Fn11's exact coefficient-bin bounds uniquely determine this binary64
                 // LN multiplier; independent normal and signed controls retain it. A pure
@@ -302,7 +307,7 @@ ported_shared_family! {
             } else {
                 ln.re / crt_log(2.0)
             };
-            Ok(ParsedComplex::new(re, ln.im / crt_log(2.0), None))
+            Ok(ParsedComplex::new(flush(re), flush(ln.im / crt_log(2.0)), None))
         })
     }
     45 imsec |s, a, sv| { unary_complex(s, a, |z| z.sec()) }

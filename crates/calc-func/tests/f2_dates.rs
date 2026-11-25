@@ -1394,6 +1394,19 @@ fn workday_intl_checks_range_then_zero_days_then_holidays_then_weekend() {
     error(w(vec![n(-1.0), n(0.0), n(7.0)]), Num);
 }
 
+/// dc-shqi1: in 1904 date mode, WORKDAY.INTL must check its target against the 1904 origin (serial
+/// 1462 in 1900 coordinates) before reading holidays or weekend.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workday_intl_1904_system_checks_target_against_1904_origin() {
+    let mut env = host();
+    env.date_system = DateSystem::System1904;
+    let w = |args: Vec<CalcValue>| c(&env, "WORKDAY.INTL", args);
+    error(w(vec![n(1.0), n(-5.0), t("abc")]), Num);
+    error(w(vec![n(1.0), n(-2.0), t("abc")]), Num);
+    error(w(vec![n(1.0), n(-1.0), t("abc")]), Value);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn host_facts() {
