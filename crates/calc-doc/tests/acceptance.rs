@@ -574,6 +574,15 @@ fn describe(op: &WorkbookOp) -> String {
                 key.get(),
                 hex_units(name.text().utf16_code_units())
             ),
+            SheetEdit::InsertChartSheet {
+                key,
+                name,
+                position,
+            } => format!(
+                "chart sheet insert key {} name {} position {position}",
+                key.get(),
+                hex_units(name.text().utf16_code_units())
+            ),
             SheetEdit::Rename { sheet, name } => format!(
                 "sheet rename {sheet:?} name {}",
                 hex_units(name.text().utf16_code_units())
@@ -716,6 +725,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
             out.insert("op:edit_sheet".to_owned());
             match edit {
                 SheetEdit::Insert { .. } => "sheet:insert".to_owned(),
+                SheetEdit::InsertChartSheet { .. } => "sheet:insert_chart_sheet".to_owned(),
                 SheetEdit::Rename { .. } => "sheet:rename".to_owned(),
                 SheetEdit::Move { .. } => "sheet:move".to_owned(),
                 SheetEdit::Remove { .. } => "sheet:remove".to_owned(),

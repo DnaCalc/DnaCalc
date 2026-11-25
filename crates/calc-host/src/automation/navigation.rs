@@ -79,6 +79,12 @@ impl WorkbookAutomation {
             )))
         })
     }
+    /// The Chart a chart sheet is (dc-oxh8w.23).
+    pub(super) fn chart_of_sheet(meta: &Snapshot, sheet: SheetId) -> Reply {
+        let part = meta.chart_parts.iter().find(|(id, _)| *id == sheet).map(|(_, part)| part.clone());
+        let part = part.ok_or_else(|| AutoError::not_modelled("a chart sheet without a chart", "dc-oxh8w.23"))?;
+        Ok(super::report::report(meta.workbook, sheet, "Chart", ReportItem::Chart(part)))
+    }
     fn worksheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
@@ -133,9 +139,7 @@ impl WorkbookAutomation {
                 return Err(AutoError::not_modelled("a DialogSheet from Sheets", "dc-oxh8w.23"));
             }
             if meta.chart_sheets.contains(&sheet.id()) {
-                let part = meta.chart_parts.iter().find(|(id, _)| *id == sheet.id()).map(|(_, part)| part.clone());
-                let part = part.ok_or_else(|| AutoError::not_modelled("a chart sheet without a chart", "dc-oxh8w.23"))?;
-                return Ok(super::report::report(meta.workbook, sheet.id(), "Chart", ReportItem::Chart(part)));
+                return Self::chart_of_sheet(meta, sheet.id());
             }
             Ok(AutoValue::Object(object(
                 "Worksheet",

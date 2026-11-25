@@ -124,7 +124,7 @@ pub use op::{
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
 pub use sheet::{
-    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
+    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetKind, SheetName, SheetNameError, SheetVisibility,
 };
 pub use structural::{
     FormulaRewriter, StructuralChange, moved_area, moved_cell, moved_position, moved_run,
