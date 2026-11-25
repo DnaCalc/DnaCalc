@@ -345,7 +345,7 @@ impl WorkbookAutomation {
             intent(session, range)
         })
     }
-    fn write_range(
+    pub(super) fn write_range(
         &self,
         session: &HostSession,
         reference: ReferenceLike,

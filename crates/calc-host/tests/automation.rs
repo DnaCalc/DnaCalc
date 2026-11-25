@@ -8015,17 +8015,14 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
 /// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_47__protect_and_advanced_filter_refuse_with_their_owners() {
+fn dc_oxh8w_47__protect_refuses_with_its_owner() {
     let (_host, model) = setup();
     let sheets = worksheets(&model);
     let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
-    let range = obj(invoke(&model, &first, "Range", vec![AutoValue::text("A1:B3")]).unwrap());
     for member in ["Protect", "Unprotect"] {
         let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
         assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
     }
-    let r = invoke_kind(&model, &range, "AdvancedFilter", InvokeKind::Method, vec![AutoValue::I4(2)]);
-    assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.71"), "{r:?}");
 }
 
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
@@ -8747,6 +8744,57 @@ fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
     assert!(matches!(refused, AutoError::NotModelled { owner: "dc-oxh8w.64", .. }), "{refused:?}");
     assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
     assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
+}
+
+/// dc-oxh8w.71: Range.AdvancedFilter xlFilterCopy copies the header and the records that meet the criteria range
+/// (the database-function criteria: a row of conditions per alternative, text matches a prefix, operators), to the
+/// CopyToRange; Unique drops repeated records; bad Action or a missing CopyToRange is 1004; in-place and
+/// multi-column CopyToRange are typed refusals.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_71__advanced_filter_copies_matching_records() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &first, "Range", vec![AutoValue::text(a)]).unwrap());
+    let put = |a: &str, v: AutoValue| {
+        put_value(&model, &sub(a), v).unwrap();
+    };
+    let data = [("Name", "Qty"), ("apple", "5"), ("pear", "20"), ("apple", "5"), ("plum", "7"), ("apricot", "30")];
+    for (i, (name, qty)) in data.iter().enumerate() {
+        let row = i + 1;
+        put(&format!("A{row}"), AutoValue::text(name));
+        match qty.parse::<f64>() {
+            Ok(n) => put(&format!("B{row}"), AutoValue::R8(n)),
+            Err(_) => put(&format!("B{row}"), AutoValue::text(qty)),
+        }
+    }
+    // Criteria: Name begins "ap" (any row below the labels is an alternative).
+    put("D1", AutoValue::text("Name"));
+    put("D2", AutoValue::text("ap"));
+    // A second alternative: Qty above 15 on the next row.
+    put("E1", AutoValue::text("Qty"));
+    put("E3", AutoValue::text(">15"));
+    let value = |a: &str| invoke_kind(&model, &sub(a), "Value", InvokeKind::Get, vec![]).unwrap();
+    let run = |args: Vec<AutoValue>| invoke_kind(&model, &sub("A1:B6"), "AdvancedFilter", InvokeKind::Method, args);
+    let copy_to = AutoValue::Object(sub("G1"));
+    // Row 2 of the criteria is Name "ap" AND Qty blank; row 3 is Qty >15 (Name blank): records 1,3,5 (apples, apricot) and 2 (pear 20).
+    run(vec![AutoValue::I4(2), AutoValue::Object(sub("D1:E3")), copy_to.clone(), AutoValue::Bool(false)]).unwrap();
+    let names: Vec<String> = (1..=6).map(|r| match value(&format!("G{r}")) { AutoValue::Text(t) => t.to_string_lossy(), _ => String::new() }).collect();
+    assert_eq!(names, ["Name", "apple", "pear", "apple", "apricot", ""]);
+    assert!(matches!(value("H5"), AutoValue::R8(n) if n == 30.0));
+    // Unique drops the second "apple 5".
+    run(vec![AutoValue::I4(2), AutoValue::Object(sub("D1:E3")), AutoValue::Object(sub("J1")), AutoValue::Bool(true)]).unwrap();
+    let names: Vec<String> = (1..=5).map(|r| match value(&format!("J{r}")) { AutoValue::Text(t) => t.to_string_lossy(), _ => String::new() }).collect();
+    assert_eq!(names, ["Name", "apple", "pear", "apricot", ""]);
+    // No criteria range: every record.
+    run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(sub("M1"))]).unwrap();
+    assert!(matches!(value("M6"), AutoValue::Text(_)));
+    let bad = |args: Vec<AutoValue>| matches!(run(args), Err(AutoError::Excel { number: 1004, .. }));
+    assert!(bad(vec![AutoValue::I4(3)]));
+    assert!(bad(vec![AutoValue::I4(2), AutoValue::Missing]));
+    let inplace = run(vec![AutoValue::I4(1), AutoValue::Missing]);
+    assert!(matches!(inplace, Err(AutoError::NotModelled { .. })), "{inplace:?}");
 }
 
 /// dc-oxh8w.43: Range.AutoFilter switches the filter on and off and sets one column's criterion through the
