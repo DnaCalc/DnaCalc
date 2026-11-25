@@ -153,8 +153,11 @@ pub(crate) fn time(hour: f64, minute: f64, second: f64) -> Result<f64, W> {
     if !hour.is_finite() || !minute.is_finite() || !second.is_finite() {
         return Err(W::Num);
     }
-    let (hour, minute, second) = (hour.trunc(), minute.trunc(), second.trunc());
-    if hour.abs() > 32767.0 || minute.abs() > 32767.0 || second.abs() > 32767.0 {
+    let (hour, minute, second) = (hour.floor(), minute.floor(), second.floor());
+    if !(-32768.0..=32767.0).contains(&hour)
+        || !(-32768.0..=32767.0).contains(&minute)
+        || !(-32768.0..=32767.0).contains(&second)
+    {
         return Err(W::Num);
     }
     let total_seconds = hour * 3600.0 + minute * 60.0 + second;
@@ -661,6 +664,21 @@ mod tests {
             date(1903.0, 12.0, 31.0, DateSystem::System1904),
             Err(W::Num)
         );
+    }
+
+    /// Excel (live, dc-j9k.392/.393/.394): each argument is floored, not truncated, and the floor must be in
+    /// -32768..=32767.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn time_floors_its_arguments() {
+        assert_eq!(time(-0.0005306, -0.4777, 0.0), Err(W::Num));
+        assert_eq!(time(0.0, 0.0, -0.9), Err(W::Num));
+        assert_eq!(time(0.9, 0.9, 0.0), Ok(0.0));
+        assert_eq!(time(284.0, -39.99999952316284, 332.00000000000006).map(f64::to_bits), Ok(0x3fe9e696f1f7a800));
+        assert_eq!(time(30363.0, -32768.0, -32767.5).map(f64::to_bits), Ok(0x3fefaf98d76b5800));
+        assert_eq!(time(0.0, -32768.5, 0.0), Err(W::Num));
+        assert_eq!(time(32768.0, 0.0, 0.0), Err(W::Num));
+        assert_eq!(time(32767.9, 0.0, 0.0).map(f64::to_bits), Ok(0x3fd2aaaaaaaab000));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
