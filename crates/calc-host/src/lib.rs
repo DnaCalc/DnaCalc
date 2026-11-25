@@ -127,6 +127,7 @@ mod templates;
 pub use outline::OutlineChange;
 mod filter;
 mod format;
+mod format_edges;
 pub use filter::{
     AutoFilter, FilterChange, FilterCriteria, FilterOperator, FilterPredicate, filter_values,
     filter_values_for,
@@ -134,7 +135,8 @@ pub use filter::{
 mod name_calculation;
 mod names;
 pub use facts::alignment as style_alignment;
-pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
+pub use format_edges::{EdgeChange, EdgeLine, EdgeWeight, EdgesPatch, decompose as decompose_edge};
+pub use format::{BorderPatch, FillColor, FormatPatch, InteriorPatch, format_regions, format_samples, patched_style};
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
 pub mod chart;
