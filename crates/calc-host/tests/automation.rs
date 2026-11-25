@@ -7104,6 +7104,7 @@ fn dc_oc78o_authored_merges_move_with_inserted_rows_and_undo_restores_them() {
             .accepted()
     );
     assert!(matches!(merged(&model, "B3:C4"), AutoValue::Bool(false)));
+}
 
 /// dc-oxh8w.23: a loaded chart sheet is a Chart in Sheets and Charts, not a Worksheet: Worksheets counts only the
 /// worksheets (the fixture's Data and After), Charts only the chart sheet, Sheets all four (the dialog sheet
