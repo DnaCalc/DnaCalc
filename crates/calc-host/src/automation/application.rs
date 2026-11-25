@@ -20,6 +20,10 @@ impl WorkbookAutomation {
     pub(super) fn register_application(handlers: &mut Handlers<Self>) {
         handlers.on("Application", "ScreenUpdating", InvokeKind::Get, Self::get_screen_updating);
         handlers.on("Application", "ScreenUpdating", InvokeKind::Put, Self::put_screen_updating);
+        handlers.on("Application", "DisplayAlerts", InvokeKind::Get, Self::get_display_alerts);
+        handlers.on("Application", "DisplayAlerts", InvokeKind::Put, Self::put_display_alerts);
+        handlers.on("Application", "CutCopyMode", InvokeKind::Get, Self::get_cut_copy_mode);
+        handlers.on("Application", "CutCopyMode", InvokeKind::Put, Self::put_cut_copy_mode);
         handlers.on("Application", "StatusBar", InvokeKind::Get, Self::get_status_bar);
         handlers.on("Application", "StatusBar", InvokeKind::Put, Self::put_status_bar);
         handlers.on("Application", "Build", InvokeKind::Get, Self::get_build);
@@ -35,6 +39,15 @@ impl WorkbookAutomation {
         handlers.on("Application", "MaxChange", InvokeKind::Get, Self::get_max_change);
         handlers.on("Application", "MaxChange", InvokeKind::Put, Self::put_max_change);
         handlers.on("Workbook", "Date1904", InvokeKind::Get, Self::get_date1904);
+        handlers.on("Workbook", "PrecisionAsDisplayed", InvokeKind::Get, Self::get_precision_as_displayed);
+        handlers.on("Application", "CalculationState", InvokeKind::Get, Self::get_calculation_state);
+        handlers.on("Application", "MultiThreadedCalculation", InvokeKind::Get, Self::get_multithreaded);
+        handlers.on("MultiThreadedCalculation", "Enabled", InvokeKind::Get, Self::get_mtc_enabled);
+        handlers.on("MultiThreadedCalculation", "Enabled", InvokeKind::Put, Self::put_mtc_enabled);
+        handlers.on("MultiThreadedCalculation", "ThreadMode", InvokeKind::Get, Self::get_mtc_mode);
+        handlers.on("MultiThreadedCalculation", "ThreadMode", InvokeKind::Put, Self::put_mtc_mode);
+        handlers.on("MultiThreadedCalculation", "ThreadCount", InvokeKind::Get, Self::get_mtc_count);
+        handlers.on("MultiThreadedCalculation", "ThreadCount", InvokeKind::Put, Self::put_mtc_count);
     }
 
     /// `Application.CalculationVersion`: the calculation engine version the captures record.
@@ -156,6 +169,83 @@ impl WorkbookAutomation {
         Ok(AutoValue::Bool(value))
     }
 
+    /// `Workbook.PrecisionAsDisplayed`: the file's `fullPrecision`, inverted.
+    fn get_precision_as_displayed(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        let value = self.session_read("Workbook.PrecisionAsDisplayed", |s| s.host().precision_as_displayed())?;
+        Ok(AutoValue::Bool(value))
+    }
+
+    /// `Application.CalculationState`: xlDone (0) or xlPending (2).
+    fn get_calculation_state(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        let state = self.session_read("Application.CalculationState", |s| s.host().calculation_state())?;
+        Ok(AutoValue::I4(state))
+    }
+
+    fn get_multithreaded(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        Ok(AutoValue::Object(object("MultiThreadedCalculation", ObjectKey::MultiThreadedCalculation)))
+    }
+
+    fn get_mtc_enabled(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        Ok(AutoValue::Bool(self.multithreaded.get().0))
+    }
+
+    fn put_mtc_enabled(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(excel_error());
+        }
+        let (_, mode, count) = self.multithreaded.get();
+        self.multithreaded.set((geometry::boolean(call.arg(0))?, mode, count));
+        Ok(AutoValue::Empty)
+    }
+
+    /// xlThreadModeAutomatic (0) or xlThreadModeManual (1).
+    fn get_mtc_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        Ok(AutoValue::I4(self.multithreaded.get().1))
+    }
+
+    fn put_mtc_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(excel_error());
+        }
+        let mode = match geometry::integer(call.arg(0)) {
+            Ok(mode @ (0 | 1)) => mode as i32,
+            _ => return Err(AutoError::excel(1004, "Unable to set the ThreadMode property of the MultiThreadedCalculation class")),
+        };
+        let (enabled, _, count) = self.multithreaded.get();
+        self.multithreaded.set((enabled, mode, count));
+        Ok(AutoValue::Empty)
+    }
+
+    /// Automatic mode uses every logical processor; manual mode the count set.
+    fn get_mtc_count(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        excel_no_args(call)?;
+        let (_, mode, count) = self.multithreaded.get();
+        if mode == 0 {
+            let processors = std::thread::available_parallelism().map_or(1, |n| n.get());
+            return Ok(AutoValue::I4(i32::try_from(processors).unwrap_or(i32::MAX)));
+        }
+        Ok(AutoValue::I4(count))
+    }
+
+    /// Excel's thread box takes 1 to 1024.
+    fn put_mtc_count(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(excel_error());
+        }
+        let count = match geometry::integer(call.arg(0)) {
+            Ok(count @ 1..=1024) => count as i32,
+            _ => return Err(AutoError::excel(1004, "Unable to set the ThreadCount property of the MultiThreadedCalculation class")),
+        };
+        let (enabled, mode, _) = self.multithreaded.get();
+        self.multithreaded.set((enabled, mode, count));
+        Ok(AutoValue::Empty)
+    }
+
     /// `Application.Build`: the build number of the Excel the captures were taken from
     /// (Excel 16.0.20527, the version `Application.Version` reports).
     fn get_build(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -237,6 +327,45 @@ impl WorkbookAutomation {
             return Err(geometry::bad_count());
         }
         self.screen_updating.set(geometry::boolean(call.arg(0))?);
+        Ok(AutoValue::Empty)
+    }
+
+    fn get_display_alerts(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::Bool(self.display_alerts.get()))
+    }
+
+    fn put_display_alerts(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        self.display_alerts.set(geometry::boolean(call.arg(0))?);
+        Ok(AutoValue::Empty)
+    }
+
+    /// `Application.CutCopyMode`: False with nothing marked, xlCopy (1) or xlCut (2) while the clipboard holds a
+    /// Range.Copy or Range.Cut.
+    fn get_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(match self.clipboard.borrow().as_ref() {
+            None => AutoValue::Bool(false),
+            Some(clip) if clip.is_cut() => AutoValue::I4(2),
+            Some(_) => AutoValue::I4(1),
+        })
+    }
+
+    /// Assigning False cancels Cut or Copy mode and empties the clipboard's marked range; Excel accepts the
+    /// xlCopy and xlCut constants it reports (a no-op while that mode is on), refused otherwise.
+    fn put_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        match call.arg(0) {
+            AutoValue::Bool(false) => *self.clipboard.borrow_mut() = None,
+            AutoValue::I2(0) | AutoValue::I4(0) => *self.clipboard.borrow_mut() = None,
+            AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => {}
+            _ => return Err(excel_error()),
+        }
         Ok(AutoValue::Empty)
     }
 }

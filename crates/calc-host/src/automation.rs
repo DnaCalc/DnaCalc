@@ -31,6 +31,8 @@ use std::{
 const OWNER: &str = "dc-0f1k.24";
 type Reply = Result<AutoValue, AutoError>;
 mod application;
+mod books;
+pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory};
 
 mod cells;
 mod clipboard;
@@ -146,9 +148,12 @@ pub struct WorkbookAutomation {
     fallback: ValuesOnly<Rc<dyn AutomationHost>>,
     handlers: Handlers<Self>,
     snapshot: RefCell<Option<Rc<Snapshot>>>,
-    next_workbook: Cell<u64>,
     /// `Application.ScreenUpdating`: a flag the application holds; no renderer is attached here.
     screen_updating: Cell<bool>,
+    /// `Application.MultiThreadedCalculation`: Enabled, ThreadMode (XlThreadMode) and the manual ThreadCount.
+    multithreaded: Cell<(bool, i32, i32)>,
+    /// `Application.DisplayAlerts`: a flag the application holds; no dialog is shown here.
+    display_alerts: Cell<bool>,
     /// `Application.StatusBar`: the text set, or None for the default status.
     status_bar: RefCell<Option<String>>,
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
@@ -192,12 +197,6 @@ impl WorkbookAutomation {
         handlers.on("Application", "ThisCell", InvokeKind::Get, Self::this_cell);
         handlers.on(
             "Application",
-            "ActiveWorkbook",
-            InvokeKind::Get,
-            Self::current_book,
-        );
-        handlers.on(
-            "Application",
             "ThisWorkbook",
             InvokeKind::Get,
             Self::current_book,
@@ -232,9 +231,6 @@ impl WorkbookAutomation {
         );
         handlers.on("Application", "Workbooks", InvokeKind::Get, Self::delegate);
         handlers.on("Application", "EnableEvents", InvokeKind::Get, Self::events);
-        handlers.on("Workbooks", "Count", InvokeKind::Get, Self::delegate);
-        handlers.on("Workbooks", "Item", InvokeKind::Get, Self::book_item);
-        handlers.on("Workbooks", "_Default", InvokeKind::Get, Self::book_item);
         handlers.on("Workbooks", "Application", InvokeKind::Get, Self::delegate);
         handlers.on("Workbooks", "Parent", InvokeKind::Get, Self::delegate);
         handlers.on("Workbook", "Name", InvokeKind::Get, Self::workbook_name);
@@ -286,6 +282,7 @@ impl WorkbookAutomation {
         Self::register_find(&mut handlers);
         Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
+        Self::register_books(&mut handlers);
         Self::register_formatting(&mut handlers);
         // Report objects register where the committed descriptor describes them (dc-piw0).
         let _ = Self::register_report(&mut handlers);
@@ -303,8 +300,9 @@ impl WorkbookAutomation {
             host,
             handlers,
             snapshot: RefCell::new(None),
-            next_workbook: Cell::new(1),
             screen_updating: Cell::new(true),
+            multithreaded: Cell::new((true, 0, 1)),
+            display_alerts: Cell::new(true),
             status_bar: RefCell::new(None),
             ranges: RefCell::default(),
             find: RefCell::default(),
@@ -449,10 +447,7 @@ impl WorkbookAutomation {
         let (workbook, enabled) = match previous.as_ref() {
             Some(old) => (old.workbook, old.enabled.clone()),
             None => {
-                let id = self.next_workbook.get();
-                self.next_workbook
-                    .set(id.checked_add(1).expect("workbook identity exhausted"));
-                (id, Rc::new(Cell::new(true)))
+                (books::next_identity(), Rc::new(Cell::new(true)))
             }
         };
         let active = host
@@ -507,10 +502,7 @@ impl WorkbookAutomation {
             if let Some(old) = previous.as_ref() {
                 enabled.set(old.enabled.get());
             }
-            let id = self.next_workbook.get();
-            self.next_workbook
-                .set(id.checked_add(1).expect("workbook identity exhausted"));
-            id
+            books::next_identity()
         };
         let session_name = session.file_full_name();
         let full_name = if !session_name.is_empty() {
@@ -825,15 +817,6 @@ impl WorkbookAutomation {
                 Some(at) => self.acquire(access, &ReferenceLike::cell(at), RangeAxis::Cells),
                 None => Ok(AutoValue::Error(2023)),
             }
-        })
-    }
-    fn book_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, meta| {
-            ValuesOnly::<Rc<dyn AutomationHost>>::workbook_item(
-                call,
-                book_name(&meta.full_name),
-                meta.workbook,
-            )
         })
     }
     fn current_book(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -1231,6 +1214,9 @@ impl ObjectModel for WorkbookAutomation {
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.policy.check(call)?;
+        if let Some(routed) = self.foreign_call(target, call) {
+            return routed;
+        }
         if let Some(handler) = self.handlers.get(call.interface, call.member) {
             handler(self, target, call)
         } else {
@@ -1491,22 +1477,34 @@ fn auto_value(value: &CalcValue) -> Reply {
         _ => return Err(AutoError::not_modelled("Range.Value cell kind", OWNER)),
     })
 }
-// A copied event value outlives its read in mutable VBA state. Until that state
-// carries observation provenance, file projects cannot erase these qualifications.
-fn event_input_needs_provenance(value: &ProjectedValue) -> bool {
+// A macro read of a cache or an uncertified value is admitted, as Excel returns the loaded cache;
+// the host records the observation with its provenance so the use stays traceable.
+fn observed_provenance(value: &ProjectedValue) -> Option<crate::ObservedProvenance> {
+    use crate::ObservedProvenance as P;
     match value {
-        ProjectedValue::FileCached(_) | ProjectedValue::Stale(_) => true,
+        ProjectedValue::FileCached(_) => Some(P::FileCache),
+        ProjectedValue::Stale(_) => Some(P::Stale),
         ProjectedValue::Calculated { calculation, .. } => {
-            calculation.reads_external_links()
-                || calculation.held_by_circular_rule()
-                || calculation.stamp().is_none_or(|stamp| {
-                    stamp.reads.uses_imported_cache
-                        || stamp.reads.uses_boundary_cache
-                        || stamp.reads.legacy_boundary
-                        || !stamp.reads.observations.is_empty()
-                })
+            if calculation.reads_external_links() {
+                Some(P::ExternalLink)
+            } else if calculation.held_by_circular_rule() {
+                Some(P::CircularHeld)
+            } else {
+                match calculation.stamp() {
+                    None => Some(P::Uncertified),
+                    Some(stamp)
+                        if stamp.reads.uses_imported_cache
+                            || stamp.reads.uses_boundary_cache
+                            || stamp.reads.legacy_boundary
+                            || !stamp.reads.observations.is_empty() =>
+                    {
+                        Some(P::CachedInputs)
+                    }
+                    Some(_) => None,
+                }
+            }
         }
-        _ => false,
+        _ => None,
     }
 }
 
@@ -1533,12 +1531,22 @@ fn read_session(
         .cells()
         .iter()
         .map(|cell| match cell.value() {
-            value if strict_provenance && event_input_needs_provenance(value) => Err(
-                AutoError::not_modelled(
-                    "File-project event reads with cached or uncertified provenance",
-                    "dc-oxh8w.38",
-                ),
-            ),
+            value if strict_provenance && observed_provenance(value).is_some() => {
+                session.record_macro_observation(crate::MacroObservation {
+                    at: cell.at(),
+                    provenance: observed_provenance(value).expect("checked"),
+                });
+                match value {
+                    ProjectedValue::Calculated { value: v, .. } => Ok(v.clone()),
+                    ProjectedValue::FileCached(cache) => Ok(cache.value().to_value()),
+                    ProjectedValue::Stale(stale) => Ok(stale
+                        .last_value()
+                        .cloned()
+                        .or_else(|| stale.file_cache().map(|c| c.value().to_value()))
+                        .unwrap_or_else(CalcValue::empty)),
+                    _ => unreachable!("only cached or calculated values carry provenance"),
+                }
+            }
             ProjectedValue::Empty => Ok(CalcValue::empty()),
             ProjectedValue::Literal(v) | ProjectedValue::Calculated { value: v, .. } => {
                 Ok(v.clone())

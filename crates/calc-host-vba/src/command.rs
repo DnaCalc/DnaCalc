@@ -5,6 +5,7 @@
 //! whether or not VBA caught the error. A procedure call is not an automatic event: events have
 //! their own delivery records (`HostSession::workbook_event_failures`).
 use super::WorkbookEvents;
+use calc_host::automation::BookTarget;
 use calc_host::HostSession;
 pub use calc_vba::events::{
     ProcedureArg, ProcedureEntry, ProcedureError, ProcedureKind, ProcedureResult,
@@ -72,6 +73,12 @@ impl WorkbookEvents {
     /// Every Sub and Function the project declares.
     pub fn procedures(&self) -> Vec<ProcedureEntry> {
         self.project.procedures()
+    }
+
+    /// The files macro members wrote since the last call (Chart.Export), oldest first, as the
+    /// path the macro named and the bytes. The shell stores them; this crate has no file system.
+    pub fn take_output_files(&self) -> Vec<(String, Vec<u8>)> {
+        std::mem::take(&mut *self.application.files.borrow_mut())
     }
 
     /// The invocation log of this project, oldest first.
@@ -231,6 +238,15 @@ impl Drop for RunDepth {
     }
 }
 
+fn cannot_run(name: &str) -> calc_object_model::AutoError {
+    calc_object_model::AutoError::excel(
+        1004,
+        format!(
+            "Cannot run the macro '{name}'. The macro may not be available in this workbook or all macros may be disabled."
+        ),
+    )
+}
+
 impl WorkbookEvents {
     /// `Application.Run "Name", args...` from a running procedure: the same invocation, nested.
     /// Excel's own errors: an unknown macro raises 1004 with its message; the macro's run-time
@@ -240,7 +256,7 @@ impl WorkbookEvents {
         name: &str,
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        use calc_object_model::{AutoError, AutoValue};
+        use calc_object_model::AutoError;
         let request = match name.rsplit_once('!') {
             Some((book, request)) => {
                 let book = book.trim();
@@ -249,25 +265,35 @@ impl WorkbookEvents {
                     .and_then(|quoted| quoted.strip_suffix('\''))
                     .unwrap_or(book)
                     .replace("''", "'");
-                if !self.automation.matches_workbook_name(&book)? {
-                    return Err(AutoError::not_modelled(
-                        "_Application.Run of another workbook's project",
-                        "dc-oxh8w.42",
-                    ));
+                match self.automation.locate_book(&book)? {
+                    BookTarget::This => request,
+                    BookTarget::Other(Some(runner)) => {
+                        return runner.run(name, request.trim().trim_matches('\''), arguments);
+                    }
+                    BookTarget::Other(None) => {
+                        return Err(AutoError::not_modelled(
+                            "_Application.Run back into the workbook that is running",
+                            "dc-oxh8w.56",
+                        ));
+                    }
+                    BookTarget::Closed => return Err(cannot_run(name)),
                 }
-                request
             }
             None => name,
         };
+        self.run_here(name, request, arguments)
+    }
+
+    /// Run `request` (no workbook qualifier) in this project; `name` is the caller's text for messages.
+    pub(crate) fn run_here(
+        &self,
+        name: &str,
+        request: &str,
+        arguments: &[calc_object_model::AutoValue],
+    ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
+        use calc_object_model::{AutoError, AutoValue};
         let request = request.trim().trim_matches('\'');
-        let entry = self.resolve(request).map_err(|_| {
-            AutoError::excel(
-                1004,
-                format!(
-                    "Cannot run the macro '{name}'. The macro may not be available in this workbook or all macros may be disabled."
-                ),
-            )
-        })?;
+        let entry = self.resolve(request).map_err(|_| cannot_run(name))?;
         let mut args = Vec::new();
         for argument in arguments {
             args.push(match argument {
@@ -336,7 +362,7 @@ mod tests {
     fn application_run_keeps_the_workbook_qualifier() {
         let (mut session, owner) = project();
         let other = run(&mut session, &owner, &[AutoValue::text("'other.xlsm'!Module1.Answer")]);
-        assert!(matches!(other, Err(AutoError::NotModelled { .. })), "{other:?}");
+        assert!(matches!(other, Err(AutoError::Excel { number: 1004, .. })), "{other:?}");
         let same = run(&mut session, &owner, &[AutoValue::text("'TEST BOOK.xlsm'!Module1.Answer")]);
         assert!(matches!(same, Ok(AutoValue::R8(42.0))), "{same:?}");
     }
@@ -362,6 +388,162 @@ mod tests {
         }
         let boom = run(&mut session, &owner, &[AutoValue::text("Boom")]);
         assert!(matches!(boom, Err(AutoError::Excel { number: 11, .. })), "{boom:?}");
+    }
+
+    /// A second workbook the application owns: its own session, project and automation.
+    fn second_book(name: &str, source: &str) {
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut session = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let book = crate::prepare(
+            session.host(),
+            name,
+            &[crate::ModuleSource { name: "Module1".into(), target: crate::ModuleTarget::Standard, source: source.into() }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        book.clone().install(&mut session);
+        book.adopt(session, false);
+    }
+
+    const OTHER: &str = r#"
+Public Function WhoAmI() As String
+ WhoAmI = ThisWorkbook.Name
+End Function
+Public Function ActiveName() As String
+ ActiveName = ActiveWorkbook.Name
+End Function
+Public Function BookCount() As Double
+ BookCount = Workbooks.Count
+End Function
+Public Function SecondName() As String
+ SecondName = Workbooks(2).Name
+End Function
+Public Function CallBack() As Double
+ CallBack = Application.Run("Test Book.xlsm!Module1.Answer")
+End Function
+Public Function OpenIt(ByVal path As String) As String
+ Dim book As Workbook
+ Set book = Workbooks.Open(path)
+ OpenIt = book.Name & "/" & ActiveWorkbook.Name & "/" & Workbooks.Count
+End Function
+Public Function AddOne() As String
+ Workbooks.Add
+ AddOne = ActiveWorkbook.Name & "/" & Workbooks.Count
+End Function
+"#;
+
+    fn text(result: Result<AutoValue, AutoError>) -> String {
+        result.unwrap().as_text().unwrap().to_string()
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_run_reaches_another_open_workbook() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        let who = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!Module1.WhoAmI")]);
+        assert_eq!(text(who), "Other.xlsm", "ThisWorkbook is the workbook whose macro runs");
+        let quoted = run(&mut session, &owner, &[AutoValue::text("'other.xlsm'!WhoAmI")]);
+        assert_eq!(text(quoted), "Other.xlsm");
+        // Running a workbook leaves the active workbook alone.
+        let active = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!ActiveName")]);
+        assert_eq!(text(active), "Test Book.xlsm");
+        let count = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!BookCount")]);
+        assert!(matches!(count, Ok(AutoValue::R8(2.0))), "{count:?}");
+        let second = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!SecondName")]);
+        assert_eq!(text(second), "Other.xlsm");
+        let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!Nope")]);
+        assert!(matches!(missing, Err(AutoError::Excel { number: 1004, .. })), "{missing:?}");
+        // Running back into the workbook whose macro is running is a refusal naming its owner.
+        let back = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CallBack")]);
+        assert!(matches!(&back, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{back:?}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn workbooks_collection_lists_the_open_workbooks() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        let model = &owner.automation;
+        let app = model.application();
+        let get = |object: &calc_object_model::ObjectRef, interface_name: &str, member: &str, args: Vec<AutoValue>| {
+            let descriptor = Descriptor::get();
+            let interface = object.interface;
+            let _ = interface_name;
+            let member = descriptor.member(interface, member, InvokeKind::Get).unwrap_or_else(|| panic!("{member}"));
+            model.invoke(object, &Call { interface, member, args, lcid: 0 })
+        };
+        model.with_event_session(&mut session, false, || {
+            let books = match get(&app, "Application", "Workbooks", vec![]).unwrap() {
+                AutoValue::Object(o) => o,
+                other => panic!("{other:?}"),
+            };
+            assert!(matches!(get(&books, "Workbooks", "Count", vec![]), Ok(AutoValue::I4(2))));
+            let by_name = match get(&books, "Workbooks", "Item", vec![AutoValue::text("other.XLSM")]).unwrap() {
+                AutoValue::Object(o) => o,
+                other => panic!("{other:?}"),
+            };
+            let by_index = match get(&books, "Workbooks", "Item", vec![AutoValue::I4(2)]).unwrap() {
+                AutoValue::Object(o) => o,
+                other => panic!("{other:?}"),
+            };
+            assert_eq!(by_name.key, by_index.key);
+            assert_eq!(text(get(&by_name, "Workbook", "Name", vec![])), "Other.xlsm");
+            assert_eq!(text(get(&by_name, "Workbook", "FullName", vec![])), "Other.xlsm");
+            let first = match get(&books, "Workbooks", "Item", vec![AutoValue::I4(1)]).unwrap() {
+                AutoValue::Object(o) => o,
+                other => panic!("{other:?}"),
+            };
+            assert_eq!(text(get(&first, "Workbook", "Name", vec![])), "Test Book.xlsm");
+            for bad in [AutoValue::I4(0), AutoValue::I4(3), AutoValue::text("none.xlsx")] {
+                assert!(get(&books, "Workbooks", "Item", vec![bad]).is_err());
+            }
+            // Another workbook's sheets are not this automation's: a typed refusal.
+            let sheets = get(&by_name, "Workbook", "Worksheets", vec![]);
+            assert!(matches!(&sheets, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{sheets:?}");
+            let activate = Descriptor::get().member(by_name.interface, "Activate", InvokeKind::Method).unwrap();
+            model.invoke(&by_name, &Call { interface: by_name.interface, member: activate, args: vec![], lcid: 0 }).unwrap();
+            let active = get(&app, "Application", "ActiveWorkbook", vec![]).unwrap();
+            assert!(matches!(active, AutoValue::Object(o) if o.key == by_name.key));
+        });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn workbooks_add_and_open_make_open_workbooks() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        let without = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddOne")]);
+        assert!(matches!(&without, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.42"), "{without:?}");
+        crate::install_application(crate::ApplicationOptions {
+            max_steps: 1_000_000,
+            backend: Some(calc_vba::Backend::Interpreter),
+            loader: Some(Rc::new(|path: &str| {
+                if path == "fixture.xlsm" {
+                    Ok(include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm").to_vec())
+                } else {
+                    Err("missing".into())
+                }
+            })),
+            grant: None,
+        });
+        let added = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddOne")]);
+        assert_eq!(text(added), "Book1/3", "Add activates the new blank workbook");
+        let count = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!BookCount")]);
+        assert!(matches!(count, Ok(AutoValue::R8(3.0))), "{count:?}");
+        let opened = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(opened), "fixture.xlsm/fixture.xlsm/4");
+        let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("gone.xlsm")]);
+        assert!(matches!(&missing, Err(AutoError::Excel { number: 1004, description }) if description.contains("could not be found")), "{missing:?}");
+        // The added workbook is open by name and can be run (it has no procedures).
+        let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
+        assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
     }
 
     fn project() -> (HostSession, Rc<WorkbookEvents>) {

@@ -79,6 +79,8 @@ pub enum ObjectKey {
     },
     /// The application's WorksheetFunction object.
     WorksheetFunction,
+    /// The application's MultiThreadedCalculation object.
+    MultiThreadedCalculation,
     /// An object of the report layer of one worksheet (tables, charts, drawings: dc-piw0). It
     /// names a table by its part, a chart by its part (or the token of a chart still waiting for
     /// its source data), a shape by its drawing id; resolved again on every call.

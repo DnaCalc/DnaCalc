@@ -70,6 +70,9 @@ COSTS_SAVE_SECONDS = 60.0
 # every one would cost an Excel restart.
 CRASH_BUDGET = 6
 CRASH_WINDOW = 3600.0
+# A call whose batch ran past its deadline (our watchdog killed Excel) is a timeout, not a crash (dc-ztvv.26.130):
+# its own answer ("excel-deadline"), its own list (deadline-list.jsonl) and its own, larger budget.
+DEADLINE_BUDGET = 20
 POISON_SECONDS = 3600.0
 ISOLATION_STALL_SECONDS = 10.0
 
@@ -238,6 +241,7 @@ class Broker:
         self.crash_counts = {}
         self.poisoned = {}                       # request id -> wall-clock expiry
         self.crash_times = {}                    # function -> times of calls that crashed Excel alone (the budget)
+        self.deadline_times = {}                 # function -> times of calls killed at their deadline alone (its own budget)
         registry = getattr(options, "registry", None)
         self.registry = set(STATE_SENSITIVE if registry is None else [] if registry == ["none"] else registry)
         self.leak_every = getattr(options, "leak_every", 100)
@@ -273,6 +277,7 @@ class Broker:
         self.batch_log = logs.BatchLog(self.state_dir / "log", self.storage)
         self.waits = logs.WaitsLog(self.state_dir / "log" / "waits.jsonl", self.storage)
         self.crash_log = logs.LineLog(self.state_dir / "crash-list.jsonl", self.storage)
+        self.deadline_log = logs.LineLog(self.state_dir / "deadline-list.jsonl", self.storage)
         self.leakage_log = logs.LineLog(self.state_dir / "log" / "leakage.jsonl", self.storage)
         self.envs = logs.EnvLog(self.state_dir / "envs.jsonl", self.storage)
         self.load_persisted()
@@ -747,6 +752,14 @@ class Broker:
             # one call at a time (dc-4rsw), so allow each call its own wait.
             deadline_ms = max(deadline_ms, ASYNC_DEADLINE_MS_PER_CALL * max(1, calls))
         confined = all(sl.item.suspect for sl in batch.slices)       # a suspect or isolated call: crashes are not the pool's
+        if confined and self.over_crash_budget(batch, self.deadline_times, "deadline_budget", DEADLINE_BUDGET):
+            names = ", ".join(sorted({g["f"] for g in batch.groups}))
+            self.fail_batch(batch, "excel-deadline-budget",
+                            f"{names}: {self.opt('deadline_budget', DEADLINE_BUDGET)} calls ran past their deadline within "
+                            f"{int(self.opt('crash_window', CRASH_WINDOW) // 60)} min; these {batch.calls} calls were not run")
+            slot.state = "idle"
+            self.kick()
+            return
         if confined and self.over_crash_budget(batch):
             names = ", ".join(sorted({g["f"] for g in batch.groups}))
             self.fail_batch(batch, "excel-crash-budget",
@@ -805,13 +818,14 @@ class Broker:
                 return
             failure = (error, detail)
             restart = error in ("excel-crashed", "fingerprint-drift-after")
+            deadline_kill = error == "excel-crashed" and bool(result.get("deadline"))
             if error == "excel-crashed":
                 slot.crashes += 1
                 if not batch.serial and not batch.addins:
                     # the batch is answered or split here, not failed: no caller retries a call that crashed Excel
                     self.log_batch(slot, number, batch, None, t_dispatch, t_back, error=error)
                     self.waits.add("excel-calc", worker=slot.name, seconds=round(t_back - t_dispatch, 3), detail="excel-crashed")
-                    self.on_crash(slot, batch, number, detail, confined)
+                    self.on_crash(slot, batch, number, detail, confined, deadline_kill)
                     await self.finish_restart(slot, counted=not confined)
                     self.kick()
                     return
@@ -888,23 +902,24 @@ class Broker:
                 self.cache_bytes -= request.cache_bytes
         self.counters["quarantined_requests"] = self.counters.get("quarantined_requests", 0) + 1
 
-    def over_crash_budget(self, batch):
+    def over_crash_budget(self, batch, table=None, option="crash_budget", default=CRASH_BUDGET):
         window = self.opt("crash_window", CRASH_WINDOW)
-        budget = self.opt("crash_budget", CRASH_BUDGET)
+        budget = self.opt(option, default)
+        table = self.crash_times if table is None else table
         now = time.time()
         for f in {g["f"] for g in batch.groups}:
-            times = self.crash_times.get(f, [])
+            times = table.get(f, [])
             if sum(1 for t in times if now - t < window) < budget:
                 return False
         return True
 
-    def on_crash(self, slot, batch, number, detail, confined):
+    def on_crash(self, slot, batch, number, detail, confined, deadline_kill=False):
         """Excel crashed on this batch. One call: that call is the answer (typed excel-crashed, with its arguments).
         Several: every item is marked suspect and goes back to run alone on the isolation worker, a lone item
         that crashes again is halved, so the crashing calls are found without the shared workers seeing them."""
         slices = batch.slices
         if batch.calls == 1 and len(slices) == 1:
-            self.answer_crashed(slot, batch, number, detail)
+            self.answer_crashed(slot, batch, number, detail, deadline_kill)
             return
         if not confined:
             for f in {g["f"] for g in batch.groups}:
@@ -927,16 +942,19 @@ class Broker:
         self.batcher.requeue_items(items)
         self.log_event("crash-bisect", worker=slot.name, batch=number, calls=batch.calls, items=len(items))
 
-    def answer_crashed(self, slot, batch, number, detail):
+    def answer_crashed(self, slot, batch, number, detail, deadline_kill=False):
+        """One call that took Excel down when run alone. A deadline kill (our watchdog) is answered as
+        "excel-deadline" with its own list and budget; only an Excel fault counts as a crash."""
+        reason = "excel-deadline" if deadline_kill else "excel-crashed"
         group = batch.groups[0]
-        value = {"reason": "excel-crashed", "function": group["f"], "k": group["k"], "args": list(group["v"]),
+        value = {"reason": reason, "function": group["f"], "k": group["k"], "args": list(group["v"]),
                  "detail": str(detail or "")[:200], "worker": slot.name}
         for key in ("x", "spill"):
             if key in group:
                 value[key] = group[key]
         f = group["f"]
         now = time.time()
-        self.crash_times.setdefault(f, []).append(now)
+        (self.deadline_times if deadline_kill else self.crash_times).setdefault(f, []).append(now)
         self.crash_counts[f] = self.crash_counts.get(f, 0) + 1
         if self.crash_counts[f] >= 2:
             self.batcher.isolate.add(f)
@@ -947,8 +965,8 @@ class Broker:
         for key in ("x", "spill"):
             if key in group:
                 record[key] = group[key]
-        self.crash_log.write(record)
-        self.log_event("excel-crashed-call", worker=slot.name, function=f, batch=number)
+        (self.deadline_log if deadline_kill else self.crash_log).write(record)
+        self.log_event("excel-deadline-call" if deadline_kill else "excel-crashed-call", worker=slot.name, function=f, batch=number)
         result = {"env_id": (slot.hello or {}).get("env_id"), "batch": number, "groups": [{"ty": "x", "v": [value]}]}
         self.respond(batch, result, slot)
         self.counters["crashed_calls"] = self.counters.get("crashed_calls", 0) + 1
@@ -1451,6 +1469,7 @@ class Broker:
     def write_health(self):
         self.waits.flush()
         self.crash_log.flush()
+        self.deadline_log.flush()
         self.leakage_log.flush()
         self.write_diagnostic("health.txt", self.health_line() + "\n")
         self.last_health = time.monotonic()
@@ -1590,6 +1609,8 @@ def launch_broker(options):
         run += f" --restart-cap {options.restart_cap}"
     if getattr(options, "crash_budget", None) is not None:
         run += f" --crash-budget {options.crash_budget}"
+    if getattr(options, "deadline_budget", None) is not None:
+        run += f" --deadline-budget {options.deadline_budget}"
     for spec in getattr(options, "addin_workers", None) or []:
         run += f" --addin-worker {spec}"
     subprocess.Popen(["pwsh", "-NoProfile", "-File", str(guard), "-Command", run, "-Log", str(state / "console.log"),
@@ -1696,6 +1717,8 @@ def main():
     parser.add_argument("--restart-cap", type=int, default=None, help=f"restarts per worker per hour (default {RESTART_CAP})")
     parser.add_argument("--crash-budget", type=int, default=None,
                         help=f"calls of one function that may crash Excel per hour before its suspect calls are refused (default {CRASH_BUDGET})")
+    parser.add_argument("--deadline-budget", type=int, default=None,
+                        help=f"calls of one function that may run past their deadline per hour before its suspect calls are refused (default {DEADLINE_BUDGET})")
     parser.add_argument("--addin-worker", dest="addin_workers", action="append", default=None,
                         help="one more worker whose Excel opens these add-in files read-only (EUROTOOL.XLAM; several "
                              "joined by +); it serves only requests whose opts name exactly that set (repeatable)")

@@ -76,7 +76,9 @@ The broker and every Excel it starts run on the private desktop `DnaCalcExcelV2`
 by default (two with 4-thread multithreaded calculation, one with it off, which is the serial worker). A worker is
 one C# process (`engines/excel`, `dotnet build -c Release`) that owns one Excel, bound through that process's own
 window and checked by PID and start time. A missed batch deadline (5 s + 0.1 ms per call, or four times the batch's
-estimated cost, or 20 s while a function has never been measured) kills only that Excel. `service.py stats|waits` read
+estimated cost, or 20 s while a function has never been measured) kills only that Excel. The worker reports that kill as `excel-crashed` with `deadline: true`; the broker answers such a call (run alone, after the bisect)
+as `excel-deadline` (answer letter `x`, with its arguments), records it in `deadline-list.jsonl` and counts it against
+`--deadline-budget` (default 20 per hour, refusal `excel-deadline-budget`), never against the crash budget (dc-ztvv.26.130). `service.py stats|waits` read
 the same logs.
 
 Self-healing (excel-v2-2). A down worker (a crash, a lost worker process, a missed deadline or a failed start) is

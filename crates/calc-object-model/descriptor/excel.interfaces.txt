@@ -65,7 +65,7 @@ ChartArea
 PlotArea
 ChartFormat
 ChartFillFormat
-# Dialog sheets of Sheets (dc-oxh8w.50).
+# Dialog sheets of Sheets (dc-oxh8w.57).
 _DialogSheet
 DialogSheet        # coclass
 # Calculation settings (dc-oxh8w.40).

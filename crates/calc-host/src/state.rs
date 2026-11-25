@@ -520,6 +520,17 @@ impl HostState {
                 && self.last_failure.is_none()
                 && self.engine.needs_recalc(&self.model)
     }
+    /// `Application.CalculationState` (XlCalculationState): 2 (xlPending) while a recalculation
+    /// waits, including the manual-mode wait for an explicit one; 0 (xlDone) otherwise
+    /// (dc-oxh8w.40).
+    pub fn calculation_state(&self) -> i32 {
+        let waiting_manual = self.work.is_none()
+            && self.pinned_calculations.get() == 0
+            && self.calc_mode() == CalcMode::Manual
+            && !self.calculation_cancelled
+            && self.engine.needs_recalc(&self.model);
+        if self.has_pending_calculation() || waiting_manual { 2 } else { 0 }
+    }
     /// Drains the recorded calculation event stream.
     pub fn take_calculation_events(&mut self) -> Vec<calc_engine::CalcEvent> {
         std::mem::take(&mut self.calc_events)
@@ -568,6 +579,11 @@ impl HostState {
     /// nothing (dc-1nbp.14).
     pub fn calculate_before_save(&self) -> bool {
         self.loaded.calc_on_save()
+    }
+
+    /// `Workbook.PrecisionAsDisplayed`: `calcPr/@fullPrecision` false (dc-oxh8w.40).
+    pub fn precision_as_displayed(&self) -> bool {
+        !self.loaded.full_precision()
     }
 
     /// The calculation context every recalculation of this host applies: the date system the
