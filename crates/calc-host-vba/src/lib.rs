@@ -32,6 +32,8 @@ pub struct WorkbookEvents {
     audit: Option<calc_vba::policy::AuditHandle>,
     /// Every procedure run through the command route, in order (dc-vba-command-es70w).
     invocations: std::cell::RefCell<Vec<InvocationRecord>>,
+    /// The application the project's macros run against; it holds the files they wrote.
+    application: Rc<VbaAutomationHost>,
 }
 
 pub use command::{
@@ -44,6 +46,10 @@ struct VbaAutomationHost {
     events_enabled: Cell<bool>,
     /// The project `Application.Run` resolves its target in (set once the owner exists).
     owner: std::cell::RefCell<std::rc::Weak<WorkbookEvents>>,
+    /// Files macro members wrote (Chart.Export), in order. This crate is portable and touches no
+    /// file system: the shell takes them with [`WorkbookEvents::take_output_files`] and puts them
+    /// where its platform keeps files (a download in the browser, a file on the desktop).
+    files: std::cell::RefCell<Vec<(String, Vec<u8>)>>,
 }
 
 impl VbaAutomationHost {
@@ -51,6 +57,7 @@ impl VbaAutomationHost {
         Self {
             events_enabled: Cell::new(true),
             owner: Default::default(),
+            files: Default::default(),
         }
     }
 }
@@ -70,6 +77,10 @@ impl ApplicationHost for VbaAutomationHost {
     }
     fn set_events_enabled(&self, enabled: bool) {
         self.events_enabled.set(enabled);
+    }
+    fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
+        self.files.borrow_mut().push((path.to_owned(), bytes.to_vec()));
+        Ok(())
     }
 }
 
@@ -404,6 +415,7 @@ fn prepare_project(
         grant,
         audit,
         invocations: Default::default(),
+        application: application.clone(),
     };
     // Attach all new identities before replacing any live registration. A failed
     // attachment drops only the new project; its handlers have never been raised.
