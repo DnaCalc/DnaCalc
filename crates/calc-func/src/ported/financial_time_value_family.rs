@@ -92,11 +92,6 @@ fn growth(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
 /// `ln(1 + r)` as Excel's internal logarithm forms it (dc-j9k.90 / cb19): shared `PC=64`
 /// forward `atanh` series below `|r| = 3/8` and `LN(stored(1 + r))` from `3/8`.
 fn alnrel(rate: f64) -> f64 {
-    // The smallest normal rates round back to themselves in Excel. The
-    // series would first store rate/2 as a subnormal and lose its low bit.
-    if (f64::MIN_POSITIVE..2.0 * f64::MIN_POSITIVE).contains(&rate.abs()) {
-        return rate;
-    }
     excel_log1p_times(1.0, rate)
 }
 
