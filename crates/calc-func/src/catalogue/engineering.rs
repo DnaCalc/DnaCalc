@@ -227,8 +227,8 @@ ported_shared_family! {
         bits(s, a, k::bitrshift_fn::bitrshift_kernel)
     }
     30 complex |s, a, sv| {
-        let re = coefficient(s, a, 0)?;
-        let im = coefficient(s, a, 1)?;
+        // Excel reads the suffix first: an error there propagates, any other bad suffix is #VALUE!,
+        // both before a coefficient's own error (dc-j9k.289, .290).
         let suffix = match a.get(2).map(CalcValue::core_ref) {
             None | Some(CoreRef::Missing | CoreRef::Empty) => 'i',
             Some(CoreRef::Error(code)) => return fail(code),
@@ -239,6 +239,8 @@ ported_shared_family! {
             },
             Some(_) => return fail(WorksheetErrorCode::Value),
         };
+        let re = coefficient(s, a, 0)?;
+        let im = coefficient(s, a, 1)?;
         let text = format_complex_text(ParsedComplex::new(re, im, None), suffix).map_err(Exit::Error)?;
         Ok(text_value(&text))
     }
