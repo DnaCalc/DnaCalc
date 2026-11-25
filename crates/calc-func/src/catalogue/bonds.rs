@@ -169,11 +169,27 @@ fn coupon_args(
     a: &[CalcValue],
     sv: &EvalServices<'_>,
 ) -> Step<(f64, f64, f64, Option<f64>)> {
+    // A logical date is #VALUE! as it is read, before the dates are compared (Excel 20430,
+    // dc-j9k.370/.373: `=COUPDAYSNC(29000,FALSE,4,2)` is #VALUE!, not #NUM!); a frequency that is
+    // no 1, 2 or 4 is #NUM! before the basis is read (`=COUPNUM(40000,41000,3,"x")` is #NUM!),
+    // and so is a negative basis, before it truncates (dc-j9k.372/.374).
+    reject_logical(&a[0])?;
+    reject_logical(&a[1])?;
     let (settlement, maturity) = (date_1900(site, a, 0, sv)?, date_1900(site, a, 1, sv)?);
     if let Err(code) = coupon::check_coupon_dates(settlement, maturity) {
         return fail(code);
     }
-    Ok((settlement, maturity, num(site, a, 2)?, basis(site, a, 3)?))
+    let frequency = num_without_logical(site, a, 2)?;
+    if let Err(code) = coupon::check_coupon_frequency(frequency) {
+        return fail(code);
+    }
+    let basis = if given(a, 3) { Some(num_without_logical(site, a, 3)?) } else { None };
+    if let Some(value) = basis {
+        if let Err(code) = coupon::check_coupon_basis(value) {
+            return fail(code);
+        }
+    }
+    Ok((settlement, maturity, frequency, basis))
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
@@ -210,12 +226,17 @@ ported_shared_family! {
         bond_out(s, bond::mduration_kernel(settlement, maturity, coupon, yield_rate, frequency, Some(basis)))
     }
     5 pricemat_fn |s, a, sv| {
-        let (settlement, maturity, issue) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
-        bond_out(s, bond::pricemat_kernel(settlement, maturity, issue, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
+        // The optional basis is validated before the required arguments, as YIELD does.
+        let basis = validated_bond_basis(s, a, 5)?;
+        let (settlement, maturity, issue) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?);
+        let (rate, yield_rate) = (num_without_logical(s, a, 3)?, num_without_logical(s, a, 4)?);
+        bond_out(s, bond::pricemat_kernel(settlement, maturity, issue, rate, yield_rate, Some(basis)))
     }
     6 yieldmat_fn |s, a, sv| {
-        let (settlement, maturity, issue) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
-        bond_out(s, bond::yieldmat_kernel(settlement, maturity, issue, num(s, a, 3)?, num(s, a, 4)?, Some(or(s, a, 5, 0.0)?)))
+        let basis = validated_bond_basis(s, a, 5)?;
+        let (settlement, maturity, issue) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?, yield_date(s, a, 2, sv)?);
+        let (rate, price) = (num_without_logical(s, a, 3)?, num_without_logical(s, a, 4)?);
+        bond_out(s, bond::yieldmat_kernel(settlement, maturity, issue, rate, price, Some(basis)))
     }
     7 yielddisc_fn |s, a, sv| {
         // Excel reads and validates the optional basis before its required slots.
@@ -233,8 +254,11 @@ ported_shared_family! {
     // ACCRINTM takes 4 or 5 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula
     // alike): `=ACCRINTM(B1,B1,B1)` is refused and `=ACCRINTM(B1,B1,B1,B1)` enters.
     9 accrintm_fn |s, a, sv| {
-        let (issue, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bond_out(s, bond::accrintm_kernel(issue, settlement, num(s, a, 2)?, Some(or(s, a, 3, 1000.0)?), Some(or(s, a, 4, 0.0)?)))
+        let (issue, settlement) = (yield_date(s, a, 0, sv)?, yield_date(s, a, 1, sv)?);
+        let rate = num_without_logical(s, a, 2)?;
+        let par = if given(a, 3) { num_without_logical(s, a, 3)? } else { 1000.0 };
+        let basis = if given(a, 4) { num_without_logical(s, a, 4)? } else { 0.0 };
+        bond_out(s, bond::accrintm_kernel(issue, settlement, rate, Some(par), Some(basis)))
     }
     10 coupdaybs_fn |s, a, sv| {
         let (settlement, maturity, frequency, b) = coupon_args(s, a, sv)?;

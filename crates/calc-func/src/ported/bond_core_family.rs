@@ -114,6 +114,15 @@ fn dser(v: f64) -> Result<i64, BondCoreEvalError> {
         .ok_or(derr(WorksheetErrorCode::Value))?;
     Ok(s)
 }
+/// A date serial that admits 0 (1900-01-00): ACCRINTM, PRICEMAT and YIELDMAT read it as a date,
+/// and a relationship check fails it after (Excel 20430, dc-j9k.382-.389: `=ACCRINTM(0,0,0.05,1000)`
+/// is 0 and `=PRICEMAT(0,50000,0,0.05,0.06)` is #NUM!).
+fn dser_from_zero(v: f64) -> Result<i64, BondCoreEvalError> {
+    if v.is_finite() && (0.0..1.0).contains(&v.trunc()) {
+        return Ok(0);
+    }
+    dser(v)
+}
 fn pos(v: f64) -> Result<f64, BondCoreEvalError> {
     if !v.is_finite() {
         Err(derr(WorksheetErrorCode::Value))
@@ -414,8 +423,8 @@ pub fn accrintm_kernel(
     par: Option<f64>,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let issue = dser(issue)?;
-    let settlement = dser(settlement)?;
+    let issue = dser_from_zero(issue)?;
+    let settlement = dser_from_zero(settlement)?;
     // ACCRINTM needs a strictly positive rate (rate 0 is #NUM!), and equal issue and
     // settlement dates accrue 0 rather than #NUM! (live Excel 20430, W111-5 G8-06).
     let rate_ = pos(rate_)?;
@@ -434,9 +443,9 @@ pub fn pricemat_kernel(
     yld: f64,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let settlement = dser(settlement)?;
-    let maturity = dser(maturity)?;
-    let issue = dser(issue)?;
+    let settlement = dser_from_zero(settlement)?;
+    let maturity = dser_from_zero(maturity)?;
+    let issue = dser_from_zero(issue)?;
     let rate_ = rate(rate_)?;
     let yld = rate(yld)?;
     let basis_ = basis(basis_.unwrap_or(0.0))?;
@@ -470,9 +479,9 @@ pub fn yieldmat_kernel(
     price: f64,
     basis_: Option<f64>,
 ) -> Result<f64, BondCoreEvalError> {
-    let settlement = dser(settlement)?;
-    let maturity = dser(maturity)?;
-    let issue = dser(issue)?;
+    let settlement = dser_from_zero(settlement)?;
+    let maturity = dser_from_zero(maturity)?;
+    let issue = dser_from_zero(issue)?;
     let rate_ = rate(rate_)?;
     let price = pos(price)?;
     let basis_ = basis(basis_.unwrap_or(0.0))?;
