@@ -371,6 +371,13 @@ impl WorkbookAutomation {
         let meta = self.metadata()?;
         Ok(object("Workbook", ObjectKey::Workbook(meta.workbook)))
     }
+    /// Match an explicit macro workbook qualifier against the current workbook identity.
+    pub fn matches_workbook_name(&self, name: &str) -> Result<bool, AutoError> {
+        let meta = self.metadata()?;
+        Ok(!name.is_empty()
+            && (calc_value::workbook_names_equal(&meta.full_name, name)
+                || calc_value::workbook_names_equal(book_name(&meta.full_name), name)))
+    }
     /// The worksheet object identity for `sheet` in the current snapshot.
     pub fn worksheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
         let meta = self.metadata()?;
