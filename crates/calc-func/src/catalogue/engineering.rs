@@ -263,11 +263,10 @@ ported_shared_family! {
             complex_text(Ok(result), &[z])
         } else {
             unary_complex(s, a, |z| {
-                // The circular factor admits |im| < 2^27 only (IMEXP("1-1e9i") is #NUM!, dc-j9k.175).
-                if z.im.abs() >= 134_217_728.0 {
-                    return Err(WorksheetErrorCode::Num);
-                }
-                Ok(z.exp())
+                // Past |im| 2^27 both circular factors are the largest double: the result is exp(re) times
+                // that, so IMEXP("1-1e9i") overflows to #NUM! (dc-j9k.175) while a small exp(re) does not.
+                let result = z.exp();
+                if result.re.is_finite() && result.im.is_finite() { Ok(result) } else { Err(WorksheetErrorCode::Num) }
             })
         }
     }
