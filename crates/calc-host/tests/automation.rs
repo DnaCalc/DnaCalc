@@ -8774,3 +8774,39 @@ fn dc_oxh8w_43__range_auto_filter_sets_criteria() {
         Err(AutoError::Excel { number: 1004, .. })
     ));
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2"], &["3", "4"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let width = |address: &str| invoke(&model, &range(&model, address), "ColumnWidth", vec![]).unwrap();
+    invoke_kind(&model, &range(&model, "A1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(20)]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    // xlPasteColumnWidths (8) sets the destination columns' widths and writes no cell.
+    call("A1:B2", "Copy", vec![]).unwrap();
+    call("E5", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("E1"), AutoValue::R8(n) if n == 20.0));
+    assert!(matches!(width("F1"), AutoValue::R8(n) if n == 30.0));
+    assert_eq!(cell_text_of(&model, "E5"), "", "no cell content is pasted");
+    // The widths stay on the clipboard for a second paste; a destination past column XFD is 1004.
+    call("H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("I1"), AutoValue::R8(n) if n == 30.0));
+    assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
+    // xlPasteAllUsingSourceTheme (13) and xlPasteAllMergingConditionalFormats (14) paste everything within one workbook.
+    for (paste, at) in [(13, "A10"), (14, "A13")] {
+        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
+    }
+    assert_eq!(cell_text_of(&model, "B11"), "4");
+    assert_eq!(cell_text_of(&model, "B14"), "4");
+}
