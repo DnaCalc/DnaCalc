@@ -194,3 +194,60 @@ errors), 430 are typed refusals, 3 not callable.
 Still open (dc-gync0): the 3,265-hash cohort per-entry run (needs the SHA store on this host or a Windows
 run: `dnacalc run <book> --all --macro-level guarded --json` under the same sandbox, steps in
 the lane's RUN-ON-WINDOWS.txt; the owning bead is named in dc-gync0's close note); Application.Run between procedures (dc-80m0f, needs a CalcVBA reentrant dynamic call).
+
+### Fixture run over all admitted local workbooks (dc-oxh8w.30, 2026-11-25)
+
+The fixture run (`dnacalc run <book> --all --fixtures --macro-level guarded --json`, same sandbox)
+now covers every admitted local workbook: the first 1,598 (above) and the other 2,582 (1 of them
+is not a ZIP archive, so 4,179 of 4,180 ran). Both parts ran before dc-oxh8w.35, so these are the
+numbers without the Build and Calculation members.
+
+| Entry outcome | First 1,598 | Other 2,581 | All 4,179 |
+| --- | ---: | ---: | ---: |
+| Success | 13,936 | 22,547 | 36,483 |
+| VBA run-time error | 7,330 | 11,778 | 19,108 |
+| Typed refusal | 4,867 | 7,969 | 12,836 |
+| Needs arguments | 3,267 | 5,255 | 8,522 |
+| Not callable | 3 | 0 | 3 |
+
+**The cohort is 31 projects.** 4,155 of the 4,180 admitted workbooks are copies of the engine's
+Excel calculation probes (`crates/calc-engine/tests/fixtures/excel-calc-probes`); grouping the
+workbooks by their entry names (probe copies share one project) leaves 31 distinct projects.
+Counted once per project the 4,179 workbooks give 374 success, 124 run-time error, 59 refused,
+56 needs-arguments entries (after dc-oxh8w.39; 374 / 119 / 61 / 56, plus 3 not callable, before).
+Ranking over distinct projects ([TSV](macro-host-ranking.tsv), `projects` and `distinct_project_entries`
+beside the per-workbook counts):
+
+| Missing member or command | Owner | Entries | Projects | Entries, every workbook |
+| --- | --- | ---: | ---: | ---: |
+| `_Application.Build` | dc-oxh8w.35 | 23 | 17 | 4,867 |
+| `_Application.Calculation` | dc-oxh8w.35 | 16 | 13 | 4,253 |
+| File-project event reads of cached or uncertified cells | dc-oxh8w.37 | 9 | 9 | 2,757 |
+| `_Workbook.VBProject` | dc-oxh8w.41 | 9 | 9 | 938 |
+| `_Application.MacroOptions` | dc-oxh8w.41 | 3 | 2 | 9 |
+| WithEvents subscriptions | - | 1 | 1 | 12 |
+
+Run-time errors 91 and 424 (42 and 40 entries over 17 projects) are probe Functions that read
+`Application.Caller` or an `observedSheet` object a prior Workbook_Open sets; Excel fails them the
+same way when called as commands, so they are not host gaps.
+
+**After the top two members.** Build and Calculation (dc-oxh8w.35) and the calculation settings
+(dc-oxh8w.39) were measured on one workbook per project (31 runs, the new binary each time).
+Each step moved the first blocker down the one `Note "profile"/"settings"` line every probe
+project prints at start:
+
+| Step | First blockers (entries / projects) | Entries: success / error / refused |
+| --- | --- | --- |
+| Before | Build 23 / 17, Calculation 16 / 13 | 374 / 119 / 61 |
+| dc-oxh8w.35 | CalculationVersion 23 / 17, CalculateBeforeSave 16 / 13 | 374 / 122 / 61 |
+| dc-oxh8w.39 | PrecisionAsDisplayed 21 / 15, CalculateBeforeSave (put) 16 / 13 | 374 / 124 / 59 |
+
+Successful entries do not rise yet: those entries read ten settings in one expression, and the
+last of them are not implemented (MultiThreadedCalculation needs a Windows descriptor
+regeneration, PrecisionAsDisplayed needs calc-doc to load `fullPrecision`, the CalculateBeforeSave
+put needs a document setter): all three are dc-oxh8w.40. File-project event reads are dc-oxh8w.37;
+`Workbook.VBProject` (the VBIDE object model: VBComponents, CodeModule) and `MacroOptions`
+(9 and 3 entries) are dc-oxh8w.41.
+
+Not done: the 3,265-hash cohort store (SHA-keyed) is not on this host (dc-oxh8w.30 close note;
+Windows steps in the lane's RUN-ON-WINDOWS.txt item 1).

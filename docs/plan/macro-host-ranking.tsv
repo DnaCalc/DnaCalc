@@ -1,5 +1,7 @@
-missing_member_or_command	owner	macro_entries_blocked	workbooks
-_Application.Build	dc-1nbp.5	4861	4155
-_Application.Calculation	dc-1nbp.5	3996	3996
-File-project event reads with cached or uncertified provenance	dc-snz.15	2757	2757
-_Application.MacroOptions	dc-1nbp.5	9	7
+missing_member_or_command	owner	distinct_project_entries	projects	workbook_entries	workbooks
+_Application.Build	dc-oxh8w.35	23	17	4867	4154
+_Application.Calculation	dc-oxh8w.35	16	13	4253	3995
+File-project event reads with cached or uncertified provenance	dc-oxh8w.37	9	9	2757	2757
+_Workbook.VBProject	dc-oxh8w.41	9	9	938	938
+spreadsheet WithEvents subscriptions are not modelled		1	1	12	12
+_Application.MacroOptions	dc-oxh8w.41	3	2	9	7
