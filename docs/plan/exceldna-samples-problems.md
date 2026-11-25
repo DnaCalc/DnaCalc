@@ -271,3 +271,27 @@ paths. Build logs and XLL paths are relative to the ww17 run directory.
 | ArrayMapCs, net472 and net6.0-windows | CS0138 at Functions.cs:4. The directive imports the XlCall type as a namespace. |
 | ComServer and DnaComServer, net6.0-windows | Excel-DNA's typelib packaging task stopped when it tried to start dscom. It was absent from PATH on this host. |
 | DynamicCompiledVB, net472 and net6.0-windows | BC36924 at RegistrationHelper.vb:12. The expression type uses the embedded interop Range type as a generic argument. The build stops before the previously reported dynamic compilation issue. |
+
+## Private Excel replay (2026-11-25, dc-z05nj.3)
+
+Excel 16.0.20625.20108 registered 122 x64 XLLs. They were 118 packed
+project/framework/package combinations and four unpacked controls. All
+122 registrations returned True. Of 44 checks that exercised an add-in,
+32 passed and 12 failed. The other 78 measured loading only. The
+`windows_excel_runtime` column records the formula or command, returned
+value, artifact hash and evidence location. Its evidence paths are relative
+to the ww17 `sample-runtime` directory.
+
+- **UsingLog4Net, net472.** `AddThemAndLog(2,3)` returned `#NAME?` from the
+  packed x64 add-in in both package modes. The unpacked controls returned 5.
+- **Registration.Sample, net462.** `dnaSayHello("Lane")` returned `#NAME?`
+  from the packed x64 add-in in both modes. The unpacked controls returned
+  text from both `dnaSayHello` and `dnaDirectString`.
+- **UsingDAO and UsingRDotNet.** `DBEngineVersion()` and `TestRDotNet()`
+  returned `#VALUE!` on both frameworks in both modes. The worksheet
+  values establish the runtime failures on this host.
+
+The 44 remaining packed x64 builds include ribbon, custom task panes and
+pre-registered COM and RTD samples that need a clean setup with their
+registry prerequisites. The add-in test workbooks and RTD/async calls
+beyond the recorded checks remain open in dc-z05nj.3.
