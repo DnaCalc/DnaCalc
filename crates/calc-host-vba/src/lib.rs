@@ -438,6 +438,7 @@ fn prepare_project(
     }
     let owner = Rc::new(owner);
     *application.owner.borrow_mut() = Rc::downgrade(&owner);
+    automation.set_lent_runner(Rc::new(book::LentBook(Rc::downgrade(&owner))));
     Ok(owner)
 }
 
