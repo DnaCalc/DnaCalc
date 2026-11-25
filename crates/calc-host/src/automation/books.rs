@@ -243,7 +243,7 @@ impl WorkbookAutomation {
                 other => match template_kind(other) {
                     Some(-4167) => factory.add()?,
                     Some(-4109 | 3 | 4) => {
-                        return Err(AutoError::not_modelled("Workbooks.Add of a chart or macro-sheet workbook", "dc-oxh8w.64"));
+                        return Err(AutoError::not_modelled("Workbooks.Add of a chart or macro-sheet workbook", "dc-oxh8w.75"));
                     }
                     _ => return Err(AutoError::excel(1004, "Workbooks.Add: Template must be a file name or an XlWBATemplate")),
                 },
@@ -274,7 +274,7 @@ impl WorkbookAutomation {
     /// `Workbook.Close` of the workbook the call comes from: it is the one running, so it stays open.
     fn workbook_close_own(&self, target: &ObjectRef, _call: &Call<'_>) -> Reply {
         self.with_target(target, |_, _| {
-            Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.64"))
+            Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.75"))
         })
     }
     fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -355,7 +355,7 @@ impl WorkbookAutomation {
         if !identity {
             return Some(Err(AutoError::not_modelled(
                 format!("{} of another open workbook without a session", call.label()),
-                "dc-oxh8w.64",
+                "dc-oxh8w.75",
             )));
         }
         if no_args(call).is_err() {
@@ -387,10 +387,10 @@ impl WorkbookAutomation {
         }
         flag(2)?;
         if save == Some(true) {
-            return Err(AutoError::not_modelled("Workbook.Close with SaveChanges True (saving the closed workbook)", "dc-oxh8w.64"));
+            return Err(AutoError::not_modelled("Workbook.Close with SaveChanges True (saving the closed workbook)", "dc-oxh8w.75"));
         }
         let runner = book.runner.as_ref().filter(|_| book.owned).ok_or_else(|| {
-            AutoError::not_modelled("Workbook.Close of a workbook the host opened", "dc-oxh8w.64")
+            AutoError::not_modelled("Workbook.Close of a workbook the host opened", "dc-oxh8w.75")
         })?;
         // Without SaveChanges Excel asks about unsaved changes; DNA Calc's macro host never asks, so the
         // changes are dropped (as with DisplayAlerts off).
@@ -419,7 +419,7 @@ impl WorkbookAutomation {
             if books.iter().any(|b| b.id == own || !b.owned || b.automation.as_ref().is_some_and(|a| a.is_lent())) {
                 return Err(AutoError::not_modelled(
                     "Workbooks.Close including the workbook whose macro is running",
-                    "dc-oxh8w.64",
+                    "dc-oxh8w.75",
                 ));
             }
             for book in &books {
@@ -453,7 +453,7 @@ fn template_kind(value: &AutoValue) -> Option<i32> {
 /// WriteResPassword, IgnoreReadOnlyRecommended, Origin, Delimiter, Editable, Notify, Converter,
 /// AddToMru, Local, CorruptLoad. A wrong type is run-time error 1004. The options that only matter
 /// to a text file, a link prompt, a read-only recommendation or the recent-file list change nothing
-/// for a workbook opened here; the others are refused (dc-oxh8w.64).
+/// for a workbook opened here; the others are refused (dc-oxh8w.75).
 fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
     let wrong = |name: &str| AutoError::excel(1004, format!("Workbooks.Open: the {name} argument has the wrong type"));
     let boolean = |index: usize, name: &str| match call.arg(index) {
@@ -473,14 +473,14 @@ fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
     // UpdateLinks (xlUpdateLinksUserSetting 1 ... 0-3) is not validated by value: Excel treats 0 and 2 and 3 alike for a file without links.
     number(1, "UpdateLinks")?;
     if boolean(2, "ReadOnly")? == Some(true) {
-        return Err(AutoError::not_modelled("Workbooks.Open ReadOnly:=True", "dc-oxh8w.64"));
+        return Err(AutoError::not_modelled("Workbooks.Open ReadOnly:=True", "dc-oxh8w.75"));
     }
     number(3, "Format")?;
     if text(4, "Password")?.is_some_and(|p| !p.is_empty()) {
-        return Err(AutoError::not_modelled("Workbooks.Open Password", "dc-oxh8w.64"));
+        return Err(AutoError::not_modelled("Workbooks.Open Password", "dc-oxh8w.75"));
     }
     if text(5, "WriteResPassword")?.is_some_and(|p| !p.is_empty()) {
-        return Err(AutoError::not_modelled("Workbooks.Open WriteResPassword", "dc-oxh8w.64"));
+        return Err(AutoError::not_modelled("Workbooks.Open WriteResPassword", "dc-oxh8w.75"));
     }
     boolean(6, "IgnoreReadOnlyRecommended")?;
     number(7, "Origin")?;
@@ -491,7 +491,7 @@ fn open_options(call: &Call<'_>) -> Result<(), AutoError> {
     boolean(12, "AddToMru")?;
     boolean(13, "Local")?;
     if number(14, "CorruptLoad")?.is_some_and(|n| n != 0) {
-        return Err(AutoError::not_modelled("Workbooks.Open CorruptLoad other than xlNormalLoad", "dc-oxh8w.64"));
+        return Err(AutoError::not_modelled("Workbooks.Open CorruptLoad other than xlNormalLoad", "dc-oxh8w.75"));
     }
     Ok(())
 }

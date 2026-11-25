@@ -584,7 +584,7 @@ End Function
         // The workbook whose macro runs stays open: a refusal naming its owner.
         for name in ["CloseSelf", "CloseAll"] {
             let refused = run(&mut session, &owner, &[AutoValue::text(name)]);
-            assert!(matches!(&refused, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.64"), "{name}: {refused:?}");
+            assert!(matches!(&refused, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.75"), "{name}: {refused:?}");
         }
         // Closing with SaveChanges True needs the save writer.
         second_book("Fourth.xlsm", OTHER);
@@ -617,7 +617,7 @@ End Function
         assert_eq!(text(opened), "fixture.xlsm/fixture.xlsm/4");
         let with = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenWith"), AutoValue::text("fixture.xlsm")]);
         assert_eq!(text(with), "fixture.xlsm/5", "options after FileName that change nothing here are accepted");
-        for (name, wanted) in [("OpenReadOnly", Some("dc-oxh8w.64")), ("OpenPassword", Some("dc-oxh8w.64")), ("AddChart", Some("dc-oxh8w.64")), ("OpenBadType", None)] {
+        for (name, wanted) in [("OpenReadOnly", Some("dc-oxh8w.75")), ("OpenPassword", Some("dc-oxh8w.75")), ("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
             let mut arguments = vec![AutoValue::text(&format!("Other.xlsm!{name}"))];
             if name != "AddChart" {
                 arguments.push(AutoValue::text("fixture.xlsm"));

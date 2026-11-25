@@ -213,7 +213,7 @@ pub struct Opened {
 
 /// Lets the macros of the opened workbook make workbooks: `Workbooks.Add` and `Workbooks.Open` read the
 /// file a path names from the file system (a relative path from the opened workbook's folder). An opened file
-/// carries no macros (no grant: Excel's automation security would decide that, dc-oxh8w.64).
+/// carries no macros (no grant: Excel's automation security would decide that, dc-oxh8w.75).
 fn install_workbook_loader(folder: Option<&std::path::Path>) {
     let folder = folder.map(std::path::Path::to_path_buf);
     calc_host_vba::install_application(calc_host_vba::ApplicationOptions {

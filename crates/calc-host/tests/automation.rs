@@ -8528,7 +8528,7 @@ fn dc_oxh8w_50__window_view_members_and_freeze_panes() {
 
 /// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value
 /// reads back, a non-Boolean is a type mismatch (as the iteration puts), a put without a value is 1004, and PrecisionAsDisplayed
-/// True is a typed refusal owned by dc-oxh8w.64 while False is accepted.
+/// True is a typed refusal owned by dc-oxh8w.75 while False is accepted.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
@@ -8549,7 +8549,7 @@ fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
     assert!(put(&book, "PrecisionAsDisplayed", AutoValue::Bool(false)).is_ok());
     assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
     let refused = put(&book, "PrecisionAsDisplayed", AutoValue::Bool(true)).unwrap_err();
-    assert!(matches!(refused, AutoError::NotModelled { owner: "dc-oxh8w.64", .. }), "{refused:?}");
+    assert!(matches!(refused, AutoError::NotModelled { owner: "dc-oxh8w.75", .. }), "{refused:?}");
     assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
     assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
 }
