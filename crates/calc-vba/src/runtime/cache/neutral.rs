@@ -90,6 +90,15 @@ impl api::Session for OwnedSession {
             .call_bound(handle(bound)?, args, max_steps)
             .map_err(error)
     }
+    fn call_bound_reentrant(
+        &self,
+        bound: &api::BoundProcedure,
+        args: &[api::Variant],
+    ) -> Result<api::Variant, api::Error> {
+        self.inner
+            .call_bound_reentrant(handle(bound)?, args)
+            .map_err(error)
+    }
     fn bind_slots(
         &self,
         module: &str,

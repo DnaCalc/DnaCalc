@@ -37,6 +37,25 @@ End Function
 Public Sub ViaRun()
  Application.Range(\"A2\").Value2 = Application.Run(\"Add2\", 20, 22)
 End Sub
+Public Sub Store(ByVal cell As String, ByVal v As Variant)
+ Application.Range(cell).Value2 = v
+End Sub
+Public Function Greet(ByVal who As String) As String
+ Greet = \"hello \" & who
+End Function
+Public Sub ViaRunSub()
+ Application.Run \"Store\", \"A4\", 7.5
+ Application.Range(\"A5\").Value2 = Application.Run(\"Greet\", \"bob\")
+End Sub
+Public Sub ViaRunCaught()
+ On Error Resume Next
+ Application.Run \"Boom\"
+ Application.Range(\"A6\").Value2 = Err.Number
+End Sub
+Public Sub ViaRunUncaught()
+ Application.Run \"Boom\"
+ Application.Range(\"A7\").Value2 = 1
+End Sub
 Public Sub RunMissing()
  On Error Resume Next
  Application.Run \"NoSuchMacro\"
@@ -171,16 +190,26 @@ fn a_denial_vba_catches_is_still_recorded_and_an_unmodelled_member_is_a_typed_re
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn application_run_raises_excels_error_for_a_missing_macro_and_refuses_a_nested_call_by_name() {
+fn application_run_runs_another_procedure_nested_and_raises_excels_error_for_a_missing_macro() {
     for backend in backends() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
-        // A procedure running another by Application.Run is a typed refusal until CalcVBA's call is
-        // reentrant (dc-80m0f); it is not a wrong value.
         let via = owner.run_procedure(&mut session, "Module1.ViaRun", &[]);
+        assert_eq!(via.outcome, Outcome::Success(ProcedureResult::Empty), "{via:?}");
+        assert!(matches!(cell(&session, 2, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 42.0));
+        // A Sub with arguments, a String result, and a nested run-time error, on each backend.
+        let sub = owner.run_procedure(&mut session, "Module1.ViaRunSub", &[]);
+        assert_eq!(sub.outcome, Outcome::Success(ProcedureResult::Empty), "{sub:?}");
+        assert!(matches!(cell(&session, 4, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 7.5));
+        assert!(matches!(cell(&session, 5, 1), Some(calc_host::CellInput::Text(t)) if t.text().to_string_lossy() == "hello bob"));
+        let caught = owner.run_procedure(&mut session, "Module1.ViaRunCaught", &[]);
+        assert_eq!(caught.outcome, Outcome::Success(ProcedureResult::Empty), "{caught:?}");
+        assert!(matches!(cell(&session, 6, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 11.0));
+        let uncaught = owner.run_procedure(&mut session, "Module1.ViaRunUncaught", &[]);
         assert!(
-            matches!(&via.outcome, Outcome::Refused { owner, .. } if owner == "dc-80m0f"),
-            "{via:?}"
+            matches!(&uncaught.outcome, Outcome::RuntimeError { number: 11, .. }),
+            "{uncaught:?}"
         );
+        assert!(!matches!(cell(&session, 7, 1), Some(calc_host::CellInput::Number(_))), "{backend:?} {uncaught:?}");
         let missing = owner.run_procedure(&mut session, "Module1.RunMissing", &[]);
         assert_eq!(missing.outcome, Outcome::Success(ProcedureResult::Empty), "{missing:?}");
         assert!(matches!(cell(&session, 3, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 1004.0));
