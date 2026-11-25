@@ -8255,6 +8255,7 @@ fn dc_oxh8w_50__window_view_members_and_freeze_panes() {
     assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
     let sheet = obj(invoke(&model, &window, "ActiveSheet", vec![]).unwrap());
     assert!(!text(&model, &sheet, "Name").is_empty());
+}
 
 /// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value
 /// reads back, a non-Boolean is a type mismatch (as the iteration puts), a put without a value is 1004, and PrecisionAsDisplayed
