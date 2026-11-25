@@ -211,6 +211,26 @@ pub struct Opened {
     pub sheet_name: String,
 }
 
+/// Lets the macros of the opened workbook make workbooks: `Workbooks.Add` and `Workbooks.Open` read the
+/// file a path names from the file system (a relative path from the opened workbook's folder). An opened file
+/// carries no macros (no grant: Excel's automation security would decide that, dc-oxh8w.75).
+fn install_workbook_loader(folder: Option<&std::path::Path>) {
+    let folder = folder.map(std::path::Path::to_path_buf);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: calc_vba::DEFAULT_STEP_BUDGET,
+        backend: None,
+        loader: Some(std::rc::Rc::new(move |path: &str| {
+            let path = std::path::Path::new(path);
+            let full = match &folder {
+                Some(folder) if path.is_relative() => folder.join(path),
+                _ => path.to_path_buf(),
+            };
+            std::fs::read(&full).map_err(|e| format!("{}: {e}", full.display()))
+        })),
+        grant: None,
+    });
+}
+
 /// Opens the engine's workbook. It exists before any add-in loads, as Excel's workbook does when
 /// an XLL is registered, so the add-ins' open routines already see it through the object model
 /// (Workbook Name, FullName, Path and ActiveSheet from this session).
@@ -273,6 +293,9 @@ pub fn open(
         }
         _ => None,
     };
+    if project.is_some() {
+        install_workbook_loader(workbook.and_then(std::path::Path::parent));
+    }
     book.set_file_identity(workbook_name, false);
     // Set before any add-in loads, so that a changed mode's own calculation raises no event.
     book.dispatch(SkinIntent::SetCalcMode(if automatic {

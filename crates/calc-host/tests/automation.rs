@@ -6655,7 +6655,9 @@ fn dc_oxh8w_61__borders_of_chart_and_plot_area_and_category_axis_formats() {
     }
     let r = invoke_kind(&model, &area, "Weight", InvokeKind::Put, vec![]);
     assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
-    let r = invoke(&model, &series, "Border", vec![]);
+    // A series that states no outline answers typed-refused until Excel's automatic styles are recorded (dc-oxh8w.60).
+    let series_border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let r = invoke(&model, &series_border, "LineStyle", vec![]);
     assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
 
     // A category axis states a tick-label format and unlinks.
@@ -8015,17 +8017,14 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
 /// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_47__protect_and_advanced_filter_refuse_with_their_owners() {
+fn dc_oxh8w_47__protect_refuses_with_its_owner() {
     let (_host, model) = setup();
     let sheets = worksheets(&model);
     let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
-    let range = obj(invoke(&model, &first, "Range", vec![AutoValue::text("A1:B3")]).unwrap());
     for member in ["Protect", "Unprotect"] {
         let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
         assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
     }
-    let r = invoke_kind(&model, &range, "AdvancedFilter", InvokeKind::Method, vec![AutoValue::I4(2)]);
-    assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.71"), "{r:?}");
 }
 
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
@@ -8473,6 +8472,92 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
+/// dc-jupjv: `FormatConditions.Add` of the top-10, above-average and duplicate-values types makes a rule of that type
+/// (Excel's defaults: top 10 items, above the average, duplicates). Their own members (Rank, TopBottom, AboveBelow,
+/// DupeUnique) need the Top10, AboveAverage and UniqueValues interfaces in the descriptor (RUN-ON-WINDOWS.txt).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
+    let (_host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let add = |kind: i32| obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
+    let top = add(5);
+    assert_eq!(int(invoke(&model, &top, "Type", vec![]).unwrap()), 5);
+    let average = add(12);
+    assert_eq!(int(invoke(&model, &average, "Type", vec![]).unwrap()), 12);
+    let dupes = add(8);
+    assert_eq!(int(invoke(&model, &dupes, "Type", vec![]).unwrap()), 8);
+    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
+}
+
+/// dc-lj4j5: `Style.NumberFormat` put changes the format of a style no cell uses yet; a range given the style shows it.
+/// Normal is in use by every cell, so changing it is refused with a typed not-modelled error; an unusable format code
+/// is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_number_format_put() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine5")]).unwrap());
+    invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &mine, "NumberFormat"), "0.00");
+    let cell = range(&model, "D2");
+    invoke_kind(&model, &cell, "Value", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine5")]).unwrap();
+    assert_eq!(text(&model, &cell, "NumberFormat"), "0.00");
+    assert_eq!(text(&model, &cell, "Text"), "30.00");
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-lj4j5: `Style.WrapText/ShrinkToFit/Locked/FormulaHidden` puts change a style no cell uses; a cell given the style
+/// shows them; Normal (in use) is refused typed; a non-boolean is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_flag_puts() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine6")]).unwrap());
+    for m in ["WrapText", "ShrinkToFit", "FormulaHidden"] {
+        invoke_kind(&model, &mine, m, InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        assert!(matches!(invoke(&model, &mine, m, vec![]).unwrap(), AutoValue::Bool(true)), "{m}");
+    }
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &mine, "Locked", vec![]).unwrap(), AutoValue::Bool(false)));
+    let cell = range(&model, "E2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine6")]).unwrap();
+    assert!(matches!(invoke(&model, &cell, "WrapText", vec![]).unwrap(), AutoValue::Bool(true)));
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "WrapText", InvokeKind::Put, vec![AutoValue::Bool(true)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "WrapText", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
+/// value is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_caption_put() {
+    let (_host, model, _) = blank_report();
+    let window = obj(invoke(&model, &model.application(), "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let before = text(&model, &window, "Caption");
+    assert_eq!(before, text(&model, &book, "Name"));
+    invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::text("Quarterly")]).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "Quarterly");
+    // The workbook's own name is unchanged.
+    assert_eq!(text(&model, &book, "Name"), before);
+    let r = invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::Object(book.clone())]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
 /// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
 /// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8663,6 +8748,57 @@ fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
     assert!(matches!(put(&book, "PrecisionAsDisplayed", AutoValue::text("x")), Err(AutoError::Status(_))));
 }
 
+/// dc-oxh8w.71: Range.AdvancedFilter xlFilterCopy copies the header and the records that meet the criteria range
+/// (the database-function criteria: a row of conditions per alternative, text matches a prefix, operators), to the
+/// CopyToRange; Unique drops repeated records; bad Action or a missing CopyToRange is 1004; in-place and
+/// multi-column CopyToRange are typed refusals.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_71__advanced_filter_copies_matching_records() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &first, "Range", vec![AutoValue::text(a)]).unwrap());
+    let put = |a: &str, v: AutoValue| {
+        put_value(&model, &sub(a), v).unwrap();
+    };
+    let data = [("Name", "Qty"), ("apple", "5"), ("pear", "20"), ("apple", "5"), ("plum", "7"), ("apricot", "30")];
+    for (i, (name, qty)) in data.iter().enumerate() {
+        let row = i + 1;
+        put(&format!("A{row}"), AutoValue::text(name));
+        match qty.parse::<f64>() {
+            Ok(n) => put(&format!("B{row}"), AutoValue::R8(n)),
+            Err(_) => put(&format!("B{row}"), AutoValue::text(qty)),
+        }
+    }
+    // Criteria: Name begins "ap" (any row below the labels is an alternative).
+    put("D1", AutoValue::text("Name"));
+    put("D2", AutoValue::text("ap"));
+    // A second alternative: Qty above 15 on the next row.
+    put("E1", AutoValue::text("Qty"));
+    put("E3", AutoValue::text(">15"));
+    let value = |a: &str| invoke_kind(&model, &sub(a), "Value", InvokeKind::Get, vec![]).unwrap();
+    let run = |args: Vec<AutoValue>| invoke_kind(&model, &sub("A1:B6"), "AdvancedFilter", InvokeKind::Method, args);
+    let copy_to = AutoValue::Object(sub("G1"));
+    // Row 2 of the criteria is Name "ap" AND Qty blank; row 3 is Qty >15 (Name blank): records 1,3,5 (apples, apricot) and 2 (pear 20).
+    run(vec![AutoValue::I4(2), AutoValue::Object(sub("D1:E3")), copy_to.clone(), AutoValue::Bool(false)]).unwrap();
+    let names: Vec<String> = (1..=6).map(|r| match value(&format!("G{r}")) { AutoValue::Text(t) => t.to_string_lossy(), _ => String::new() }).collect();
+    assert_eq!(names, ["Name", "apple", "pear", "apple", "apricot", ""]);
+    assert!(matches!(value("H5"), AutoValue::R8(n) if n == 30.0));
+    // Unique drops the second "apple 5".
+    run(vec![AutoValue::I4(2), AutoValue::Object(sub("D1:E3")), AutoValue::Object(sub("J1")), AutoValue::Bool(true)]).unwrap();
+    let names: Vec<String> = (1..=5).map(|r| match value(&format!("J{r}")) { AutoValue::Text(t) => t.to_string_lossy(), _ => String::new() }).collect();
+    assert_eq!(names, ["Name", "apple", "pear", "apricot", ""]);
+    // No criteria range: every record.
+    run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(sub("M1"))]).unwrap();
+    assert!(matches!(value("M6"), AutoValue::Text(_)));
+    let bad = |args: Vec<AutoValue>| matches!(run(args), Err(AutoError::Excel { number: 1004, .. }));
+    assert!(bad(vec![AutoValue::I4(3)]));
+    assert!(bad(vec![AutoValue::I4(2), AutoValue::Missing]));
+    let inplace = run(vec![AutoValue::I4(1), AutoValue::Missing]);
+    assert!(matches!(inplace, Err(AutoError::NotModelled { .. })), "{inplace:?}");
+}
+
 /// dc-oxh8w.43: Range.AutoFilter switches the filter on and off and sets one column's criterion through the
 /// host's own AutoFilter command; Worksheet.AutoFilterMode, FilterMode and ShowAllData read and clear it.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -8754,4 +8890,105 @@ fn dc_oxh8w_43__range_auto_filter_sets_criteria() {
         invoke_kind(&model, &sheet, "AutoFilterMode", InvokeKind::Put, vec![AutoValue::Bool(true)]),
         Err(AutoError::Excel { number: 1004, .. })
     ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2"], &["3", "4"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let width = |address: &str| invoke(&model, &range(&model, address), "ColumnWidth", vec![]).unwrap();
+    invoke_kind(&model, &range(&model, "A1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(20)]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    // xlPasteColumnWidths (8) sets the destination columns' widths and writes no cell.
+    call("A1:B2", "Copy", vec![]).unwrap();
+    call("E5", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("E1"), AutoValue::R8(n) if n == 20.0));
+    assert!(matches!(width("F1"), AutoValue::R8(n) if n == 30.0));
+    assert_eq!(cell_text_of(&model, "E5"), "", "no cell content is pasted");
+    // The widths stay on the clipboard for a second paste; a destination past column XFD is 1004.
+    call("H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("I1"), AutoValue::R8(n) if n == 30.0));
+    assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
+    // xlPasteAllUsingSourceTheme (13) and xlPasteAllMergingConditionalFormats (14) paste everything within one workbook.
+    for (paste, at) in [(13, "A10"), (14, "A13")] {
+        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
+    }
+    assert_eq!(cell_text_of(&model, "B11"), "4");
+    assert_eq!(cell_text_of(&model, "B14"), "4");
+}
+
+/// dc-oxh8w.67: `Series.Border` (Color, ColorIndex, LineStyle, Weight) and `ColorIndex` of the chart-area borders: stated,
+/// saved to the series' own `a:ln` (the fill stays) and read back after a save; bad values are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_67__series_border_and_color_index() {
+    let (host, model, chart, series) = labelled_chart();
+    let border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let put = |target: &ObjectRef, member: &str, value: i32| {
+        invoke_kind(&model, target, member, InvokeKind::Put, vec![AutoValue::I4(value)])
+    };
+    put(&border, "Color", 255).unwrap();
+    put(&border, "Weight", -4138).unwrap();
+    put(&border, "LineStyle", -4115).unwrap();
+    assert_eq!(int(invoke(&model, &border, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &border, "Weight", vec![]).unwrap()), -4138);
+    assert_eq!(int(invoke(&model, &border, "LineStyle", vec![]).unwrap()), -4115);
+    // The palette: index 3 is red, and the colour reads back as that index.
+    put(&border, "ColorIndex", 5).unwrap();
+    assert_eq!(int(invoke(&model, &border, "Color", vec![]).unwrap()), 0xFF_00_00);
+    assert_eq!(int(invoke(&model, &border, "ColorIndex", vec![]).unwrap()), 5);
+    for bad in [0, 57, -1] {
+        let r = put(&border, "ColorIndex", bad);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    let xml = saved_chart_xml(&host);
+    let ser = &xml[xml.find("<c:ser>").expect("ser")..xml.find("</c:ser>").unwrap()];
+    let ln = &ser[ser.find("<a:ln").expect("series a:ln")..];
+    assert!(ln.contains("w=\"19050\"") && ln.contains("<a:srgbClr val=\"0000FF\"/>") && ln.contains("<a:prstDash val=\"dash\"/>"), "{xml}");
+    put(&border, "LineStyle", -4142).unwrap();
+    assert_eq!(int(invoke(&model, &border, "LineStyle", vec![]).unwrap()), -4142);
+    assert!(saved_chart_xml(&host).contains("<a:noFill/>"));
+    // ColorIndex on a chart-area border.
+    let area = obj(invoke(&model, &obj(invoke(&model, &chart, "ChartArea", vec![]).unwrap()), "Border", vec![]).unwrap());
+    put(&area, "ColorIndex", 3).unwrap();
+    assert_eq!(int(invoke(&model, &area, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &area, "ColorIndex", vec![]).unwrap()), 3);
+}
+
+/// dc-oxh8w.67: the outline of a series of a chart the file holds is written into its own `c:spPr` and read back after a save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_67__a_series_outline_of_a_file_held_chart_survives_a_save() {
+    let open = |bytes: Vec<u8>| {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let border_of = |model: &WorkbookAutomation| {
+        let book = obj(invoke(model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+        let charts = obj(invoke(model, &book, "Charts", vec![]).unwrap());
+        let chart = obj(invoke_kind(model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+        let all = obj(invoke_kind(model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        let series = obj(invoke_kind(model, &all, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+        obj(invoke(model, &series, "Border", vec![]).unwrap())
+    };
+    let (host, model) = open(include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec());
+    let border = border_of(&model);
+    invoke_kind(&model, &border, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    invoke_kind(&model, &border, "Weight", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let (_host2, model2) = open(bytes);
+    let border2 = border_of(&model2);
+    assert_eq!(int(invoke(&model2, &border2, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model2, &border2, "Weight", vec![]).unwrap()), 4);
 }

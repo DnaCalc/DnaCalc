@@ -18,6 +18,16 @@ pub(super) fn fresh(color: Option<&str>) -> Vec<u8> {
     format!("<c:spPr xmlns:c=\"{C}\" xmlns:a=\"{A}\">{f}<a:ln>{f}</a:ln></c:spPr>").into_bytes()
 }
 
+/// A series' `c:spPr`: [`fresh`] when the series states no outline of its own, else its fill and that outline.
+pub(super) fn fresh_series(color: Option<&str>, line: &ChartBorder) -> Vec<u8> {
+    if *line == ChartBorder::default() {
+        return fresh(color);
+    }
+    let f = String::from_utf8(fill(color)).expect("RGB XML");
+    let ln = String::from_utf8(border_xml(line)).expect("XML");
+    format!("<c:spPr xmlns:c=\"{C}\" xmlns:a=\"{A}\">{f}{ln}</c:spPr>").into_bytes()
+}
+
 // `outline` distinguishes a:ln from c:spPr. Only fills are replaced; pen width, dash,
 // joins, effects, transforms, extensions and the source's namespace spelling stay intact.
 pub(super) fn replace(

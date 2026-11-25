@@ -130,6 +130,8 @@ pub struct ChartSeries {
     /// The series' fill (`c:spPr/a:solidFill`): `RRGGBB` (`a:srgbClr`) or a scheme colour's name
     /// (`a:schemeClr`, e.g. `accent2`).
     pub fill: Option<String>,
+    /// The series' own outline (`c:spPr/a:ln`): a bar's border, a line's line (dc-oxh8w.67).
+    pub line: ChartBorder,
     /// The counter of the series' `c16:uniqueId` in a chart this session made (dc-piw0.10 Q17): it
     /// only goes up, a deleted series' number is not reused, `SetSourceData` keeps the numbers of the
     /// series it reuses. `None` writes the series' `idx + 2`.

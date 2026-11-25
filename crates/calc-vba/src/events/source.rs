@@ -733,8 +733,11 @@ impl super::LoadedProject {
         // thread it is the ordinary top-level call.
         let reentrant = api::Session::call_bound_reentrant(&*self.session, &bound, &args);
         let outcome = match reentrant {
-            Err(api::Error::Reentry) if !nested => {
-                crate::runtime::spreadsheet::with_context(&EventSpreadsheet, || {
+            Err(api::Error::Reentry) => {
+                // No procedure of this session is running further up this thread: a top-level call.
+                // Nested inside another session's run (a macro of another workbook), the spreadsheet
+                // context of that run is already in place.
+                let call = || {
                     EVENT_SCOPE.set((None, lease, &refused), || {
                         api::Session::call_bound(&*self.session, &bound, &args, max_steps).map_err(
                             |e| {
@@ -743,7 +746,8 @@ impl super::LoadedProject {
                             },
                         )
                     })
-                })
+                };
+                if nested { call() } else { crate::runtime::spreadsheet::with_context(&EventSpreadsheet, call) }
             }
             other => other.map_err(|e| {
                 *failure.borrow_mut() = Some(e);

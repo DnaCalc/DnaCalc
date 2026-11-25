@@ -9,6 +9,14 @@ use super::*;
 pub trait BookRunner {
     /// `Application.Run` of `request` (an unqualified `Module.Name` or `Name`) in this workbook.
     fn run(&self, name: &str, request: &str, arguments: &[AutoValue]) -> Reply;
+    /// Whether `request` names a public procedure of this workbook (`Application.Run` of a bare name).
+    fn knows(&self, request: &str) -> bool;
+    /// One call on an object of this workbook (a sheet, a range, a name), made from another
+    /// workbook's macro: run against this workbook's own session.
+    fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply;
+    /// `Workbook.Close` of this workbook: raises `BeforeClose`; `Ok(false)` when a handler
+    /// cancelled it. `Err` when the workbook cannot be closed now (its macro is running).
+    fn close(&self) -> Result<bool, AutoError>;
 }
 
 /// Makes new workbooks for `Workbooks.Add` and `Workbooks.Open`; the host installs one.
@@ -17,6 +25,8 @@ pub trait BookFactory {
     fn add(&self) -> Result<u64, AutoError>;
     /// The workbook at `path`, registered and active. Returns its workbook identity.
     fn open(&self, path: &str) -> Result<u64, AutoError>;
+    /// A new workbook from the template file at `path` (`Workbooks.Add Template:=path`).
+    fn add_from(&self, path: &str) -> Result<u64, AutoError>;
 }
 
 /// See [`WorkbookAutomation::locate_book`].
@@ -33,12 +43,18 @@ pub enum BookTarget {
 struct Entry {
     automation: std::rc::Weak<WorkbookAutomation>,
     runner: Option<Rc<dyn BookRunner>>,
+    /// The application owns this workbook's session (`Workbooks.Add`/`Open`, or adopted), so it can close it.
+    owned: bool,
 }
 
 struct Books {
     entries: Vec<Entry>,
     next: u64,
     active: u64,
+    /// Activation history, most recent first: the workbook that becomes active when the active one closes.
+    history: Vec<u64>,
+    /// Workbooks opened with `Workbooks.Open ReadOnly:=True`.
+    read_only: Vec<u64>,
     factory: Option<Rc<dyn BookFactory>>,
 }
 
@@ -51,7 +67,7 @@ impl Drop for Books {
 }
 
 thread_local! {
-    static BOOKS: RefCell<Books> = RefCell::new(Books { entries: Vec::new(), next: 1, active: 0, factory: None });
+    static BOOKS: RefCell<Books> = RefCell::new(Books { entries: Vec::new(), next: 1, active: 0, history: Vec::new(), read_only: Vec::new(), factory: None });
 }
 
 /// The next workbook identity of this application; identities are unique across its workbooks.
@@ -72,6 +88,8 @@ pub fn set_book_factory(factory: Option<Rc<dyn BookFactory>>) {
 /// One open workbook as the collection lists it.
 pub(super) struct Listed {
     pub id: u64,
+    pub automation: Option<Rc<WorkbookAutomation>>,
+    pub owned: bool,
     pub full_name: String,
     pub runner: Option<Rc<dyn BookRunner>>,
 }
@@ -79,14 +97,19 @@ pub(super) struct Listed {
 impl WorkbookAutomation {
     /// Add this workbook to the application's open workbooks (once). The first one open is active.
     pub fn register(self: &Rc<Self>) {
-        self.register_with(None, false);
+        self.register_with(None, false, false);
+    }
+    /// Give this registered workbook a runner that does not own its session: it answers while the
+    /// session is lent to the workbook's own macro (`Application.Run` back into the running workbook).
+    pub fn set_lent_runner(self: &Rc<Self>, runner: Rc<dyn BookRunner>) {
+        self.register_with(Some(runner), false, false);
     }
     /// Register with the loan of its own session, so other workbooks can run it. `activate` makes
     /// it the active workbook, as opening or adding one does.
     pub fn register_owned(self: &Rc<Self>, runner: Rc<dyn BookRunner>, activate: bool) {
-        self.register_with(Some(runner), activate);
+        self.register_with(Some(runner), activate, true);
     }
-    fn register_with(self: &Rc<Self>, runner: Option<Rc<dyn BookRunner>>, activate: bool) {
+    fn register_with(self: &Rc<Self>, runner: Option<Rc<dyn BookRunner>>, activate: bool, owned: bool) {
         let Ok(meta) = self.metadata() else { return };
         BOOKS.with(|books| {
             let mut books = books.borrow_mut();
@@ -97,16 +120,25 @@ impl WorkbookAutomation {
             match existing {
                 Some(entry) => {
                     if runner.is_some() {
-                        entry.runner = runner;
+                        // A lent runner never replaces the runner of a session the application owns.
+                        if owned || !entry.owned {
+                            entry.runner = runner;
+                            entry.owned |= owned;
+                        }
                     }
                 }
                 None => books.entries.push(Entry {
                     automation: Rc::downgrade(self),
                     runner,
+                    owned,
                 }),
             }
             if activate || books.active == 0 {
                 books.active = meta.workbook;
+                books.history.retain(|id| *id != meta.workbook);
+                books.history.insert(0, meta.workbook);
+            } else if !books.history.contains(&meta.workbook) {
+                books.history.push(meta.workbook);
             }
         });
     }
@@ -117,11 +149,11 @@ impl WorkbookAutomation {
             books.borrow().entries.iter().filter_map(|e| {
                 let automation = e.automation.upgrade()?;
                 let book = automation.metadata().ok()?;
-                Some(Listed { id: book.workbook, full_name: book.full_name.clone(), runner: e.runner.clone() })
+                Some(Listed { id: book.workbook, automation: Some(automation.clone()), owned: e.owned, full_name: book.full_name.clone(), runner: e.runner.clone() })
             }).collect()
         });
         if !listed.iter().any(|b| b.id == meta.workbook) {
-            listed.push(Listed { id: meta.workbook, full_name: meta.full_name.clone(), runner: None });
+            listed.push(Listed { id: meta.workbook, automation: None, owned: false, full_name: meta.full_name.clone(), runner: None });
         }
         Ok(listed)
     }
@@ -143,6 +175,11 @@ impl WorkbookAutomation {
             })
             .map_or(BookTarget::Closed, |book| BookTarget::Other(book.runner)))
     }
+    /// The runners of the other open workbooks, in `Workbooks` order.
+    pub fn other_runners(&self) -> Result<Vec<Rc<dyn BookRunner>>, AutoError> {
+        let own = self.metadata()?.workbook;
+        Ok(self.open_books()?.into_iter().filter(|b| b.id != own).filter_map(|b| b.runner).collect())
+    }
     pub(super) fn register_books(handlers: &mut Handlers<Self>) {
         handlers.on("Application", "ActiveWorkbook", InvokeKind::Get, Self::active_workbook);
         handlers.on("Workbooks", "Count", InvokeKind::Get, Self::books_count);
@@ -151,6 +188,9 @@ impl WorkbookAutomation {
         handlers.on("Workbooks", "Add", InvokeKind::Method, Self::books_add);
         handlers.on("Workbooks", "Open", InvokeKind::Method, Self::books_open);
         handlers.on("Workbook", "Activate", InvokeKind::Method, Self::workbook_activate);
+        handlers.on("Workbook", "ReadOnly", InvokeKind::Get, Self::workbook_read_only);
+        handlers.on("Workbooks", "Close", InvokeKind::Method, Self::books_close);
+        handlers.on("Workbook", "Close", InvokeKind::Method, Self::workbook_close_own);
     }
     fn book_object(id: u64) -> AutoValue {
         AutoValue::Object(object("Workbook", ObjectKey::Workbook(id)))
@@ -205,14 +245,20 @@ impl WorkbookAutomation {
             if call.args.len() > 1 {
                 return Err(geometry::bad_count());
             }
-            // Template: only the default, a new worksheet workbook (xlWBATWorksheet = -4167).
-            match call.arg(0) {
-                AutoValue::Missing => {}
-                AutoValue::I2(-4167) | AutoValue::I4(-4167) => {}
-                AutoValue::R8(n) if *n == -4167. => {}
-                _ => return Err(AutoError::not_modelled("Workbooks.Add Template", "dc-oxh8w.56")),
-            }
-            Ok(Self::book_object(self.factory()?.add()?))
+            // Template: the default worksheet workbook (xlWBATWorksheet = -4167), or a template file.
+            let factory = self.factory()?;
+            let id = match call.arg(0) {
+                AutoValue::Missing => factory.add()?,
+                AutoValue::Text(path) => factory.add_from(&path.to_string_lossy())?,
+                other => match template_kind(other) {
+                    Some(-4167) => factory.add()?,
+                    Some(-4109 | 3 | 4) => {
+                        return Err(AutoError::not_modelled("Workbooks.Add of a chart or macro-sheet workbook", "dc-oxh8w.75"));
+                    }
+                    _ => return Err(AutoError::excel(1004, "Workbooks.Add: Template must be a file name or an XlWBATemplate")),
+                },
+            };
+            Ok(Self::book_object(id))
         })
     }
     fn books_open(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -223,26 +269,63 @@ impl WorkbookAutomation {
             let AutoValue::Text(path) = call.arg(0) else {
                 return Err(AutoError::excel(1004, "Workbooks.Open: the file name must be text"));
             };
-            if call.args.iter().skip(1).any(|a| !a.is_missing()) {
-                return Err(AutoError::not_modelled("Workbooks.Open options after FileName", "dc-oxh8w.56"));
-            }
-            Ok(Self::book_object(self.factory()?.open(&path.to_string_lossy())?))
+            let read_only = open_options(call)?;
+            let id = self.factory()?.open(&path.to_string_lossy())?;
+            BOOKS.with(|books| {
+                let mut books = books.borrow_mut();
+                books.read_only.retain(|r| *r != id);
+                if read_only {
+                    books.read_only.push(id);
+                }
+            });
+            Ok(Self::book_object(id))
+        })
+    }
+    fn make_active(id: u64) {
+        BOOKS.with(|books| {
+            let mut books = books.borrow_mut();
+            books.active = id;
+            books.history.retain(|h| *h != id);
+            books.history.insert(0, id);
+        });
+    }
+    /// `Workbook.Close` of the workbook the call comes from: it is the one running, so it stays open.
+    fn workbook_close_own(&self, target: &ObjectRef, _call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, _| {
+            Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.75"))
+        })
+    }
+    /// `Workbook.ReadOnly`: whether the workbook was opened read-only.
+    fn workbook_read_only(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            Ok(AutoValue::Bool(BOOKS.with(|books| books.borrow().read_only.contains(&meta.workbook))))
         })
     }
     pub(super) fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
-            BOOKS.with(|books| books.borrow_mut().active = meta.workbook);
+            Self::make_active(meta.workbook);
             Ok(AutoValue::Empty)
         })
     }
-    /// A call whose target belongs to another open workbook goes to that workbook's own session.
-    /// Only the members that read the workbook's identity route; the rest of its objects name
-    /// ranges and sheets this automation does not hold (dc-oxh8w.56).
-    pub(super) fn foreign_call(&self, target: &ObjectRef, call: &Call<'_>) -> Option<Reply> {
-        let id = match target.key {
-            ObjectKey::Workbook(id) => id,
-            ObjectKey::Sheets(id)
+    /// The workbook other than this one that holds the tracked range `reference`.
+    fn range_holder(&self, reference: &StoredReference, books: &[Listed]) -> Option<u64> {
+        if self.ranges.borrow().contains_key(reference) {
+            return None;
+        }
+        let own = self.metadata().ok()?.workbook;
+        books
+            .iter()
+            .filter(|b| b.id != own)
+            .find(|b| b.automation.as_ref().is_some_and(|a| a.ranges.borrow().contains_key(reference)))
+            .map(|b| b.id)
+    }
+    /// The other open workbook that owns `target`'s object, if it is not this one's.
+    fn foreign_owner(&self, target: &ObjectRef, books: &[Listed]) -> Option<u64> {
+        let id = match &target.key {
+            ObjectKey::Workbook(id)
+            | ObjectKey::Sheets(id)
             | ObjectKey::Worksheets(id)
             | ObjectKey::Charts(id)
             | ObjectKey::Names(id)
@@ -253,20 +336,51 @@ impl WorkbookAutomation {
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. }
             | ObjectKey::Worksheet { workbook: id, .. }
-            | ObjectKey::Report { workbook: id, .. } => id,
+            | ObjectKey::Report { workbook: id, .. } => *id,
+            ObjectKey::Range(reference)
+            | ObjectKey::RangeFormat(reference)
+            | ObjectKey::RangeEdge { reference, .. }
+            | ObjectKey::RangeView { reference, .. }
+            | ObjectKey::Areas(reference) => return self.range_holder(reference, books),
             _ => return None,
         };
-        let own = self.metadata().ok()?.workbook;
-        if id == own {
-            return None;
+        (id != self.metadata().ok()?.workbook).then_some(id)
+    }
+    /// `released` of an object another open workbook holds goes to that workbook.
+    pub(super) fn foreign_release(&self, target: &ObjectRef) -> bool {
+        let Ok(books) = self.open_books() else { return false };
+        let Some(id) = self.foreign_owner(target, &books) else { return false };
+        match books.iter().find(|b| b.id == id).and_then(|b| b.automation.as_ref()) {
+            Some(holder) => {
+                holder.released(target);
+                true
+            }
+            None => false,
         }
-        let book = self.open_books().ok()?.into_iter().find(|b| b.id == id)?;
-        let routed = matches!(target.key, ObjectKey::Workbook(_))
+    }
+    /// A call whose target belongs to another open workbook goes to that workbook's own session:
+    /// the loan it already holds while its macro runs, or the runner its application-owned session answers.
+    /// `None` when the target is this workbook's.
+    pub(super) fn foreign_call(&self, target: &ObjectRef, call: &Call<'_>) -> Option<Reply> {
+        let books = self.open_books().ok()?;
+        let id = self.foreign_owner(target, &books)?;
+        let book = books.into_iter().find(|b| b.id == id)?;
+        if matches!(target.key, ObjectKey::Workbook(_)) && call.member.name == "Close" {
+            return Some(self.close_book(&book, call));
+        }
+        if let Some(automation) = book.automation.as_ref().filter(|a| a.is_lent()) {
+            return Some(automation.invoke(target, call));
+        }
+        if let Some(runner) = &book.runner {
+            return Some(runner.invoke(target, call));
+        }
+        // A workbook with no session to route to still answers who it is.
+        let identity = matches!(target.key, ObjectKey::Workbook(_))
             && matches!(call.member.name.as_str(), "Name" | "FullName" | "Path" | "Activate");
-        if !routed {
+        if !identity {
             return Some(Err(AutoError::not_modelled(
-                format!("{} of another open workbook", call.label()),
-                "dc-oxh8w.56",
+                format!("{} of another open workbook without a session", call.label()),
+                "dc-oxh8w.75",
             )));
         }
         if no_args(call).is_err() {
@@ -277,10 +391,70 @@ impl WorkbookAutomation {
             "FullName" => AutoValue::text(&book.full_name),
             "Path" => AutoValue::text(book_path(&book.full_name)),
             _ => {
-                BOOKS.with(|books| books.borrow_mut().active = id);
+                Self::make_active(id);
                 AutoValue::Empty
             }
         }))
+    }
+    /// `Workbook.Close(SaveChanges, Filename, RouteWorkbook)` of another open workbook.
+    fn close_book(&self, book: &Listed, call: &Call<'_>) -> Reply {
+        if call.args.len() > 3 {
+            return Err(geometry::bad_count());
+        }
+        let flag = |index: usize| match call.arg(index) {
+            AutoValue::Missing => Ok(None),
+            AutoValue::Bool(b) => Ok(Some(*b)),
+            _ => Err(AutoError::excel(1004, "Workbook.Close: SaveChanges and RouteWorkbook must be Boolean")),
+        };
+        let save = flag(0)?;
+        if !matches!(call.arg(1), AutoValue::Missing | AutoValue::Text(_)) {
+            return Err(AutoError::excel(1004, "Workbook.Close: Filename must be text"));
+        }
+        flag(2)?;
+        if save == Some(true) {
+            return Err(AutoError::not_modelled("Workbook.Close with SaveChanges True (saving the closed workbook)", "dc-oxh8w.75"));
+        }
+        let runner = book.runner.as_ref().filter(|_| book.owned).ok_or_else(|| {
+            AutoError::not_modelled("Workbook.Close of a workbook the host opened", "dc-oxh8w.75")
+        })?;
+        // Without SaveChanges Excel asks about unsaved changes; DNA Calc's macro host never asks, so the
+        // changes are dropped (as with DisplayAlerts off).
+        if !runner.close()? {
+            return Ok(AutoValue::Empty);
+        }
+        Self::unregister(book.id);
+        Ok(AutoValue::Empty)
+    }
+    fn unregister(id: u64) {
+        BOOKS.with(|books| {
+            let mut books = books.borrow_mut();
+            books.entries.retain(|e| e.automation.upgrade().is_some_and(|a| a.workbook_identity().is_ok_and(|w| w != id)));
+            books.history.retain(|h| *h != id);
+            books.read_only.retain(|r| *r != id);
+            if books.active == id {
+                books.active = books.history.first().copied().unwrap_or(0);
+            }
+        });
+    }
+    /// `Workbooks.Close`: closes every open workbook.
+    fn books_close(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, _| {
+            no_args(call)?;
+            let books = self.open_books()?;
+            let own = self.metadata()?.workbook;
+            if books.iter().any(|b| b.id == own || !b.owned || b.automation.as_ref().is_some_and(|a| a.is_lent())) {
+                return Err(AutoError::not_modelled(
+                    "Workbooks.Close including the workbook whose macro is running",
+                    "dc-oxh8w.75",
+                ));
+            }
+            for book in &books {
+                if book.runner.as_ref().ok_or_else(busy)?.close()? {
+                    Self::unregister(book.id);
+                }
+            }
+            Ok(AutoValue::Empty)
+        })
     }
 }
 
@@ -289,4 +463,59 @@ fn index_book(books: &[Listed], index: f64) -> Option<&Listed> {
         return None;
     }
     books.get(index as usize - 1)
+}
+
+/// An `XlWBATemplate` argument of `Workbooks.Add` as its number.
+fn template_kind(value: &AutoValue) -> Option<i32> {
+    match value {
+        AutoValue::I2(n) => Some(i32::from(*n)),
+        AutoValue::I4(n) => Some(*n),
+        AutoValue::R8(n) if n.fract() == 0. && n.abs() < 1e9 => Some(*n as i32),
+        _ => None,
+    }
+}
+
+/// The options of `Workbooks.Open` after FileName: UpdateLinks, ReadOnly, Format, Password,
+/// WriteResPassword, IgnoreReadOnlyRecommended, Origin, Delimiter, Editable, Notify, Converter,
+/// AddToMru, Local, CorruptLoad. A wrong type is run-time error 1004. The options that only matter
+/// to a text file, a link prompt, a read-only recommendation or the recent-file list change nothing
+/// for a workbook opened here; ReadOnly is kept (`Workbook.ReadOnly`); the others are refused (dc-oxh8w.75).
+fn open_options(call: &Call<'_>) -> Result<bool, AutoError> {
+    let wrong = |name: &str| AutoError::excel(1004, format!("Workbooks.Open: the {name} argument has the wrong type"));
+    let boolean = |index: usize, name: &str| match call.arg(index) {
+        AutoValue::Missing | AutoValue::Empty => Ok(None),
+        AutoValue::Bool(b) => Ok(Some(*b)),
+        _ => Err(wrong(name)),
+    };
+    let number = |index: usize, name: &str| match call.arg(index) {
+        AutoValue::Missing | AutoValue::Empty => Ok(None),
+        other => template_kind(other).map(Some).ok_or_else(|| wrong(name)),
+    };
+    let text = |index: usize, name: &str| match call.arg(index) {
+        AutoValue::Missing | AutoValue::Empty => Ok(None),
+        AutoValue::Text(t) => Ok(Some(t.to_string_lossy())),
+        _ => Err(wrong(name)),
+    };
+    // UpdateLinks (xlUpdateLinksUserSetting 1 ... 0-3) is not validated by value: Excel treats 0 and 2 and 3 alike for a file without links.
+    number(1, "UpdateLinks")?;
+    let read_only = boolean(2, "ReadOnly")? == Some(true);
+    number(3, "Format")?;
+    if text(4, "Password")?.is_some_and(|p| !p.is_empty()) {
+        return Err(AutoError::not_modelled("Workbooks.Open Password", "dc-oxh8w.75"));
+    }
+    if text(5, "WriteResPassword")?.is_some_and(|p| !p.is_empty()) {
+        return Err(AutoError::not_modelled("Workbooks.Open WriteResPassword", "dc-oxh8w.75"));
+    }
+    boolean(6, "IgnoreReadOnlyRecommended")?;
+    number(7, "Origin")?;
+    text(8, "Delimiter")?;
+    boolean(9, "Editable")?;
+    boolean(10, "Notify")?;
+    number(11, "Converter")?;
+    boolean(12, "AddToMru")?;
+    boolean(13, "Local")?;
+    if number(14, "CorruptLoad")?.is_some_and(|n| n != 0) {
+        return Err(AutoError::not_modelled("Workbooks.Open CorruptLoad other than xlNormalLoad", "dc-oxh8w.75"));
+    }
+    Ok(read_only)
 }

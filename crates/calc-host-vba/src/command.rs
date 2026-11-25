@@ -256,7 +256,6 @@ impl WorkbookEvents {
         name: &str,
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
-        use calc_object_model::AutoError;
         let request = match name.rsplit_once('!') {
             Some((book, request)) => {
                 let book = book.trim();
@@ -270,18 +269,28 @@ impl WorkbookEvents {
                     BookTarget::Other(Some(runner)) => {
                         return runner.run(name, request.trim().trim_matches('\''), arguments);
                     }
-                    BookTarget::Other(None) => {
-                        return Err(AutoError::not_modelled(
-                            "_Application.Run back into the workbook that is running",
-                            "dc-oxh8w.56",
-                        ));
-                    }
+                    BookTarget::Other(None) => return Err(calc_host::automation::busy()),
                     BookTarget::Closed => return Err(cannot_run(name)),
                 }
             }
-            None => name,
+            None => {
+                // Not in this workbook: Excel's Run also finds the procedure in the other open workbooks.
+                if self.resolve(name.trim().trim_matches('\'')).is_err() {
+                    for runner in self.automation.other_runners()? {
+                        if runner.knows(name.trim().trim_matches('\'')) {
+                            return runner.run(name, name.trim().trim_matches('\''), arguments);
+                        }
+                    }
+                }
+                name
+            }
         };
         self.run_here(name, request, arguments)
+    }
+
+    /// Whether this project holds a public procedure `request` resolves to.
+    pub(crate) fn has_procedure(&self, request: &str) -> bool {
+        self.resolve(request).is_ok()
     }
 
     /// Run `request` (no workbook qualifier) in this project; `name` is the caller's text for messages.
@@ -424,13 +433,47 @@ End Function
 Public Function SecondName() As String
  SecondName = Workbooks(2).Name
 End Function
+Public Function WriteMain(ByVal v As Double) As Double
+ Workbooks(1).Worksheets(1).Range("B7").Value = v
+ WriteMain = Workbooks(1).Worksheets(1).Range("B7").Value
+End Function
+Public Function ReadMine(ByVal address As String) As Double
+ ReadMine = Worksheets(1).Range(address).Value
+End Function
+Public Function SheetName() As String
+ SheetName = Workbooks(1).Worksheets(1).Name & "|" & ThisWorkbook.Worksheets(1).Name
+End Function
 Public Function CallBack() As Double
- CallBack = Application.Run("Test Book.xlsm!Module1.Answer")
+ Dim n As String
+ n = "Test Book.xlsm!Module1.Answer"
+ CallBack = Application.Run(n, 40, 2)
 End Function
 Public Function OpenIt(ByVal path As String) As String
  Dim book As Workbook
  Set book = Workbooks.Open(path)
  OpenIt = book.Name & "/" & ActiveWorkbook.Name & "/" & Workbooks.Count
+End Function
+Public Function OpenWith(ByVal path As String) As String
+ Dim book As Workbook
+ Set book = Workbooks.Open(path, 0, False, , , , True, , , , False, , False)
+ OpenWith = book.Name & "/" & Workbooks.Count
+End Function
+Public Function OpenReadOnly(ByVal path As String) As String
+ Dim book As Workbook
+ Set book = Workbooks.Open(path, 0, True)
+ OpenReadOnly = book.Name & "/" & book.ReadOnly & "/" & Workbooks(1).ReadOnly
+End Function
+Public Function OpenBadType(ByVal path As String) As String
+ OpenBadType = Workbooks.Open(path, "often").Name
+End Function
+Public Function OpenPassword(ByVal path As String) As String
+ OpenPassword = Workbooks.Open(path, , , , "secret").Name
+End Function
+Public Function AddFrom(ByVal path As String) As String
+ AddFrom = Workbooks.Add(path).Name & "/" & Workbooks.Count
+End Function
+Public Function AddChart() As String
+ AddChart = Workbooks.Add(-4109).Name
 End Function
 Public Function AddOne() As String
  Workbooks.Add
@@ -460,9 +503,11 @@ End Function
         assert_eq!(text(second), "Other.xlsm");
         let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!Nope")]);
         assert!(matches!(missing, Err(AutoError::Excel { number: 1004, .. })), "{missing:?}");
-        // Running back into the workbook whose macro is running is a refusal naming its owner.
+        // Running back into the workbook whose macro is running runs it, nested.
+        let q = run(&mut session, &owner, &[AutoValue::text("QualifiedSelf")]);
+        assert!(matches!(q, Ok(AutoValue::R8(2.0))), "{q:?}");
         let back = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CallBack")]);
-        assert!(matches!(&back, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{back:?}");
+        assert!(matches!(back, Ok(AutoValue::R8(42.0))), "{back:?}");
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -504,14 +549,62 @@ End Function
             for bad in [AutoValue::I4(0), AutoValue::I4(3), AutoValue::text("none.xlsx")] {
                 assert!(get(&books, "Workbooks", "Item", vec![bad]).is_err());
             }
-            // Another workbook's sheets are not this automation's: a typed refusal.
-            let sheets = get(&by_name, "Workbook", "Worksheets", vec![]);
-            assert!(matches!(&sheets, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.56"), "{sheets:?}");
+            // Another workbook's sheets answer from that workbook.
+            let sheets = get(&by_name, "Workbook", "Worksheets", vec![]).unwrap();
+            let AutoValue::Object(sheets) = sheets else { panic!() };
+            assert!(matches!(get(&sheets, "Sheets", "Count", vec![]), Ok(AutoValue::I4(n)) if n >= 1));
             let activate = Descriptor::get().member(by_name.interface, "Activate", InvokeKind::Method).unwrap();
             model.invoke(&by_name, &Call { interface: by_name.interface, member: activate, args: vec![], lcid: 0 }).unwrap();
             let active = get(&app, "Application", "ActiveWorkbook", vec![]).unwrap();
             assert!(matches!(active, AutoValue::Object(o) if o.key == by_name.key));
         });
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn macros_reach_the_ranges_and_sheets_of_other_open_workbooks() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        // Other's macro writes and reads a cell of the first workbook, whose session is lent out.
+        let wrote = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!WriteMain"), AutoValue::R8(7.5)]);
+        assert!(matches!(wrote, Ok(AutoValue::R8(7.5))), "{wrote:?}");
+        let mine = run(&mut session, &owner, &[AutoValue::text("ReadMine"), AutoValue::text("B7")]);
+        assert!(matches!(mine, Ok(AutoValue::R8(7.5))), "the write landed in the first workbook: {mine:?}");
+        let theirs = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!ReadMine"), AutoValue::text("B7")]);
+        assert!(matches!(theirs, Ok(AutoValue::R8(0.0)) | Err(_)), "the other workbook's own B7 is untouched: {theirs:?}");
+        let names = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!SheetName")]);
+        assert_eq!(text(names), "Cases|Cases");
+        // The first workbook's macro writes and reads a cell of the other workbook: its own session answers.
+        let seen = run(&mut session, &owner, &[AutoValue::text("SeeOther")]);
+        assert!(matches!(seen, Ok(AutoValue::R8(42.0))), "{seen:?}");
+        let there = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!ReadMine"), AutoValue::text("C3")]);
+        assert!(matches!(there, Ok(AutoValue::R8(41.0))), "{there:?}");
+        let here = run(&mut session, &owner, &[AutoValue::text("ReadMine"), AutoValue::text("C3")]);
+        assert!(matches!(here, Ok(AutoValue::R8(0.0)) | Err(_)), "the first workbook's C3 is untouched: {here:?}");
+        let count = run(&mut session, &owner, &[AutoValue::text("OtherSheets")]);
+        assert!(matches!(count, Ok(AutoValue::R8(n)) if n >= 1.0), "{count:?}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn workbook_close_removes_an_owned_workbook() {
+        let (mut session, owner) = project();
+        second_book("Other.xlsm", OTHER);
+        let closed = run(&mut session, &owner, &[AutoValue::text("CloseOther")]);
+        assert!(matches!(closed, Ok(AutoValue::R8(n)) if n == 12.0), "one workbook left, then 1+1: {closed:?}");
+        let gone = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!WhoAmI")]);
+        assert!(matches!(gone, Err(AutoError::Excel { number: 1004, .. })), "{gone:?}");
+        // Excel makes the previously active workbook active again.
+        second_book("Third.xlsm", OTHER);
+        let active = run(&mut session, &owner, &[AutoValue::text("ActiveAfterClose")]);
+        assert_eq!(text(active), "Test Book.xlsm");
+        // The workbook whose macro runs stays open: a refusal naming its owner.
+        for name in ["CloseSelf", "CloseAll"] {
+            let refused = run(&mut session, &owner, &[AutoValue::text(name)]);
+            assert!(matches!(&refused, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.75"), "{name}: {refused:?}");
+        }
+        // Closing with SaveChanges True needs the save writer.
+        second_book("Fourth.xlsm", OTHER);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -539,8 +632,34 @@ End Function
         assert!(matches!(count, Ok(AutoValue::R8(3.0))), "{count:?}");
         let opened = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
         assert_eq!(text(opened), "fixture.xlsm/fixture.xlsm/4");
+        let with = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenWith"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(with), "fixture.xlsm/5", "options after FileName that change nothing here are accepted");
+        for (name, wanted) in [("OpenPassword", Some("dc-oxh8w.75")), ("AddChart", Some("dc-oxh8w.75")), ("OpenBadType", None)] {
+            let mut arguments = vec![AutoValue::text(&format!("Other.xlsm!{name}"))];
+            if name != "AddChart" {
+                arguments.push(AutoValue::text("fixture.xlsm"));
+            }
+            let result = run(&mut session, &owner, &arguments);
+            match (wanted, &result) {
+                (Some(bead), Err(AutoError::NotModelled { owner, .. })) => assert_eq!(*owner, bead, "{name}"),
+                (None, Err(AutoError::Excel { number: 1004, .. })) => {}
+                _ => panic!("{name}: {result:?}"),
+            }
+        }
+        let template = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddFrom"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(template), "Book2/6", "a workbook made from a template file is named BookN");
         let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("gone.xlsm")]);
         assert!(matches!(&missing, Err(AutoError::Excel { number: 1004, description }) if description.contains("could not be found")), "{missing:?}");
+        let read_only = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenReadOnly"), AutoValue::text("fixture.xlsm")]);
+        assert_eq!(text(read_only), "fixture.xlsm/True/False", "ReadOnly:=True opens a read-only workbook; the others stay writable");
+        let plain = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
+        assert!(plain.is_ok(), "{plain:?}");
+        // An unqualified name the running workbook does not hold is found in the other open workbooks;
+        // its own procedures come first.
+        let found = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("WhoAmI")]);
+        assert_eq!(text(found), "Other.xlsm");
+        let nowhere = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("NoSuchProcedure")]);
+        assert!(matches!(&nowhere, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{nowhere:?}");
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
@@ -573,6 +692,39 @@ End Function
 Public Property Get PropertyAnswer() As Double
  PropertyAnswer = 2
 End Property
+Public Function SeeOther() As Double
+ Workbooks(2).Worksheets(1).Range("C3").Value = 41
+ SeeOther = Workbooks(2).Worksheets(1).Range("C3").Value + 1
+End Function
+Public Function ReadMine(ByVal address As String) As Double
+ ReadMine = Worksheets(1).Range(address).Value
+End Function
+Public Function OtherSheets() As Double
+ OtherSheets = Workbooks(2).Worksheets.Count
+End Function
+Public Function CloseOther() As Double
+ Workbooks(2).Close False
+ CloseOther = Workbooks.Count * 10 + Application.Run("Module1.Answer", 1, 1)
+End Function
+Public Function RunBare(ByVal n As String) As String
+ RunBare = Application.Run(n)
+End Function
+Public Function QualifiedSelf() As Double
+ Dim n As String
+ n = "Test Book.xlsm!Module1.Answer"
+ QualifiedSelf = Application.Run(n, 1, 1)
+End Function
+Public Function CloseSelf() As Double
+ ThisWorkbook.Close False
+End Function
+Public Function CloseAll() As Double
+ Workbooks.Close
+End Function
+Public Function ActiveAfterClose() As String
+ Workbooks(2).Activate
+ Workbooks(2).Close False
+ ActiveAfterClose = ActiveWorkbook.Name
+End Function
 Public Sub Boom()
  Dim x As Long
  x = 0

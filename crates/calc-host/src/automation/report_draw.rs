@@ -75,6 +75,7 @@ impl WorkbookAutomation {
                     | ReportItem::ChartPaint(part, ..)
                     | ReportItem::ChartBorder(part, _)
                     | ReportItem::SeriesInterior(part, _)
+                    | ReportItem::SeriesBorder(part, _)
                     | ReportItem::Axis(part, _)
                     | ReportItem::AxisTitle(part, _)
                     | ReportItem::TickLabels(part, _),
@@ -668,6 +669,7 @@ impl WorkbookAutomation {
                 | ReportItem::DataLabels(_, place)
                 | ReportItem::DataLabel(_, place, _)
                 | ReportItem::SeriesInterior(_, place)
+                | ReportItem::SeriesBorder(_, place)
                 | ReportItem::ChartPaint(_, calc_object_model::Paint::Series(place), _),
             ..
         } = &target.key
