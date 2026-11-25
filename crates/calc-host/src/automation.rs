@@ -163,6 +163,8 @@ pub struct WorkbookAutomation {
     find: RefCell<find::FindState>,
     /// What the last Range.Copy or Range.Cut without a Destination left (dc-oxh8w.15).
     clipboard: RefCell<Option<clipboard::Clip>>,
+    /// The areas the last `Application.Goto` selected: `Goto` without a Reference returns to them (dc-oxh8w.49).
+    last_goto: RefCell<Option<Vec<GridArea>>>,
 }
 
 struct RangeLeases {
@@ -307,6 +309,7 @@ impl WorkbookAutomation {
             ranges: RefCell::default(),
             find: RefCell::default(),
             clipboard: RefCell::new(None),
+            last_goto: RefCell::new(None),
         }
     }
     /// Read the workbook profile's registered member handlers.

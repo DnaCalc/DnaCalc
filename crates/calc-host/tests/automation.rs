@@ -7863,6 +7863,46 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
     assert!(matches!(visible(&added), AutoValue::I4(2)));
 }
 
+/// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_47__protect_and_advanced_filter_refuse_with_their_owners() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let range = obj(invoke(&model, &first, "Range", vec![AutoValue::text("A1:B3")]).unwrap());
+    for member in ["Protect", "Unprotect"] {
+        let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
+    }
+    let r = invoke_kind(&model, &range, "AdvancedFilter", InvokeKind::Method, vec![AutoValue::I4(2)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.67"), "{r:?}");
+}
+
+/// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
+/// before any Goto it is a typed refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__goto_without_reference_returns_to_the_last_goto() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &first, "Range", vec![AutoValue::text(a)]).unwrap());
+    let goto = |args: Vec<AutoValue>| invoke_kind(&model, &app, "Goto", InvokeKind::Method, args);
+    let selection = || text(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Address");
+    let none = goto(vec![]);
+    assert!(matches!(none, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.49"), "{none:?}");
+    goto(vec![AutoValue::Object(sub("C3:D4"))]).unwrap();
+    invoke_kind(&model, &sub("F9"), "Select", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(selection(), "$F$9");
+    goto(vec![]).unwrap();
+    assert_eq!(selection(), "$C$3:$D$4");
+    invoke_kind(&model, &sub("A1"), "Select", InvokeKind::Method, vec![]).unwrap();
+    goto(vec![AutoValue::Missing, AutoValue::Bool(true)]).unwrap();
+    assert_eq!(selection(), "$C$3:$D$4");
+}
+
 /// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
 /// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
 #[cfg_attr(not(target_arch = "wasm32"), test)]
