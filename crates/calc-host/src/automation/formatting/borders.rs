@@ -317,6 +317,7 @@ impl WorkbookAutomation {
             OWNER,
             |session, reference| {
                 let range = reference.ok_or_else(geometry::type_mismatch)?;
+                self.guard_locked(session, range)?;
                 let mut stages = Vec::new();
                 for area in range.areas() {
                     stages.extend(plan(*area)?);
