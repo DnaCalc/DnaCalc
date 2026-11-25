@@ -197,6 +197,19 @@ pub struct Binning {
     pub overflow: Option<String>,
 }
 
+/// The outline of a chart area or plot area: what a file states, `None` where it states nothing (dc-oxh8w.61).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ChartBorder {
+    /// `a:ln` carries `a:noFill`: no outline is drawn.
+    pub none: bool,
+    /// Six-digit RGB of the outline's `a:solidFill`.
+    pub color: Option<String>,
+    /// `a:prstDash val`.
+    pub dash: Option<String>,
+    /// `a:ln w`, in EMU.
+    pub width: Option<u32>,
+}
+
 /// One chart on a sheet.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Chart {
@@ -232,6 +245,10 @@ pub struct Chart {
     pub area_fill: Option<String>,
     /// The plot area's fill (`c:plotArea/c:spPr`), six-digit RGB; `None` is the chart's own.
     pub plot_fill: Option<String>,
+    /// The chart area's outline (`c:chartSpace/c:spPr/a:ln`); all `None` is the chart's own (dc-oxh8w.61).
+    pub area_border: ChartBorder,
+    /// The plot area's outline (`c:plotArea/c:spPr/a:ln`).
+    pub plot_border: ChartBorder,
     /// Multiple rich runs or paragraphs need a text-range editing model.
     pub element_text_complex: std::collections::BTreeSet<String>,
     pub element_text: std::collections::BTreeMap<String, ChartTextStyle>,

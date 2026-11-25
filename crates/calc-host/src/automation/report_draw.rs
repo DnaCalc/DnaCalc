@@ -73,6 +73,7 @@ impl WorkbookAutomation {
                     | ReportItem::ChartArea(part)
                     | ReportItem::PlotArea(part)
                     | ReportItem::ChartPaint(part, ..)
+                    | ReportItem::ChartBorder(part, _)
                     | ReportItem::SeriesInterior(part, _)
                     | ReportItem::Axis(part, _)
                     | ReportItem::AxisTitle(part, _)

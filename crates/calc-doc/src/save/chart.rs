@@ -10,7 +10,7 @@ use crate::{
     opc::Package,
     xml::{XmlEvent, XmlPart},
 };
-use calc_doc_model::{Chart, ChartData, ChartPlot, ChartSeries, ModelRoot};
+use calc_doc_model::{Chart, ChartBorder, ChartData, ChartPlot, ChartSeries, ModelRoot};
 const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 pub(crate) mod cache;
@@ -167,6 +167,8 @@ fn source_with_xml(
     retained.element_text_complex = before.element_text_complex.clone();
     retained.area_fill = before.area_fill.clone();
     retained.plot_fill = before.plot_fill.clone();
+    retained.area_border = before.area_border.clone();
+    retained.plot_border = before.plot_border.clone();
     if retained != *before {
         return Err(invalid("Changes to the chart frame are not modelled"));
     }
@@ -467,8 +469,12 @@ fn source_with_xml(
                     return Err(invalid("The chart area has duplicate shape records"));
                 }
                 area_seen = true;
-                if before.area_fill != after.area_fill {
-                    let (end, bytes) = colour::replace_fill(&xml, &mut reader, span, after.area_fill.as_deref())?;
+                if before.area_fill != after.area_fill || before.area_border != after.area_border {
+                    let edit = colour::AreaEdit {
+                        fill: (before.area_fill != after.area_fill).then_some(after.area_fill.as_deref()),
+                        border: (before.area_border != after.area_border).then_some(&after.area_border),
+                    };
+                    let (end, bytes) = colour::replace_area(&xml, &mut reader, span, edit)?;
                     patches.push(((span.0, end), bytes));
                 } else {
                     reader.element_end()?;
@@ -491,11 +497,11 @@ fn source_with_xml(
         }
     }
     reader.end()?;
-    if before.area_fill != after.area_fill
+    if (before.area_fill != after.area_fill || before.area_border != after.area_border)
         && !area_seen
-        && let (Some(color), Some(at)) = (after.area_fill.as_deref(), area_at)
+        && let Some(at) = area_at
     {
-        patches.push(((at, at), colour::fresh_fill(Some(color))));
+        patches.push(((at, at), colour::fresh_fill(after.area_fill.as_deref(), &after.area_border)));
     }
     if !found {
         return Err(invalid("The part holds no chart"));
@@ -920,8 +926,12 @@ fn plot_area(
                     return Err(reader.invalid("The plot area has duplicate shape records (dc-oxh8w.31)"));
                 }
                 area_seen = true;
-                if before.plot_fill != after.plot_fill {
-                    let (end, bytes) = colour::replace_fill(xml, reader, span, after.plot_fill.as_deref())?;
+                if before.plot_fill != after.plot_fill || before.plot_border != after.plot_border {
+                    let edit = colour::AreaEdit {
+                        fill: (before.plot_fill != after.plot_fill).then_some(after.plot_fill.as_deref()),
+                        border: (before.plot_border != after.plot_border).then_some(&after.plot_border),
+                    };
+                    let (end, bytes) = colour::replace_area(xml, reader, span, edit)?;
                     patches.push(((span.0, end), bytes));
                 } else {
                     reader.element_end()?;
@@ -937,12 +947,9 @@ fn plot_area(
                 if i != before.plots.len() || a != before.axes.len() {
                     return Err(reader.invalid("Chart plot or axis count changed (dc-971p.46)"));
                 }
-                if before.plot_fill != after.plot_fill
-                    && !area_seen
-                    && let Some(color) = after.plot_fill.as_deref()
-                {
+                if (before.plot_fill != after.plot_fill || before.plot_border != after.plot_border) && !area_seen {
                     let at = area_at.unwrap_or(close);
-                    patches.push(((at, at), colour::fresh_fill(Some(color))));
+                    patches.push(((at, at), colour::fresh_fill(after.plot_fill.as_deref(), &after.plot_border)));
                 }
                 return Ok(end);
             }
