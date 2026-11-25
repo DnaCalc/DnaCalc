@@ -1523,22 +1523,54 @@ class SelfHealingTests(unittest.TestCase):
         try:
             from touchstone import client
             conn = self.connect(state)
-            n = 12
-            pending = conn.submit_groups([{"f": "DEADLINEON", "k": "n", "n": n, "v": [self.CRASH_MARK] * n}])
+            # a single call that runs past its deadline is its own timeout row, with its arguments
+            pending = conn.submit_groups([{"f": "DEADLINEON", "k": "n", "n": 1, "v": [self.CRASH_MARK]}])
             letters, answers = pending.raw(90)
-            # the crash budget (3) never refuses these: each call is its own timeout row, with its arguments
-            self.assertEqual(letters, ["x"] * n)
-            self.assertEqual({(a["reason"], a["function"], tuple(a["args"])) for a in answers},
-                             {("excel-deadline", "DEADLINEON", (self.CRASH_MARK,))})
+            self.assertEqual(letters, ["x"])
+            self.assertEqual((answers[0]["reason"], answers[0]["function"], tuple(answers[0]["args"])),
+                             ("excel-deadline", "DEADLINEON", (self.CRASH_MARK,)))
             self.assertFalse((state / "crash-list.jsonl").exists() and (state / "crash-list.jsonl").read_text().strip())
             self.assertEqual(broker.crash_times, {})
-            self.assertEqual(len(broker.deadline_times["DEADLINEON"]), n)
-            self.assertEqual(len((state / "deadline-list.jsonl").read_text().splitlines()), n)
+            self.assertEqual(len(broker.deadline_times["DEADLINEON"]), 1)
+            self.assertEqual(len((state / "deadline-list.jsonl").read_text().splitlines()), 1)
             self.assertTrue(self.wait_for(lambda: all(s.state == "idle" for s in broker.slots), 20))
             # a real crash of another function is still counted as a crash
             crash = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": 1, "v": [self.CRASH_MARK]}]).raw(60)
             self.assertEqual(crash[1][0]["reason"], "excel-crashed")
             self.assertEqual(len(broker.crash_times["CRASHON"]), 1)
+        finally:
+            stop()
+
+    def test_a_request_that_ran_past_its_deadline_twice_is_quarantined_and_costs_no_restart_cap(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "restart_cap": 1})
+        try:
+            from touchstone import client
+            conn = self.connect(state)
+            n = 12
+            pending = conn.submit_groups([{"f": "DEADLINEON", "k": "n", "n": n, "v": [self.CRASH_MARK] * n}])
+            with self.assertRaises(client.ServiceError) as caught:
+                pending.raw(90)
+            self.assertIn("excel-deadline", str(caught.exception))
+            # the request was killed twice at most, not once per call
+            self.assertLessEqual(len(broker.deadline_times.get("DEADLINEON", [])) + len(
+                [1 for line in (state / "deadline-list.jsonl").read_text().splitlines() if '"quarantined"' in line]), 4)
+            rows = [json.loads(line) for line in (state / "deadline-list.jsonl").read_text().splitlines()]
+            self.assertTrue(any(r.get("quarantined") and r["function"] == "DEADLINEON" and r["calls"] == n for r in rows), rows)
+            self.assertTrue(self.wait_for(lambda: all(s.state == "idle" for s in broker.slots), 20))
+            # deadline restarts do not count against the cap (cap is 1; every worker is still up and uncapped)
+            self.assertEqual([broker.window_attempts(s) for s in broker.slots], [0, 0, 0])
+            self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [TWO]}]).raw(30)[1], [TWO])
+        finally:
+            stop()
+
+    def test_a_restart_after_a_stall_or_a_missed_deadline_does_not_count_against_the_cap(self):
+        broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "restart_cap": 1})
+        try:
+            slot = broker.slots[0]
+            fut = asyncio.run_coroutine_threadsafe(broker.restart_slot(slot, counted=False), broker.loop)
+            fut.result(30)
+            self.assertEqual(broker.window_attempts(slot), 0)
+            self.assertIn(slot.state, ("idle", "new"))
         finally:
             stop()
 

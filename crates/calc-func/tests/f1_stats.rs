@@ -7897,3 +7897,69 @@ fn lognorm_density_variance_underflow_and_overflow_are_div0() {
         assert!(number(call(name, vec![n(10.0), n(0.0), n(1e-154), flag(true)])) >= 0.0);
     }
 }
+
+/// Excel 20527 (dc-j9k.309, .354): a significance of 309 or more places is #DIV/0! (10^309
+/// overflows) in PERCENTRANK, PERCENTRANK.INC and PERCENTRANK.EXC, after the out-of-range
+/// (#N/A) and the single-member checks; 308 places still answer.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn percentrank_significance_beyond_308_places_is_div0() {
+    for name in ["PERCENTRANK", "PERCENTRANK.INC", "PERCENTRANK.EXC"] {
+        let data = || col(&[1.0, 2.0, 4.0, 7.0, 11.0]);
+        error(call(name, vec![data(), n(3.3), n(309.0)]), Div0);
+        assert!(number(call(name, vec![data(), n(3.3), n(308.99999999)])) > 0.0); // truncates to 308
+        error(call(name, vec![data(), n(4.0), n(1e100)]), Div0);
+        error(call(name, vec![data(), n(100.0), n(309.0)]), NA);
+        error(call(name, vec![data(), n(3.3), n(-400.0)]), Num);
+        exact(call(name, vec![col(&[5.0]), n(5.0), n(309.0)]), 1.0);
+    }
+    exact(call("PERCENTRANK.INC", vec![col(&[1.0, 2.0, 4.0, 7.0, 11.0]), n(4.0), n(308.0)]), 0.5);
+}
+
+/// Excel 20527 (dc-j9k.310/.311/.312/.355/.356): the truncated rank is published from the
+/// 15-digit reading as N * 10^(places - k) / POWER(10, places), so high significance carries the
+/// scale's rounding: PERCENTRANK.INC of these two-member ranges differs from the plain
+/// truncation by 1 to 12 ulps.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn percentrank_publishes_the_fifteen_digit_reading_through_the_decimal_scale() {
+    let b = f64::from_bits;
+    let pair = |lo: u64, hi: u64| col(&[b(lo), b(hi)]);
+    for name in ["PERCENTRANK", "PERCENTRANK.INC"] {
+        exact(
+            call(name, vec![pair(0x403c_80c7_3bcd_cbc0, 0x408b_1fff_7237_acf1), n(b(0x4062_5ffe_0000_0000)), n(b(0x4063_3800_0000_0000))]),
+            b(0x3fc2_1145_962b_771d),
+        );
+        exact(
+            call(name, vec![pair(0x403c_80c7_3bcd_cbc0, 0x408b_1fff_7237_acf1), n(b(0x4052_5ffe_0000_0000)), n(b(0x4063_3800_0000_0000))]),
+            b(0x3fab_716e_2c52_88c6),
+        );
+        exact(
+            call(name, vec![pair(0xc08b_6e83_a2d1_de9e, 0x408d_ccfb_2936_3193), n(b(0x4072_2fc0_0000_0000)), n(b(0x4071_4002_0000_0000))]),
+            b(0x3fe4_6c06_7b1f_2ddf),
+        );
+        exact(
+            call(name, vec![col(&[1.0, 2.0, 4.0, 7.0, 11.0]), n(3.3), n(100.0)]),
+            b(0x3fda_6666_6666_6667),
+        );
+        exact(
+            call(name, vec![col(&[1.0, 2.0, 3.0, 4.0]), n(2.0), n(23.0)]),
+            f64::from_bits(0x3fd5_5555_5555_5550 + 0),
+        );
+    }
+}
+
+/// Excel 20527 (dc-j9k.313, .328, .331): SUMX2MY2, SUMX2PY2 and SUMXMY2 pair the cells in
+/// row-major order when the two ranges have the same count of cells, whatever their shapes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sum_of_squares_pairs_ranges_of_equal_count_with_different_shapes() {
+    let square = || arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+    let column = || col(&[1.0, 2.0, 4.0, 8.0]);
+    exact(call("SUMX2MY2", vec![square(), column()]), -55.0);
+    exact(call("SUMX2PY2", vec![square(), column()]), 115.0);
+    exact(call("SUMXMY2", vec![square(), column()]), 17.0);
+    for name in ["SUMX2MY2", "SUMX2PY2", "SUMXMY2"] {
+        error(call(name, vec![square(), col(&[1.0, 2.0, 3.0])]), NA);
+    }
+}

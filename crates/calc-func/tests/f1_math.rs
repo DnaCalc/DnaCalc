@@ -890,3 +890,19 @@ fn dc_ztvv_26_63_round_places_uses_symmetric_date_integer_floor() {
         exact(call(func, vec![n(283.0), n(near_neg_one)]), 283.0);
     }
 }
+
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.360; the whole grid 1-3999 x forms 0-4 was asked): forms 2-4 write
+/// 450-489 and 950-989 with L.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn roman_forms_2_to_4_use_l_for_450_and_950_bands() {
+    for form in [2.0, 3.0, 4.0] {
+        text(call("ROMAN", vec![n(3981.0), n(form)]), "MMMLMXXXI");
+        text(call("ROMAN", vec![n(450.0), n(form)]), "LD");
+        text(call("ROMAN", vec![n(488.0), n(form)]), "LDXXXVIII");
+        text(call("ROMAN", vec![n(1489.0), n(form)]), "MLDXXXIX");
+        text(call("ROMAN", vec![n(449.0), n(form)]), "CDIL");
+        text(call("ROMAN", vec![n(949.0), n(form)]), "CMIL");
+    }
+    text(call("ROMAN", vec![n(3981.0), n(1.0)]), "MMMLMXXXI");
+}
