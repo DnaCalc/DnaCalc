@@ -108,6 +108,8 @@ pub(crate) struct Edited {
     /// since the load; set by [`DocumentSnapshot::with_structural_edits`] even with no axis edit.
     sheet_rewriter: Option<Arc<dyn calc_doc_model::FormulaRewriter + Send + Sync>>,
     cache_state: Option<CalculationCacheState>,
+    /// `calcPr` settings an edit changed: (calcOnSave, fullPrecision), each `None` where the file's stands.
+    calc_overrides: (Option<bool>, Option<bool>),
     pivot_outputs: Arc<BTreeMap<CellKey, calc_doc_model::value::CalcValue>>,
     /// Custom XML items the save writes (added, or replacing the item of the same namespace).
     custom_xml: Vec<crate::CustomXmlItem>,
@@ -158,6 +160,7 @@ impl DocumentSnapshot {
                 structural: None,
                 sheet_rewriter: None,
                 cache_state: None,
+                calc_overrides: (None, None),
                 pivot_outputs: Default::default(),
                 custom_xml: Vec::new(),
                 repairs,
@@ -205,6 +208,16 @@ impl DocumentSnapshot {
         mode: crate::CalcMode,
     ) -> Self {
         self.with_calculation_save_state(dirty, completed, mode, false)
+    }
+
+    /// The workbook's `calcPr` settings a host changed since the load, written whatever the cache policy:
+    /// `calc_on_save` (CalculateBeforeSave) and `full_precision` (`false` is PrecisionAsDisplayed True);
+    /// `None` leaves the file's own.
+    pub fn with_calculation_overrides(mut self, calc_on_save: Option<bool>, full_precision: Option<bool>) -> Self {
+        if let Some(edit) = self.edit.as_mut() {
+            edit.calc_overrides = (calc_on_save, full_precision);
+        }
+        self
     }
 
     /// Attach calculation properties derived from the save's result state.

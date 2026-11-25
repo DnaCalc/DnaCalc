@@ -371,6 +371,7 @@ pub(super) fn plan(
         structural,
         sheet_rewriter,
         cache_state,
+        calc_overrides,
         repairs,
         ..
     } = edit;
@@ -636,6 +637,7 @@ pub(super) fn plan(
         && !filters_changed
         && !visibility_changed
         && iteration.is_none()
+        && *calc_overrides == (None, None)
         && !sheets_changed
     {
         return Ok(out);
@@ -1123,6 +1125,7 @@ pub(super) fn plan(
     if full_calc
         || cache_state.is_some()
         || iteration.is_some()
+        || *calc_overrides != (None, None)
         || !names.is_empty()
         || sheets_written
     {
@@ -1140,6 +1143,7 @@ pub(super) fn plan(
                 iteration,
                 &names,
                 cache_state.as_ref(),
+                *calc_overrides,
             )?,
         );
     }

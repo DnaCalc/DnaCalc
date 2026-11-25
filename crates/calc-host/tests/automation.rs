@@ -9585,3 +9585,58 @@ fn dc_p3rg9__window_caption_coercion_state_split_and_app_windows() {
     let split_true = put("Split", AutoValue::Bool(true));
     assert!(matches!(split_true, Err(AutoError::NotModelled { owner: "dc-p3rg9", .. })), "{split_true:?}");
 }
+
+/// rw12 finding 14 (dc-iq8o8): `Style.Locked` and `FormulaHidden` puts on an unused custom style reach the saved
+/// `<protection>` of its cellStyleXf, so a cell given the style reads them back after save and reopen.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__style_locked_and_formula_hidden_survive_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine8")]).unwrap());
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &mine, "FormulaHidden", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let cell = range(&model, "G2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine8")]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let again = range(&reopened, "G2");
+    assert!(matches!(invoke(&reopened, &again, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Locked lost on save");
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let style = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine8")]).unwrap());
+    assert!(matches!(invoke(&reopened, &style, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Style.Locked lost on save");
+    assert!(matches!(invoke(&reopened, &style, "FormulaHidden", vec![]).unwrap(), AutoValue::Bool(true)), "FormulaHidden lost on save");
+}
+
+/// rw12 finding 14 (dc-iq8o8): a write to an imported style no cell uses must not make Save fail with "Imported
+/// cellStyleXfs records cannot be replaced": it is refused typed (dc-lj4j5 owns file-style writes) and the save works.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__writing_an_unused_imported_style_does_not_break_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine9")]).unwrap();
+    // After a save and reopen the style is one the file holds, which no cell uses.
+    let mut first = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut first).unwrap();
+    let (reopened_host, reopened) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(first)), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let imported = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine9")]).unwrap());
+    let writes = [
+        ("WrapText", AutoValue::Bool(true)),
+        ("Locked", AutoValue::Bool(false)),
+        ("NumberFormat", AutoValue::text("0.0")),
+        ("HorizontalAlignment", AutoValue::I4(-4108)),
+    ];
+    for (member, value) in writes {
+        let r = invoke_kind(&reopened, &imported, member, InvokeKind::Put, vec![value]);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-lj4j5", .. })), "{member}: {r:?}");
+    }
+    let mut saved = Vec::new();
+    reopened_host.session.borrow_mut().save(&SavePolicy::default(), &mut saved).expect("Save still works");
+}
