@@ -7107,6 +7107,34 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     assert!(matches!(reply, Err(AutoError::Excel { number: 1004, .. })), "{reply:?}");
 }
 
+/// dc-oxh8w.43: Worksheet.Names lists only the names scoped to that worksheet; Add on it scopes a bare name to it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__worksheet_names_lists_the_sheet_scoped_names() {
+    let (host, model) = setup();
+    let first = sheet_names(&host)[0].clone();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let book_names = obj(invoke(&model, &book, "Names", vec![]).unwrap());
+    let sheet = obj(invoke_kind(&model, &obj(invoke(&model, &book, "Worksheets", vec![]).unwrap()), "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let sheet_scoped = obj(invoke(&model, &sheet, "Names", vec![]).unwrap());
+    let count = |names: &ObjectRef| match invoke(&model, names, "Count", vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(count(&sheet_scoped), 0);
+    invoke_kind(&model, &book_names, "Add", InvokeKind::Method, vec![AutoValue::text("Global1"), AutoValue::text("=1")]).unwrap();
+    assert_eq!(count(&sheet_scoped), 0, "a workbook name is not on the sheet's list");
+    let added = obj(invoke_kind(&model, &sheet_scoped, "Add", InvokeKind::Method, vec![AutoValue::text("Local"), AutoValue::text("=2")]).unwrap());
+    assert_eq!(text(&model, &added, "Name"), format!("{first}!Local"));
+    assert_eq!(count(&sheet_scoped), 1);
+    assert_eq!(count(&book_names), 2);
+    let found = obj(invoke_kind(&model, &sheet_scoped, "Item", InvokeKind::Method, vec![AutoValue::text(&format!("{first}!Local"))]).unwrap());
+    assert_eq!(found.key, added.key);
+    assert!(invoke_kind(&model, &sheet_scoped, "Item", InvokeKind::Method, vec![AutoValue::text("Global1")]).is_err());
+    let parent = obj(invoke(&model, &sheet_scoped, "Parent", vec![]).unwrap());
+    assert_eq!(text(&model, &parent, "Name"), first);
+}
+
 /// dc-oxh8w.22: Chart.Export counts its arguments (1004), answers False for a filter it has no
 /// encoder for, refuses while no rasteriser is installed (typed, owner dc-oxh8w.22), and otherwise draws the
 /// chart at its frame's size at 100% (300 x 200 points = 400 x 267 pixels) and writes the bytes it gets

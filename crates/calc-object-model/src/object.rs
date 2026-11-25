@@ -76,6 +76,13 @@ pub enum ObjectKey {
     },
     /// The defined names collection of the identified workbook.
     Names(u64),
+    /// The names scoped to one worksheet (`Worksheet.Names`).
+    SheetNames {
+        /// Host identity of the containing workbook.
+        workbook: u64,
+        /// The worksheet whose scoped names it lists.
+        sheet: SheetId,
+    },
     /// One defined name in an open workbook.
     Name {
         /// Host identity of the containing workbook.

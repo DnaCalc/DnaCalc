@@ -378,7 +378,11 @@ impl WorkbookAutomation {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             let scope = match &sheet_part {
-                None => calc_doc_model::NameScope::Workbook,
+                None => match target.key {
+                    // Worksheet.Names.Add scopes a bare name to that worksheet.
+                    ObjectKey::SheetNames { sheet, .. } => calc_doc_model::NameScope::Sheet(sheet),
+                    _ => calc_doc_model::NameScope::Workbook,
+                },
                 Some(part) => {
                     let wanted = match part.strip_prefix('\'').and_then(|p| p.strip_suffix('\'')) {
                         Some(quoted) => quoted.replace("''", "'"),
