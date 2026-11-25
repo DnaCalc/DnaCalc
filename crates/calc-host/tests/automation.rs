@@ -8516,6 +8516,24 @@ fn dc_lj4j5__style_number_format_put() {
     assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
 }
 
+/// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
+/// value is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_caption_put() {
+    let (_host, model, _) = blank_report();
+    let window = obj(invoke(&model, &model.application(), "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let before = text(&model, &window, "Caption");
+    assert_eq!(before, text(&model, &book, "Name"));
+    invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::text("Quarterly")]).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "Quarterly");
+    // The workbook's own name is unchanged.
+    assert_eq!(text(&model, &book, "Name"), before);
+    let r = invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::Object(book.clone())]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
 /// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
 /// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

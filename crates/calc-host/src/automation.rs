@@ -170,6 +170,8 @@ pub struct WorkbookAutomation {
     last_goto: RefCell<Option<Vec<GridArea>>>,
     /// The view state a macro sets on windows, per workbook and sheet (dc-oxh8w.50).
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
+    /// Window captions a macro set, by workbook (dc-p3rg9).
+    window_captions: RefCell<HashMap<u64, String>>,
 }
 
 struct RangeLeases {
@@ -319,6 +321,7 @@ impl WorkbookAutomation {
             clipboard: RefCell::new(None),
             last_goto: RefCell::new(None),
             window_views: RefCell::new(HashMap::new()),
+            window_captions: RefCell::new(HashMap::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
