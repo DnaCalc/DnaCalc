@@ -36,7 +36,8 @@ fn period_argument(value: f64) -> Result<f64, CumulativeFinanceEvalError> {
             WorksheetErrorCode::Value,
         ));
     }
-    if value < 1.0 || value > i32::MAX as f64 {
+    // Live Excel (dc-j9k.323): no upper limit (nper 2147483648 and 1e300 answer).
+    if value < 1.0 {
         return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
     }
     Ok(value)
@@ -44,8 +45,8 @@ fn period_argument(value: f64) -> Result<f64, CumulativeFinanceEvalError> {
 
 /// The whole periods from `start` to `end`: the first whole period at or after the start and the
 /// last at or before the end. An interval holding no whole period is empty.
-fn whole_periods(start: f64, end: f64) -> (i32, i32) {
-    (start.ceil() as i32, end.floor() as i32)
+fn whole_periods(start: f64, end: f64) -> (i64, i64) {
+    (start.ceil() as i64, end.floor() as i64)
 }
 
 fn payment_timing_arg(value: f64) -> Result<PaymentTiming, CumulativeFinanceEvalError> {
@@ -73,8 +74,8 @@ fn principal_sum(
     rate: f64,
     periods: f64,
     pv: f64,
-    start_period: i32,
-    end_period: i32,
+    start_period: i64,
+    end_period: i64,
     timing: PaymentTiming,
 ) -> Result<f64, CumulativeFinanceEvalError> {
     if let Some(total) =
@@ -87,6 +88,10 @@ fn principal_sum(
     } else {
         None
     };
+    // Without the closed form a span this long is not walked.
+    if end_period - start_period > 10_000_000 {
+        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
+    }
     let mut total = 0.0;
     for period in start_period..=end_period {
         let principal = if let Some(payment) = beginning_payment {
@@ -237,6 +242,40 @@ mod tests {
             actual.to_bits(),
             expected.to_bits(),
             "{actual} vs {expected}"
+        );
+    }
+
+    /// Live Excel (dc-j9k.323): nper and the periods have no i32 limit; the principal of a vanishing
+    /// loan is 0 and the interest of a huge-nper loan is the payment count times the payment.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn huge_nper_and_periods_have_no_i32_limit() {
+        // Excel's cell write stores a negative zero as +0.
+        let bits = |r: Result<f64, CumulativeFinanceEvalError>| r.map(|x| if x == 0.0 { 0 } else { x.to_bits() });
+        for nper in [2147483647.0, f64::from_bits(0x41dfffffffc00001), 2147483647.5, 2147483648.0, 1e10, 1e15, 1e300] {
+            assert_eq!(bits(cumprinc_kernel(0.1, nper, 1000.0, 1.0, 5.0, 0.0)), Ok(0), "nper {nper}");
+        }
+        assert_eq!(bits(cumprinc_kernel(0.1, 1e300, 1000.0, 2147483648.0, 2147483648.0, 0.0)), Ok(0));
+        assert_eq!(bits(cumprinc_kernel(0.1, 1e300, 1000.0, 4294967296.0, 4294967296.0, 0.0)), Ok(0));
+        assert_eq!(bits(cumprinc_kernel(0.1, 5e9, 1000.0, 3e9, 3000000001.0, 0.0)), Ok(0));
+        assert_eq!(
+            bits(cumipmt_kernel(0.1, f64::from_bits(0x41dfffffffc00001), 1000.0, 1.0, 5.0, 0.0)),
+            Ok(0xc07f400000000000)
+        );
+        assert_eq!(bits(cumipmt_kernel(0.1, 1e300, 1000.0, 2147483648.0, 2147483648.0, 0.0)), Ok(0xc059000000000000));
+        // The end still may not pass nper.
+        assert!(cumprinc_kernel(0.1, 100.0, 1000.0, 2147483647.5, 2147483647.5, 0.0).is_err());
+        // The cluster's representative.
+        assert_eq!(
+            bits(cumprinc_kernel(
+                f64::from_bits(0x4011d0fe294c2006),
+                f64::from_bits(0x41dfffffffc00001),
+                f64::from_bits(0x01a56e1fc2f8f358),
+                f64::from_bits(0x41856ac2ea528084),
+                f64::from_bits(0x41b115b63d2a994f),
+                1.0
+            )),
+            Ok(0)
         );
     }
 
