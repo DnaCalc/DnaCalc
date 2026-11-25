@@ -1,6 +1,9 @@
 //! Worksheet formatting uses the authored Format Cells command and style table.
 use super::*;
-use crate::{FormatPatch, SkinIntent, WorkbookCommand, format_samples, style_alignment};
+use crate::{
+    Axis, AxisFormat, FormatPatch, HostState, SkinIntent, WorkbookCommand, format_samples,
+    style_alignment,
+};
 
 const OWNER: &str = "dc-oxh8w.2";
 
@@ -22,6 +25,7 @@ const VERTICAL: &[(i32, &str)] = &[
     (-4130, "justify"),
     (-4117, "distributed"),
 ];
+const XL_VERTICAL_TEXT: i32 = -4166;
 
 impl WorkbookAutomation {
     pub(super) fn register_formatting(handlers: &mut Handlers<Self>) {
@@ -63,6 +67,44 @@ impl WorkbookAutomation {
         );
         handlers.on("Range", "WrapText", InvokeKind::Get, Self::wrap_text);
         handlers.on("Range", "WrapText", InvokeKind::Put, Self::put_wrap_text);
+        handlers.on("Range", "IndentLevel", InvokeKind::Get, Self::indent_level);
+        handlers.on(
+            "Range",
+            "IndentLevel",
+            InvokeKind::Put,
+            Self::put_indent_level,
+        );
+        handlers.on("Range", "Orientation", InvokeKind::Get, Self::orientation);
+        handlers.on(
+            "Range",
+            "Orientation",
+            InvokeKind::Put,
+            Self::put_orientation,
+        );
+        handlers.on(
+            "Range",
+            "ColumnWidth",
+            InvokeKind::Get,
+            |host, target, call| host.dimension(target, call, Axis::Columns),
+        );
+        handlers.on(
+            "Range",
+            "ColumnWidth",
+            InvokeKind::Put,
+            |host, target, call| host.put_dimension(target, call, Axis::Columns),
+        );
+        handlers.on(
+            "Range",
+            "RowHeight",
+            InvokeKind::Get,
+            |host, target, call| host.dimension(target, call, Axis::Rows),
+        );
+        handlers.on(
+            "Range",
+            "RowHeight",
+            InvokeKind::Put,
+            |host, target, call| host.put_dimension(target, call, Axis::Rows),
+        );
     }
 
     fn horizontal_alignment(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -91,6 +133,143 @@ impl WorkbookAutomation {
         })
     }
 
+    fn indent_level(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.read_alignment(target, call, AutoValue::I4, |alignment| {
+            let indent = alignment.and_then(|a| a.indent.as_deref()).unwrap_or("0");
+            indent.parse().map_err(|_| {
+                AutoError::not_modelled(format!("Range.IndentLevel stored as {indent}"), OWNER)
+            })
+        })
+    }
+
+    fn put_indent_level(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.put_format(target, call, || {
+            let level = integral_format_arg(call)?;
+            if !(0..=15).contains(&level) {
+                return Err(format_error());
+            }
+            Ok(FormatPatch {
+                indent: Some(level as u16),
+                ..Default::default()
+            })
+        })
+    }
+
+    fn orientation(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.read_alignment(target, call, AutoValue::I4, |alignment| {
+            let rotation = alignment
+                .and_then(|a| a.text_rotation.as_deref())
+                .unwrap_or("0");
+            match rotation.parse::<i32>() {
+                Ok(n @ 0..=90) => Ok(n),
+                Ok(n @ 91..=180) => Ok(90 - n),
+                Ok(255) => Ok(XL_VERTICAL_TEXT),
+                _ => Err(AutoError::not_modelled(
+                    format!("Range.Orientation stored as {rotation}"),
+                    OWNER,
+                )),
+            }
+        })
+    }
+
+    fn put_orientation(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.put_format(target, call, || {
+            let rotation = match integral_format_arg(call)? {
+                n @ -90..=90 => n as i16,
+                -4128 => 0,   // xlHorizontal
+                -4171 => 90,  // xlUpward
+                -4170 => -90, // xlDownward
+                XL_VERTICAL_TEXT => 255,
+                _ => return Err(format_error()),
+            };
+            Ok(FormatPatch {
+                rotation: Some(rotation),
+                ..Default::default()
+            })
+        })
+    }
+
+    fn dimension(&self, target: &ObjectRef, call: &Call<'_>, axis: Axis) -> Reply {
+        format_arity(call, 0)?;
+        self.with_range(target, |access, _, range, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled(
+                    format!("{} inside a worksheet invocation", call.label()),
+                    OWNER,
+                ));
+            };
+            let host = session.host();
+            let sheet = range.sheet();
+            check_dimension_font(host, axis, call)?;
+            let size = |format| match axis {
+                Axis::Rows => host.row_points_of(sheet, format),
+                Axis::Columns => host.column_characters_of(sheet, format),
+            };
+            let layouts = host.model().definitions().axis_layouts();
+            let mut uniform = None;
+            for area in range.areas() {
+                let (first, last) = axis_span(*area, axis);
+                let mut explicit = 0;
+                for (_, format) in layouts
+                    .bands(sheet, axis)
+                    .skip_while(|(index, _)| *index < first)
+                    .take_while(|(index, _)| *index <= last)
+                {
+                    let current = size(format);
+                    if *uniform.get_or_insert(current) != current {
+                        return Ok(AutoValue::Null);
+                    }
+                    explicit += 1;
+                }
+                if explicit < last - first + 1 {
+                    let default = size(AxisFormat::default());
+                    if *uniform.get_or_insert(default) != default {
+                        return Ok(AutoValue::Null);
+                    }
+                }
+            }
+            Ok(AutoValue::R8(
+                uniform.unwrap_or_else(|| size(AxisFormat::default())),
+            ))
+        })
+    }
+
+    fn put_dimension(&self, target: &ObjectRef, call: &Call<'_>, axis: Axis) -> Reply {
+        format_arity(call, 1)?;
+        let size = super::report_draw::number(call.arg(0)).map_err(|_| format_error())?;
+        let rows = axis == Axis::Rows;
+        let limit = if rows { 409.0 } else { 255.0 };
+        if !(0.0..=limit).contains(&size) {
+            return Err(format_error());
+        }
+        self.mutate_areas_with_owner(target, call, OWNER, |session, range| {
+            let [area] = range.areas() else {
+                return Err(AutoError::not_modelled(
+                    format!("{} with multiple areas", call.label()),
+                    OWNER,
+                ));
+            };
+            if !rows && size > 0.0 {
+                check_dimension_font(session.host(), axis, call)?;
+                if size < 1.0 {
+                    return Err(AutoError::not_modelled(
+                        "ColumnWidth between zero and one character",
+                        OWNER,
+                    ));
+                }
+            }
+            let (first, last) = axis_span(*area, axis);
+            Ok(SkinIntent::Command(WorkbookCommand::AxisFormat {
+                sheet: area.sheet(),
+                rows,
+                first,
+                count: last - first + 1,
+                size_bits: Some(size.to_bits()),
+                hidden: None,
+            }))
+        })
+    }
+
     fn read_alignment<T: PartialEq>(
         &self,
         target: &ObjectRef,
@@ -98,7 +277,7 @@ impl WorkbookAutomation {
         value: impl Fn(T) -> AutoValue,
         property: impl Fn(Option<&calc_doc_model::Alignment>) -> Result<T, AutoError>,
     ) -> Reply {
-        no_args(call)?;
+        format_arity(call, 0)?;
         self.with_range(target, |access, _, range, _| {
             let Access::Session(session, _) = access else {
                 return Err(AutoError::not_modelled(
@@ -152,7 +331,7 @@ impl WorkbookAutomation {
     }
 
     fn number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        no_args(call)?;
+        format_arity(call, 0)?;
         self.with_range(target, |access, _, range, _| {
             let Access::Session(session, _) = access else {
                 return Err(AutoError::not_modelled(
@@ -207,10 +386,8 @@ impl WorkbookAutomation {
         call: &Call<'_>,
         patch: impl Fn() -> Result<FormatPatch, AutoError>,
     ) -> Reply {
-        self.mutate_areas(target, call, |_, range| {
-            if call.args.len() != 1 {
-                return Err(geometry::bad_count());
-            }
+        format_arity(call, 1)?;
+        self.mutate_areas_with_owner(target, call, OWNER, |_, range| {
             let patch = patch()?;
             Ok(SkinIntent::Command(WorkbookCommand::FormatCells {
                 areas: range.areas().to_vec(),
@@ -218,6 +395,44 @@ impl WorkbookAutomation {
             }))
         })
     }
+}
+
+fn check_dimension_font(host: &HostState, axis: Axis, call: &Call<'_>) -> Result<(), AutoError> {
+    if axis == Axis::Columns && crate::facts::maximum_digit_width_at(host.styles(), 96.0).is_none()
+    {
+        return Err(AutoError::not_modelled(
+            format!("{} with an unmeasured Normal font", call.label()),
+            OWNER,
+        ));
+    }
+    Ok(())
+}
+
+fn axis_span(area: GridArea, axis: Axis) -> (u32, u32) {
+    match axis {
+        Axis::Rows => (area.first().row(), area.last().row()),
+        Axis::Columns => (area.first().column(), area.last().column()),
+    }
+}
+
+fn format_arity(call: &Call<'_>, expected: usize) -> Result<(), AutoError> {
+    if call.args.len() != expected {
+        return Err(format_error());
+    }
+    Ok(())
+}
+
+fn format_error() -> AutoError {
+    AutoError::excel(1004, "Application-defined or object-defined error")
+}
+
+fn integral_format_arg(call: &Call<'_>) -> Result<i32, AutoError> {
+    let value = super::report_draw::number(call.arg(0)).map_err(|_| format_error())?;
+    let integer = value as i32;
+    if f64::from(integer) != value {
+        return Err(format_error());
+    }
+    Ok(integer)
 }
 
 fn alignment_value(
@@ -238,15 +453,10 @@ fn alignment_value(
 }
 
 fn alignment_keyword(values: &[(i32, &str)], call: &Call<'_>) -> Result<String, AutoError> {
-    let value = super::report_draw::number(call.arg(0)).map_err(|_| {
-        AutoError::not_modelled(
-            format!("{} coercion to an alignment constant", call.label()),
-            OWNER,
-        )
-    })?;
+    let value = integral_format_arg(call)?;
     values
         .iter()
-        .find(|(constant, _)| f64::from(*constant) == value)
+        .find(|(constant, _)| *constant == value)
         .map(|(_, name)| (*name).to_owned())
-        .ok_or_else(|| AutoError::excel(1004, ""))
+        .ok_or_else(format_error)
 }
