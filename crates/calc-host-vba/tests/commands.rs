@@ -56,6 +56,9 @@ Public Sub ViaRunUncaught()
  Application.Run \"Boom\"
  Application.Range(\"A7\").Value2 = 1
 End Sub
+Public Sub RunForever()
+ Application.Run \"RunForever\"
+End Sub
 Public Sub RunMissing()
  On Error Resume Next
  Application.Run \"NoSuchMacro\"
@@ -256,5 +259,17 @@ fn required_scalar_parameters_get_a_documented_fixture() {
         assert_eq!(entry("WithDefault").argument_fixture(), Some(vec![]));
         assert_eq!(entry("TakesRange").argument_fixture(), None);
         assert_eq!(entry("TakesRest").argument_fixture(), None);
+    }
+}
+
+/// A Sub that runs itself through Application.Run ends: a nested run shares the call's step budget,
+/// so recursion cannot outlast it (dc-oxh8w.34; Excel itself stops at its stack limit).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn application_run_recursion_ends_within_the_calls_step_budget() {
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
+        let run = owner.run_procedure(&mut session, "Module1.RunForever", &[]);
+        assert!(matches!(&run.outcome, Outcome::RuntimeError { number: 28, .. }), "{backend:?} {run:?}");
     }
 }
