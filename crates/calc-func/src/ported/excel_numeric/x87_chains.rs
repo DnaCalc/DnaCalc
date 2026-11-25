@@ -223,7 +223,8 @@ pub(super) fn stirling_series_stored(n: f64) -> f64 {
 /// `ln(1 + u)` as Excel's internal logarithm forms it, times `c`, the product stored. For
 /// `|u| < 3/8` the logarithm is `2 S`: `2 + u` is stored, `v = u / (2 + u)` runs the series of
 /// `atanh v`, and `S` is the stored sum of the stored `v` and the tail, as in
-/// [`excel_deviance_series`]. From `3/8` it is the public LN of the stored `1 + u`.
+/// [`excel_deviance_series`]. At the smallest normal inputs the exact half
+/// survives until doubling. From `3/8` it is the public LN of the stored `1 + u`.
 ///
 /// `n ln(1 - p)` in BINOM.DIST's zero-success mass: 11,901 of 11,901 bank rows, where LN of the
 /// stored `1 - p` misses below `p = 3/8`, as the mass does for all `p` above. The bound was
@@ -233,19 +234,24 @@ pub(crate) fn excel_log1p_times(c: f64, u: f64) -> f64 {
 }
 
 fn log1p_times<F: Fpu>(c: &Ext80, u: f64) -> f64 {
-    let product = if u.abs() < 0.375 {
+    let logarithm = if (f64::MIN_POSITIVE..2.0 * f64::MIN_POSITIVE).contains(&u.abs()) {
+        // Here 2 + u rounds to 2 and the atanh tail rounds to zero.
+        // Doubling the exact half recovers u before the product is stored.
+        // Touchstone Excel 20625 distinguishes this in GAMMA.INV and BETA.DIST.
+        load(u)
+    } else if u.abs() < 0.375 {
         let q = F::store(&F::add(&load(2.0), &load(u), CW), CW);
         let v = F::div(&load(u), &load(q), CW);
         let sum = F::store(
             &F::add(&load(F::store(&v, CW)), &atanh_tail::<F>(&v), CW),
             CW,
         );
-        F::mul(c, &F::mul(&load(2.0), &load(sum), CW), CW)
+        F::mul(&load(2.0), &load(sum), CW)
     } else {
         let log = log_with::<F>(F::store(&F::add(&ext_one(), &load(u), CW), CW), &ext_ln2());
-        F::mul(c, &load(log), CW)
+        load(log)
     };
-    F::store(&product, CW)
+    F::store(&F::mul(c, &logarithm, CW), CW)
 }
 
 /// One step down the recurrence `s(n) = s(n + 1) + (n + 1/2) ln(1 + 1/n) - 1`, the part after
