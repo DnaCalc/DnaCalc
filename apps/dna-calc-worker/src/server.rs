@@ -4166,6 +4166,7 @@ impl Server {
                 calc_host::WorkbookEvent::WorksheetCalculate { .. } => "Worksheet_Calculate",
                 calc_host::WorkbookEvent::SelectionChanged { .. } => "Worksheet_SelectionChange",
                 calc_host::WorkbookEvent::BeforeSave { .. } => "Workbook_BeforeSave",
+                calc_host::WorkbookEvent::Document(_) => "Document event",
             };
             self.events.push(Event::WorkbookEventFailed {
                 workbook: self.workbook,

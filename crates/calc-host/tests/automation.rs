@@ -8057,3 +8057,50 @@ fn dc_tqcvu__format_conditions_add_set_interior_and_font_and_delete() {
     invoke_kind(&model, &conditions, "Delete", InvokeKind::Method, vec![]).unwrap();
     assert_eq!(count(&model, &conditions), 0);
 }
+
+/// dc-orxz0: `Workbook.Styles` with Count, Item (index and name), Add and Style.Delete. A style a macro adds applies to
+/// ranges, saves and reopens; a duplicate or empty name, an unknown name, deleting Normal and deleting a style in use
+/// are refused (1004 where Excel answers an error).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let before = int(invoke(&model, &styles, "Count", vec![]).unwrap());
+    assert!(before >= 1);
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("normal")]).unwrap());
+    assert_eq!(text(&model, &normal, "Name"), "Normal");
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine")]).unwrap());
+    assert_eq!(text(&model, &mine, "Name"), "Mine");
+    assert!(matches!(invoke(&model, &mine, "BuiltIn", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
+    let last = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::I4(before as i32 + 1)]).unwrap());
+    assert_eq!(text(&model, &last, "Name"), "Mine");
+    for args in [vec![AutoValue::text("MINE")], vec![AutoValue::text("")], vec![AutoValue::I4(3)]] {
+        let r = invoke_kind(&model, &styles, "Add", InvokeKind::Method, args.clone());
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
+    }
+    for item in [AutoValue::text("nope"), AutoValue::I4(0), AutoValue::I4(before as i32 + 2)] {
+        let r = invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![item.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{item:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &normal, "Delete", InvokeKind::Method, vec![]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    // Apply it, save, reopen: the style is still there and still applied.
+    let target = range(&model, "B2");
+    invoke_kind(&model, &target, "Style", InvokeKind::Put, vec![AutoValue::text("Mine")]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let book2 = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles2 = obj(invoke(&reopened, &book2, "Styles", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &styles2, "Count", vec![]).unwrap()), before + 1);
+    let there = range(&reopened, "B2");
+    let applied = obj(invoke(&reopened, &there, "Style", vec![]).unwrap());
+    assert_eq!(text(&reopened, &applied, "Name"), "Mine");
+    // An unused style added in this session deletes; one a cell uses is refused.
+    let spare = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Spare")]).unwrap());
+    invoke_kind(&model, &spare, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(int(invoke(&model, &styles, "Count", vec![]).unwrap()), before + 1);
+    let r = invoke_kind(&model, &mine, "Delete", InvokeKind::Method, vec![]);
+    assert!(r.is_err(), "{r:?}");
+}
