@@ -1,0 +1,513 @@
+kind,input,text,normal,normal_size,font,size,bold,zoom,dpi,column_width,column_points,row_height,standard_height
+column_text,W,W,Calibri,11.0,Calibri,11,False,100,96,2.14,15.0,15.0,15.0
+column_text,iiii,iiii,Calibri,11.0,Calibri,11,False,100,96,2.57,17.25,15.0,15.0
+column_text,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,10.86,60.75,15.0,15.0
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Calibri,11.0,Calibri,11,False,100,96,39.86,213.0,15.0,15.0
+column_text,漢字仮名,漢字仮名,Calibri,11.0,Calibri,11,False,100,96,9.43,53.25,15.0,15.0
+column_text,😀,😀,Calibri,11.0,Calibri,11,False,100,96,3.29,21.0,15.0,15.0
+column_text,1,1,Calibri,11.0,Calibri,11,False,100,96,1.29,10.5,15.0,15.0
+column_text,12,12,Calibri,11.0,Calibri,11,False,100,96,2.29,15.75,15.0,15.0
+column_text,123,123,Calibri,11.0,Calibri,11,False,100,96,3.29,21.0,15.0,15.0
+column_text,1234,1234,Calibri,11.0,Calibri,11,False,100,96,4.29,26.25,15.0,15.0
+column_text,12345,12345,Calibri,11.0,Calibri,11,False,100,96,5.29,31.5,15.0,15.0
+column_text,123456,123456,Calibri,11.0,Calibri,11,False,100,96,6.29,36.75,15.0,15.0
+column_text,1234567,1234567,Calibri,11.0,Calibri,11,False,100,96,7.29,42.0,15.0,15.0
+column_text,12345678,12345678,Calibri,11.0,Calibri,11,False,100,96,8.29,47.25,15.0,15.0
+column_text,123456789,123456789,Calibri,11.0,Calibri,11,False,100,96,9.29,52.5,15.0,15.0
+column_text,1234567890,1234567890,Calibri,11.0,Calibri,11,False,100,96,10.29,57.75,15.0,15.0
+column_text,12345678901,12345678901,Calibri,11.0,Calibri,11,False,100,96,11.29,63.0,15.0,15.0
+column_text,123456789012,123456789012,Calibri,11.0,Calibri,11,False,100,96,12.43,69.0,15.0,15.0
+column_formatted,0.00|12345.678,12345.68,Calibri,11.0,Calibri,11,False,100,96,7.86,45.0,15.0,15.0
+column_formatted,"#,##0|12345.678","12,346",Calibri,11.0,Calibri,11,False,100,96,5.86,34.5,15.0,15.0
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Calibri,11.0,Calibri,11,False,100,96,9.71,54.75,15.0,15.0
+column_formatted,0.00E+00|12345.678,1.23E+04,Calibri,11.0,Calibri,11,False,100,96,7.86,45.0,15.0,15.0
+column_formatted,General|True,TRUE,Calibri,11.0,Calibri,11,False,100,96,4.71,28.5,15.0,15.0
+column_formatted,General|=1/0,#DIV/0!,Calibri,11.0,Calibri,11,False,100,96,7.0,40.5,15.0,15.0
+row_explicit_8.43,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,30.0,15.0
+row_soft_8.43,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,30.0,15.0
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,60.0,15.0
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,60.0,15.0
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,150.0,15.0
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,150.0,15.0
+row_explicit_20,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,15.0,15.0
+row_soft_20,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,15.0,15.0
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,30.0,15.0
+row_soft_20,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,30.0,15.0
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,75.0,15.0
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,20.0,108.75,60.0,15.0
+row_explicit_40,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,15.0,15.0
+row_soft_40,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,30.0,15.0
+row_soft_40,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,75.0,15.0
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,40.0,213.75,30.0,15.0
+row_indent,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,60.0,15.0
+row_rotate45,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,60.0,15.0
+row_rotate90,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,60.75,15.0
+row_shrink,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,15.0,15.0
+row_merge,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,15.0,15.0
+column_text,W,W,Calibri,11.0,Calibri,11,True,100,96,2.29,15.75,15.0,15.0
+column_text,iiii,iiii,Calibri,11.0,Calibri,11,True,100,96,2.57,17.25,15.0,15.0
+column_text,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,11.0,61.5,15.0,15.0
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Calibri,11.0,Calibri,11,True,100,96,39.86,213.0,15.0,15.0
+column_text,漢字仮名,漢字仮名,Calibri,11.0,Calibri,11,True,100,96,10.0,56.25,15.0,15.0
+column_text,😀,😀,Calibri,11.0,Calibri,11,True,100,96,3.43,21.75,15.0,15.0
+column_text,1,1,Calibri,11.0,Calibri,11,True,100,96,1.29,10.5,15.0,15.0
+column_text,12,12,Calibri,11.0,Calibri,11,True,100,96,2.29,15.75,15.0,15.0
+column_text,123,123,Calibri,11.0,Calibri,11,True,100,96,3.29,21.0,15.0,15.0
+column_text,1234,1234,Calibri,11.0,Calibri,11,True,100,96,4.29,26.25,15.0,15.0
+column_text,12345,12345,Calibri,11.0,Calibri,11,True,100,96,5.29,31.5,15.0,15.0
+column_text,123456,123456,Calibri,11.0,Calibri,11,True,100,96,6.29,36.75,15.0,15.0
+column_text,1234567,1234567,Calibri,11.0,Calibri,11,True,100,96,7.29,42.0,15.0,15.0
+column_text,12345678,12345678,Calibri,11.0,Calibri,11,True,100,96,8.29,47.25,15.0,15.0
+column_text,123456789,123456789,Calibri,11.0,Calibri,11,True,100,96,9.29,52.5,15.0,15.0
+column_text,1234567890,1234567890,Calibri,11.0,Calibri,11,True,100,96,10.29,57.75,15.0,15.0
+column_text,12345678901,12345678901,Calibri,11.0,Calibri,11,True,100,96,11.29,63.0,15.0,15.0
+column_text,123456789012,123456789012,Calibri,11.0,Calibri,11,True,100,96,12.43,69.0,15.0,15.0
+column_formatted,0.00|12345.678,12345.68,Calibri,11.0,Calibri,11,True,100,96,7.86,45.0,15.0,15.0
+column_formatted,"#,##0|12345.678","12,346",Calibri,11.0,Calibri,11,True,100,96,5.86,34.5,15.0,15.0
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Calibri,11.0,Calibri,11,True,100,96,9.71,54.75,15.0,15.0
+column_formatted,0.00E+00|12345.678,1.23E+04,Calibri,11.0,Calibri,11,True,100,96,7.86,45.0,15.0,15.0
+column_formatted,General|True,TRUE,Calibri,11.0,Calibri,11,True,100,96,4.86,29.25,15.0,15.0
+column_formatted,General|=1/0,#DIV/0!,Calibri,11.0,Calibri,11,True,100,96,7.0,40.5,15.0,15.0
+row_explicit_8.43,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,30.0,15.0
+row_soft_8.43,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,30.0,15.0
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,60.0,15.0
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,60.0,15.0
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,150.0,15.0
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,150.0,15.0
+row_explicit_20,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,15.0,15.0
+row_soft_20,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,15.0,15.0
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,30.0,15.0
+row_soft_20,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,30.0,15.0
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,75.0,15.0
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,20.0,108.75,60.0,15.0
+row_explicit_40,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,15.0,15.0
+row_soft_40,Hello World,Hello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,30.0,15.0
+row_soft_40,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,75.0,15.0
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,40.0,213.75,30.0,15.0
+row_indent,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,60.0,15.0
+row_rotate45,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,60.0,15.0
+row_rotate90,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,61.5,15.0
+row_shrink,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,15.0,15.0
+row_merge,Hello World Hello World,Hello World Hello World,Calibri,11.0,Calibri,11,True,100,96,8.43,48.0,15.0,15.0
+column_text,W,W,Calibri,11.0,Aptos Narrow,11,False,100,96,2.0,14.25,15.0,15.0
+column_text,iiii,iiii,Calibri,11.0,Aptos Narrow,11,False,100,96,2.57,17.25,15.0,15.0
+column_text,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,10.57,59.25,15.0,15.0
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Calibri,11.0,Aptos Narrow,11,False,100,96,39.29,210.0,15.0,15.0
+column_text,漢字仮名,漢字仮名,Calibri,11.0,Aptos Narrow,11,False,100,96,9.43,53.25,15.0,15.0
+column_text,😀,😀,Calibri,11.0,Aptos Narrow,11,False,100,96,3.29,21.0,15.0,15.0
+column_text,1,1,Calibri,11.0,Aptos Narrow,11,False,100,96,1.29,10.5,15.0,15.0
+column_text,12,12,Calibri,11.0,Aptos Narrow,11,False,100,96,2.29,15.75,15.0,15.0
+column_text,123,123,Calibri,11.0,Aptos Narrow,11,False,100,96,3.29,21.0,15.0,15.0
+column_text,1234,1234,Calibri,11.0,Aptos Narrow,11,False,100,96,4.29,26.25,15.0,15.0
+column_text,12345,12345,Calibri,11.0,Aptos Narrow,11,False,100,96,5.29,31.5,15.0,15.0
+column_text,123456,123456,Calibri,11.0,Aptos Narrow,11,False,100,96,6.29,36.75,15.0,15.0
+column_text,1234567,1234567,Calibri,11.0,Aptos Narrow,11,False,100,96,7.29,42.0,15.0,15.0
+column_text,12345678,12345678,Calibri,11.0,Aptos Narrow,11,False,100,96,8.29,47.25,15.0,15.0
+column_text,123456789,123456789,Calibri,11.0,Aptos Narrow,11,False,100,96,9.29,52.5,15.0,15.0
+column_text,1234567890,1234567890,Calibri,11.0,Aptos Narrow,11,False,100,96,10.29,57.75,15.0,15.0
+column_text,12345678901,12345678901,Calibri,11.0,Aptos Narrow,11,False,100,96,11.29,63.0,15.0,15.0
+column_text,123456789012,123456789012,Calibri,11.0,Aptos Narrow,11,False,100,96,12.43,69.0,15.0,15.0
+column_formatted,0.00|12345.678,12345.68,Calibri,11.0,Aptos Narrow,11,False,100,96,7.86,45.0,15.0,15.0
+column_formatted,"#,##0|12345.678","12,346",Calibri,11.0,Aptos Narrow,11,False,100,96,5.86,34.5,15.0,15.0
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Calibri,11.0,Aptos Narrow,11,False,100,96,9.71,54.75,15.0,15.0
+column_formatted,0.00E+00|12345.678,1.23E+04,Calibri,11.0,Aptos Narrow,11,False,100,96,7.86,45.0,15.0,15.0
+column_formatted,General|True,TRUE,Calibri,11.0,Aptos Narrow,11,False,100,96,4.71,28.5,15.0,15.0
+column_formatted,General|=1/0,#DIV/0!,Calibri,11.0,Aptos Narrow,11,False,100,96,6.71,39.0,15.0,15.0
+row_explicit_8.43,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,30.0,15.0
+row_soft_8.43,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,30.0,15.0
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,15.0
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,15.0
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,150.0,15.0
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,150.0,15.0
+row_explicit_20,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,15.0,15.0
+row_soft_20,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,15.0,15.0
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,30.0,15.0
+row_soft_20,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,30.0,15.0
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,75.0,15.0
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,20.0,108.75,60.0,15.0
+row_explicit_40,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,15.0
+row_soft_40,Hello World,Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,30.0,15.0
+row_soft_40,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,75.0,15.0
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,40.0,213.75,30.0,15.0
+row_indent,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,15.0
+row_rotate45,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,15.0
+row_rotate90,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,59.25,15.0
+row_shrink,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,15.0,15.0
+row_merge,Hello World Hello World,Hello World Hello World,Calibri,11.0,Aptos Narrow,11,False,100,96,8.43,48.0,15.0,15.0
+column_text,W,W,Calibri,11.0,Arial,10,False,100,96,2.14,15.0,15.0,15.0
+column_text,iiii,iiii,Calibri,11.0,Arial,10,False,100,96,2.0,14.25,15.0,15.0
+column_text,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,9.86,55.5,15.0,15.0
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Calibri,11.0,Arial,10,False,100,96,37.29,199.5,15.0,15.0
+column_text,漢字仮名,漢字仮名,Calibri,11.0,Arial,10,False,100,96,8.29,47.25,15.0,15.0
+column_text,😀,😀,Calibri,11.0,Arial,10,False,100,96,2.86,18.75,15.0,15.0
+column_text,1,1,Calibri,11.0,Arial,10,False,100,96,1.29,10.5,15.0,15.0
+column_text,12,12,Calibri,11.0,Arial,10,False,100,96,2.29,15.75,15.0,15.0
+column_text,123,123,Calibri,11.0,Arial,10,False,100,96,3.29,21.0,15.0,15.0
+column_text,1234,1234,Calibri,11.0,Arial,10,False,100,96,4.29,26.25,15.0,15.0
+column_text,12345,12345,Calibri,11.0,Arial,10,False,100,96,5.29,31.5,15.0,15.0
+column_text,123456,123456,Calibri,11.0,Arial,10,False,100,96,6.29,36.75,15.0,15.0
+column_text,1234567,1234567,Calibri,11.0,Arial,10,False,100,96,7.29,42.0,15.0,15.0
+column_text,12345678,12345678,Calibri,11.0,Arial,10,False,100,96,8.29,47.25,15.0,15.0
+column_text,123456789,123456789,Calibri,11.0,Arial,10,False,100,96,9.29,52.5,15.0,15.0
+column_text,1234567890,1234567890,Calibri,11.0,Arial,10,False,100,96,10.29,57.75,15.0,15.0
+column_text,12345678901,12345678901,Calibri,11.0,Arial,10,False,100,96,11.29,63.0,15.0,15.0
+column_text,123456789012,123456789012,Calibri,11.0,Arial,10,False,100,96,12.43,69.0,15.0,15.0
+column_formatted,0.00|12345.678,12345.68,Calibri,11.0,Arial,10,False,100,96,7.86,45.0,15.0,15.0
+column_formatted,"#,##0|12345.678","12,346",Calibri,11.0,Arial,10,False,100,96,5.86,34.5,15.0,15.0
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Calibri,11.0,Arial,10,False,100,96,9.43,53.25,15.0,15.0
+column_formatted,0.00E+00|12345.678,1.23E+04,Calibri,11.0,Arial,10,False,100,96,8.29,47.25,15.0,15.0
+column_formatted,General|True,TRUE,Calibri,11.0,Arial,10,False,100,96,5.14,30.75,15.0,15.0
+column_formatted,General|=1/0,#DIV/0!,Calibri,11.0,Arial,10,False,100,96,6.29,36.75,15.0,15.0
+row_explicit_8.43,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,26.25,15.0
+row_soft_8.43,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,26.25,15.0
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,51.75,15.0
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,51.75,15.0
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,128.25,15.0
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,128.25,15.0
+row_explicit_20,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,15.0,15.0
+row_soft_20,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,15.0,15.0
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,26.25,15.0
+row_soft_20,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,26.25,15.0
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,64.5,15.0
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,20.0,108.75,51.75,15.0
+row_explicit_40,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,15.0,15.0
+row_soft_40,Hello World,Hello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,26.25,15.0
+row_soft_40,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,15.0,15.0
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,64.5,15.0
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,40.0,213.75,26.25,15.0
+row_indent,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,51.75,15.0
+row_rotate45,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,51.75,15.0
+row_rotate90,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,55.5,15.0
+row_shrink,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,15.0,15.0
+row_merge,Hello World Hello World,Hello World Hello World,Calibri,11.0,Arial,10,False,100,96,8.43,48.0,15.0,15.0
+column_text,W,W,Calibri,11.0,Times New Roman,12,False,100,96,2.43,16.5,15.75,15.0
+column_text,iiii,iiii,Calibri,11.0,Times New Roman,12,False,100,96,2.0,14.25,15.75,15.0
+column_text,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,11.0,61.5,15.75,15.0
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Calibri,11.0,Times New Roman,12,False,100,96,40.57,216.75,15.75,15.0
+column_text,漢字仮名,漢字仮名,Calibri,11.0,Times New Roman,12,False,100,96,9.43,53.25,15.75,15.0
+column_text,😀,😀,Calibri,11.0,Times New Roman,12,False,100,96,3.43,21.75,15.75,15.0
+column_text,1,1,Calibri,11.0,Times New Roman,12,False,100,96,1.43,11.25,15.75,15.0
+column_text,12,12,Calibri,11.0,Times New Roman,12,False,100,96,2.57,17.25,15.75,15.0
+column_text,123,123,Calibri,11.0,Times New Roman,12,False,100,96,3.71,23.25,15.75,15.0
+column_text,1234,1234,Calibri,11.0,Times New Roman,12,False,100,96,4.86,29.25,15.75,15.0
+column_text,12345,12345,Calibri,11.0,Times New Roman,12,False,100,96,6.0,35.25,15.75,15.0
+column_text,123456,123456,Calibri,11.0,Times New Roman,12,False,100,96,7.14,41.25,15.75,15.0
+column_text,1234567,1234567,Calibri,11.0,Times New Roman,12,False,100,96,8.29,47.25,15.75,15.0
+column_text,12345678,12345678,Calibri,11.0,Times New Roman,12,False,100,96,9.43,53.25,15.75,15.0
+column_text,123456789,123456789,Calibri,11.0,Times New Roman,12,False,100,96,10.57,59.25,15.75,15.0
+column_text,1234567890,1234567890,Calibri,11.0,Times New Roman,12,False,100,96,11.71,65.25,15.75,15.0
+column_text,12345678901,12345678901,Calibri,11.0,Times New Roman,12,False,100,96,13.0,72.0,15.75,15.0
+column_text,123456789012,123456789012,Calibri,11.0,Times New Roman,12,False,100,96,14.14,78.0,15.75,15.0
+column_formatted,0.00|12345.678,12345.68,Calibri,11.0,Times New Roman,12,False,100,96,8.86,50.25,15.75,15.0
+column_formatted,"#,##0|12345.678","12,346",Calibri,11.0,Times New Roman,12,False,100,96,6.57,38.25,15.75,15.0
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Calibri,11.0,Times New Roman,12,False,100,96,11.14,62.25,15.75,15.0
+column_formatted,0.00E+00|12345.678,1.23E+04,Calibri,11.0,Times New Roman,12,False,100,96,9.14,51.75,15.75,15.0
+column_formatted,General|True,TRUE,Calibri,11.0,Times New Roman,12,False,100,96,5.86,34.5,15.75,15.0
+column_formatted,General|=1/0,#DIV/0!,Calibri,11.0,Times New Roman,12,False,100,96,7.71,44.25,15.75,15.0
+row_explicit_8.43,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,31.5,15.0
+row_soft_8.43,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,31.5,15.0
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,15.0
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,15.0
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,157.5,15.0
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,157.5,15.0
+row_explicit_20,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,15.75,15.0
+row_soft_20,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,15.75,15.0
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,31.5,15.0
+row_soft_20,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,31.5,15.0
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,78.75,15.0
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,20.0,108.75,63.0,15.0
+row_explicit_40,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,15.0
+row_soft_40,Hello World,Hello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,15.0
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,31.5,15.0
+row_soft_40,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,15.0
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,78.75,15.0
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,40.0,213.75,31.5,15.0
+row_indent,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,15.0
+row_rotate45,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,15.0
+row_rotate90,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,61.5,15.0
+row_shrink,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,15.75,15.0
+row_merge,Hello World Hello World,Hello World Hello World,Calibri,11.0,Times New Roman,12,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,8,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,9,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,10,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,11,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,12,False,100,96,8.43,48.0,15.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,13,False,100,96,8.43,48.0,17.25,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,14,False,100,96,8.43,48.0,18.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,15,False,100,96,8.43,48.0,19.5,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,16,False,100,96,8.43,48.0,21.0,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,17,False,100,96,8.43,48.0,22.5,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,18,False,100,96,8.43,48.0,23.25,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,19,False,100,96,8.43,48.0,24.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,20,False,100,96,8.43,48.0,26.25,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,21,False,100,96,8.43,48.0,27.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,22,False,100,96,8.43,48.0,28.5,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,23,False,100,96,8.43,48.0,30.0,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,24,False,100,96,8.43,48.0,31.5,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,25,False,100,96,8.43,48.0,32.25,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,26,False,100,96,8.43,48.0,33.75,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,27,False,100,96,8.43,48.0,35.25,15.0
+row_size,Hello World,Hello World,Calibri,11.0,Calibri,28,False,100,96,8.43,48.0,36.0,15.0
+column_text,W,W,Arial,10.0,Calibri,11,False,100,96,2.14,15.0,15.75,12.75
+column_text,iiii,iiii,Arial,10.0,Calibri,11,False,100,96,2.57,17.25,15.75,12.75
+column_text,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,10.86,60.75,15.75,12.75
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Arial,10.0,Calibri,11,False,100,96,39.86,213.0,15.75,12.75
+column_text,漢字仮名,漢字仮名,Arial,10.0,Calibri,11,False,100,96,9.43,53.25,15.75,12.75
+column_text,😀,😀,Arial,10.0,Calibri,11,False,100,96,3.29,21.0,15.75,12.75
+column_text,1,1,Arial,10.0,Calibri,11,False,100,96,1.29,10.5,15.75,12.75
+column_text,12,12,Arial,10.0,Calibri,11,False,100,96,2.29,15.75,15.75,12.75
+column_text,123,123,Arial,10.0,Calibri,11,False,100,96,3.29,21.0,15.75,12.75
+column_text,1234,1234,Arial,10.0,Calibri,11,False,100,96,4.29,26.25,15.75,12.75
+column_text,12345,12345,Arial,10.0,Calibri,11,False,100,96,5.29,31.5,15.75,12.75
+column_text,123456,123456,Arial,10.0,Calibri,11,False,100,96,6.29,36.75,15.75,12.75
+column_text,1234567,1234567,Arial,10.0,Calibri,11,False,100,96,7.29,42.0,15.75,12.75
+column_text,12345678,12345678,Arial,10.0,Calibri,11,False,100,96,8.29,47.25,15.75,12.75
+column_text,123456789,123456789,Arial,10.0,Calibri,11,False,100,96,9.29,52.5,15.75,12.75
+column_text,1234567890,1234567890,Arial,10.0,Calibri,11,False,100,96,10.29,57.75,15.75,12.75
+column_text,12345678901,12345678901,Arial,10.0,Calibri,11,False,100,96,11.29,63.0,15.75,12.75
+column_text,123456789012,123456789012,Arial,10.0,Calibri,11,False,100,96,12.43,69.0,15.75,12.75
+column_formatted,0.00|12345.678,12345.68,Arial,10.0,Calibri,11,False,100,96,7.86,45.0,15.75,12.75
+column_formatted,"#,##0|12345.678","12,346",Arial,10.0,Calibri,11,False,100,96,5.86,34.5,15.75,12.75
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Arial,10.0,Calibri,11,False,100,96,9.71,54.75,15.75,12.75
+column_formatted,0.00E+00|12345.678,1.23E+04,Arial,10.0,Calibri,11,False,100,96,7.86,45.0,15.75,12.75
+column_formatted,General|True,TRUE,Arial,10.0,Calibri,11,False,100,96,4.71,28.5,15.75,12.75
+column_formatted,General|=1/0,#DIV/0!,Arial,10.0,Calibri,11,False,100,96,7.0,40.5,15.75,12.75
+row_explicit_8.43,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,30.0,12.75
+row_soft_8.43,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,30.0,12.75
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,60.0,12.75
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,60.0,12.75
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,150.0,12.75
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,150.0,12.75
+row_explicit_20,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,15.75,12.75
+row_soft_20,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,15.75,12.75
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,30.0,12.75
+row_soft_20,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,30.0,12.75
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,75.0,12.75
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,20.0,108.75,60.0,12.75
+row_explicit_40,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,15.75,12.75
+row_soft_40,Hello World,Hello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,15.75,12.75
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,30.0,12.75
+row_soft_40,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,15.75,12.75
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,75.0,12.75
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,40.0,213.75,30.0,12.75
+row_indent,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,60.0,12.75
+row_rotate45,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,60.0,12.75
+row_rotate90,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,60.75,12.75
+row_shrink,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,15.75,12.75
+row_merge,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,False,100,96,8.43,48.0,15.0,12.75
+column_text,W,W,Arial,10.0,Calibri,11,True,100,96,2.29,15.75,15.0,12.75
+column_text,iiii,iiii,Arial,10.0,Calibri,11,True,100,96,2.57,17.25,15.0,12.75
+column_text,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,11.0,61.5,15.0,12.75
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Arial,10.0,Calibri,11,True,100,96,39.86,213.0,15.0,12.75
+column_text,漢字仮名,漢字仮名,Arial,10.0,Calibri,11,True,100,96,10.0,56.25,15.0,12.75
+column_text,😀,😀,Arial,10.0,Calibri,11,True,100,96,3.43,21.75,15.0,12.75
+column_text,1,1,Arial,10.0,Calibri,11,True,100,96,1.29,10.5,15.0,12.75
+column_text,12,12,Arial,10.0,Calibri,11,True,100,96,2.29,15.75,15.0,12.75
+column_text,123,123,Arial,10.0,Calibri,11,True,100,96,3.29,21.0,15.0,12.75
+column_text,1234,1234,Arial,10.0,Calibri,11,True,100,96,4.29,26.25,15.0,12.75
+column_text,12345,12345,Arial,10.0,Calibri,11,True,100,96,5.29,31.5,15.0,12.75
+column_text,123456,123456,Arial,10.0,Calibri,11,True,100,96,6.29,36.75,15.0,12.75
+column_text,1234567,1234567,Arial,10.0,Calibri,11,True,100,96,7.29,42.0,15.0,12.75
+column_text,12345678,12345678,Arial,10.0,Calibri,11,True,100,96,8.29,47.25,15.0,12.75
+column_text,123456789,123456789,Arial,10.0,Calibri,11,True,100,96,9.29,52.5,15.0,12.75
+column_text,1234567890,1234567890,Arial,10.0,Calibri,11,True,100,96,10.29,57.75,15.0,12.75
+column_text,12345678901,12345678901,Arial,10.0,Calibri,11,True,100,96,11.29,63.0,15.0,12.75
+column_text,123456789012,123456789012,Arial,10.0,Calibri,11,True,100,96,12.43,69.0,15.0,12.75
+column_formatted,0.00|12345.678,12345.68,Arial,10.0,Calibri,11,True,100,96,7.86,45.0,15.0,12.75
+column_formatted,"#,##0|12345.678","12,346",Arial,10.0,Calibri,11,True,100,96,5.86,34.5,15.0,12.75
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Arial,10.0,Calibri,11,True,100,96,9.71,54.75,15.0,12.75
+column_formatted,0.00E+00|12345.678,1.23E+04,Arial,10.0,Calibri,11,True,100,96,7.86,45.0,15.0,12.75
+column_formatted,General|True,TRUE,Arial,10.0,Calibri,11,True,100,96,4.86,29.25,15.0,12.75
+column_formatted,General|=1/0,#DIV/0!,Arial,10.0,Calibri,11,True,100,96,7.0,40.5,15.0,12.75
+row_explicit_8.43,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,30.0,12.75
+row_soft_8.43,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,30.0,12.75
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,60.0,12.75
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,60.0,12.75
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,150.0,12.75
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,150.0,12.75
+row_explicit_20,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,15.0,12.75
+row_soft_20,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,15.0,12.75
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,30.0,12.75
+row_soft_20,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,30.0,12.75
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,75.0,12.75
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,20.0,108.75,60.0,12.75
+row_explicit_40,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,15.0,12.75
+row_soft_40,Hello World,Hello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,30.0,12.75
+row_soft_40,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,75.0,12.75
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,40.0,213.75,30.0,12.75
+row_indent,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,60.0,12.75
+row_rotate45,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,60.0,12.75
+row_rotate90,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,61.5,12.75
+row_shrink,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,15.0,12.75
+row_merge,Hello World Hello World,Hello World Hello World,Arial,10.0,Calibri,11,True,100,96,8.43,48.0,15.0,12.75
+column_text,W,W,Arial,10.0,Aptos Narrow,11,False,100,96,2.0,14.25,15.0,12.75
+column_text,iiii,iiii,Arial,10.0,Aptos Narrow,11,False,100,96,2.57,17.25,15.0,12.75
+column_text,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,10.57,59.25,15.0,12.75
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Arial,10.0,Aptos Narrow,11,False,100,96,39.29,210.0,15.0,12.75
+column_text,漢字仮名,漢字仮名,Arial,10.0,Aptos Narrow,11,False,100,96,9.43,53.25,15.0,12.75
+column_text,😀,😀,Arial,10.0,Aptos Narrow,11,False,100,96,3.29,21.0,15.0,12.75
+column_text,1,1,Arial,10.0,Aptos Narrow,11,False,100,96,1.29,10.5,15.0,12.75
+column_text,12,12,Arial,10.0,Aptos Narrow,11,False,100,96,2.29,15.75,15.0,12.75
+column_text,123,123,Arial,10.0,Aptos Narrow,11,False,100,96,3.29,21.0,15.0,12.75
+column_text,1234,1234,Arial,10.0,Aptos Narrow,11,False,100,96,4.29,26.25,15.0,12.75
+column_text,12345,12345,Arial,10.0,Aptos Narrow,11,False,100,96,5.29,31.5,15.0,12.75
+column_text,123456,123456,Arial,10.0,Aptos Narrow,11,False,100,96,6.29,36.75,15.0,12.75
+column_text,1234567,1234567,Arial,10.0,Aptos Narrow,11,False,100,96,7.29,42.0,15.0,12.75
+column_text,12345678,12345678,Arial,10.0,Aptos Narrow,11,False,100,96,8.29,47.25,15.0,12.75
+column_text,123456789,123456789,Arial,10.0,Aptos Narrow,11,False,100,96,9.29,52.5,15.0,12.75
+column_text,1234567890,1234567890,Arial,10.0,Aptos Narrow,11,False,100,96,10.29,57.75,15.0,12.75
+column_text,12345678901,12345678901,Arial,10.0,Aptos Narrow,11,False,100,96,11.29,63.0,15.0,12.75
+column_text,123456789012,123456789012,Arial,10.0,Aptos Narrow,11,False,100,96,12.43,69.0,15.0,12.75
+column_formatted,0.00|12345.678,12345.68,Arial,10.0,Aptos Narrow,11,False,100,96,7.86,45.0,15.0,12.75
+column_formatted,"#,##0|12345.678","12,346",Arial,10.0,Aptos Narrow,11,False,100,96,5.86,34.5,15.0,12.75
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Arial,10.0,Aptos Narrow,11,False,100,96,9.71,54.75,15.0,12.75
+column_formatted,0.00E+00|12345.678,1.23E+04,Arial,10.0,Aptos Narrow,11,False,100,96,7.86,45.0,15.0,12.75
+column_formatted,General|True,TRUE,Arial,10.0,Aptos Narrow,11,False,100,96,4.71,28.5,15.0,12.75
+column_formatted,General|=1/0,#DIV/0!,Arial,10.0,Aptos Narrow,11,False,100,96,6.71,39.0,15.0,12.75
+row_explicit_8.43,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,30.0,12.75
+row_soft_8.43,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,30.0,12.75
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,12.75
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,12.75
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,150.0,12.75
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,150.0,12.75
+row_explicit_20,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,15.0,12.75
+row_soft_20,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,15.0,12.75
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,30.0,12.75
+row_soft_20,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,30.0,12.75
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,75.0,12.75
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,20.0,108.75,60.0,12.75
+row_explicit_40,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,12.75
+row_soft_40,Hello World,Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,30.0,12.75
+row_soft_40,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,75.0,12.75
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,40.0,213.75,30.0,12.75
+row_indent,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,12.75
+row_rotate45,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,60.0,12.75
+row_rotate90,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,59.25,12.75
+row_shrink,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,15.0,12.75
+row_merge,Hello World Hello World,Hello World Hello World,Arial,10.0,Aptos Narrow,11,False,100,96,8.43,48.0,15.0,12.75
+column_text,W,W,Arial,10.0,Arial,10,False,100,96,2.14,15.0,15.0,12.75
+column_text,iiii,iiii,Arial,10.0,Arial,10,False,100,96,2.0,14.25,15.0,12.75
+column_text,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,9.86,55.5,15.0,12.75
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Arial,10.0,Arial,10,False,100,96,37.29,199.5,15.0,12.75
+column_text,漢字仮名,漢字仮名,Arial,10.0,Arial,10,False,100,96,8.29,47.25,15.0,12.75
+column_text,😀,😀,Arial,10.0,Arial,10,False,100,96,2.86,18.75,15.0,12.75
+column_text,1,1,Arial,10.0,Arial,10,False,100,96,1.29,10.5,15.0,12.75
+column_text,12,12,Arial,10.0,Arial,10,False,100,96,2.29,15.75,15.0,12.75
+column_text,123,123,Arial,10.0,Arial,10,False,100,96,3.29,21.0,15.0,12.75
+column_text,1234,1234,Arial,10.0,Arial,10,False,100,96,4.29,26.25,15.0,12.75
+column_text,12345,12345,Arial,10.0,Arial,10,False,100,96,5.29,31.5,15.0,12.75
+column_text,123456,123456,Arial,10.0,Arial,10,False,100,96,6.29,36.75,15.0,12.75
+column_text,1234567,1234567,Arial,10.0,Arial,10,False,100,96,7.29,42.0,15.0,12.75
+column_text,12345678,12345678,Arial,10.0,Arial,10,False,100,96,8.29,47.25,15.0,12.75
+column_text,123456789,123456789,Arial,10.0,Arial,10,False,100,96,9.29,52.5,15.0,12.75
+column_text,1234567890,1234567890,Arial,10.0,Arial,10,False,100,96,10.29,57.75,15.0,12.75
+column_text,12345678901,12345678901,Arial,10.0,Arial,10,False,100,96,11.29,63.0,15.0,12.75
+column_text,123456789012,123456789012,Arial,10.0,Arial,10,False,100,96,12.43,69.0,15.0,12.75
+column_formatted,0.00|12345.678,12345.68,Arial,10.0,Arial,10,False,100,96,7.86,45.0,15.0,12.75
+column_formatted,"#,##0|12345.678","12,346",Arial,10.0,Arial,10,False,100,96,5.86,34.5,15.0,12.75
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Arial,10.0,Arial,10,False,100,96,9.43,53.25,15.0,12.75
+column_formatted,0.00E+00|12345.678,1.23E+04,Arial,10.0,Arial,10,False,100,96,8.29,47.25,15.0,12.75
+column_formatted,General|True,TRUE,Arial,10.0,Arial,10,False,100,96,5.14,30.75,15.0,12.75
+column_formatted,General|=1/0,#DIV/0!,Arial,10.0,Arial,10,False,100,96,6.29,36.75,15.0,12.75
+row_explicit_8.43,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,26.25,12.75
+row_soft_8.43,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,26.25,12.75
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,51.75,12.75
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,51.75,12.75
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,128.25,12.75
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,128.25,12.75
+row_explicit_20,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,15.0,12.75
+row_soft_20,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,15.0,12.75
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,26.25,12.75
+row_soft_20,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,26.25,12.75
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,64.5,12.75
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Arial,10,False,100,96,20.0,108.75,51.75,12.75
+row_explicit_40,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,15.0,12.75
+row_soft_40,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,26.25,12.75
+row_soft_40,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,15.0,12.75
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,64.5,12.75
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Arial,10,False,100,96,40.0,213.75,26.25,12.75
+row_indent,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,51.75,12.75
+row_rotate45,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,51.75,12.75
+row_rotate90,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,55.5,12.75
+row_shrink,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,15.0,12.75
+row_merge,Hello World Hello World,Hello World Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,12.75,12.75
+column_text,W,W,Arial,10.0,Times New Roman,12,False,100,96,2.43,16.5,15.75,12.75
+column_text,iiii,iiii,Arial,10.0,Times New Roman,12,False,100,96,2.0,14.25,15.75,12.75
+column_text,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,11.0,61.5,15.75,12.75
+column_text,0123456789 abcdefghijklmnopqrstuvwxyz !?,0123456789 abcdefghijklmnopqrstuvwxyz !?,Arial,10.0,Times New Roman,12,False,100,96,40.57,216.75,15.75,12.75
+column_text,漢字仮名,漢字仮名,Arial,10.0,Times New Roman,12,False,100,96,9.43,53.25,15.75,12.75
+column_text,😀,😀,Arial,10.0,Times New Roman,12,False,100,96,3.43,21.75,15.75,12.75
+column_text,1,1,Arial,10.0,Times New Roman,12,False,100,96,1.43,11.25,15.75,12.75
+column_text,12,12,Arial,10.0,Times New Roman,12,False,100,96,2.57,17.25,15.75,12.75
+column_text,123,123,Arial,10.0,Times New Roman,12,False,100,96,3.71,23.25,15.75,12.75
+column_text,1234,1234,Arial,10.0,Times New Roman,12,False,100,96,4.86,29.25,15.75,12.75
+column_text,12345,12345,Arial,10.0,Times New Roman,12,False,100,96,6.0,35.25,15.75,12.75
+column_text,123456,123456,Arial,10.0,Times New Roman,12,False,100,96,7.14,41.25,15.75,12.75
+column_text,1234567,1234567,Arial,10.0,Times New Roman,12,False,100,96,8.29,47.25,15.75,12.75
+column_text,12345678,12345678,Arial,10.0,Times New Roman,12,False,100,96,9.43,53.25,15.75,12.75
+column_text,123456789,123456789,Arial,10.0,Times New Roman,12,False,100,96,10.57,59.25,15.75,12.75
+column_text,1234567890,1234567890,Arial,10.0,Times New Roman,12,False,100,96,11.71,65.25,15.75,12.75
+column_text,12345678901,12345678901,Arial,10.0,Times New Roman,12,False,100,96,13.0,72.0,15.75,12.75
+column_text,123456789012,123456789012,Arial,10.0,Times New Roman,12,False,100,96,14.14,78.0,15.75,12.75
+column_formatted,0.00|12345.678,12345.68,Arial,10.0,Times New Roman,12,False,100,96,8.86,50.25,15.75,12.75
+column_formatted,"#,##0|12345.678","12,346",Arial,10.0,Times New Roman,12,False,100,96,6.57,38.25,15.75,12.75
+column_formatted,yyyy-mm-dd|45292,2024-01-01,Arial,10.0,Times New Roman,12,False,100,96,11.14,62.25,15.75,12.75
+column_formatted,0.00E+00|12345.678,1.23E+04,Arial,10.0,Times New Roman,12,False,100,96,9.14,51.75,15.75,12.75
+column_formatted,General|True,TRUE,Arial,10.0,Times New Roman,12,False,100,96,5.86,34.5,15.75,12.75
+column_formatted,General|=1/0,#DIV/0!,Arial,10.0,Times New Roman,12,False,100,96,7.71,44.25,15.75,12.75
+row_explicit_8.43,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,31.5,12.75
+row_soft_8.43,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,31.5,12.75
+row_explicit_8.43,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,12.75
+row_soft_8.43,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,12.75
+row_explicit_8.43,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,157.5,12.75
+row_soft_8.43,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,157.5,12.75
+row_explicit_20,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,15.75,12.75
+row_soft_20,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,15.75,12.75
+row_explicit_20,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,31.5,12.75
+row_soft_20,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,31.5,12.75
+row_explicit_20,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,78.75,12.75
+row_soft_20,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,20.0,108.75,63.0,12.75
+row_explicit_40,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,12.75
+row_soft_40,Hello World,Hello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,12.75
+row_explicit_40,Hello World\nHello World,Hello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,31.5,12.75
+row_soft_40,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,15.75,12.75
+row_explicit_40,Hello World\nHello World\nHello World\nHello World\nHello World,Hello World\nHello World\nHello World\nHello World\nHello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,78.75,12.75
+row_soft_40,Hello World Hello World Hello World Hello World Hello World,Hello World Hello World Hello World Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,40.0,213.75,31.5,12.75
+row_indent,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,12.75
+row_rotate45,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,63.0,12.75
+row_rotate90,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,61.5,12.75
+row_shrink,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,15.75,12.75
+row_merge,Hello World Hello World,Hello World Hello World,Arial,10.0,Times New Roman,12,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,8,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,9,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,10,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,11,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,12,False,100,96,8.43,48.0,15.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,13,False,100,96,8.43,48.0,16.5,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,14,False,100,96,8.43,48.0,18.0,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,15,False,100,96,8.43,48.0,18.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,16,False,100,96,8.43,48.0,20.25,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,17,False,100,96,8.43,48.0,21.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,18,False,100,96,8.43,48.0,23.25,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,19,False,100,96,8.43,48.0,23.25,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,20,False,100,96,8.43,48.0,25.5,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,21,False,100,96,8.43,48.0,26.25,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,22,False,100,96,8.43,48.0,27.0,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,23,False,100,96,8.43,48.0,29.25,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,24,False,100,96,8.43,48.0,30.0,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,25,False,100,96,8.43,48.0,30.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,26,False,100,96,8.43,48.0,33.0,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,27,False,100,96,8.43,48.0,33.75,12.75
+row_size,Hello World,Hello World,Arial,10.0,Arial,28,False,100,96,8.43,48.0,34.5,12.75

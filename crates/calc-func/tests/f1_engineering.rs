@@ -2210,3 +2210,11 @@ fn dc_j9k_85_cb15_bessel_high_asymptotic_and_backward_recurrence() {
     }
     println!("Matched {} cb15 Excel rows", rows.len());
 }
+
+/// Live Excel 16.0.20625.20108 (dc-j9k.176): a pure imaginary argument takes IMLOG2's real-argument
+/// route, `LN(|b|)` times the stored log2(e), so `IMLOG2("0+355i")` ends 205, not 204.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imlog2_of_a_pure_imaginary_uses_the_real_route() {
+    text(call("IMLOG2", vec![t("0+355i")]), "8.47167521439205+2.2661800709136i");
+}

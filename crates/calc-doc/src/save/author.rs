@@ -1440,6 +1440,9 @@ pub(super) fn plan(
             if !changed && override_view.is_none() && selected.is_none() {
                 continue;
             }
+            if super::sheets::is_chart_sheet_part(sheet.part().name()) {
+                continue;
+            }
             if (sheet.is_macro_sheet() || sheet.preserved_kind().is_some())
                 && !changed
                 && override_view.is_none()

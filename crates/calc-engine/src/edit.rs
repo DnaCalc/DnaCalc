@@ -388,6 +388,7 @@ pub fn prepare_edit<'s, 'r>(
                     require_sheet(inputs, operation, *sheet)?;
                 }
                 SheetEdit::Insert { .. }
+                | SheetEdit::InsertChartSheet { .. }
                 | SheetEdit::Rename { .. }
                 | SheetEdit::Move { .. }
                 | SheetEdit::Remove { .. } => {
@@ -757,6 +758,7 @@ fn structural_moves(
             WorkbookOp::EditAxis(_)
                 | WorkbookOp::EditSheet(
                     SheetEdit::Insert { .. }
+                        | SheetEdit::InsertChartSheet { .. }
                         | SheetEdit::Rename { .. }
                         | SheetEdit::Move { .. }
                         | SheetEdit::Remove { .. }
@@ -855,7 +857,8 @@ fn structural_moves(
                 | SheetEdit::Move { sheet, .. }
                 | SheetEdit::SetVisibility { sheet, .. },
             ) => require_sheet(inputs, operation, *sheet)?,
-            WorkbookOp::EditSheet(SheetEdit::Insert { .. }) | WorkbookOp::EditSkinLayout(_) => {}
+            WorkbookOp::EditSheet(SheetEdit::Insert { .. } | SheetEdit::InsertChartSheet { .. })
+            | WorkbookOp::EditSkinLayout(_) => {}
         }
     }
     Ok(Some(moves))
