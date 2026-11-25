@@ -8,6 +8,7 @@ use crate::{
 mod font;
 mod interior;
 mod borders;
+mod styles;
 
 const OWNER: &str = "dc-oxh8w.2";
 
@@ -36,6 +37,7 @@ impl WorkbookAutomation {
         Self::register_range_font(handlers);
         Self::register_range_interior(handlers);
         Self::register_range_borders(handlers);
+        Self::register_range_styles(handlers);
         handlers.on(
             "Range",
             "NumberFormat",
