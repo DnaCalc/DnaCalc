@@ -8000,3 +8000,22 @@ fn gamma_inverse_small_shape_seed_overflow_is_num() {
         }
     }
 }
+
+/// Excel 20527 (dc-j9k.255): WEIBULL.DIST and WEIBULL answer #NUM! when the stored exponent
+/// product alpha * ln(x / beta) overflows (a huge shape with a ratio below one), not zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weibull_exponent_product_overflow_is_num() {
+    let b = f64::from_bits;
+    for name in ["WEIBULL.DIST", "WEIBULL"] {
+        for cumulative in [true, false] {
+            error(
+                call(name, vec![
+                    n(b(0x7f5d_3f1e_e25a_84df)), n(b(0x7fd8_d766_ca02_60b9)), n(b(0x7fc9_c0d7_b054_f143)),
+                    f1_support::b(cumulative),
+                ]),
+                Num,
+            );
+        }
+    }
+}
