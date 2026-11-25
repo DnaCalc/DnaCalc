@@ -88445,6 +88445,2956 @@
    ]
   },
   {
+   "name": "DialogSheet",
+   "kind": "dispatch",
+   "guid": "{000208AF-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "hidden",
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Activate",
+     "dispid": 304,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Copy",
+     "dispid": 551,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Before",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "After",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 2
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "CodeName",
+     "dispid": 1373,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "_CodeName",
+     "dispid": -2147418112,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "_CodeName",
+     "dispid": -2147418112,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Index",
+     "dispid": 486,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Move",
+     "dispid": 637,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Before",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "After",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 2
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Next",
+     "dispid": 502,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "OnDoubleClick",
+     "dispid": 628,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "OnDoubleClick",
+     "dispid": 628,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "OnSheetActivate",
+     "dispid": 1031,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "OnSheetActivate",
+     "dispid": 1031,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "OnSheetDeactivate",
+     "dispid": 1081,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "OnSheetDeactivate",
+     "dispid": 1081,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PageSetup",
+     "dispid": 998,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "PageSetup*"
+    },
+    {
+     "name": "Previous",
+     "dispid": 503,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "__PrintOut",
+     "dispid": 905,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "From",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "To",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Copies",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Preview",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ActivePrinter",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "PrintToFile",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Collate",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 7
+    },
+    {
+     "name": "PrintPreview",
+     "dispid": 281,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "EnableChanges",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 1
+    },
+    {
+     "name": "_Protect",
+     "dispid": 282,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "DrawingObjects",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Contents",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Scenarios",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "UserInterfaceOnly",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 5
+    },
+    {
+     "name": "ProtectContents",
+     "dispid": 292,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ProtectDrawingObjects",
+     "dispid": 293,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ProtectionMode",
+     "dispid": 1159,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ProtectScenarios",
+     "dispid": 294,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "__SaveAs",
+     "dispid": 284,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Filename",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "FileFormat",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "WriteResPassword",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ReadOnlyRecommended",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "CreateBackup",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AddToMru",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextCodepage",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextVisualLayout",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 8
+    },
+    {
+     "name": "Select",
+     "dispid": 235,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Replace",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 1
+    },
+    {
+     "name": "Unprotect",
+     "dispid": 285,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 1
+    },
+    {
+     "name": "Visible",
+     "dispid": 558,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlSheetVisibility[I4]"
+    },
+    {
+     "name": "Visible",
+     "dispid": 558,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlSheetVisibility[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Shapes",
+     "dispid": 1377,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Shapes*"
+    },
+    {
+     "name": "_Dummy29",
+     "dispid": 65565,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Arcs",
+     "dispid": 760,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy31",
+     "dispid": 65567,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy32",
+     "dispid": 65568,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Buttons",
+     "dispid": 557,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy34",
+     "dispid": 65570,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "EnableCalculation",
+     "dispid": 1424,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "EnableCalculation",
+     "dispid": 1424,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy36",
+     "dispid": 65572,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ChartObjects",
+     "dispid": 1060,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "CheckBoxes",
+     "dispid": 824,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "CheckSpelling",
+     "dispid": 505,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "CustomDictionary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IgnoreUppercase",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AlwaysSuggest",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "SpellLang",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 4
+    },
+    {
+     "name": "_Dummy40",
+     "dispid": 65576,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy41",
+     "dispid": 65577,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy42",
+     "dispid": 65578,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy43",
+     "dispid": 65579,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy44",
+     "dispid": 65580,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy45",
+     "dispid": 65581,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "DisplayAutomaticPageBreaks",
+     "dispid": 643,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "DisplayAutomaticPageBreaks",
+     "dispid": 643,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Drawings",
+     "dispid": 772,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "DrawingObjects",
+     "dispid": 88,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "DropDowns",
+     "dispid": 836,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "EnableAutoFilter",
+     "dispid": 1156,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "EnableAutoFilter",
+     "dispid": 1156,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "EnableSelection",
+     "dispid": 1425,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlEnableSelection[I4]"
+    },
+    {
+     "name": "EnableSelection",
+     "dispid": 1425,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlEnableSelection[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "EnableOutlining",
+     "dispid": 1157,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "EnableOutlining",
+     "dispid": 1157,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "EnablePivotTable",
+     "dispid": 1158,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "EnablePivotTable",
+     "dispid": 1158,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Evaluate",
+     "dispid": 1,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Name",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VARIANT"
+    },
+    {
+     "name": "_Evaluate",
+     "dispid": -5,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Name",
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VARIANT"
+    },
+    {
+     "name": "_Dummy56",
+     "dispid": 65592,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ResetAllPageBreaks",
+     "dispid": 1426,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "GroupBoxes",
+     "dispid": 834,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "GroupObjects",
+     "dispid": 1113,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "Labels",
+     "dispid": 841,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "Lines",
+     "dispid": 767,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "ListBoxes",
+     "dispid": 832,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "Names",
+     "dispid": 442,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Names*"
+    },
+    {
+     "name": "OLEObjects",
+     "dispid": 799,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy65",
+     "dispid": 65601,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy66",
+     "dispid": 65602,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy67",
+     "dispid": 65603,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "OptionButtons",
+     "dispid": 826,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy69",
+     "dispid": 65605,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Ovals",
+     "dispid": 801,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "Paste",
+     "dispid": 211,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Destination",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Link",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 2
+    },
+    {
+     "name": "_PasteSpecial",
+     "dispid": 1027,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Format",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Link",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "DisplayAsIcon",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconFileName",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconIndex",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconLabel",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 6
+    },
+    {
+     "name": "Pictures",
+     "dispid": 771,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy74",
+     "dispid": 65610,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy75",
+     "dispid": 65611,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy76",
+     "dispid": 65612,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Rectangles",
+     "dispid": 774,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy78",
+     "dispid": 65614,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy79",
+     "dispid": 65615,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ScrollArea",
+     "dispid": 1433,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "ScrollArea",
+     "dispid": 1433,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ScrollBars",
+     "dispid": 830,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy82",
+     "dispid": 65618,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy83",
+     "dispid": 65619,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Spinners",
+     "dispid": 838,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy85",
+     "dispid": 65621,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy86",
+     "dispid": 65622,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "TextBoxes",
+     "dispid": 777,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "_Dummy88",
+     "dispid": 65624,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy89",
+     "dispid": 65625,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy90",
+     "dispid": 65626,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "HPageBreaks",
+     "dispid": 1418,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "HPageBreaks*"
+    },
+    {
+     "name": "VPageBreaks",
+     "dispid": 1419,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VPageBreaks*"
+    },
+    {
+     "name": "QueryTables",
+     "dispid": 1434,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "QueryTables*"
+    },
+    {
+     "name": "DisplayPageBreaks",
+     "dispid": 1435,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "DisplayPageBreaks",
+     "dispid": 1435,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Comments",
+     "dispid": 575,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Comments*"
+    },
+    {
+     "name": "Hyperlinks",
+     "dispid": 1393,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Hyperlinks*"
+    },
+    {
+     "name": "ClearCircles",
+     "dispid": 1436,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "CircleInvalid",
+     "dispid": 1437,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_DisplayRightToLeft",
+     "dispid": 648,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "_DisplayRightToLeft",
+     "dispid": 648,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_AutoFilter",
+     "dispid": 793,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "AutoFilter*"
+    },
+    {
+     "name": "DisplayRightToLeft",
+     "dispid": 1774,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "DisplayRightToLeft",
+     "dispid": 1774,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Scripts",
+     "dispid": 1816,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "Office.Scripts*"
+    },
+    {
+     "name": "_PrintOut",
+     "dispid": 1772,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "From",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "To",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Copies",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Preview",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ActivePrinter",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "PrintToFile",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Collate",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "PrToFileName",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 8
+    },
+    {
+     "name": "_CheckSpelling",
+     "dispid": 1817,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "CustomDictionary",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IgnoreUppercase",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AlwaysSuggest",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "SpellLang",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IgnoreFinalYaa",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "SpellScript",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 6
+    },
+    {
+     "name": "Tab",
+     "dispid": 1041,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Tab*"
+    },
+    {
+     "name": "MailEnvelope",
+     "dispid": 2021,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Office.MsoEnvelope*"
+    },
+    {
+     "name": "_SaveAs",
+     "dispid": 1925,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Filename",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "FileFormat",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "WriteResPassword",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ReadOnlyRecommended",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "CreateBackup",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AddToMru",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextCodepage",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextVisualLayout",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Local",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 9
+    },
+    {
+     "name": "CustomProperties",
+     "dispid": 2030,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "CustomProperties*"
+    },
+    {
+     "name": "SmartTags",
+     "dispid": 2016,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "SmartTags*"
+    },
+    {
+     "name": "Protection",
+     "dispid": 176,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Protection*"
+    },
+    {
+     "name": "PasteSpecial",
+     "dispid": 1928,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Format",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Link",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "DisplayAsIcon",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconFileName",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconIndex",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IconLabel",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "NoHTMLFormatting",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 7
+    },
+    {
+     "name": "Protect",
+     "dispid": 2029,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "DrawingObjects",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Contents",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Scenarios",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "UserInterfaceOnly",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowFormattingCells",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowFormattingColumns",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowFormattingRows",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowInsertingColumns",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowInsertingRows",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowInsertingHyperlinks",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowDeletingColumns",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowDeletingRows",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowSorting",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowFiltering",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AllowUsingPivotTables",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 16
+    },
+    {
+     "name": "_Dummy113",
+     "dispid": 65649,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy114",
+     "dispid": 65650,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "_Dummy115",
+     "dispid": 65651,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": true,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "PrintOut",
+     "dispid": 2361,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "From",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "To",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Copies",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Preview",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ActivePrinter",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "PrintToFile",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Collate",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "PrToFileName",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 8
+    },
+    {
+     "name": "EnableFormatConditionsCalculation",
+     "dispid": 2511,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "EnableFormatConditionsCalculation",
+     "dispid": 2511,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_Sort",
+     "dispid": 880,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "Sort*"
+    },
+    {
+     "name": "_ExportAsFixedFormat",
+     "dispid": 2493,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:XlFixedFormatType[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Filename",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Quality",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IncludeDocProperties",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IgnorePrintAreas",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "From",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "To",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "OpenAfterPublish",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "FixedFormatExtClassPtr",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 8
+    },
+    {
+     "name": "PrintedCommentPages",
+     "dispid": 2857,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "ExportAsFixedFormat",
+     "dispid": 3175,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Type",
+       "type": "enum:XlFixedFormatType[I4]",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "Filename",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Quality",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IncludeDocProperties",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "IgnorePrintAreas",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "From",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "To",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "OpenAfterPublish",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "FixedFormatExtClassPtr",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "WorkIdentity",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 9
+    },
+    {
+     "name": "SaveAs",
+     "dispid": 3174,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Filename",
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      },
+      {
+       "name": "FileFormat",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Password",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "WriteResPassword",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "ReadOnlyRecommended",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "CreateBackup",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "AddToMru",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextCodepage",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "TextVisualLayout",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      },
+      {
+       "name": "Local",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "VOID",
+     "optional_count": 9
+    },
+    {
+     "name": "CommentsThreaded",
+     "dispid": 3282,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "CommentsThreaded*"
+    },
+    {
+     "name": "AutoFilter",
+     "dispid": 3289,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "AutoFilter*"
+    },
+    {
+     "name": "Sort",
+     "dispid": 3288,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Sort*"
+    },
+    {
+     "name": "NamedSheetViews",
+     "dispid": 3309,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "NamedSheetViewCollection*"
+    },
+    {
+     "name": "DefaultButton",
+     "dispid": 857,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "DefaultButton",
+     "dispid": 857,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "DialogFrame",
+     "dispid": 839,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "DialogFrame*"
+    },
+    {
+     "name": "EditBoxes",
+     "dispid": 828,
+     "invoke": "method",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "IDispatch*",
+     "optional_count": 1
+    },
+    {
+     "name": "Focus",
+     "dispid": 814,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Focus",
+     "dispid": 814,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Hide",
+     "dispid": 813,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Cancel",
+       "type": "VARIANT",
+       "flags": [
+        "in",
+        "optional"
+       ]
+      }
+     ],
+     "return": "BOOL",
+     "optional_count": 1
+    },
+    {
+     "name": "Show",
+     "dispid": 496,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    }
+   ]
+  },
+  {
    "name": "MultiThreadedCalculation",
    "kind": "dispatch",
    "guid": "{000244B1-0000-0000-C000-000000000046}",

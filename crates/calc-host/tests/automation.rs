@@ -8064,3 +8064,82 @@ fn settings_read_inside_a_worksheet_function_call() {
         assert!(got.1.starts_with("Ok(Bool("), "{name}: {}", got.1);
     }
 }
+
+/// dc-tqcvu: a macro adds rules with `FormatConditions.Add` (cell value and expression), sets their `Interior.Color`
+/// and `Font` afterwards, reads Type/Operator/Formula1/Formula2/Count/Item back and deletes; the saved workbook
+/// reopens with the same rules and formats. Bad types, missing operators or formulas are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_tqcvu__format_conditions_add_set_interior_and_font_and_delete() {
+    let (host, model, _) = blank_report();
+    let conditions_of = |model: &WorkbookAutomation, address: &str| {
+        let target = range(model, address);
+        let conditions = obj(invoke(model, &target, "FormatConditions", vec![]).unwrap());
+        model.released(&target);
+        conditions
+    };
+    let count = |model: &WorkbookAutomation, conditions: &ObjectRef| int(invoke(model, conditions, "Count", vec![]).unwrap());
+    let add = |model: &WorkbookAutomation, conditions: &ObjectRef, args: Vec<AutoValue>| {
+        invoke_kind(model, conditions, "Add", InvokeKind::Method, args)
+    };
+    let conditions = conditions_of(&model, "B2:B6");
+    assert_eq!(count(&model, &conditions), 0);
+    let greater = obj(add(&model, &conditions, vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")]).unwrap());
+    assert_eq!(int(invoke(&model, &greater, "Type", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &greater, "Operator", vec![]).unwrap()), 5);
+    assert_eq!(text(&model, &greater, "Formula1"), "=3");
+    let interior = obj(invoke(&model, &greater, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 255);
+    let rule_font = obj(invoke(&model, &greater, "Font", vec![]).unwrap());
+    put_font(&model, &rule_font, "Bold", AutoValue::Bool(true)).unwrap();
+    put_font(&model, &rule_font, "Color", AutoValue::I4(65_280)).unwrap();
+    assert!(matches!(invoke(&model, &rule_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &rule_font, "Color", vec![]).unwrap()), 65_280);
+    let between = obj(add(
+        &model,
+        &conditions,
+        vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::text("1"), AutoValue::I4(9)],
+    )
+    .unwrap());
+    assert_eq!(text(&model, &between, "Formula2"), "=9");
+    let expression = obj(add(&model, &conditions, vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>B3")]).unwrap());
+    assert_eq!(int(invoke(&model, &expression, "Type", vec![]).unwrap()), 2);
+    assert_eq!(count(&model, &conditions), 3);
+    // A range elsewhere does not see these rules.
+    assert_eq!(count(&model, &conditions_of(&model, "D1:D2")), 0);
+    let second = obj(invoke_kind(&model, &conditions, "Item", InvokeKind::Method, vec![AutoValue::I4(2)]).unwrap());
+    assert_eq!(text(&model, &second, "Formula2"), "=9");
+    // Errors are 1004: unknown type, missing operator, missing formula, between without Formula2, subscript.
+    for args in [
+        vec![AutoValue::I4(99)],
+        vec![AutoValue::I4(1)],
+        vec![AutoValue::I4(1), AutoValue::I4(5)],
+        vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::text("1")],
+        vec![AutoValue::I4(1), AutoValue::I4(42), AutoValue::text("1")],
+        vec![AutoValue::I4(2)],
+    ] {
+        let r = add(&model, &conditions, args.clone());
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {r:?}");
+    }
+    assert_eq!(count(&model, &conditions), 3);
+    let r = invoke_kind(&model, &conditions, "Item", InvokeKind::Method, vec![AutoValue::I4(4)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    invoke_kind(&model, &greater, "StopIfTrue", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(matches!(invoke(&model, &greater, "StopIfTrue", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &greater, "Priority", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &expression, "Priority", vec![]).unwrap()), 3);
+    // The saved workbook reopens with the rules and the rule's own format.
+    let reopened = reopen_formatting(&host);
+    let again = conditions_of(&reopened, "B2:B6");
+    assert_eq!(count(&reopened, &again), 3);
+    let first = obj(invoke_kind(&reopened, &again, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(text(&reopened, &first, "Formula1"), "=3");
+    let interior = obj(invoke(&reopened, &first, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &interior, "Color", vec![]).unwrap()), 255);
+    // Delete one rule, then the rest.
+    invoke_kind(&model, &greater, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count(&model, &conditions), 2);
+    invoke_kind(&model, &conditions, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count(&model, &conditions), 0);
+}
