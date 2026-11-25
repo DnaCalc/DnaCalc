@@ -78,6 +78,14 @@ fn applies_text(areas: &[GridArea]) -> String {
         .join(" ")
 }
 
+/// The areas as rule text, refused (1004) unless every one is on `sheet`.
+fn applies_text_checked(areas: &[GridArea], sheet: SheetId) -> Result<String, AutoError> {
+    if areas.iter().any(|a| a.first().sheet() != sheet) {
+        return Err(refused());
+    }
+    Ok(applies_text(areas))
+}
+
 /// The positions (in the worksheet's rule list) of the rules touching `areas`, in priority order.
 fn touching(session: &HostSession, sheet: SheetId, areas: &[GridArea]) -> Vec<usize> {
     let rules = session.host().model().definitions().conditional_rules(sheet);
@@ -143,6 +151,11 @@ impl WorkbookAutomation {
         handlers.on("FormatCondition", "StopIfTrue", InvokeKind::Put, Self::condition_put_stop);
         handlers.on("FormatCondition", "Interior", InvokeKind::Get, Self::condition_interior);
         handlers.on("FormatCondition", "Font", InvokeKind::Get, Self::condition_font);
+        handlers.on("FormatCondition", "AppliesTo", InvokeKind::Get, Self::condition_applies_to);
+        handlers.on("FormatCondition", "ModifyAppliesToRange", InvokeKind::Method, Self::condition_modify_applies);
+        handlers.on("FormatCondition", "Priority", InvokeKind::Put, Self::condition_put_priority);
+        handlers.on("FormatCondition", "SetFirstPriority", InvokeKind::Method, Self::condition_set_priority);
+        handlers.on("FormatCondition", "SetLastPriority", InvokeKind::Method, Self::condition_set_priority);
         handlers.on("FormatCondition", "Delete", InvokeKind::Method, Self::condition_delete);
     }
 
@@ -358,6 +371,70 @@ impl WorkbookAutomation {
             index,
             ConditionalChange::Update { applies: areas, formulas: source.formulas.clone(), stop },
         )
+    }
+
+    fn condition_applies_to(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let index = condition_index(target)?;
+        let mut areas = Vec::new();
+        self.read_host(target, |session, sheet, _| {
+            areas = rule_at(session, sheet, index)?.0.areas;
+            Ok(AutoValue::Empty)
+        })?;
+        let reference = ReferenceLike::from_areas(areas).map_err(|_| refused())?;
+        self.with_access(|mut access| self.acquire(&mut access, &reference, RangeAxis::Cells))
+    }
+
+    /// `ModifyAppliesToRange(Range)`: the rule now applies to `Range`, which must be on the rule's worksheet.
+    fn condition_modify_applies(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let index = condition_index(target)?;
+        let (_, sheet, _) = Self::report_key(target)?;
+        let AutoValue::Object(ObjectRef { key: ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. }, .. }) =
+            call.arg(0)
+        else {
+            return Err(refused());
+        };
+        let areas = self.with_access(|mut access| {
+            let resolved = self.resolve(&mut access, held)?;
+            Ok(AutoValue::text(&applies_text_checked(resolved.areas(), sheet)?))
+        })?;
+        let applies = areas.as_text().ok_or_else(refused)?;
+        let mut keep = None;
+        self.read_host(target, |session, sheet, _| {
+            keep = Some(rule_at(session, sheet, index)?.0);
+            Ok(AutoValue::Empty)
+        })?;
+        let source = keep.ok_or_else(refused)?;
+        self.rule_change(sheet, index, ConditionalChange::Update { applies, formulas: source.formulas.clone(), stop: source.stop })
+    }
+
+    fn condition_put_priority(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let rank = geometry::integer(call.arg(0)).map_err(|_| refused())?;
+        self.condition_move(target, i64::from(rank))
+    }
+
+    fn condition_set_priority(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        self.condition_move(target, if call.member.name == "SetFirstPriority" { 1 } else { i64::MAX })
+    }
+
+    /// Move the rule to `rank` among the worksheet's rules; `i64::MAX` means last.
+    fn condition_move(&self, target: &ObjectRef, rank: i64) -> Reply {
+        let index = condition_index(target)?;
+        let (_, sheet, _) = Self::report_key(target)?;
+        let mut total = 0;
+        self.read_host(target, |session, sheet, _| {
+            rule_at(session, sheet, index)?;
+            total = session.host().model().definitions().conditional_rules(sheet).len() as i64;
+            Ok(AutoValue::Empty)
+        })?;
+        let rank = if rank == i64::MAX { total } else { rank };
+        if !(1..=total).contains(&rank) {
+            return Err(refused());
+        }
+        self.rule_change(sheet, index, ConditionalChange::Priority { rank: rank as u32 })
     }
 
     fn condition_interior(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
