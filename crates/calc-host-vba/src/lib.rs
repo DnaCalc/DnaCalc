@@ -506,6 +506,18 @@ impl WorkbookEventHandler for WorkbookEvents {
         target: &[GridArea],
     ) -> Result<(), String> {
         self.require_automatic_events()?;
+        if let Some(source) = self.sheets.get(&sheet) {
+            let reference =
+                ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
+            let target_obj = self
+                .automation
+                .acquire_event_range(session, &reference)
+                .map_err(|e| e.description())?;
+            self.automation
+                .with_event_session(session, self.file_project, || {
+                    source.range_event_object("SelectionChange", target_obj, self.max_steps)
+                })?;
+        }
         if let Some(book) = &self.book {
             let reference =
                 ReferenceLike::from_areas(target.to_vec()).map_err(|e| e.to_string())?;
@@ -520,6 +532,67 @@ impl WorkbookEventHandler for WorkbookEvents {
                 })?;
         }
         Ok(())
+    }
+    fn document_event(
+        &self,
+        session: &mut calc_host::HostSession,
+        event: &calc_host::DocumentEvent,
+    ) -> Result<bool, String> {
+        use calc_host::DocumentEvent as E;
+        self.require_automatic_events()?;
+        let steps = self.max_steps;
+        let mut cancel = false;
+        match *event {
+            E::AfterSave { success } => {
+                if let Some(book) = &self.book {
+                    self.automation
+                        .with_event_session(session, self.file_project, || {
+                            book.after_save_model(success, steps)
+                        })?;
+                }
+            }
+            E::BeforeClose => {
+                if let Some(book) = &self.book {
+                    cancel = self
+                        .automation
+                        .with_event_session(session, self.file_project, || {
+                            book.before_close_model(steps)
+                        })?;
+                }
+            }
+            E::NewSheet { sheet } => {
+                if let Some(book) = &self.book {
+                    let sheet_obj =
+                        self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+                    self.automation
+                        .with_event_session(session, self.file_project, || {
+                            book.sheet_event_object("NewSheet", sheet_obj, steps)
+                        })?;
+                }
+            }
+            E::SheetActivate { sheet } | E::SheetDeactivate { sheet } => {
+                let (own, workbook) = if matches!(event, E::SheetActivate { .. }) {
+                    ("Activate", "SheetActivate")
+                } else {
+                    ("Deactivate", "SheetDeactivate")
+                };
+                if let Some(source) = self.sheets.get(&sheet) {
+                    self.automation
+                        .with_event_session(session, self.file_project, || {
+                            source.plain_model(own, steps)
+                        })?;
+                }
+                if let Some(book) = &self.book {
+                    let sheet_obj =
+                        self.automation.worksheet_object(sheet).map_err(|e| e.description())?;
+                    self.automation
+                        .with_event_session(session, self.file_project, || {
+                            book.sheet_event_object(workbook, sheet_obj, steps)
+                        })?;
+                }
+            }
+        }
+        Ok(cancel)
     }
     fn before_save(
         &self,
