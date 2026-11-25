@@ -189,7 +189,7 @@ impl WorkbookAutomation {
             InvokeKind::Get,
             Self::app_selection,
         );
-        handlers.on("Application", "ActiveCell", InvokeKind::Get, Self::app_selection);
+        handlers.on("Application", "ActiveCell", InvokeKind::Get, Self::app_active_cell);
         handlers.on(
             "Application",
             "Volatile",
@@ -836,16 +836,30 @@ impl WorkbookAutomation {
     fn app_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
-            let at = match access {
-                Access::Invocation(context) => context.user_view().map(|v| v.selection),
-                _ => meta.active,
+            if let Access::Session(session, _) = access
+                && !session.selection().areas.is_empty()
+            {
+                let selection = ReferenceLike::from_areas(session.selection().areas.clone())
+                    .map_err(|error| AutoError::excel(1004, error.to_string()))?;
+                return self.acquire(access, &selection, RangeAxis::Cells);
             }
-            .ok_or_else(|| {
-                AutoError::not_modelled("_Application.Selection without a user view", OWNER)
-            })?;
-            sheet_name(meta, at.sheet())?;
-            self.acquire(access, &ReferenceLike::cell(at), RangeAxis::Cells)
+            self.active_cell_range(access, meta, "_Application.Selection without a user view")
         })
+    }
+    fn app_active_cell(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |access, meta| {
+            no_args(call)?;
+            self.active_cell_range(access, meta, "_Application.ActiveCell without a user view")
+        })
+    }
+    fn active_cell_range(&self, access: &mut Access<'_>, meta: &Snapshot, refusal: &str) -> Reply {
+        let at = match access {
+            Access::Invocation(context) => context.user_view().map(|v| v.selection),
+            Access::Session(..) => meta.active,
+        }
+        .ok_or_else(|| AutoError::not_modelled(refusal, OWNER))?;
+        sheet_name(meta, at.sheet())?;
+        self.acquire(access, &ReferenceLike::cell(at), RangeAxis::Cells)
     }
     fn app_volatile(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, _| {
