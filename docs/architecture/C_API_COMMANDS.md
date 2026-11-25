@@ -101,9 +101,13 @@ option forms of `RUN`, `COLUMN.WIDTH`, `INSERT`, `DEFINE.NAME`, `SELECT`, and `R
 refusals owned by dc-oxh8w.9 before any workbook call. CLEAR and shift codes must match their
 enumerated values exactly.
 
-The Windows C2 capture records 57 Excel12 outcomes, including omitted operands, multi-cell
-FORMULA, and RUN result types. Replay and coercion beyond text and Boolean False for
-`Application.StatusBar` belong to dc-oxh8w.9.
+The Windows C2 capture records 57 Excel12 outcomes. The portable dispatcher now replays the
+captured ECHO toggle, CLEAR's contents-only default, FORMULA into the first cell of an explicit
+rectangle, and EDIT.DELETE's omitted shift. In a workbook command, Selection supplies the
+selected range and ActiveCell supplies one cell. FORMULA with no reference uses ActiveCell,
+as in the Excel 4.0 reference. INSERT with an omitted shift remains with dc-oxh8w.9 because the command can
+also paste a pending cut or copy. RUN result types, remaining C2 replay, and additional coercions
+for `Application.StatusBar` remain with dc-oxh8w.9.
 [C2 capture](../../crates/calc-xll-reference/traces/2026-11-25-ww17-c2/README.md) ·
 [Excel StatusBar](https://learn.microsoft.com/en-us/office/vba/api/excel.application.statusbar)
 
@@ -117,10 +121,12 @@ failure and measurement of same-sheet qualified SELECT.
 
 | Ordinal | Command | Translation |
 | ---: | --- | --- |
+| 22 | `SET.PRINT.AREA` | `PageSetup.PrintArea` on the active worksheet. Accepts a reference on that sheet and clears the area with empty text. |
 | 53 | `PASTE.SPECIAL` | `Range.PasteSpecial` on the selection. Worksheet paste codes 1–4 select all, formulas, values or formats. It accepts transpose and the default or explicit None operation. Other paste forms and host clipboard gaps remain open. |
+| 354 | `WORKBOOK.INSERT` | `Sheets.Add` for a worksheet before the active worksheet. Accepts type 1 or an omitted type. |
 | 386 | `WORKBOOK.NAME` | `Application.Sheets.Item(oldname)` then `Worksheet.Name = newname` in the active workbook. |
 
-The worksheet argument codes and rename operands follow Microsoft's
+The worksheet argument codes, rename operands, insert position and print-area operands follow Microsoft's
 [Excel 4.0 Macro Functions Reference](https://excel-dna.net/assets/files/excel-c-api-excel-4-macro-reference-7df97f7e896ff61d528847f9124b1927.pdf).
 Excel12 return values and effects for these added forms still need Windows capture under dc-oxh8w.9.
 
