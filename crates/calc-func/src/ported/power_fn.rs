@@ -1,4 +1,4 @@
-use crate::ported::excel_numeric::{excel_pow_positive, excel_x87_recip};
+use crate::ported::excel_numeric::{excel_pow_chain, excel_sqrt_staged, excel_x87_recip};
 use crate::value::WorksheetErrorCode;
 
 fn exact_integer_magnitude(power: f64) -> Option<u32> {
@@ -66,12 +66,10 @@ pub(crate) fn ten_to(scale: i32) -> f64 {
 
 /// `POWER(x, y)` candidate graph (the `^` operator shares this kernel).
 /// Extends the black-box BUG-FUNC-042 / W108 graph with W111 integer-power
-/// observations: positive base ten has a decimal-scale branch; other integer
-/// exponents use staged binary exponentiation. Fractional exponents use
-/// → `exp(y·ln x)` via the x87 backend with the `y<0` reciprocal staging (positive
-/// power stored to `binary64`, then one x87 double-rounded reciprocal) that
-/// resolved the earlier 1-ULP residual — `exp(y·ln x)` was the right function
-/// evaluated at the wrong point for `y < 0`.
+/// observations: positive base ten has a decimal-scale branch and other integer
+/// exponents use staged binary exponentiation. Half powers store the extended
+/// square root. Other fractional exponents use the x87 log/exp chain. For
+/// `y < 0`, the positive power is stored to binary64 before the x87 reciprocal.
 pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> {
     power_kernel_with_pos_overflow(number, power).map(|(value, _)| value)
 }
@@ -155,8 +153,15 @@ pub(crate) fn power_kernel_with_pos_overflow(
         base = -number; // continue with |x|
     }
 
-    // p = exp_x87( RN53(RN64( |y| * ln_x87(base) )) ) — the positive power.
-    let p = excel_pow_positive(base, power.abs());
+    // Half powers store the PC64 square root before the usual reciprocal stage.
+    // Excel 16.0.20625.20108 places midpoint ties on this route in POWER,
+    // FV and RATE. Other fractional exponents share the stored log/exp chain.
+    let magnitude = power.abs();
+    let p = if magnitude == 0.5 {
+        excel_sqrt_staged(base)
+    } else {
+        excel_pow_chain(base, magnitude)
+    };
 
     if power > 0.0 {
         if p.is_infinite() {
@@ -266,8 +271,8 @@ mod tests {
         assert_eq!(power_kernel(-8.0, 0.5), Err(WorksheetErrorCode::Num));
     }
 
-    // W108 Phase D: Excel special-cases exponent 0.5 to the correctly-rounded
-    // hardware sqrt, NOT exp(0.5·ln x). Pinned to live Excel 16.0 build 20131.
+    // W108 Phase D: Excel special-cases exponent 0.5 to a square root.
+    // Live Excel 16.0.20625.20108 midpoint probes locate its PC64 rounding.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_exponent_half_is_sqrt() {

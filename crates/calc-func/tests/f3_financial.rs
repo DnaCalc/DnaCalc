@@ -12,6 +12,121 @@ use calc_func::locale::DateSystem::{System1900, System1904};
 use calc_func::value::WorksheetErrorCode::{Div0, NA, Num, Value};
 use f1_support::*;
 
+/// Excel 16.0.20625.20108 stores the half power from x87 precision before the reciprocal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn half_powers_store_the_square_root_from_x87_precision() {
+    let rows: &[(&str, &[u64], u64)] = &[
+        (
+            "POWER",
+            &[
+                0x3ff0_0000_0028_3c23,
+                0x3fe0_0000_0000_0000,
+            ],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "POWER",
+            &[
+                0x3ff0_0000_0028_3c23,
+                0xbfe0_0000_0000_0000,
+            ],
+            0x3fef_ffff_ffd7_c3dc,
+        ),
+        (
+            "SQRT",
+            &[
+                0x3ff0_0000_0028_3c23,
+            ],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "SERIESSUM",
+            &[0x3ff0_0000_0028_3c23, 0x3fe0_0000_0000_0000, 1.0f64.to_bits(), 1.0f64.to_bits()],
+            0x3ff0_0000_0014_1e12,
+        ),
+        (
+            "FV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0xbfe0_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+            ],
+            0x3fe0_0000_65f5_9571,
+        ),
+        (
+            "FV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0x3fe0_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbfe0_0000_65cd_594d,
+        ),
+        (
+            "PV",
+            &[
+                0x3e04_1e11_8000_0000,
+                0xbfe0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbff0_0000_0014_1e12,
+        ),
+        (
+            "DDB",
+            &[
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+                0x4000_0000_0000_0000,
+                0x3ff8_0000_0000_0000,
+                0x3ce2_0000_0000_0000,
+            ],
+            0x3cd1_ffff_ffff_fffe,
+        ),
+        (
+            "RATE",
+            &[
+                0xbfe0_0000_0000_0000,
+                0xc001_2a4b_d446_d9c6,
+                0xbfba_436d_5d1a_78f3,
+                0xbfef_0c29_fcea_645e,
+                0x0000_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbe70_bc3b_81fd_ca90,
+        ),
+        (
+            "RATE",
+            &[
+                0xbfe0_0000_0000_0000,
+                0xc001_2a4b_d446_d9c6,
+                0xbfba_436d_5d1a_78f3,
+                0xbfef_0c29_fcea_645e,
+                0x3ff0_0000_0000_0000,
+                0x0000_0000_0000_0000,
+            ],
+            0xbe93_bd46_70d4_19ba,
+        ),
+    ];
+    for &(name, args, expected) in rows {
+        let args = args.iter().map(|&bits| n(f64::from_bits(bits))).collect();
+        exact(call(name, args), f64::from_bits(expected));
+    }
+    text(
+        call(
+            "IMPOWER",
+            vec![n(f64::from_bits(0x3e5d_c950_36c2_8ad6)), n(-0.5)],
+        ),
+        "6004.00534941738",
+    );
+}
+
 /// Independent Excel 20527 controls and a nearby excluded rounding case.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

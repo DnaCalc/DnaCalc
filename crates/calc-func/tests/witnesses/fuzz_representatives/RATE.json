@@ -1,7 +1,7 @@
 {
   "format": "dnacalc-witness-set/1",
   "function": "RATE",
-  "selection": "dc-ztvv.21 sf2 live smart-fuzzer cluster representatives (106,412 cases, seeds 20261123..20261125): R1/R3 exact after 3766bca80; R2 (dc-j9k.97) and R4 (dc-j9k.79) pinned with calc_func",
+  "selection": "dc-ztvv.21 sf2 live smart-fuzzer cluster representatives (106,412 cases, seeds 20261123..20261125). R1/R3 exact after 3766bca80. The R4 representative matches after dc-j9k.170. Remaining R2 discrepancies (dc-j9k.97) are pinned with calc_func.",
   "readings": [
     {
       "bitness": "64-bit",
@@ -140,8 +140,7 @@
         "0xc150390e4cbb1173",
         "0x0000000000000000"
       ],
-      "expected_bits": "0xbd5ac864290601f4",
-      "calc_func": "0x3d59b79d91470141"
+      "expected_bits": "0xbd5ac864290601f4"
     }
   ]
 }
