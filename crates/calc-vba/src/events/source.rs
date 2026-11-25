@@ -495,7 +495,7 @@ pub struct ProcedureParameter {
 /// What a declared parameter type accepts from a host-supplied scalar argument.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParameterKind {
-    /// Byte, Integer, Long, LongLong, Single, Double, Currency, Date, Decimal.
+    /// Byte, Integer, Long, Single, Double, Currency, Date (LongLong and Decimal take no fixture).
     Number,
     Boolean,
     /// String, including fixed-length strings.
@@ -511,8 +511,9 @@ impl ParameterKind {
         match ty {
             T::Variant => Self::Variant,
             T::Boolean => Self::Boolean,
-            T::Byte | T::Integer | T::Long | T::LongLong | T::Single | T::Double | T::Currency
-            | T::Date | T::Decimal => Self::Number,
+            T::Byte | T::Integer | T::Long | T::Single | T::Double | T::Currency | T::Date => {
+                Self::Number
+            }
             T::String | T::FixedString(_) => Self::Text,
             _ => Self::Other,
         }
@@ -683,6 +684,10 @@ impl super::LoadedProject {
                         Variant::from_u8(*n as u8)
                     }
                     Some(api::Type::Single) => Variant::from_f32(*n as f32),
+                    Some(api::Type::Date) => Variant::from_date_f64(*n),
+                    Some(api::Type::Currency) if (n * 10_000.0).abs() < 9.0e18 => {
+                        Variant::from_currency_scaled_i64((n * 10_000.0).round() as i64)
+                    }
                     _ => Variant::from_f64(*n),
                 },
                 ProcedureArg::Text(t) => Variant::from_string(t.as_str()),

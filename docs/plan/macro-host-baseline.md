@@ -167,7 +167,30 @@ Run-time errors 53 and 70 are Guarded denials of file and FFI access (155 `Ffi`,
 denials recorded). The 4,155 workbooks behind `_Application.Build` are mostly copies of the
 engine's probe project; read the ranking as members, not independent macros.
 
+### Argument fixtures (dc-gync0, 2026-11-25)
+
+`dnacalc run <book> --all --fixtures` gives each required scalar parameter a documented value
+and runs the entry: Number 1 (Long, Integer, Byte, Single, Double, Currency, Date, Variant),
+Boolean True, Text "1". An entry with a ParamArray, an object, array or record parameter, or a
+LongLong or Decimal parameter stays `needs-arguments`. Each fixture row says `"arguments": "fixture"`.
+The fixture is a probe value, not an Excel answer: a success means the entry ran without a
+run-time error for those inputs, nothing more. Measured over the first 1,598 admitted workbooks
+of the list (hash order, 29,403 entries; the run was stopped there, the other 2,582 workbooks
+are not run with fixtures), same sandbox and binary as above except the Date and Currency
+conversion added after this run (3 entries with a Date parameter were `not-callable`).
+
+| Entry outcome | Without fixtures | With fixtures |
+| --- | ---: | ---: |
+| Success | 6,454 | 13,936 |
+| VBA run-time error | 5,043 | 7,330 |
+| Typed refusal | 4,437 | 4,867 |
+| Needs arguments | 13,469 | 3,267 |
+| Not callable | 0 | 3 |
+
+Of the 10,202 entries the fixtures made runnable: 7,482 succeed, 2,287 end in a run-time error
+(mostly `array has no bounds`, where a Variant parameter expects an array, and 91/424 object
+errors), 430 are typed refusals, 3 not callable.
+
 Still open (dc-gync0): the 3,265-hash cohort per-entry run (needs the SHA store on this host or a Windows
 run: `dnacalc run <book> --all --macro-level guarded --json` under the same sandbox, steps in
-the lane's RUN-ON-WINDOWS.txt) and argument fixtures for the `needs-arguments` entries;
-Application.Run between procedures (dc-80m0f, needs a CalcVBA reentrant dynamic call).
+the lane's RUN-ON-WINDOWS.txt; the owning bead is named in dc-gync0's close note); Application.Run between procedures (dc-80m0f, needs a CalcVBA reentrant dynamic call).

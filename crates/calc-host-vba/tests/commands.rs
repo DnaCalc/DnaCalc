@@ -45,6 +45,9 @@ End Sub
 Public Function Describe(ByVal n As Long, ByVal t As String, ByVal b As Boolean, ByVal v As Variant) As String
  Describe = CStr(n) & \"|\" & t & \"|\" & CStr(b) & \"|\" & CStr(v)
 End Function
+Public Function WhenIs(ByVal d As Date, ByVal c As Currency, ByVal s As Single, ByVal i As Integer, ByVal y As Byte) As Double
+ WhenIs = CDbl(d) + CDbl(c) + CDbl(s) + i + y
+End Function
 Public Sub TakesRange(ByVal r As Range)
 End Sub
 Public Sub TakesRest(ParamArray rest() As Variant)
@@ -218,6 +221,9 @@ fn required_scalar_parameters_get_a_documented_fixture() {
         );
         let run = owner.run_procedure(&mut session, "Module1.Describe", &fixture);
         assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Text("1|1|True|1".into())), "{run:?}");
+        let when = entry("WhenIs").argument_fixture().expect("scalar parameters");
+        let run = owner.run_procedure(&mut session, "Module1.WhenIs", &when);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Number(5.0)), "{run:?}");
         assert_eq!(entry("WithDefault").argument_fixture(), Some(vec![]));
         assert_eq!(entry("TakesRange").argument_fixture(), None);
         assert_eq!(entry("TakesRest").argument_fixture(), None);
