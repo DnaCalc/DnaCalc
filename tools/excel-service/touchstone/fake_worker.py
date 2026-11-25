@@ -95,6 +95,8 @@ while True:
         time.sleep(0.1)
         hello(True)
         continue
+    if any(g["f"] == "HANG" for g in groups):
+        time.sleep(60.0)
     if any(g["f"] == "SLEEP" for g in groups):
         time.sleep(0.3)
     heavy = sum(g["n"] for g in groups if g["f"] == "HEAVY")

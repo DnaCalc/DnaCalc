@@ -2942,3 +2942,30 @@ fn project_designer_modules_are_admitted_as_classes() {
         .unwrap_or_else(|error| panic!("{replacement}: {error}"));
     }
 }
+
+/// dc-cmruz: Excel compiles an assignment to a default member of a returned object whose
+/// source is a global function (`Range("B2") = 50`, `Cells(1, 1) = x`,
+/// `Range("A1").Offset(1, 0) = y`); the corpus projects that use them must be admitted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_cmruz_default_member_assignment_to_a_global_range_call_compiles() {
+    use calc_host_vba::{ModuleSource, ModuleTarget};
+    for body in [
+        "Range(\"B2\") = 50",
+        "Cells(2, 1) = 7",
+        "Range(\"A3\").Offset(1, 0) = 9",
+        "Range(\"B6\") = Range(\"B5\").Value",
+        "ActiveSheet.Cells(1, 1) = 3",
+        "Sheets(\"Sheet1\").Range(\"A1\") = 3",
+    ] {
+        let session = opened(&calc_host::blank_package(), "cmruz.xlsm");
+        let source = format!("Public Sub Go()\n {body}\nEnd Sub\n");
+        let modules = vec![ModuleSource {
+            name: "Module1".into(),
+            source,
+            target: ModuleTarget::Standard,
+        }];
+        let prepared = calc_host_vba::prepare(session.host(), "cmruz.xlsm", &modules, 50_000, Some(calc_vba::Backend::Interpreter));
+        assert!(prepared.is_ok(), "{body}: {:?}", prepared.err());
+    }
+}
