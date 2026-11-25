@@ -27,7 +27,8 @@ use super::steer::{
     CoverageTracker, FuzzCase, evaluate_traced, generate_steered_round, touchstone_bulk_context,
 };
 use super::{FuzzConfig, FuzzSummary, freeze_predictions, main_round_budget, write_outputs};
-use calc_verdict::Severity;
+use calc_verdict::value::{ArrayShape, CalcArray, CalcValue, WorksheetErrorCode};
+use calc_verdict::{Severity, decode_result, encode_result};
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -221,17 +222,13 @@ fn error_variant_to_excel(name: &str) -> Result<&'static str, String> {
 }
 
 fn excel_error_to_encoded(code: &str) -> String {
-    let variant = match code {
-        "#NULL!" => "Null",
-        "#DIV/0!" => "Div0",
-        "#VALUE!" => "Value",
-        "#REF!" => "Ref",
-        "#NAME?" => "Name",
-        "#NUM!" => "Num",
-        "#N/A" => "NA",
-        other => other.trim_start_matches('#'),
-    };
-    format!("error:{variant}")
+    WorksheetErrorCode::all()
+        .into_iter()
+        .find(|error| error.excel_spelling() == code)
+        .map_or_else(
+            || format!("error:{}", code.trim_start_matches('#')),
+            |error| format!("error:{error:?}"),
+        )
 }
 
 fn json_cell_to_range_cell(cell: &Value) -> Result<RangeCell, String> {
@@ -299,7 +296,7 @@ pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
                     for cell in range {
                         cells.push(json_cell_to_range_cell(cell)?);
                     }
-                    (range.len(), 1, cells)
+                    (1, range.len(), cells)
                 };
                 if rows > 32 || cols > 32 || rows * cols > 128 {
                     return Err(format!(
@@ -346,8 +343,8 @@ pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
                     bits.push(b);
                 }
                 Ok(Arg::Array {
-                    rows: items.len(),
-                    cols: 1,
+                    rows: 1,
+                    cols: items.len(),
                     bits,
                 })
             }
@@ -356,12 +353,15 @@ pub fn json_arg_to_touchstone(value: &Value) -> Result<Arg, String> {
     }
 }
 
-/// Convert a Touchstone `Answer` into WitnessSet encoded form, or a terminal Unread/Crashed outcome.
-pub fn answer_to_encoded(answer: &Answer) -> Result<String, RowOutcome> {
+/// Convert a Touchstone result to a witness or a terminal unread/crashed outcome.
+fn answer_to_encoded(answer: &Answer, placed_spill: bool) -> Result<String, RowOutcome> {
     match answer {
         Answer::Number(bits) => Ok(format!("0x{bits:016x}")),
         Answer::Boolean(b) => Ok(if *b { "logical:True" } else { "logical:False" }.to_owned()),
         Answer::Text(s) => Ok(format!("text:{s}")),
+        Answer::Error(code) if placed_spill && code == "#SPILL!" => Err(RowOutcome::Unread {
+            reason: "Excel spill placement failed".to_owned(),
+        }),
         Answer::Error(code) => Ok(excel_error_to_encoded(code)),
         Answer::Blank => Ok("empty".to_owned()),
         Answer::Unread { reason } => Err(RowOutcome::Unread {
@@ -370,9 +370,28 @@ pub fn answer_to_encoded(answer: &Answer) -> Result<String, RowOutcome> {
         Answer::Crashed { detail } => Err(RowOutcome::Crashed {
             detail: detail.clone(),
         }),
-        Answer::Array { .. } => Err(RowOutcome::Unread {
-            reason: "unexpected spilled array output".to_owned(),
-        }),
+        // Touchstone wraps an ordinary scalar in a 1x1 matrix in spill mode. Match the
+        // witness invocation's existing scalar projection for a single result cell.
+        Answer::Array {
+            rows: 1,
+            cols: 1,
+            cells,
+        } if cells.len() == 1 => answer_to_encoded(&cells[0], false),
+        Answer::Array { rows, cols, cells } => {
+            let values = cells
+                .iter()
+                .map(|cell| {
+                    let encoded = answer_to_encoded(cell, false)?;
+                    decode_result(&encoded).map_err(|reason| RowOutcome::Unread { reason })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let shape = ArrayShape { rows: *rows, cols: *cols };
+            CalcArray::new(shape, values)
+                .and_then(|array| encode_result(&CalcValue::array(array)))
+                .ok_or_else(|| RowOutcome::Unread {
+                    reason: "invalid spill matrix".to_owned(),
+                })
+        }
     }
 }
 
@@ -511,6 +530,7 @@ struct PendingChunk {
     lane_tag: usize, // 0 = primary/bulk cases, 1 = secondary/interactive cases
     indices: Vec<usize>,
     sent_rows: Vec<Vec<Arg>>,
+    spill: bool,
     handle: Handle,
 }
 
@@ -623,7 +643,7 @@ fn drain_one_chunk(
                 };
                 continue;
             };
-            let encoded = match answer_to_encoded(answer) {
+            let encoded = match answer_to_encoded(answer, chunk.spill) {
                 Ok(enc) => enc,
                 Err(outcome) => {
                     judged[case_idx] = JudgedRow {
@@ -857,11 +877,13 @@ pub(crate) fn ask_single_priority(
         .map_or((batch_size, in_flight), |cfg| {
             (cfg.batch_size, cfg.in_flight)
         });
-    if config.is_some_and(|cfg| cfg.sweep.is_some())
-        && sendable
+    // Excel enters and reads a spill anchor per call. Keep these requests as small as
+    // range calls so a sweep can return the worker to foreground work promptly.
+    let per_call_sheet_work = requests_spill(function)
+        || sendable
             .iter()
-            .any(|(_, row)| row.iter().any(|arg| matches!(arg, Arg::Range { .. })))
-    {
+            .any(|(_, row)| row.iter().any(|arg| matches!(arg, Arg::Range { .. })));
+    if config.is_some_and(|cfg| cfg.sweep.is_some()) && per_call_sheet_work {
         batch_size = batch_size.clamp(1, 8);
         in_flight = 1;
     }
@@ -892,6 +914,12 @@ pub(crate) fn ask_single_priority(
 type RequestChunk = (usize, Priority, Vec<usize>, Vec<Vec<Arg>>);
 type BatchProvenance = (BTreeMap<String, Value>, BTreeMap<String, usize>);
 
+fn requests_spill(function: &str) -> bool {
+    function == "TRANSPOSE"
+        || calc_catalogue::named(function)
+            .is_some_and(|entry| entry.id().family() == calc_catalogue::ported::arrays::CODE)
+}
+
 fn dispatch_chunks(
     client: &Client,
     function: &str,
@@ -906,6 +934,7 @@ fn dispatch_chunks(
     let mut worker_calls = BTreeMap::new();
     let mut failure = None;
     let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
+    let spill = requests_spill(function);
     loop {
         while failure.is_none() && !sweep_paused(config) && pending.len() < max_pending {
             let Some((lane_tag, priority, indices, sent_rows)) = chunks.pop_front() else {
@@ -914,6 +943,7 @@ fn dispatch_chunks(
             let mut request = Request::new(function, sent_rows.clone());
             request.priority = Some(if sweep { Priority::Sweep } else { priority });
             request.echo_inputs = true;
+            request.spill = spill;
             let submitted = Instant::now();
             match client.submit(request) {
                 Ok(handle) => pending.push_back(PendingChunk {
@@ -921,6 +951,7 @@ fn dispatch_chunks(
                     lane_tag,
                     indices,
                     sent_rows,
+                    spill,
                     handle,
                 }),
                 Err(error) => failure = Some(format!("touchstone submit failed: {error}")),
@@ -2432,6 +2463,63 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread;
+
+    #[test]
+    fn transpose_fuzz_compares_spill_dimensions_and_every_cell() {
+        let args = [json!([hex_f64(1.0), hex_f64(2.0)])];
+        assert!(matches!(
+            json_arg_to_touchstone(&args[0]).unwrap(),
+            Arg::Array { rows: 1, cols: 2, .. }
+        ));
+        assert!(matches!(
+            json_arg_to_touchstone(&json!({"range": args[0]})).unwrap(),
+            Arg::Range { rows: 1, cols: 2, .. }
+        ));
+        let (prediction, _, _) = evaluate_traced("TRANSPOSE", &args, &touchstone_bulk_context());
+        let excel_spill = |rows, cols, second| Answer::Array {
+            rows,
+            cols,
+            cells: vec![Answer::Number(1.0_f64.to_bits()), Answer::Number(second)],
+        };
+        let expected = answer_to_encoded(&excel_spill(2, 1, 2.0_f64.to_bits()), true).unwrap();
+        assert_eq!(judge_pair(&expected, &prediction).0, Severity::Exact);
+
+        let wrong_shape = answer_to_encoded(&excel_spill(1, 2, 2.0_f64.to_bits()), true).unwrap();
+        assert_eq!(judge_pair(&wrong_shape, &prediction).0, Severity::Structural);
+
+        let wrong_cell = answer_to_encoded(&excel_spill(2, 1, 2.0_f64.to_bits() + 1), true).unwrap();
+        assert_ne!(judge_pair(&wrong_cell, &prediction).0, Severity::Exact);
+
+        let spill_error = Answer::Error("#SPILL!".to_owned());
+        assert!(matches!(
+            answer_to_encoded(&spill_error, true),
+            Err(RowOutcome::Unread { reason }) if reason == "Excel spill placement failed"
+        ));
+        let matrix_with_error = Answer::Array {
+            rows: 2,
+            cols: 1,
+            cells: vec![spill_error, Answer::Number(2.0_f64.to_bits())],
+        };
+        let encoded = answer_to_encoded(&matrix_with_error, true).unwrap();
+        let decoded = decode_result(&encoded).unwrap();
+        assert_eq!(
+            decoded.as_array().unwrap().get(0, 0).unwrap().as_error(),
+            Some(WorksheetErrorCode::Spill)
+        );
+    }
+
+    #[test]
+    fn unique_fuzz_compares_published_spill_cells() {
+        let args = [json!({"range": [[null, hex_f64(4.0)]]})];
+        let (prediction, _, _) = evaluate_traced("UNIQUE", &args, &touchstone_bulk_context());
+        let excel = Answer::Array {
+            rows: 1,
+            cols: 2,
+            cells: vec![Answer::Number(0.0_f64.to_bits()), Answer::Number(4.0_f64.to_bits())],
+        };
+        let expected = answer_to_encoded(&excel, true).unwrap();
+        assert_eq!(judge_pair(&expected, &prediction).0, Severity::Exact, "{prediction}");
+    }
 
     fn read_frame(stream: &mut TcpStream) -> Option<(u8, Value)> {
         let mut size = [0u8; 4];

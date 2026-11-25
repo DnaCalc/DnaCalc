@@ -7,8 +7,8 @@
 //! lists (an array, row by row; a flat list is one row). JSON `null` denotes a blank cell and
 //! `{"error":"Num"}` denotes an error value, using the same variant names as results. A result is `"0x<16 hex digits>"`,
 //! `"error:<Variant>"` (`error:Num`, `error:Div0`, ...), `"logical:True"`/`"logical:False"` or
-//! `"text:<text>"`. A row of a function that returns an array names the cell it was read from with
-//! `"result_index": [row, column]`, 1-based.
+//! `"text:<text>"`, `"empty"`, or `"array:"` followed by the canonical typed value JSON for an
+//! entire spill. A scalar projection of an array names its cell with `"result_index": [row, column]`, 1-based.
 //!
 //! A [`WitnessSet`] file (`dnacalc-witness-set/1`, the pinned sets under
 //! `crates/calc-func/tests/witnesses/`) adds to those rows the readings they came from: each row
@@ -221,6 +221,17 @@ pub fn decode_argument(node: &Value, path: &str) -> Result<CalcValue, String> {
 /// A witness result as a value: Excel's reading or a pinned calculated result. A pinned refusal
 /// (`fault:...`) is not a value and is an error here.
 pub fn decode_result(text: &str) -> Result<CalcValue, String> {
+    if text == "empty" {
+        return Ok(CalcValue::empty());
+    }
+    if let Some(body) = text.strip_prefix("array:") {
+        let path = "witness result";
+        let node = crate::json::parse(body.as_bytes(), path).map_err(|e| e.to_string())?;
+        let value = crate::typed::decode_value(&node, path).map_err(|e| e.to_string())?;
+        return value.as_array().is_some().then_some(value).ok_or_else(|| {
+            "an array witness result must hold a rectangular array".to_owned()
+        });
+    }
     if let Some(b) = bits(text) {
         return Ok(CalcValue::number(f64::from_bits(b)));
     }
@@ -242,19 +253,23 @@ pub fn decode_result(text: &str) -> Result<CalcValue, String> {
     Err(format!("not a witness result: {text}"))
 }
 
-/// A value in the result encoding, or `None` for a value that has none (an array, a reference, an
-/// empty or missing value).
+/// A scalar or whole spill in the result encoding, or `None` for unrepresentable values.
 pub fn encode_result(value: &CalcValue) -> Option<String> {
     match value.core() {
         CoreValue::Number(n) => Some(format!("0x{:016x}", n.to_bits())),
         CoreValue::Error(code) => Some(format!("error:{code:?}")),
         CoreValue::Logical(b) => Some(if *b { "logical:True" } else { "logical:False" }.to_owned()),
         CoreValue::Text(t) => Some(format!("text:{}", t.to_string_lossy())),
+        CoreValue::Empty => Some("empty".into()),
+        CoreValue::Array(_) if crate::typed::representable(value) => {
+            Some(format!("array:{}", crate::typed::value_out(value).compact()))
+        }
         _ => None,
     }
 }
 
-/// The scalar reading of Excel's `INDEX(result, row, column)`, or the result itself.
+/// The scalar reading of Excel's `INDEX(result, row, column)`, or the displayed result at an
+/// isolated worksheet anchor with room for the entire spill.
 /// Indices are 1-based. A zero axis selects the whole row/column in Excel; the scalar capture
 /// reads its first cell. Worksheet errors propagate through INDEX at any selected position.
 pub fn select_result(value: &CalcValue, index: Option<(usize, usize)>) -> Option<CalcValue> {
@@ -265,7 +280,10 @@ pub fn select_result(value: &CalcValue, index: Option<(usize, usize)>) -> Option
         (Some((r, c)), Some(array)) => array.get(r.saturating_sub(1), c.saturating_sub(1)).cloned(),
         (Some((0..=1, 0..=1)), None) => Some(value.clone()),
         (Some(_), None) => None,
-        (None, Some(array)) if array.cell_count() == 1 => array.get(0, 0).cloned(),
+        (None, Some(array)) if array.cell_count() == 1 || array.is_boxed() => {
+            array.get(0, 0).map(CalcValue::shown_as_spill_cell)
+        }
+        (None, Some(array)) => Some(CalcValue::array(array.shown_as_spill())),
         (None, _) => Some(value.clone()),
     }
 }
@@ -741,6 +759,7 @@ mod tests {
             "error:Div0",
             "logical:True",
             "text:ab",
+            "empty",
         ] {
             assert_eq!(
                 encode_result(&decode_result(text).unwrap()).as_deref(),
@@ -748,6 +767,14 @@ mod tests {
             );
         }
         assert!(decode_result("fault:NotModelled").is_err());
+        let spill = decode_argument(
+            &json!([["0x8000000000000000", null], [true, {"error": "Spill"}]]),
+            "spill",
+        )
+        .unwrap();
+        let encoded = encode_result(&spill).unwrap();
+        assert_eq!(compare(&spill, &decode_result(&encoded).unwrap()), None);
+        assert!(decode_result(r#"array:{"empty":true}"#).is_err());
         assert_eq!(
             decode_argument(&json!(null), "a").unwrap(),
             CalcValue::empty()

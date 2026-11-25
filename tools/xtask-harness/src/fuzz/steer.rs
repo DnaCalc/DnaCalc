@@ -56,6 +56,9 @@ pub fn classify_outcome(encoded: &str) -> String {
     if encoded.starts_with("text:") {
         return "text".to_owned();
     }
+    if encoded.starts_with("array:") {
+        return "array".to_owned();
+    }
     if let Some(bits) = parse_hex_bits(&Value::String(encoded.to_owned())) {
         let v = f64::from_bits(bits);
         if v == 0.0 {

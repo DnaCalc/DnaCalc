@@ -541,7 +541,7 @@ static class Program
                     {
                         types.Append('u'); results.Add(new Dictionary<string, object> { ["reason"] = "input-changed", ["read_back"] = new List<object>() });
                     }
-                    else if (spill && !((object)resultCell.Value2 is int) && (bool)resultCell.HasSpill)
+                    else if (spill && (bool)resultCell.HasSpill)
                     {
                         object body = resultCell.SpillingToRange.Value2;
                         var a = body as object[,]; int nr = a?.GetLength(0) ?? 1, nc = a?.GetLength(1) ?? 1;
@@ -1180,14 +1180,14 @@ static class Program
                 }
                 dynamic cell = grid.Range[anchors[k]];
                 object top = cell.Value2;
-                if (top is int)
+                bool spills = (bool)cell.HasSpill;
+                if (!spills && top is int)
                 {
                     var (l, v) = Convert1(top);
                     ty.Append(l);
                     vals.Add(v);
                     continue;
                 }
-                bool spills = (bool)cell.HasSpill;
                 object body = spills ? cell.SpillingToRange.Value2 : top;
                 int rows = 1, cols = 1;
                 Func<int, int, object> cellAt = (a, b) => body;
