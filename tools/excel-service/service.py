@@ -15,7 +15,7 @@ import threading
 import time
 
 from client import atomic_json
-from policy import ERRORS, catalogue_names, decode, validate
+from policy import ERRORS, catalogue_names, check_formula_length, decode, formula_chars, validate
 from queue_bridge import operation
 
 HERE = Path(__file__).resolve().parent
@@ -124,6 +124,7 @@ def witness_request(request):
         if "result_index" in request:
             r, c = request["result_index"]
             formula = f"INDEX({formula},{r},{c})"
+        check_formula_length(1 + formula_chars(formula))
         rows.append({"id": str(i), "args": args, "argument_modes": modes,
                      "formula": "=" + formula})
     return {"rows": rows}

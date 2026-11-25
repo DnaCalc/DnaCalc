@@ -1,458 +1,531 @@
-math	ACOS
-math	ACOSH
-math	ACOT
-math	ACOTH
-math	ASIN
-math	ASINH
-math	ATAN
-math	ATAN2
-math	ATANH
-math	COS
-math	COSH
-math	COT
-math	COTH
-math	CSC
-math	CSCH
-math	SEC
-math	SECH
-math	SIN
-math	SINH
-math	TAN
-math	TANH
-math	DEGREES
-math	RADIANS
-math	PI
-math	EXP
-math	LN
-math	LOG
-math	LOG10
-math	SQRT
-math	SQRTPI
-math	POWER
-math	FACT
-math	FACTDOUBLE
-math	COMBIN
-math	COMBINA
-math	PERMUT
-math	PERMUTATIONA
-math	GCD
-math	LCM
-math	MULTINOMIAL
-math	ARABIC
-math	ROMAN
-math	BASE
-math	DECIMAL
-math	SERIESSUM
-math	SUMX2MY2
-math	SUMX2PY2
-math	SUMXMY2
-math	MDETERM
-math	MINVERSE
-math	MMULT
-math	MUNIT
-statistics	AVEDEV
-statistics	DEVSQ
-statistics	GEOMEAN
-statistics	HARMEAN
-statistics	MEDIAN
-statistics	MODE
-statistics	MODE.SNGL
-statistics	MODE.MULT
-statistics	LARGE
-statistics	SMALL
-statistics	RANK
-statistics	RANK.EQ
-statistics	RANK.AVG
-statistics	PERCENTILE
-statistics	PERCENTILE.INC
-statistics	PERCENTILE.EXC
-statistics	QUARTILE
-statistics	QUARTILE.INC
-statistics	QUARTILE.EXC
-statistics	PERCENTRANK
-statistics	PERCENTRANK.INC
-statistics	PERCENTRANK.EXC
-statistics	STDEV
-statistics	STDEV.S
-statistics	STDEV.P
-statistics	STDEVA
-statistics	STDEVP
-statistics	STDEVPA
-statistics	VAR
-statistics	VAR.S
-statistics	VAR.P
-statistics	VARA
-statistics	VARP
-statistics	VARPA
-statistics	COVAR
-statistics	COVARIANCE.P
-statistics	COVARIANCE.S
-statistics	CORREL
-statistics	PEARSON
-statistics	RSQ
-statistics	SLOPE
-statistics	INTERCEPT
-statistics	STEYX
-statistics	FORECAST
-statistics	FORECAST.LINEAR
-statistics	KURT
-statistics	SKEW
-statistics	SKEW.P
-statistics	TRIMMEAN
-statistics	STANDARDIZE
-statistics	FISHER
-statistics	FISHERINV
-statistics	PROB
-statistics	FREQUENCY
-statistics	TREND
-statistics	GROWTH
-statistics	LINEST
-statistics	LOGEST
-statistics	FORECAST.ETS
-statistics	FORECAST.ETS.CONFINT
-statistics	FORECAST.ETS.SEASONALITY
-statistics	FORECAST.ETS.STAT
-distributions	NORM.DIST
-distributions	NORMDIST
-distributions	NORM.INV
-distributions	NORMINV
-distributions	NORM.S.DIST
-distributions	NORMSDIST
-distributions	NORM.S.INV
-distributions	NORMSINV
-distributions	LOGNORM.DIST
-distributions	LOGNORMDIST
-distributions	LOGNORM.INV
-distributions	LOGINV
-distributions	CONFIDENCE
-distributions	CONFIDENCE.NORM
-distributions	CONFIDENCE.T
-distributions	GAUSS
-distributions	PHI
-distributions	CHISQ.DIST
-distributions	CHISQ.DIST.RT
-distributions	CHIDIST
-distributions	CHISQ.INV
-distributions	CHISQ.INV.RT
-distributions	CHIINV
-distributions	F.DIST
-distributions	F.DIST.RT
-distributions	FDIST
-distributions	F.INV
-distributions	F.INV.RT
-distributions	FINV
-distributions	T.DIST
-distributions	T.DIST.RT
-distributions	T.DIST.2T
-distributions	TDIST
-distributions	T.INV
-distributions	T.INV.2T
-distributions	TINV
-distributions	BETA.DIST
-distributions	BETADIST
-distributions	BETA.INV
-distributions	BETAINV
-distributions	GAMMA.DIST
-distributions	GAMMADIST
-distributions	GAMMA.INV
-distributions	GAMMAINV
-distributions	GAMMA
-distributions	GAMMALN
-distributions	GAMMALN.PRECISE
-distributions	WEIBULL.DIST
-distributions	WEIBULL
-distributions	EXPON.DIST
-distributions	EXPONDIST
-distributions	BINOM.DIST
-distributions	BINOMDIST
-distributions	BINOM.DIST.RANGE
-distributions	BINOM.INV
-distributions	CRITBINOM
-distributions	POISSON.DIST
-distributions	POISSON
-distributions	HYPGEOM.DIST
-distributions	HYPGEOMDIST
-distributions	NEGBINOM.DIST
-distributions	NEGBINOMDIST
-distributions	ERF
-distributions	ERF.PRECISE
-distributions	ERFC
-distributions	ERFC.PRECISE
-distributions	CHISQ.TEST
-distributions	CHITEST
-distributions	F.TEST
-distributions	FTEST
-distributions	T.TEST
-distributions	TTEST
-distributions	Z.TEST
-distributions	ZTEST
-engineering	BIN2DEC
-engineering	BIN2HEX
-engineering	BIN2OCT
-engineering	DEC2BIN
-engineering	DEC2HEX
-engineering	DEC2OCT
-engineering	HEX2BIN
-engineering	HEX2DEC
-engineering	HEX2OCT
-engineering	OCT2BIN
-engineering	OCT2DEC
-engineering	OCT2HEX
-engineering	BITAND
-engineering	BITOR
-engineering	BITXOR
-engineering	BITLSHIFT
-engineering	BITRSHIFT
-engineering	COMPLEX
-engineering	IMABS
-engineering	IMAGINARY
-engineering	IMARGUMENT
-engineering	IMREAL
-engineering	IMCONJUGATE
-engineering	IMCOS
-engineering	IMCOSH
-engineering	IMCOT
-engineering	IMCSC
-engineering	IMCSCH
-engineering	IMEXP
-engineering	IMLN
-engineering	IMLOG10
-engineering	IMLOG2
-engineering	IMSEC
-engineering	IMSECH
-engineering	IMSIN
-engineering	IMSINH
-engineering	IMSQRT
-engineering	IMTAN
-engineering	IMDIV
-engineering	IMPOWER
-engineering	IMSUB
-engineering	IMSUM
-engineering	IMPRODUCT
-engineering	BESSELI
-engineering	BESSELJ
-engineering	BESSELK
-engineering	BESSELY
-engineering	DELTA
-engineering	GESTEP
-engineering	CONVERT
-rounding_more	CEILING.MATH
-rounding_more	CEILING.PRECISE
-rounding_more	FLOOR.MATH
-rounding_more	FLOOR.PRECISE
-rounding_more	ISO.CEILING
-financial	PV
-financial	FV
-financial	PMT
-financial	NPER
-financial	RATE
-financial	NPV
-financial	IPMT
-financial	PPMT
-financial	ISPMT
-financial	MIRR
-financial	FVSCHEDULE
-financial	PDURATION
-financial	RRI
-financial	NOMINAL
-financial	EFFECT
-financial	CUMIPMT
-financial	CUMPRINC
-financial	IRR
-financial	XNPV
-financial	XIRR
-financial	SLN
-financial	SYD
-financial	DB
-financial	DDB
-financial	VDB
-financial	AMORLINC
-financial	AMORDEGRC
-financial	DOLLARDE
-financial	DOLLARFR
-bonds	PRICE
-bonds	YIELD
-bonds	DURATION
-bonds	MDURATION
-bonds	PRICEMAT
-bonds	YIELDMAT
-bonds	YIELDDISC
-bonds	ACCRINT
-bonds	ACCRINTM
-bonds	COUPDAYBS
-bonds	COUPDAYS
-bonds	COUPDAYSNC
-bonds	COUPNCD
-bonds	COUPNUM
-bonds	COUPPCD
-bonds	DISC
-bonds	INTRATE
-bonds	RECEIVED
-bonds	PRICEDISC
-bonds	TBILLEQ
-bonds	TBILLPRICE
-bonds	TBILLYIELD
-bonds	ODDFPRICE
-bonds	ODDFYIELD
-bonds	ODDLPRICE
-bonds	ODDLYIELD
-dates	DATE
-dates	TIME
-dates	YEAR
-dates	MONTH
-dates	DAY
-dates	HOUR
-dates	MINUTE
-dates	SECOND
-dates	DAYS
-dates	DAYS360
-dates	DATEDIF
-dates	DATEVALUE
-dates	TIMEVALUE
-dates	EDATE
-dates	EOMONTH
-dates	WEEKDAY
-dates	WEEKNUM
-dates	ISOWEEKNUM
-dates	WORKDAY
-dates	WORKDAY.INTL
-dates	NETWORKDAYS
-dates	NETWORKDAYS.INTL
-dates	YEARFRAC
-dates	NOW
-dates	TODAY
-text_functions	CHAR
-text_functions	CODE
-text_functions	UNICHAR
-text_functions	UNICODE
-text_functions	LEN
-text_functions	LEFT
-text_functions	RIGHT
-text_functions	MID
-text_functions	LENB
-text_functions	LEFTB
-text_functions	RIGHTB
-text_functions	MIDB
-text_functions	UPPER
-text_functions	LOWER
-text_functions	PROPER
-text_functions	TRIM
-text_functions	CLEAN
-text_functions	REPT
-text_functions	EXACT
-text_functions	FIND
-text_functions	FINDB
-text_functions	SEARCH
-text_functions	SEARCHB
-text_functions	REPLACE
-text_functions	REPLACEB
-text_functions	SUBSTITUTE
-text_functions	T
-text_functions	CONCATENATE
-text_functions	CONCAT
-text_functions	TEXTJOIN
-text_format	VALUE
-text_format	TEXT
-text_format	FIXED
-text_format	DOLLAR
-text_format	NUMBERVALUE
-text_format	VALUETOTEXT
-text_format	ARRAYTOTEXT
-text_format	BAHTTEXT
-text_format	ASC
-text_format	DBCS
-text_format	JIS
-text_format	PHONETIC
-text_format	TEXTBEFORE
-text_format	TEXTAFTER
-text_format	TEXTSPLIT
-text_format	REGEXTEST
-text_format	REGEXEXTRACT
-text_format	REGEXREPLACE
-text_format	ENCODEURL
-text_format	FILTERXML
-text_format	HYPERLINK
-logical_more	IFS
-logical_more	SWITCH
-logical	IF
-logical	AND
-logical	OR
-logical	XOR
-logical	NOT
-logical	TRUE
-logical	FALSE
-error_fallback	IFERROR
-error_fallback	IFNA
-lookup	INDEX
-lookup	MATCH
-lookup	XMATCH
-lookup	XLOOKUP
-lookup	VLOOKUP
-lookup	HLOOKUP
-lookup	LOOKUP
-lookup	CHOOSE
-lookup	ROW
-lookup	COLUMN
-lookup	ROWS
-lookup	COLUMNS
-lookup	AREAS
-information	ISBLANK
-information	ISERR
-information	ISERROR
-information	ISNA
-information	ISNUMBER
-information	ISTEXT
-information	ISNONTEXT
-information	ISLOGICAL
-information	ISEVEN
-information	ISODD
-information	ISREF
-information	ISFORMULA
-information	TYPE
-information	N
-information	NA
-information	ERROR.TYPE
-arrays	SEQUENCE
-arrays	FILTER
-arrays	SORT
-arrays	SORTBY
-arrays	UNIQUE
-arrays	TAKE
-arrays	DROP
-arrays	CHOOSEROWS
-arrays	CHOOSECOLS
-arrays	VSTACK
-arrays	HSTACK
-arrays	TOCOL
-arrays	TOROW
-arrays	WRAPROWS
-arrays	WRAPCOLS
-arrays	EXPAND
-rounding	ABS
-rounding	SIGN
-rounding	INT
-rounding	TRUNC
-rounding	ROUND
-rounding	ROUNDUP
-rounding	ROUNDDOWN
-rounding	MROUND
-rounding	CEILING
-rounding	FLOOR
-rounding	MOD
-rounding	QUOTIENT
-rounding	EVEN
-rounding	ODD
-rounding	ECMA.CEILING
-aggregate	SUM
-aggregate	PRODUCT
-aggregate	SUMSQ
-aggregate	SUMPRODUCT
-aggregate	COUNT
-aggregate	COUNTA
-aggregate	COUNTBLANK
-aggregate	AVERAGE
-aggregate	AVERAGEA
-aggregate	MIN
-aggregate	MAX
-aggregate	MINA
-aggregate	MAXA
+math	ACOS	1	1
+math	ACOSH	1	1
+math	ACOT	1	1
+math	ACOTH	1	1
+math	ASIN	1	1
+math	ASINH	1	1
+math	ATAN	1	1
+math	ATAN2	2	2
+math	ATANH	1	1
+math	COS	1	1
+math	COSH	1	1
+math	COT	1	1
+math	COTH	1	1
+math	CSC	1	1
+math	CSCH	1	1
+math	SEC	1	1
+math	SECH	1	1
+math	SIN	1	1
+math	SINH	1	1
+math	TAN	1	1
+math	TANH	1	1
+math	DEGREES	1	1
+math	RADIANS	1	1
+math	PI	0	0
+math	EXP	1	1
+math	LN	1	1
+math	LOG	1	2
+math	LOG10	1	1
+math	SQRT	1	1
+math	SQRTPI	1	1
+math	POWER	2	2
+math	FACT	1	1
+math	FACTDOUBLE	1	1
+math	COMBIN	2	2
+math	COMBINA	2	2
+math	PERMUT	2	2
+math	PERMUTATIONA	2	2
+math	GCD	1	255
+math	LCM	1	255
+math	MULTINOMIAL	1	255
+math	ARABIC	1	1
+math	ROMAN	1	2
+math	BASE	2	3
+math	DECIMAL	2	2
+math	SERIESSUM	4	4
+math	SUMX2MY2	2	2
+math	SUMX2PY2	2	2
+math	SUMXMY2	2	2
+math	MDETERM	1	1
+math	MINVERSE	1	1
+math	MMULT	2	2
+math	MUNIT	1	1
+statistics	AVEDEV	1	255
+statistics	DEVSQ	1	255
+statistics	GEOMEAN	1	255
+statistics	HARMEAN	1	255
+statistics	MEDIAN	1	255
+statistics	MODE	1	255
+statistics	MODE.SNGL	1	255
+statistics	MODE.MULT	1	255
+statistics	LARGE	2	2
+statistics	SMALL	2	2
+statistics	RANK	2	3
+statistics	RANK.EQ	2	3
+statistics	RANK.AVG	2	3
+statistics	PERCENTILE	2	2
+statistics	PERCENTILE.INC	2	2
+statistics	PERCENTILE.EXC	2	2
+statistics	QUARTILE	2	2
+statistics	QUARTILE.INC	2	2
+statistics	QUARTILE.EXC	2	2
+statistics	PERCENTRANK	2	3
+statistics	PERCENTRANK.INC	2	3
+statistics	PERCENTRANK.EXC	2	3
+statistics	STDEV	1	255
+statistics	STDEV.S	1	255
+statistics	STDEV.P	1	255
+statistics	STDEVA	1	255
+statistics	STDEVP	1	255
+statistics	STDEVPA	1	255
+statistics	VAR	1	255
+statistics	VAR.S	1	255
+statistics	VAR.P	1	255
+statistics	VARA	1	255
+statistics	VARP	1	255
+statistics	VARPA	1	255
+statistics	COVAR	2	2
+statistics	COVARIANCE.P	2	2
+statistics	COVARIANCE.S	2	2
+statistics	CORREL	2	2
+statistics	PEARSON	2	2
+statistics	RSQ	2	2
+statistics	SLOPE	2	2
+statistics	INTERCEPT	2	2
+statistics	STEYX	2	2
+statistics	FORECAST	3	3
+statistics	FORECAST.LINEAR	3	3
+statistics	KURT	1	255
+statistics	SKEW	1	255
+statistics	SKEW.P	1	255
+statistics	TRIMMEAN	2	2
+statistics	STANDARDIZE	3	3
+statistics	FISHER	1	1
+statistics	FISHERINV	1	1
+statistics	PROB	3	4
+statistics	FREQUENCY	2	2
+statistics	TREND	1	4
+statistics	GROWTH	1	4
+statistics	LINEST	1	4
+statistics	LOGEST	1	4
+statistics	FORECAST.ETS	3	6
+statistics	FORECAST.ETS.CONFINT	3	7
+statistics	FORECAST.ETS.SEASONALITY	2	4
+statistics	FORECAST.ETS.STAT	3	6
+distributions	NORM.DIST	4	4
+distributions	NORMDIST	4	4
+distributions	NORM.INV	3	3
+distributions	NORMINV	3	3
+distributions	NORM.S.DIST	2	2
+distributions	NORMSDIST	1	1
+distributions	NORM.S.INV	1	1
+distributions	NORMSINV	1	1
+distributions	LOGNORM.DIST	4	4
+distributions	LOGNORMDIST	3	3
+distributions	LOGNORM.INV	3	3
+distributions	LOGINV	3	3
+distributions	CONFIDENCE	3	3
+distributions	CONFIDENCE.NORM	3	3
+distributions	CONFIDENCE.T	3	3
+distributions	GAUSS	1	1
+distributions	PHI	1	1
+distributions	CHISQ.DIST	3	3
+distributions	CHISQ.DIST.RT	2	2
+distributions	CHIDIST	2	2
+distributions	CHISQ.INV	2	2
+distributions	CHISQ.INV.RT	2	2
+distributions	CHIINV	2	2
+distributions	F.DIST	4	4
+distributions	F.DIST.RT	3	3
+distributions	FDIST	3	3
+distributions	F.INV	3	3
+distributions	F.INV.RT	3	3
+distributions	FINV	3	3
+distributions	T.DIST	3	3
+distributions	T.DIST.RT	2	2
+distributions	T.DIST.2T	2	2
+distributions	TDIST	3	3
+distributions	T.INV	2	2
+distributions	T.INV.2T	2	2
+distributions	TINV	2	2
+distributions	BETA.DIST	4	6
+distributions	BETADIST	3	5
+distributions	BETA.INV	3	5
+distributions	BETAINV	3	5
+distributions	GAMMA.DIST	4	4
+distributions	GAMMADIST	4	4
+distributions	GAMMA.INV	3	3
+distributions	GAMMAINV	3	3
+distributions	GAMMA	1	1
+distributions	GAMMALN	1	1
+distributions	GAMMALN.PRECISE	1	1
+distributions	WEIBULL.DIST	4	4
+distributions	WEIBULL	4	4
+distributions	EXPON.DIST	3	3
+distributions	EXPONDIST	3	3
+distributions	BINOM.DIST	4	4
+distributions	BINOMDIST	4	4
+distributions	BINOM.DIST.RANGE	3	4
+distributions	BINOM.INV	3	3
+distributions	CRITBINOM	3	3
+distributions	POISSON.DIST	3	3
+distributions	POISSON	3	3
+distributions	HYPGEOM.DIST	5	5
+distributions	HYPGEOMDIST	4	4
+distributions	NEGBINOM.DIST	4	4
+distributions	NEGBINOMDIST	3	3
+distributions	ERF	1	2
+distributions	ERF.PRECISE	1	1
+distributions	ERFC	1	1
+distributions	ERFC.PRECISE	1	1
+distributions	CHISQ.TEST	2	2
+distributions	CHITEST	2	2
+distributions	F.TEST	2	2
+distributions	FTEST	2	2
+distributions	T.TEST	4	4
+distributions	TTEST	4	4
+distributions	Z.TEST	2	3
+distributions	ZTEST	2	3
+engineering	BIN2DEC	1	1
+engineering	BIN2HEX	1	2
+engineering	BIN2OCT	1	2
+engineering	DEC2BIN	1	2
+engineering	DEC2HEX	1	2
+engineering	DEC2OCT	1	2
+engineering	HEX2BIN	1	2
+engineering	HEX2DEC	1	1
+engineering	HEX2OCT	1	2
+engineering	OCT2BIN	1	2
+engineering	OCT2DEC	1	1
+engineering	OCT2HEX	1	2
+engineering	BITAND	2	2
+engineering	BITOR	2	2
+engineering	BITXOR	2	2
+engineering	BITLSHIFT	2	2
+engineering	BITRSHIFT	2	2
+engineering	COMPLEX	2	3
+engineering	IMABS	1	1
+engineering	IMAGINARY	1	1
+engineering	IMARGUMENT	1	1
+engineering	IMREAL	1	1
+engineering	IMCONJUGATE	1	1
+engineering	IMCOS	1	1
+engineering	IMCOSH	1	1
+engineering	IMCOT	1	1
+engineering	IMCSC	1	1
+engineering	IMCSCH	1	1
+engineering	IMEXP	1	1
+engineering	IMLN	1	1
+engineering	IMLOG10	1	1
+engineering	IMLOG2	1	1
+engineering	IMSEC	1	1
+engineering	IMSECH	1	1
+engineering	IMSIN	1	1
+engineering	IMSINH	1	1
+engineering	IMSQRT	1	1
+engineering	IMTAN	1	1
+engineering	IMDIV	2	2
+engineering	IMPOWER	2	2
+engineering	IMSUB	2	2
+engineering	IMSUM	1	255
+engineering	IMPRODUCT	1	255
+engineering	BESSELI	2	2
+engineering	BESSELJ	2	2
+engineering	BESSELK	2	2
+engineering	BESSELY	2	2
+engineering	DELTA	1	2
+engineering	GESTEP	1	2
+engineering	CONVERT	3	3
+rounding_more	CEILING.MATH	1	3
+rounding_more	CEILING.PRECISE	1	2
+rounding_more	FLOOR.MATH	1	3
+rounding_more	FLOOR.PRECISE	1	2
+rounding_more	ISO.CEILING	1	2
+financial	PV	3	5
+financial	FV	3	5
+financial	PMT	3	5
+financial	NPER	3	5
+financial	RATE	3	6
+financial	NPV	2	255
+financial	IPMT	4	6
+financial	PPMT	4	6
+financial	ISPMT	4	4
+financial	MIRR	3	3
+financial	FVSCHEDULE	2	2
+financial	PDURATION	3	3
+financial	RRI	3	3
+financial	NOMINAL	2	2
+financial	EFFECT	2	2
+financial	CUMIPMT	6	6
+financial	CUMPRINC	6	6
+financial	IRR	1	2
+financial	XNPV	3	3
+financial	XIRR	2	3
+financial	SLN	3	3
+financial	SYD	4	4
+financial	DB	4	5
+financial	DDB	4	5
+financial	VDB	5	7
+financial	AMORLINC	6	7
+financial	AMORDEGRC	6	7
+financial	DOLLARDE	2	2
+financial	DOLLARFR	2	2
+bonds	PRICE	6	7
+bonds	YIELD	6	7
+bonds	DURATION	5	6
+bonds	MDURATION	5	6
+bonds	PRICEMAT	5	6
+bonds	YIELDMAT	5	6
+bonds	YIELDDISC	4	5
+bonds	ACCRINT	6	8
+bonds	ACCRINTM	4	5
+bonds	COUPDAYBS	3	4
+bonds	COUPDAYS	3	4
+bonds	COUPDAYSNC	3	4
+bonds	COUPNCD	3	4
+bonds	COUPNUM	3	4
+bonds	COUPPCD	3	4
+bonds	DISC	4	5
+bonds	INTRATE	4	5
+bonds	RECEIVED	4	5
+bonds	PRICEDISC	4	5
+bonds	TBILLEQ	3	3
+bonds	TBILLPRICE	3	3
+bonds	TBILLYIELD	3	3
+bonds	ODDFPRICE	8	9
+bonds	ODDFYIELD	8	9
+bonds	ODDLPRICE	7	8
+bonds	ODDLYIELD	7	8
+dates	DATE	3	3
+dates	TIME	3	3
+dates	YEAR	1	1
+dates	MONTH	1	1
+dates	DAY	1	1
+dates	HOUR	1	1
+dates	MINUTE	1	1
+dates	SECOND	1	1
+dates	DAYS	2	2
+dates	DAYS360	2	3
+dates	DATEDIF	3	3
+dates	DATEVALUE	1	1
+dates	TIMEVALUE	1	1
+dates	EDATE	2	2
+dates	EOMONTH	2	2
+dates	WEEKDAY	1	2
+dates	WEEKNUM	1	2
+dates	ISOWEEKNUM	1	1
+dates	WORKDAY	2	3
+dates	WORKDAY.INTL	2	4
+dates	NETWORKDAYS	2	3
+dates	NETWORKDAYS.INTL	2	4
+dates	YEARFRAC	2	3
+dates	NOW	0	0
+dates	TODAY	0	0
+text_functions	CHAR	1	1
+text_functions	CODE	1	1
+text_functions	UNICHAR	1	1
+text_functions	UNICODE	1	1
+text_functions	LEN	1	1
+text_functions	LEFT	1	2
+text_functions	RIGHT	1	2
+text_functions	MID	3	3
+text_functions	LENB	1	1
+text_functions	LEFTB	1	2
+text_functions	RIGHTB	1	2
+text_functions	MIDB	3	3
+text_functions	UPPER	1	1
+text_functions	LOWER	1	1
+text_functions	PROPER	1	1
+text_functions	TRIM	1	1
+text_functions	CLEAN	1	1
+text_functions	REPT	2	2
+text_functions	EXACT	2	2
+text_functions	FIND	2	3
+text_functions	FINDB	2	3
+text_functions	SEARCH	2	3
+text_functions	SEARCHB	2	3
+text_functions	REPLACE	4	4
+text_functions	REPLACEB	4	4
+text_functions	SUBSTITUTE	3	4
+text_functions	T	1	1
+text_functions	CONCATENATE	1	255
+text_functions	CONCAT	1	254
+text_functions	TEXTJOIN	3	252
+text_format	VALUE	1	1
+text_format	TEXT	2	2
+text_format	FIXED	1	3
+text_format	DOLLAR	1	2
+text_format	NUMBERVALUE	1	3
+text_format	VALUETOTEXT	1	2
+text_format	ARRAYTOTEXT	1	2
+text_format	BAHTTEXT	1	1
+text_format	ASC	1	1
+text_format	DBCS	1	1
+text_format	JIS	1	1
+text_format	PHONETIC	1	1
+text_format	TEXTBEFORE	2	6
+text_format	TEXTAFTER	2	6
+text_format	TEXTSPLIT	2	6
+text_format	REGEXTEST	2	3
+text_format	REGEXEXTRACT	2	4
+text_format	REGEXREPLACE	3	5
+text_format	ENCODEURL	1	1
+text_format	FILTERXML	2	2
+text_format	HYPERLINK	1	2
+logical_more	IFS	2	254	3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,85,87,89,91,93,95,97,99,101,103,105,107,109,111,113,115,117,119,121,123,125,127,129,131,133,135,137,139,141,143,145,147,149,151,153,155,157,159,161,163,165,167,169,171,173,175,177,179,181,183,185,187,189,191,193,195,197,199,201,203,205,207,209,211,213,215,217,219,221,223,225,227,229,231,233,235,237,239,241,243,245,247,249,251,253
+logical_more	SWITCH	3	254
+logical	IF	2	3
+logical	AND	1	255
+logical	OR	1	255
+logical	XOR	1	254
+logical	NOT	1	1
+logical	TRUE	0	0
+logical	FALSE	0	0
+error_fallback	IFERROR	2	2
+error_fallback	IFNA	2	2
+lookup	INDEX	2	4
+lookup	MATCH	2	3
+lookup	XMATCH	2	4
+lookup	XLOOKUP	3	6
+lookup	VLOOKUP	3	4
+lookup	HLOOKUP	3	4
+lookup	LOOKUP	2	3
+lookup	CHOOSE	2	255
+lookup	ROW	0	1
+lookup	COLUMN	0	1
+lookup	ROWS	1	1
+lookup	COLUMNS	1	1
+lookup	AREAS	1	1
+information	ISBLANK	1	1
+information	ISERR	1	1
+information	ISERROR	1	1
+information	ISNA	1	1
+information	ISNUMBER	1	1
+information	ISTEXT	1	1
+information	ISNONTEXT	1	1
+information	ISLOGICAL	1	1
+information	ISEVEN	1	1
+information	ISODD	1	1
+information	ISREF	1	1
+information	ISFORMULA	1	1
+information	TYPE	1	1
+information	N	1	1
+information	NA	0	0
+information	ERROR.TYPE	1	1
+arrays	SEQUENCE	1	4
+arrays	FILTER	2	3
+arrays	SORT	1	4
+arrays	SORTBY	2	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+arrays	UNIQUE	1	3
+arrays	TAKE	2	3
+arrays	DROP	2	3
+arrays	CHOOSEROWS	2	255
+arrays	CHOOSECOLS	2	255
+arrays	VSTACK	1	254
+arrays	HSTACK	1	254
+arrays	TOCOL	1	3
+arrays	TOROW	1	3
+arrays	WRAPROWS	2	3
+arrays	WRAPCOLS	2	3
+arrays	EXPAND	2	4
+rounding	ABS	1	1
+rounding	SIGN	1	1
+rounding	INT	1	1
+rounding	TRUNC	1	2
+rounding	ROUND	2	2
+rounding	ROUNDUP	2	2
+rounding	ROUNDDOWN	2	2
+rounding	MROUND	2	2
+rounding	CEILING	2	2
+rounding	FLOOR	2	2
+rounding	MOD	2	2
+rounding	QUOTIENT	2	2
+rounding	EVEN	1	1
+rounding	ODD	1	1
+rounding	ECMA.CEILING	2	2
+aggregate	SUM	1	255
+aggregate	PRODUCT	1	255
+aggregate	SUMSQ	1	255
+aggregate	SUMPRODUCT	1	255
+aggregate	COUNT	1	255
+aggregate	COUNTA	1	255
+aggregate	COUNTBLANK	1	1
+aggregate	AVERAGE	1	255
+aggregate	AVERAGEA	1	255
+aggregate	MIN	1	255
+aggregate	MAX	1	255
+aggregate	MINA	1	255
+aggregate	MAXA	1	255
+other	MAP	2	254
+other	REDUCE	3	3
+other	SCAN	3	3
+other	BYROW	1	2
+other	BYCOL	1	2
+other	MAKEARRAY	3	3
+other	GROUPBY	3	8
+other	PIVOTBY	4	11
+other	CELL	1	2
+other	INFO	1	1
+other	SHEET	0	1
+other	SHEETS	0	1
+other	FORMULATEXT	1	1
+other	ADDRESS	2	5
+other	GETPIVOTDATA	2	254	5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,85,87,89,91,93,95,97,99,101,103,105,107,109,111,113,115,117,119,121,123,125,127,129,131,133,135,137,139,141,143,145,147,149,151,153,155,157,159,161,163,165,167,169,171,173,175,177,179,181,183,185,187,189,191,193,195,197,199,201,203,205,207,209,211,213,215,217,219,221,223,225,227,229,231,233,235,237,239,241,243,245,247,249,251,253
+other	TRANSPOSE	1	1
+other	FIELDVALUE	2	2
+other	DAVERAGE	3	3
+other	DCOUNT	3	3
+other	DCOUNTA	3	3
+other	DGET	3	3
+other	DMAX	3	3
+other	DMIN	3	3
+other	DPRODUCT	3	3
+other	DSTDEV	3	3
+other	DSTDEVP	3	3
+other	DSUM	3	3
+other	DVAR	3	3
+other	DVARP	3	3
+other	SUBTOTAL	2	255
+other	AGGREGATE	3	253
+other	RAND	0	0
+other	RANDBETWEEN	2	2
+other	RANDARRAY	0	5
+other	CUBEMEMBER	2	3
+other	CUBEVALUE	1	127
+other	CUBESET	2	5
+other	CUBESETCOUNT	1	1
+other	CUBERANKEDMEMBER	3	4
+other	CUBEMEMBERPROPERTY	3	3
+other	CUBEKPIMEMBER	3	4
+other	WEBSERVICE	1	1
+other	IMAGE	1	5
+other	IMPORTCSV	1	5
+other	IMPORTTEXT	1	7
+other	OFFSET	3	5
+other	ISOMITTED	1	1
+other	TRIMRANGE	1	3
+other	COUNTIF	2	2
+other	COUNTIFS	2	254	3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77,79,81,83,85,87,89,91,93,95,97,99,101,103,105,107,109,111,113,115,117,119,121,123,125,127,129,131,133,135,137,139,141,143,145,147,149,151,153,155,157,159,161,163,165,167,169,171,173,175,177,179,181,183,185,187,189,191,193,195,197,199,201,203,205,207,209,211,213,215,217,219,221,223,225,227,229,231,233,235,237,239,241,243,245,247,249,251,253
+other	SUMIF	2	3
+other	SUMIFS	3	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+other	AVERAGEIF	2	3
+other	AVERAGEIFS	3	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+other	MAXIFS	3	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+other	MINIFS	3	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+other	_EUROTOOL.EUROCONVERT	0	255
+other	INDIRECT	1	2
+other	PERCENTOF	2	2
+other	CALL	1	255
+other	REGISTER.ID	2	3
+other	RTD	3	255
+other	COPILOT	1	255
+other	DETECTLANGUAGE	1	1
+other	STOCKHISTORY	2	11
+other	TRANSLATE	1	3
+other	PY	2	2
+other	LET	3	255	4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,242,244,246,248,250,252,254
+other	LAMBDA	1	254
+other	HAS	2	2
+other	HASANY	2	2
+other	HASALL	2	2
+other	FLATTEN	1	3

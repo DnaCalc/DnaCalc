@@ -1768,7 +1768,10 @@ mod tests {
     #[test]
     fn grouped_functions_only_generate_valid_arities_across_all_regions() {
         let bank = super::super::hints::load_default_hints().expect("load default hints");
-        for func in ["SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS", "COUNTIFS", "IFS", "SORTBY", "SWITCH"] {
+        for func in [
+            "SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS", "COUNTIFS", "IFS", "SORTBY", "SWITCH",
+            "GETPIVOTDATA",
+        ] {
             let spec = super::super::domain::DomainSpec::for_function_with_hints(func, &bank).unwrap();
             let groups = spec
                 .merged
@@ -1817,6 +1820,9 @@ mod tests {
             validate_generated_args(&four_args, sortby.min_arity, sortby.max_arity, sortby.groups).is_err(),
             "SORTBY must reject incomplete 4-arg form"
         );
+        let pivot = build_merged_spec("GETPIVOTDATA", &bank).unwrap();
+        assert!(pivot.is_valid_arity(3));
+        assert!(!pivot.is_valid_arity(5));
     }
 
     #[test]

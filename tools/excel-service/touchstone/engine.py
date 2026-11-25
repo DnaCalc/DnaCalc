@@ -297,10 +297,14 @@ def stop_orphans(state_dir, processes=None, kill=None):
 
 
 def worker_sources_newest(project):
+    project = Path(project)
     newest = 0
-    for path in Path(project).rglob("*"):
+    for path in project.rglob("*"):
         if path.suffix in (".cs", ".csproj") and "obj" not in path.parts and "bin" not in path.parts:
             newest = max(newest, path.stat().st_mtime_ns)
+    export = project / "../../../../crates/calc-catalogue/tests/fixtures/admission-families.tsv"
+    if export.is_file():
+        newest = max(newest, export.stat().st_mtime_ns)
     return newest
 
 

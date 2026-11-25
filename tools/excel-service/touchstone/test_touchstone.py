@@ -410,7 +410,8 @@ class AdmissionTests(unittest.TestCase):
         # Owner 2026-11-12: a test service on our own Excel admits every function, text and array argument;
         # only the remote service functions (deferred in CalcFunc) are skipped.
         self.admission.check(self.group())
-        for good in (self.group(f="CALL"), self.group(f="IMAGE"), self.group(f="WEBSERVICE"), self.group(f="INDIRECT"), self.group(f="NOW"),
+        for good in (self.group(f="CALL"), self.group(f="IMAGE"), self.group(f="WEBSERVICE"), self.group(f="INDIRECT"),
+                     self.group(f="NOW", k="", n=1, v=[]),
                      self.group(f="LEN", k="s", n=1, v=["C:/secret.xlsx"]), self.group(f="LEN", k="s", n=1, v=["[book]A1"]),
                      self.group(f="LEN", k="s", n=1, v=["https://x.example"]), self.group(f="LEN", k="s", n=1, v=["a\u0001b"]),
                      self.group(f="SUMIF", k="a1x2,S", n=1, v=[ONE, TWO, ">1"]),
@@ -425,19 +426,26 @@ class AdmissionTests(unittest.TestCase):
                 self.admission.check(bad)
 
     def test_new_value_only_families_and_nullary_calls(self):
-        for name in ("IF", "IFERROR", "IFNA", "CHOOSE", "TRUE", "FALSE", "NA", "PI",
-                     "TEXTAFTER", "TEXTBEFORE", "REGEXTEST", "REGEXEXTRACT", "REGEXREPLACE",
-                     "ENCODEURL", "JIS", "PHONETIC"):
-            with self.subTest(name=name):
-                self.admission.check(self.group(f=name, k="", n=1, v=[]))
-        for name in ("VLOOKUP", "HLOOKUP", "LOOKUP", "MATCH", "XLOOKUP", "XMATCH",
-                     "INDEX", "ROWS", "COLUMNS", "ARRAYTOTEXT"):
-            with self.subTest(name=name):
-                self.admission.check(self.group(f=name, k="a1x2", n=1, v=[ONE, TWO]))
-        for name in ("FILTER", "ROW", "COLUMN", "CELL", "IMPORTCSV", "RAND", "RTD", "BYROW"):
+        for name in ("TRUE", "FALSE", "NA", "PI", "ROW", "COLUMN", "RAND"):
             with self.subTest(name=name):
                 self.admission.check(self.group(f=name, k="", n=1, v=[]))
                 self.admission.check(self.group(f=name, k="", n=1, v=[], spill=True))
+        for name in ("IF", "IFERROR", "IFNA", "CHOOSE"):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k="n,n", n=1, v=[ONE, TWO]))
+        for name, arity in (("TEXTAFTER", 2), ("TEXTBEFORE", 2), ("REGEXTEST", 2), ("REGEXEXTRACT", 2),
+                            ("REGEXREPLACE", 3), ("ENCODEURL", 1), ("JIS", 1), ("PHONETIC", 1)):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k=",".join(["s"] * arity), n=1, v=["a"] * arity))
+        for name, arity in (("VLOOKUP", 3), ("HLOOKUP", 3), ("LOOKUP", 2), ("MATCH", 2), ("XLOOKUP", 3),
+                            ("XMATCH", 2), ("INDEX", 2), ("ROWS", 1), ("COLUMNS", 1), ("ARRAYTOTEXT", 1)):
+            with self.subTest(name=name):
+                self.admission.check(self.group(f=name, k=",".join(["a1x2"] * arity), n=1, v=[ONE, TWO] * arity))
+        for name, arity in (("FILTER", 2), ("CELL", 1), ("IMPORTCSV", 1), ("RTD", 3), ("BYROW", 2)):
+            with self.subTest(name=name):
+                group = self.group(f=name, k=",".join(["s"] * arity), n=1, v=["a"] * arity)
+                self.admission.check(group)
+                self.admission.check({**group, "spill": True})
 
     def test_regression_needs_a_bounded_result_index_and_arrays(self):
         g = {"f": "LINEST", "k": "a3x1,a3x1,b,b", "n": 1, "x": [4, 2],
@@ -472,6 +480,44 @@ class AdmissionTests(unittest.TestCase):
         huge_k = ",".join(["a16x8"] * 8)
         with self.assertRaises(ValueError):
             self.admission.check(self.group(f="SUM", k=huge_k, n=1, v=[ONE] * (128 * 8)))
+
+    def test_entry_arity_applies_to_grouped_and_fixed_calls_including_file_spellings(self):
+        for function, good, bad in (
+            ("SORTBY", (2, 3, 5), (1, 4, 6)),
+            ("LET", (3, 5), (2, 4, 6)),
+            ("ABS", (1,), (0, 2)),
+            ("_XLFN.IFS", (2, 4), (1, 3)),
+            ("_XLFN.MAXIFS", (3, 5), (2, 4)),
+            ("_XLFN.MINIFS", (3, 5), (2, 4)),
+        ):
+            def call(arity):
+                return self.group(f=function, k=",".join(["n"] * arity), n=1, v=[ONE] * arity)
+
+            for arity in good:
+                with self.subTest(function=function, arity=arity):
+                    self.admission.check(call(arity))
+            for arity in bad:
+                with self.subTest(function=function, arity=arity), self.assertRaises(ValueError):
+                    self.admission.check(call(arity))
+
+    def test_sheet_case_formula_limit_covers_inputs_and_probes(self):
+        formula = "=" + "1+" * 4095 + "1"
+        sheets = [{"name": "S", "cells": {"A1": {"type": "formula", "formula": formula}}}]
+        probes = [{"at": "S!B1", "formula": formula}]
+        case = protocol.sheet_case(sheets, probes)
+        [group] = protocol.rows_to_groups(protocol.CASE_FUNCTION, [[case]])
+        self.admission.check(group)
+        for place in (sheets[0]["cells"]["A1"], probes[0]):
+            with self.assertRaisesRegex(ValueError, "8192"):
+                place["formula"] = formula + "+1"
+                self.admission.check(group)
+            place["formula"] = formula
+
+    def test_formula_limit_counts_utf16_code_units(self):
+        group = self.group(f="LEN", k="S", n=1, v=["\ud800😀"])
+        self.admission.check(group)
+        from policy import formula_chars
+        self.assertEqual(formula_chars(group["v"][0]), 3)
 
     def test_broker_refuses_odd_getpivotdata_before_reaching_worker(self):
         from touchstone import client as touchstone_client

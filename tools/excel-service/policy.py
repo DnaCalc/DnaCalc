@@ -13,29 +13,15 @@ MAX_FORMULA_CHARS = 8192
 ERRORS = {"#NULL!": 2000, "#DIV/0!": 2007, "#VALUE!": 2015, "#REF!": 2023,
           "#NAME?": 2029, "#NUM!": 2036, "#N/A": 2042}
 REGRESSION = {"LINEST", "LOGEST"}
-# Functions whose paired-argument arities Excel refuses at formula entry; passing a refused
-# formula inside a SAFEARRAY to Range.Formula2R1C1 makes Excel COM return E_OUTOFMEMORY.
-EVEN_PAIR_FUNCTIONS = {"COUNTIFS", "IFS"}
-ODD_PAIR_FUNCTIONS = {"SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS"}
-# Pure numeric questions are needed before their worksheet kernels exist.
-ETS = {"FORECAST.ETS", "FORECAST.ETS.CONFINT", "FORECAST.ETS.SEASONALITY",
-       "FORECAST.ETS.STAT"}
 
 
-def check_formula_arity(name, arity):
-    """Refuse arities that Excel refuses at formula entry (and would fail Range.Formula2R1C1)."""
-    if name == "GETPIVOTDATA":
-        if arity < 2 or arity > 254 or (arity >= 5 and arity % 2 == 1):
-            raise ValueError(
-                "GETPIVOTDATA requires 2, 3, or an even number of arguments (4..=254); "
-                "odd arities >= 5 are refused by Excel formula entry"
-            )
-    elif name in EVEN_PAIR_FUNCTIONS:
-        if arity < 2 or arity % 2 == 1:
-            raise ValueError(f"{name} requires an even number of arguments (>= 2)")
-    elif name in ODD_PAIR_FUNCTIONS:
-        if arity < 3 or arity % 2 == 0:
-            raise ValueError(f"{name} requires an odd number of arguments (>= 3)")
+def formula_chars(text):
+    return len(text.encode("utf-16-le", errors="surrogatepass")) // 2
+
+
+def check_formula_length(size):
+    if size > MAX_FORMULA_CHARS:
+        raise ValueError(f"Excel formula ({size} chars) exceeds {MAX_FORMULA_CHARS}-character limit")
 
 
 def _choose_arg_chars(rows, cols, at):
@@ -45,45 +31,39 @@ def _choose_arg_chars(rows, cols, at):
     # sum of digit lengths for 1..=count plus separators (count - 1 commas/semicolons)
     idx_chars = sum(len(str(k)) for k in range(1, count + 1)) + max(0, count - 1)
     cell_chars = sum(4 + len(str(at + k + 1)) for k in range(count)) + max(0, count - 1)
-    return 10 + idx_chars + cell_chars
+    return 11 + idx_chars + cell_chars
 
 
 def check_group_formula_limits(name, tokens, widths, values, n, result_index=None):
     """Refuse groups whose generated R1C1 formula exceeds Excel's 8192-character limit."""
-    check_formula_arity(name, len(tokens))
     # Fixed overhead: "=" + name + "(" + commas + ")" + optional INDEX(...,r,c)
     base_len = 1 + len(name) + 2 + max(0, len(tokens) - 1)
     if result_index is not None:
         base_len += 8 + len(str(result_index[0])) + len(str(result_index[1]))
     at = 0
-    literal_positions = []
+    literals = []
     for tok, w in zip(tokens, widths):
         if tok[0] == "a":
             r, c = (int(x) for x in tok[1:].split("x"))
             base_len += _choose_arg_chars(r, c, at)
-        elif tok == "S":
-            literal_positions.append(at)
-        elif tok == "B":
-            base_len += 5  # worst case FALSE
+        elif tok in ("S", "B"):
+            literals.append((at, tok))
         else:
             base_len += 4 + len(str(at + 1))  # "RC[N]"
         at += w
-    if not literal_positions:
-        if base_len > MAX_FORMULA_CHARS:
-            raise ValueError(
-                f"generated Excel formula ({base_len} chars) exceeds {MAX_FORMULA_CHARS}-character limit"
-            )
+    check_formula_length(base_len)
+    if not literals:
         return
     width = sum(widths)
     for i in range(n):
         row_len = base_len
-        for pos in literal_positions:
-            text = values[i * width + pos]
-            row_len += 2 + len(text) + text.count('"')
-        if row_len > MAX_FORMULA_CHARS:
-            raise ValueError(
-                f"generated Excel formula ({row_len} chars) exceeds {MAX_FORMULA_CHARS}-character limit"
-            )
+        for pos, token in literals:
+            value = values[i * width + pos]
+            if token == "S":
+                row_len += 2 + formula_chars(value) + value.count('"')
+            else:
+                row_len += 4 if value else 5
+        check_formula_length(row_len)
 
 
 def catalogue_names(root):
@@ -93,14 +73,14 @@ def catalogue_names(root):
     declarations and checked by the calc-catalogue test admission_export_is_current.
     """
     export = Path(root) / "crates/calc-catalogue/tests/fixtures/admission-families.tsv"
-    names = set()
+    arities = {}
     for line in export.read_text(encoding="utf-8").splitlines():
-        family, _, name = line.partition("	")
-        if family and name:
-            names.add(name)
-    if "ERF.PRECISE" not in names or "SUM" not in names:
+        _, name, low, high, *fields = line.split("\t")
+        excluded = frozenset(map(int, fields[0].split(","))) if fields else frozenset()
+        arities[name] = (int(low), int(high), excluded)
+    if "ERF.PRECISE" not in arities or "SUM" not in arities:
         raise ValueError("Catalogue declaration export changed; regenerate admission-families.tsv")
-    return AnyFunction(names | ETS)
+    return AnyFunction(arities)
 
 
 # Owner 2026-11-12: this is a test service on our own Excel, so every function is admitted, with any
@@ -110,17 +90,30 @@ REMOTE_SERVICE = {"STOCKHISTORY", "TRANSLATE", "DETECTLANGUAGE", "PY", "COPILOT"
 FUNCTION_NAME = re.compile(r"(?:_[A-Z]+\.)?[A-Z][A-Z0-9_]*(?:\.[A-Z0-9_]+)*")
 
 
+def function_name(name):
+    return name.removeprefix("_XLFN.").removeprefix("_XLWS.")
+
+
 class AnyFunction:
     """Every well-formed function name except the remote service functions; iterates the catalogue families."""
 
-    def __init__(self, listed):
-        self.listed = set(listed)
+    def __init__(self, arities):
+        self.arities = arities
 
     def __contains__(self, name):
-        return isinstance(name, str) and name not in REMOTE_SERVICE and FUNCTION_NAME.fullmatch(name) is not None
+        return (isinstance(name, str) and FUNCTION_NAME.fullmatch(name) is not None
+                and function_name(name) not in REMOTE_SERVICE)
 
     def __iter__(self):
-        return iter(self.listed)
+        return iter(self.arities)
+
+    def check_arity(self, name, count):
+        """Decline entry-invalid shapes before Excel receives a batch."""
+        shape = self.arities.get(function_name(name))
+        if shape is not None:
+            low, high, excluded = shape
+            if not low <= count <= high or count in excluded:
+                raise ValueError(f"{name} refuses {count} arguments at Excel formula entry")
 
 
 def decode(raw):
@@ -166,7 +159,7 @@ def validate(request, names, request_id):
     for row in rows:
         if not isinstance(row, list) or len(row) > 32:
             raise ValueError("expected rows of at most 32 scalar arguments")
-        check_formula_arity(name, len(row))
+        names.check_arity(name, len(row))
         total += len(row)
         for arg in row:
             if isinstance(arg, dict) and arg.get("type") == "array":
@@ -255,6 +248,11 @@ class Admission:
             raise ValueError("expected 1..%d sheet cases" % MAX_GROUP_CALLS)
         for case in group["v"]:
             sheets, probes = case.get("sheets"), case.get("probes")
+            names = case.get("names", {})
+            if not isinstance(names, dict) or any(not isinstance(formula, str) for formula in names.values()):
+                raise ValueError("defined names need formula text")
+            for formula in names.values():
+                check_formula_length(formula_chars(formula))
             if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
                 raise ValueError("a sheet case has 1..%d sheets" % MAX_CASE_SHEETS)
             if not isinstance(probes, list) or not 1 <= len(probes) <= MAX_CASE_PROBES:
@@ -266,6 +264,10 @@ class Admission:
                 for cell in sheet.get("cells", {}).values():
                     if not isinstance(cell, dict) or cell.get("type") not in CASE_CELL_TYPES:
                         raise ValueError("unsupported layout cell")
+                    if cell["type"] == "formula":
+                        if not isinstance(cell.get("formula"), str):
+                            raise ValueError("a formula cell needs formula text")
+                        check_formula_length(formula_chars(cell["formula"]))
                     if cell["type"] == "number":
                         self._numbers([cell["bits"]])
                     if cell["type"] == "error" and cell.get("code") not in ("#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A"):
@@ -282,6 +284,8 @@ class Admission:
                 # A typed entry ("entry": "local") may be any text; otherwise the probe is a formula.
                 if entry is None and not probe["formula"].startswith("="):
                     raise ValueError("a probe has a Sheet!A1 place and a formula")
+                if entry is None:
+                    check_formula_length(formula_chars(probe["formula"]))
                 if entry is not None and not 0 < len(probe["formula"]) <= 255:
                     raise ValueError("a typed entry has 1..255 characters")
 
@@ -302,6 +306,7 @@ class Admission:
         tokens = group["k"].split(",") if group["k"] else []
         if len(tokens) > 32:
             raise ValueError("expected at most 32 arguments")
+        self.names.check_arity(name, len(tokens))
         index = group.get("x")
         if name in REGRESSION and not (spill and index is None):
             if (not isinstance(index, list) or len(index) != 2 or any(type(v) is not int for v in index)

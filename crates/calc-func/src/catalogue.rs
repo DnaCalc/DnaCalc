@@ -843,8 +843,8 @@ mod shared_declaration_equivalence {
         assert!(!super::attachment_matches(&entry));
     }
 
-    // Parameter behavior captured from the earlier compiled catalogue; the source declarations
-    // for these families did not change before their move into the data crate.
+    // Parameter behavior captured before the move into the data crate, with the GETPIVOTDATA
+    // groups corrected against Excel 16.0.20625.20108 (dc-ztvv.26.125).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn original_parameter_rules_equal_shared_declarations() {

@@ -216,8 +216,21 @@ static class Program
         public RefusedFormulaException(string message) : base(message) { }
     }
 
-    static readonly HashSet<string> EvenPairFunctions = new(StringComparer.OrdinalIgnoreCase) { "COUNTIFS", "IFS" };
-    static readonly HashSet<string> OddPairFunctions = new(StringComparer.OrdinalIgnoreCase) { "SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS" };
+    static readonly Dictionary<string, (int Min, int Max, HashSet<int> Excluded)> FormulaArities = LoadFormulaArities();
+
+    static Dictionary<string, (int Min, int Max, HashSet<int> Excluded)> LoadFormulaArities()
+    {
+        using var source = typeof(Program).Assembly.GetManifestResourceStream("admission-families.tsv");
+        using var reader = new StreamReader(source);
+        var arities = new Dictionary<string, (int, int, HashSet<int>)>(StringComparer.OrdinalIgnoreCase);
+        while (reader.ReadLine() is string line)
+        {
+            string[] columns = line.Split('\t');
+            var excluded = columns.Length == 5 ? columns[4].Split(',').Select(int.Parse).ToHashSet() : new HashSet<int>();
+            arities.Add(columns[1], (int.Parse(columns[2]), int.Parse(columns[3]), excluded));
+        }
+        return arities;
+    }
 
     /// <summary>
     /// Refuses formula shapes Excel rejects at entry (which make Range.Formula2R1C1 = object[,]
@@ -225,21 +238,18 @@ static class Program
     /// </summary>
     static void ValidateGroupArity(string function, int arity)
     {
-        if (string.Equals(function, "GETPIVOTDATA", StringComparison.OrdinalIgnoreCase))
-        {
-            if (arity < 2 || arity > 254 || (arity >= 5 && arity % 2 == 1))
-                throw new RefusedFormulaException($"GETPIVOTDATA requires 2, 3, or an even number of arguments (4..=254); got {arity}");
-        }
-        else if (EvenPairFunctions.Contains(function))
-        {
-            if (arity < 2 || arity % 2 == 1)
-                throw new RefusedFormulaException($"{function} requires an even number of arguments (>= 2); got {arity}");
-        }
-        else if (OddPairFunctions.Contains(function))
-        {
-            if (arity < 3 || arity % 2 == 0)
-                throw new RefusedFormulaException($"{function} requires an odd number of arguments (>= 3); got {arity}");
-        }
+        string name = function;
+        if (name.StartsWith("_XLFN.", StringComparison.OrdinalIgnoreCase)) name = name[6..];
+        if (name.StartsWith("_XLWS.", StringComparison.OrdinalIgnoreCase)) name = name[6..];
+        if (FormulaArities.TryGetValue(name, out var shape)
+            && (arity < shape.Min || arity > shape.Max || shape.Excluded.Contains(arity)))
+            throw new RefusedFormulaException($"{function} refuses {arity} arguments at Excel formula entry");
+    }
+
+    static void ValidateFormulaLength(string place, string formula)
+    {
+        if (formula.Length > MaxFormulaChars)
+            throw new RefusedFormulaException($"{place} generated formula of {formula.Length} chars (limit {MaxFormulaChars})");
     }
 
     static void ValidateBatchFormulas(List<Group> groups, bool spill)
@@ -249,11 +259,12 @@ static class Program
             ValidateGroupArity(g.F, g.Tokens.Length);
             bool perRow = g.Tokens.Any(tk => tk == "S" || tk == "B");
             int checkRows = perRow ? g.N : Math.Min(1, g.N);
-            for (int i = 0; i < checkRows; i++)
+            // Without literals the longest spill formula is the one with the largest row number.
+            int first = spill && !perRow ? g.N - checkRows : 0;
+            for (int i = first; i < first + checkRows; i++)
             {
                 string f = spill ? SpillFormula(g, g.Row0 + i) : Formula(g, i);
-                if (f.Length > MaxFormulaChars)
-                    throw new RefusedFormulaException($"{g.F} generated formula of {f.Length} chars (limit {MaxFormulaChars})");
+                ValidateFormulaLength(g.F, f);
             }
         }
     }
@@ -504,9 +515,11 @@ static class Program
                     {
                         var x = (List<object>)selector; formula = "INDEX(" + formula + "," + x[0] + "," + x[1] + ")";
                     }
+                    formula = "=" + formula;
+                    ValidateFormulaLength((string)raw["f"], formula);
                     dynamic resultCell = spill ? grid.Range["A1"] : sheet.Range["A1"];
                     Stage = "special formula " + formula;
-                    resultCell.Formula2 = "=" + formula;
+                    resultCell.Formula2 = formula;
                     Stage = "special calculate " + (string)raw["f"];
                     X.App.Calculate();
                     Stage = "special async wait " + (string)raw["f"];
@@ -695,6 +708,21 @@ static class Program
         return new Dictionary<string, object> { ["r"] = nr, ["c"] = nc, ["ty"] = ty.ToString(), ["v"] = vv };
     }
 
+    static void ValidateCaseFormulaLengths(Dictionary<string, object> layout)
+    {
+        foreach (Dictionary<string, object> sheet in (List<object>)layout["sheets"])
+        {
+            if (sheet.TryGetValue("cells", out var raw) && raw is Dictionary<string, object> cells)
+                foreach (var item in cells)
+                    if (item.Value is Dictionary<string, object> cell && (string)cell["type"] == "formula")
+                        ValidateFormulaLength(item.Key, (string)cell["formula"]);
+        }
+        if (layout.TryGetValue("names", out var named) && named is Dictionary<string, object> names)
+            foreach (var item in names) ValidateFormulaLength(item.Key, (string)item.Value);
+        foreach (Dictionary<string, object> probe in (List<object>)layout["probes"])
+            ValidateFormulaLength((string)probe["at"], (string)probe["formula"]);
+    }
+
     /// <summary>
     /// Sheet cases: cases with the same sheets and names share one built workbook (rebuilt when the layout changes
     /// or a probe overwrote a layout cell); each case's probes are entered by Formula2 (a refused entry is answered
@@ -721,6 +749,7 @@ static class Program
                 for (int i = 0; i < count; i++, cases++)
                 {
                     var c = (Dictionary<string, object>)values[i];
+                    ValidateCaseFormulaLengths(c);
                     string key = Json.Write(new Dictionary<string, object> { ["sheets"] = c["sheets"], ["names"] = c.TryGetValue("names", out var nm) ? nm : null });
                     var t0 = sw.Elapsed.TotalMilliseconds;
                     if (built == null || built.Key != key)
