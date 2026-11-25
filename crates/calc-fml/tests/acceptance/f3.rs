@@ -53,6 +53,35 @@ fn sequence_argument_coercion_order() {
     }
 }
 
+/// Excel 16.0.20625 preserves the XPath node count even when a node gives #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn filterxml_preserves_errors_per_xpath_node() {
+    let mut book = Book::new();
+    let error = e(W::Value);
+    for (formula, expected) in [
+        (
+            r#"=FILTERXML("<a><b>x<c>y</c>z</b></a>","//b/text()")"#,
+            rows(&[&[error.clone()], &[error.clone()]]),
+        ),
+        (
+            r#"=FILTERXML("<a><b id=""8"">x<c/>z</b></a>","//b/text() | //b/@id")"#,
+            rows(&[&[n(8.0)], &[error.clone()], &[error.clone()]]),
+        ),
+        (
+            r#"=FILTERXML("<a><b> <c/>7</b></a>","//b[text()[1]=""7""]")"#,
+            n(7.0),
+        ),
+        (
+            r#"=FILTERXML("<a><b><![CDATA[ ]]>7</b><b>8</b></a>","//b/text()")"#,
+            rows(&[&[error.clone()], &[error.clone()], &[error.clone()]]),
+        ),
+        (r#"=FILTERXML("<a><b>x</b></a>","//b/text()")"#, error),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sortby_lifts_each_order_argument() {

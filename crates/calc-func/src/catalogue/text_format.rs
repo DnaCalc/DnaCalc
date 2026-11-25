@@ -1167,13 +1167,11 @@ fn encodeurl(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// sxd-document and sxd-xpath) and fitted to Excel 16.0.20527, measured through the catalogue
 /// oracle's dcuar_text rows on 2026-10-29:
 ///
-/// - XML that does not parse (trailing content, a document type declaration) and XPath that does
-///   not compile are #VALUE!; a result that is not a node set (`count(//b)`, `string(//b)`,
-///   `//b=1`), an empty node set, and a node that is neither an element nor an attribute
-///   (`//b/text()`, `//comment()`, `/`) are #VALUE!.
-/// - An element's value is its own text children, joined (`<b>x<c>y</c>z</b>` is `xz`); text of
-///   white space alone is dropped, as Excel's parser drops it. A node with no value makes the
-///   whole call #VALUE!.
+/// - Invalid XML or XPath, a result that is not a node set, and an empty node set give #VALUE!.
+/// - An element's value is its own text children, joined (`<b>x<c>y</c>z</b>` is `xz`).
+///   Ordinary whitespace-only text is discarded before XPath evaluation. CDATA and inherited
+///   `xml:space="preserve"` retain whitespace. Nodes without a value and nodes other than
+///   elements or attributes give #VALUE! in their own spill cell (Excel 16.0.20625, dc-j9k.172).
 /// - Names match by namespace prefix as the document declares them (`//p:b` finds `<p:b>` where
 ///   `xmlns:p` is declared), and a name without a prefix finds an element of the document's
 ///   default namespace; a prefix the document does not declare is #VALUE!.
@@ -1194,9 +1192,21 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
             return fail(WorksheetErrorCode::Value);
         }
     }
+    // sxd represents both ordinary character data and CDATA as Text, so mark whitespace-only
+    // CDATA through parsing and restore its content before evaluating the XPath.
+    let mut cdata_marker = String::from("\u{e000}\u{e000}");
+    while xml.contains(&cdata_marker) {
+        cdata_marker.push('\u{e000}');
+    }
+    let xml = if xml.contains("<![CDATA[") {
+        filterxml_mark_whitespace_cdata(&xml, &cdata_marker)
+    } else {
+        xml
+    };
     let package =
         sxd_document::parser::parse(&xml).map_err(|_| value(WorksheetErrorCode::Value))?;
     let document = package.as_document();
+    filterxml_normalize_whitespace(document, &cdata_marker);
     let expression = sxd_xpath::Factory::new()
         .build(&path)
         .ok()
@@ -1218,21 +1228,30 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     }
     let mut cells = Vec::with_capacity(nodes.len());
     for node in nodes {
+        use sxd_xpath::nodeset::Node;
         let text = match node {
-            sxd_xpath::nodeset::Node::Element(element) => element
-                .children()
-                .into_iter()
-                .filter_map(|child| child.text())
-                .map(|text| text.text())
-                .filter(|text| !text.chars().all(char::is_whitespace))
-                .collect::<String>(),
-            sxd_xpath::nodeset::Node::Attribute(attribute) => attribute.value().to_owned(),
-            _ => return fail(WorksheetErrorCode::Value),
+            Node::Element(element) => Some(
+                element
+                    .children()
+                    .into_iter()
+                    .filter_map(|child| child.text())
+                    .map(|text| text.text())
+                    .collect::<String>(),
+            ),
+            Node::Attribute(attribute) if !filterxml_xml_whitespace(attribute.value()) => {
+                Some(attribute.value().to_owned())
+            }
+            _ => None,
         };
-        if text.is_empty() {
-            return fail(WorksheetErrorCode::Value);
-        }
-        cells.push(vec![filterxml_value(site, &text)?]);
+        let cell = match text.as_deref().filter(|text| !text.is_empty()) {
+            Some(text) => match filterxml_value(site, text) {
+                Ok(cell) => cell,
+                Err(Exit::Error(code)) => CalcValue::error(code),
+                Err(fault) => return Err(fault),
+            },
+            None => CalcValue::error(WorksheetErrorCode::Value),
+        };
+        cells.push(vec![cell]);
     }
     if cells.len() == 1 {
         return Ok(cells.remove(0).remove(0));
@@ -1240,6 +1259,74 @@ fn filterxml(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     CalcArray::from_rows(cells)
         .map(CalcValue::array)
         .ok_or_else(|| site.not_modelled(None))
+}
+
+fn filterxml_xml_whitespace(text: &str) -> bool {
+    text.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
+}
+
+fn filterxml_mark_whitespace_cdata(xml: &str, marker: &str) -> String {
+    let mut output = String::with_capacity(xml.len());
+    let mut copied = 0;
+    let mut end_of_markup = 0;
+    for (start, _) in xml.match_indices('<') {
+        if start < end_of_markup {
+            continue;
+        }
+        let tail = &xml[start..];
+        let (opening, closing) = if tail.starts_with("<![CDATA[") {
+            ("<![CDATA[", "]]>")
+        } else if tail.starts_with("<!--") {
+            ("<!--", "-->")
+        } else if tail.starts_with("<?") {
+            ("<?", "?>")
+        } else {
+            continue;
+        };
+        let body = start + opening.len();
+        let Some(length) = xml[body..].find(closing) else {
+            break;
+        };
+        end_of_markup = body + length + closing.len();
+        if opening == "<![CDATA[" && filterxml_xml_whitespace(&xml[body..body + length]) {
+            output.push_str(&xml[copied..body]);
+            output.push_str(marker);
+            copied = body;
+        }
+    }
+    output.push_str(&xml[copied..]);
+    output
+}
+
+fn filterxml_normalize_whitespace(document: sxd_document::dom::Document<'_>, cdata_marker: &str) {
+    use sxd_document::dom::ChildOfElement;
+    let space = ("http://www.w3.org/XML/1998/namespace", "space");
+    let mut elements: Vec<_> = document
+        .root()
+        .children()
+        .into_iter()
+        .filter_map(|child| child.element().map(|element| (element, false)))
+        .collect();
+    while let Some((element, inherited)) = elements.pop() {
+        let preserve = match element.attribute_value(space) {
+            Some("preserve") => true,
+            Some("default") => false,
+            _ => inherited,
+        };
+        for child in element.children() {
+            match child {
+                ChildOfElement::Element(child) => elements.push((child, preserve)),
+                ChildOfElement::Text(text) => {
+                    if let Some(cdata) = text.text().strip_prefix(cdata_marker) {
+                        text.set_text(cdata);
+                    } else if !preserve && filterxml_xml_whitespace(text.text()) {
+                        text.remove_from_parent();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 /// The namespace prefixes the document declares (`xmlns:p="uri"`), with their URIs.
