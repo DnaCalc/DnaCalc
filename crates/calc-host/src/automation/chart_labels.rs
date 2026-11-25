@@ -47,6 +47,12 @@ impl WorkbookAutomation {
         })?
     }
 
+    /// The command's coordinates of the series a report object denotes: plot position and series index.
+    pub(super) fn series_coords(&self, target: &ObjectRef) -> Result<(u32, u32), AutoError> {
+        let (_, _, _, plot, series) = self.labels_state(target)?;
+        Ok((plot, series))
+    }
+
     fn labels_command(&self, target: &ObjectRef, call: &Call<'_>, labels: Option<ChartLabels>) -> Reply {
         let (_, sheet, _) = Self::report_key(target)?;
         let part = Self::chart_token(target)?;

@@ -125,6 +125,9 @@ impl WorkbookAutomation {
         on("SeriesCollection", "Item", Method, Self::series_item);
         on("SeriesCollection", "_Default", Method, Self::series_item);
         on("Series", "Name", Get, Self::series_name_get);
+        on("Series", "Interior", Get, Self::series_interior);
+        on("Interior", "Color", Get, Self::interior_color);
+        on("Interior", "Color", Put, Self::interior_put_color);
         on("Series", "HasDataLabels", Get, Self::series_has_labels);
         on("Series", "HasDataLabels", Put, Self::series_put_has_labels);
         on("Series", "ApplyDataLabels", Method, Self::series_apply_labels);

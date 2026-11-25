@@ -57,3 +57,7 @@ VPageBreaks
 VPageBreak
 DataLabels
 DataLabel
+ChartArea
+PlotArea
+ChartFormat
+ChartFillFormat

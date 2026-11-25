@@ -6246,6 +6246,32 @@ fn dc_oxh8w_18__data_labels_members_through_the_object_model() {
     assert!(xml.contains("<c:separator>; </c:separator>"), "{xml}");
 }
 
+/// dc-oxh8w.19: a macro colours a series through Interior.Color (a BGR number); the chart saves the fill, and
+/// out-of-range colours and wrong argument counts are Excel errors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_19__a_macro_colours_a_series_through_interior_color() {
+    let (host, model, series) = labelled_series();
+    let interior = obj(invoke(&model, &series, "Interior", vec![]).unwrap());
+    // The automatic colour reads as the colour drawn: accent 1 of the default theme, 4472C4, as BGR.
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 0xC4_72_44);
+    // RGB(255, 0, 0) is 255.
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 255);
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::R8(16_711_680.0)]).unwrap();
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 16_711_680);
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<a:srgbClr val=\"0000FF\"/>"), "{xml}");
+    for bad in [AutoValue::I4(-1), AutoValue::I4(16_777_216), AutoValue::R8(1.5)] {
+        let r = invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke(&model, &interior, "Color", vec![AutoValue::I4(1)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+}
+
 /// dc-oxh8w.4: Range.Sort with keys as ranges, Order and Header; unmodelled options refuse typed.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
