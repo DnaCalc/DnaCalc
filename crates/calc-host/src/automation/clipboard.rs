@@ -12,6 +12,9 @@ const XL_PASTE_ALL: i64 = -4104;
 const XL_PASTE_VALUES: i64 = -4163;
 const XL_PASTE_FORMULAS: i64 = -4123;
 const XL_PASTE_FORMATS: i64 = -4122;
+const XL_PASTE_COMMENTS: i64 = -4144;
+const XL_PASTE_VALIDATION: i64 = 6;
+const XL_PASTE_COMMENTS_AND_NOTES: i64 = 21;
 const XL_PASTE_COLUMN_WIDTHS: i64 = 8;
 const XL_PASTE_ALL_USING_SOURCE_THEME: i64 = 13;
 const XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS: i64 = 14;
@@ -91,12 +94,14 @@ impl WorkbookAutomation {
             // Within one workbook the source theme is the destination's, and conditional formats merge as they do on All.
             XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME | XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => PasteMode::All,
             XL_PASTE_COLUMN_WIDTHS => PasteMode::Formats,
+            XL_PASTE_VALIDATION => PasteMode::Validation,
+            XL_PASTE_COMMENTS | XL_PASTE_COMMENTS_AND_NOTES => PasteMode::Comments,
             XL_PASTE_VALUES => PasteMode::Values,
             XL_PASTE_FORMULAS => PasteMode::Formulas,
             XL_PASTE_FORMATS => PasteMode::Formats,
             _ => {
                 return Err(AutoError::not_modelled(
-                    format!("Range.PasteSpecial Paste:={paste} (comments, validation, widths, number-format mixes, themes)"),
+                    format!("Range.PasteSpecial Paste:={paste} (number-format mixes, all-except-borders)"),
                     OWNER,
                 ));
             }

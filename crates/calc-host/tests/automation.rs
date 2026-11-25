@@ -6901,7 +6901,7 @@ fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
     // Other Paste kinds are refused typed; formula sources and destinations refuse an Operation; nothing is pasted.
     let before = value("M1");
     for args in [
-        vec![AutoValue::I4(-4144)],
+        vec![AutoValue::I4(12)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2), AutoValue::Bool(true)],
     ] {
@@ -8956,6 +8956,48 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     }
     assert_eq!(cell_text_of(&model, "B11"), "4");
     assert_eq!(cell_text_of(&model, "B14"), "4");
+}
+
+/// dc-oxh8w.43: `PasteSpecial` xlPasteValidation (6) pastes only the validation rules and xlPasteComments (-4144) only the
+/// notes: the cell contents stay, Comments leaves the rules alone, and Validation replaces the destination's rule.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_validation_and_comments() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(include_bytes!("fixtures/dc_6yw/data-validation.xlsx").to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let ruled = |row: u32, column: u32| host.session.borrow().host().validation(at(&host, row, column)).is_some();
+    // The first cell of column A..H with a rule is the source.
+    let (row, column) = (1..=40u32)
+        .flat_map(|r| (1..=8u32).map(move |c| (r, c)))
+        .find(|&(r, c)| ruled(r, c))
+        .expect("the fixture has a rule");
+    let sheet = host.session.borrow().host().sheets()[0].name().text().to_string_lossy();
+    let source = format!("{}{row}", (b'A' + column as u8 - 1) as char);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, &format!("'{sheet}'!{address}")), name, InvokeKind::Method, args)
+    };
+    let cell_text = |address: &str| cell_text_of(&model, &format!("'{sheet}'!{address}"));
+    let (dest_row, dest_column) = (60u32, 3u32);
+    assert!(!ruled(dest_row, dest_column));
+    call(&source, "Copy", vec![]).unwrap();
+    // Comments pastes no rule and no content.
+    call("C60", "PasteSpecial", vec![AutoValue::I4(-4144)]).unwrap();
+    assert!(!ruled(dest_row, dest_column));
+    assert_eq!(cell_text("C60"), "");
+    // Validation pastes the rule and still no content.
+    call("C60", "PasteSpecial", vec![AutoValue::I4(6)]).unwrap();
+    assert!(ruled(dest_row, dest_column));
+    assert_eq!(cell_text("C60"), "");
+    assert_eq!(
+        host.session.borrow().host().validation(at(&host, dest_row, dest_column)).map(|r| r.kind),
+        host.session.borrow().host().validation(at(&host, row, column)).map(|r| r.kind)
+    );
 }
 
 /// dc-oxh8w.67: `Series.Border` (Color, ColorIndex, LineStyle, Weight) and `ColorIndex` of the chart-area borders: stated,
