@@ -88,3 +88,8 @@ IconSetCondition
 AutoFilter
 Filters
 Filter
+# Dialogs and Toolbars (dc-711ye): corpus macros name them; they compile once the types are described.
+Dialogs
+Dialog
+Toolbars
+Toolbar

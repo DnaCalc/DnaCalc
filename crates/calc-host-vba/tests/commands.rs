@@ -128,12 +128,29 @@ fn project_with(
     policy: calc_macro_security::VbaPolicy,
     backend: calc_vba::Backend,
 ) -> (HostSession, Rc<calc_host_vba::WorkbookEvents>) {
+    try_project_with(module, policy, backend).unwrap()
+}
+
+fn try_project_with(
+    module: &str,
+    policy: calc_macro_security::VbaPolicy,
+    backend: calc_vba::Backend,
+) -> Result<(HostSession, Rc<calc_host_vba::WorkbookEvents>), String> {
+    try_project_sources(module, "", policy, backend)
+}
+
+fn try_project_sources(
+    module: &str,
+    sheet: &str,
+    policy: calc_macro_security::VbaPolicy,
+    backend: calc_vba::Backend,
+) -> Result<(HostSession, Rc<calc_host_vba::WorkbookEvents>), String> {
     let bytes = vba_project::replace_sources(
         LOCAL,
         &[
             ("Module1", module),
             ("PrivateModule", "Option Private Module\n"),
-            ("Sheet1", ""),
+            ("Sheet1", sheet),
             ("ThisWorkbook", ""),
         ],
     );
@@ -147,10 +164,10 @@ fn project_with(
         Some(backend),
         false,
     )
-    .unwrap()
-    .unwrap();
+    .map_err(|e| format!("{e:?}"))?
+    .ok_or("no project")?;
     owner.clone().install(&mut session);
-    (session, owner)
+    Ok((session, owner))
 }
 
 fn backends() -> Vec<calc_vba::Backend> {
@@ -459,4 +476,60 @@ fn dc_711ye__application_answers_worksheet_function_names() {
             );
         }
     }
+}
+
+/// (name, in a worksheet module, statement).
+const HOST_MEMBERS: [(&str, bool, &str); 3] = [
+    ("Cb", false, "Application.CommandBars(\"Cell\").Enabled = True"),
+    ("Prn", true, "PrintOut"),
+    ("Shp", true, "Shapes(\"x\").Delete"),
+];
+
+/// Dialogs and Toolbars are not in the descriptor yet (RUN-ON-WINDOWS regeneration).
+const HOST_MEMBERS_PENDING_DESCRIPTOR: [(&str, bool, &str); 2] = [
+    ("Dlg", false, "Application.Dialogs(5).Show"),
+    ("Tb", false, "Application.Toolbars(\"Standard\").Visible = True"),
+];
+
+fn host_members_compile_and_refuse_when_run(cases: &[(&str, bool, &str)]) {
+    let mut failures = Vec::new();
+    for backend in backends() {
+        for (name, in_sheet, body) in cases {
+            let proc = format!("Public Sub {name}()\n {body}\nEnd Sub\n");
+            let ok = "Public Sub Ok()\n Range(\"A1\").Value2 = 1\nEnd Sub\n";
+            let (module, sheet, entry) =
+                if *in_sheet { (ok.to_string(), proc, format!("Sheet1.{name}")) } else { (format!("{ok}{proc}"), String::new(), format!("Module1.{name}")) };
+            let policy = calc_macro_security::VbaPolicy::Guarded;
+            let (mut session, owner) = match try_project_sources(&module, &sheet, policy, backend) {
+                Ok(p) => p,
+                Err(e) => {
+                    failures.push(format!("{backend:?} {name}: {e}"));
+                    continue;
+                }
+            };
+            let run = owner.run_procedure(&mut session, "Module1.Ok", &[]);
+            assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {name} {run:?}");
+            let run = owner.run_procedure(&mut session, &entry, &[]);
+            if matches!(run.outcome, Outcome::Success(_)) {
+                failures.push(format!("{backend:?} {name}: ran without an error: {run:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// dc-711ye cause 2: a project that mentions CommandBars, or PrintOut or Shapes bare in a worksheet
+/// module (the sheet's own members), compiles; running one that acts on them fails with a run-time
+/// error, not a compile refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_711ye__unmodelled_host_members_compile_and_refuse_when_run() {
+    host_members_compile_and_refuse_when_run(&HOST_MEMBERS);
+}
+
+/// Native-only: waits for the Windows descriptor regeneration (Dialogs, Toolbars; RUN-ON-WINDOWS.txt, dc-711ye).
+#[test]
+#[ignore = "Dialogs and Toolbars are not in the descriptor until it is regenerated on Windows"]
+fn dc_711ye__dialogs_and_toolbars_compile_and_refuse_when_run() {
+    host_members_compile_and_refuse_when_run(&HOST_MEMBERS_PENDING_DESCRIPTOR);
 }
