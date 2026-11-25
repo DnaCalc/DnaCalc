@@ -5,6 +5,9 @@ use super::*;
 use crate::{SortKey, SortOptions, Axis, AxisChange, AxisEdit, SkinIntent, WorkbookCommand};
 use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
+/// The open bead that owns the structural remainders this file refuses.
+const OWNER: &str = "dc-jtl4m";
+
 const XL_SHIFT_DOWN: i64 = -4121;
 const XL_SHIFT_TO_RIGHT: i64 = -4161;
 const XL_SHIFT_UP: i64 = -4162;
@@ -76,12 +79,20 @@ impl WorkbookAutomation {
             match call.arg(1) {
                 AutoValue::Missing | AutoValue::Empty => {}
                 other if geometry::integer(other)? == 0 => {}
+                other if geometry::integer(other)? != 1 => {
+                    return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+                }
                 _ => {
                     return Err(AutoError::not_modelled(
                         "Range.Insert CopyOrigin xlFormatFromRightOrBelow",
                         OWNER,
                     ));
                 }
+            }
+        }
+        if let Some(other) = Some(call.arg(0)).filter(|a| !a.is_missing() && !matches!(a, AutoValue::Empty)) {
+            if ![XL_SHIFT_DOWN, XL_SHIFT_TO_RIGHT, XL_SHIFT_UP, XL_SHIFT_TO_LEFT].contains(&geometry::integer(other)?) {
+                return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }
         }
         let shift = match call.arg(0) {
@@ -104,7 +115,8 @@ impl WorkbookAutomation {
                     .map(SkinIntent::EditAxis)
                     .map_err(|_| AutoError::excel(1004, "Application-defined or object-defined error"))
             };
-            if whole_rows && !whole_columns {
+            // The whole sheet is every row: deleting it clears every cell and adjusts references as Excel does.
+            if whole_rows {
                 return axis_edit(Axis::Rows, first.row(), area.row_count());
             }
             if whole_columns {
@@ -145,13 +157,27 @@ impl WorkbookAutomation {
         if given(3) || given(8) || given(15) {
             return refuse("Type, OrderCustom and SubField1");
         }
-        if number(10, 2)? != 2 {
+        let bad = || AutoError::excel(1004, "Application-defined or object-defined error");
+        // xlGuess 0, xlYes 1, xlNo 2; xlSortColumns 1, xlSortRows 2; xlPinYin 1, xlStroke 2; DataOption 0 or 1.
+        let header = number(7, 2)?;
+        let orientation = number(10, 2)?;
+        let method = number(11, 1)?;
+        let (order_a, order_b, order_c) = (number(1, 1)?, number(4, 1)?, number(6, 1)?);
+        if !(0..=2).contains(&header)
+            || !(1..=2).contains(&orientation)
+            || !(1..=2).contains(&method)
+            || ![number(12, 0)?, number(13, 0)?, number(14, 0)?].iter().all(|d| (0..=1).contains(d))
+            || ![order_a, order_b, order_c].iter().all(|o| (1..=2).contains(o))
+        {
+            return Err(bad());
+        }
+        if orientation != 2 {
             return refuse("Orientation other than xlSortRows");
         }
-        if number(11, 1)? != 1 || number(12, 0)? != 0 || number(13, 0)? != 0 || number(14, 0)? != 0 {
+        if method != 1 || number(12, 0)? != 0 || number(13, 0)? != 0 || number(14, 0)? != 0 {
             return refuse("SortMethod and DataOption");
         }
-        let header = match number(7, 2)? {
+        let header = match header {
             1 => true,
             2 => false,
             _ => return refuse("Header xlGuess"),

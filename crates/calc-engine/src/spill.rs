@@ -99,19 +99,7 @@ impl SpillOutcome {
 /// #VALUE!, as Excel 16.0.20527 shows it. A callable shows its worksheet core (fn2 q017–020);
 /// its identity stays available inside the expression until this publication boundary.
 pub(crate) fn shown(value: &CalcValue) -> CalcValue {
-    if value.callable_value().is_some() {
-        CalcValue::new(value.core().clone())
-    } else if value.is_empty() || value.is_missing() {
-        CalcValue::number(0.0)
-    } else if (value.as_array().is_some() && value.callable_value().is_none())
-        || value.as_reference().is_some()
-    {
-        // dc-b1l: an element of an array of references too (`=OFFSET(A1,{0;1;2},0)` spills
-        // #VALUE! in Excel 16.0.20527).
-        CalcValue::error(WorksheetErrorCode::Value)
-    } else {
-        value.clone()
-    }
+    value.shown_as_spill_cell()
 }
 
 /// The area a result of `shape` covers from `anchor`, clipped to the grid, and whether it fits.
@@ -132,10 +120,9 @@ pub(crate) fn extent_of(anchor: CellKey, shape: ArrayShape) -> (GridArea, bool) 
 
 /// The spill of `array` from `anchor` over `area`, its blank elements shown as 0.
 pub(crate) fn spill_of(area: GridArea, array: &CalcArray) -> Spill {
-    let values = array.iter_row_major().map(shown).collect();
     Spill {
         area,
-        values: CalcArray::new(array.shape(), values).expect("the array's own shape"),
+        values: array.shown_as_spill(),
         fixed: false,
     }
 }

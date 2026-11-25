@@ -35495,6 +35495,2034 @@
    ]
   },
   {
+   "name": "Font",
+   "kind": "dispatch",
+   "guid": "{0002084D-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Background",
+     "dispid": 180,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Background",
+     "dispid": 180,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Bold",
+     "dispid": 96,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Bold",
+     "dispid": 96,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "FontStyle",
+     "dispid": 177,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "FontStyle",
+     "dispid": 177,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Italic",
+     "dispid": 101,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Italic",
+     "dispid": 101,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "OutlineFont",
+     "dispid": 221,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "OutlineFont",
+     "dispid": 221,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Shadow",
+     "dispid": 103,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Shadow",
+     "dispid": 103,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Size",
+     "dispid": 104,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Size",
+     "dispid": 104,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Strikethrough",
+     "dispid": 105,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Strikethrough",
+     "dispid": 105,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Subscript",
+     "dispid": 179,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Subscript",
+     "dispid": 179,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Superscript",
+     "dispid": 178,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Superscript",
+     "dispid": 178,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Underline",
+     "dispid": 106,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Underline",
+     "dispid": 106,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ThemeFont",
+     "dispid": 2367,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlThemeFont[I4]"
+    },
+    {
+     "name": "ThemeFont",
+     "dispid": 2367,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlThemeFont[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "Interior",
+   "kind": "dispatch",
+   "guid": "{00020870-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "InvertIfNegative",
+     "dispid": 132,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "InvertIfNegative",
+     "dispid": 132,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Pattern",
+     "dispid": 95,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Pattern",
+     "dispid": 95,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PatternColor",
+     "dispid": 100,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "PatternColor",
+     "dispid": 100,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PatternColorIndex",
+     "dispid": 98,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "PatternColorIndex",
+     "dispid": 98,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PatternThemeColor",
+     "dispid": 2643,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "PatternThemeColor",
+     "dispid": 2643,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PatternTintAndShade",
+     "dispid": 2644,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "PatternTintAndShade",
+     "dispid": 2644,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Gradient",
+     "dispid": 2645,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    }
+   ]
+  },
+  {
+   "name": "Borders",
+   "kind": "dispatch",
+   "guid": "{00020855-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Count",
+     "dispid": 118,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Item",
+     "dispid": 170,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "enum:XlBordersIndex[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "Border*"
+    },
+    {
+     "name": "LineStyle",
+     "dispid": 119,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "LineStyle",
+     "dispid": 119,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_NewEnum",
+     "dispid": -4,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IUnknown*"
+    },
+    {
+     "name": "Value",
+     "dispid": 6,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Value",
+     "dispid": 6,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Weight",
+     "dispid": 120,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Weight",
+     "dispid": 120,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_Default",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Index",
+       "type": "enum:XlBordersIndex[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "Border*"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "Border",
+   "kind": "dispatch",
+   "guid": "{00020854-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Color",
+     "dispid": 99,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ColorIndex",
+     "dispid": 97,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "LineStyle",
+     "dispid": 119,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "LineStyle",
+     "dispid": 119,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Weight",
+     "dispid": 120,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Weight",
+     "dispid": 120,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ThemeColor",
+     "dispid": 2365,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "TintAndShade",
+     "dispid": 2366,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "Style",
+   "kind": "dispatch",
+   "guid": "{00020852-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "AddIndent",
+     "dispid": 1063,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "AddIndent",
+     "dispid": 1063,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "BuiltIn",
+     "dispid": 553,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "Borders",
+     "dispid": 435,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Borders*"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "FormulaHidden",
+     "dispid": 262,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "FormulaHidden",
+     "dispid": 262,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "HorizontalAlignment",
+     "dispid": 136,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlHAlign[I4]"
+    },
+    {
+     "name": "HorizontalAlignment",
+     "dispid": 136,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlHAlign[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludeAlignment",
+     "dispid": 413,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludeAlignment",
+     "dispid": 413,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludeBorder",
+     "dispid": 414,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludeBorder",
+     "dispid": 414,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludeFont",
+     "dispid": 415,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludeFont",
+     "dispid": 415,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludeNumber",
+     "dispid": 416,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludeNumber",
+     "dispid": 416,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludePatterns",
+     "dispid": 417,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludePatterns",
+     "dispid": 417,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IncludeProtection",
+     "dispid": 418,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "IncludeProtection",
+     "dispid": 418,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IndentLevel",
+     "dispid": 201,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "IndentLevel",
+     "dispid": 201,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Interior",
+     "dispid": 129,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Interior*"
+    },
+    {
+     "name": "Locked",
+     "dispid": 269,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "Locked",
+     "dispid": 269,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "MergeCells",
+     "dispid": 208,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "MergeCells",
+     "dispid": 208,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NameLocal",
+     "dispid": 937,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlOrientation[I4]"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlOrientation[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ShrinkToFit",
+     "dispid": 209,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ShrinkToFit",
+     "dispid": 209,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Value",
+     "dispid": 6,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "VerticalAlignment",
+     "dispid": 137,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlVAlign[I4]"
+    },
+    {
+     "name": "VerticalAlignment",
+     "dispid": 137,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlVAlign[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "WrapText",
+     "dispid": 276,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "WrapText",
+     "dispid": 276,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "_Default",
+     "dispid": 0,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
    "name": "Areas",
    "kind": "dispatch",
    "guid": "{00020860-0000-0000-C000-000000000046}",
@@ -75966,6 +77994,362 @@
       }
      ],
      "return": "VARIANT"
+    }
+   ]
+  },
+  {
+   "name": "TickLabels",
+   "kind": "dispatch",
+   "guid": "{000208C9-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "Name",
+     "dispid": 110,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumberFormatLinked",
+     "dispid": 194,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "NumberFormatLinked",
+     "dispid": 194,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "NumberFormatLocal",
+     "dispid": 1097,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlTickLabelOrientation[I4]"
+    },
+    {
+     "name": "Orientation",
+     "dispid": 134,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlTickLabelOrientation[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Select",
+     "dispid": 235,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "ReadingOrder",
+     "dispid": 975,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AutoScaleFont",
+     "dispid": 1525,
+     "invoke": "get",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "AutoScaleFont",
+     "dispid": 1525,
+     "invoke": "put",
+     "slot": null,
+     "hidden": true,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Depth",
+     "dispid": 1890,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Offset",
+     "dispid": 254,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Offset",
+     "dispid": 254,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Alignment",
+     "dispid": 453,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Alignment",
+     "dispid": 453,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "MultiLevel",
+     "dispid": 2653,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "MultiLevel",
+     "dispid": 2653,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Format",
+     "dispid": 116,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "ChartFormat*"
     }
    ]
   },

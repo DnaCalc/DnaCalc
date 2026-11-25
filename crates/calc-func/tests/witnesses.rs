@@ -58,6 +58,31 @@ fn beta_dist_cdf_at_minimum_normal_coordinate() {
     );
 }
 
+/// Touchstone Excel 16.0.20625.20108, dc-j9k.225. An odd significand loses a bit
+/// if the internal logarithm stores half the input before doubling it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn distribution_log_preserves_smallest_normal_inputs() {
+    for (function, args, expected) in [
+        (
+            "GAMMA.INV",
+            serde_json::json!(["0x0010000000000001", "0x3ff0000000000000", "0x7fe0000000000000"]),
+            "0x4000000000000001",
+        ),
+        (
+            "BETA.DIST",
+            serde_json::json!(["0x0010000000000001", "0x3ff0000000000000", "0x4008000000000000", true]),
+            "0x0028000000000002",
+        ),
+    ] {
+        assert_eq!(
+            witness_call::calculate(function, args.as_array().unwrap(), None, None, true),
+            expected,
+            "{function} {args}"
+        );
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn every_pinned_witness_row_calculates_as_pinned() {
