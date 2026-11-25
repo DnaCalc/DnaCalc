@@ -6,7 +6,7 @@ use super::*;
 use crate::{CopySnapshot, PasteMode, PasteSource, SkinIntent, WorkbookCommand, prepare_paste_oriented};
 
 /// The open bead that owns the clipboard remainders this file refuses.
-const OWNER: &str = "dc-oxh8w.27";
+const OWNER: &str = "dc-oxh8w.28";
 
 const XL_PASTE_ALL: i64 = -4104;
 const XL_PASTE_VALUES: i64 = -4163;
@@ -195,7 +195,7 @@ impl WorkbookAutomation {
 impl WorkbookAutomation {
     /// SkipBlanks leaves the destination cell where the source is blank; an Operation combines the
     /// destination with the source number (an empty destination counts as zero). Sources or destinations
-    /// that are not literal numbers are refused: the formula-wrapping and text results are unmeasured (dc-oxh8w.27).
+    /// that are not literal numbers are refused: the formula-wrapping and text results are unmeasured (dc-oxh8w.28).
     fn combine_plan(host: &crate::HostState, plan: &mut crate::PastePlan, combine: Combine) -> Result<(), AutoError> {
         use crate::{CellEdit, CellInput, ProjectedValue, ProjectionRequest};
         if combine.skip_blanks {

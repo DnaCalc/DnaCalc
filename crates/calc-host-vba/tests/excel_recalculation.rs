@@ -162,7 +162,8 @@ fn modules(source: &str) -> [calc_host_vba::ModuleSource; 2] {
 
 /// The unmodified fixture now loads in the document route. The module route still
 /// has no ThisWorkbook; the sequence comparison below measures its calculation gaps.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_unmodified_probe_loads_as_a_document_and_needs_thisworkbook_as_a_module() {
     let mut s = session();
     let project = calc_host_vba::prepare(
@@ -391,7 +392,8 @@ fn check(backend: calc_vba::Backend) {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn interpreter_replays_excels_recalculation_sequence() {
     check(calc_vba::Backend::Interpreter);
 }

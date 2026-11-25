@@ -5616,7 +5616,7 @@ mod xlc {
                 ],
                 Some(AutoError::not_modelled(
                     "Names.Add RefersToR1C1",
-                    "dc-oxh8w.27",
+                    "dc-oxh8w.28",
                 )),
             ),
             (
@@ -5749,7 +5749,7 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Chart sheets are refused typed (dc-oxh8w.27 owns them), nothing changes.
+    // Chart sheets are refused typed (dc-oxh8w.28 owns them), nothing changes.
     for args in [
         vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
     ] {
@@ -6329,6 +6329,7 @@ fn dc_oxh8w_4__range_sort_orders_rows_by_key_columns() {
 /// after `After` (default the range's first cell) and wraps; LookIn, LookAt, SearchOrder, SearchDirection and
 /// MatchCase apply, are saved between calls, and a miss is Nothing.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_15__range_find_next_previous() {
     let (host, model) = setup_session(
         HostSession::open(
@@ -6387,6 +6388,7 @@ fn dc_oxh8w_15__range_find_next_previous() {
 /// and Worksheet.Paste write it through the host's paste planner (Values, Formulas, Transpose, All; a Cut is
 /// spent by its paste; no clipboard is Excel's 1004).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
     let (host, model) = setup_session(
         HostSession::open(

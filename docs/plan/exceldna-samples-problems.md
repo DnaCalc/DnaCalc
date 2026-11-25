@@ -3,7 +3,7 @@
 This document collects defects, stale metadata, broken builds, runtime bugs, and documentation mismatches found in [`Excel-DNA/samples`](https://github.com/Excel-DNA/samples) so the samples repository can be cleaned up later (owner approval required before any change to `Excel-DNA/samples`).
 
 - **Inspected commit:** `ba5732c7d67d65fbc8610f714371f178aa0e5a8d` (read-only clone, 2026-11-24).
-- **Phases covered:** Static inspection (`dc-z05nj.1`), Windows builds (`dc-z05nj.2`), and the private Excel follow-up below (`dc-z05nj.3`).
+- **Phases covered:** Static inspection (`dc-z05nj.1`), Windows builds (`dc-z05nj.2`), private Excel (`dc-z05nj.3`), and DNA Calc (`dc-z05nj.4`).
 
 ---
 
@@ -46,6 +46,20 @@ rules require the exact keys to be known and recorded before creation.
 
 The artifact hashes, observed values, and private-desktop receipts are in
 `C:/Work/DnaCalc/codex-runs/ww18/samples/`.
+
+### DNA Calc comparison, ww18
+
+The hash-verified Win64 desktop build at `b6e8975d0` attempted 44 x64
+artifacts with passing Excel checks. It matched 33 of 52 formula checks
+and all four `DumpDataSlowly` command checks in automatic calculation.
+The Formula Explorer matched 31 of 48 checks across 36 artifacts. The
+ArrayMap comparison covers its array dimensions and first column.
+
+The product refused the GET.CELL worksheet callback, an ArrayMap
+GET.WORKSPACE operand, and the Visual Basic registration sample's ON.KEY
+call. Additional failures concern native add-in startup and visible
+registrations. Detailed product evidence and eight tracker proposals are
+in the lane directory, alongside the 36 differing formula observations.
 
 ---
 
