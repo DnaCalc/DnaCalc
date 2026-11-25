@@ -340,7 +340,8 @@ pub fn nper(
     let numerator = excel_x87_sub(tf_pmt, excel_x87_mul(future_value, periodic_rate));
     let denominator = excel_x87_add(tf_pmt, excel_x87_mul(present_value, periodic_rate));
     let ratio = excel_x87_div(numerator, denominator);
-    if ratio <= 0.0 || !ratio.is_finite() {
+    // Live Excel (dc-j9k.234): a ratio at or below the smallest normal double is #NUM! as well.
+    if ratio <= f64::MIN_POSITIVE || !ratio.is_finite() {
         return Err(FinancialError::Num);
     }
     let base = excel_x87_add(1.0, periodic_rate);
@@ -1617,6 +1618,31 @@ mod tests {
             nper(0.05, 0.0, 100.0, 0.0, PaymentTiming::EndOfPeriod),
             Err(FinancialError::Num),
             "pmt=0 on the main path is #NUM!"
+        );
+    }
+
+    /// Live Excel (dc-j9k.234): a ratio that falls below the smallest normal double is #NUM!,
+    /// while 2.3e-308 still answers.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn nper_subnormal_ratio_is_num() {
+        let end = PaymentTiming::EndOfPeriod;
+        assert_eq!(nper(1.0, -1.0e-8, -1.0e300, 0.0, end), Err(FinancialError::Num));
+        assert_eq!(nper(1.0, -2.2250738585072014e-8, -1.0e300, 0.0, end), Err(FinancialError::Num));
+        assert_eq!(nper(1.0, -2.2e-8, -1.0e300, 0.0, end), Err(FinancialError::Num));
+        assert_eq!(
+            nper(1.0, -2.3e-8, -1.0e300, 0.0, end).map(f64::to_bits),
+            Ok(0xc08fef9e252f9cb9)
+        );
+        assert_eq!(
+            nper(
+                f64::from_bits(0x3e34558ce1c4c802),
+                f64::from_bits(0xb7c53ade41b59fc9),
+                f64::from_bits(0xfbb5ced110391578),
+                0.0,
+                end
+            ),
+            Err(FinancialError::Num)
         );
     }
 
