@@ -1691,3 +1691,18 @@ fn dc_ztvv_26_14_text_fixed_dollar_enforce_255_utf16_output_cap() {
         Value,
     );
 }
+
+/// Excel 20527 (standing fuzz sweep, dc-j9k.192-.197): TEXTSPLIT reads ignore_empty and
+/// match_mode as logicals, so any non-zero number is TRUE rather than #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textsplit_flags_take_any_number_as_logical() {
+    let b = |bits: u64| n(f64::from_bits(bits));
+    text(
+        call("TEXTSPLIT", vec![b(0xc02a_0010_0000_0000), b(0x4077_0000_0000_0000), b(0x4055_8000_0000_0002), b(0x4074_c000_0000_0020)]),
+        "-13.0001220703125",
+    );
+    text(call("TEXTSPLIT", vec![t("ba."), t("|"), t("b-0\nZ"), b(0xbff0_0000_0000_0000)]), "ba.");
+    text(call("TEXTSPLIT", vec![t("123"), t("x"), t("y"), b(0xc014_0000_0000_0000), b(0x3ff0_0000_0000_0000)]), "123");
+    text(call("TEXTSPLIT", vec![t("single"), t("\n"), t("3b.b3105,."), b(0xc000_0000_0000_0000), b(0), t("")]), "single");
+}

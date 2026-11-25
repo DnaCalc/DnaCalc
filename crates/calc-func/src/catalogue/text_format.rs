@@ -383,6 +383,20 @@ fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize, tolerant: bool) -
     }
 }
 
+/// A logical flag read as Excel reads a logical argument: any non-zero number is TRUE (TEXTSPLIT's
+/// ignore_empty and match_mode, fuzz sweep dc-j9k.192-.197: -2, -1, 332 and 2.0000000000000004 all
+/// split rather than #VALUE!).
+fn logical_flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
+    if !given(a, index) {
+        return Ok(false);
+    }
+    let n = num(site, a, index)?;
+    if !n.is_finite() {
+        return fail(WorksheetErrorCode::Value);
+    }
+    Ok(n != 0.0)
+}
+
 /// The texts a delimiter argument gives: a single text, or each cell of an array or reference.
 fn delimiters(
     site: &Site<'_>,
@@ -533,8 +547,8 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     if columns.is_none() && rows_by.is_none() {
         return fail(WorksheetErrorCode::Value);
     }
-    let ignore_empty = binary_flag(site, a, 3, false)?;
-    let case_insensitive = binary_flag(site, a, 4, false)?;
+    let ignore_empty = logical_flag(site, a, 3)?;
+    let case_insensitive = logical_flag(site, a, 4)?;
     if columns.iter().chain(rows_by.iter()).flatten().any(|d| d.len_utf16_code_units() == 0) {
         return fail(WorksheetErrorCode::Value);
     }
