@@ -5616,7 +5616,7 @@ mod xlc {
                 ],
                 Some(AutoError::not_modelled(
                     "Names.Add RefersToR1C1",
-                    "dc-oxh8w.27",
+                    "dc-oxh8w.28",
                 )),
             ),
             (
@@ -5749,7 +5749,7 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Chart sheets are refused typed (dc-oxh8w.27 owns them), nothing changes.
+    // Chart sheets are refused typed (dc-oxh8w.28 owns them), nothing changes.
     for args in [
         vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
     ] {
