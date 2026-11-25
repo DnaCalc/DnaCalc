@@ -8335,6 +8335,72 @@ fn dc_orxz0__styles_collection_adds_applies_saves_and_deletes() {
     assert!(r.is_err(), "{r:?}");
 }
 
+/// dc-oxh8w.50: `Application.ActiveWindow` and `Workbook.Windows(1)` answer the workbook's window: ActiveSheet, ActiveCell,
+/// Selection, Zoom (10 to 400), ScrollRow/ScrollColumn, the Display* flags and FreezePanes with SplitRow/SplitColumn
+/// (through the stored frozen panes). Out-of-range values and a second window are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_50__window_view_members_and_freeze_panes() {
+    let (host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let windows = obj(invoke(&model, &book, "Windows", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &windows, "Count", vec![]).unwrap()), 1);
+    let first = obj(invoke_kind(&model, &windows, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(first.key, window.key);
+    let r = invoke_kind(&model, &windows, "Item", InvokeKind::Get, vec![AutoValue::I4(2)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    let put = |member: &str, value: AutoValue| invoke_kind(&model, &window, member, InvokeKind::Put, vec![value]);
+    // Zoom
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 100);
+    put("Zoom", AutoValue::I4(150)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 150);
+    for bad in [9, 401, 0, -5] {
+        let r = put("Zoom", AutoValue::I4(bad));
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    assert_eq!(int(invoke(&model, &window, "Zoom", vec![]).unwrap()), 150);
+    // Scroll position and flags
+    assert_eq!(int(invoke(&model, &window, "ScrollRow", vec![]).unwrap()), 1);
+    put("ScrollRow", AutoValue::I4(20)).unwrap();
+    put("ScrollColumn", AutoValue::I4(3)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "ScrollRow", vec![]).unwrap()), 20);
+    assert_eq!(int(invoke(&model, &window, "ScrollColumn", vec![]).unwrap()), 3);
+    for (member, bad) in [("ScrollRow", 0), ("ScrollRow", 1_048_577), ("ScrollColumn", 16_385)] {
+        let r = put(member, AutoValue::I4(bad));
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{member} {bad}: {r:?}");
+    }
+    put("ScrollRow", AutoValue::I4(1)).unwrap();
+    put("ScrollColumn", AutoValue::I4(1)).unwrap();
+    assert!(matches!(invoke(&model, &window, "DisplayGridlines", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("DisplayGridlines", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "DisplayGridlines", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &window, "DisplayFormulas", vec![]).unwrap(), AutoValue::Bool(false)));
+    // FreezePanes at C3 freezes two rows and two columns.
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    let r = put("FreezePanes", AutoValue::Bool(true));
+    assert!(r.is_err(), "freezing at the first cell is refused: {r:?}");
+    let c3 = range(&model, "C3");
+    invoke_kind(&model, &c3, "Select", InvokeKind::Method, vec![]).unwrap();
+    put("FreezePanes", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &window, "SplitColumn", vec![]).unwrap()), 2);
+    let active = obj(invoke(&model, &window, "ActiveCell", vec![]).unwrap());
+    assert_eq!(text(&model, &active, "Address"), "$C$3");
+    let sel = obj(invoke(&model, &window, "Selection", vec![]).unwrap());
+    assert_eq!(text(&model, &sel, "Address"), "$C$3");
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &w2, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("FreezePanes", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
+    let sheet = obj(invoke(&model, &window, "ActiveSheet", vec![]).unwrap());
+    assert!(!text(&model, &sheet, "Name").is_empty());
+}
+
 /// Application.CalculateBeforeSave and Workbook.PrecisionAsDisplayed puts (dc-oxh8w.53): the value
 /// reads back, a non-Boolean is a type mismatch (as the iteration puts), a put without a value is 1004, and PrecisionAsDisplayed
 /// True is a typed refusal owned by dc-oxh8w.64 while False is accepted.

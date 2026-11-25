@@ -246,6 +246,9 @@ impl WorkbookAutomation {
             | ObjectKey::Worksheets(id)
             | ObjectKey::Charts(id)
             | ObjectKey::Names(id)
+            | ObjectKey::Styles(id)
+            | ObjectKey::BookWindow(id)
+            | ObjectKey::Windows(id)
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. }
             | ObjectKey::Worksheet { workbook: id, .. }

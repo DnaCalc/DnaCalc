@@ -87,7 +87,7 @@ Public Sub ExportChart()
  frame.Chart.Export \"out.png\", \"PNG\"
 End Sub
 Public Sub NeedsWindow()
- Application.ActiveWindow.Zoom = 50
+ Application.ActiveWindow.WindowState = -4137
 End Sub
 ";
 

@@ -37,6 +37,7 @@ pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory};
 mod cells;
 mod clipboard;
 mod formatting;
+mod window;
 mod find;
 mod formula;
 mod mutation;
@@ -163,6 +164,8 @@ pub struct WorkbookAutomation {
     find: RefCell<find::FindState>,
     /// What the last Range.Copy or Range.Cut without a Destination left (dc-oxh8w.15).
     clipboard: RefCell<Option<clipboard::Clip>>,
+    /// The view state a macro sets on windows, per workbook and sheet (dc-oxh8w.50).
+    window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
 }
 
 struct RangeLeases {
@@ -288,6 +291,7 @@ impl WorkbookAutomation {
         let _ = Self::register_report(&mut handlers);
         // Printing registers likewise (dc-oxh8w.8).
         let _ = Self::register_print(&mut handlers);
+        let _ = Self::register_window(&mut handlers);
         handlers.on(
             "Application",
             "EnableEvents",
@@ -307,6 +311,7 @@ impl WorkbookAutomation {
             ranges: RefCell::default(),
             find: RefCell::default(),
             clipboard: RefCell::new(None),
+            window_views: RefCell::new(HashMap::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
@@ -590,6 +595,9 @@ impl WorkbookAutomation {
             | ObjectKey::Worksheets(id)
             | ObjectKey::Charts(id)
             | ObjectKey::Names(id)
+            | ObjectKey::Styles(id)
+            | ObjectKey::BookWindow(id)
+            | ObjectKey::Windows(id)
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),
             ObjectKey::Worksheet { workbook, sheet }

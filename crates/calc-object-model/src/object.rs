@@ -59,6 +59,10 @@ pub enum ObjectKey {
         /// Position among the workbook's named cell styles.
         index: u32,
     },
+    /// The window showing a workbook (`Window`): one per open workbook. (dc-oxh8w.50)
+    BookWindow(u64),
+    /// The `Windows` collection of a workbook: its one window. (dc-oxh8w.50)
+    Windows(u64),
     /// The `Styles` collection of a workbook (dc-orxz0).
     Styles(u64),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
