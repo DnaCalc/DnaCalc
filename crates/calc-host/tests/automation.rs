@@ -6728,6 +6728,7 @@ fn dc_oxh8w_22__chart_export_writes_the_drawn_chart_through_the_host() {
     let written: Vec<(&str, &str)> =
         files.iter().map(|(p, b)| (p.as_str(), std::str::from_utf8(b).unwrap())).collect();
     assert_eq!(written, [("a.png", "Png 400x267"), ("b.gif", "Gif 400x267"), ("c.dat", "Jpg 400x267")]);
+}
 
 fn interior(model: &WorkbookAutomation, address: &str) -> ObjectRef {
     let target = range(model, address);
