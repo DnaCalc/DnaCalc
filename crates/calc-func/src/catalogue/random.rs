@@ -35,12 +35,15 @@ ported_shared_family! {
         s.number(unit)
     }
     2 randbetween |s, a, sv| {
-        // Excel rounds bottom up and top down to integers.
-        let lo = num(s, a, 0)?.ceil();
-        let hi = num(s, a, 1)?.floor();
-        if lo > hi {
+        // Excel rounds bottom up and top down to integers; only a raw bottom above the raw top is
+        // #NUM!, and a top that floors below the rounded bottom collapses to it (dc-j9k.185).
+        let bottom = num(s, a, 0)?;
+        let top = num(s, a, 1)?;
+        if bottom > top {
             return fail(WorksheetErrorCode::Num);
         }
+        let lo = bottom.ceil();
+        let hi = top.floor().max(lo);
         let unit = draw(s, sv)?;
         let range = hi - lo + 1.0;
         s.number((lo + (unit * range).floor()).min(hi))
