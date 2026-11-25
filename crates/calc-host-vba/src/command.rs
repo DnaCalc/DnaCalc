@@ -273,9 +273,24 @@ impl WorkbookEvents {
                     BookTarget::Closed => return Err(cannot_run(name)),
                 }
             }
-            None => name,
+            None => {
+                // Not in this workbook: Excel's Run also finds the procedure in the other open workbooks.
+                if self.resolve(name.trim().trim_matches('\'')).is_err() {
+                    for runner in self.automation.other_runners()? {
+                        if runner.knows(name.trim().trim_matches('\'')) {
+                            return runner.run(name, name.trim().trim_matches('\''), arguments);
+                        }
+                    }
+                }
+                name
+            }
         };
         self.run_here(name, request, arguments)
+    }
+
+    /// Whether this project holds a public procedure `request` resolves to.
+    pub(crate) fn has_procedure(&self, request: &str) -> bool {
+        self.resolve(request).is_ok()
     }
 
     /// Run `request` (no workbook qualifier) in this project; `name` is the caller's text for messages.
@@ -639,6 +654,12 @@ End Function
         assert_eq!(text(read_only), "fixture.xlsm/True/False", "ReadOnly:=True opens a read-only workbook; the others stay writable");
         let plain = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("fixture.xlsm")]);
         assert!(plain.is_ok(), "{plain:?}");
+        // An unqualified name the running workbook does not hold is found in the other open workbooks;
+        // its own procedures come first.
+        let found = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("WhoAmI")]);
+        assert_eq!(text(found), "Other.xlsm");
+        let nowhere = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("NoSuchProcedure")]);
+        assert!(matches!(&nowhere, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{nowhere:?}");
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
@@ -684,6 +705,9 @@ End Function
 Public Function CloseOther() As Double
  Workbooks(2).Close False
  CloseOther = Workbooks.Count * 10 + Application.Run("Module1.Answer", 1, 1)
+End Function
+Public Function RunBare(ByVal n As String) As String
+ RunBare = Application.Run(n)
 End Function
 Public Function QualifiedSelf() As Double
  Dim n As String

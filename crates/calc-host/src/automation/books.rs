@@ -9,6 +9,8 @@ use super::*;
 pub trait BookRunner {
     /// `Application.Run` of `request` (an unqualified `Module.Name` or `Name`) in this workbook.
     fn run(&self, name: &str, request: &str, arguments: &[AutoValue]) -> Reply;
+    /// Whether `request` names a public procedure of this workbook (`Application.Run` of a bare name).
+    fn knows(&self, request: &str) -> bool;
     /// One call on an object of this workbook (a sheet, a range, a name), made from another
     /// workbook's macro: run against this workbook's own session.
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply;
@@ -172,6 +174,11 @@ impl WorkbookAutomation {
                     || calc_value::workbook_names_equal(book_name(&book.full_name), name)
             })
             .map_or(BookTarget::Closed, |book| BookTarget::Other(book.runner)))
+    }
+    /// The runners of the other open workbooks, in `Workbooks` order.
+    pub fn other_runners(&self) -> Result<Vec<Rc<dyn BookRunner>>, AutoError> {
+        let own = self.metadata()?.workbook;
+        Ok(self.open_books()?.into_iter().filter(|b| b.id != own).filter_map(|b| b.runner).collect())
     }
     pub(super) fn register_books(handlers: &mut Handlers<Self>) {
         handlers.on("Application", "ActiveWorkbook", InvokeKind::Get, Self::active_workbook);

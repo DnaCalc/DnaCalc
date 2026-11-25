@@ -37,6 +37,9 @@ impl BookRunner for OwnedBook {
     fn run(&self, name: &str, request: &str, arguments: &[AutoValue]) -> Reply {
         self.lent(|| Err(calc_host::automation::busy()), || self.events.run_here(name, request, arguments))
     }
+    fn knows(&self, request: &str) -> bool {
+        self.events.has_procedure(request)
+    }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.lent(|| Err(calc_host::automation::busy()), || self.events.automation.invoke(target, call))
     }
@@ -65,6 +68,9 @@ impl LentBook {
 impl BookRunner for LentBook {
     fn run(&self, name: &str, request: &str, arguments: &[AutoValue]) -> Reply {
         self.events()?.run_here(name, request, arguments)
+    }
+    fn knows(&self, request: &str) -> bool {
+        self.0.upgrade().is_some_and(|events| events.has_procedure(request))
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.events()?.automation.invoke(target, call)
