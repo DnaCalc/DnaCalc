@@ -222,7 +222,7 @@ beside the per-workbook counts):
 | --- | --- | ---: | ---: | ---: |
 | `_Application.Build` | dc-oxh8w.35 | 23 | 17 | 4,867 |
 | `_Application.Calculation` | dc-oxh8w.35 | 16 | 13 | 4,253 |
-| File-project event reads of cached or uncertified cells | dc-oxh8w.37 | 9 | 9 | 2,757 |
+| File-project event reads of cached or uncertified cells | dc-oxh8w.38 | 9 | 9 | 2,757 |
 | `_Workbook.VBProject` | dc-oxh8w.41 | 9 | 9 | 938 |
 | `_Application.MacroOptions` | dc-oxh8w.41 | 3 | 2 | 9 |
 | WithEvents subscriptions | - | 1 | 1 | 12 |
@@ -245,7 +245,7 @@ project prints at start:
 Successful entries do not rise yet: those entries read ten settings in one expression, and the
 last of them are not implemented (MultiThreadedCalculation needs a Windows descriptor
 regeneration, PrecisionAsDisplayed needs calc-doc to load `fullPrecision`, the CalculateBeforeSave
-put needs a document setter): all three are dc-oxh8w.40. File-project event reads are dc-oxh8w.37;
+put needs a document setter): all three are dc-oxh8w.40. File-project event reads are dc-oxh8w.38;
 `Workbook.VBProject` (the VBIDE object model: VBComponents, CodeModule) and `MacroOptions`
 (9 and 3 entries) are dc-oxh8w.41.
 
