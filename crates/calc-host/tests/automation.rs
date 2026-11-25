@@ -7483,6 +7483,13 @@ fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
     invoke_kind(&model, &first, "Select", InvokeKind::Method, vec![AutoValue::Bool(true)]).unwrap();
     assert_eq!(active_name(), text(&model, &first, "Name"));
     assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    // Range.Activate moves the active cell inside the selection; outside it is a typed refusal.
+    select(&sub(&first, "B2:C3")).unwrap();
+    invoke_kind(&model, &sub(&first, "C3"), "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$C$3");
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    let outside = invoke_kind(&model, &sub(&first, "F9"), "Activate", InvokeKind::Method, vec![]);
+    assert!(matches!(outside, Err(AutoError::NotModelled { .. })), "{outside:?}");
     // Select(Replace:=False) would group sheets: typed refusal, no change.
     let group = invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![AutoValue::Bool(false)]);
     assert!(matches!(group, Err(AutoError::NotModelled { .. })), "{group:?}");
@@ -7551,4 +7558,31 @@ fn dc_oxh8w_46__range_range_is_relative_to_the_range() {
     let unioned = invoke(&model, &base, "Range", vec![AutoValue::text("A1,C3")]);
     assert!(matches!(unioned, Err(AutoError::NotModelled { .. })), "{unioned:?}");
     assert!(invoke(&model, &base, "Range", vec![]).is_err());
+}
+
+/// dc-oxh8w.46: Application.DisplayAlerts is a held flag (True at start); Application.CutCopyMode reads False,
+/// xlCopy (1) after a Copy and xlCut (2) after a Cut, and False clears it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__display_alerts_and_cut_copy_mode() {
+    let (_host, model) = setup();
+    let app = model.application();
+    assert!(matches!(invoke(&model, &app, "DisplayAlerts", vec![]).unwrap(), AutoValue::Bool(true)));
+    invoke_kind(&model, &app, "DisplayAlerts", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &app, "DisplayAlerts", vec![]).unwrap(), AutoValue::Bool(false)));
+    let bad = invoke_kind(&model, &app, "DisplayAlerts", InvokeKind::Put, vec![AutoValue::text("x")]);
+    assert!(bad.is_err(), "{bad:?}");
+
+    let mode = || invoke(&model, &app, "CutCopyMode", vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::Bool(false)), "{:?}", mode());
+    let source = range(&model, "A1:B2");
+    invoke_kind(&model, &source, "Copy", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::I4(1)), "{:?}", mode());
+    invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(mode(), AutoValue::Bool(false)));
+    invoke_kind(&model, &source, "Cut", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::I4(2)), "{:?}", mode());
+    // Only False (and the xlCopy/xlCut constants Excel reports) are assignable here.
+    let bad = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![AutoValue::I4(7)]);
+    assert!(bad.is_err(), "{bad:?}");
 }
