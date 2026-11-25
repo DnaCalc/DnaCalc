@@ -109,9 +109,11 @@ pub(crate) fn set(cli: &Cli) -> Result<(Value, u8), Failure> {
     Ok((report, code))
 }
 
-/// A `--arg` as a procedure argument: a number or `TRUE`/`FALSE` as written, otherwise text.
+/// A `--arg` as a procedure argument: a finite number or `TRUE`/`FALSE`, otherwise text.
 fn procedure_argument(arg: &str) -> calc_host_vba::ProcedureArg {
-    if let Ok(number) = arg.parse::<f64>() {
+    if let Ok(number) = arg.parse::<f64>()
+        && number.is_finite()
+    {
         calc_host_vba::ProcedureArg::Number(number)
     } else if arg.eq_ignore_ascii_case("true") || arg.eq_ignore_ascii_case("false") {
         calc_host_vba::ProcedureArg::Bool(arg.eq_ignore_ascii_case("true"))
@@ -274,4 +276,19 @@ fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
         "invocations": rows,
     });
     Ok((report, u8::from(runtime + refused + other > 0)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::procedure_argument;
+    use calc_host_vba::ProcedureArg;
+
+    #[test]
+    fn procedure_arguments_keep_nonfinite_spellings_as_text() {
+        for text in ["NaN", "inf", "-Infinity", "1e999"] {
+            assert_eq!(procedure_argument(text), ProcedureArg::Text(text.into()));
+        }
+        assert_eq!(procedure_argument("1.5"), ProcedureArg::Number(1.5));
+        assert_eq!(procedure_argument("TRUE"), ProcedureArg::Bool(true));
+    }
 }
