@@ -21,6 +21,8 @@ Public Sub DefaultLet()
  Range(\"B2\") = 50
  Cells(3, 1) = 7
  Range(\"A4\").Offset(1, 0) = 9
+ Sheet1.Cells(6, 1) = 11
+ Sheet1.Range(\"C1\") = 12
 End Sub
 Public Function Add2(ByVal a As Double, ByVal b As Double) As Double
  Add2 = a + b
@@ -347,7 +349,7 @@ fn default_member_let_of_a_range_call_writes_the_cell() {
         let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
         let run = owner.run_procedure(&mut session, "Module1.DefaultLet", &[]);
         assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {run:?}");
-        for (row, column, expected) in [(2, 2, 50.0), (3, 1, 7.0), (5, 1, 9.0)] {
+        for (row, column, expected) in [(2, 2, 50.0), (3, 1, 7.0), (5, 1, 9.0), (6, 1, 11.0), (1, 3, 12.0)] {
             assert!(
                 matches!(cell(&session, row, column), Some(calc_host::CellInput::Number(n)) if n.get() == expected),
                 "{backend:?} ({row},{column}): {:?}",
