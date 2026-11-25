@@ -2942,3 +2942,70 @@ fn project_designer_modules_are_admitted_as_classes() {
         .unwrap_or_else(|error| panic!("{replacement}: {error}"));
     }
 }
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_zd4cx_workbooks_open_activates_and_sets_read_only_before_workbook_open() {
+    use std::rc::Rc;
+
+    const OPEN_BOOK: &str = "Private Sub Workbook_Open()\n ThisWorkbook.Worksheets(1).Range(\"D1\").Value = ActiveWorkbook.Name & \"|\" & CStr(ThisWorkbook.ReadOnly) & \"|\" & CStr(Workbooks.Count) & \"|\" & ActiveSheet.Parent.Name & \"|\" & ActiveWindow.Caption\nEnd Sub\n";
+    let target_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", "Option Explicit\n"),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", OPEN_BOOK),
+        ],
+    );
+    let mut caller_session = opened(LOCAL, "CallerBook.xlsm");
+    let caller = calc_host_vba::prepare(
+        caller_session.host(),
+        "CallerBook.xlsm",
+        &[calc_host_vba::ModuleSource {
+            name: "Module1".into(),
+            target: calc_host_vba::ModuleTarget::Standard,
+            source: r#"
+Public Function OpenPair() As String
+ Dim b1 As Workbook
+ Set b1 = Workbooks.Open("OpenedRo.xlsm", 0, True)
+ Dim r1 As String
+ r1 = b1.Worksheets(1).Range("D1").Value
+ Dim b2 As Workbook
+ Set b2 = Workbooks.Open("OpenedRw.xlsm")
+ Dim r2 As String
+ r2 = b2.Worksheets(1).Range("D1").Value
+ b2.Close False
+ b1.Close False
+ OpenPair = r1 & " ; " & r2
+End Function
+"#.into(),
+        }],
+        1_000_000,
+        Some(calc_vba::Backend::Interpreter),
+    )
+    .unwrap();
+    let payload = Rc::new(target_bytes);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: 1_000_000,
+        backend: Some(calc_vba::Backend::Interpreter),
+        loader: Some(Rc::new(move |path: &str| {
+            if matches!(path, "OpenedRo.xlsm" | "OpenedRw.xlsm") {
+                Ok((*payload).clone())
+            } else {
+                Err("missing".into())
+            }
+        })),
+        grant: Some(grant()),
+    });
+    let record = caller.run_procedure(&mut caller_session, "Module1.OpenPair", &[]);
+    calc_host::automation::set_book_factory(None);
+    let output = match record.outcome {
+        calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(text)) => text,
+        other => panic!("unexpected outcome: {other:?}"),
+    };
+    assert_eq!(
+        output,
+        "OpenedRo.xlsm|True|2|OpenedRo.xlsm|OpenedRo.xlsm ; OpenedRw.xlsm|False|3|OpenedRw.xlsm|OpenedRw.xlsm"
+    );
+}

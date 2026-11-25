@@ -438,7 +438,7 @@ Public Function WriteMain(ByVal v As Double) As Double
  WriteMain = Workbooks(1).Worksheets(1).Range("B7").Value
 End Function
 Public Function ReadMine(ByVal address As String) As Double
- ReadMine = Worksheets(1).Range(address).Value
+ ReadMine = ThisWorkbook.Worksheets(1).Range(address).Value
 End Function
 Public Function SheetName() As String
  SheetName = Workbooks(1).Worksheets(1).Name & "|" & ThisWorkbook.Worksheets(1).Name
@@ -729,6 +729,83 @@ End Function
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_zd4cx_unqualified_application_members_target_active_workbook() {
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut session = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec()).named("MainBook.xlsm")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let owner = crate::prepare(
+            session.host(),
+            "MainBook.xlsm",
+            &[crate::ModuleSource {
+                name: "Module1".into(),
+                target: crate::ModuleTarget::Standard,
+                source: r#"
+Public Function ProbeActive() As String
+ ThisWorkbook.Worksheets(1).Range("A1").Value = 10
+ ThisWorkbook.Worksheets(1).Range("B2").Select
+ ThisWorkbook.Names.Add Name:="MainOnly", RefersTo:="=Cases!$A$1"
+ Dim other As Workbook
+ Set other = Workbooks("ActiveBook.xlsx")
+ other.Activate
+ other.Worksheets(1).Range("A1").Value = 99
+ other.Worksheets(1).Range("C4").Select
+ other.Names.Add Name:="OtherOnly", RefersTo:="=Sheet1!$A$1"
+ Range("D5").Value = 77
+ Dim s As String
+ s = ActiveWorkbook.Name
+ s = s & "|" & ActiveSheet.Name
+ s = s & "|" & ThisWorkbook.ActiveSheet.Name
+ s = s & "|" & Sheets(1).Name
+ s = s & "|" & Worksheets(1).Name
+ s = s & "|" & Names("OtherOnly").Name
+ s = s & "|" & Cells(1, 1).Value
+ s = s & "|" & Range("A1").Value
+ s = s & "|" & ActiveCell.Address & ":" & ActiveCell.Worksheet.Parent.Name
+ s = s & "|" & Selection.Address & ":" & Selection.Worksheet.Parent.Name
+ s = s & "|" & Rows(1).Worksheet.Parent.Name
+ s = s & "|" & Columns(1).Worksheet.Parent.Name
+ s = s & "|" & ActiveWindow.Caption & ":" & ActiveWindow.ActiveSheet.Name & ":" & ActiveWindow.ActiveCell.Address
+ s = s & "|" & ThisWorkbook.Windows(1).ActiveSheet.Name & ":" & ThisWorkbook.Windows(1).ActiveCell.Address
+ s = s & "|" & Range(ThisWorkbook.Worksheets(1).Range("A1"), ThisWorkbook.Worksheets(1).Range("A1")).Value
+ s = s & "|" & other.Worksheets(1).Range("D5").Value & ":" & ThisWorkbook.Worksheets(1).Range("D5").Value
+ other.Close False
+ ProbeActive = s
+End Function
+"#.into(),
+            }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        let mut other_session = HostSession::open(
+            Arc::new(MemorySource::new(calc_doc::blank_package()).named("ActiveBook.xlsx")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let other_book = crate::prepare(
+            other_session.host(),
+            "ActiveBook.xlsx",
+            &[crate::ModuleSource { name: "Module1".into(), target: crate::ModuleTarget::Standard, source: "Option Explicit\n".into() }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        other_book.clone().install(&mut other_session);
+        other_book.adopt(other_session, false);
+        let got = run(&mut session, &owner, &[AutoValue::text("ProbeActive")]);
+        assert_eq!(
+            text(got),
+            "ActiveBook.xlsx|Sheet1|Cases|Sheet1|Sheet1|OtherOnly|99|99|$C$4:ActiveBook.xlsx|$C$4:ActiveBook.xlsx|ActiveBook.xlsx|ActiveBook.xlsx|ActiveBook.xlsx:Sheet1:$C$4|Cases:$B$2|10|77:"
+        );
+    }
+
     fn project() -> (HostSession, Rc<WorkbookEvents>) {
         let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
         let session = HostSession::open(
@@ -761,7 +838,7 @@ Public Function SeeOther() As Double
  SeeOther = Workbooks(2).Worksheets(1).Range("C3").Value + 1
 End Function
 Public Function ReadMine(ByVal address As String) As Double
- ReadMine = Worksheets(1).Range(address).Value
+ ReadMine = ThisWorkbook.Worksheets(1).Range(address).Value
 End Function
 Public Function OtherSheets() As Double
  OtherSheets = Workbooks(2).Worksheets.Count
