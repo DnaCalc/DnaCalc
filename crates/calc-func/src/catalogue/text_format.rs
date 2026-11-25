@@ -479,7 +479,9 @@ fn text_delim(
     // An explicitly supplied instance counts possible start positions, rather
     // than just text units. An omitted instance and an empty delimiter have
     // different measured rules.
-    if given(a, 2) && single_delimiter {
+    if given(a, 2) && delimiters.len() == 1 {
+        // A one-cell array delimiter validates like a scalar one (dc-j9k.159, .160: Excel 20527
+        // #VALUE!, where we answered #N/A for a delimiter longer than the text).
         let text_len = text.len_utf16_code_units();
         let delimiter_len = delimiters[0].len_utf16_code_units();
         if delimiter_len != 0
@@ -488,6 +490,11 @@ fn text_delim(
         {
             return fail(WorksheetErrorCode::Value);
         }
+    } else if given(a, 2) && delimiters.iter().all(|d| d.len_utf16_code_units() > text.len_utf16_code_units()) {
+        // Several delimiters, every one longer than the text: #VALUE! with an explicit instance
+        // (dc-j9k.173, .174: Excel 20527 fuzz sweep). The instance-count limit for several
+        // delimiters is not measured.
+        return fail(WorksheetErrorCode::Value);
     }
     // fn1 Excel 16.0.20527: an explicitly supplied instance is validated against the empty
     // input before fallback/match_end. An empty delimiter still returns empty text.

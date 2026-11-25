@@ -1706,3 +1706,33 @@ fn textsplit_flags_take_any_number_as_logical() {
     text(call("TEXTSPLIT", vec![t("123"), t("x"), t("y"), b(0xc014_0000_0000_0000), b(0x3ff0_0000_0000_0000)]), "123");
     text(call("TEXTSPLIT", vec![t("single"), t("\n"), t("3b.b3105,."), b(0xc000_0000_0000_0000), b(0), t("")]), "single");
 }
+
+/// Excel 20527 (standing fuzz sweep, dc-j9k.159, .160, .173, .174): an explicit instance with
+/// delimiters all longer than the text is #VALUE!, for a one-cell array and for several delimiters.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textbefore_after_long_array_delimiters_are_value() {
+    let b = |bits: u64| n(f64::from_bits(bits));
+    let long = |bits: u64| arr_values(vec![vec![b(bits)]]);
+    error(call("TEXTAFTER", vec![t("_3..3.c/"), long(0x3fe9_b204_8379_0b65), b(0x4014_0000_0000_0000)]), Value);
+    error(
+        call(
+            "TEXTAFTER",
+            vec![t("/,12,YY"), long(0xc0c8_e5fa_ca46_7cc2), b(0xbff0_0000_0000_0000), b(0), b(0x3fe0_0000_0000_0000)],
+        ),
+        Value,
+    );
+    let row = arr_values(vec![vec![b(0xc00e_6bb0_fba3_d478), b(0xc095_6880_894d_6220), b(0x3f36_b6c3_fd3d_1660)]]);
+    error(call("TEXTBEFORE", vec![t("123"), row, b(0x4000_0000_0000_0000), b(0x3ff0_0000_0000_0000)]), Value);
+    let grid = arr_values(vec![
+        vec![b(0xc038_8629_0244_f1f6), b(0x3f44_6e9e_e424_432f)],
+        vec![b(0x4075_5b1a_7212_ae5c), b(0xc0c2_55b1_d428_ff58)],
+    ]);
+    error(
+        call(
+            "TEXTBEFORE",
+            vec![t("Hello\nWorld"), grid, b(0xc008_0000_0000_0000), b(0x3ff0_0000_0000_0000), b(0x3fe0_0000_0000_0000), calc_func::value::CalcValue::logical(true)],
+        ),
+        Value,
+    );
+}
