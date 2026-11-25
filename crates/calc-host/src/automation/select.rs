@@ -200,6 +200,16 @@ impl WorkbookAutomation {
             AutoValue::Missing | AutoValue::Empty | AutoValue::Bool(_) => {}
             _ => return Err(geometry::type_mismatch()),
         }
+        // A range of another open workbook goes to that workbook; text and the remembered range to the active one.
+        let routed = match call.arg(0) {
+            AutoValue::Object(ObjectRef { key: ObjectKey::Range(reference) | ObjectKey::RangeView { reference, .. }, .. }) => {
+                self.range_book_call(reference, target, call)
+            }
+            _ => self.active_book_call(target, call),
+        };
+        if let Some(routed) = routed {
+            return routed;
+        }
         let held = match call.arg(0) {
             AutoValue::Object(object) => Some(Self::held_of(object)?),
             // Excel: the destination is the last range Goto selected. Before any Goto, Excel's answer is

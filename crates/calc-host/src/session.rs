@@ -790,19 +790,24 @@ impl HostSession {
         policy: &SavePolicy,
         out: &mut dyn PackageWrite,
     ) -> Result<SaveReceipt, SaveFailed> {
-        let save = match self.begin_save(policy) {
-            Ok(save) => save,
-            Err(SaveFailed::Cancelled) => return Err(SaveFailed::Cancelled),
-            Err(error) => {
-                self.notify_after_save(false);
-                return Err(error);
+        match self.save_without_after_event(policy, out) {
+            Err(SaveFailed::Cancelled) => Err(SaveFailed::Cancelled),
+            result => {
+                self.notify_after_save(result.is_ok());
+                result
             }
-        };
-        let result = self
-            .finish_save_synchronously(save)
-            .and_then(|prepared| prepared.write(out));
-        self.notify_after_save(result.is_ok());
-        result
+        }
+    }
+
+    /// [`Self::save`] that leaves `AfterSave` to the caller, for a save whose file is written afterwards
+    /// (the caller raises it with [`Self::notify_after_save`] once the file is written or failed).
+    pub fn save_without_after_event(
+        &mut self,
+        policy: &SavePolicy,
+        out: &mut dyn PackageWrite,
+    ) -> Result<SaveReceipt, SaveFailed> {
+        let save = self.begin_save(policy)?;
+        self.finish_save_synchronously(save).and_then(|prepared| prepared.write(out))
     }
 
     /// Starts an ordinary Save with the session’s active worksheet and save settings.

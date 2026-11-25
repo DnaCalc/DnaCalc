@@ -503,6 +503,17 @@ Public Function MoveBeforeInGroup() As String
  src.Worksheets.Add
  src.Worksheets(Array(2, 3)).Move Before:=src.Worksheets(2)
 End Function
+Public Function MoveRefusedAtSource() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Add
+ src.Worksheets(1).Range("A1:B2").Value = 1
+ src.Worksheets(1).ListObjects.Add(1, src.Worksheets(1).Range("A1:B2"), , 1).Name = "T1"
+ src.Worksheets(2).Range("A1").Formula = "=SUM(T1[Column1])"
+ On Error Resume Next
+ src.Worksheets(1).Move
+ MoveRefusedAtSource = Err.Number & "/" & Workbooks.Count & "/" & ActiveWorkbook.Name & "/" & src.Name & "/" & src.Worksheets.Count
+End Function
 Public Function CountBooks() As String
  CountBooks = Workbooks.Count & "/" & ActiveWorkbook.Name & "/" & ThisWorkbook.Name
 End Function
@@ -770,6 +781,16 @@ End Function
         let nowhere = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("NoSuchProcedure")]);
         assert!(matches!(&nowhere, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{nowhere:?}");
         // A copy that fails leaves no orphan workbook behind and the active workbook as it was.
+        // dc-9spk9 (rw13 finding 7): a Move whose source cannot drop the sheet (it holds a table) leaves no
+        // orphan BookN behind: the workbooks are the caller's plus the source, the source stays active.
+        let count = |s: String| s.split('/').next().unwrap().parse::<u32>().unwrap();
+        let base = count(text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")])));
+        let refused = text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveRefusedAtSource")]));
+        let parts: Vec<&str> = refused.split('/').collect();
+        assert_eq!(parts[0], "1004", "{refused}");
+        assert_eq!(parts[1].parse::<u32>().unwrap(), base + 1, "no orphan BookN after a refused Move: {refused}");
+        assert_eq!(parts[2], parts[3], "the source workbook is active again: {refused}");
+        assert_eq!(parts[4], "2", "{refused}");
         let before = text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")]));
         // local.xlsm holds defined names the save cannot rewrite, so dropping the other sheet is refused.
         let failed = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyOneOfTwo")]);
@@ -783,6 +804,71 @@ End Function
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
+    }
+
+    /// dc-9spk9 (rw13 finding 10): `Application.Goto` goes to the active workbook; `Application.Calculate*` with
+    /// another workbook open is a typed refusal (Excel calculates every open workbook; its answer is unrecorded).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_9spk9_goto_and_calculate_follow_the_active_workbook() {
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut session = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec()).named("MainBook.xlsm")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let owner = crate::prepare(
+            session.host(),
+            "MainBook.xlsm",
+            &[crate::ModuleSource {
+                name: "Module1".into(),
+                target: crate::ModuleTarget::Standard,
+                source: r#"
+Public Function GotoActive() As String
+ ThisWorkbook.Worksheets(1).Range("B2").Select
+ Dim other As Workbook
+ Set other = Workbooks("ActiveBook.xlsx")
+ other.Activate
+ Application.Goto "D6"
+ GotoActive = ActiveWorkbook.Name & "|" & ActiveCell.Address & "|" & ThisWorkbook.Windows(1).ActiveCell.Address
+End Function
+Public Sub CalcActive()
+ Workbooks("ActiveBook.xlsx").Activate
+ Application.Calculate
+End Sub
+Public Sub CalcFullActive()
+ Workbooks("ActiveBook.xlsx").Activate
+ Application.CalculateFull
+End Sub
+"#.into(),
+            }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        let mut other_session = HostSession::open(
+            Arc::new(MemorySource::new(calc_doc::blank_package()).named("ActiveBook.xlsx")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let other_book = crate::prepare(
+            other_session.host(),
+            "ActiveBook.xlsx",
+            &[crate::ModuleSource { name: "Module1".into(), target: crate::ModuleTarget::Standard, source: "Option Explicit\n".into() }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        other_book.clone().install(&mut other_session);
+        other_book.adopt(other_session, false);
+        let got = run(&mut session, &owner, &[AutoValue::text("GotoActive")]);
+        assert_eq!(text(got), "ActiveBook.xlsx|$D$6|$B$2", "Goto selects in the active workbook, not the caller's");
+        for name in ["CalcActive", "CalcFullActive"] {
+            let calc = run(&mut session, &owner, &[AutoValue::text(name)]);
+            assert!(matches!(&calc, Err(AutoError::NotModelled { owner: "dc-gw1be", .. })), "{name}: {calc:?}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
