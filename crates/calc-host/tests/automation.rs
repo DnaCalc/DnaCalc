@@ -1356,7 +1356,7 @@ fn profiles_leave_refusal_recording_to_the_projection_once_per_call() {
     INVOCATION.set(&refusals, || {
         let app = model.application();
         let member = Descriptor::get()
-            .member(app.interface, "Iteration", InvokeKind::Get)
+            .member(app.interface, "CalculationState", InvokeKind::Get)
             .unwrap();
         let error = model
             .invoke(
@@ -5203,6 +5203,59 @@ mod xlc {
         );
         assert_eq!(invoke(&model, &app, "Calculation", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
         assert_eq!(host.session.borrow().calc_mode(), CalcMode::Manual);
+    }
+
+    /// The settings read-out the corpus probes print (dc-oxh8w.39): CalculationVersion and
+    /// OperatingSystem as the captures record, CalculateBeforeSave from the file, the iteration
+    /// settings get and put, Workbook.Date1904 from the loaded date system.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_calculation_settings() {
+        let (host, model) = setup();
+        let app = model.application();
+        assert!(matches!(invoke(&model, &app, "CalculationVersion", vec![]), Ok(AutoValue::I4(191029))));
+        assert_eq!(text(&model, &app, "OperatingSystem"), "Windows (64-bit) NT 10.00");
+        for name in ["CalculationVersion", "OperatingSystem", "CalculateBeforeSave", "Iteration", "MaxIterations", "MaxChange"] {
+            let err = invoke(&model, &app, name, vec![AutoValue::I4(1)]).unwrap_err();
+            assert_eq!(err.number(), 1004, "{name} with an argument");
+        }
+        assert!(matches!(invoke(&model, &app, "CalculateBeforeSave", vec![]), Ok(AutoValue::Bool(true))));
+        // The fixture states no iteration settings: Excel's defaults.
+        assert!(matches!(invoke(&model, &app, "Iteration", vec![]), Ok(AutoValue::Bool(false))));
+        assert!(matches!(invoke(&model, &app, "MaxIterations", vec![]), Ok(AutoValue::I4(100))));
+        assert!(matches!(invoke(&model, &app, "MaxChange", vec![]), Ok(AutoValue::R8(v)) if v == 0.001));
+        let put = |name: &str, value: AutoValue| invoke_kind(&model, &app, name, InvokeKind::Put, vec![value]);
+        assert!(put("Iteration", AutoValue::Bool(true)).is_ok());
+        assert!(put("MaxIterations", AutoValue::I4(7)).is_ok());
+        assert!(put("MaxChange", AutoValue::R8(0.5)).is_ok());
+        let settings = host.session.borrow().host().model().definitions().iteration();
+        assert_eq!((settings.enabled(), settings.max_iterations(), settings.max_change()), (true, 7, 0.5));
+        assert!(matches!(invoke(&model, &app, "Iteration", vec![]), Ok(AutoValue::Bool(true))));
+        assert!(matches!(invoke(&model, &app, "MaxIterations", vec![]), Ok(AutoValue::I4(7))));
+        assert!(matches!(invoke(&model, &app, "MaxChange", vec![]), Ok(AutoValue::R8(v)) if v == 0.5));
+        // Each put keeps the other two settings.
+        assert!(put("Iteration", AutoValue::Bool(false)).is_ok());
+        assert!(matches!(invoke(&model, &app, "MaxIterations", vec![]), Ok(AutoValue::I4(7))));
+        // Out-of-range values and a wrong argument count are Excel errors.
+        for (name, bad) in [
+            ("MaxIterations", AutoValue::I4(0)),
+            ("MaxIterations", AutoValue::I4(32768)),
+            ("MaxChange", AutoValue::R8(-1.0)),
+        ] {
+            assert_eq!(put(name, bad).unwrap_err().number(), 1004, "{name}");
+        }
+        // A worksheet error value is a type mismatch (13), not a refusal.
+        assert!(matches!(put("Iteration", AutoValue::Error(2015)), Err(AutoError::Status(_))));
+        assert_eq!(
+            invoke_kind(&model, &app, "MaxChange", InvokeKind::Put, vec![]).unwrap_err().number(),
+            1004
+        );
+        let settings = host.session.borrow().host().model().definitions().iteration();
+        assert_eq!((settings.max_iterations(), settings.max_change()), (7, 0.5));
+        // Workbook.Date1904 reads the loaded date system.
+        let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+        assert!(matches!(invoke(&model, &book, "Date1904", vec![]), Ok(AutoValue::Bool(false))));
+        assert_eq!(invoke(&model, &book, "Date1904", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -66,3 +66,6 @@ ChartArea
 PlotArea
 ChartFormat
 ChartFillFormat
+# Calculation settings (dc-oxh8w.40): Application.MultiThreadedCalculation. Added by lane cl2, 2026-11-25;
+# the JSON is regenerated on Windows (RUN-ON-WINDOWS item 2 of lane cl2).
+MultiThreadedCalculation
