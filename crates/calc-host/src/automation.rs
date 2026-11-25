@@ -651,6 +651,7 @@ impl WorkbookAutomation {
             | ObjectKey::Styles(id)
             | ObjectKey::BookWindow(id)
             | ObjectKey::Windows(id)
+            | ObjectKey::SheetGroup { workbook: id, .. }
             | ObjectKey::SheetNames { workbook: id, .. }
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),

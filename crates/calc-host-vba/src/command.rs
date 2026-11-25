@@ -475,6 +475,55 @@ End Function
 Public Function AddChart() As String
  AddChart = Workbooks.Add(-4109).Name
 End Function
+Public Function CopyToNew() As String
+ Dim here As String
+ here = ThisWorkbook.Worksheets(1).Name
+ ThisWorkbook.Worksheets(1).Range("A1").Value = 7
+ ThisWorkbook.Worksheets(1).Copy
+ CopyToNew = ActiveWorkbook.Name & "/" & Workbooks.Count & "/" & ActiveWorkbook.Worksheets.Count & "/" & (ActiveSheet.Name = here) & "/" & ActiveSheet.Range("A1").Value & "/" & ThisWorkbook.Worksheets(1).Range("A1").Value
+End Function
+Public Function CopyAllToNew() As String
+ Dim n As Long
+ n = ThisWorkbook.Worksheets.Count
+ ThisWorkbook.Worksheets.Add
+ ThisWorkbook.Worksheets.Copy
+ CopyAllToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & ThisWorkbook.Worksheets.Count & "/" & n
+End Function
+Public Function CopyArrayToNew() As String
+ ThisWorkbook.Worksheets(Array(1, 2)).Copy
+ CopyArrayToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & (ActiveWorkbook.Worksheets(1).Name = ThisWorkbook.Worksheets(1).Name) & "/" & ThisWorkbook.Worksheets.Count
+End Function
+Public Function MoveToNew() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Add
+ src.Worksheets(2).Range("A1").Value = 9
+ src.Worksheets(2).Move
+ MoveToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & ActiveWorkbook.Worksheets(1).Range("A1").Value & "/" & src.Worksheets.Count & "/" & src.Name
+End Function
+Public Function MoveGroup() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Add
+ src.Worksheets.Add
+ src.Worksheets(1).Range("A1").Value = 1
+ src.Worksheets(2).Range("A1").Value = 2
+ src.Worksheets(3).Range("A1").Value = 3
+ src.Worksheets(Array(1, 2)).Move After:=src.Worksheets(3)
+ MoveGroup = src.Worksheets.Count & "/" & src.Worksheets(1).Range("A1").Value & src.Worksheets(2).Range("A1").Value & src.Worksheets(3).Range("A1").Value
+End Function
+Public Function MoveFromMacroBook() As String
+ ThisWorkbook.Worksheets.Add
+ ThisWorkbook.Worksheets(2).Move
+End Function
+Public Function MoveAllToNew() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Move
+End Function
+Public Function GroupCount() As String
+ GroupCount = ThisWorkbook.Worksheets(Array(2, 1)).Count & "/" & ThisWorkbook.Worksheets(Array(2, 1))(1).Name = ThisWorkbook.Worksheets(1).Name
+End Function
 Public Function AddOne() As String
  Workbooks.Add
  AddOne = ActiveWorkbook.Name & "/" & Workbooks.Count
@@ -646,8 +695,23 @@ End Function
                 _ => panic!("{name}: {result:?}"),
             }
         }
+        let copied = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyToNew")]);
+        assert_eq!(text(copied), "Book2/6/1/True/7/7", "dc-oxh8w.43: Worksheet.Copy with no anchor makes a new active workbook holding the sheet");
+        let copied = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyAllToNew")]);
+        assert_eq!(text(copied), "Book3/2/2/1", "Worksheets.Copy with no anchor copies every sheet into a new workbook");
+        let copied = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyArrayToNew")]);
+        assert_eq!(text(copied), "Book4/2/True/2", "an Array of sheets copies just those sheets into a new workbook");
+        // Move to a new workbook leaves the sheet there only; the last sheet cannot leave; a group moves in order.
+        let moved = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveToNew")]);
+        assert_eq!(text(moved), "Book6/1/9/1/Book5", "Worksheet.Move with no anchor moves the sheet into a new active workbook");
+        let group = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveGroup")]);
+        assert_eq!(text(group), "3/312", "a group moves after the anchor, keeping its order");
+        let macro_book = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveFromMacroBook")]);
+        assert!(matches!(&macro_book, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2g5fn"), "{macro_book:?}");
+        let all = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveAllToNew")]);
+        assert!(matches!(all, Err(AutoError::Excel { number: 1004, .. })), "every sheet cannot leave: {all:?}");
         let template = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!AddFrom"), AutoValue::text("fixture.xlsm")]);
-        assert_eq!(text(template), "Book2/6", "a workbook made from a template file is named BookN");
+        assert_eq!(text(template), "Book9/13", "a workbook made from a template file is named BookN");
         let missing = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenIt"), AutoValue::text("gone.xlsm")]);
         assert!(matches!(&missing, Err(AutoError::Excel { number: 1004, description }) if description.contains("could not be found")), "{missing:?}");
         let read_only = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!OpenReadOnly"), AutoValue::text("fixture.xlsm")]);
