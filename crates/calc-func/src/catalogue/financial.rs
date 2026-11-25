@@ -174,6 +174,7 @@ fn cumulative_out(
 ) -> Step<CalcValue> {
     match result {
         Ok(n) => site.number(n),
+        Err(cumulative::CumulativeFinanceEvalError::NotModelled) => Err(site.not_modelled(None)),
         Err(error) => fail(cumulative::map_cumulative_finance_error_to_ws(&error)),
     }
 }

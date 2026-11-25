@@ -138,6 +138,8 @@ impl WorkbookAutomation {
             |session, reference| {
                 let reference = reference.ok_or_else(geometry::type_mismatch)?;
                 let indexed = resolve_target(reference)?;
+                // Refused before the table pre-step can unlist a table or rename its columns.
+                self.guard_locked(session, &indexed)?;
                 match Self::table_pre_step(session, &indexed, call.args.last())? {
                     PreWrite::Same => Ok(PreWrite::Replace(indexed)),
                     other => Ok(other),
@@ -166,7 +168,11 @@ impl WorkbookAutomation {
             call,
             OWNER,
             |session, reference| match reference {
-                Some(reference) => Self::table_pre_step(session, reference, call.args.last()),
+                Some(reference) => {
+                    // Refused before the table pre-step can unlist a table or rename its columns.
+                    self.guard_locked(session, reference)?;
+                    Self::table_pre_step(session, reference, call.args.last())
+                }
                 None => Ok(PreWrite::Same),
             },
             |session, reference| intent(session, reference.ok_or_else(geometry::type_mismatch)?),

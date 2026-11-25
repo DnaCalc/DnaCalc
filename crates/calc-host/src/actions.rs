@@ -1491,6 +1491,15 @@ pub(crate) fn axis_format_edits(
     Ok(edits)
 }
 
+/// The save appends cell style formats and cannot rewrite the ones the file holds: a write to one is refused, as
+/// deleting a file style is (dc-lj4j5 owns both).
+fn imported_style_unwritable(host: &HostState, xf_id: u32) -> Result<(), String> {
+    if (xf_id as usize) < host.loaded().styles().cell_style_formats.len() {
+        return Err("A style the file holds cannot be changed yet (dc-lj4j5)".into());
+    }
+    Ok(())
+}
+
 fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEdit>, String> {
     let mut styles = (**host.styles()).clone();
     match change {
@@ -1580,6 +1589,7 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
         StyleChange::Flag { index, member, value } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1606,6 +1616,7 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
         StyleChange::Alignment { index, horizontal, vertical, indent, rotation } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1629,6 +1640,7 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
             patch.validate()?;
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing its font needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1652,6 +1664,7 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
         StyleChange::Interior { index, patch } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing its fill needs the cell formats updated (dc-lj4j5)".into());
             }
@@ -1675,6 +1688,7 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
         StyleChange::NumberFormat { index, code } => {
             let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
             let xf_id = style.xf_id;
+            imported_style_unwritable(host, xf_id)?;
             if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
                 return Err("The style is in use; changing its format needs the cell formats updated (dc-lj4j5)".into());
             }

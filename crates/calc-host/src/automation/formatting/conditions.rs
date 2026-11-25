@@ -301,6 +301,7 @@ impl WorkbookAutomation {
             if session.host().loaded().sheet(sheet).is_some_and(|s| s.protected()) {
                 return Err(refused());
             }
+            self.guard_sheet_contents(session, sheet)?;
             let revision = session.host().revision().get();
             let receipt = session.dispatch_from(
                 CommandIngress::Automation,
@@ -377,6 +378,7 @@ impl WorkbookAutomation {
             if session.host().loaded().sheet(sheet).is_some_and(|s| s.protected()) {
                 return Err(refused());
             }
+            self.guard_sheet_contents(session, sheet)?;
             let revision = session.host().revision().get();
             let receipt = session.dispatch_from(
                 CommandIngress::Automation,

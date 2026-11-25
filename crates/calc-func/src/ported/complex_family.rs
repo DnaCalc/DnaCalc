@@ -185,9 +185,11 @@ impl ParsedComplex {
     }
     pub(crate) fn exp(self) -> Self {
         // Excel saturates the real exponential at the largest double (IMEXP("710+i") is
-        // 9.71297746009434E+307+1.51270661257499E+308i, dc-j9k.357).
+        // 9.71297746009434E+307+1.51270661257499E+308i, dc-j9k.357) and flushes a subnormal
+        // exp(re) to 0 before multiplying by circular factors (IMEXP("-709+1e9i") = "0", dc-shqi1).
+        let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
         let s = crate::ported::excel_numeric::excel_exp(self.re);
-        let s = if s == f64::INFINITY { f64::MAX } else { s };
+        let s = if s == f64::INFINITY { f64::MAX } else { flush(s) };
         // Past 2^27 both circular factors are the largest double, whatever the sign (dc-j9k.357 sweep).
         let (sin, cos) = if self.im.abs() >= 134_217_728.0 {
             (f64::MAX, f64::MAX)
@@ -197,7 +199,6 @@ impl ParsedComplex {
                 crate::ported::excel_numeric::excel_cos(self.im),
             )
         };
-        let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
         Self::new(flush(crate::ported::excel_numeric::excel_x87_mul(s, cos)), flush(crate::ported::excel_numeric::excel_x87_mul(s, sin)), None)
     }
     pub(crate) fn ln(self) -> Result<Self, WorksheetErrorCode> {
@@ -616,11 +617,8 @@ pub(crate) fn parse_real_number(text: &str) -> Option<f64> {
     let parsed = parse_ascii_decimal_15(unsigned)?;
     // Complex coefficient strings have their own grammar. Only decimal lexeme
     // conversion is shared with numeric argument coercion; decorations are not.
-    // Excel 16.0.20625.20108 (dc-j9k.175): a nonzero coefficient below 1e-309 is #NUM!
-    // (1e-310, 9.99999999999999e-310, 1e-320, 1e-400); 1e-309 up to the normal range reads as 0.
-    if parsed != 0.0 && parsed < 1e-309 {
-        return None;
-    }
+    // parse_ascii_decimal_15 rejects scale positions outside -308..=308 (so nonzero < 1e-309 is
+    // already None -> #NUM!); subnormal values from 1e-309 up to DBL_MIN flush to 0.
     Some(if parsed < f64::MIN_POSITIVE {
         0.0
     } else if negative {

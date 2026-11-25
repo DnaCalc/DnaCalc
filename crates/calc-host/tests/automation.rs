@@ -9818,3 +9818,206 @@ fn dc_qrnem_range_text_records_macro_observation_on_stale_cell() {
         "Range.Text must record MacroObservation on stale cell under strict provenance: {observed:?}"
     );
 }
+
+/// rw12 finding 14 (dc-iq8o8): `Style.Locked` and `FormulaHidden` puts on an unused custom style reach the saved
+/// `<protection>` of its cellStyleXf, so a cell given the style reads them back after save and reopen.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__style_locked_and_formula_hidden_survive_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine8")]).unwrap());
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &mine, "FormulaHidden", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let cell = range(&model, "G2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine8")]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let again = range(&reopened, "G2");
+    assert!(matches!(invoke(&reopened, &again, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Locked lost on save");
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let style = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine8")]).unwrap());
+    assert!(matches!(invoke(&reopened, &style, "Locked", vec![]).unwrap(), AutoValue::Bool(false)), "Style.Locked lost on save");
+    assert!(matches!(invoke(&reopened, &style, "FormulaHidden", vec![]).unwrap(), AutoValue::Bool(true)), "FormulaHidden lost on save");
+}
+
+/// rw12 finding 14 (dc-iq8o8): a write to an imported style no cell uses must not make Save fail with "Imported
+/// cellStyleXfs records cannot be replaced": it is refused typed (dc-lj4j5 owns file-style writes) and the save works.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_iq8o8__writing_an_unused_imported_style_does_not_break_save() {
+    let (host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine9")]).unwrap();
+    // After a save and reopen the style is one the file holds, which no cell uses.
+    let mut first = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut first).unwrap();
+    let (reopened_host, reopened) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(first)), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let book = obj(invoke(&reopened, &reopened.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&reopened, &book, "Styles", vec![]).unwrap());
+    let imported = obj(invoke_kind(&reopened, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Mine9")]).unwrap());
+    let writes = [
+        ("WrapText", AutoValue::Bool(true)),
+        ("Locked", AutoValue::Bool(false)),
+        ("NumberFormat", AutoValue::text("0.0")),
+        ("HorizontalAlignment", AutoValue::I4(-4108)),
+    ];
+    for (member, value) in writes {
+        let r = invoke_kind(&reopened, &imported, member, InvokeKind::Put, vec![value]);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-lj4j5", .. })), "{member}: {r:?}");
+    }
+    let mut saved = Vec::new();
+    reopened_host.session.borrow_mut().save(&SavePolicy::default(), &mut saved).expect("Save still works");
+}
+
+/// rw12 finding 7 (dc-6q9t4): every write path meets the protection of its own destination, not of what it reads.
+/// On a sheet protected for contents, with only B2 unlocked: Copy/Cut with a Destination and Paste/PasteSpecial write
+/// the destination (refused over a locked cell, allowed over B2) and only read a locked source; Borders, a
+/// FormatConditions rule and a one-cell Sort that widens to a locked region are refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__write_paths_meet_the_protection_of_their_destination() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let protected_error = |r: &Reply| matches!(r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet"));
+    for (address, value) in [("A1", 3.0), ("A2", 1.0), ("A3", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    for (address, value) in [("H1", 3.0), ("H2", 1.0), ("H3", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    // A copy carries the source's Locked with its format, so each write gets its own unlocked cell.
+    for address in ["B2", "C3", "E5", "H2"] {
+        put(&range(&model, address), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    }
+    method(&sheet, "Protect", vec![]).unwrap();
+    let a = |name: &str| AutoValue::Object(range(&model, name));
+    // Copy with a Destination: the locked source is only read.
+    let r = method(&range(&model, "A1"), "Copy", vec![a("D4")]);
+    assert!(protected_error(&r), "Copy onto a locked cell: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "D4"), "Value", vec![]).unwrap(), AutoValue::Empty), "D4 was written");
+    let r = method(&range(&model, "A1"), "Copy", vec![a("B2")]);
+    assert!(r.is_ok(), "Copy of a locked cell onto an unlocked one: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "B2"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 3.0));
+    // Cut moves its source too: a locked source is refused.
+    let r = method(&range(&model, "A3"), "Cut", vec![a("B2")]);
+    assert!(protected_error(&r), "Cut of a locked cell: {r:?}");
+    // The clipboard route.
+    method(&range(&model, "A1"), "Copy", vec![]).unwrap();
+    let r = method(&range(&model, "D4"), "PasteSpecial", vec![]);
+    assert!(protected_error(&r), "PasteSpecial onto a locked cell: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "D4"), "Value", vec![]).unwrap(), AutoValue::Empty), "D4 was pasted");
+    let r = method(&range(&model, "C3"), "PasteSpecial", vec![]);
+    assert!(r.is_ok(), "PasteSpecial onto an unlocked cell: {r:?}");
+    // Borders.
+    let edge = |address: &str| {
+        let borders = obj(invoke(&model, &range(&model, address), "Borders", vec![]).unwrap());
+        obj(invoke(&model, &borders, "Item", vec![AutoValue::I4(9)]).unwrap())
+    };
+    let r = put(&edge("D4"), "LineStyle", vec![AutoValue::I4(1)]);
+    assert!(protected_error(&r), "a border on a locked cell: {r:?}");
+    assert_eq!(i4(&model, &edge("D4"), "LineStyle"), -4142);
+    assert!(put(&edge("E5"), "LineStyle", vec![AutoValue::I4(1)]).is_ok());
+    // A conditional format.
+    let conditions = obj(invoke(&model, &range(&model, "D4"), "FormatConditions", vec![]).unwrap());
+    let r = method(&conditions, "Add", vec![AutoValue::I4(1), AutoValue::I4(3), AutoValue::text("=1")]);
+    assert!(protected_error(&r), "a rule over a locked cell: {r:?}");
+    // A one-cell Sort of an unlocked cell widens to its current region, which holds locked cells: H1:H3.
+    let r = method(&range(&model, "H2"), "Sort", vec![a("H1")]);
+    assert!(protected_error(&r), "a Sort of a locked region: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "H1"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 3.0), "H1 was sorted");
+}
+
+/// rw12 finding 7 (dc-6q9t4): a value write over a whole table of a protected sheet is refused before the table is
+/// deleted (the table pre-step must not run first).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__a_refused_write_over_a_table_keeps_the_table() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    for (address, value) in [("A1", "h1"), ("B1", "h2")] {
+        put(&range(&model, address), "Value", vec![AutoValue::text(value)]).unwrap();
+    }
+    for (address, value) in [("A2", 1.0), ("B2", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let args = vec![AutoValue::I4(1), AutoValue::Object(range(&model, "A1:B2")), AutoValue::Missing, AutoValue::I4(1)];
+    invoke_kind(&model, &tables, "Add", InvokeKind::Method, args).unwrap();
+    let count = || int(invoke(&model, &tables, "Count", vec![]).unwrap());
+    assert_eq!(count(), 1);
+    invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    let r = put(&range(&model, "A1:B2"), "Value", vec![AutoValue::text("x")]);
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+    assert_eq!(count(), 1, "the table was unlisted before the write was refused");
+}
+
+/// rw12 finding 7 (dc-6q9t4): AdvancedFilter reads its list and writes its CopyToRange: a locked list is no obstacle
+/// and a locked CopyToRange is refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__advanced_filter_guards_its_destination_not_its_source() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let put = |a: &str, v: AutoValue| {
+        invoke_kind(&model, &range(&model, a), "Value", InvokeKind::Put, vec![v]).unwrap();
+    };
+    for (i, (name, qty)) in [("Name", "Qty"), ("apple", "5"), ("pear", "20")].iter().enumerate() {
+        put(&format!("A{}", i + 1), AutoValue::text(name));
+        match qty.parse::<f64>() {
+            Ok(n) => put(&format!("B{}", i + 1), AutoValue::R8(n)),
+            Err(_) => put(&format!("B{}", i + 1), AutoValue::text(qty)),
+        }
+    }
+    invoke_kind(&model, &range(&model, "G1"), "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    let run = |to: &str| {
+        let args = vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, to)), AutoValue::Bool(false)];
+        invoke_kind(&model, &range(&model, "A1:B3"), "AdvancedFilter", InvokeKind::Method, args)
+    };
+    let r = run("D1");
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet")), "{r:?}");
+    // The output block G1:H3 is not all unlocked, so this is refused too; the point is that a locked source alone is not.
+    let r = run("G1");
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet")), "{r:?}");
+    for a in ["G1:H3"] {
+        invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![]).unwrap();
+        invoke_kind(&model, &range(&model, a), "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+        invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![]).unwrap();
+    }
+    let r = run("G1");
+    assert!(r.is_ok(), "a locked list over an unlocked CopyToRange: {r:?}");
+}
+
+/// rw12 finding 7 (dc-6q9t4): Protect's Allow* arguments (5..16) and UserInterfaceOnly on an already-protected sheet
+/// are not modelled: each is refused typed (dc-ml3k0), never dropped silently.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_6q9t4__protect_allow_arguments_and_user_interface_only_are_refused_typed() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let protect = |args: Vec<AutoValue>| invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, args);
+    let flag = |name: &str| matches!(invoke(&model, &sheet, name, vec![]).unwrap(), AutoValue::Bool(true));
+    for index in 5..16 {
+        let mut args = vec![AutoValue::Missing; index];
+        args.push(AutoValue::Bool(true));
+        let r = protect(args);
+        assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-ml3k0", .. })), "arg {index}: {r:?}");
+        assert!(!flag("ProtectContents"), "arg {index} protected the sheet though it was refused");
+    }
+    protect(vec![]).unwrap();
+    let r = protect(vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-ml3k0", .. })), "{r:?}");
+    assert!(!flag("ProtectionMode"));
+}

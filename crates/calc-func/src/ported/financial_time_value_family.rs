@@ -1024,28 +1024,28 @@ pub(crate) fn cumulative_principal(
     periodic_rate: f64,
     periods: f64,
     present_value: f64,
-    start_period: i64,
-    end_period: i64,
+    start_period: f64,
+    end_period: f64,
     timing: PaymentTiming,
 ) -> Option<f64> {
-    if !(periodic_rate > 0.0) || start_period > end_period || start_period < 1 {
+    if !(periodic_rate > 0.0) || start_period > end_period || start_period < 1.0 {
         return None;
     }
     let (log_growth, quotient) = end_payment_quotient(periodic_rate, periods, present_value, 0.0)?;
     let beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
-    let first = if beginning { start_period.max(2) } else { start_period };
+    let first = if beginning { start_period.max(2.0) } else { start_period };
     let mut total = 0.0;
     if end_period >= first {
-        let last = periods - end_period as f64 + 1.0;
+        let last = periods - end_period + 1.0;
         let discount = crate::ported::excel_numeric::excel_exp(-excel_x87_mul(last, log_growth));
-        let count = (end_period - first + 1) as f64;
+        let count = end_period - first + 1.0;
         let span = -crate::ported::excel_numeric::excel_expm1_spilled(-excel_x87_mul(count, log_growth));
         total = excel_x87_mul(quotient, excel_x87_mul(discount, span));
         if !beginning {
             total = excel_x87_mul(total, excel_x87_add(1.0, periodic_rate));
         }
     }
-    if beginning && start_period == 1 {
+    if beginning && start_period == 1.0 {
         total = excel_x87_add(total, excel_x87_mul(quotient, due_coefficient(periodic_rate)));
     }
     total.is_finite().then_some(total)
