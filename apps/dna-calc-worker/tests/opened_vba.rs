@@ -335,12 +335,23 @@ fn worker_file_open_fault_is_reported_once_and_designer_projects_stay_typed() {
         "Class=P22Events",
         "BaseClass=P22Events",
     );
-    assert!(matches!(
-        Workbook::open_with_project_policy("designer.xlsm", designer, WorkBudget::UNLIMITED, FileOrigin::Local).unwrap().enable_macros(),
-        Err(EnableRefused::Project(
-            calc_host_vba::FileProjectError::UnsupportedModule(name)
-        )) if name == "P22Events"
-    ));
+    // A designer (UserForm) module is admitted as a class: its code loads, its controls are not
+    // modelled, and a form feature the code uses refuses at compile time with a typed error
+    // (dc-oxh8w.73).
+    let mut book = Workbook::open_with_project_policy(
+        "designer.xlsm",
+        designer,
+        WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
+    assert!(
+        !matches!(
+            book.enable_macros(),
+            Err(EnableRefused::Project(calc_host_vba::FileProjectError::UnsupportedModule(_)))
+        ),
+        "designer modules are admitted"
+    );
 }
 
 /// A host that publishes its add-ins' functions to an opened macro workbook (the desktop app with
