@@ -2338,3 +2338,27 @@ fn mixed_suffix_error_depends_on_function() {
         error(call("IMPRODUCT", vec![t(a), t(b)]), Value);
     }
 }
+
+/// Excel 16.0 build 20625 (Touchstone relay, 2026-11-25; dc-j9k.334/.335): IMSUM and IMPRODUCT read their
+/// arguments one at a time: an unreadable argument is #NUM!, a suffix that differs from an earlier one is
+/// #VALUE!, an overflowing IMSUM step is #NUM!; whichever comes first in argument order wins.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imsum_improduct_report_the_first_problem_in_argument_order() {
+    for name in ["IMSUM", "IMPRODUCT"] {
+        error(call(name, vec![t("i"), t("x"), t("j")]), Num);
+        error(call(name, vec![t("i"), t("j"), t("x")]), Value);
+        error(call(name, vec![t("x"), t("i"), t("j")]), Num);
+        error(call(name, vec![t("i"), t("j"), t("")]), Value);
+    }
+    error(call("IMSUM", vec![n(1.7e308), n(1.7e308), t("i"), t("j")]), Num);
+    error(call("IMSUM", vec![n(1.7e308), t("i"), t("j"), n(1.7e308)]), Value);
+    // The sweep representatives (dc-j9k.334, .335).
+    let rep334 = ["1-i", "-1", "-j", "0", "3+4i"];
+    let mut a: Vec<_> = rep334.iter().map(|s| t(s)).collect();
+    a.extend([n(-1.0), t("0-354.5i"), calc_func::value::CalcValue::empty(), t("12521X."), t(",,Z3")]);
+    error(call("IMSUM", a), Value);
+    let a = ["-1", "134217727.5", "-j", "1e-300+1e109i", "134217728"]
+        .iter().map(|s| t(s)).chain([calc_func::value::CalcValue::empty(), t("Y"), t("-i")]).collect();
+    error(call("IMSUM", a), Value);
+}

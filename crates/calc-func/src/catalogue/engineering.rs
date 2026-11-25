@@ -153,6 +153,32 @@ fn complexes(
     Ok(found)
 }
 
+/// IMSUM and IMPRODUCT read one argument at a time: unreadable text is #NUM!, a suffix that differs from an
+/// earlier one is #VALUE!, then the step (`step` returns the new accumulator or the step's own error).
+/// The first problem in argument order wins (dc-j9k.334, .335).
+fn fold_complexes(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut crate::call::EvalServices<'_>,
+    start: ParsedComplex,
+    step: fn(ParsedComplex, ParsedComplex) -> Result<ParsedComplex, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let mut acc = start;
+    let mut suffix = None;
+    values(site, a, 0, a.len(), sv, &mut |_, value| {
+        let z = complex_of(site, 0, value)?;
+        if let Some(ch) = z.suffix {
+            match suffix {
+                Some(current) if current != ch => return fail(WorksheetErrorCode::Value),
+                _ => suffix = Some(ch),
+            }
+        }
+        acc = step(acc, z).map_err(Exit::Error)?;
+        Ok(())
+    })?;
+    complex_text(Ok(acc), &[ParsedComplex::new(0.0, 0.0, suffix)])
+}
+
 fn bessel(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -303,27 +329,22 @@ ported_shared_family! {
         complex_text_num_on_mixed_suffix(Ok(x.sub(y)), &[x, y])
     }
     54 imsum |s, a, sv| {
-        let zs = complexes(s, a, sv)?;
-        let sum = zs.iter().fold(ParsedComplex::new(0.0, 0.0, None), |acc, z| acc.add(*z));
-        complex_text(Ok(sum), &zs)
+        fold_complexes(s, a, sv, ParsedComplex::new(0.0, 0.0, None), |acc, z| {
+            let sum = acc.add(z);
+            if sum.re.is_finite() && sum.im.is_finite() { Ok(sum) } else { Err(WorksheetErrorCode::Num) }
+        })
     }
     55 improduct |s, a, sv| {
-        // Excel multiplies argument by argument: a step that overflows is #VALUE! (before a later
-        // argument is read); a component below the normal range is flushed to 0 (dc-j9k.339-.347).
-        let mut zs = Vec::new();
-        let mut product = ParsedComplex::new(1.0, 0.0, None);
-        values(s, a, 0, a.len(), sv, &mut |_, value| {
-            let z = complex_of(s, 0, value)?;
-            zs.push(z);
-            let next = product.mul(z);
+        // An overflowing step is #VALUE! and a component below the normal range is flushed to 0
+        // (dc-j9k.339-.347).
+        fold_complexes(s, a, sv, ParsedComplex::new(1.0, 0.0, None), |acc, z| {
+            let next = acc.mul(z);
             if !next.re.is_finite() || !next.im.is_finite() {
-                return fail(WorksheetErrorCode::Value);
+                return Err(WorksheetErrorCode::Value);
             }
             let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
-            product = ParsedComplex::new(flush(next.re), flush(next.im), None);
-            Ok(())
-        })?;
-        complex_text(Ok(product), &zs)
+            Ok(ParsedComplex::new(flush(next.re), flush(next.im), None))
+        })
     }
     60 besseli |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
     61 besselj |s, a, sv| { bessel(s, a, k::bessel::besselj_kernel) }
