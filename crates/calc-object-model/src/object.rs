@@ -59,6 +59,8 @@ pub enum ObjectKey {
         /// Position among the workbook's named cell styles.
         index: u32,
     },
+    /// The `Styles` collection of a workbook (dc-orxz0).
+    Styles(u64),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
     Areas(StoredReference),
     /// Rows/Columns preserve the range's areas; Count uses the first area's axis length.

@@ -5,6 +5,12 @@ impl WorkbookAutomation {
     pub(super) fn register_range_styles(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Style", InvokeKind::Get, Self::range_style);
         handlers.on("Range", "Style", InvokeKind::Put, Self::put_range_style);
+        handlers.on("Workbook", "Styles", InvokeKind::Get, Self::workbook_styles);
+        handlers.on("Styles", "Count", InvokeKind::Get, Self::styles_count);
+        handlers.on("Styles", "Item", InvokeKind::Get, Self::styles_item);
+        handlers.on("Styles", "_Default", InvokeKind::Get, Self::styles_item);
+        handlers.on("Styles", "Add", InvokeKind::Method, Self::styles_add);
+        handlers.on("Style", "Delete", InvokeKind::Method, Self::style_delete);
         for member in ["Name", "NameLocal", "BuiltIn", "NumberFormat"] {
             handlers.on("Style", member, InvokeKind::Get, Self::style_member);
         }
@@ -115,6 +121,97 @@ impl WorkbookAutomation {
                     AutoValue::text(code)
                 }
             })
+        })
+    }
+
+    fn workbook_styles(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        self.with_target(target, |_, meta| Ok(AutoValue::Object(object("Styles", ObjectKey::Styles(meta.workbook)))))
+    }
+
+    fn styles_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled("Styles.Count inside a worksheet invocation", "dc-oxh8w.63"));
+            };
+            Ok(AutoValue::I4(session.host().styles().cell_styles.len() as i32))
+        })
+    }
+
+    /// `Styles(Index)`: a one-based position or a name (compared without regard to case).
+    fn styles_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        self.with_target(target, |access, meta| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled("Styles.Item inside a worksheet invocation", "dc-oxh8w.63"));
+            };
+            let styles = session.host().styles();
+            let found = match call.arg(0) {
+                AutoValue::Text(name) => {
+                    let name = name.to_string_lossy().to_lowercase();
+                    styles.cell_styles.iter().position(|s| s.name.to_lowercase() == name)
+                }
+                other => {
+                    let n = geometry::integer(other).map_err(|_| AutoError::excel(1004, "Application-defined or object-defined error"))?;
+                    usize::try_from(n - 1).ok().filter(|n| *n < styles.cell_styles.len())
+                }
+            };
+            let index = found.ok_or_else(|| AutoError::excel(1004, "Application-defined or object-defined error"))?;
+            Ok(AutoValue::Object(object("Style", ObjectKey::Style { workbook: meta.workbook, index: index as u32 })))
+        })
+    }
+
+    /// `Styles.Add(Name, BasedOn)`: a new style with Normal's format. `BasedOn` is refused (dc-oxh8w.63).
+    fn styles_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.is_empty() || call.args.len() > 2 {
+            return Err(geometry::bad_count());
+        }
+        let AutoValue::Text(name) = call.arg(0) else {
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        };
+        let name = name.to_string_lossy();
+        if !call.arg(1).is_missing() {
+            return Err(AutoError::not_modelled("Styles.Add with BasedOn", "dc-oxh8w.63"));
+        }
+        let workbook = self.metadata()?.workbook;
+        let _ = target;
+        let index = self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable { change: crate::StyleChange::Add { name: name.clone() } }),
+            );
+            if receipt.error.is_some() {
+                return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::I4(session.host().styles().cell_styles.len() as i32 - 1))
+        })?;
+        let AutoValue::I4(index) = index else { return Err(format_error()) };
+        Ok(AutoValue::Object(object("Style", ObjectKey::Style { workbook, index: index as u32 })))
+    }
+
+    fn style_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let ObjectKey::Style { index, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        self.with_write(|session| {
+            let styles = session.host().styles();
+            let style = styles.cell_styles.get(index as usize).ok_or_else(|| AutoError::excel(424, "Object required"))?;
+            if style.builtin_id.is_some() || style.name == "Normal" {
+                // Excel does not delete Normal; built-in styles it resets (dc-oxh8w.63).
+                return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+            }
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable { change: crate::StyleChange::Remove { index } }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.Delete: {error:?}"), "dc-oxh8w.63"));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
         })
     }
 }
