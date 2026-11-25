@@ -7017,6 +7017,16 @@ fn dc_jtl4m__paste_special_operation_skip_blanks_and_worksheet_paste_special() {
     assert_eq!(value("A40"), "", "an empty destination");
     call("A40", "PasteSpecial", operation(2)).unwrap();
     assert_eq!([value("A40"), value("B40"), value("C40")], ["10", "20", "0"]);
+    // A blank copied cell counts as zero: add and subtract keep the destination, multiply gives 0, divide #DIV/0!.
+    fill(&host, (30, 1), &[&["7", "8", "9"]]);
+    call("A2:C2", "Copy", vec![]).unwrap();
+    call("A30", "PasteSpecial", operation(2)).unwrap();
+    assert_eq!([value("A30"), value("B30"), value("C30")], ["12", "8", "16"]);
+    call("A30", "PasteSpecial", operation(4)).unwrap();
+    assert_eq!([value("A30"), value("B30"), value("C30")], ["60", "0", "112"]);
+    fill(&host, (31, 1), &[&["7", "8", "9"]]);
+    call("A31", "PasteSpecial", operation(5)).unwrap();
+    assert_eq!(text(&model, &range(&model, "B31"), "Text"), "#DIV/0!");
     // A formula destination is refused typed and nothing changes.
     call("A4", "Copy", vec![]).unwrap();
     call("A12", "PasteSpecial", operation(2)).unwrap();
