@@ -28,6 +28,16 @@ pub enum FilterChange {
         /// New criterion, or `None` to clear the column's criterion.
         criteria: Option<FilterCriteria>,
     },
+    /// Set one column's criterion, first enabling the filter over `area` when the sheet has none
+    /// (what `Range.AutoFilter Field, Criteria` does): one command, one undo step.
+    EnableColumn {
+        /// Range containing the header row and the data rows, used only when no filter exists.
+        area: GridArea,
+        /// One-based worksheet column.
+        column: u32,
+        /// New criterion, or `None` to clear the column's criterion.
+        criteria: Option<FilterCriteria>,
+    },
     /// Clear all criteria while retaining the filter range.
     Clear,
     /// Remove the filter.
@@ -179,6 +189,20 @@ pub(crate) fn prepare_for(
         return Err(refusal("on rows containing tables is not modelled"));
     }
 
+    let mut seed = None;
+    let change = match change {
+        FilterChange::EnableColumn { area, column, criteria } => {
+            if old.is_none() {
+                if area.sheet() != sheet {
+                    return Err(refusal("range belongs to another worksheet"));
+                }
+                validate_area(host, area, table)?;
+                seed = Some(AutoFilter::new(area));
+            }
+            FilterChange::Column { column, criteria }
+        }
+        change => change,
+    };
     let next = match change {
         FilterChange::Remove => {
             if old.is_none() {
@@ -209,6 +233,7 @@ pub(crate) fn prepare_for(
         change => {
             let mut f = old
                 .cloned()
+                .or(seed)
                 .ok_or("Select a range and enable AutoFilter first")?;
             validate_area(host, f.area, table)?;
             if f.unsupported {
