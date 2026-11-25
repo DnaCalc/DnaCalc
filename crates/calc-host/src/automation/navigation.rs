@@ -285,35 +285,23 @@ impl WorkbookAutomation {
     fn with_names(
         &self,
         target: &ObjectRef,
-        mut f: impl FnMut(&Snapshot, &[&calc_doc_model::NameNode]) -> Reply,
+        mut f: impl FnMut(&Snapshot, &[(String, &calc_doc_model::NameNode)]) -> Reply,
     ) -> Reply {
         self.with_target(target, |_, meta| {
-            // Workbook.Names includes sheet-local names in Excel. Never report a
-            // truncated Count or shifted indexes while only global names are modelled.
-            if meta
-                .model
-                .definitions()
-                .name_table()
-                .nodes()
-                .any(|n| n.definition().scope != calc_doc_model::NameScope::Workbook)
-            {
-                return Err(AutoError::not_modelled(
-                    "Workbook.Names with worksheet-scoped names",
-                    "dc-hsa5.6",
-                ));
-            }
+            // Workbook.Names lists every name, worksheet-scoped ones as "Sheet1!Local", ordered by that text.
+            // The order of local names among global ones is unmeasured (RUN-ON-WINDOWS, dc-oxh8w.33).
             let mut names = meta
                 .model
                 .definitions()
                 .name_table()
                 .nodes()
-                .filter(|n| n.definition().scope == calc_doc_model::NameScope::Workbook)
+                .map(|n| (Self::name_display(meta, n.definition()), n))
                 .collect::<Vec<_>>();
             let unknown_order = Cell::new(false);
             names.sort_by(|a, b| {
                 match calc_func::text_order(
-                    &a.definition().name.encode_utf16().collect::<Vec<_>>(),
-                    &b.definition().name.encode_utf16().collect::<Vec<_>>(),
+                    &a.0.encode_utf16().collect::<Vec<_>>(),
+                    &b.0.encode_utf16().collect::<Vec<_>>(),
                 ) {
                     Some(order) => order,
                     None => {
@@ -343,12 +331,13 @@ impl WorkbookAutomation {
                 ));
             }
             let node = match call.arg(0) {
-                AutoValue::Text(text) => names.iter().copied().find(|n| {
-                    calc_value::defined_names_equal(&n.definition().name, &text.to_string_lossy())
-                }),
+                AutoValue::Text(text) => names
+                    .iter()
+                    .find(|(shown, _)| calc_value::defined_names_equal(shown, &text.to_string_lossy()))
+                    .map(|(_, n)| *n),
                 other => usize::try_from(geometry::integer(other)? - 1)
                     .ok()
-                    .and_then(|i| names.get(i).copied()),
+                    .and_then(|i| names.get(i).map(|(_, n)| *n)),
             }
             .ok_or_else(|| AutoError::excel(1004, ""))?;
             Ok(AutoValue::Object(object(
@@ -359,6 +348,24 @@ impl WorkbookAutomation {
                 },
             )))
         })
+    }
+    /// The Name property: the name, prefixed `Sheet1!` (quoted when needed) for a worksheet-scoped name.
+    fn name_display(meta: &Snapshot, definition: &calc_doc_model::DefinedName) -> String {
+        let calc_doc_model::NameScope::Sheet(sheet) = definition.scope else {
+            return definition.name.clone();
+        };
+        let Some(entry) = meta.model.sheet_by_id(sheet) else {
+            return definition.name.clone();
+        };
+        let sheet_name = entry.name().text().to_string_lossy();
+        let plain = !sheet_name.is_empty()
+            && sheet_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+            && !sheet_name.starts_with(|c: char| c.is_ascii_digit());
+        if plain {
+            format!("{sheet_name}!{}", definition.name)
+        } else {
+            format!("'{}'!{}", sheet_name.replace('\'', "''"), definition.name)
+        }
     }
     fn names_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_names(target, |_, names| {
@@ -401,8 +408,8 @@ impl WorkbookAutomation {
         })
     }
     fn name_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_name(target, call, |_, _, definition| {
-            Ok(AutoValue::text(&definition.name))
+        self.with_name(target, call, |_, meta, definition| {
+            Ok(AutoValue::text(&Self::name_display(meta, definition)))
         })
     }
     fn name_formula(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

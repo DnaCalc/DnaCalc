@@ -2125,13 +2125,9 @@ fn names_index_order_is_alphabetical_and_local_names_cannot_silently_shadow_a_he
             ..
         })
     ));
-    assert!(matches!(
-        invoke(&model, &names, "Count", vec![]),
-        Err(AutoError::NotModelled {
-            owner: "dc-hsa5.6",
-            ..
-        })
-    ));
+    // The listing now includes the sheet-local name (one more than the global ones defined above).
+    let listed = invoke(&model, &names, "Count", vec![]).unwrap();
+    assert!(matches!(listed, AutoValue::I4(n) if n >= 2), "{listed:?}");
 }
 
 // The E6 inputs/answers are retained in calc-xll-reference's three independent Excel runs.
@@ -5616,7 +5612,7 @@ mod xlc {
                 ],
                 Some(AutoError::not_modelled(
                     "Names.Add RefersToR1C1",
-                    "dc-oxh8w.28",
+                    "dc-oxh8w.33",
                 )),
             ),
             (
@@ -5749,7 +5745,7 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Chart sheets are refused typed (dc-oxh8w.28 owns them), nothing changes.
+    // Chart sheets are refused typed (dc-oxh8w.33 owns them), nothing changes.
     for args in [
         vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
     ] {
@@ -5874,9 +5870,27 @@ fn dc_oxh8w_4__range_insert_and_delete_shift_cells_and_references() {
     assert!(matches!(cell_text(&model, "AD1"), AutoValue::R8(5.)));
     call("AB:AC", "Delete", vec![]).unwrap();
     assert!(matches!(cell_text(&model, "AB1"), AutoValue::R8(5.)));
-    // CopyOrigin from the right or below is not modelled yet and changes nothing.
+    // CopyOrigin: inserted cells take the format from the left/above by default (xlFormatFromLeftOrAbove = 0),
+    // from the right/below with xlFormatFromRightOrBelow = 1.
+    let format = |address: &str| text(&model, &range(&model, address), "NumberFormat");
+    let set_format = |address: &str, code: &str| {
+        invoke_kind(&model, &range(&model, address), "NumberFormat", InvokeKind::Put, vec![AutoValue::text(code)])
+            .unwrap();
+    };
+    set_format("E40", "0.00");
+    set_format("E42", "0.0%");
+    call("E41", "Insert", vec![AutoValue::I4(-4121), AutoValue::I4(1)]).unwrap();
+    assert_eq!(format("E41"), "0.0%", "from below");
+    assert_eq!(format("E42"), "General");
+    assert_eq!(format("E43"), "0.0%");
+    call("E41", "Delete", vec![AutoValue::I4(-4162)]).unwrap();
+    call("E41", "Insert", vec![AutoValue::I4(-4121), AutoValue::I4(0)]).unwrap();
+    assert_eq!(format("E41"), "0.00", "from above");
+    call("E41", "Insert", vec![AutoValue::I4(-4121)]).unwrap();
+    assert_eq!(format("E41"), "0.00", "default is from above");
+    // Whole rows with CopyOrigin below are refused typed; the sheet is unchanged.
     assert!(matches!(
-        call("A20", "Insert", vec![AutoValue::I4(-4121), AutoValue::I4(1)]),
+        call("50:51", "Insert", vec![AutoValue::Missing, AutoValue::I4(1)]),
         Err(AutoError::NotModelled { .. })
     ));
     assert!(matches!(cell_text(&model, "A20"), AutoValue::R8(7.)));
@@ -6600,11 +6614,19 @@ fn dc_jtl4m__add_count_scoped_names_and_one_cell_sort() {
     assert!(matches!(add("NoSuchSheet!Local", "=1"), Err(AutoError::Excel { number: 1004, .. })));
     let again = obj(add(&format!("{first}!Local"), "=2").unwrap());
     assert_eq!(again.key, local.key, "redefining the scoped name keeps one name");
-    // Listing a workbook's names with a sheet-local one stays refused, owned by dc-hsa5.6 (open).
-    assert!(matches!(
-        invoke(&model, &book_names, "Count", vec![]),
-        Err(AutoError::NotModelled { owner: "dc-hsa5.6", .. })
-    ));
+    // Workbook.Names lists the sheet-local name as "<sheet>!Local" and Item finds it by that text.
+    let count = |names: &ObjectRef| match invoke(&model, names, "Count", vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{other:?}"),
+    };
+    let before_global = count(&book_names);
+    assert_eq!(shown, format!("{first}!Local"));
+    add("Global1", "=2").unwrap();
+    assert_eq!(count(&book_names), before_global + 1);
+    let found = obj(invoke_kind(&model, &book_names, "Item", InvokeKind::Method, vec![AutoValue::text(&format!("{first}!Local"))]).unwrap());
+    assert_eq!(found.key, local.key);
+    assert_eq!(text(&model, &found, "Name"), format!("{first}!Local"));
+    assert!(invoke_kind(&model, &book_names, "Item", InvokeKind::Method, vec![AutoValue::text("Local")]).is_err(), "a bare local name is not in the workbook list");
     // A Sort of one cell sorts its current region.
     let put = |address: &str, value: AutoValue| {
         invoke_kind(&model, &range(&model, address), "Value2", InvokeKind::Put, vec![value]).unwrap();

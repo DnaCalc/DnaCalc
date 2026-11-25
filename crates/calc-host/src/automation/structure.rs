@@ -7,7 +7,7 @@ use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, Sk
 /// xlWorksheet, the only sheet type Worksheets.Add makes here.
 const XL_WORKSHEET: i64 = -4167;
 /// The open bead that owns the structural remainders this file refuses.
-const OWNER: &str = "dc-oxh8w.28";
+const OWNER: &str = "dc-oxh8w.33";
 
 impl WorkbookAutomation {
     pub(super) fn register_structure(handlers: &mut Handlers<Self>) {

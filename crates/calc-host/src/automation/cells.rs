@@ -6,7 +6,7 @@ use crate::{SortKey, SortOptions, Axis, AxisChange, AxisEdit, SkinIntent, Workbo
 use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
 /// The open bead that owns the structural remainders this file refuses.
-const OWNER: &str = "dc-oxh8w.28";
+const OWNER: &str = "dc-oxh8w.33";
 
 const XL_SHIFT_DOWN: i64 = -4121;
 const XL_SHIFT_TO_RIGHT: i64 = -4161;
@@ -75,21 +75,19 @@ impl WorkbookAutomation {
         if call.args.len() > max_args {
             return Err(geometry::bad_count());
         }
-        if insert {
+        // CopyOrigin: xlFormatFromLeftOrAbove (0, the default) or xlFormatFromRightOrBelow (1).
+        let from_after = if insert {
             match call.arg(1) {
-                AutoValue::Missing | AutoValue::Empty => {}
-                other if geometry::integer(other)? == 0 => {}
-                other if geometry::integer(other)? != 1 => {
-                    return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
-                }
-                _ => {
-                    return Err(AutoError::not_modelled(
-                        "Range.Insert CopyOrigin xlFormatFromRightOrBelow",
-                        OWNER,
-                    ));
-                }
+                AutoValue::Missing | AutoValue::Empty => false,
+                other => match geometry::integer(other)? {
+                    0 => false,
+                    1 => true,
+                    _ => return Err(AutoError::excel(1004, "Application-defined or object-defined error")),
+                },
             }
-        }
+        } else {
+            false
+        };
         if let Some(other) = Some(call.arg(0)).filter(|a| !a.is_missing() && !matches!(a, AutoValue::Empty)) {
             if ![XL_SHIFT_DOWN, XL_SHIFT_TO_RIGHT, XL_SHIFT_UP, XL_SHIFT_TO_LEFT].contains(&geometry::integer(other)?) {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
@@ -116,6 +114,12 @@ impl WorkbookAutomation {
                     .map_err(|_| AutoError::excel(1004, "Application-defined or object-defined error"))
             };
             // The whole sheet is every row: deleting it clears every cell and adjusts references as Excel does.
+            if (whole_rows || whole_columns) && from_after {
+                return Err(AutoError::not_modelled(
+                    "Range.Insert CopyOrigin xlFormatFromRightOrBelow on whole rows or columns",
+                    OWNER,
+                ));
+            }
             if whole_rows {
                 return axis_edit(Axis::Rows, first.row(), area.row_count());
             }
@@ -135,7 +139,12 @@ impl WorkbookAutomation {
                 }
                 None => area.column_count() >= area.row_count() || area.column_count() == 1 && area.row_count() == 1,
             };
-            Ok(SkinIntent::Command(WorkbookCommand::ShiftCells { area, down, insert }))
+            Ok(SkinIntent::Command(WorkbookCommand::ShiftCells {
+                area,
+                down,
+                insert,
+                from_after,
+            }))
         })?;
         Ok(AutoValue::Bool(true))
     }
