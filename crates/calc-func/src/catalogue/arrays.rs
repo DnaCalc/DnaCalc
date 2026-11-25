@@ -161,22 +161,13 @@ fn sub_area(site: &Site<'_>, a: &[CalcValue], take: bool) -> Step<Option<CalcVal
         return Ok(None);
     };
     let (rows, cols) = (area.row_count() as usize, area.column_count() as usize);
-    let count = |index: usize, full: isize| -> Step<isize> {
-        match a.get(index) {
-            None => Ok(full),
-            Some(value) if value.is_missing() && index == 1 && a.len() > 2 => Ok(full),
-            Some(value) => match k::parse_integer(value) {
-                Ok(n) => Ok(n),
-                Err(error) => result::<CalcValue>(site, Err(error)).map(|_| 0),
-            },
-        }
-    };
     let (row_full, col_full) = if take {
         (rows as isize, cols as isize)
     } else {
         (0, 0)
     };
-    let (row_count, col_count) = (count(1, row_full)?, count(2, col_full)?);
+    let row_count = result(site, k::slice_count(a.get(1), row_full))?;
+    let col_count = result(site, k::slice_count(a.get(2), col_full))?;
     let span = |len: usize, n: isize| {
         if take {
             k::take_span(len, n)

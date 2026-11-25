@@ -300,6 +300,45 @@ fn sequence_filter_sort_unique() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn slice_counts_truncate_toward_zero() {
+    let mut book = data();
+    assert_eq!(book.dynamic("=TAKE({1;2},0.5,1e-35)"), e(W::Calc));
+    assert_eq!(
+        book.dynamic("=TAKE(A1:A3,\"2.9\")"),
+        numbers(&[&[1.0], &[2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE({1,2;3,4},-1.2,1.9)"),
+        numbers(&[&[3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=DROP({1,2;3,4},0.5,-1.2)"),
+        numbers(&[&[1.0], &[3.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE({1;2},-1e50)"),
+        numbers(&[&[1.0], &[2.0]])
+    );
+    assert_eq!(book.dynamic("=DROP({1;2},-1e50)"), e(W::Calc));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn take_omitted_and_blank_counts() {
+    let mut book = data();
+    assert_eq!(
+        book.dynamic("=TAKE({1,2;3,4},1,)"),
+        numbers(&[&[1.0, 2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TAKE(A1:A3,)"),
+        numbers(&[&[1.0], &[2.0], &[3.0]])
+    );
+    assert_eq!(book.dynamic("=TAKE({1,2;3,4},,H1)"), e(W::Calc));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn taking_choosing_stacking_and_wrapping() {
     let mut book = data();
     let grid = "{1,2;3,4;5,6}";
