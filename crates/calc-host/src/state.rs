@@ -940,8 +940,12 @@ impl HostState {
         )
     }
 
-    /// Imported merged ranges transformed through the current structural axis history.
+    /// The sheet's merged ranges: the authored set once one is authored, else the imported ranges transformed through the current structural axis history.
     pub fn merged_areas(&self, sheet: SheetId) -> Vec<GridArea> {
+        // An authored set replaces the imported one and moves with the model's own axis edits.
+        if let Some(areas) = self.model.definitions().merges(sheet) {
+            return areas.to_vec();
+        }
         self.loaded
             .sheet(sheet)
             .into_iter()

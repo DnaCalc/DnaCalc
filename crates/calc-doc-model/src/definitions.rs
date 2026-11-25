@@ -401,6 +401,8 @@ pub struct Definitions {
     styles: std::sync::Arc<crate::StyleTable>,
     conditional: BTreeMap<SheetId, Vec<crate::ConditionalRuleSource>>,
     validations: BTreeMap<SheetId, Vec<crate::Validation>>,
+    /// Authored merged areas per sheet; a sheet's entry (possibly empty) replaces the imported set.
+    merges: BTreeMap<SheetId, Vec<GridArea>>,
     review: BTreeMap<SheetId, Vec<crate::ReviewNote>>,
     links: BTreeMap<SheetId, Vec<crate::ReviewLink>>,
     page_setups: BTreeMap<SheetId, crate::PageSetup>,
@@ -553,6 +555,19 @@ impl Definitions {
         } else {
             self.validations.insert(sheet, rules);
         }
+        self
+    }
+
+    /// The sheet's authored merged areas, or `None` while the sheet still has its imported set.
+    pub fn merges(&self, sheet: SheetId) -> Option<&[GridArea]> {
+        self.merges.get(&sheet).map(Vec::as_slice)
+    }
+    pub fn all_merges(&self) -> impl Iterator<Item = (SheetId, &[GridArea])> {
+        self.merges.iter().map(|(s, v)| (*s, v.as_slice()))
+    }
+    /// Replace the sheet's merged areas; an empty set is kept, as it unmerges the imported ones.
+    pub fn with_merges(mut self, sheet: SheetId, areas: Vec<GridArea>) -> Self {
+        self.merges.insert(sheet, areas);
         self
     }
 
@@ -787,6 +802,7 @@ impl Definitions {
             data_model: None,
             page_setups: BTreeMap::new(),
             validations: BTreeMap::new(),
+            merges: BTreeMap::new(),
             axis_layouts: crate::AxisLayouts::default(),
             panes: BTreeMap::new(),
             filters: BTreeMap::new(),
@@ -991,6 +1007,7 @@ impl Definitions {
     pub fn without_sheet(mut self, sheet: SheetId) -> Self {
         self.text_sources.retain(|at, _| at.sheet() != sheet);
         self.validations.remove(&sheet);
+        self.merges.remove(&sheet);
         self.conditional.remove(&sheet);
         self.review.remove(&sheet);
         self.links.remove(&sheet);
@@ -1042,6 +1059,7 @@ impl Definitions {
             && self.pivots.caches.caches.is_empty()
             && self.page_setups.is_empty()
             && self.validations.is_empty()
+            && self.merges.is_empty()
             && self.conditional.is_empty()
             && self.axis_layouts.sheets().next().is_none()
             && self.panes.is_empty()

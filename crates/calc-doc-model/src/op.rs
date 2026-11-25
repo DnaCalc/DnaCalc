@@ -66,6 +66,11 @@ pub enum WorkbookOp {
         sheet: SheetId,
         rules: Vec<crate::Validation>,
     },
+    /// The sheet's complete set of merged areas (each at least two cells, none overlapping).
+    SetMerges {
+        sheet: SheetId,
+        areas: Vec<GridArea>,
+    },
     SetReviewLinks {
         sheet: SheetId,
         links: Vec<crate::ReviewLink>,

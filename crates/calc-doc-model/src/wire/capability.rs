@@ -590,6 +590,7 @@ impl WireOp {
             WorkbookOp::SetTextSources(_)
             | WorkbookOp::SetReviewLinks { .. }
             | WorkbookOp::SetReviewNotes { .. }
+            | WorkbookOp::SetMerges { .. }
             | WorkbookOp::SetValidations { .. } => {
                 unreachable!("review notes are refused before encoding")
             }

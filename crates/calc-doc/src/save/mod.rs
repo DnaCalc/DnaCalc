@@ -28,6 +28,7 @@ pub(crate) mod file_form;
 mod filter;
 mod geometry;
 mod manifest;
+mod merges;
 mod outline;
 pub(crate) mod page_setup;
 mod panes;

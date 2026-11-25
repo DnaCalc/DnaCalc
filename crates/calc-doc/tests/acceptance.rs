@@ -474,6 +474,7 @@ fn describe(op: &WorkbookOp) -> String {
         WorkbookOp::SetSparklines { sheet, groups } => format!("sparklines {sheet:?} {groups:?}"),
         WorkbookOp::SetTables(tables) => format!("tables {tables:?}"),
         WorkbookOp::SetValidations { sheet, rules } => format!("validation {sheet:?} {rules:?}"),
+        WorkbookOp::SetMerges { sheet, areas } => format!("merges {sheet:?} {areas:?}"),
         WorkbookOp::SetTextSources(sources) => format!("text_sources {sources:?}"),
         WorkbookOp::SetReviewLinks { sheet, links } => format!("links {sheet:?} {links:?}"),
         WorkbookOp::SetReviewNotes { sheet, notes } => format!(
@@ -665,6 +666,7 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetReviewLinks { .. } => "op:review_links".to_owned(),
         WorkbookOp::SetReviewNotes { .. } => "op:review_notes".to_owned(),
         WorkbookOp::SetValidations { .. } => "op:validations".to_owned(),
+        WorkbookOp::SetMerges { .. } => "op:merges".to_owned(),
         // Wire version 1 refuses AutoFilter state as EncodeError::AutoFilter.
         WorkbookOp::SetPaneLayout { .. } => "op:set_pane_layout".into(),
         WorkbookOp::SetAutoFilter { .. } => "op:auto_filter".to_owned(),

@@ -124,6 +124,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::ReviewLinks { .. }
             | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
+            | CellEdit::Merges { .. }
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
             | CellEdit::Sheet(_)
@@ -163,6 +164,7 @@ pub(crate) fn inverse(
             matches!(
                 edit,
                 CellEdit::TextSources(_)
+                    | CellEdit::Merges { .. }
                     | CellEdit::Axis(_)
                     | CellEdit::Layout(_)
                     | CellEdit::Sheet(

@@ -413,6 +413,7 @@ pub fn prepare_edit<'s, 'r>(
             WorkbookOp::SetAutoFilter { sheet, .. }
             | WorkbookOp::SetPageSetup { sheet, .. }
             | WorkbookOp::SetValidations { sheet, .. }
+            | WorkbookOp::SetMerges { sheet, .. }
             | WorkbookOp::SetCharts { sheet, .. }
             | WorkbookOp::SetShapes { sheet, .. }
             | WorkbookOp::SetSparklines { sheet, .. }
@@ -783,6 +784,7 @@ fn structural_moves(
                 | WorkbookOp::SetAxisFormat(_)
                 | WorkbookOp::SetPageSetup { .. }
                 | WorkbookOp::SetValidations { .. }
+                | WorkbookOp::SetMerges { .. }
                 | WorkbookOp::SetCharts {
                     sheet: _,
                     charts: _
@@ -823,6 +825,7 @@ fn structural_moves(
             | WorkbookOp::SetAxisFormat(_)
             | WorkbookOp::SetPageSetup { .. }
             | WorkbookOp::SetValidations { .. }
+            | WorkbookOp::SetMerges { .. }
             | WorkbookOp::SetCharts {
                 sheet: _,
                 charts: _,

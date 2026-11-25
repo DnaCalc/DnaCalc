@@ -410,6 +410,7 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
             operation,
             WorkbookOp::SetReviewLinks { .. }
                 | WorkbookOp::SetReviewNotes { .. }
+                | WorkbookOp::SetMerges { .. }
                 | WorkbookOp::SetValidations { .. }
         ) {
             return Err(EncodeError::ReviewNotes { operation: index });

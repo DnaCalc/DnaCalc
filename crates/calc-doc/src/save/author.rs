@@ -559,6 +559,10 @@ pub(super) fn plan(
         .definitions()
         .all_validations()
         .ne(model.definitions().all_validations());
+    let merges_changed = base
+        .definitions()
+        .all_merges()
+        .ne(model.definitions().all_merges());
     let page_setup_changed = base
         .definitions()
         .page_setups()
@@ -619,6 +623,7 @@ pub(super) fn plan(
         && !sparklines_changed
         && !links_changed
         && !validation_changed
+        && !merges_changed
         && views.is_none()
         && edit.custom_xml.is_empty()
         && !panes_changed
@@ -1519,6 +1524,23 @@ pub(super) fn plan(
                 current.as_ref().unwrap_or(&original),
                 model.definitions().conditional_rules(sheet.id()),
             )?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
+    if merges_changed {
+        for sheet in sheets.iter().filter(|s| {
+            base.definitions().merges(s.id()) != model.definitions().merges(s.id())
+        }) {
+            let Some(areas) = model.definitions().merges(sheet.id()) else {
+                continue;
+            };
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out
+                .rewritten
+                .remove(sheet.part().name())
+                .map(|b| original.with_bytes(b));
+            let bytes =
+                super::merges::rewrite(current.as_ref().unwrap_or(&original), areas)?;
             out.rewritten.insert(sheet.part().name().to_owned(), bytes);
         }
     }
