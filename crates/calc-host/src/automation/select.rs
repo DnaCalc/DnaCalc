@@ -6,7 +6,7 @@ use crate::{CommandIngress, IntentError, Selection, SkinIntent};
 use calc_doc_model::SheetVisibility;
 
 /// The open bead that owns what this file refuses (grouped sheets, Goto without a Reference).
-const OWNER: &str = "dc-oxh8w.48";
+const OWNER: &str = "dc-oxh8w.49";
 
 impl WorkbookAutomation {
     pub(super) fn register_select(handlers: &mut Handlers<Self>) {
@@ -111,7 +111,7 @@ impl WorkbookAutomation {
     }
 
     /// Range.Activate: the range's first cell becomes the active cell. Inside the current selection the selection
-    /// stays; a cell outside it is not captured from Excel yet (dc-oxh8w.48).
+    /// stays; a cell outside it is not captured from Excel yet (dc-oxh8w.49).
     fn range_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let held = Self::held_of(target)?;
@@ -186,7 +186,7 @@ impl WorkbookAutomation {
 
     /// Application.Goto(Reference, Scroll): selects the range, activating its sheet; Scroll moves a window
     /// DNA Calc does not have, so it is read and ignored. Text is R1C1 (relative to the active cell), A1 or a
-    /// defined name; an omitted Reference needs Excel's last-Goto memory (dc-oxh8w.48).
+    /// defined name; an omitted Reference needs Excel's last-Goto memory (dc-oxh8w.49).
     fn app_goto(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
