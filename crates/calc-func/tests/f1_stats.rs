@@ -7875,3 +7875,25 @@ fn chi_inverse_above_ten_billion_degrees_and_exhaustion_at_one_epsilon() {
     }
     exact(call("GAMMA.INV", vec![n(0.5), n(b(0x41f5_383a_5480_0000)), n(1.0)]), b(0x41f5_383a_547a_aaab));
 }
+
+/// Excel 20527 (dc-j9k.324-327): the LOGNORM.DIST density is #DIV/0! when the variance is subnormal
+/// or twice it overflows, and is zero (not #NUM!) when the squared distance over the variance overflows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lognorm_density_variance_underflow_and_overflow_are_div0() {
+    let b = f64::from_bits;
+    let flag = |x: bool| f1_support::b(x);
+    for name in ["LOGNORM.DIST"] {
+        let pdf = |x: f64, mean: f64, sigma: f64| call(name, vec![n(x), n(mean), n(sigma), flag(false)]);
+        error(pdf(10.0, b(0x3e7a_d7f2_9abc_af48), b(0x7fc3_ba4f_e83b_c71b)), Div0);
+        error(pdf(b(0x3fb9_9999_9999_999a), b(0x3e7a_d7f2_9abc_af48), b(0x7fba_14c9_a21c_7df7)), Div0);
+        error(pdf(b(0x3fb9_9999_9999_999a), -0.5, b(0x0010_0000_0000_0001)), Div0);
+        error(pdf(1.0, b(0x3fb9_9999_9999_999a), b(0x0010_0000_0000_0003)), Div0);
+        error(pdf(10.0, 0.0, 1e154), Div0);
+        error(pdf(10.0, 0.0, 1e-154), Div0);
+        exact(pdf(10.0, 0.0, b(0x2000_0000_0000_0000)), 0.0);
+        exact(pdf(10.0, 0.0, b(0x2000_0000_0000_0028)), 0.0);
+        // The cumulative form divides by sigma, not by its square.
+        assert!(number(call(name, vec![n(10.0), n(0.0), n(1e-154), flag(true)])) >= 0.0);
+    }
+}
