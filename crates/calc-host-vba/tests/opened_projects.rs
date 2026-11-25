@@ -1323,7 +1323,7 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn project_class_declarations_cannot_admit_designers_or_conflicting_identities() {
+fn project_class_declarations_cannot_admit_conflicting_identities() {
     let original = include_bytes!(
         "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
     );
@@ -1332,9 +1332,8 @@ fn project_class_declarations_cannot_admit_designers_or_conflicting_identities()
         "Class=ProbeEvents\r\nBaseClass=ProbeEvents",
         "Class=MissingClass",
         "Class=OracleProbe",
-        "BaseClass=ProbeEvents",
-        "Document=ProbeEvents/&H00000000",
         "Class=Sheet1\r\nClass=ProbeEvents",
+        "Document=ProbeEvents/&H00000000",
     ] {
         let bytes =
             vba_project::replace_project_declaration(original, "Class=ProbeEvents", replacement);
@@ -2883,5 +2882,29 @@ fn dc_1nbp_7_multi_area_writes_keep_typed_refusals_through_error_handling() {
                 "{backend:?} {label}: S!D1 stayed clean"
             );
         }
+    }
+}
+
+/// A designer (UserForm) module, loads as a
+/// class (dc-oxh8w.73); neither refuses admission any more.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn project_designer_modules_are_admitted_as_classes() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    for replacement in ["BaseClass=ProbeEvents"] {
+        let bytes =
+            vba_project::replace_project_declaration(original, "Class=ProbeEvents", replacement);
+        let session = opened(&bytes, "designer.xlsm");
+        calc_host_vba::prepare_file_project_with_events(
+            &grant(),
+            session.host(),
+            "designer.xlsm",
+            100_000,
+            None,
+            false,
+        )
+        .unwrap_or_else(|error| panic!("{replacement}: {error}"));
     }
 }
