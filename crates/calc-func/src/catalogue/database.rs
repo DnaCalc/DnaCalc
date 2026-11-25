@@ -8,8 +8,9 @@
 //! ([`super::conditional`]), except that text with no operator matches the text that begins with
 //! it; a blank criteria cell sets no condition, and a criteria reference needs a row below its
 //! labels. The field is a label or a 1-based column number; DCOUNT and DCOUNTA may leave it out to
-//! count matching records. A label the database lacks, in the field or in the criteria, is
-//! #VALUE!.
+//! count matching records. A label the database lacks in the field is #VALUE!. A criteria
+//! header that names no field (or is blank) makes its cells computed criteria: a nonzero number or
+//! TRUE holds for every record, zero, FALSE, text and errors for none (live Excel, dc-j9k.271-.273).
 //!
 //! In the field's column, the counts, sums and extremes read numbers and skip text, logicals and
 //! blank cells (DCOUNTA counts every cell that is not blank); the first error in a matching
@@ -66,11 +67,10 @@ fn same_label(a: &[u16], b: &[u16]) -> bool {
 /// The database's column for a field argument.
 fn field(
     site: &Site<'_>,
-    a: &[CalcValue],
+    value: &CalcValue,
     headers: &[Option<Vec<u16>>],
     optional: bool,
 ) -> Step<Option<usize>> {
-    let value = &a[1];
     match value.core_ref() {
         CoreRef::Missing | CoreRef::Empty if optional => Ok(None),
         CoreRef::Text(text) => {
@@ -93,6 +93,13 @@ fn field(
     }
 }
 
+/// One condition of a criteria row: a criterion on a database column, or a computed criterion's
+/// fixed truth.
+enum Condition {
+    Field(usize, Criterion),
+    Fixed(bool),
+}
+
 /// The records that meet the criteria, by row index below the label row.
 fn matching(
     site: &Site<'_>,
@@ -104,23 +111,37 @@ fn matching(
     if criteria.rows < 2 {
         return Ok((0..records).collect());
     }
-    // Each criteria row: (database column, criterion) pairs.
+    // Each criteria row: the conditions it sets.
     let mut rows = Vec::new();
     for r in 1..criteria.rows {
         let mut conditions = Vec::new();
         for c in 0..criteria.cols {
             let cell = &criteria.cells[r * criteria.cols + c];
+            // A header that names no field (or is blank or an error) makes the cell a computed
+            // criterion: a blank sets no condition, a nonzero number or TRUE holds for every record,
+            // and zero, FALSE, text and an error hold for none (live Excel, dc-j9k.271-.273).
+            let column = match &criteria.cells[c].core_ref() {
+                CoreRef::Text(_) | CoreRef::Number(_) | CoreRef::Logical(_) => {
+                    let name = label(site, 2, &criteria.cells[c])?.expect("a header with a value has a label");
+                    headers
+                        .iter()
+                        .position(|h| h.as_deref().is_some_and(|h| same_label(h, &name)))
+                }
+                _ => None,
+            };
+            let Some(column) = column else {
+                match cell.core_ref() {
+                    CoreRef::Empty | CoreRef::Missing => {}
+                    CoreRef::Number(n) => conditions.push(Condition::Fixed(n != 0.0)),
+                    CoreRef::Logical(on) => conditions.push(Condition::Fixed(on)),
+                    _ => conditions.push(Condition::Fixed(false)),
+                }
+                continue;
+            };
             let Some(criterion) = database_criterion(site, 2, cell)? else {
                 continue;
             };
-            let Some(name) = label(site, 2, &criteria.cells[c])? else {
-                return fail(W::Value);
-            };
-            let column = headers
-                .iter()
-                .position(|h| h.as_deref().is_some_and(|h| same_label(h, &name)))
-                .ok_or(Exit::Error(W::Value))?;
-            conditions.push((column, criterion));
+            conditions.push(Condition::Field(column, criterion));
         }
         rows.push(conditions);
     }
@@ -130,7 +151,15 @@ fn matching(
         let mut unknown = false;
         for conditions in &rows {
             let mut verdict = Match::Yes;
-            for (column, criterion) in conditions {
+            for condition in conditions {
+                let (column, criterion) = match condition {
+                    Condition::Fixed(true) => continue,
+                    Condition::Fixed(false) => {
+                        verdict = Match::No;
+                        break;
+                    }
+                    Condition::Field(column, criterion) => (column, criterion),
+                };
                 let cell = &database.cells[(record + 1) * database.cols + column];
                 match criterion_verdict(site, criterion, cell)? {
                     Match::No => {
@@ -243,7 +272,7 @@ fn database(
         headers.push(label(site, 0, &database.cells[c])?);
     }
     let optional = matches!(kind, Kind::Count | Kind::CountA);
-    let column = field(site, a, &headers, optional)?;
+    let column = field(site, &a[1], &headers, optional)?;
     if !matches!(a[2].core_ref(), CoreRef::Reference(_)) {
         return match a[2].core_ref() {
             CoreRef::Error(code) => fail(code),

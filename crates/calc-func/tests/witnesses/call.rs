@@ -436,6 +436,18 @@ pub fn calculate_with_reference_text(
             c.input_transport.as_deref() == Some("cell_value2_bulk")
                 && c.cell_layout.as_deref() == Some("touchstone/1-bulk")
         });
+    // Excel reads a database field held in a cell as one referenced cell: an error or a blank there
+    // is #VALUE! (dc-j9k.272-.276; the formula evaluator applies the same admission to a reference).
+    if cell_transport || mixed_bulk_scalar_cells || has_range {
+        for (position, argument) in prepared.iter_mut().enumerate() {
+            if target.id().is_database_field(position)
+                && args[position].get("range").is_none()
+                && matches!(values[position].core_ref(), CoreRef::Error(_) | CoreRef::Empty)
+            {
+                *argument = CalcValue::error(calc_func::value::WorksheetErrorCode::Value);
+            }
+        }
+    }
     if mixed_bulk_scalar_cells {
         for (position, argument) in prepared.iter_mut().enumerate() {
             if args[position].get("range").is_none()
