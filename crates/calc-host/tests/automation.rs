@@ -5398,8 +5398,8 @@ fn dc_oxh8w_4__range_copy_and_cut_to_a_destination() {
     assert!(matches!(cell_text(&model, "A1"), AutoValue::Empty));
     assert!(matches!(cell_text(&model, "H1"), AutoValue::R8(2.)));
     assert!(matches!(cell_text(&model, "E5"), AutoValue::R8(3.)));
-    // No destination means the clipboard, which is refused typed.
-    assert!(matches!(call("A2", "Copy", vec![]), Err(AutoError::NotModelled { .. })));
+    // No destination means the clipboard (dc-oxh8w.15 pastes it: dc_oxh8w_15__clipboard_copy_cut_paste_special).
+    assert!(matches!(call("A2", "Copy", vec![]), Ok(AutoValue::Bool(true))));
 }
 
 // ---- chart members batch 2 (dc-oxh8w.11): axes through the object model ----
@@ -5640,4 +5640,64 @@ fn dc_oxh8w_15__range_find_next_previous() {
         find("Find", vec![t("a"), m(), AutoValue::I4(-4144)]),
         Err(AutoError::NotModelled { .. })
     ));
+}
+
+/// dc-oxh8w.15: Range.Copy / Cut without a Destination fill the application's clipboard; Range.PasteSpecial
+/// and Worksheet.Paste write it through the host's paste planner (Values, Formulas, Transpose, All; a Cut is
+/// spent by its paste; no clipboard is Excel's 1004).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2", "3"], &["=A1+10", "x", "=SUM(A1:C1)"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let value = |address: &str| cell_text_of(&model, address);
+    let formula = |address: &str| text(&model, &range(&model, address), "Formula");
+    // Nothing on the clipboard yet: Excel's 1004.
+    assert!(matches!(call("E1", "PasteSpecial", vec![]), Err(AutoError::Excel { number: 1004, .. })));
+    // Copy with no Destination answers True and pastes values only.
+    assert!(matches!(call("A1:C2", "Copy", vec![]).unwrap(), AutoValue::Bool(true)));
+    call("E1", "PasteSpecial", vec![AutoValue::I4(-4163)]).unwrap();
+    assert_eq!([value("E1"), value("F1"), value("G1")], ["1", "2", "3"]);
+    assert_eq!(formula("E2"), "11", "a value, not the formula =A1+10");
+    assert_eq!(formula("G2"), "6");
+    // Formulas relocate; the Copy stays for another paste.
+    call("E4", "PasteSpecial", vec![AutoValue::I4(-4123)]).unwrap();
+    assert_eq!(formula("E5"), "=E4+10");
+    assert_eq!(formula("G5"), "=SUM(E4:G4)");
+    // Transpose swaps rows and columns.
+    call("J1", "PasteSpecial", vec![AutoValue::I4(-4163), AutoValue::I4(-4142), AutoValue::Bool(false), AutoValue::Bool(true)])
+        .unwrap();
+    assert_eq!([value("J1"), value("K1")], ["1", "11"]);
+    assert_eq!([value("J2"), value("K2")], ["2", "x"]);
+    assert_eq!([value("J3"), value("K3")], ["3", "6"]);
+    // Operations and SkipBlanks are refused typed, nothing is pasted.
+    let before = value("M1");
+    for args in [
+        vec![AutoValue::Missing, AutoValue::I4(2)],
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)],
+        vec![AutoValue::I4(-4144)],
+    ] {
+        assert!(matches!(call("M1", "PasteSpecial", args), Err(AutoError::NotModelled { .. })));
+    }
+    assert_eq!(value("M1"), before);
+    // Worksheet.Paste at a Destination pastes everything.
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    invoke_kind(&model, &sheet, "Paste", InvokeKind::Method, vec![AutoValue::Object(range(&model, "A10"))]).unwrap();
+    assert_eq!(formula("A11"), "=A10+10");
+    // A Cut moves on paste, only All is allowed, and the clipboard is then spent.
+    assert!(matches!(call("A10:A11", "Cut", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert!(matches!(call("C10", "PasteSpecial", vec![AutoValue::I4(-4163)]), Err(AutoError::Excel { number: 1004, .. })));
+    call("C10", "PasteSpecial", vec![]).unwrap();
+    assert_eq!(value("C10"), "1");
+    assert_eq!(value("A10"), "", "the cut source is emptied");
+    assert!(matches!(call("C13", "PasteSpecial", vec![]), Err(AutoError::Excel { number: 1004, .. })));
 }

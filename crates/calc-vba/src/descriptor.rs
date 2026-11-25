@@ -21,9 +21,6 @@ pub(crate) const GLOBAL_GUID_TEXT: &str = "{000208DB-0000-0000-C000-000000000046
 pub(crate) const TYPED_RANGE_IID: [u8; 16] = *b"DnaCalcRange0001";
 
 /// Document events currently delivered by DNA Calc's host (`dc-hsa5.12`).
-pub(crate) const DELIVERED_WORKSHEET_EVENTS: [&str; 2] = ["Change", "Calculate"];
-pub(crate) const DELIVERED_WORKBOOK_EVENTS: [&str; 3] = ["Open", "AddinInstall", "BeforeSave"];
-
 pub(crate) fn guid_to_com_iid(guid: Guid) -> ComInterfaceIid {
     ComInterfaceIid {
         data1: guid.data1,
@@ -76,23 +73,63 @@ pub(crate) fn interface_id_by_name(name: &str) -> Option<InterfaceId> {
     Some(descriptor.default_interface(id))
 }
 
-/// Whether `name` is one of DNA Calc's delivered document events for `host_document_type`.
-pub(crate) fn is_delivered_document_event(host_document_type: &str, event_name: &str) -> bool {
+/// The argument shapes a document event's callback can carry (`EventParameter`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum EventShape {
+    Object,
+    Boolean,
+    BooleanByRef,
+}
+
+/// The shapes of an Excel document event's arguments, or `None` when one is a scalar the event
+/// callback cannot carry (Long, String, enumerations).
+fn event_shape(member: &Member) -> Option<Vec<EventShape>> {
+    member
+        .arguments()
+        .map(|param| match param.ty.as_str() {
+            "BOOL" => Some(EventShape::Boolean),
+            "BOOL*" => Some(EventShape::BooleanByRef),
+            ty => {
+                let base = ty.strip_suffix('*')?;
+                let scalar = base.starts_with("enum:")
+                    || matches!(base, "BSTR" | "I4" | "I2" | "UI4" | "R8" | "VARIANT" | "BOOL");
+                (!scalar).then_some(EventShape::Object)
+            }
+        })
+        .collect()
+}
+
+/// The Excel event `event_name` of `host_document_type` (`Workbook` or `Worksheet`), from the
+/// descriptor's `WorkbookEvents` or `DocEvents`, when its arguments are carriable.
+pub(crate) fn document_event<'a>(
+    descriptor: &'a Descriptor,
+    host_document_type: &str,
+    event_name: &str,
+) -> Option<(&'a Member, Vec<EventShape>)> {
     let bare = host_document_type
         .rsplit('.')
         .next()
         .unwrap_or(host_document_type);
-    if bare.eq_ignore_ascii_case("Worksheet") {
-        DELIVERED_WORKSHEET_EVENTS
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(event_name))
+    let events = if bare.eq_ignore_ascii_case("Worksheet") {
+        "DocEvents"
     } else if bare.eq_ignore_ascii_case("Workbook") {
-        DELIVERED_WORKBOOK_EVENTS
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(event_name))
+        "WorkbookEvents"
     } else {
-        false
-    }
+        return None;
+    };
+    let id = descriptor.id(events)?;
+    let member = descriptor
+        .members(id)
+        .into_iter()
+        .find(|member| member.name.eq_ignore_ascii_case(event_name))?;
+    let shape = event_shape(member)?;
+    Some((member, shape))
+}
+
+/// Whether `event_name` is an Excel event of `host_document_type` the project may handle. The
+/// host raises only the events its commands cause; the others never fire in this host.
+pub(crate) fn is_delivered_document_event(host_document_type: &str, event_name: &str) -> bool {
+    document_event(Descriptor::get(), host_document_type, event_name).is_some()
 }
 
 /// Supplies `Excel` and `Office` metadata from `calc-object-model`'s committed descriptor, plus

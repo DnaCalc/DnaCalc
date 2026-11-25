@@ -269,6 +269,61 @@ impl EventSource {
         )
     }
 
+    /// `Workbook_SheetChange(Sh, Target)` against the attached host `ObjectModel`: `sheet` is the
+    /// worksheet `ObjectRef`, `target` the already-acquired `Range` `ObjectRef`.
+    pub fn sheet_change_object(
+        &self,
+        sheet: ObjectRef,
+        target: ObjectRef,
+        max_steps: u64,
+    ) -> Result<(), String> {
+        self.raise_sheet_range("SheetChange", sheet, target, max_steps)
+    }
+
+    /// `Workbook_SheetSelectionChange(Sh, Target)`, as [`Self::sheet_change_object`].
+    pub fn sheet_selection_change_object(
+        &self,
+        sheet: ObjectRef,
+        target: ObjectRef,
+        max_steps: u64,
+    ) -> Result<(), String> {
+        self.raise_sheet_range("SheetSelectionChange", sheet, target, max_steps)
+    }
+
+    fn raise_sheet_range(
+        &self,
+        name: &str,
+        sheet: ObjectRef,
+        target: ObjectRef,
+        max_steps: u64,
+    ) -> Result<(), String> {
+        let lease = next_lease();
+        let sheet_obj = projection::wrap_object(self.model.clone(), sheet, None, None);
+        let target_obj = projection::wrap_object(self.model.clone(), target, Some(lease), None);
+        self.raise(
+            name,
+            &mut [
+                api::Value::Object(Some(sheet_obj)),
+                api::Value::Object(Some(target_obj)),
+            ],
+            None,
+            max_steps,
+            lease,
+        )
+    }
+
+    /// `Workbook_SheetCalculate(Sh)` against the attached host `ObjectModel`.
+    pub fn sheet_calculate_object(&self, sheet: ObjectRef, max_steps: u64) -> Result<(), String> {
+        let sheet_obj = projection::wrap_object(self.model.clone(), sheet, None, None);
+        self.raise(
+            "SheetCalculate",
+            &mut [api::Value::Object(Some(sheet_obj))],
+            None,
+            max_steps,
+            next_lease(),
+        )
+    }
+
     pub fn calculate(&self, context: &dyn EventReadContext, max_steps: u64) -> Result<(), String> {
         self.raise("Calculate", &mut [], Some(context), max_steps, next_lease())
     }
@@ -434,6 +489,58 @@ pub struct ProcedureParameter {
     pub optional: bool,
     pub by_ref: bool,
     pub param_array: bool,
+    pub kind: ParameterKind,
+}
+
+/// What a declared parameter type accepts from a host-supplied scalar argument.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParameterKind {
+    /// Byte, Integer, Long, LongLong, Single, Double, Currency, Date, Decimal.
+    Number,
+    Boolean,
+    /// String, including fixed-length strings.
+    Text,
+    Variant,
+    /// An object, array, record or procedure type: no scalar argument fits it.
+    Other,
+}
+
+impl ParameterKind {
+    fn of(ty: &api::Type) -> Self {
+        use api::Type as T;
+        match ty {
+            T::Variant => Self::Variant,
+            T::Boolean => Self::Boolean,
+            T::Byte | T::Integer | T::Long | T::LongLong | T::Single | T::Double | T::Currency
+            | T::Date | T::Decimal => Self::Number,
+            T::String | T::FixedString(_) => Self::Text,
+            _ => Self::Other,
+        }
+    }
+}
+
+impl ProcedureEntry {
+    /// The documented argument fixture for this entry's required parameters: Number 1, Boolean
+    /// True, Text "1" and Variant Number 1; optional parameters stay omitted. `None` when a
+    /// required parameter is a ParamArray, object, array or record (no scalar fits it).
+    pub fn argument_fixture(&self) -> Option<Vec<ProcedureArg>> {
+        let mut arguments = Vec::new();
+        for parameter in &self.parameters {
+            if parameter.optional && !parameter.param_array {
+                break;
+            }
+            if parameter.param_array {
+                return None;
+            }
+            arguments.push(match parameter.kind {
+                ParameterKind::Number | ParameterKind::Variant => ProcedureArg::Number(1.0),
+                ParameterKind::Boolean => ProcedureArg::Bool(true),
+                ParameterKind::Text => ProcedureArg::Text("1".into()),
+                ParameterKind::Other => return None,
+            });
+        }
+        Some(arguments)
+    }
 }
 
 /// One Sub or Function of the project, as its catalogue lists it.
@@ -470,6 +577,7 @@ impl super::LoadedProject {
                             optional: q.optional,
                             by_ref: q.by_ref,
                             param_array: q.param_array,
+                            kind: ParameterKind::of(&q.ty),
                         })
                         .collect(),
                 })
@@ -558,11 +666,25 @@ impl super::LoadedProject {
             .unwrap_or_default();
         let mut args: Vec<Variant> = arguments
             .iter()
-            .map(|a| match a {
+            .enumerate()
+            .map(|(position, a)| match a {
                 ProcedureArg::Empty => Variant::empty(),
                 ProcedureArg::Missing => Variant::from_error_code(-2147352572),
                 ProcedureArg::Bool(b) => Variant::from_bool(*b),
-                ProcedureArg::Number(n) => Variant::from_f64(*n),
+                // A number takes the declared numeric type, as VBA's own call coerces it.
+                ProcedureArg::Number(n) => match parameters.get(position).map(|p| &p.ty) {
+                    Some(api::Type::Long) if n.fract() == 0.0 && n.abs() <= f64::from(i32::MAX) => {
+                        Variant::from_i32(*n as i32)
+                    }
+                    Some(api::Type::Integer) if n.fract() == 0.0 && n.abs() <= f64::from(i16::MAX) => {
+                        Variant::from_i16(*n as i16)
+                    }
+                    Some(api::Type::Byte) if n.fract() == 0.0 && (0.0..=255.0).contains(n) => {
+                        Variant::from_u8(*n as u8)
+                    }
+                    Some(api::Type::Single) => Variant::from_f32(*n as f32),
+                    _ => Variant::from_f64(*n),
+                },
                 ProcedureArg::Text(t) => Variant::from_string(t.as_str()),
             })
             .collect();

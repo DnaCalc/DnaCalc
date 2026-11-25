@@ -13,4 +13,8 @@
     <OutputPath>bin/</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../../../crates/calc-catalogue/tests/fixtures/admission-families.tsv"
+                      LogicalName="admission-families.tsv" />
+  </ItemGroup>
 </Project>

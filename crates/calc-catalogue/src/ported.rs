@@ -384,7 +384,7 @@ pub mod host_facts {
     4 "SHEETS" (0, 1) [R "reference" ~ ArrayAtRoot] traits value_error_references; volatile true; three_d (Some(&[0]), None, None); context [NumericMode, Host]; ;
     5 "FORMULATEXT" (1, 1) [F "reference" @Reference] traits lift_dynamic_references; volatile true; three_d (None, Some(&[]), None); context [Host]; ;
     6 "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] three_d (None, None, Some(&[])); context [NumericMode]; ;
-    7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] context [NumericMode, Host]; ;
+    7 "GETPIVOTDATA" (2, 254) [R "data_field", R "pivot_table", V "field1", V "item1"] groups (2, 2, 0); context [NumericMode, Host]; ;
     8 "TRANSPOSE" (1, 1) [R "array" ~ AggregateAlwaysIntersectReference] traits value_error_references; three_d (None, None, Some(&[])); context [Cells]; ;
     9 "FIELDVALUE" (2, 2) [V "value" ~ SingleValue, V "field_name" ~ SingleValue] ;
     }

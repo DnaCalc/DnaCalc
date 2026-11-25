@@ -194,11 +194,31 @@ fn file_private_worksheet_entries_keep_defaults_byref_state_and_vba_visibility()
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn unsupported_document_events_refuse_admission_and_inactive_source_stays_inactive() {
+    // Every Excel event whose arguments the callback carries is admitted (dc-d7cgp): one the host
+    // never raises (Activate, a sheet's SelectionChange) simply does not fire. An event with a
+    // Long, String or enumeration argument is still refused.
     for (kind, name) in [
         (ModuleKind::Workbook, "Workbook_Activate"),
+        (ModuleKind::Workbook, "Workbook_AfterSave"),
         (ModuleKind::Worksheet, "Worksheet_SelectionChange"),
     ] {
-        let source = format!("Private Sub {name}()\nEnd Sub\n");
+        let source = match name {
+            "Workbook_AfterSave" => format!("Private Sub {name}(ByVal Success As Boolean)\nEnd Sub\n"),
+            "Worksheet_SelectionChange" => {
+                format!("Private Sub {name}(ByVal Target As Excel.Range)\nEnd Sub\n")
+            }
+            _ => format!("Private Sub {name}()\nEnd Sub\n"),
+        };
+        load_project(
+            &[module("Doc", kind, &source)],
+            10000,
+            Some(Backend::Interpreter),
+        )
+        .unwrap_or_else(|refusal| panic!("{name} is an Excel event: {refusal}"));
+    }
+    let (kind, name) = (ModuleKind::Workbook, "Workbook_SyncEvent");
+    {
+        let source = format!("Private Sub {name}(ByVal SyncEventType As Long)\nEnd Sub\n");
         let refusal = load_project(
             &[module("Doc", kind, &source)],
             10000,

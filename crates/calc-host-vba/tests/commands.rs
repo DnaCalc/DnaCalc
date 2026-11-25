@@ -42,6 +42,13 @@ Public Sub RunMissing()
  Application.Run \"NoSuchMacro\"
  Application.Range(\"A3\").Value2 = Err.Number
 End Sub
+Public Function Describe(ByVal n As Long, ByVal t As String, ByVal b As Boolean, ByVal v As Variant) As String
+ Describe = CStr(n) & \"|\" & t & \"|\" & CStr(b) & \"|\" & CStr(v)
+End Function
+Public Sub TakesRange(ByVal r As Range)
+End Sub
+Public Sub TakesRest(ParamArray rest() As Variant)
+End Sub
 Public Sub NeedsWindow()
  Application.ActiveWindow.Zoom = 50
 End Sub
@@ -189,5 +196,30 @@ fn an_omitted_optional_argument_takes_its_declared_default() {
         assert_eq!(none.outcome, Outcome::Success(ProcedureResult::Number(14.0)), "{none:?}");
         let given = owner.run_procedure(&mut session, "Module1.WithDefault", &[ProcedureArg::Number(2.0)]);
         assert_eq!(given.outcome, Outcome::Success(ProcedureResult::Number(4.0)), "{given:?}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn required_scalar_parameters_get_a_documented_fixture() {
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
+        let entries = owner.procedures();
+        let entry = |name: &str| entries.iter().find(|p| p.name == name).unwrap();
+        let fixture = entry("Describe").argument_fixture().expect("four scalar parameters");
+        assert_eq!(
+            fixture,
+            vec![
+                ProcedureArg::Number(1.0),
+                ProcedureArg::Text("1".into()),
+                ProcedureArg::Bool(true),
+                ProcedureArg::Number(1.0)
+            ]
+        );
+        let run = owner.run_procedure(&mut session, "Module1.Describe", &fixture);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Text("1|1|True|1".into())), "{run:?}");
+        assert_eq!(entry("WithDefault").argument_fixture(), Some(vec![]));
+        assert_eq!(entry("TakesRange").argument_fixture(), None);
+        assert_eq!(entry("TakesRest").argument_fixture(), None);
     }
 }

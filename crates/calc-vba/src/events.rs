@@ -7,7 +7,7 @@ mod source;
 mod tests;
 pub use source::{
     EventReadContext, EventSource, ProcedureArg, ProcedureEntry, ProcedureError, ProcedureKind,
-    ProcedureParameter, ProcedureResult,
+    ParameterKind, ProcedureParameter, ProcedureResult,
 };
 pub(crate) use source::{
     callback_active, lease_is_active, record_event_refusal, record_object_denial, with_event_read,

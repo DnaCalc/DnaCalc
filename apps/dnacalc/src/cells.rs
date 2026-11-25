@@ -235,13 +235,15 @@ fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
         };
         // A ParamArray, or an argument the caller must give, needs a fixture the baseline does
         // not invent: the entry is counted apart, never as a pass.
-        if entry.parameters.iter().any(|p| !p.optional || p.param_array) {
+        let needs = entry.parameters.iter().any(|p| !p.optional || p.param_array);
+        let fixture = if needs && cli.fixtures { entry.argument_fixture() } else { None };
+        if needs && fixture.is_none() {
             skipped += 1;
             rows.push(json!({"entry": qualified, "procedure": kind, "invocation": "command",
                              "outcome": {"kind": "needs-arguments"}}));
             continue;
         }
-        let missing = Vec::<calc_host_vba::ProcedureArg>::new();
+        let missing = fixture.clone().unwrap_or_default();
         let mut book = session::open(cli)?;
         let Some(project) = book.project.clone() else {
             return Err(fail("the project was not admitted on reopening"));
@@ -255,6 +257,9 @@ fn run_all(cli: &Cli) -> Result<(Value, u8), Failure> {
         }
         let mut row = invocation_json(&record);
         row["procedure"] = json!(kind);
+        if fixture.is_some() {
+            row["arguments"] = json!("fixture");
+        }
         rows.push(row);
     }
     let report = json!({
