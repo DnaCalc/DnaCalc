@@ -582,6 +582,21 @@ impl WorkbookAutomation {
         })
     }
     fn acquire(&self, access: &mut Access<'_>, range: &ReferenceLike, axis: RangeAxis) -> Reply {
+        let reference = self.retain_range(access, range)?;
+        Ok(AutoValue::Object(object(
+            "Range",
+            if axis == RangeAxis::Cells {
+                ObjectKey::Range(reference)
+            } else {
+                ObjectKey::RangeView { reference, axis }
+            },
+        )))
+    }
+    fn retain_range(
+        &self,
+        access: &mut Access<'_>,
+        range: &ReferenceLike,
+    ) -> Result<StoredReference, AutoError> {
         let reference = match access {
             Access::Invocation(context) => context.retain_reference(range),
             Access::Session(session, _) => session.host().reference_view().retain(range),
@@ -596,14 +611,7 @@ impl WorkbookAutomation {
                 count: 1,
                 references,
             });
-        Ok(AutoValue::Object(object(
-            "Range",
-            if axis == RangeAxis::Cells {
-                ObjectKey::Range(reference)
-            } else {
-                ObjectKey::RangeView { reference, axis }
-            },
-        )))
+        Ok(reference)
     }
     fn range_argument(
         &self,
@@ -920,7 +928,9 @@ impl WorkbookAutomation {
     ) -> Reply {
         self.with_target(target, |access, meta| {
             let (held, axis) = match &target.key {
-                ObjectKey::Range(held) | ObjectKey::Areas(held) => (held, RangeAxis::Cells),
+                ObjectKey::Range(held) | ObjectKey::RangeFormat(held) | ObjectKey::Areas(held) => {
+                    (held, RangeAxis::Cells)
+                }
                 ObjectKey::RangeView { reference, axis } => (reference, *axis),
                 _ => return Err(geometry::type_mismatch()),
             };
@@ -1159,6 +1169,7 @@ impl ObjectModel for WorkbookAutomation {
     }
     fn released(&self, target: &ObjectRef) {
         if let ObjectKey::Range(reference)
+        | ObjectKey::RangeFormat(reference)
         | ObjectKey::RangeView { reference, .. }
         | ObjectKey::Areas(reference) = &target.key
         {

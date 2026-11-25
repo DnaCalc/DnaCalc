@@ -529,6 +529,151 @@ fn reopen_formatting(host: &Host) -> Rc<WorkbookAutomation> {
     setup_session(session).1
 }
 
+fn font(model: &WorkbookAutomation, address: &str) -> ObjectRef {
+    let target = range(model, address);
+    let font = obj(invoke(model, &target, "Font", vec![]).unwrap());
+    model.released(&target);
+    font
+}
+
+fn put_font(model: &WorkbookAutomation, font: &ObjectRef, member: &str, value: AutoValue) -> Reply {
+    invoke_kind(model, font, member, InvokeKind::Put, vec![value])
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_bold_applies_to_the_held_range() {
+    let (host, model, _) = blank_report();
+    let first = font(&model, "D1");
+    assert!(matches!(
+        invoke(&model, &first, "Bold", vec![]).unwrap(),
+        AutoValue::Bool(false)
+    ));
+    put_font(&model, &first, "Bold", AutoValue::Bool(true)).unwrap();
+    let mixed = font(&model, "D1:D2");
+    assert!(matches!(
+        invoke(&model, &mixed, "Bold", vec![]).unwrap(),
+        AutoValue::Null
+    ));
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &font(&reopened, "D1"), "Bold", vec![]).unwrap(),
+        AutoValue::Bool(true)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_italic_preserves_bold() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "A1:B3");
+    put_font(&model, &cells, "Bold", AutoValue::Bool(true)).unwrap();
+    put_font(&model, &cells, "Italic", AutoValue::Bool(true)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cells = font(&reopened, "A1:B3");
+    for member in ["Bold", "Italic"] {
+        assert!(matches!(
+            invoke(&reopened, &cells, member, vec![]).unwrap(),
+            AutoValue::Bool(true)
+        ));
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_underline_uses_the_excel_enum() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "C3");
+    assert!(matches!(
+        invoke(&model, &cell, "Underline", vec![]).unwrap(),
+        AutoValue::I4(-4142)
+    ));
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "Underline", AutoValue::I4(17))).0,
+        1004
+    );
+    put_font(&model, &cell, "Underline", AutoValue::I4(-4119)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cell = font(&reopened, "C3");
+    assert!(matches!(
+        invoke(&reopened, &cell, "Underline", vec![]).unwrap(),
+        AutoValue::I4(-4119)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_size_uses_points() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "B2:B3");
+    assert_eq!(
+        excel_error(put_font(&model, &cells, "Size", AutoValue::R8(0.0))).0,
+        1004
+    );
+    put_font(&model, &cells, "Size", AutoValue::R8(14.5)).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(matches!(
+        invoke(&reopened, &font(&reopened, "B2:B3"), "Size", vec![]).unwrap(),
+        AutoValue::R8(14.5)
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_name_survives_reopen() {
+    let (host, model, _) = blank_report();
+    let cells = font(&model, "B2:B3");
+    assert_eq!(
+        excel_error(invoke(&model, &cells, "Name", vec![AutoValue::I4(0)])).0,
+        1004
+    );
+    put_font(&model, &cells, "Name", AutoValue::text("Courier New")).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert_eq!(
+        text(&reopened, &font(&reopened, "B2:B3"), "Name"),
+        "Courier New"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_color_uses_excel_rgb_order() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "B2");
+    let rgb = 0x0033_2211;
+    put_font(&model, &cell, "Color", AutoValue::I4(rgb)).unwrap();
+    let reopened = reopen_formatting(&host);
+    assert!(
+        matches!(invoke(&reopened, &font(&reopened, "B2"), "Color", vec![]).unwrap(), AutoValue::I4(n) if n == rgb)
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_2_font_color_index_preserves_palette_identity() {
+    let (host, model, _) = blank_report();
+    let cell = font(&model, "B2");
+    assert!(matches!(
+        invoke(&model, &cell, "ColorIndex", vec![]).unwrap(),
+        AutoValue::I4(-4105)
+    ));
+    assert_eq!(
+        excel_error(put_font(&model, &cell, "ColorIndex", AutoValue::I4(57))).0,
+        1004
+    );
+    put_font(&model, &cell, "ColorIndex", AutoValue::I4(3)).unwrap();
+    let reopened = reopen_formatting(&host);
+    let cell = font(&reopened, "B2");
+    assert!(matches!(
+        invoke(&reopened, &cell, "ColorIndex", vec![]).unwrap(),
+        AutoValue::I4(3)
+    ));
+    assert!(matches!(
+        invoke(&reopened, &cell, "Color", vec![]).unwrap(),
+        AutoValue::I4(255)
+    ));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_2_number_format_get_reports_uniform_codes_and_mixed_null() {
