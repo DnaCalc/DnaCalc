@@ -717,6 +717,38 @@ fn dc_971p_46__axis_settings_history_and_saved_reopening() {
         "Automatic restores absent bounds and units after a saved reopen"
     );
 }
+/// dc-oxh8w.12: an axis title and tick-label format are one command, undoable, and survive a saved reopen.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_12__axis_title_and_number_format_save_and_reopen() {
+    let mut book = session();
+    let sheet = book.host().sheets()[0].id();
+    let before = book.host().charts(sheet).0;
+    let id = before[0].axes.iter().find(|a| a.kind == "valAx").unwrap().id;
+    let labels = |book: &HostSession, title: Option<&str>, format: Option<&str>| calc_host::WorkbookCommand::ChartAxisLabels {
+        sheet,
+        revision: book.host().revision().get(),
+        part: book.host().charts(sheet).0[0].part.clone(),
+        axis: id,
+        set_title: true,
+        title: title.map(str::to_owned),
+        set_number_format: true,
+        number_format: format.map(str::to_owned),
+    };
+    let command = labels(&book, Some("Units & more"), Some("0.00%"));
+    let outcome = book.dispatch(SkinIntent::Command(command));
+    assert!(outcome.accepted(), "{outcome:?}");
+    let axis = book.host().charts(sheet).0[0].axes.iter().find(|a| a.id == id).unwrap().clone();
+    assert_eq!(axis.title.as_deref(), Some("Units & more"));
+    assert_eq!(axis.number_format.as_deref(), Some("0.00%"));
+    let mut next = reopened(&mut book);
+    let again = next.host().charts(sheet).0[0].axes.iter().find(|a| a.id == id).unwrap().clone();
+    assert_eq!(again.title.as_deref(), Some("Units & more"));
+    assert_eq!(again.number_format.as_deref(), Some("0.00%"));
+    let command = labels(&next, None, None);
+    assert!(next.dispatch(SkinIntent::Command(command)).accepted());
+    assert_eq!(reopened(&mut next).host().charts(sheet).0[0].axes, before[0].axes);
+}
 /// Scatter X and Y axes remain independent, and both settings compose with later source shifts.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

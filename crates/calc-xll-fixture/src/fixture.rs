@@ -10,6 +10,7 @@ use std::{
 };
 
 mod boundary;
+mod command_probe;
 mod uncalced;
 mod volatility;
 #[link(name = "kernel32")]
@@ -298,6 +299,11 @@ pub unsafe extern "system" fn xlAutoOpen() -> i32 {
         }
     }
     let directory = std::path::Path::new(&module_name).parent();
+    if let Some(directory) = directory.filter(|path| path.join("command-probe.enable").is_file()) {
+        if !unsafe { command_probe::register_probe(&module, directory.to_path_buf()) } {
+            return 0;
+        }
+    }
     ASYNC_RESULT_SENTINEL.store(
         directory.is_some_and(|path| path.join("async-result-sentinel.enable").is_file()),
         Ordering::Release,

@@ -1513,6 +1513,28 @@ fn validate_axis_view(
     part: &str,
     axis: &calc_doc_model::ChartAxis,
 ) -> Result<(), String> {
+    axis_view_scale(host, sheet, part, axis).map(|_| ())
+}
+
+/// The scale the renderer draws for `axis` of the chart `part` on `sheet` (the automatic one where
+/// the axis leaves a setting automatic): what Excel's `Axis.MinimumScale` reads (dc-oxh8w.13).
+pub fn axis_scale(host: &HostState, sheet: SheetId, part: &str, axis_id: u32) -> Result<ChartScale, String> {
+    let view = host
+        .charts(sheet)
+        .0
+        .into_iter()
+        .find(|v| v.part == part)
+        .ok_or("The chart cannot be read")?;
+    let axis = view.axes.iter().find(|a| a.id == axis_id).ok_or("The axis is unavailable")?.clone();
+    axis_view_scale(host, sheet, part, &axis)
+}
+
+fn axis_view_scale(
+    host: &HostState,
+    sheet: SheetId,
+    part: &str,
+    axis: &calc_doc_model::ChartAxis,
+) -> Result<ChartScale, String> {
     let mut view = host
         .charts(sheet)
         .0
@@ -1539,11 +1561,47 @@ fn validate_axis_view(
         plot.kind,
         ChartKind::Column | ChartKind::Bar | ChartKind::Line | ChartKind::Area
     ) {
-        return category_scale(&view, plot).map(|_| ());
+        return category_scale(&view, plot);
     } else {
         return Err("This plot has no editable value axis (dc-971p.50)".into());
     };
-    chart_scale(low, high, Some(axis)).map(|_| ())
+    chart_scale(low, high, Some(axis))
+}
+/// Axis title and tick-label format edits (dc-oxh8w.12): the retained writer saves both.
+pub(crate) fn prepare_axis_labels(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    id: u32,
+    title: Option<Option<String>>,
+    number_format: Option<Option<String>>,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts
+        .iter_mut()
+        .find(|c| c.part == part)
+        .ok_or("The chart is unavailable")?;
+    check_axes_for_edit(host, sheet, part)?;
+    let axis = chart
+        .axes
+        .iter_mut()
+        .find(|a| a.id == id)
+        .ok_or("The axis identity changed; reopen its controls (dc-971p.46)")?;
+    if let Some(title) = title {
+        axis.title = title;
+    }
+    if let Some(format) = number_format {
+        axis.number_format = format;
+    }
+    host.loaded()
+        .check_chart_properties(sheet, chart)
+        .map_err(|e| e.to_string())?;
+    if charts == host.model().definitions().charts(sheet) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 pub(crate) fn prepare_log_axis(
     host: &HostState,

@@ -34,17 +34,14 @@ impl WorkbookAutomation {
     }
 
     /// Copy or Cut with a Destination: the copy and paste of the grid (values, formulas relocated, formats;
-    /// a cut also moves references). Without a Destination Excel fills the clipboard, which the host has none of.
+    /// a cut also moves references). Without a Destination the source goes to the application's clipboard (clipboard.rs).
     fn copy_range(&self, target: &ObjectRef, call: &Call<'_>, cut: bool) -> Reply {
         if call.args.len() > 1 {
             return Err(geometry::bad_count());
         }
         let AutoValue::Object(destination) = call.arg(0) else {
             return if call.arg(0).is_missing() {
-                Err(AutoError::not_modelled(
-                    format!("Range.{} to the clipboard", if cut { "Cut" } else { "Copy" }),
-                    OWNER,
-                ))
+                self.copy_to_clipboard(target, cut)
             } else {
                 Err(geometry::type_mismatch())
             };

@@ -155,3 +155,22 @@ a deleted sheet. Also not run: a VBA-project observer, which needs VBProject acc
 setting. E11's enumeration-under-mutation part was not run. A first attempt (scratch
 `codex-runs/om-probes/session-attempt1`, not committed) had E1 stop at `Application.Calculation`
 with no workbook open. It also had no locale-currency cells. Both are fixed in this version.
+
+## E11 follow-up in ww17: String assignments
+
+Excel 16.0.20625.20108, 64-bit, ran 136 cases on a private desktop. The
+probe invoked Range.Value and Range.Value2 with a BSTR in cells formatted
+as General, text, two decimal places, and a date. It read back both Value
+members, Formula2, NumberFormat and the displayed text. The JSON Lines
+trace preserves the input and returned UTF-16 code units and numeric bits.
+
+Under General, assigning `00123` produced the number 123, and assigning
+`'00123` produced the five-character string. `2024-03-07` produced serial
+45358 in Value2 and changed NumberFormat to `m/d/yyyy`. Entering `=2+3`
+created a formula with value 5. The empty BSTR cleared the cell. Excel
+accepted `P1` and the lone UTF-16 code unit D800 as strings.
+
+The Win64 replay at DNA Calc `770faab87` compared the put outcome, both
+Value reads, and the format. It matched 16 of 136 cases. The 120 differences
+are in the ww17 WitnessSet `bank-rows/range-e11-text-ww17.json`. This
+measurement leaves the Range assignment behavior with `dc-1nbp.6`.

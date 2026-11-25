@@ -38,6 +38,7 @@ Axes
 Axis
 ChartTitle
 AxisTitle
+TickLabels
 Legend
 Shapes
 Shape

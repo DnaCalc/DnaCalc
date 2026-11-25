@@ -82,12 +82,12 @@ the Windows host's own dispatch; this section lists what the portable translatio
 | 4 | `SAVE` | `Workbook.Save` | refused by the member |
 | 17 | `RUN` (text) | `Application.Run` | yes |
 | 31 | `CALCULATE.NOW` | `Application.Calculate` | yes |
-| 42 | `FORMAT.NUMBER` | `Range.NumberFormat` (selection) | refused by the member |
+| 42 | `FORMAT.NUMBER` | `Range.NumberFormat` (selection) | yes |
 | 47 | `COLUMN.WIDTH` | `Range.ColumnWidth` | refused by the member |
-| 49, 50 | `CUT`, `COPY` | `Range.Cut`, `Range.Copy` | refused by the member |
+| 49, 50 | `CUT`, `COPY` | `Range.Cut`, `Range.Copy` | destination form |
 | 51 | `PASTE` | `Worksheet.Paste` | refused by the member |
 | 52 | `CLEAR` (1 all, 2 formats, 3 formulas, 4 notes) | `Range.Clear`, `ClearFormats`, `ClearContents`, `ClearComments` (selection) | type 3 only |
-| 54, 55 | `EDIT.DELETE`, `INSERT` (1 to 4) | `Range.Delete`, `Range.Insert`, or the entire row or column | refused by the member |
+| 54, 55 | `EDIT.DELETE`, `INSERT` (1 to 4) | `Range.Delete`, `Range.Insert`, or the entire row or column | supported cell shifts and whole axes |
 | 61, 110 | `DEFINE.NAME`, `DELETE.NAME` | `Names.Add` (RefersToR1C1), `Names.Item` then `Name.Delete` | refused by the member |
 | 96, 97 | `FORMULA`, `FORMULA.FILL` | `Range.FormulaR1C1` (new) | yes |
 | 109 | `SELECT` | `Range.Select` | refused by the member |
@@ -96,10 +96,17 @@ the Windows host's own dispatch; this section lists what the portable translatio
 | 141 | `ECHO` (with an argument) | `Application.ScreenUpdating` (new) | yes |
 | 167 | `CALCULATE.DOCUMENT` | `Worksheet.Calculate` (active sheet) | yes |
 
-Forms the documentation does not settle are refused with owner dc-oxh8w.9 until a Windows Excel
-capture measures them: `ECHO()`, `CLEAR()`, `INSERT()` and `EDIT.DELETE()` without their argument,
-`FORMULA` over more than one cell, `SELECT` without a selection, `DEFINE.NAME` without `refers_to`,
-`RUN` of a macro-sheet reference, and sheet-qualified or relative text references.
+The operand limits include all optional positions in the documented XLM signatures. Additional
+option forms of `RUN`, `COLUMN.WIDTH`, `INSERT`, `DEFINE.NAME`, `SELECT`, and `ROW.HEIGHT` raise typed
+refusals owned by dc-oxh8w.9 before any workbook call. CLEAR and shift codes must match their
+enumerated values exactly.
+
+The Windows C2 capture records 57 Excel12 outcomes, including omitted operands, multi-cell
+FORMULA, and RUN result types. Replay and the remaining portable translations belong to dc-oxh8w.9.
+That bead also owns relative or qualified text references and coercion beyond text and Boolean
+False for `Application.StatusBar`.
+[C2 capture](../../crates/calc-xll-reference/traces/2026-11-25-ww17-c2/README.md) ·
+[Excel StatusBar](https://learn.microsoft.com/en-us/office/vba/api/excel.application.statusbar)
 
 ## Application
 
