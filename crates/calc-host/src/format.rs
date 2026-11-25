@@ -223,6 +223,8 @@ pub struct FormatPatch {
     pub interior: Option<InteriorPatch>,
     /// Replacement settings for the four outer border edges.
     pub borders: Option<BorderPatch>,
+    /// Changes to single border edges, as `Range.Borders` makes them.
+    pub edges: Option<crate::EdgesPatch>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// Changes to a cell fill. A colour set on a cell without a pattern makes the fill solid, as in Excel.
@@ -245,7 +247,7 @@ pub enum FillColor {
     Automatic,
 }
 impl FillColor {
-    fn style(&self) -> Result<Option<StyleColor>, String> {
+    pub(crate) fn style(&self) -> Result<Option<StyleColor>, String> {
         Ok(match self {
             Self::Rgb(v) => color(v)?,
             Self::Indexed(i) if (8..=63).contains(i) => Some(StyleColor {
@@ -362,6 +364,15 @@ impl FormatPatch {
                 return Err("Choose a fill pattern".into());
             }
             for c in [&i.color, &i.pattern_color].into_iter().flatten() {
+                c.style()?;
+            }
+        }
+        if let Some(e) = &self.edges {
+            for c in [&e.left, &e.right, &e.top, &e.bottom, &e.diagonal_up, &e.diagonal_down]
+                .into_iter()
+                .flatten()
+                .filter_map(|c| c.color.as_ref())
+            {
                 c.style()?;
             }
         }
@@ -625,6 +636,19 @@ pub fn patched_style(
         border.right = edge(v.right)?;
         border.top = edge(v.top)?;
         border.bottom = edge(v.bottom)?;
+        if border != before {
+            let id = table.borders.len() as u32;
+            table.borders.push(border);
+            table.sources.borders.insert(id, source);
+            xf.border_id = Some(id);
+            xf.apply_border = true;
+        }
+    }
+    if let Some(e) = &patch.edges {
+        let source = xf.border_id.or(parent.border_id).unwrap_or(0);
+        let mut border = table.borders.get(source as usize).ok_or("The source border is unavailable")?.clone();
+        let before = border.clone();
+        crate::format_edges::apply(&mut border, e)?;
         if border != before {
             let id = table.borders.len() as u32;
             table.borders.push(border);

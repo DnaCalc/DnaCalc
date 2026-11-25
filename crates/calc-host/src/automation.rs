@@ -944,7 +944,10 @@ impl WorkbookAutomation {
     ) -> Reply {
         self.with_target(target, |access, meta| {
             let (held, axis) = match &target.key {
-                ObjectKey::Range(held) | ObjectKey::RangeFormat(held) | ObjectKey::Areas(held) => {
+                ObjectKey::Range(held)
+                | ObjectKey::RangeFormat(held)
+                | ObjectKey::RangeEdge { reference: held, .. }
+                | ObjectKey::Areas(held) => {
                     (held, RangeAxis::Cells)
                 }
                 ObjectKey::RangeView { reference, axis } => (reference, *axis),
@@ -1186,6 +1189,7 @@ impl ObjectModel for WorkbookAutomation {
     fn released(&self, target: &ObjectRef) {
         if let ObjectKey::Range(reference)
         | ObjectKey::RangeFormat(reference)
+        | ObjectKey::RangeEdge { reference, .. }
         | ObjectKey::RangeView { reference, .. }
         | ObjectKey::Areas(reference) = &target.key
         {

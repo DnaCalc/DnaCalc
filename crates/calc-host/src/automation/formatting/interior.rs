@@ -140,17 +140,17 @@ fn cell_fill(host: &HostState, style: u32) -> Result<Option<&Fill>, AutoError> {
     }
 }
 
-fn color_bgr(host: &HostState, color: Option<&StyleColor>, automatic: i32) -> Result<i32, AutoError> {
+pub(super) fn color_bgr(host: &HostState, color: Option<&StyleColor>, automatic: i32) -> Result<i32, AutoError> {
     let Some(color) = color.filter(|color| !color.auto) else {
         return Ok(automatic);
     };
     host.resolved_style_color(color)
         .and_then(|rgb| u32::from_str_radix(rgb.strip_prefix('#')?, 16).ok())
         .map(|rgb| reverse_rgb(rgb) as i32)
-        .ok_or_else(|| AutoError::not_modelled("Interior.Color from an unresolved style color", OWNER))
+        .ok_or_else(|| AutoError::not_modelled("Color from an unresolved style color", OWNER))
 }
 
-fn color_index(host: &HostState, color: Option<&StyleColor>) -> Result<i32, AutoError> {
+pub(super) fn color_index(host: &HostState, color: Option<&StyleColor>) -> Result<i32, AutoError> {
     let Some(color) = color.filter(|color| !color.auto) else {
         return Ok(AUTOMATIC_COLOR);
     };
@@ -166,5 +166,5 @@ fn color_index(host: &HostState, color: Option<&StyleColor>) -> Result<i32, Auto
             }
         }
     }
-    Err(AutoError::not_modelled("Interior.ColorIndex for a color outside the workbook palette", OWNER))
+    Err(AutoError::not_modelled("ColorIndex for a color outside the workbook palette", OWNER))
 }
