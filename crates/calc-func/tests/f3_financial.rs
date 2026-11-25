@@ -751,6 +751,33 @@ fn duration_rejects_logical_arguments_and_checks_frequency_before_basis() {
     }
 }
 
+/// Excel 16.0.20625 reports out-of-range PRICE dates as #NUM! with or without a basis.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn price_checks_date_domain_and_rejects_logical_frequency() {
+    for slot in 0..2 {
+        for serial in [-1.0, -0.5, 0.0, 0.5, 2_958_466.0] {
+            let mut args = vec![n(45_000.0), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0)];
+            args[slot] = n(serial);
+            error(dated("PRICE", args.clone()), Num);
+            args.push(n(0.0));
+            error(dated("PRICE", args), Num);
+        }
+    }
+    error(
+        dated("PRICE", vec![n(-1.0), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0), t("x")]),
+        Value,
+    );
+    error(
+        dated("PRICE", vec![t("x"), n(46_000.0), n(0.04), n(0.05), n(100.0), n(2.0), n(-1.0)]),
+        Num,
+    );
+    error(
+        dated("PRICE", vec![n(46_000.0), n(45_000.0), n(-0.1), n(0.05), n(100.0), b(false)]),
+        Value,
+    );
+}
+
 /// Original corpus date-zero and adjacent-date failures, confirmed on Excel20527.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
