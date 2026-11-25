@@ -238,7 +238,7 @@ VBA_MEMBERS = set(VBA_RULES["members"].split())
 VBA_DECLARES = set(VBA_RULES["declares"].split())
 VBA_REFUSED = set(VBA_RULES["refused"].split())
 VBA_CLASSES = {f'"{name.lower()}"' for name in VBA_RULES["classes"]}
-VBA_ADDRESS = re.compile(r"[A-Za-z]{1,3}[1-9][0-9]{0,6}")
+VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
 
 def _probe_tokens(source):
@@ -271,6 +271,9 @@ def _check_probe_source(source, modules):
                     or folded[i+2] not in VBA_CLASSES or folded[i+3] != ")"
                     or i > 0 and folded[i-1] == "."):
                 raise ValueError("VBA construct refused: CreateObject requires one listed literal class")
+        if (word in ("sub", "function") and i + 2 < len(folded)
+                and VBA_IDENTIFIER.fullmatch(folded[i+1]) and folded[i+2] == "("):
+            declared.update(_probe_parameters(folded, i + 3))
     for i, token in enumerate(tokens):
         word = folded[i]
         if token.startswith('"') and len(token) > 1 or token[0] in "0123456789" or word.startswith("&h"):
@@ -284,9 +287,28 @@ def _check_probe_source(source, modules):
     return procedures
 
 
+def _probe_parameters(tokens, start):
+    """Names in a procedure header, including parameters with implicit ByRef."""
+    depth, expect_name = 1, True
+    for token in tokens[start:]:
+        if token == "\n" or token == ")" and depth == 1:
+            return
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth -= 1
+        elif depth == 1 and token == ",":
+            expect_name = True
+        elif depth == 1 and expect_name and token not in ("byval", "byref"):
+            if VBA_IDENTIFIER.fullmatch(token):
+                yield token
+            expect_name = False
+
+
 def _vba_address(address):
     if not isinstance(address, str) or not VBA_ADDRESS.fullmatch(address):
         return False
+    address = address.replace("$", "")
     column = 0
     i = 0
     while address[i].isalpha():

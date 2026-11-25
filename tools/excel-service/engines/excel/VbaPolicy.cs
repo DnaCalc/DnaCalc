@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Touchstone.Excel;
@@ -82,6 +84,33 @@ static class VbaPolicy
         return probe;
     }
 
+    // Includes both the bytes Excel opens and what the worker will do with them.
+    public static string CaseDigest(Dictionary<string, object> probe) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(Json.Write(Ordered(probe))))).ToLowerInvariant();
+
+    static object Ordered(object value) => value switch
+    {
+        Dictionary<string, object> fields => fields.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .ToDictionary(kv => kv.Key, kv => Ordered(kv.Value)),
+        List<object> values => values.Select(Ordered).ToList(),
+        _ => value,
+    };
+
+    public static byte[] CheckWorkbook(Dictionary<string, object> probe, string approvals)
+    {
+        if (probe.GetValueOrDefault("workbook") is not string encoded || encoded.Length < 1
+            || encoded.Length > Limit("max_workbook_chars"))
+            throw new RefusedVbaException("invalid or oversized VBA workbook");
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(encoded); }
+        catch (FormatException) { throw new RefusedVbaException("invalid VBA workbook encoding"); }
+        if (!bytes.AsSpan().StartsWith("PK\u0003\u0004"u8))
+            throw new RefusedVbaException("invalid VBA workbook encoding");
+        if (approvals != null && !File.Exists(Path.Combine(approvals, CaseDigest(probe) + ".approved")))
+            throw new RefusedVbaException("unapproved VBA case: the source, workbook and inputs require a local approval");
+        return bytes;
+    }
+
     static HashSet<string> CheckSource(string source, HashSet<string> moduleNames)
     {
         if (source.Length < 1 || source.Length > Limit("max_module_chars")
@@ -109,9 +138,13 @@ static class VbaPolicy
             {
                 var name = folded[i + 1];
                 declared.Add(name);
-                if (word is "sub" or "function" && (i == 0 || folded[i - 1] is not ("private" or "end"))
-                    && Identifier.IsMatch(name))
-                    procedures.Add(name);
+                if (word is "sub" or "function" && Identifier.IsMatch(name))
+                {
+                    if (i == 0 || folded[i - 1] is not ("private" or "end"))
+                        procedures.Add(name);
+                    if (i + 2 < folded.Length && folded[i + 2] == "(")
+                        declared.UnionWith(Parameters(folded, i + 3));
+                }
             }
         }
         for (int i = 0; i < tokens.Length; i++)
@@ -127,5 +160,24 @@ static class VbaPolicy
                 throw new RefusedVbaException("VBA construct refused: " + token);
         }
         return procedures;
+    }
+
+    static IEnumerable<string> Parameters(string[] tokens, int start)
+    {
+        int depth = 1;
+        bool expectName = true;
+        for (int i = start; i < tokens.Length; i++)
+        {
+            string token = tokens[i];
+            if (token == "\n" || token == ")" && depth == 1) yield break;
+            if (token == "(") depth++;
+            else if (token == ")") depth--;
+            else if (depth == 1 && token == ",") expectName = true;
+            else if (depth == 1 && expectName && token is not ("byval" or "byref"))
+            {
+                if (Identifier.IsMatch(token)) yield return token;
+                expectName = false;
+            }
+        }
     }
 }

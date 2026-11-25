@@ -75,9 +75,10 @@ class WorkerTimeout(WorkerError):
 class WorkerProcess:
     """One C# worker (one owned Excel). Synchronous; callers serialise access (one batch in flight)."""
 
-    def __init__(self, root, name, mt=0, exe=WORKER_EXE, startup_seconds=60, log_dir=None, addins=()):
+    def __init__(self, root, name, mt=0, exe=WORKER_EXE, startup_seconds=60, log_dir=None, addins=(), vba_isolated=False):
         self.root, self.name, self.mt = Path(root), name, mt
         self.addins = tuple(addins)
+        self.vba_isolated = vba_isolated
         self.exe = exe if isinstance(exe, (list, tuple)) else Path(exe)
         self.startup_seconds = startup_seconds
         self.process = None
@@ -115,6 +116,7 @@ class WorkerProcess:
         self.process = subprocess.Popen(
             [*(self.exe if isinstance(self.exe, (list, tuple)) else [str(self.exe)]), "--root", str(self.root), "--name", self.name, "--mt", str(self.mt),
              "--startup-seconds", str(self.startup_seconds),
+             *(["--vba-isolated", "true"] if self.vba_isolated else []),
              *(x for addin in self.addins for x in ("--open-addin", addin))],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err, bufsize=0,
             creationflags=CREATE_NO_WINDOW)

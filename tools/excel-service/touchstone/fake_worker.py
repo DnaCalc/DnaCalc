@@ -71,6 +71,25 @@ while True:
         drifted = False
         hello(True)
         continue
+    if any(g["f"] == "_VBA" for g in groups):
+        if "--vba-isolated" not in sys.argv or len(groups) != 1 or groups[0]["n"] != 1 or payload.get("serial"):
+            send("R", {"id": payload["id"], "error": "refused", "detail": "VBA fake worker received an unisolated case"})
+            continue
+        case = groups[0]["v"][0]
+        args = case["calls"][0]["args"]
+        arg = args[0].get("bits", "3ff0000000000000") if args else "3ff0000000000000"
+        result = {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": payload["id"]}
+        if arg == "402a000000000000":
+            send("R", dict(result, error="excel-crashed", detail="VBA deadline", deadline=True))
+            time.sleep(0.1)
+            hello(True)
+        else:
+            value = {"ty": "n", "v": arg}
+            call = {"err": {"number": 5, "description": "Fake VBA error"}} if arg == "4000000000000000" else {"return": value}
+            answer = {"calls": [call], "sheet_state": [dict(value, at=at) for at in case["readback"]],
+                      "event_log": [{"at": at, "ty": "t", "v": "Change"} for at in case["event_log"]]}
+            send("R", dict(result, groups=[{"ty": "v", "v": [answer]}]))
+        continue
     if any(g["f"] == "EXCELERROR" for g in groups):
         send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": payload["id"],
                    "error": "excel-error", "detail": "fake Excel error"})

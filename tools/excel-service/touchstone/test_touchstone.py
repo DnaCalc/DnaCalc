@@ -3,6 +3,7 @@
 Hermetic: no Excel.  The broker tests drive a stand-in worker (fake_worker.py) over the real frame protocol.
 """
 import asyncio
+from contextlib import closing
 import errno
 import io
 import json
@@ -36,6 +37,21 @@ def number(bits):
 
 ONE = "3ff0000000000000"
 TWO = "4000000000000000"
+IMPLICIT_VBA_PARAMETERS = "Function Probe(x, y)\n    Probe = x + y\nEnd Function\n"
+
+
+def vba_group(source=None, **changes):
+    if source is None:
+        source = ('Option Explicit\r\nPublic Function Probe(ByVal x As Long) As Long\r\n'
+                  '    Dim result As Long\r\n'
+                  '    result = x + 1 \' Shell is only a comment\r\n'
+                  '    ThisWorkbook.Worksheets("Data").Range("A1").Value2 = "He said ""Open"""\r\n'
+                  '    Probe = result\r\nEnd Function\r\n')
+    case = {"sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
+            "modules": [{"name": "Probes", "kind": "standard", "source": source}],
+            "workbook": "UEsDBA==", "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
+            "readback": ["Data!A1"], "event_log": ["Data!B1"]}
+    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [dict(case, **changes)]}
 
 
 class ProtocolTests(unittest.TestCase):
@@ -369,22 +385,10 @@ class AdmissionTests(unittest.TestCase):
         cls.policy = policy
         cls.admission = policy.admission(ROOT)
 
-    def vba_group(self, source=None, **changes):
-        if source is None:
-            source = ('Option Explicit\r\nPublic Function Probe(ByVal x As Long) As Long\r\n'
-                      '    Dim result As Long\r\n'
-                      '    result = x + 1 \' Shell is only a comment\r\n'
-                      '    ThisWorkbook.Worksheets("Data").Range("A1").Value2 = "He said ""Open"""\r\n'
-                      '    Probe = result\r\nEnd Function\r\n')
-        case = {"sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
-                "modules": [{"name": "Probes", "kind": "standard", "source": source}],
-                "workbook": "UEsDBA==", "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
-                "readback": ["Data!A1"], "event_log": ["Data!B1"]}
-        return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [dict(case, **changes)]}
-
     def test_vba_allows_a_workbook_probe_and_a_listed_literal_object(self):
-        self.admission.check(self.vba_group())
-        self.admission.check(self.vba_group('Public Function Probe(ByVal x As Long) As Long\n'
+        self.admission.check(vba_group())
+        self.admission.check(vba_group(IMPLICIT_VBA_PARAMETERS))
+        self.admission.check(vba_group('Public Function Probe(ByVal x As Long) As Long\n'
                                            '    Dim items As Object\n'
                                            '    Set items = CreateObject("Scripting.Dictionary")\n'
                                            '    Probe = items.Count + x\nEnd Function\n'))
@@ -414,17 +418,17 @@ class AdmissionTests(unittest.TestCase):
     def test_vba_refuses_named_constructs(self):
         for source, name in self.refused_vba_sources():
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, "(?i)" + name.replace(".", r"\.")):
-                self.admission.check(self.vba_group(source))
+                self.admission.check(vba_group(source))
 
     def test_vba_checks_the_case_shape_limits_and_call_destination(self):
         source = "Public Function Probe(ByVal x As Long) As Long\nProbe = x\nEnd Function\n"
         for detail, group in [
-            ("one VBA case", dict(self.vba_group(), n=2)),
-            ("module source", self.vba_group(source + "'" + "x" * 20000)),
-            ("procedure", self.vba_group(calls=[{"procedure": "Other.Probe", "args": []}])),
-            ("workbook", self.vba_group(workbook="!")),
-            ("readback", self.vba_group(readback=["Other!A1"])),
-            ("event_log", self.vba_group(event_log=["Data!A:A"])),
+            ("one VBA case", dict(vba_group(), n=2)),
+            ("module source", vba_group(source + "'" + "x" * 20000)),
+            ("procedure", vba_group(calls=[{"procedure": "Other.Probe", "args": []}])),
+            ("workbook", vba_group(workbook="!")),
+            ("readback", vba_group(readback=["Other!A1"])),
+            ("event_log", vba_group(event_log=["Data!A:A"])),
         ]:
             with self.subTest(detail=detail), self.assertRaisesRegex(ValueError, detail):
                 self.admission.check(group)
@@ -434,15 +438,37 @@ class AdmissionTests(unittest.TestCase):
         worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
         for source, refused in [
             (None, None),
+            (IMPLICIT_VBA_PARAMETERS, None),
             *self.refused_vba_sources(),
             ('Public Sub Probe()\n' + "'" + "x" * 20000, "module source"),
         ]:
             with self.subTest(refused=refused):
-                result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(self.vba_group(source)),
+                result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(vba_group(source)),
                                         text=True, capture_output=True, timeout=10)
                 self.assertEqual(result.returncode, 0 if refused is None else 1, result.stderr)
                 if refused is not None:
                     self.assertIn(refused.lower(), result.stderr.lower())
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_accepts_only_the_exact_approved_case(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+        with tempfile.TemporaryDirectory() as directory:
+            def check(group, verify=True):
+                command = [worker, "--check-vba-policy"] + ([directory] if verify else [])
+                return subprocess.run(command, input=json.dumps(group), text=True, capture_output=True, timeout=10)
+
+            group = vba_group()
+            digest = check(group, verify=False)
+            self.assertEqual(digest.returncode, 0, digest.stderr)
+            self.assertRegex(digest.stdout.strip(), r"^[0-9a-f]{64}$")
+            self.assertIn("unapproved", check(group).stderr)
+            (Path(directory) / (digest.stdout.strip() + ".approved")).touch()
+            self.assertEqual(check(group).returncode, 0)
+            reordered = json.loads(json.dumps(group, sort_keys=True))
+            self.assertEqual(check(reordered).returncode, 0)
+            for changed in (vba_group(workbook="UEsDBAE="), vba_group(readback=["Data!A2"]),
+                            vba_group(calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])):
+                self.assertIn("unapproved", check(changed).stderr)
 
     def test_sheet_cases_travel_as_one_token_and_are_bounded(self):
         case = protocol.sheet_case([{"name": "Data", "cells": {"B2": number(ONE), "C3": {"type": "text", "value": "x"},
@@ -918,6 +944,68 @@ class BrokerTests(unittest.TestCase):
     def connect(self, state, name="t"):
         from touchstone import client
         return client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name=name)
+
+    def test_vba_round_trip_is_one_case_per_batch_on_the_designated_slot(self):
+        from touchstone import client
+
+        broker, state, stop = start_broker(workers=3, extra={"admission": "policy:admission"})
+        self.addCleanup(stop)
+        isolated = next(slot for slot in broker.slots if slot.isolation)
+        with closing(self.connect(state)) as conn, patch.object(isolated.proc, "run", wraps=isolated.proc.run) as run:
+            first = conn.submit_groups([vba_group()])
+            second = conn.submit_groups([vba_group(calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])])
+            for pending, bits, calls in ((first, ONE, [{"return": number(ONE)}]),
+                                         (second, TWO, [{"err": {"number": 5, "description": "Fake VBA error"}}])):
+                letters, values = pending.raw(10)
+                self.assertEqual(letters, ["v"])
+                answer = protocol.answer_to_typed(letters[0], values[0])
+                self.assertEqual(answer["calls"], calls)
+                self.assertEqual(answer["sheet_state"], [{"at": "Data!A1", "value": number(bits)}])
+                self.assertEqual(answer["event_log"], [{"at": "Data!B1", "value": {"type": "text", "value": "Change"}}])
+            self.assertEqual(run.call_count, 2)
+            for call in run.call_args_list:
+                message = call.args[0]
+                self.assertEqual([(g["f"], g["n"]) for g in message["groups"]], [("_VBA", 1)])
+                self.assertGreater(message["deadline_ms"], 0)
+            self.assertFalse(broker.recent)
+            self.assertFalse(broker.pending_checks)
+            for options in ({"order": "serial"}, {"priority": "sweep"}, {"echo": True}):
+                with self.subTest(options=options), self.assertRaisesRegex(client.ServiceError, "refused:.*VBA"):
+                    conn.submit_groups([vba_group()], **options).raw(10)
+            with self.assertRaisesRegex(client.ServiceError, "refused:.*VBA"):
+                conn.submit_groups([vba_group(), {"f": "ABS", "k": "n", "n": 1, "v": [ONE], "o": 1}]).raw(10)
+            self.assertEqual(run.call_count, 2)
+
+    def test_vba_refuses_a_missing_isolation_worker_or_admission_policy(self):
+        from touchstone import client
+
+        for workers, admission, failed, detail in ((1, "policy:admission", "", "isolation"),
+                                                    (3, None, "", "admission"),
+                                                    (3, "policy:admission", "w2", "isolation")):
+            with self.subTest(workers=workers, admission=admission, failed=failed):
+                with patch.dict(os.environ, {"TOUCHSTONE_TEST_FAIL_START": failed}):
+                    _, state, stop = start_broker(workers=workers, extra={"admission": admission})
+                try:
+                    with closing(self.connect(state)) as conn:
+                        with self.assertRaisesRegex(client.ServiceError, f"refused:.*{detail}"):
+                            conn.submit_groups([vba_group()]).raw(10)
+                        self.assertEqual(conn.submit_groups([{"f": "ABS", "k": "n", "n": 1, "v": [ONE]}]).raw(10),
+                                         (["n"], [ONE]))
+                finally:
+                    stop()
+
+    def test_vba_watchdog_failure_uses_the_deadline_budget_on_the_isolated_slot(self):
+        broker, state, stop = start_broker(workers=3, extra={"admission": "policy:admission"})
+        self.addCleanup(stop)
+        with closing(self.connect(state)) as conn:
+            group = vba_group(calls=[{"procedure": "Probes.Probe", "args": [number("402a000000000000")]}])
+            letters, answers = conn.submit_groups([group]).raw(10)
+            self.assertEqual(letters, ["x"])
+            self.assertEqual(answers[0]["reason"], "excel-deadline")
+            isolated = next(slot for slot in broker.slots if slot.isolation)
+            self.assertEqual(answers[0]["worker"], isolated.name)
+            self.assertEqual(broker.window_attempts(isolated), 0)
+            self.assertEqual(broker.crash_times, {})
 
     def test_weeknum_sweep_preserves_serial_positions_in_one_calculation_pass(self):
         broker, state, stop = start_broker(workers=3)
@@ -1732,6 +1820,8 @@ class SelfHealingTests(unittest.TestCase):
             stop()
 
     def test_quarantined_deadline_requests_enforce_budget_reply_excel_deadline_and_respect_origin(self):
+        from broker import Conn
+
         broker, state, stop = start_broker(workers=3, extra={"cooldown": 0.3, "restart_cap": 1, "deadline_budget": 2})
         try:
             from touchstone import client
@@ -1740,9 +1830,17 @@ class SelfHealingTests(unittest.TestCase):
             self.addCleanup(conn.close)
             self.addCleanup(other.close)
             rid = "aa" * 16
-            with self.assertRaises(client.ServiceError) as caught:
+            sent, send = [], Conn.send
+
+            def capture(conn, kind, body, high=False):
+                if body.get("id") == rid and kind in (protocol.ERROR, protocol.DONE):
+                    sent.append((kind, "seq" in body))
+                send(conn, kind, body, high)
+
+            with patch.object(Conn, "send", capture), self.assertRaises(client.ServiceError) as caught:
                 conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 12, rid=rid).raw(90)
             self.assertIn("excel-deadline", str(caught.exception))
+            self.assertEqual(sent, [(protocol.ERROR, False)])
             # Resubmission by the same origin must reply excel-deadline, not excel-crashed.
             with self.assertRaises(client.ServiceError) as resub:
                 conn.submit_rows("DEADLINEON", [[number(self.CRASH_MARK)]] * 12, rid=rid).raw(30)

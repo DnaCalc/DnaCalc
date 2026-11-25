@@ -66,6 +66,31 @@ a formula: its text (any text of 1 to 255 characters) is entered by FormulaLocal
 into a cell (a number, date, time, percentage or currency takes the number format Excel gives it), and its answer adds
 `"nf"`, the cell's NumberFormat after the entry (decoded as `number_format`). Send the cases of one layout together.
 
+A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
+`sheets` and `names` in the sheet-case layout shape, and the following fields.
+
+| Field | Value |
+| --- | --- |
+| `modules` | Ordered `{"name", "kind", "source"}` objects. A `standard` module contains callable procedures. A `document` module names `ThisWorkbook` or a sheet code name `Sheet1`, `Sheet2`, … in layout order. |
+| `workbook` | Base64 of the CalcDoc-built source-only .xlsm with the named sheets and bound document modules. |
+| `calls` | Ordered `{"procedure": "Module.Procedure", "args": [...]}` objects. Entries name public procedures in standard modules. Arguments are typed scalar numbers, text, booleans, blanks, or worksheet errors. |
+| `readback`, `event_log` | Ordered lists of `Sheet!A1` addresses. The probe's VBA writes event records to the requested cells. |
+
+The broker sends one case per batch to the designated isolation slot. Echo, serial mode, primers, add-ins, and sweep
+are unavailable on this route. The worker uses the shared source allowlist and requires a local approval for the exact
+case before opening the workbook. On the worker host, pipe a reviewed authored case group as JSON into
+`excel-worker --check-vba-policy` to obtain its digest, then place an empty `<digest>.approved` file under
+`<state>/excel/vba-approved`. This approval covers workbook bytes, source, layout, calls, and readback addresses.
+Reordering JSON object keys preserves the digest. A change to any case value requires a fresh approval.
+
+The worker opens the workbook read-only without updating links, applies the layout, calculates it, and enables events
+for the `Application.Run` calls. It reads the requested cells and closes the workbook without saving.
+Answer letter `v` carries `{"calls": [...], "sheet_state": [...], "event_log": [...]}`. Each readback is
+`{"at", "ty", "v"}`, and each call is `{"return": {"ty", "v"}}` or `{"err": {"number", "description"}}`.
+A probe using a VBA error handler can return `Array("Touchstone.Vba.Err", CLng(Err.Number), Err.Description)` to
+report those exact values. A COM invocation failure uses the service's worker error path. Workbook-local
+`Workbooks.Open` calls are refused by the current source allowlist, since the request carries one workbook.
+
 ## Answers
 An answer frame holds groups `{"ty": "nnte...", "o" | "i", "v": [...]}`: one type letter and value per call: `n` bits,
 `t` text, `b` boolean, `e` error name (`"#N/A"`, `"#SPILL!"`), `z` blank, `x` Excel crashed on this call run alone (`{"reason": "excel-crashed", "function", "k", "args", "detail", "worker"}`; never retried),

@@ -104,6 +104,8 @@ class OpenAdmission:
     """Structure only: known tokens, matching value counts.  DnaCalc supplies the real policy."""
 
     def check(self, group):
+        if protocol.is_vba_group(group):
+            raise ValueError("VBA requires the authored-probe admission policy")
         protocol.group_width(group)
         if len(group["v"]) != group["n"] * protocol.group_width(group):
             raise ValueError("value count does not match the group's shape")
@@ -371,11 +373,12 @@ class Broker:
         plain = [s for s in self.slots if not s.serial and not s.addins]
         if len(plain) > 1:
             plain[-1].isolation = True
+            plain[-1].proc.vba_isolated = True
         await asyncio.gather(*(self.start_slot(s, initial=True) for s in self.slots))
 
     def new_process(self, slot):
         proc = engine.WorkerProcess(slot.proc.root, slot.name, mt=slot.mt, log_dir=slot.proc.log_dir, exe=slot.proc.exe,
-                                    addins=slot.addins)
+                                    addins=slot.addins, vba_isolated=slot.isolation)
         proc.sweep_leftovers = slot.proc.sweep_leftovers
         return proc
 
@@ -569,6 +572,12 @@ class Broker:
             return
         groups = body["groups"]
         try:
+            if any(protocol.is_vba_group(g) for g in [*groups, *req.primer]):
+                if (seq != 0 or body.get("last") is not True or req.pieces or req.primer or req.addins
+                        or req.echo or req.serial or req.priority == "sweep" or len(groups) != 1):
+                    raise ValueError("VBA requires one case in one frame without echo, serial mode, add-ins, primers or sweep")
+                if not any(s.isolation and s.state in ("idle", "busy") for s in self.slots):
+                    raise ValueError("no VBA isolation worker is available")
             if req.priority == "sweep" and (req.addins or req.primer):
                 raise ValueError("sweep requests cannot use add-ins or primers")
             for group in [*groups, *(req.primer if seq == 0 else [])]:
@@ -656,7 +665,7 @@ class Broker:
             slot, batch = None, None
             isolation = self.isolation_slot()
             for candidate in idle:
-                batch = self.batcher.next_batch(allow_isolated=candidate is isolation)
+                batch = self.batcher.next_batch(allow_isolated=candidate is isolation, allow_vba=candidate.isolation)
                 if batch is not None:
                     slot = candidate
                     break
@@ -758,7 +767,7 @@ class Broker:
 
     def fail_all(self, detail):
         while self.batcher.has_work():
-            batch = self.batcher.next_batch()
+            batch = self.batcher.next_batch(allow_vba=True)
             if batch is None:
                 break
             self.fail_batch(batch, "worker-down", detail)
@@ -994,8 +1003,15 @@ class Broker:
             request = self.requests.get(request_key)
             if request is None:
                 continue
+            # A quarantined request has one terminal frame. An old DONE arriving after ERROR
+            # can otherwise complete a client's immediate resubmission under the same id.
+            request.done_sent = True
+            connections = {piece.conn for piece in request.pieces.values() if not piece.done}
             for piece in request.pieces.values():
-                self.fail_piece(piece, code, msg)
+                self.fail_piece(piece, code, msg, notify=False)
+            for conn in connections:
+                conn.send(protocol.ERROR, self.tag({"id": rid, "code": code, "detail": msg}, request.client),
+                          request.priority == "interactive")
             if self.requests.pop(request_key, None) is not None:
                 self.cache_bytes -= request.cache_bytes
         self.counters["quarantined_requests"] = self.counters.get("quarantined_requests", 0) + 1
@@ -1047,7 +1063,10 @@ class Broker:
         "excel-deadline" with its own list and budget; only an Excel fault counts as a crash."""
         reason = "excel-deadline" if deadline_kill else "excel-crashed"
         group = batch.groups[0]
-        value = {"reason": reason, "function": group["f"], "k": group["k"], "args": list(group["v"]),
+        args = list(group["v"])
+        # The request already carries the workbook. Keep it in the diagnostic, out of the bounded answer frame.
+        answer_args = [{"procedures": [call["procedure"] for call in args[0]["calls"]]}] if protocol.is_vba_group(group) else args
+        value = {"reason": reason, "function": group["f"], "k": group["k"], "args": answer_args,
                  "detail": str(detail or "")[:200], "worker": slot.name}
         for key in ("x", "spill"):
             if key in group:
@@ -1060,7 +1079,7 @@ class Broker:
             if self.crash_counts[f] >= 2:
                 self.batcher.isolate.add(f)
             self.save_isolated()
-        record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": value["args"],
+        record = {"utc": logs.utc().isoformat(timespec="seconds"), "function": f, "k": group["k"], "args": args,
                   "worker": slot.name, "batch": number, "detail": value["detail"],
                   "id": batch.slices[0].item.piece.rid, "origin": batch.slices[0].item.piece.source}
         for key in ("x", "spill"):
@@ -1110,7 +1129,8 @@ class Broker:
     # ---- reversed-order and fresh-Excel checks ---------------------------------------------
     def remember(self, batch, result):
         """Keep recent scalar answers (calls and their answers) for the fresh-Excel sample."""
-        if batch.serial or batch.addins or any(g.get("spill") for g in batch.groups) or result.get("order"):
+        if (batch.serial or batch.addins or result.get("order")
+                or any(g.get("spill") or protocol.is_vba_group(g) for g in batch.groups)):
             return
         for g, a in zip(batch.groups, result["groups"]):
             if "ity" in a:
@@ -1139,7 +1159,7 @@ class Broker:
         """One batch in `leak_every`: the same calls in reversed order on another worker, answers compared.
 
         A difference is a candidate for the state-sensitive registry (leakage.jsonl); no answer is changed."""
-        if batch.serial or batch.interactive or batch.addins or any(g.get("spill") for g in batch.groups) \
+        if batch.serial or batch.interactive or batch.addins or any(g.get("spill") or protocol.is_vba_group(g) for g in batch.groups) \
                 or any(p.priority == "sweep" for p in batch.pieces):
             return
         self.leak_counter += 1
@@ -1302,14 +1322,15 @@ class Broker:
         for piece in batch.pieces:
             self.fail_piece(piece, code, detail)
 
-    def fail_piece(self, piece, code, detail):
+    def fail_piece(self, piece, code, detail, *, notify=True):
         if piece.done:
             return
         piece.fail = (code, detail)
         piece.remaining = 0
-        req = self.requests.get((piece.origin, piece.rid))
-        piece.conn.send(protocol.ERROR, self.tag({"id": piece.rid, "seq": piece.seq, "code": code, "detail": detail},
-                                                 req.client if req else None), piece.priority == "interactive")
+        if notify:
+            req = self.requests.get((piece.origin, piece.rid))
+            piece.conn.send(protocol.ERROR, self.tag({"id": piece.rid, "seq": piece.seq, "code": code, "detail": detail},
+                                                     req.client if req else None), piece.priority == "interactive")
         self.finish_piece(piece)
         self.counters["errors"] += 1
 
@@ -1519,7 +1540,11 @@ class Broker:
         pieces = list(self.stalled_isolated_pieces())
         if not pieces:
             return
-        slot = self.isolation_slot()
+        only_vba = all(all(protocol.is_vba_group(g) for g in piece.groups) for piece in pieces)
+        slot = next((s for s in self.slots if s.isolation), None) if only_vba else self.isolation_slot()
+        should_restart = slot is not None and slot.state in ("idle", "busy")
+        detail = ("the isolated queue stalled; its worker was restarted, resubmit the call" if should_restart
+                  else "the isolated queue stalled while its worker was unavailable, resubmit the call")
         failed = 0
         for piece in pieces:
             key = (piece.origin, piece.rid)
@@ -1528,15 +1553,14 @@ class Broker:
             for each in request.pieces.values() if request else (piece,):
                 if not each.done:
                     failed += each.remaining or 0
-                    self.fail_piece(each, "isolation-stalled",
-                                    "the isolated queue stalled; its worker was restarted, resubmit the call")
+                    self.fail_piece(each, "isolation-stalled", detail)
             if request is not None and self.requests.pop(key, None) is not None:
                 self.cache_bytes -= request.cache_bytes
         name = slot.name if slot is not None else "none"
         self.last_stall_recovery = (time.monotonic(), failed, name)
         self.last_isolated_dispatch = time.monotonic()
         self.log_event("isolation-stall-healed", worker=name, calls=failed, pieces=len(pieces))
-        if slot is not None and slot.state in ("idle", "busy"):
+        if should_restart:
             slot.generation += 1
             slot.replaced_reason = "isolation-stalled"
             old_proc = slot.proc
@@ -1581,6 +1605,9 @@ class Broker:
             elif piece.serial:
                 candidates = [s for s in self.slots if s.serial and not s.addins]
                 kind = "serial worker"
+            elif protocol.is_vba_group(group):
+                candidates = [s for s in self.slots if s.isolation]
+                kind = "VBA isolation worker"
             elif isolated:
                 candidates = [isolation] if isolation is not None else []
                 kind = "isolation worker"

@@ -183,7 +183,7 @@ class _Class:
                 self.order.remove(fair_origin)
                 self.deficit[fair_origin] = 0
 
-    def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None, allow_isolated=True):
+    def take(self, budget_calls, budget_bytes, isolate, costs=None, budget_ms=None, allow_isolated=True, allow_vba=False):
         """Items by cost-weighted deficit round robin over clients until a budget is spent.
 
         Returns (items, calls, bytes, estimated_ms).  With budget_ms (bulk) a batch is cut to about that much
@@ -193,12 +193,10 @@ class _Class:
         costs = costs if costs is not None else {}
         taken, calls, size, spent = [], 0, 0, 0.0
         idle_turns = 0
-        if allow_isolated:
-            def allowed(item):
-                return True
-        else:
-            def allowed(item):
-                return not (item.suspect or item.group["f"] in isolate)
+        def allowed(item):
+            if item.group["f"] == protocol.VBA_FUNCTION:
+                return allow_vba
+            return allow_isolated or not (item.suspect or item.group["f"] in isolate)
         while self.order and calls < budget_calls and size < budget_bytes:
             origin = self.order[0]
             o = self.origins[origin]
@@ -219,7 +217,7 @@ class _Class:
                 key, dq = pick
                 item = dq[0]
                 f = item.group["f"]
-                if item.suspect or f in isolate:
+                if item.suspect or f in isolate or f == protocol.VBA_FUNCTION:
                     # A suspect item, or a function that crashed Excel twice, runs as a batch of its own: the
                     # suspect item whole, an isolated function's call one at a time.
                     if taken:
@@ -374,7 +372,7 @@ class Batcher:
         """Queued groups with their source piece and whether they need isolation."""
         for cls in self.classes():
             for item in cls.items():
-                yield item.piece, item.group, item.suspect or item.group["f"] in self.isolate
+                yield item.piece, item.group, item.suspect or item.group["f"] in self.isolate or item.group["f"] == protocol.VBA_FUNCTION
         for queue in (self.serial, self.sweep_serial, *self.pinned.values()):
             for piece in queue:
                 for group in piece.groups:
@@ -434,9 +432,10 @@ class Batcher:
     def has_work(self):
         return not (self.interactive.empty() and self.bulk.empty())
 
-    def next_batch(self, allow_isolated=True, sweep_queue=None):
+    def next_batch(self, allow_isolated=True, sweep_queue=None, *, allow_vba=False):
         """Assemble the next batch for an idle worker, or None.  allow_isolated=False (every worker but the
-        isolation worker) leaves suspect items and isolated functions' calls in the queue."""
+        isolation worker) leaves suspect items and isolated functions' calls in the queue.
+        VBA can run only on the designated isolation worker, without failover."""
         batch = Batch()
         items = []
         if sweep_queue is not None:
@@ -444,11 +443,11 @@ class Batcher:
                                               allow_isolated=allow_isolated)
         elif not self.interactive.empty():
             items, calls, _, est = self.interactive.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs,
-                                                         allow_isolated=allow_isolated)
+                                                         allow_isolated=allow_isolated, allow_vba=allow_vba)
             batch.interactive = bool(items)
         if sweep_queue is None and not items and not self.bulk.empty():
             items, calls, _, est = self.bulk.take(BATCH_CALLS, BATCH_BYTES, self.isolate, self.costs, BULK_BATCH_MS,
-                                                  allow_isolated=allow_isolated)
+                                                  allow_isolated=allow_isolated, allow_vba=allow_vba)
         if not items:
             return None
         merged = {}

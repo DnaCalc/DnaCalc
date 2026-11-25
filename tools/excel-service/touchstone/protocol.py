@@ -165,12 +165,17 @@ def positions(group):
 
 
 CASE_FUNCTION = "_CASE"
+VBA_FUNCTION = "_VBA"
 
 
 def sheet_case(sheets, probes, names=None):
     """A sheet case (token L): sheets [{"name", "cells": {address: typed cell}, "hidden_rows"?, "hidden_columns"?}],
     probes [{"at": "Sheet!A1", "formula": "=..."}], names {"Name": "=refers"}."""
     return {"type": "sheet_case", "value": {"sheets": sheets, "names": names or {}, "probes": probes}}
+
+
+def is_vba_group(group):
+    return group["f"] == VBA_FUNCTION or "V" in group["k"].split(",")
 
 
 def token_width(token):
@@ -261,6 +266,15 @@ def answer_to_typed(letter, value):
     if letter == "x":
         # Excel crashed on this call, run alone: a recorded answer, never retried (arguments: raw group values)
         return {"type": "crashed", **value}
+    if letter == "v":
+        def typed(raw):
+            return answer_to_typed(raw["ty"], raw["v"])
+
+        calls = [{"err": call["err"]} if "err" in call else {"return": typed(call["return"])}
+                 for call in value["calls"]]
+        return {"type": "vba_case", "calls": calls,
+                **{field: [{"at": cell["at"], "value": typed(cell)} for cell in value[field]]
+                   for field in ("sheet_state", "event_log")}}
     if letter == "c":
         probes = []
         for probe in value["probes"]:
