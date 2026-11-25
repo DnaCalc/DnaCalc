@@ -8042,6 +8042,63 @@ fn dc_oxh8w_49__goto_without_reference_returns_to_the_last_goto() {
     assert_eq!(selection(), "$C$3:$D$4");
 }
 
+/// dc-oxh8w.47: Range.End(direction) follows Ctrl+arrow: inside a block it goes to the block's last cell, at a block's
+/// edge or from an empty cell it goes to the next occupied cell, else the sheet's edge. Bad direction is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_47__range_end_follows_ctrl_arrow() {
+    let (_host, model) = setup();
+    let sheets = worksheets(&model);
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &added, "Range", vec![AutoValue::text(a)]).unwrap());
+    for a in ["B2", "B3", "B4", "B6", "D2"] {
+        put_value(&model, &sub(a), AutoValue::R8(1.0)).unwrap();
+    }
+    let end = |from: &str, direction: i32| {
+        let r = invoke_kind(&model, &sub(from), "End", InvokeKind::Get, vec![AutoValue::I4(direction)]).unwrap();
+        text(&model, &obj(r), "Address")
+    };
+    let (down, up, left, right) = (-4121, -4162, -4159, -4161);
+    assert_eq!(end("B2", down), "$B$4");
+    assert_eq!(end("B3", down), "$B$4");
+    assert_eq!(end("B4", down), "$B$6");
+    assert_eq!(end("B6", down), "$B$1048576");
+    assert_eq!(end("B1", down), "$B$2");
+    assert_eq!(end("B5", down), "$B$6");
+    assert_eq!(end("B4", up), "$B$2");
+    assert_eq!(end("B6", up), "$B$4");
+    assert_eq!(end("B2", up), "$B$1");
+    assert_eq!(end("B5", up), "$B$4");
+    assert_eq!(end("B2", right), "$D$2");
+    assert_eq!(end("D2", right), "$XFD$2");
+    assert_eq!(end("D2", left), "$B$2");
+    assert_eq!(end("B2", left), "$A$2");
+    assert_eq!(end("A2", right), "$B$2");
+    assert_eq!(end("B3", right), "$XFD$3");
+    let bad = invoke_kind(&model, &sub("B2"), "End", InvokeKind::Get, vec![AutoValue::I4(99)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let many = invoke_kind(&model, &sub("B2:B3"), "End", InvokeKind::Get, vec![AutoValue::I4(down)]);
+    assert!(matches!(many, Err(AutoError::NotModelled { .. })), "{many:?}");
+}
+
+/// dc-oxh8w.47: Application.InchesToPoints converts inches to points (72 per inch); a text number is coerced,
+/// non-numeric text is DISP_E_TYPEMISMATCH.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_47__inches_to_points() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let points = |v: AutoValue| invoke_kind(&model, &app, "InchesToPoints", InvokeKind::Method, vec![v]);
+    assert!(matches!(points(AutoValue::R8(1.0)).unwrap(), AutoValue::R8(v) if v == 72.0));
+    assert!(matches!(points(AutoValue::I4(2)).unwrap(), AutoValue::R8(v) if v == 144.0));
+    assert!(matches!(points(AutoValue::R8(0.25)).unwrap(), AutoValue::R8(v) if v == 18.0));
+    assert!(matches!(points(AutoValue::text("1.5")).unwrap(), AutoValue::R8(v) if v == 108.0));
+    let bad = points(AutoValue::text("abc"));
+    assert!(matches!(bad, Err(AutoError::Status(s)) if s == 0x8002_0005u32 as i32), "{bad:?}");
+    let none = invoke_kind(&model, &app, "InchesToPoints", InvokeKind::Method, vec![]);
+    assert!(none.is_err(), "{none:?}");
+}
+
 /// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
 /// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
 #[cfg_attr(not(target_arch = "wasm32"), test)]
