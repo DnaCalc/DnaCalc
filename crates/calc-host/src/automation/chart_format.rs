@@ -169,7 +169,7 @@ impl WorkbookAutomation {
 }
 
 /// `XlLineStyle` values a chart outline takes, with the `a:prstDash` each draws as. `None` is no outline; the dash
-/// presets are an assumption until Excel's answers are recorded (dc-oxh8w.68).
+/// presets are an assumption until Excel's answers are recorded (dc-oxh8w.67).
 const LINE_STYLES: [(i32, Option<&str>); 6] = [
     (1, Some("solid")),
     (-4115, Some("dash")),
@@ -193,10 +193,10 @@ impl WorkbookAutomation {
         Ok(report(workbook, sheet, "Border", ReportItem::ChartBorder(part, plot)))
     }
 
-    /// `Series.Border`: the series line is dc-oxh8w.68's.
+    /// `Series.Border`: the series line is dc-oxh8w.67's.
     pub(super) fn series_border(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        Err(AutoError::not_modelled("Series.Border", "dc-oxh8w.68"))
+        Err(AutoError::not_modelled("Series.Border", "dc-oxh8w.67"))
     }
 
     fn border_plot(target: &ObjectRef) -> Result<bool, AutoError> {
@@ -219,7 +219,7 @@ impl WorkbookAutomation {
                     .dash
                     .as_deref()
                     .map_or(Some(1), |d| LINE_STYLES.iter().find(|(_, p)| *p == Some(d)).map(|(c, _)| *c));
-                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-oxh8w.68"))
+                code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-oxh8w.67"))
             }
             "Weight" => {
                 let width = border.width.unwrap_or(9525);
@@ -230,7 +230,7 @@ impl WorkbookAutomation {
                 let rgb = border.color.as_deref().unwrap_or(DEFAULT_BORDER_COLOR);
                 bgr(rgb).map(AutoValue::I4).ok_or_else(|| AutoError::excel(424, "Object required"))
             }
-            _ => Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.68")),
+            _ => Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.67")),
         }
     }
 
@@ -241,7 +241,7 @@ impl WorkbookAutomation {
             return Err(geometry::bad_count());
         };
         if member == "ColorIndex" {
-            return Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.68"));
+            return Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.67"));
         }
         let number = super::report_draw::number(value).map_err(|_| AutoError::excel(1004, "Unable to set the property of the Border class"))?;
         let bad = || AutoError::excel(1004, format!("Unable to set the {member} property of the Border class"));

@@ -6607,7 +6607,7 @@ fn dc_oxh8w_31__tick_label_codes_and_unlinking() {
 }
 
 /// dc-oxh8w.61: `Border` of the chart area and the plot area (Color BGR, LineStyle, Weight) saves `a:ln` beside the fill;
-/// a category axis takes a tick-label format; bad values are 1004; `Series.Border` refuses typed under dc-oxh8w.68.
+/// a category axis takes a tick-label format; bad values are 1004; `Series.Border` refuses typed under dc-oxh8w.67.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_61__borders_of_chart_and_plot_area_and_category_axis_formats() {
