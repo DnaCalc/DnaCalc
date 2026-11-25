@@ -207,6 +207,9 @@ pub struct WorkbookAutomation {
     window_states: RefCell<HashMap<u64, i32>>,
     /// The protection a macro set on each sheet (`None`: it unprotected a sheet the file protects) (dc-oxh8w.68).
     sheet_protect: RefCell<HashMap<SheetId, Option<protection::SheetProtect>>>,
+    /// Stable handles for `ObjectKey::Style { index }`: each entry is `(xf_id, folded_name)` so
+    /// deleting an earlier style neither shifts live handles nor aliases a deleted handle.
+    style_handles: RefCell<Vec<(u32, String)>>,
 }
 
 struct RangeLeases {
@@ -361,6 +364,7 @@ impl WorkbookAutomation {
             window_captions: RefCell::new(HashMap::new()),
             window_states: RefCell::new(HashMap::new()),
             sheet_protect: RefCell::new(HashMap::new()),
+            style_handles: RefCell::new(Vec::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
@@ -483,6 +487,24 @@ impl WorkbookAutomation {
     pub fn worksheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
         let meta = self.metadata()?;
         sheet_name(&meta, sheet)?;
+        Ok(object(
+            "Worksheet",
+            ObjectKey::Worksheet {
+                workbook: meta.workbook,
+                sheet,
+            },
+        ))
+    }
+    /// The sheet object identity for `sheet` (`Chart` for a chart sheet, `Worksheet` otherwise).
+    pub fn sheet_object(&self, sheet: SheetId) -> Result<ObjectRef, AutoError> {
+        let meta = self.metadata()?;
+        sheet_name(&meta, sheet)?;
+        if meta.chart_sheets.contains(&sheet) {
+            return match Self::chart_of_sheet(&meta, sheet)? {
+                AutoValue::Object(obj) => Ok(obj),
+                _ => unreachable!("chart_of_sheet always returns an Object"),
+            };
+        }
         Ok(object(
             "Worksheet",
             ObjectKey::Worksheet {

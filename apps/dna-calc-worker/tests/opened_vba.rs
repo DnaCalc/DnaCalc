@@ -1286,3 +1286,42 @@ fn dc_oxh8w_75__worker_installs_application_factory_and_page_loader() {
         "A2: {a2:?}"
     );
 }
+
+/// dc-qrnem (rw12 Finding 15): cooperative ordinary save in the worker raises Workbook_AfterSave(True).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_cooperative_save_raises_after_save() {
+    use dna_calc_worker::workbook::{EnableMode, Workbook};
+    let book_src = "Private Sub Workbook_AfterSave(ByVal Success As Boolean)\n \
+        ThisWorkbook.Worksheets(1).Range(\"D1\").Value2 = \"after:\" & CStr(Success)\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", ""),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", book_src),
+        ],
+    );
+    let mut book = Workbook::open_with_project_policy(
+        "coop.xlsm",
+        bytes,
+        calc_host::WorkBudget::UNLIMITED,
+        FileOrigin::Local,
+    )
+    .unwrap();
+    book.enable_macros_as(EnableMode::Person).unwrap();
+    let policy = calc_host::SavePolicy::default();
+    let mut save = book.begin_ordinary_save(false, &policy).unwrap();
+    while save.needs_advance(book.host()) {
+        book.advance_ordinary_save(&mut save, calc_host::WorkBudget::UNLIMITED);
+    }
+    let (saved, _) = book.finish_ordinary_save(save).unwrap();
+    assert!(!saved.is_empty());
+    let sheet = book.host().model().sheets()[0].id();
+    let d1 = book.host().model().cell(calc_value::CellKey::new(sheet, 1, 4).unwrap());
+    assert!(
+        matches!(d1, Some(calc_host::CellInput::Text(t)) if t.text().to_string_lossy() == "after:True"),
+        "D1: {d1:?}"
+    );
+}

@@ -1868,13 +1868,31 @@ pub(crate) fn conditional_edits(
                 let needs_copy = match parsed.dxf {
                     None => true,
                     Some(id) => {
+                        let shared_on_current = rules.iter().enumerate().any(|(n, other)| {
+                            n != i
+                                && crate::conditional_rule(other)
+                                    .map(|r| r.dxf == parsed.dxf)
+                                    .unwrap_or(true)
+                        });
+                        let shared_on_other_sheet = host
+                            .model()
+                            .sheets()
+                            .iter()
+                            .filter(|other_sheet| other_sheet.id() != sheet)
+                            .any(|other_sheet| {
+                                host.model()
+                                    .definitions()
+                                    .conditional_rules(other_sheet.id())
+                                    .iter()
+                                    .any(|other| {
+                                        crate::conditional_rule(other)
+                                            .map(|r| r.dxf == parsed.dxf)
+                                            .unwrap_or(true)
+                                    })
+                            });
                         (id as usize) < host.loaded().styles().differential_formats.len()
-                            || rules.iter().enumerate().any(|(n, other)| {
-                                n != i
-                                    && crate::conditional_rule(other)
-                                        .map(|r| r.dxf == parsed.dxf)
-                                        .unwrap_or(true)
-                            })
+                            || shared_on_current
+                            || shared_on_other_sheet
                     }
                 };
                 if needs_copy {

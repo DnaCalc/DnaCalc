@@ -279,10 +279,6 @@ impl WorkbookAutomation {
                 ("cellIs", name, formulas)
             }
             2 => ("expression", "", vec![text_of(call.arg(2))?.ok_or_else(refused)?]),
-            // Excel's defaults: top 10 items, above the average, duplicate values.
-            5 => ("top10", "", Vec::new()),
-            8 => ("duplicateValues", "", Vec::new()),
-            12 => ("aboveAverage", "", Vec::new()),
             3..=17 if TYPES.iter().any(|(v, _)| *v == kind) => {
                 return Err(AutoError::not_modelled(
                     format!("FormatConditions.Add of type {kind}"),

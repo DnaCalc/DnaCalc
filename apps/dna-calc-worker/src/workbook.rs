@@ -1047,7 +1047,12 @@ impl Workbook {
                     before_save: None,
                 },
             )
-            .map_err(|error| error.to_string())
+            .map_err(|error| {
+                if !matches!(error, calc_host::SaveFailed::Cancelled) {
+                    self.session.notify_after_save(false);
+                }
+                error.to_string()
+            })
     }
     pub fn advance_ordinary_save(
         &mut self,
@@ -1060,8 +1065,12 @@ impl Workbook {
         &mut self,
         save: calc_host::OrdinarySave,
     ) -> Result<(Vec<u8>, SaveReceipt), String> {
-        let prepared = save.finish().map_err(|error| error.to_string())?;
-        self.write_prepared_save(prepared)
+        let result = save
+            .finish()
+            .map_err(|error| error.to_string())
+            .and_then(|prepared| self.write_prepared_save(prepared));
+        self.session.notify_after_save(result.is_ok());
+        result
     }
     pub fn finish_calculated_save(
         &mut self,

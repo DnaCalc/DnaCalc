@@ -8550,23 +8550,20 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
-/// dc-jupjv: `FormatConditions.Add` of the top-10, above-average and duplicate-values types makes a rule of that type
-/// (Excel's defaults: top 10 items, above the average, duplicates). Their own members (Rank, TopBottom, AboveBelow,
-/// DupeUnique) need the Top10, AboveAverage and UniqueValues interfaces in the descriptor (RUN-ON-WINDOWS.txt).
+/// dc-jupjv / dc-qrnem: Excel creates top-10, above-average and duplicate-values rules via AddTop10,
+/// AddAboveAverage and AddUniqueValues (dc-oawf4), not FormatConditions.Add(5|8|12); those stay typed
+/// refusals citing dc-jupjv until Excel's error behaviour on Add(5|8|12) is recorded.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
     let (_host, model, _) = blank_report();
     let target = range(&model, "B2:B6");
     let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
-    let add = |kind: i32| obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
-    let top = add(5);
-    assert_eq!(int(invoke(&model, &top, "Type", vec![]).unwrap()), 5);
-    let average = add(12);
-    assert_eq!(int(invoke(&model, &average, "Type", vec![]).unwrap()), 12);
-    let dupes = add(8);
-    assert_eq!(int(invoke(&model, &dupes, "Type", vec![]).unwrap()), 8);
-    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
+    for kind in [5, 8, 12] {
+        let r = invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]);
+        assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-jupjv"), "{kind}: {r:?}");
+    }
+    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 0);
 }
 
 /// dc-jupjv (ww21): FormatCondition.Operator on an expression rule and absent Formula2 return Empty;
@@ -9584,4 +9581,240 @@ fn dc_p3rg9__window_caption_coercion_state_split_and_app_windows() {
     assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
     let split_true = put("Split", AutoValue::Bool(true));
     assert!(matches!(split_true, Err(AutoError::NotModelled { owner: "dc-p3rg9", .. })), "{split_true:?}");
+}
+
+/// dc-qrnem (rw12 Finding 13): FormatConditions.Add(5|8|12) stays a typed refusal (Excel creates those
+/// via AddTop10/AddAboveAverage/AddUniqueValues, owned by dc-oawf4/dc-jupjv), and ConditionalChange::Format
+/// checks dxf sharing across ALL sheets in the workbook before mutating in place.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_format_conditions_add_5_8_12_refuse_and_cross_sheet_dxf_copy_on_write() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    for kind in [5, 8, 12] {
+        let r = invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]);
+        assert!(
+            matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-jupjv"),
+            "Add({kind}) must refuse citing dc-jupjv: {r:?}"
+        );
+    }
+
+    // Add a second sheet and create one red conditional rule on each sheet so both share the same new dxf.
+    {
+        let mut session = host.session.borrow_mut();
+        assert!(
+            session
+                .dispatch(SkinIntent::Command(WorkbookCommand::Sheet {
+                    sheet: None,
+                    change: calc_host::SheetChange::Add { name: "Sheet2".into() },
+                }))
+                .accepted()
+        );
+        let sheets: Vec<_> = session.host().sheets().iter().map(|s| s.id()).collect();
+        for &sheet in &sheets[..2] {
+            let revision = session.host().revision().get();
+            assert!(
+                session
+                    .dispatch(SkinIntent::Command(WorkbookCommand::Conditional {
+                        sheet,
+                        revision,
+                        index: None,
+                        change: calc_host::ConditionalChange::Condition {
+                            kind: "cellIs".into(),
+                            applies: "A1:A5".into(),
+                            color: "#FF0000".into(),
+                            formulas: vec!["5".into()],
+                            operator: "greaterThan".into(),
+                            rank: 10,
+                            percent: false,
+                            stop: false,
+                        },
+                    }))
+                    .accepted()
+            );
+        }
+    }
+    model.context_changed(&host.session.borrow());
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let sheets = obj(invoke(&model, &book, "Worksheets", vec![]).unwrap());
+    let s1 = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let s2 = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(2)]).unwrap());
+    let r1 = obj(invoke(&model, &s1, "Range", vec![AutoValue::text("A1:A5")]).unwrap());
+    let r2 = obj(invoke(&model, &s2, "Range", vec![AutoValue::text("A1:A5")]).unwrap());
+    let fc1 = obj(invoke_kind(&model, &obj(invoke(&model, &r1, "FormatConditions", vec![]).unwrap()), "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let fc2 = obj(invoke_kind(&model, &obj(invoke(&model, &r2, "FormatConditions", vec![]).unwrap()), "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let int1 = obj(invoke(&model, &fc1, "Interior", vec![]).unwrap());
+    let int2 = obj(invoke(&model, &fc2, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &int1, "Color", vec![]).unwrap()), 0x0000FF);
+    assert_eq!(int(invoke(&model, &int2, "Color", vec![]).unwrap()), 0x0000FF);
+    // Change Sheet1's rule to green: Sheet2's rule MUST stay red!
+    invoke_kind(&model, &int1, "Color", InvokeKind::Put, vec![AutoValue::I4(0x00FF00)]).unwrap();
+    assert_eq!(int(invoke(&model, &int1, "Color", vec![]).unwrap()), 0x00FF00);
+    assert_eq!(
+        int(invoke(&model, &int2, "Color", vec![]).unwrap()),
+        0x0000FF,
+        "editing Sheet1 rule format must not mutate Sheet2 rule sharing the same dxf"
+    );
+}
+
+/// dc-qrnem (rw12 Finding 21): Style.Delete refuses non-Normal built-ins as typed NotModelled (never fake
+/// 1004) and deleting one custom style neither shifts live handles to later styles nor aliases the deleted handle.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_styles_delete_builtin_refuses_and_live_handles_survive_delete() {
+    let blank = blank_package();
+    let archive = existing_wire_support::parse_zip(&blank);
+    let entries = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(&blank);
+            if entry.name == "xl/styles.xml" {
+                let bytes = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(bytes)
+                    .unwrap()
+                    .replace("<cellStyleXfs count=\"1\">", "<cellStyleXfs count=\"2\">")
+                    .replace(
+                        "</cellStyleXfs>",
+                        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>",
+                    )
+                    .replace("<cellStyles count=\"1\">", "<cellStyles count=\"2\">")
+                    .replace(
+                        "</cellStyles>",
+                        "<cellStyle name=\"Currency\" xfId=\"1\" builtinId=\"4\"/></cellStyles>",
+                    );
+                existing_wire_support::RawEntry::stored(&entry.name, xml.as_bytes())
+            } else if entry.method == 0 {
+                existing_wire_support::RawEntry::stored(&entry.name, payload)
+            } else {
+                existing_wire_support::RawEntry::deflated(
+                    &entry.name,
+                    payload,
+                    entry.size,
+                    entry.crc32,
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    let package = existing_wire_support::build_zip(&entries);
+    let (_host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(package)),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let currency = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Currency")]).unwrap());
+    // Normal -> 1004; non-Normal built-in -> typed NotModelled citing dc-lj4j5 (not fake 1004).
+    let del_normal = invoke_kind(&model, &normal, "Delete", InvokeKind::Method, vec![]);
+    assert!(matches!(del_normal, Err(AutoError::Excel { number: 1004, .. })), "{del_normal:?}");
+    let del_builtin = invoke_kind(&model, &currency, "Delete", InvokeKind::Method, vec![]);
+    assert!(
+        matches!(&del_builtin, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-lj4j5"),
+        "deleting non-Normal built-in must refuse typed citing dc-lj4j5: {del_builtin:?}"
+    );
+    // Live handles across deletion: deleting s1 must not shift s2 or alias s1 to s2 / recreated First.
+    let s1 = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("First")]).unwrap());
+    let s2 = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Second")]).unwrap());
+    let s2_font = obj(invoke(&model, &s2, "Font", vec![]).unwrap());
+    invoke_kind(&model, &s1, "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(text(&model, &s2, "Name"), "Second");
+    invoke_kind(&model, &s2_font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert!(matches!(invoke(&model, &s2_font, "Bold", vec![]).unwrap(), AutoValue::Bool(true)));
+    let a1 = range(&model, "A1");
+    invoke_kind(&model, &a1, "Style", InvokeKind::Put, vec![AutoValue::Object(s2.clone())]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &a1, "Style", vec![]).unwrap()), "Name"), "Second");
+    let stale_s1 = invoke(&model, &s1, "Name", vec![]);
+    assert!(matches!(stale_s1, Err(AutoError::Excel { number: 424, .. })), "deleted handle must raise 424: {stale_s1:?}");
+    // Re-adding "First" must NOT revive the deleted handle s1.
+    let s1_new = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("First")]).unwrap());
+    assert_eq!(text(&model, &s1_new, "Name"), "First");
+    let still_stale = invoke(&model, &s1, "Name", vec![]);
+    assert!(matches!(still_stale, Err(AutoError::Excel { number: 424, .. })), "{still_stale:?}");
+}
+
+/// dc-qrnem (rw12 Finding 21): ScrollRow preserves stored ScrollColumn across reopen, FreezePanes uses
+/// macro-set scroll position (ww21: ScrollRow=11, ScrollColumn=2, D20 -> SplitRow=9, SplitColumn=2),
+/// and Workbook.Windows(own_name) resolves its window.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_window_scroll_freeze_and_workbook_windows_by_name() {
+    let (host, model, _) = blank_report();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let book_name = text(&model, &book, "Name");
+    let book_windows = obj(invoke(&model, &book, "Windows", vec![]).unwrap());
+    let by_name = obj(invoke_kind(&model, &book_windows, "Item", InvokeKind::Get, vec![AutoValue::text(&book_name)]).unwrap());
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    assert_eq!(by_name.key, window.key);
+
+    // Save ScrollRow=11, ScrollColumn=4, reopen, then put ScrollRow=15 alone -> ScrollColumn stays 4.
+    invoke_kind(&model, &window, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(11)]).unwrap();
+    invoke_kind(&model, &window, "ScrollColumn", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    invoke_kind(&reopened, &w2, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(15)]).unwrap();
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollRow", vec![]).unwrap()), 15);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollColumn", vec![]).unwrap()), 4);
+
+    // Macro-set scroll (11, 2) + active cell D20 + FreezePanes=True -> SplitRow=9, SplitColumn=2.
+    invoke_kind(&model, &window, "ScrollRow", InvokeKind::Put, vec![AutoValue::I4(11)]).unwrap();
+    invoke_kind(&model, &window, "ScrollColumn", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    let d20 = range(&model, "D20");
+    invoke_kind(&model, &d20, "Select", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &window, "FreezePanes", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 9);
+    assert_eq!(int(invoke(&model, &window, "SplitColumn", vec![]).unwrap()), 2);
+}
+
+/// dc-qrnem (rw12 Finding 21): Range.Text records MacroObservation when reading a stale or file-cached
+/// cell under strict file provenance (matching Range.Value).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_qrnem_range_text_records_macro_observation_on_stale_cell() {
+    let mut session = HostSession::open(
+        Arc::new(MemorySource::new(blank_package()).named("obs.xlsx")),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let sheet = session.host().sheets()[0].id();
+    let a1 = CellKey::new(sheet, 1, 1).unwrap();
+    let b1 = CellKey::new(sheet, 1, 2).unwrap();
+    assert!(session.dispatch(SkinIntent::EnterCell { at: a1, text: "10".into() }).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell { at: b1, text: "=A1*2".into() }).accepted());
+    while session.has_pending_calculation() {
+        session.advance_calculation();
+    }
+    // Switch to manual mode and edit A1 so B1 becomes stale (last value 20).
+    assert!(session.dispatch(SkinIntent::SetCalcMode(calc_host::CalcMode::Manual)).accepted());
+    assert!(session.dispatch(SkinIntent::EnterCell { at: a1, text: "99".into() }).accepted());
+
+    let (_dummy, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let got = model.with_event_session(&mut session, true, || {
+        let r = range(&model, "B1");
+        text(&model, &r, "Text")
+    });
+    assert_eq!(got, "20");
+    let observed = session.take_macro_observations();
+    assert!(
+        observed.iter().any(|o| o.at == b1 && o.provenance == calc_host::ObservedProvenance::Stale),
+        "Range.Text must record MacroObservation on stale cell under strict provenance: {observed:?}"
+    );
 }

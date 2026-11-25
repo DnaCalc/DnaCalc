@@ -108,13 +108,21 @@ impl WorkbookAutomation {
             no_args(call)?;
             let area = range.areas()[0];
             let cells = Self::session_cells(access, area, "Range.Text")?;
-            let Access::Session(session, _) = access else {
+            let Access::Session(session, strict) = access else {
                 unreachable!("session_cells refused");
             };
             let host = session.host();
             let mut shared: Option<String> = None;
             let width = area.column_count() as usize;
             for (i, cell) in cells.iter().enumerate() {
+                if *strict
+                    && let Some(provenance) = observed_provenance(cell.value())
+                {
+                    session.record_macro_observation(crate::MacroObservation {
+                        at: cell.at(),
+                        provenance,
+                    });
+                }
                 let at = CellKey::new(
                     area.sheet(),
                     area.first().row() + (i / width) as u32,
