@@ -567,21 +567,25 @@ pub fn eval_vstack_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
     build_array(rows, cols, cells.collect())
 }
 
-/// Wrapping has its own below-one error; other shaping counts keep their existing policy.
-fn wrap_count(value: &CalcValue) -> Result<usize, DynamicArrayReshapeEvalError> {
-    let number =
-        coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?;
-    if number < 1.0 {
+/// Excel (measured): the count is truncated toward zero and must lie in 1..=2147483647, else #NUM!.
+/// An error value in the vector argument wins over everything; a blank or two-dimensional vector
+/// is #VALUE! even before the count is range-checked; a count that is itself an error or text is
+/// reported before the vector's shape.
+fn wrap_count_checked(count: f64) -> Result<usize, DynamicArrayReshapeEvalError> {
+    let truncated = count.trunc();
+    if !(1.0..=f64::from(i32::MAX)).contains(&truncated) {
         return Err(DynamicArrayReshapeEvalError::Preparation(
             CoercionError::WorksheetError(WorksheetErrorCode::Num),
         ));
     }
-    parse_positive_integer(value)
+    Ok(truncated as usize)
 }
 
 fn wrap_vector(value: &CalcValue) -> Result<CalcArray, DynamicArrayReshapeEvalError> {
     let source = materialize_array_arg(value);
-    if source.shape().rows > 1 && source.shape().cols > 1 {
+    if matches!(value.core_ref(), CoreRef::Empty)
+        || (source.shape().rows > 1 && source.shape().cols > 1)
+    {
         return Err(DynamicArrayReshapeEvalError::Preparation(
             CoercionError::UnsupportedValueKind("wrap vector"),
         ));
@@ -589,18 +593,34 @@ fn wrap_vector(value: &CalcValue) -> Result<CalcArray, DynamicArrayReshapeEvalEr
     Ok(source)
 }
 
+/// The shared front of WRAPROWS and WRAPCOLS: `Ok(Err(value))` is a scalar vector returned as is.
+fn wrap_prepare(
+    args: &[CalcValue],
+) -> Result<Result<(CalcArray, usize), CalcValue>, DynamicArrayReshapeEvalError> {
+    if let CoreRef::Error(_) = args[0].core_ref() {
+        return Ok(Err(args[0].clone()));
+    }
+    let count =
+        coerce_prepared_to_number(&args[1]).map_err(DynamicArrayReshapeEvalError::Preparation)?;
+    let scalar = matches!(
+        args[0].core_ref(),
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_)
+    );
+    let source = if scalar { None } else { Some(wrap_vector(&args[0])?) };
+    let count = wrap_count_checked(count)?;
+    Ok(match source {
+        None => Err(args[0].clone()),
+        Some(source) => Ok((source, count)),
+    })
+}
+
 pub fn eval_wraprows_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let wrap_count = wrap_count(&args[1])?;
-    match args[0].core_ref() {
-        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
-            return Ok(args[0].clone());
-        }
-        CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
-    }
-
-    let source = wrap_vector(&args[0])?;
+    let (source, wrap_count) = match wrap_prepare(args)? {
+        Ok(prepared) => prepared,
+        Err(scalar) => return Ok(scalar),
+    };
     let pad_cell = args
         .get(2)
         .map(scalar_cell)
@@ -622,14 +642,10 @@ pub fn eval_wraprows_prepared(
 pub fn eval_wrapcols_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
-    let wrap_count = wrap_count(&args[1])?;
-    match args[0].core_ref() {
-        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
-            return Ok(args[0].clone());
-        }
-        CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
-    }
-    let source = wrap_vector(&args[0])?;
+    let (source, wrap_count) = match wrap_prepare(args)? {
+        Ok(prepared) => prepared,
+        Err(scalar) => return Ok(scalar),
+    };
     let pad_cell = args
         .get(2)
         .map(scalar_cell)

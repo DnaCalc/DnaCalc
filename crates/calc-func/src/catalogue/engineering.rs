@@ -101,6 +101,17 @@ fn complex_text(
     Ok(text_value(&text))
 }
 
+/// IMDIV and IMSUB: operands with different suffixes are #NUM! (IMSUM and IMPRODUCT: #VALUE!; dc-j9k.348).
+fn complex_text_num_on_mixed_suffix(
+    value: Result<ParsedComplex, WorksheetErrorCode>,
+    operands: &[ParsedComplex],
+) -> Step<CalcValue> {
+    if suffix_from_operands(operands).is_err() {
+        return fail(WorksheetErrorCode::Num);
+    }
+    complex_text(value, operands)
+}
+
 fn unary_complex(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -276,7 +287,7 @@ ported_shared_family! {
     51 imdiv |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(x.div(y), &[x, y])
+        complex_text_num_on_mixed_suffix(x.div(y), &[x, y])
     }
     52 impower |s, a, sv| {
         let z = complex_of(s, 0, &a[0])?;
@@ -289,7 +300,7 @@ ported_shared_family! {
     53 imsub |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(Ok(x.sub(y)), &[x, y])
+        complex_text_num_on_mixed_suffix(Ok(x.sub(y)), &[x, y])
     }
     54 imsum |s, a, sv| {
         let zs = complexes(s, a, sv)?;
@@ -297,8 +308,21 @@ ported_shared_family! {
         complex_text(Ok(sum), &zs)
     }
     55 improduct |s, a, sv| {
-        let zs = complexes(s, a, sv)?;
-        let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
+        // Excel multiplies argument by argument: a step that overflows is #VALUE! (before a later
+        // argument is read); a component below the normal range is flushed to 0 (dc-j9k.339-.347).
+        let mut zs = Vec::new();
+        let mut product = ParsedComplex::new(1.0, 0.0, None);
+        values(s, a, 0, a.len(), sv, &mut |_, value| {
+            let z = complex_of(s, 0, value)?;
+            zs.push(z);
+            let next = product.mul(z);
+            if !next.re.is_finite() || !next.im.is_finite() {
+                return fail(WorksheetErrorCode::Value);
+            }
+            let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
+            product = ParsedComplex::new(flush(next.re), flush(next.im), None);
+            Ok(())
+        })?;
         complex_text(Ok(product), &zs)
     }
     60 besseli |s, a, sv| { bessel(s, a, k::bessel::besseli_kernel) }
