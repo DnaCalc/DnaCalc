@@ -252,6 +252,7 @@ pub(crate) fn append(
     transpose: bool,
     edits: &mut Vec<CellEdit>,
 ) -> Result<(), CopyRefusal> {
+    let mode = mode.base();
     if matches!(mode, PasteMode::Values | PasteMode::Formulas)
         || (from == to && source.revision() == host.model().revision())
     {

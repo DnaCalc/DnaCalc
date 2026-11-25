@@ -6898,10 +6898,9 @@ fn dc_oxh8w_15__clipboard_copy_cut_paste_special() {
     assert_eq!([value("J1"), value("K1")], ["1", "11"]);
     assert_eq!([value("J2"), value("K2")], ["2", "x"]);
     assert_eq!([value("J3"), value("K3")], ["3", "6"]);
-    // Other Paste kinds are refused typed; formula sources and destinations refuse an Operation; nothing is pasted.
+    // Formula sources and destinations refuse an Operation; nothing is pasted.
     let before = value("M1");
     for args in [
-        vec![AutoValue::I4(12)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2)],
         vec![AutoValue::I4(-4163), AutoValue::I4(2), AutoValue::Bool(true)],
     ] {
@@ -9136,6 +9135,47 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     }
     assert_eq!(cell_text_of(&model, "B11"), "4");
     assert_eq!(cell_text_of(&model, "B14"), "4");
+}
+
+/// dc-oxh8w.43: `PasteSpecial` xlPasteValuesAndNumberFormats (12), xlPasteFormulasAndNumberFormats (11) and
+/// xlPasteAllExceptBorders (7) splice the source's number format (and, for 7, its font and fill) into the
+/// destination's own format; 12 and 11 leave the font and fill alone.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_number_format_mixes() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1.5"]]);
+    let put = |address: &str, member: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), member, InvokeKind::Put, vec![value]).unwrap()
+    };
+    put("A1", "NumberFormat", AutoValue::text("0.00"));
+    put_font(&model, &font(&model, "A1"), "Bold", AutoValue::Bool(true)).unwrap();
+    invoke_kind(&model, &interior(&model, "A1"), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    put("C1", "NumberFormat", AutoValue::text("0%"));
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let bold = |address: &str| invoke(&model, &font(&model, address), "Bold", vec![]).unwrap();
+    let shown = |address: &str| text(&model, &range(&model, address), "Text");
+    call("A1", "Copy", vec![]).unwrap();
+    for paste in [12, 11] {
+        let at = if paste == 12 { "C1" } else { "D1" };
+        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
+        assert_eq!(shown(at), "1.50", "paste {paste} carries the number format");
+        assert!(matches!(bold(at), AutoValue::Bool(false)), "paste {paste} leaves the font");
+        assert_eq!(i4(&model, &interior(&model, at), "Color"), 16_777_215, "paste {paste} leaves the fill");
+    }
+    call("E1", "PasteSpecial", vec![AutoValue::I4(7)]).unwrap();
+    assert_eq!(shown("E1"), "1.50");
+    assert!(matches!(bold("E1"), AutoValue::Bool(true)));
+    assert_eq!(i4(&model, &interior(&model, "E1"), "Color"), 255);
 }
 
 /// dc-oxh8w.43: `PasteSpecial` xlPasteValidation (6) pastes only the validation rules and xlPasteComments (-4144) only the
