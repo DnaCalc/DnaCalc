@@ -214,7 +214,25 @@ impl WorkbookEvents {
         arguments: &[calc_object_model::AutoValue],
     ) -> Result<calc_object_model::AutoValue, calc_object_model::AutoError> {
         use calc_object_model::{AutoError, AutoValue};
-        let request = name.rsplit('!').next().unwrap_or(name).trim().trim_matches('\'');
+        let request = match name.rsplit_once('!') {
+            Some((book, request)) => {
+                let book = book.trim();
+                let book = book
+                    .strip_prefix('\'')
+                    .and_then(|quoted| quoted.strip_suffix('\''))
+                    .unwrap_or(book)
+                    .replace("''", "'");
+                if !self.automation.matches_workbook_name(&book)? {
+                    return Err(AutoError::not_modelled(
+                        "_Application.Run of another workbook's project",
+                        "dc-80m0f",
+                    ));
+                }
+                request
+            }
+            None => name,
+        };
+        let request = request.trim().trim_matches('\'');
         let entry = self.resolve(request).map_err(|_| {
             AutoError::excel(
                 1004,
@@ -237,7 +255,7 @@ impl WorkbookEvents {
                 _ => {
                     return Err(AutoError::not_modelled(
                         "_Application.Run with an object or array argument",
-                        "dc-oxh8w.9",
+                        "dc-80m0f",
                     ));
                 }
             });
@@ -251,7 +269,7 @@ impl WorkbookEvents {
             Ok(ProcedureResult::Text(t)) => Ok(AutoValue::Text(calc_value::ExcelText::from_utf16_code_units(t.encode_utf16().collect()))),
             Ok(ProcedureResult::Other(kind)) => Err(AutoError::not_modelled(
                 format!("_Application.Run returning a {kind} value"),
-                "dc-oxh8w.9",
+                "dc-80m0f",
             )),
             Err(ProcedureError::Runtime { number, description, .. }) => {
                 Err(AutoError::excel(number, description))
@@ -261,8 +279,8 @@ impl WorkbookEvents {
                 Err(AutoError::not_modelled(member, interned(owner)))
             }
             Err(ProcedureError::Arguments) => Err(AutoError::excel(
-                450,
-                "Wrong number of arguments or invalid property assignment",
+                1004,
+                format!("Cannot run the macro '{name}' with these arguments."),
             )),
             Err(ProcedureError::Backend(why)) if why.contains("reentry") => {
                 // CalcVBA's dynamic call is not reentrant (dc-80m0f).
@@ -273,5 +291,100 @@ impl WorkbookEvents {
             }
             Err(other) => Err(AutoError::excel(1004, format!("Application.Run: {other:?}"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calc_host::{HostOptions, MemorySource, OpenPolicy};
+    use calc_object_model::{AutoError, AutoValue, Call, Descriptor, InvokeKind, ObjectModel};
+    use std::sync::Arc;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_run_keeps_the_workbook_qualifier() {
+        let (mut session, owner) = project();
+        let other = run(&mut session, &owner, &[AutoValue::text("'other.xlsm'!Module1.Answer")]);
+        assert!(matches!(other, Err(AutoError::NotModelled { .. })), "{other:?}");
+        let same = run(&mut session, &owner, &[AutoValue::text("'TEST BOOK.xlsm'!Module1.Answer")]);
+        assert!(matches!(same, Ok(AutoValue::R8(42.0))), "{same:?}");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_run_maps_arguments_defaults_and_procedure_results() {
+        let (mut session, owner) = project();
+        let args = [AutoValue::text("Answer"), AutoValue::Missing, AutoValue::I4(8)];
+        let defaulted = run(&mut session, &owner, &args);
+        assert!(matches!(defaulted, Ok(AutoValue::R8(45.0))), "{defaulted:?}");
+        let missing_required = [AutoValue::text("EchoText"), AutoValue::Missing];
+        assert!(matches!(
+            run(&mut session, &owner, &missing_required),
+            Err(AutoError::Excel { number: 1004, .. })
+        ));
+        let text = [AutoValue::text("EchoText"), AutoValue::text("hello")];
+        let echoed = run(&mut session, &owner, &text).unwrap();
+        assert_eq!(echoed.as_text().as_deref(), Some("hello"));
+        for name in ["PrivateAnswer", "PropertyAnswer"] {
+            let result = run(&mut session, &owner, &[AutoValue::text(name)]);
+            assert!(matches!(result, Err(AutoError::Excel { number: 1004, .. })), "{result:?}");
+        }
+        let boom = run(&mut session, &owner, &[AutoValue::text("Boom")]);
+        assert!(matches!(boom, Err(AutoError::Excel { number: 11, .. })), "{boom:?}");
+    }
+
+    fn project() -> (HostSession, Rc<WorkbookEvents>) {
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let session = HostSession::open(
+            Arc::new(MemorySource::new(bytes.to_vec()).named("Test Book.xlsm")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let owner = crate::prepare(
+            session.host(),
+            "Test Book.xlsm",
+            &[crate::ModuleSource {
+                name: "Module1".into(),
+                target: crate::ModuleTarget::Standard,
+                source: r#"
+Public Function Answer(Optional ByVal first As Double = 37, Optional ByVal second As Double = 5) As Double
+ Answer = first + second
+End Function
+Public Function EchoText(ByVal value As String) As String
+ EchoText = value
+End Function
+Private Function PrivateAnswer() As Double
+ PrivateAnswer = 1
+End Function
+Public Property Get PropertyAnswer() As Double
+ PropertyAnswer = 2
+End Property
+Public Sub Boom()
+ Dim x As Long
+ x = 0
+ x = 1 \ x
+End Sub
+"#.into(),
+            }],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        (session, owner)
+    }
+
+    fn run(
+        session: &mut HostSession,
+        owner: &WorkbookEvents,
+        args: &[AutoValue],
+    ) -> Result<AutoValue, AutoError> {
+        let model = &owner.automation;
+        let app = model.application();
+        let member = Descriptor::get().member(app.interface, "Run", InvokeKind::Method).unwrap();
+        model.with_event_session(session, false, || {
+            model.invoke(&app, &Call { interface: app.interface, member, args: args.to_vec(), lcid: 0 })
+        })
     }
 }
