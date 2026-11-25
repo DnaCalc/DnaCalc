@@ -187,12 +187,33 @@ pub enum PasteMode {
     Validation,
     /// Paste the source's notes and threaded comments only (xlPasteComments).
     Comments,
+    /// Paste everything but the border: the destination keeps its own border (xlPasteAllExceptBorders).
+    AllExceptBorders,
+    /// Paste formulas and literal inputs with the source's number format (xlPasteFormulasAndNumberFormats).
+    FormulasAndNumberFormats,
+    /// Paste values with the source's number format (xlPasteValuesAndNumberFormats).
+    ValuesAndNumberFormats,
 }
 
 impl PasteMode {
+    /// The content and metadata mode a mix is built on; the style splice is `splices_formats`.
+    pub(crate) fn base(self) -> Self {
+        match self {
+            Self::AllExceptBorders => Self::All,
+            Self::FormulasAndNumberFormats => Self::Formulas,
+            Self::ValuesAndNumberFormats => Self::Values,
+            other => other,
+        }
+    }
+
+    /// Whether the mode splices the source's cell format into the destination's own.
+    fn splices_formats(self) -> bool {
+        self != self.base()
+    }
+
     /// Whether the mode writes cell contents; the others write formats or metadata only.
     pub(crate) fn writes_contents(self) -> bool {
-        matches!(self, Self::All | Self::Values | Self::Formulas)
+        matches!(self.base(), Self::All | Self::Values | Self::Formulas)
     }
 }
 
@@ -332,7 +353,7 @@ impl CopySnapshot {
             return Err(CopyRefusal::TransposeTable);
         }
         if transpose
-            && matches!(mode, PasteMode::All | PasteMode::Formulas)
+            && matches!(mode.base(), PasteMode::All | PasteMode::Formulas)
             && (self
                 .spills
                 .iter()
@@ -355,7 +376,7 @@ impl CopySnapshot {
             return Err(CopyRefusal::SourceChanged);
         }
         let to = self.target_oriented(to, transpose)?;
-        check_destination(host, to, mode)?;
+        check_destination(host, to, mode.base())?;
         if cut {
             check_destination(host, self.from, PasteMode::All)?;
         }
@@ -700,7 +721,10 @@ fn copy_edits_from(
     transpose: bool,
     include_metadata: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
-    let restored = if matches!(mode, PasteMode::All | PasteMode::Formats) {
+    let splice = mode.splices_formats();
+    let spliced_mode = mode;
+    let mode = mode.base();
+    let restored = if splice || matches!(mode, PasteMode::All | PasteMode::Formats) {
         if let Some(snapshot) = snapshot {
             if !snapshot.model.same_lineage(&host.model) {
                 return Err(CopyRefusal::StyleDefinitionsChanged);
@@ -794,6 +818,10 @@ fn copy_edits_from(
         }
     }
     let (top, left) = (to.first().row(), to.first().column());
+    // The style table the splice appends the mixed formats to, and the mixes made so far.
+    let mut spliced_table = restored.as_ref().map_or_else(|| (**host.styles()).clone(), |(t, _)| t.clone());
+    let mut mixed: BTreeMap<(u32, u32), u32> = BTreeMap::new();
+    let styles_before = spliced_table.cell_formats.len();
     // A cell's format, set only where it changes.
     let restyle = |edits: &mut Vec<CellEdit>, at: CellKey, style: u32| {
         if host.cell_style(at) != style {
@@ -849,8 +877,20 @@ fn copy_edits_from(
                 from.first().column() + col_offset,
             )
             .expect("inside the source area");
-            if matches!(mode, PasteMode::All | PasteMode::Formats) {
+            if matches!(mode, PasteMode::All | PasteMode::Formats) && !splice {
                 restyle(&mut edits, target, source_style(source));
+            }
+            if splice {
+                let key = (host.cell_style(target), source_style(source));
+                let id = match mixed.get(&key) {
+                    Some(&id) => id,
+                    None => {
+                        let id = splice_format(&mut spliced_table, key.0, key.1, spliced_mode);
+                        mixed.insert(key, id);
+                        id
+                    }
+                };
+                restyle(&mut edits, target, id);
             }
             if !matches!(mode, PasteMode::All | PasteMode::Values | PasteMode::Formulas) {
                 continue;
@@ -1127,6 +1167,11 @@ fn copy_edits_from(
             }
         }
     }
+    if spliced_table.cell_formats.len() != styles_before {
+        // Replaces a restored-table edit, which the mixed table extends.
+        edits.retain(|edit| !matches!(edit, CellEdit::Styles(_)));
+        edits.insert(0, CellEdit::Styles(Arc::new(spliced_table)));
+    }
     if include_metadata {
         crate::copy_metadata::append(
             host,
@@ -1140,6 +1185,36 @@ fn copy_edits_from(
         )?;
     }
     Ok(edits)
+}
+
+/// The cell format that is `dest` with the number format of `source` (and, for all-except-borders, the source's
+/// font, fill, alignment and protection too), added to `table` when it is not there yet.
+fn splice_format(table: &mut calc_doc_model::StyleTable, dest: u32, source: u32, mode: PasteMode) -> u32 {
+    let own = table.cell_formats.get(dest as usize).cloned().unwrap_or_default();
+    let from = table.cell_formats.get(source as usize).cloned().unwrap_or_default();
+    let mut mixed = own.clone();
+    mixed.number_format_id = from.number_format_id;
+    mixed.apply_number_format = from.apply_number_format;
+    if mode == PasteMode::AllExceptBorders {
+        mixed.font_id = from.font_id;
+        mixed.fill_id = from.fill_id;
+        mixed.xf_id = from.xf_id;
+        mixed.quote_prefix = from.quote_prefix;
+        mixed.apply_font = from.apply_font;
+        mixed.apply_fill = from.apply_fill;
+        mixed.apply_alignment = from.apply_alignment;
+        mixed.apply_protection = from.apply_protection;
+        mixed.alignment = from.alignment;
+        mixed.protection = from.protection;
+    }
+    if mixed == own {
+        return dest;
+    }
+    if let Some(at) = table.cell_formats.iter().position(|xf| *xf == mixed) {
+        return at as u32;
+    }
+    table.cell_formats.push(mixed);
+    (table.cell_formats.len() - 1) as u32
 }
 
 /// Whether the formula `text` holds `name` as a whole word, both folded as defined names are

@@ -120,7 +120,7 @@ pub fn prepare_paste_oriented(
     }
     // Excel entry alerts apply to direct/Values entry; whole-cell copy and fill can introduce
     // invalid values which Circle Invalid Data then audits against the copied rules.
-    let validate_entries = matches!(&source, PasteSource::External(_)) || mode == PasteMode::Values;
+    let validate_entries = matches!(&source, PasteSource::External(_)) || mode.base() == PasteMode::Values;
     let coordinates = match &source {
         PasteSource::Snapshot {
             snapshot,
@@ -134,7 +134,7 @@ pub fn prepare_paste_oriented(
     };
     let (edits, target) = match source {
         PasteSource::Snapshot { snapshot, cut } => {
-            if cut && mode != PasteMode::All {
+            if cut && mode.base() != PasteMode::All {
                 return Err(
                     "Paste Special is unavailable for a cut; copy the cells instead".to_owned(),
                 );
@@ -203,7 +203,7 @@ pub fn prepare_paste_oriented(
                         [((col - target.first().column()) % width) as usize];
                     let input = crate::interpret_entry_in(text, Some(&host.entry_environment()))
                         .map_err(|e| e.to_string())?;
-                    if mode == PasteMode::Values
+                    if mode.base() == PasteMode::Values
                         && matches!(input, Some(crate::CellInput::Formula(_)))
                     {
                         return Err(
