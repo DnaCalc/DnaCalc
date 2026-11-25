@@ -2633,6 +2633,40 @@ End Sub
     }
 }
 
+/// dc-oxh8w.71: Excel's own enumeration constants resolve in a project (here the XlFilterAction, XlDirection,
+/// XlLookAt, XlSortOrder, XlSheetVisibility and XlPasteType members), with the values Excel documents; a name
+/// that does not resolve would read as Empty (0) in a module without Option Explicit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn documented_excel_enum_constants_resolve_with_their_values() {
+    let sheet_source = r#"
+Option Explicit
+Private Sub Worksheet_Change(ByVal Target As Excel.Range)
+ History = xlFilterInPlace & ":" & xlFilterCopy & ":" & xlDown & ":" & xlUp & ":" & xlToLeft & ":" & xlToRight
+ History = History & ":" & xlWhole & ":" & xlPart & ":" & xlAscending & ":" & xlDescending
+ History = History & ":" & xlSheetVisible & ":" & xlSheetHidden & ":" & xlSheetVeryHidden
+ History = History & ":" & xlPasteAll & ":" & xlPasteValues & ":" & xlPasteFormulas & ":" & xlPasteFormats
+End Sub
+"#;
+    for backend in backends() {
+        let mut session = opened(&calc_host::blank_package(), "enums.xlsm");
+        let project = mutable_owner(&mut session, sheet_source, OWNER_STATE, 50_000, backend);
+        enter(&mut session, 1, 1, "go");
+        let trace = project.functions().call("Trace", &[]).unwrap();
+        let trace = trace.as_text().unwrap().to_string_lossy();
+        assert!(
+            session.workbook_event_failures().failures.is_empty(),
+            "{backend:?} at {trace}: {:?}",
+            session.workbook_event_failures()
+        );
+        assert_eq!(
+            trace,
+            "1:2:-4121:-4162:-4159:-4161:1:2:1:2:-1:0:2:-4104:-4163:-4123:-4122",
+            "{backend:?}"
+        );
+    }
+}
+
 /// dc-1nbp.7: Worksheet and Workbook objects (`Me.Range`, `Worksheets("S").Range`,
 /// `ThisWorkbook.Worksheets("S").Range`, `Range.Cells`, `Range.Value2` reads/writes,
 /// including late-bound `Worksheets("S").Range(...).Cells(r, c)`) run over the existing

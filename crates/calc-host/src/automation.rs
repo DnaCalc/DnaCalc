@@ -39,6 +39,7 @@ mod clipboard;
 mod formatting;
 mod window;
 mod find;
+mod advanced_filter;
 mod autofilter;
 mod range_end;
 mod formula;
@@ -318,6 +319,7 @@ impl WorkbookAutomation {
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
+        Self::register_advanced_filter(&mut handlers);
         Self::register_autofilter(&mut handlers);
         Self::register_range_end(&mut handlers);
         Self::register_clipboard(&mut handlers);
