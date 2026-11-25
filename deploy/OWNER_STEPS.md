@@ -6,7 +6,8 @@ publish is run or approved by the owner.
 
 | Site | Host | Root on the host |
 |---|---|---|
-| `calc` (DNA Calc) | dnacalc.com (www.dnacalc.com redirects) | `/srv/dnacalc-site/calc/current` |
+| `content` (DNA Calc site: home, product pages, downloads, articles, the app) | dnacalc.com (www.dnacalc.com redirects; since 2026-11-25) | `/srv/dnacalc-site/content/current` |
+| `calc` (DNA Calc app only; served at the apex until 2026-11-25, kept for rollback) | none | `/srv/dnacalc-site/calc/current` |
 | `onecalc` (DNA Calc - Formula Explorer) | onecalc.dnacalc.com | `/srv/dnacalc-site/onecalc/current` |
 
 **Route** (owner, 2026-11-08): everything runs on the site host dna-koderbot, as `koderbot`, in a

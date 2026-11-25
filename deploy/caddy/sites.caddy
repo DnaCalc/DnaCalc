@@ -6,9 +6,9 @@
 # Each site's root is the receiver's `current` symlink (deploy/host/dnacalc-site-receive), so a
 # publish or a rollback takes effect without a reload.
 
-# DNA Calc at the apex.
+# DNA Calc at the apex: the content site (home, product pages, downloads, articles, the app; owner yes 2026-11-25).
 dnacalc.com {
-	root * /srv/dnacalc-site/calc/current
+	root * /srv/dnacalc-site/content/current
 	import dnacalc_headers
 
 	@bad_methods not method GET HEAD
