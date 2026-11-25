@@ -5473,6 +5473,9 @@ mod xlc {
             ("R1C1:RC", "A1:D5"), ("RC1:R2C2", "A5:B2"), ("R1:R", "1:5"), ("C2:c", "B:D"),
         ] {
             spy.calls.borrow_mut().clear();
+            // Select moves the active cell the next operand is relative to: start each from D5.
+            select_cells(&host, (5, 4), (5, 4));
+            model.context_changed(&host.session.borrow());
             let _ = run(&spy, "xlcSelect", vec![AutoValue::text(operand)]);
             let expected = format!("_Application.Range Get('{a1}')");
             assert!(spy.calls.borrow().contains(&expected), "{operand}");
@@ -5529,7 +5532,7 @@ mod xlc {
                 "xlcSelect",
                 vec![text("R2C3:R4C5")],
                 &["_Application.Range Get('C2:E4')", "Range.Select Method()"],
-                Some(unmodelled("Range.Select")),
+                None,
             ),
             (
                 "xlcClear",
@@ -7300,4 +7303,65 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
+}
+
+/// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
+/// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
+    let (host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sub = |o: &ObjectRef, a: &str| obj(invoke(&model, o, "Range", vec![AutoValue::text(a)]).unwrap());
+    let address = |o: &ObjectRef| text(&model, o, "Address");
+    let active_name = || {
+        let s = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+        text(&model, &s, "Name")
+    };
+    let select = |o: &ObjectRef| invoke_kind(&model, o, "Select", InvokeKind::Method, vec![]);
+
+    // The added sheet is active: selecting on the first sheet's range fails like Excel.
+    let wrong_sheet = select(&sub(&first, "B2:C3"));
+    assert!(matches!(wrong_sheet, Err(AutoError::Excel { number: 1004, .. })), "{wrong_sheet:?}");
+    // Activate the first sheet, then select.
+    invoke_kind(&model, &first, "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    assert!(matches!(select(&sub(&first, "B2:C3")).unwrap(), AutoValue::Bool(true)));
+    let selection = obj(invoke(&model, &app, "Selection", vec![]).unwrap());
+    assert_eq!(address(&selection), "$B$2:$C$3");
+    let cell = obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap());
+    assert_eq!(address(&cell), "$B$2");
+    // A multi-area range selects all its areas; the active cell is the first area's first cell.
+    let union = obj(invoke_kind(&model, &app, "Union", InvokeKind::Method, vec![
+        AutoValue::Object(sub(&first, "E5:F6")), AutoValue::Object(sub(&first, "A1"))]).unwrap());
+    select(&union).unwrap();
+    assert_eq!(host.session.borrow().selection().areas.len(), 2);
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$E$5");
+
+    // Select the other sheet: its own selection comes back (A1 for a new sheet), and the first sheet's is remembered.
+    select(&sub(&first, "B2:C3")).unwrap();
+    invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(active_name(), text(&model, &added, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$A$1");
+    select(&sub(&added, "C3")).unwrap();
+    invoke_kind(&model, &first, "Select", InvokeKind::Method, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    // Select(Replace:=False) would group sheets: typed refusal, no change.
+    let group = invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![AutoValue::Bool(false)]);
+    assert!(matches!(group, Err(AutoError::NotModelled { .. })), "{group:?}");
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+
+    // Goto a range on another sheet activates that sheet and selects the range.
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(sub(&added, "D4:E5"))]).unwrap();
+    assert_eq!(active_name(), text(&model, &added, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$D$4:$E$5");
+    // Scroll is accepted; a non-range reference is a type mismatch (13), a bad argument count 1004-class.
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(sub(&first, "A1")), AutoValue::Bool(true)]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    let bad = invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::R8(3.)]);
+    assert!(bad.is_err(), "{bad:?}");
 }

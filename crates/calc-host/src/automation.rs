@@ -39,6 +39,7 @@ mod find;
 mod formula;
 mod mutation;
 mod navigation;
+mod select;
 mod print;
 mod report;
 mod chart_axes;
@@ -264,6 +265,7 @@ impl WorkbookAutomation {
             Self::fallback_member,
         );
         Self::register_navigation(&mut handlers);
+        Self::register_select(&mut handlers);
         Self::register_mutation(&mut handlers);
         Self::register_structure(&mut handlers);
         Self::register_sheet_copy(&mut handlers);
