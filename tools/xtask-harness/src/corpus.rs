@@ -879,7 +879,8 @@ fn compare_one(
                 .arg("--trusted-code-sha256")
                 .arg(trusted_code_digest.ok_or("missing admitted trusted manifest digest")?);
         }
-        let result = crate::corpus_batch::bounded(&mut command, &log, args.timeout);
+        let result =
+            crate::corpus_batch::bounded(&mut command, &log, args.timeout).map_err(|err| err.message);
         let outcome = match &result {
             Ok(status) if status.success() => "completed".to_owned(),
             Ok(status) => format!("comparison ended with {status}"),

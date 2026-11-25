@@ -2083,20 +2083,23 @@ mod tests {
     }
 
     #[test]
-    fn empty_spill_elements_are_proven_on_the_workbook_route() {
-        let cases: [(&[u8], &[u8], &[usize]); 2] = [
+    fn zero_and_empty_spill_elements_are_proven_on_the_workbook_route() {
+        let cases: [(&[u8], &[u8], &[usize], bool); 2] = [
             (
                 include_bytes!("../../../tests/corpus-examples/formulas/tocol-scan-different/example.xlsx"),
                 include_bytes!("../../../tests/corpus-examples/formulas/tocol-scan-different/oracle.capture.json"),
                 &[3, 4],
+                // The Excel-backed TOCOL evaluator returns +0 for retained blanks (dc-j9k.149).
+                false,
             ),
             (
                 include_bytes!("../../../tests/corpus-examples/formulas/unique-explicit-empty/example.xlsx"),
                 include_bytes!("../../../tests/corpus-examples/formulas/unique-explicit-empty/oracle.capture.json"),
                 &[3],
+                true,
             ),
         ];
-        for (bytes, captured, empty_indices) in cases {
+        for (bytes, captured, zero_indices, raw_empty) in cases {
             let capture = CaptureRecord::decode(captured).unwrap();
             let run = run_workbook(bytes, None, None, &capture, NumericMode::Fast, false).unwrap();
             assert_eq!(run.record.evaluations.len(), 1);
@@ -2118,9 +2121,13 @@ mod tests {
                 .enumerate()
                 .filter_map(|(i, value)| value.is_empty().then_some(i))
                 .collect();
-            assert_eq!(actual_empty, empty_indices);
+            assert_eq!(actual_empty, if raw_empty { zero_indices } else { &[] });
             let mut cells: Vec<_> = published.iter_row_major().cloned().collect();
-            for &i in empty_indices {
+            for &i in zero_indices {
+                if !raw_empty {
+                    let raw = returned.iter_row_major().nth(i).unwrap();
+                    assert_eq!(raw.as_number().unwrap().to_bits(), 0.0_f64.to_bits());
+                }
                 assert_eq!(cells[i].as_number().unwrap().to_bits(), 0.0_f64.to_bits());
             }
 
@@ -2132,7 +2139,7 @@ mod tests {
             assert_eq!(report.counts.unproven, 0);
             assert_eq!(report.counts.calculated_without_value_check, 0);
 
-            cells[empty_indices[0]] = CalcValue::number(1.0);
+            cells[zero_indices[0]] = CalcValue::number(1.0);
             let mut wrong = run.results.clone();
             wrong.results[0].value = Some(CalcValue::array(
                 CalcArray::new(published.shape(), cells).unwrap(),

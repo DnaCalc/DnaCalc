@@ -385,58 +385,36 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
 /// cumulative probability inclusively (dc-j9k, Excel 16.0.20527): on 252 dyadic boundary
 /// designs, each asked at the exact lower tail and three binary64 neighbours either side, the
 /// 200 with a count above zero meet alpha exactly when BINOM.DIST(k, n, p, TRUE) >= alpha, and
-/// all 52 at zero only when BINOM.DIST(0, n, p, TRUE) > alpha. A forward mass recurrence locates
-/// the count; the public tails then settle it.
+/// all 52 at zero only when BINOM.DIST(0, n, p, TRUE) > alpha.
 pub fn binom_inv_kernel(trials: f64, p: f64, alpha: f64) -> R {
     if trials < 0.0 {
         return Err(NUM);
     }
     let n = trials.trunc();
-    if n < 0.0 || !(p > 0.0 && p < 1.0) || !(alpha > 0.0 && alpha < 1.0) {
+    // Touchstone Excel 16.0.20625 admits truncated counts below the signed 32-bit sentinel.
+    if !(0.0..i32::MAX as f64).contains(&n) || !(p > 0.0 && p < 1.0) || !(alpha > 0.0 && alpha < 1.0) {
         return Err(NUM);
     }
     let q = 1.0 - p;
-    let reaches = |k: f64| {
-        if k == 0.0 {
-            binom_cumulative(0.0, n, p, q) > alpha
+    // Search the same cumulative predicate directly. Scanning the masses from zero
+    // can take billions of evaluations even at a valid trial count.
+    let mut low = -1;
+    let mut high = n as i32;
+    while high - low > 1 {
+        let mid = low + (high - low) / 2;
+        let cumulative = binom_cumulative(f64::from(mid), n, p, q);
+        let reaches = if mid == 0 {
+            cumulative > alpha
         } else {
-            binom_cumulative(k, n, p, q) >= alpha
-        }
-    };
-    let mut k = binom_inv_estimate(n, p, q, alpha);
-    while k > 0.0 && reaches(k - 1.0) {
-        k -= 1.0;
-    }
-    while k < n && !reaches(k) {
-        k += 1.0;
-    }
-    Ok(k)
-}
-
-/// The count a forward mass recurrence reaches, used only to start the search near the answer.
-fn binom_inv_estimate(n: f64, p: f64, q: f64, alpha: f64) -> f64 {
-    let mut sum = 0.0;
-    let mut k = 0.0;
-    // The forward recurrence starts at the larger-probability endpoint; use the existing
-    // mass calculation when that endpoint is the upper tail or its starting mass underflows.
-    let mut mass = if p <= q {
-        crate::ported::excel_numeric::crt_pow(q, n)
-    } else {
-        0.0
-    };
-    while k < n {
-        sum += if mass == 0.0 {
-            binom_mass(k, n, p, q)
-        } else {
-            mass
+            cumulative >= alpha
         };
-        if sum > alpha {
-            return k;
+        if reaches {
+            high = mid;
+        } else {
+            low = mid;
         }
-        k += 1.0;
-        mass *= (n - k + 1.0) / k * p / q;
     }
-    n
+    Ok(f64::from(high))
 }
 
 /// `POISSON.DIST(x, mean, cumulative)`.

@@ -88,6 +88,7 @@ pub fn evaluate_traced(
     args: &[Value],
     context: &WitnessInvocation,
 ) -> (String, RouteTrace, String) {
+    super::sweep::record_active_case("dna", function, args, &[]);
     let (prediction, trace) = with_trace(|| {
         crate::witness::calculate_with_context(function, args, None, Some(context), true)
     });

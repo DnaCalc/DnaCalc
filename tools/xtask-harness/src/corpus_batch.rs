@@ -87,7 +87,7 @@ pub(crate) fn census(
         .arg("--inventory-only")
         .arg("--out")
         .arg(&payload);
-    let result = bounded(&mut command, &log, timeout);
+    let result = bounded(&mut command, &log, timeout).map_err(|err| err.message);
     let outcome = match &result {
         Ok(status) => status.to_string(),
         Err(reason) => reason.clone(),
@@ -603,24 +603,31 @@ pub(crate) fn finish(out: &Path, key: &Value) -> Result<(), String> {
         .map_err(|e| format!("cannot complete {}: {e}", out.display()))
 }
 
-/// Both streams go to files, so a full pipe cannot hide a timeout. Kill/reap only
-/// this process; comparison runs no Excel or background process on this route.
+#[derive(Debug)]
+pub(crate) struct BoundedFailure {
+    pub message: String,
+    pub timed_out: bool,
+}
+
+/// Both streams go to files, so a full pipe cannot hide a timeout. Kill and reap
+/// only the child we started.
 pub(crate) fn bounded(
     command: &mut Command,
     log: &Path,
     timeout: Duration,
-) -> Result<ExitStatus, String> {
+) -> Result<ExitStatus, BoundedFailure> {
+    let failure = |message| BoundedFailure { message, timed_out: false };
     let file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(log)
-        .map_err(|e| format!("cannot create {}: {e}", log.display()))?;
-    let err = file.try_clone().map_err(|e| e.to_string())?;
+        .map_err(|e| failure(format!("cannot create {}: {e}", log.display())))?;
+    let err = file.try_clone().map_err(|e| failure(e.to_string()))?;
     let mut child = command
         .stdout(Stdio::from(file))
         .stderr(Stdio::from(err))
         .spawn()
-        .map_err(|e| format!("cannot start comparison: {e}"))?;
+        .map_err(|e| failure(format!("cannot start child: {e}")))?;
     let begun = Instant::now();
     loop {
         match child.try_wait() {
@@ -630,13 +637,14 @@ pub(crate) fn bounded(
                 let killed = child.kill();
                 let waited = child.wait();
                 return Err(match state {
-                    Err(e) => {
-                        format!("cannot wait for comparison: {e}; kill={killed:?}; wait={waited:?}")
-                    }
-                    _ => format!(
-                        "comparison timed out after {} seconds; kill={killed:?}; wait={waited:?}",
-                        timeout.as_secs_f64()
-                    ),
+                    Err(e) => failure(format!("cannot wait for child: {e}; kill={killed:?}; wait={waited:?}")),
+                    _ => BoundedFailure {
+                        message: format!(
+                            "child timed out after {} seconds; kill={killed:?}; wait={waited:?}",
+                            timeout.as_secs_f64()
+                        ),
+                        timed_out: true,
+                    },
                 });
             }
         }
@@ -947,7 +955,7 @@ mod tests {
             let started = Instant::now();
             let result = bounded(&mut child, &log, timeout);
             if mode == "wait" {
-                assert!(result.unwrap_err().contains("timed out"));
+                assert!(result.unwrap_err().timed_out);
             } else {
                 assert_eq!(result.unwrap().code(), Some(17));
             }

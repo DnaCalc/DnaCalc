@@ -930,6 +930,9 @@ pub fn run(raw: &[String]) -> ExitCode {
         if mode == "sweep" {
             return sweep::run(args);
         }
+        if mode == "sweep-worker" {
+            return sweep::run_worker(args);
+        }
         if mode == "coverage" {
             return coverage::run(args);
         }

@@ -586,6 +586,14 @@ fn drain_one_chunk(
     config: Option<&FuzzConfig>,
 ) -> Result<(), String> {
     let sweep = config.and_then(|cfg| cfg.sweep.as_ref().map(|policy| (cfg, policy)));
+    let (cases, judged) = if chunk.lane_tag == 0 {
+        (primary_cases, primary_judged)
+    } else {
+        (secondary_cases, secondary_judged)
+    };
+    if let Some((cfg, _)) = sweep {
+        record_pending_cases(&cfg.function, cases, &chunk.indices);
+    }
     let timeout = if sweep.is_some() {
         SWEEP_WAIT.saturating_sub(chunk.submitted.elapsed())
     } else {
@@ -606,11 +614,6 @@ fn drain_one_chunk(
             _ => None,
         },
         _ => None,
-    };
-    let (cases, judged) = if chunk.lane_tag == 0 {
-        (primary_cases, primary_judged)
-    } else {
-        (secondary_cases, secondary_judged)
     };
     if let Some(terminal) = &terminal {
         for &index in &chunk.indices {
@@ -944,6 +947,14 @@ fn dispatch_chunks(
             request.priority = Some(if sweep { Priority::Sweep } else { priority });
             request.echo_inputs = true;
             request.spill = spill;
+            if sweep {
+                let cases = if lane_tag == 0 {
+                    primary_cases
+                } else {
+                    secondary_cases
+                };
+                record_pending_cases(function, cases, &indices);
+            }
             let submitted = Instant::now();
             match client.submit(request) {
                 Ok(handle) => pending.push_back(PendingChunk {
@@ -984,6 +995,16 @@ fn dispatch_chunks(
         return Err("sweep paused".into());
     }
     Ok((envs, worker_calls))
+}
+
+fn record_pending_cases(function: &str, cases: &[FuzzCase], indices: &[usize]) {
+    let batch: Vec<_> = indices
+        .iter()
+        .map(|&index| cases[index].args.as_slice())
+        .collect();
+    if let Some(args) = batch.first() {
+        super::sweep::record_active_case("excel", function, args, &batch);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2547,6 +2568,15 @@ mod tests {
     }
 
     fn serve_fake_fuzz_broker(listener: &TcpListener, sweep: bool, interrupt: Option<&Path>) {
+        serve_fake_fuzz_broker_with(listener, sweep, interrupt, false);
+    }
+
+    fn serve_fake_fuzz_broker_with(
+        listener: &TcpListener,
+        sweep: bool,
+        interrupt: Option<&Path>,
+        stall: bool,
+    ) {
         let ctx = touchstone_bulk_context();
         let (mut stream, _) = listener.accept().unwrap();
         while let Some((kind, body)) = read_frame(&mut stream) {
@@ -2585,6 +2615,11 @@ mod tests {
                     );
                 }
                 b'S' => {
+                    if stall {
+                        stream.set_read_timeout(Some(Duration::from_secs(15))).unwrap();
+                        while read_frame(&mut stream).is_some() {}
+                        return;
+                    }
                     let id = body["id"].as_str().unwrap().to_string();
                     let prio = body["opts"]["priority"].as_str().unwrap_or("bulk");
                     if sweep && body["seq"] == json!(0) {
@@ -2795,6 +2830,46 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn sweep_deadline_records_pending_args_and_gives_up() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let tmp = std::env::temp_dir().join(format!("dnacalc-sweep-deadline-{port}"));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let out = tmp.join("out");
+        let endpoint = tmp.join("endpoint.json");
+        std::fs::write(&endpoint, json!({"host": "127.0.0.1", "port": port}).to_string()).unwrap();
+        let order = tmp.join("order.tsv");
+        std::fs::write(&order, "rank\tfunction\tpriority_score\tbank_class\n1\tABS\t10.0\texact\n").unwrap();
+        let broker = std::thread::spawn(move || {
+            for _ in 0..3 {
+                serve_fake_fuzz_broker_with(&listener, true, None, true);
+            }
+        });
+        let command = [
+            "sweep", "--runs", "1", "--order", order.to_str().unwrap(), "--out",
+            out.to_str().unwrap(), "--endpoint", endpoint.to_str().unwrap(),
+            "--function-timeout-seconds", "2",
+        ].map(str::to_owned);
+        assert_eq!(super::super::run(&command), std::process::ExitCode::SUCCESS);
+        broker.join().unwrap();
+
+        let run = out.join("00000001");
+        let read_json = |path: &Path| -> Value {
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+        };
+        assert_eq!(read_json(&run.join("gave_up.json"))["attempts"], 3);
+        assert!(!run.join("done.json").exists());
+        for attempt in 1..=3 {
+            let fault = read_json(&run.join(format!("{attempt:08}/interrupted.json")));
+            assert_eq!(fault["harness_fault"], "FunctionDeadline");
+            assert_eq!(fault["case"]["function"], "ABS");
+            assert_eq!(fault["case"]["phase"], "excel");
+            assert!(fault["case"]["args"].as_array().is_some_and(|args| !args.is_empty()));
+        }
+        std::fs::remove_dir_all(tmp).unwrap();
     }
 
     #[test]

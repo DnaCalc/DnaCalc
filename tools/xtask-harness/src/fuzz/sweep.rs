@@ -3,6 +3,7 @@
 use super::{FuzzConfig, rng::GENERATOR_VERSION, utc_timestamp_now};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::cell::OnceCell;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
@@ -10,8 +11,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::Duration;
 
-const USAGE: &str = "cargo xtask fuzz sweep [--plan] [--order <tsv>] [--out <dir>] [--runs <N>] [--seed <N>] [--endpoint <path>] [--bank-rows-out <dir>] [--tracker <dedicated master clone>]";
+const USAGE: &str = "cargo xtask fuzz sweep [--plan] [--order <tsv>] [--out <dir>] [--runs <N>] [--seed <N>] [--endpoint <path>] [--bank-rows-out <dir>] [--tracker <dedicated master clone>] [--function-timeout-seconds <N>]";
 const RETRY_DELAY: Duration = Duration::from_secs(15);
+const DEFAULT_FUNCTION_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_FAILED_ATTEMPTS: u64 = 3;
 const BASE_BACKOFF_RUNS: u64 = 4;
 const MAX_BACKOFF_SHIFT: u32 = 7;
@@ -26,6 +28,7 @@ struct Options {
     runs: Option<usize>,
     seed: u64,
     plan: bool,
+    function_timeout: Duration,
 }
 
 impl Options {
@@ -39,6 +42,7 @@ impl Options {
             runs: None,
             seed: 20261123,
             plan: false,
+            function_timeout: DEFAULT_FUNCTION_TIMEOUT,
         };
         let mut args = raw.iter();
         while let Some(flag) = args.next() {
@@ -55,6 +59,11 @@ impl Options {
                 "--tracker" => options.tracker = Some(value.into()),
                 "--runs" => options.runs = Some(value.parse().map_err(|_| "invalid --runs")?),
                 "--seed" => options.seed = value.parse().map_err(|_| "invalid --seed")?,
+                "--function-timeout-seconds" => {
+                    let seconds: std::num::NonZeroU64 =
+                        value.parse().map_err(|_| "invalid --function-timeout-seconds")?;
+                    options.function_timeout = Duration::from_secs(seconds.get());
+                }
                 _ => return Err(format!("unknown sweep option {flag}")),
             }
         }
@@ -207,7 +216,9 @@ fn persistent_failures(run: &Path) -> Result<(u64, u64, Option<String>), String>
         if interrupted.is_file() {
             let doc: Value = read_json(&interrupted)?;
             let error = doc["error"].as_str();
-            if error.is_some_and(is_transient_infra_error) {
+            if doc["harness_fault"] != "FunctionDeadline"
+                && error.is_some_and(is_transient_infra_error)
+            {
                 continue;
             }
             count += 1;
@@ -324,6 +335,7 @@ struct Attempt<'a> {
     generator_version: &'static str,
     versions: &'a Versions,
     started_utc: String,
+    function_timeout_seconds: u64,
     batch_size: usize,
     in_flight: usize,
     round_size: usize,
@@ -434,6 +446,113 @@ fn release_predictions(out: &Path, interrupted: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn attempt_config(recipe: &Recipe, out: &Path, endpoint: Option<PathBuf>) -> FuzzConfig {
+    let mut cfg = FuzzConfig::default_for(&recipe.function);
+    cfg.out_dir = out.to_owned();
+    cfg.seed = recipe.seed;
+    cfg.budget = recipe.budget;
+    cfg.min_budget = cfg.budget;
+    cfg.round_size = 128.min(cfg.budget);
+    cfg.batch_size = 32;
+    cfg.in_flight = 3;
+    cfg.max_frontiers = 0;
+    cfg.fractal_depth = 0;
+    cfg.endpoint = endpoint;
+    cfg
+}
+
+thread_local! {
+    static ACTIVE_CASE: OnceCell<PathBuf> = const { OnceCell::new() };
+}
+
+pub(super) fn record_active_case(phase: &str, function: &str, args: &[Value], batch: &[&[Value]]) {
+    ACTIVE_CASE.with(|path| {
+        if let Some(path) = path.get() {
+            write_json(
+                path,
+                &json!({"phase": phase, "function": function, "args": args, "batch": batch}),
+            )
+            .unwrap_or_else(|error| panic!("cannot record sweep case: {error}"));
+        }
+    });
+}
+
+fn execute_worker(out: &Path, bank: &Path, endpoint: Option<PathBuf>) -> Result<(), String> {
+    let run = out.parent().ok_or("sweep attempt missing run directory")?;
+    let sweep = run.parent().ok_or("sweep attempt missing sweep directory")?;
+    let attempt = out
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.parse().ok())
+        .ok_or("invalid sweep attempt number")?;
+    let recipe: Recipe = read_json(&run.join("recipe.json"))?;
+    let mut cfg = attempt_config(&recipe, out, endpoint);
+    cfg.sweep = Some(super::oracle::SweepPolicy::for_attempt(
+        sweep.join("PAUSE"),
+        bank,
+        &recipe.function,
+        recipe.seed,
+        attempt,
+    )?);
+    ACTIVE_CASE.with(|path| path.set(out.join("active-case.json")).unwrap());
+    super::oracle::execute_live_run(&cfg)?;
+    Ok(())
+}
+
+fn worker(out: &Path, bank: &Path, endpoint: Option<PathBuf>) -> ExitCode {
+    match execute_worker(out, bank, endpoint) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            if let Err(failure) = write_json(&out.join("worker-error.json"), &error) {
+                eprintln!("sweep worker: {error}; {failure}");
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+pub(super) fn run_worker(raw: &[String]) -> ExitCode {
+    match raw {
+        [out, bank, endpoint] => worker(Path::new(out), Path::new(bank), Some(endpoint.into())),
+        [out, bank] => worker(Path::new(out), Path::new(bank), None),
+        _ => ExitCode::from(2),
+    }
+}
+
+fn worker_command(out: &Path, bank: &Path, endpoint: Option<&Path>) -> Result<Command, String> {
+    let mut cmd = Command::new(std::env::current_exe().map_err(|e| e.to_string())?);
+    #[cfg(not(test))]
+    cmd.args(["fuzz", "sweep-worker"])
+        .arg(out)
+        .arg(bank)
+        .args(endpoint);
+    #[cfg(test)]
+    cmd.args(["--exact", "fuzz::sweep::tests::worker_child", "--nocapture"])
+        .env(
+            "DNACALC_SWEEP_WORKER",
+            serde_json::to_string(&(out, bank, endpoint)).map_err(|e| e.to_string())?,
+        );
+    Ok(cmd)
+}
+
+fn remove_worker_files(out: &Path) -> Result<(), String> {
+    for name in [
+        "active-case.json",
+        "active-case.tmp",
+        "worker-error.json",
+        "worker-error.tmp",
+        "worker.log",
+    ] {
+        let file = out.join(name);
+        match fs::remove_file(&file) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("{}: {error}", file.display())),
+        }
+    }
+    Ok(())
+}
+
 fn attempt_run(
     options: &Options,
     run: &Path,
@@ -444,24 +563,7 @@ fn attempt_run(
     let attempt = numbered(run)?.last().map_or(1, |(n, _)| n + 1);
     let out = run.join(format!("{attempt:08}"));
     new_dir(&out)?;
-    let mut cfg = FuzzConfig::default_for(&recipe.function);
-    cfg.out_dir = out.clone();
-    cfg.seed = recipe.seed;
-    cfg.budget = recipe.budget;
-    cfg.min_budget = cfg.budget;
-    cfg.round_size = 128.min(cfg.budget);
-    cfg.batch_size = 32;
-    cfg.in_flight = 3;
-    cfg.max_frontiers = 0;
-    cfg.fractal_depth = 0;
-    cfg.endpoint = options.endpoint.clone();
-    cfg.sweep = Some(super::oracle::SweepPolicy::for_attempt(
-        options.out.join("PAUSE"),
-        bank,
-        &recipe.function,
-        recipe.seed,
-        attempt,
-    )?);
+    let cfg = attempt_config(recipe, &out, options.endpoint.clone());
     write_json(
         &out.join("attempt.json"),
         &Attempt {
@@ -469,6 +571,7 @@ fn attempt_run(
             generator_version: GENERATOR_VERSION,
             versions,
             started_utc: utc_timestamp_now(),
+            function_timeout_seconds: options.function_timeout.as_secs(),
             batch_size: cfg.batch_size,
             in_flight: cfg.in_flight,
             round_size: cfg.round_size,
@@ -480,9 +583,15 @@ fn attempt_run(
             lane: &cfg.lane,
         },
     )?;
-    match super::oracle::execute_live_run(&cfg) {
-        Ok(summary) => {
+    let mut cmd = worker_command(&out, bank, options.endpoint.as_deref())?;
+    let outcome =
+        crate::corpus_batch::bounded(&mut cmd, &out.join("worker.log"), options.function_timeout);
+    let mut interruption = json!({"utc": utc_timestamp_now()});
+    let error = match outcome {
+        Ok(status) if status.success() => {
+            let summary: Value = read_json(&out.join("summary.json"))?;
             release_predictions(&out, false)?;
+            remove_worker_files(&out)?;
             write_json(
                 &run.join("done.json"),
                 &json!({
@@ -492,27 +601,43 @@ fn attempt_run(
             )?;
             println!(
                 "sweep {} seed {}: {} matched / {}, {} mismatched, {} harness_fault, {} unread, {} crashed ({})",
-                summary.function,
-                summary.seed,
-                summary.total_matched,
-                summary.total_asked,
-                summary.total_mismatched,
-                summary.total_harness_fault,
-                summary.total_unread,
-                summary.total_crashed,
-                summary.stop_reason
+                recipe.function,
+                recipe.seed,
+                summary["total_matched"],
+                summary["total_asked"],
+                summary["total_mismatched"],
+                summary["total_harness_fault"],
+                summary["total_unread"],
+                summary["total_crashed"],
+                summary["stop_reason"].as_str().unwrap_or_default(),
             );
-            Ok(())
+            return Ok(());
         }
-        Err(error) => {
-            release_predictions(&out, true)?;
-            write_json(
-                &out.join("interrupted.json"),
-                &json!({"utc": utc_timestamp_now(), "error": error}),
-            )?;
-            Err(error)
+        Ok(status) => read_json(&out.join("worker-error.json")).unwrap_or_else(|_| {
+            // Preserve diagnostics when a panic or crash prevented the worker writing its error.
+            interruption["worker_log"] = json!(read(&out.join("worker.log")).unwrap_or_default());
+            format!("sweep worker exited with {status}")
+        }),
+        Err(failure) if failure.timed_out => {
+            interruption["harness_fault"] = json!("FunctionDeadline");
+            interruption["limit_seconds"] = json!(options.function_timeout.as_secs());
+            let active = out.join("active-case.json");
+            if active.is_file() {
+                interruption["case"] = read_json(&active)?;
+            }
+            interruption["worker"] = json!(failure.message);
+            format!(
+                "function deadline exceeded ({} seconds)",
+                options.function_timeout.as_secs()
+            )
         }
-    }
+        Err(failure) => failure.message,
+    };
+    interruption["error"] = json!(error);
+    write_json(&out.join("interrupted.json"), &interruption)?;
+    release_predictions(&out, true)?;
+    remove_worker_files(&out)?;
+    Err(error)
 }
 
 fn command(directory: &Path, program: &str, args: &[&str]) -> Result<String, String> {
@@ -946,7 +1071,7 @@ fn execute(options: &Options) -> Result<(), String> {
 
 pub(super) fn run(raw: &[String]) -> ExitCode {
     if raw == ["--help"] {
-        println!("{USAGE}");
+        println!("{USAGE}\nEach function attempt gets {} seconds by default.", DEFAULT_FUNCTION_TIMEOUT.as_secs());
         return ExitCode::SUCCESS;
     }
     match Options::parse(raw) {
@@ -967,6 +1092,17 @@ pub(super) fn run(raw: &[String]) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_child() {
+        if let Ok(args) = std::env::var("DNACALC_SWEEP_WORKER") {
+            let (out, bank, endpoint): (PathBuf, PathBuf, Option<PathBuf>) =
+                serde_json::from_str(&args).unwrap();
+            if worker(&out, &bank, endpoint) != ExitCode::SUCCESS {
+                std::process::exit(1);
+            }
+        }
+    }
 
     #[test]
     fn sweep_priority_uses_usage_complexity_then_class_and_rotates_by_age() {
@@ -1133,7 +1269,7 @@ mod tests {
         write_json(
             &first.join("recipe.json"),
             &Recipe {
-                function: "RAND".into(),
+                function: "GETPIVOTDATA".into(),
                 seed: 123,
                 budget: 64,
                 rank: 1,
@@ -1145,7 +1281,7 @@ mod tests {
         let order = tmp.join("order.tsv");
         fs::write(
             &order,
-            "rank\tfunction\tpriority_score\tbank_class\n1\tRAND\t10.0\t-\n",
+            "rank\tfunction\tpriority_score\tbank_class\n1\tGETPIVOTDATA\t10.0\t-\n",
         )
         .unwrap();
         let args = [
@@ -1185,7 +1321,7 @@ mod tests {
         write_json(
             &first.join("gave_up.json"),
             &GaveUp {
-                function: "RAND".into(),
+                function: "GETPIVOTDATA".into(),
                 attempts: 3,
                 last_attempt: 3,
                 finished_utc: utc_timestamp_now(),

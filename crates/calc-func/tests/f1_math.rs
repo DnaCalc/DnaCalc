@@ -55,6 +55,35 @@ fn binomial_inverse_advances_on_measured_equal_boundaries() {
     );
 }
 
+/// Touchstone Excel 16.0.20625 rejects trial counts at and above the signed 32-bit sentinel.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_inverse_rejects_out_of_range_trials() {
+    for function in ["BINOM.INV", "CRITBINOM"] {
+        for trials in [2_147_483_647.0, 9_007_199_254_740_992.0, 1e100] {
+            error(call(function, vec![n(trials), n(1e-9), n(0.5)]), Num);
+        }
+    }
+}
+
+/// Touchstone Excel 16.0.20625 controls at the largest admitted trial count.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_inverse_searches_large_admitted_trial_counts() {
+    for function in ["BINOM.INV", "CRITBINOM"] {
+        for (p, alpha, expected) in [
+            (0.5, 0.5, 1_073_741_823.0),
+            (0.25, 0.75, 536_884_446.0),
+            (1e-9, 0.5, 2.0),
+        ] {
+            exact(
+                call(function, vec![n(2_147_483_646.75), n(p), n(alpha)]),
+                expected,
+            );
+        }
+    }
+}
+
 /// Excel20527: the directed unit at10^126 rounds through PC64, then binary64.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
