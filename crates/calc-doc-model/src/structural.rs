@@ -242,7 +242,7 @@ impl ModelRoot {
                 }
                 WorkbookOp::EditSheet(edit) => {
                     let sheet = match edit {
-                        SheetEdit::Insert { .. } => None,
+                        SheetEdit::Insert { .. } | SheetEdit::InsertChartSheet { .. } => None,
                         SheetEdit::Rename { sheet, .. }
                         | SheetEdit::Move { sheet, .. }
                         | SheetEdit::Remove { sheet }
@@ -826,12 +826,22 @@ impl ModelRoot {
                 key,
                 name,
                 position,
+            }
+            | SheetEdit::InsertChartSheet {
+                key,
+                name,
+                position,
             } => {
                 let id = issue_sheet();
                 let at = (position.get() as usize - 1).min(parts.sheets.len());
+                let kind = if matches!(edit, SheetEdit::InsertChartSheet { .. }) {
+                    crate::SheetKind::Chart
+                } else {
+                    crate::SheetKind::Worksheet
+                };
                 parts.sheets.insert(
                     at,
-                    SheetEntry::new(id, *key, name.clone(), SheetVisibility::Visible),
+                    SheetEntry::new(id, *key, name.clone(), SheetVisibility::Visible).with_kind(kind),
                 );
                 parts.cells.insert(id, BTreeMap::new());
             }
@@ -850,7 +860,7 @@ impl ModelRoot {
                 );
                 let entry = &parts.sheets[at];
                 parts.sheets[at] =
-                    SheetEntry::new(entry.id(), entry.key(), name.clone(), entry.visibility());
+                    SheetEntry::new(entry.id(), entry.key(), name.clone(), entry.visibility()).with_kind(entry.kind());
             }
             SheetEdit::Move { sheet, position } => {
                 let at = position_of(&parts, *sheet)?;
@@ -884,7 +894,7 @@ impl ModelRoot {
                 let at = position_of(&parts, *sheet)?;
                 let entry = &parts.sheets[at];
                 parts.sheets[at] =
-                    SheetEntry::new(entry.id(), entry.key(), entry.name().clone(), *visibility);
+                    SheetEntry::new(entry.id(), entry.key(), entry.name().clone(), *visibility).with_kind(entry.kind());
             }
         }
         Ok(self.rebuilt(parts, self.revision()))

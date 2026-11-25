@@ -5473,6 +5473,9 @@ mod xlc {
             ("R1C1:RC", "A1:D5"), ("RC1:R2C2", "A5:B2"), ("R1:R", "1:5"), ("C2:c", "B:D"),
         ] {
             spy.calls.borrow_mut().clear();
+            // Select moves the active cell the next operand is relative to: start each from D5.
+            select_cells(&host, (5, 4), (5, 4));
+            model.context_changed(&host.session.borrow());
             let _ = run(&spy, "xlcSelect", vec![AutoValue::text(operand)]);
             let expected = format!("_Application.Range Get('{a1}')");
             assert!(spy.calls.borrow().contains(&expected), "{operand}");
@@ -5529,7 +5532,7 @@ mod xlc {
                 "xlcSelect",
                 vec![text("R2C3:R4C5")],
                 &["_Application.Range Get('C2:E4')", "Range.Select Method()"],
-                Some(unmodelled("Range.Select")),
+                None,
             ),
             (
                 "xlcClear",
@@ -5835,9 +5838,10 @@ fn dc_oxh8w_4__worksheets_add_rename_delete() {
     let names = sheet_names(&host);
     assert_eq!(names[2], text(&model, &obj(tail), "Name"));
     assert_eq!(names[1], first);
-    // Chart sheets are refused typed (dc-oxh8w.43 owns them), nothing changes.
+    // Other sheet types than worksheets and chart sheets (dc-oxh8w.23) are refused typed (dc-oxh8w.36 owns them),
+    // nothing changes: xlDialogSheet is -4116.
     for args in [
-        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4109)],
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::I4(-4116)],
     ] {
         let n = sheet_names(&host).len();
         assert!(matches!(
@@ -7212,6 +7216,138 @@ fn dc_oxh8w_23__chart_sheets_are_charts_in_sheets_and_charts_collections() {
     assert!(bad.is_err());
 }
 
+/// The text of a Text value.
+fn text_of(value: AutoValue) -> String {
+    match value {
+        AutoValue::Text(t) => t.to_string_lossy().to_string(),
+        other => panic!("text: {other:?}"),
+    }
+}
+
+/// dc-oxh8w.23: `Charts.Add` makes a chart sheet (Excel's `Charts.Add(Before, After, Count)`): the new sheet is a
+/// Chart in Sheets and Charts, not in Worksheets, it becomes the active sheet (ActiveSheet is a Chart), sits
+/// before the active sheet, is named `Chart1`, and `Sheets.Add(Type:=xlChart)` makes the same. Counts and types
+/// that Excel refuses give 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_23__charts_add_makes_chart_sheets_in_sheets_not_worksheets() {
+    let (_host, model, _sheet) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let (worksheets, charts, sheets) = (collection("Worksheets"), collection("Charts"), collection("Sheets"));
+    assert_eq!((count(&worksheets), count(&charts), count(&sheets)), (1, 0, 1));
+    let chart = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!((count(&worksheets), count(&charts), count(&sheets)), (1, 1, 2));
+    // Before the active sheet, so the chart sheet is first; it is named Chart1 and plots a clustered column chart.
+    let first = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(text_of(invoke(&model, &first, "Name", vec![]).unwrap()), "Chart1");
+    assert!(matches!(invoke(&model, &chart, "ChartType", vec![]), Ok(AutoValue::I4(51))));
+    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Chart1");
+    // The new sheet is the active one, and it is a Chart.
+    let active = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    assert_eq!(text_of(invoke(&model, &active, "Name", vec![]).unwrap()), "Chart1");
+    assert!(matches!(invoke(&model, &active, "ChartType", vec![]), Ok(AutoValue::I4(51))));
+    // Sheets.Add with xlChart (-4109) makes another; Count 2 makes two; the names count up.
+    let more = invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(2), AutoValue::I4(-4109)]);
+    assert!(matches!(more, Ok(AutoValue::Object(_))), "{more:?}");
+    assert_eq!((count(&worksheets), count(&charts), count(&sheets)), (1, 3, 4));
+    let names: Vec<String> = (1..=4)
+        .map(|i| {
+            let s = obj(invoke_kind(&model, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(i)]).unwrap());
+            text_of(invoke(&model, &s, "Name", vec![]).unwrap())
+        })
+        .collect();
+    assert_eq!(names, ["Chart2", "Chart3", "Chart1", "Sheet1"]);
+    // Errors are 1004: a count outside 1..=255, a Before and an After together.
+    for args in [
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(0)],
+        vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(256)],
+        vec![AutoValue::Object(first.clone()), AutoValue::Object(first.clone())],
+    ] {
+        let bad = invoke_kind(&model, &charts, "Add", InvokeKind::Method, args.clone());
+        assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{args:?}: {bad:?}");
+    }
+    assert_eq!(count(&charts), 3);
+}
+
+/// dc-oxh8w.23: a chart sheet a macro makes saves as a chartsheet part (content type, workbook relationship,
+/// drawing, chart) and reopens as a chart sheet whose chart answers; its source data and type survive.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_23__a_new_chart_sheet_round_trips_through_save_and_open() {
+    let (host, model, _sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"], &["East", "50"]]);
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let charts = obj(invoke(&model, &book, "Charts", vec![]).unwrap());
+    let chart = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(1)]).unwrap());
+    set_source(&model, &chart, "Sheet1!A1:B4");
+    invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(57)]).unwrap();
+    // The saved package.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default()).expect("the saved package opens");
+    let names: Vec<String> = document.package().parts().iter().map(|p| p.name().to_owned()).collect();
+    assert!(names.iter().any(|n| n.starts_with("xl/chartsheets/") && n.ends_with(".xml")), "{names:?}");
+    let sheet_part = names.iter().find(|n| n.starts_with("xl/chartsheets/") && n.ends_with(".xml")).unwrap();
+    let xml = String::from_utf8(document.package().read_part(sheet_part).unwrap()).unwrap();
+    assert!(xml.contains("<chartsheet") && xml.contains("<drawing"), "{xml}");
+    let drawing = names.iter().find(|n| n.starts_with("xl/drawings/") && n.ends_with(".xml")).expect("a drawing");
+    let xml = String::from_utf8(document.package().read_part(drawing).unwrap()).unwrap();
+    assert!(xml.contains("absoluteAnchor"), "{xml}");
+    assert_eq!(
+        document.package().part(sheet_part).and_then(|p| p.content_type()),
+        Some("application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml")
+    );
+    let workbook = String::from_utf8(document.package().read_part("xl/_rels/workbook.xml.rels").unwrap()).unwrap();
+    assert!(workbook.contains("relationships/chartsheet"), "{workbook}");
+    // Reopened: Sheets(1) is a Chart named Chart1 with the type and a series over the data.
+    let reopened = HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap();
+    let (_host2, model2) = setup_session(reopened);
+    let book2 = obj(invoke(&model2, &model2.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model2, &book2, name, vec![]).unwrap());
+    let count = |c: &ObjectRef| int(invoke(&model2, c, "Count", vec![]).unwrap());
+    assert_eq!((count(&collection("Worksheets")), count(&collection("Charts")), count(&collection("Sheets"))), (1, 1, 2));
+    let again = obj(invoke_kind(&model2, &collection("Charts"), "Item", InvokeKind::Get, vec![AutoValue::text("Chart1")]).unwrap());
+    assert!(matches!(invoke(&model2, &again, "ChartType", vec![]), Ok(AutoValue::I4(57))));
+    let series = obj(invoke_kind(&model2, &again, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(count(&series), 1);
+}
+
+/// dc-oxh8w.23: `Chart.Location(xlLocationAsObject, name)` moves a chart sheet's chart onto a worksheet, and
+/// `xlLocationAsNewSheet` moves an embedded chart onto a new chart sheet; both return the chart and keep its type.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_23__chart_location_moves_a_chart_between_sheet_and_object() {
+    let (host, model, _sheet) = blank_report();
+    fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let collection = |name: &str| obj(invoke(&model, &book, name, vec![]).unwrap());
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let charts = collection("Charts");
+    let chart = obj(invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![]).unwrap());
+    set_source(&model, &chart, "Sheet1!A1:B3");
+    invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(57)]).unwrap();
+    // As object on Sheet1: the chart sheet is gone, the worksheet has one chart object.
+    let moved = obj(invoke_kind(&model, &chart, "Location", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::text("Sheet1")]).unwrap());
+    assert!(matches!(invoke(&model, &moved, "ChartType", vec![]), Ok(AutoValue::I4(57))));
+    assert_eq!((count(&charts), count(&collection("Sheets"))), (0, 1));
+    let sheet1 = obj(invoke_kind(&model, &collection("Worksheets"), "Item", InvokeKind::Get, vec![AutoValue::text("Sheet1")]).unwrap());
+    let objects = obj(invoke_kind(&model, &sheet1, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(count(&objects), 1);
+    // As a new sheet named Sales: a chart sheet again, with that name.
+    let back = obj(invoke_kind(&model, &moved, "Location", InvokeKind::Method, vec![AutoValue::I4(1), AutoValue::text("Sales")]).unwrap());
+    assert!(matches!(invoke(&model, &back, "ChartType", vec![]), Ok(AutoValue::I4(57))));
+    assert_eq!(count(&objects), 0);
+    assert_eq!(text_of(invoke(&model, &back, "Name", vec![]).unwrap()), "Sales");
+    assert_eq!((count(&charts), count(&collection("Sheets"))), (1, 2));
+    // Errors: a Where that is neither is 1004; as object onto a sheet that does not exist is 1004.
+    let bad = invoke_kind(&model, &back, "Location", InvokeKind::Method, vec![AutoValue::I4(3), AutoValue::text("Sheet1")]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let bad = invoke_kind(&model, &back, "Location", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::text("Nowhere")]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+}
+
 /// dc-oxh8w.11: `HPageBreaks` and `VPageBreaks` list the automatic breaks of the one pagination route as well as the
 /// manual ones, as Excel does. Letter portrait, default margins, 100%, A1:J120 of 15 pt rows and 8.43 character columns
 /// (Excel PB1 case c1, 16.0.20527: pages 6, H A48 and A95, V J1, all xlPageBreakAutomatic).
@@ -7300,4 +7436,65 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
+}
+
+/// dc-oxh8w.46: Range.Select, Worksheet.Select/Activate and Application.Goto move the session's selection;
+/// Range.Select on a sheet that is not the active one is 1004 (Excel: "Select method of Range class failed").
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
+    let (host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let sub = |o: &ObjectRef, a: &str| obj(invoke(&model, o, "Range", vec![AutoValue::text(a)]).unwrap());
+    let address = |o: &ObjectRef| text(&model, o, "Address");
+    let active_name = || {
+        let s = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+        text(&model, &s, "Name")
+    };
+    let select = |o: &ObjectRef| invoke_kind(&model, o, "Select", InvokeKind::Method, vec![]);
+
+    // The added sheet is active: selecting on the first sheet's range fails like Excel.
+    let wrong_sheet = select(&sub(&first, "B2:C3"));
+    assert!(matches!(wrong_sheet, Err(AutoError::Excel { number: 1004, .. })), "{wrong_sheet:?}");
+    // Activate the first sheet, then select.
+    invoke_kind(&model, &first, "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    assert!(matches!(select(&sub(&first, "B2:C3")).unwrap(), AutoValue::Bool(true)));
+    let selection = obj(invoke(&model, &app, "Selection", vec![]).unwrap());
+    assert_eq!(address(&selection), "$B$2:$C$3");
+    let cell = obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap());
+    assert_eq!(address(&cell), "$B$2");
+    // A multi-area range selects all its areas; the active cell is the first area's first cell.
+    let union = obj(invoke_kind(&model, &app, "Union", InvokeKind::Method, vec![
+        AutoValue::Object(sub(&first, "E5:F6")), AutoValue::Object(sub(&first, "A1"))]).unwrap());
+    select(&union).unwrap();
+    assert_eq!(host.session.borrow().selection().areas.len(), 2);
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$E$5");
+
+    // Select the other sheet: its own selection comes back (A1 for a new sheet), and the first sheet's is remembered.
+    select(&sub(&first, "B2:C3")).unwrap();
+    invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(active_name(), text(&model, &added, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$A$1");
+    select(&sub(&added, "C3")).unwrap();
+    invoke_kind(&model, &first, "Select", InvokeKind::Method, vec![AutoValue::Bool(true)]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    // Select(Replace:=False) would group sheets: typed refusal, no change.
+    let group = invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![AutoValue::Bool(false)]);
+    assert!(matches!(group, Err(AutoError::NotModelled { .. })), "{group:?}");
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+
+    // Goto a range on another sheet activates that sheet and selects the range.
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(sub(&added, "D4:E5"))]).unwrap();
+    assert_eq!(active_name(), text(&model, &added, "Name"));
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$D$4:$E$5");
+    // Scroll is accepted; a non-range reference is a type mismatch (13), a bad argument count 1004-class.
+    invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::Object(sub(&first, "A1")), AutoValue::Bool(true)]).unwrap();
+    assert_eq!(active_name(), text(&model, &first, "Name"));
+    let bad = invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::R8(3.)]);
+    assert!(bad.is_err(), "{bad:?}");
 }

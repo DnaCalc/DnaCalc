@@ -387,6 +387,12 @@ pub enum SheetEdit {
         name: SheetName,
         position: NonZeroU32,
     },
+    /// A new, visible chart sheet (dc-oxh8w.23): no cells; its chart is set with the chart definitions.
+    InsertChartSheet {
+        key: SheetKey,
+        name: SheetName,
+        position: NonZeroU32,
+    },
     Rename {
         sheet: SheetId,
         name: SheetName,

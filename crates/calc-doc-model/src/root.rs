@@ -7,7 +7,7 @@ use crate::input::CellInput;
 use crate::layout::{BlockId, LayoutError, SkinLayout, SkinLayoutEdit};
 use crate::op::{OpBatch, WorkbookOp};
 use crate::revision::AuthoredRevision;
-use crate::sheet::{SheetKey, SheetName, SheetVisibility};
+use crate::sheet::{SheetKey, SheetKind, SheetName, SheetVisibility};
 use calc_value::{CellKey, GridArea, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -29,6 +29,7 @@ pub struct SheetEntry {
     key: SheetKey,
     name: SheetName,
     visibility: SheetVisibility,
+    kind: SheetKind,
 }
 
 impl SheetEntry {
@@ -38,7 +39,19 @@ impl SheetEntry {
             key,
             name,
             visibility,
+            kind: SheetKind::Worksheet,
         }
+    }
+
+    /// The same sheet of another kind.
+    pub fn with_kind(mut self, kind: SheetKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// A worksheet or a chart sheet.
+    pub fn kind(&self) -> SheetKind {
+        self.kind
     }
 
     pub fn id(&self) -> SheetId {

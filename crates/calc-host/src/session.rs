@@ -444,6 +444,9 @@ pub struct HostSession {
     sheet_keys: BTreeSet<crate::SheetKey>,
     history: History,
     selection: Selection,
+    /// The selection each sheet last held while another sheet was active: Worksheet.Select and Activate
+    /// bring a sheet back with its own selection, as Excel does.
+    sheet_selections: BTreeMap<SheetId, Selection>,
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
     /// The areas the conditional-format rules covered when changes were last delivered: a rule
     /// that is removed or moved still repaints the cells it covered.
@@ -563,6 +566,7 @@ impl HostSession {
             host,
             history: History::new(UNDO_LIMIT),
             selection: Selection::default(),
+            sheet_selections: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
             rule_areas,
             next_subscription: 1,
@@ -728,6 +732,11 @@ impl HostSession {
     /// Borrows the current selection and its active cell.
     pub fn selection(&self) -> &Selection {
         &self.selection
+    }
+
+    /// The selection `sheet` held when it was last left, if it was ever the active sheet with one.
+    pub fn remembered_selection(&self, sheet: SheetId) -> Option<&Selection> {
+        self.sheet_selections.get(&sheet)
     }
 
     /// Sets the clock NOW and TODAY read ([`HostState::set_clock`]).
@@ -1796,6 +1805,9 @@ impl HostSession {
     fn select_quietly(&mut self, selection: Selection, receipt: &mut IntentReceipt) {
         if self.selection == selection {
             return;
+        }
+        if let Some(sheet) = self.selection.active.map(|at| at.sheet()).filter(|_| !self.selection.areas.is_empty()) {
+            self.sheet_selections.insert(sheet, self.selection.clone());
         }
         self.selection = selection;
         self.notify_workbook_context();

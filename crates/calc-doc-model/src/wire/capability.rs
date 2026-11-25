@@ -400,6 +400,9 @@ impl Sheets {
                     position: *position,
                 }
             }
+            SheetEdit::InsertChartSheet { .. } => {
+                unreachable!("a chart sheet is refused before encoding, as the charts are")
+            }
             SheetEdit::Rename { sheet, name } => Sheets::Rename {
                 sheet: key_of(root, *sheet)?,
                 name: name.clone(),

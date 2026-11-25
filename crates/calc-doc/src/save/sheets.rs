@@ -19,6 +19,17 @@ const WORKSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
 const CONTENT_TYPE: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+const CHART_SHEET: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet";
+const CHART_SHEET_CONTENT_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml";
+/// A chart sheet's part before its drawing is added (dc-oxh8w.23).
+const EMPTY_CHART_SHEET: &[u8] = b"<chartsheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetViews><sheetView zoomToFit=\"1\" workbookViewId=\"0\"/></sheetViews><pageMargins left=\"0.7\" right=\"0.7\" top=\"0.75\" bottom=\"0.75\" header=\"0.3\" footer=\"0.3\"/></chartsheet>";
+
+/// Whether a part is a chart sheet's (the saver names the ones it makes `xl/chartsheets/dnaChart<n>.xml`).
+pub(crate) fn is_chart_sheet_part(name: &str) -> bool {
+    name.contains("/chartsheets/")
+}
 const EMPTY: &[u8] = b"<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData/></worksheet>";
 
 pub(super) fn expanded<'a>(
@@ -35,14 +46,21 @@ pub(super) fn expanded<'a>(
         if sheets.iter().any(|s| s.id() == entry.id()) {
             continue;
         }
+        let chart = entry.kind() == calc_doc_model::SheetKind::Chart;
         let part = (1u32..)
-            .map(|n| format!("{parent}worksheets/dnaSheet{n}.xml"))
+            .map(|n| {
+                if chart {
+                    format!("{parent}chartsheets/dnaChart{n}.xml")
+                } else {
+                    format!("{parent}worksheets/dnaSheet{n}.xml")
+                }
+            })
             .find(|name| {
                 package.part(name).is_none() && sheets.iter().all(|s| s.part().name() != name)
             })
             .expect("a free part");
         let relationship = (1u32..)
-            .map(|n| format!("dnaWorksheet{n}"))
+            .map(|n| if chart { format!("dnaChartsheet{n}") } else { format!("dnaWorksheet{n}") })
             .find(|id| {
                 package
                     .relationships_of(Some(workbook))
@@ -98,6 +116,8 @@ pub(super) fn with_parts<'a>(
 pub(crate) fn read_sheet(package: &Package, name: &str) -> Result<XmlPart, SaveRefusal> {
     if package.part(name).is_some() {
         read_part(package, name)
+    } else if is_chart_sheet_part(name) {
+        Ok(XmlPart::new(name.to_owned(), EMPTY_CHART_SHEET.to_vec(), XmlLimits::default()))
     } else {
         Ok(XmlPart::new(
             name.to_owned(),
@@ -256,7 +276,7 @@ pub(super) fn finish(
                     .find(|(name, _)| name == sheet.part().name())
                     .map(|(_, bytes)| bytes.clone())
             })
-            .unwrap_or_else(|| EMPTY.to_vec());
+            .unwrap_or_else(|| if is_chart_sheet_part(sheet.part().name()) { EMPTY_CHART_SHEET.to_vec() } else { EMPTY.to_vec() });
         if let Some((_, current)) = out
             .added
             .iter_mut()
@@ -299,7 +319,7 @@ pub(super) fn finish(
         .zip(&targets)
         .map(|(s, target)| NewRelationship {
             id: s.relationship(),
-            kind: WORKSHEET,
+            kind: if is_chart_sheet_part(s.part().name()) { CHART_SHEET } else { WORKSHEET },
             target,
         })
         .collect();
@@ -334,7 +354,9 @@ pub(super) fn finish(
         .unwrap_or(original);
     let overrides: Vec<_> = added
         .iter()
-        .map(|s| (s.part().name(), CONTENT_TYPE))
+        .map(|s| {
+            (s.part().name(), if is_chart_sheet_part(s.part().name()) { CHART_SHEET_CONTENT_TYPE } else { CONTENT_TYPE })
+        })
         .collect();
     let bytes = parts::content_types(&xml, None, &overrides)?;
     xml = xml.with_bytes(bytes);

@@ -30,6 +30,11 @@ pub enum SheetChange {
         /// Name of the new worksheet.
         name: String,
     },
+    /// Append a chart sheet (dc-oxh8w.23); its chart is created by a `ChartCreateEmpty` or `ChartMove` command.
+    AddChart {
+        /// Name of the new chart sheet.
+        name: String,
+    },
     /// Rename the selected worksheet.
     Rename {
         /// New worksheet name.
@@ -265,6 +270,20 @@ pub enum WorkbookCommand {
         /// The first `c16:uniqueId` counter of the chart's series (Excel Q17/Q18: 0 for `AddChart2`; for
         /// `ChartObjects.Add` the series count of Excel's automatic source at Add time).
         unique_start: u32,
+    },
+    /// `Chart.Location`: a chart this session made moves to another sheet (dc-oxh8w.23): onto a chart sheet
+    /// (an absolute frame) or onto a worksheet at `place` in points (left, top, width, height).
+    ChartMove {
+        /// Sheet that holds the chart now.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the chart.
+        part: String,
+        /// The sheet that holds it afterwards.
+        to: SheetId,
+        /// Left, top, width and height in points on a worksheet; ignored for a chart sheet.
+        place: [crate::Points; 4],
     },
     /// `Chart.SetSourceData`: the series of a chart this session made. `rows`: series run along rows.
     /// `headers`: how many leading cells of each series hold its name (a range when more than one);
@@ -779,6 +798,9 @@ pub(crate) fn prepare(
             name,
             place,
         } => crate::chart::prepare_frame(host, sheet, revision, &part, name, place),
+        WorkbookCommand::ChartMove { sheet, revision, part, to, place } => {
+            crate::chart::prepare_move(host, sheet, revision, &part, to, place.map(crate::Points::get))
+        }
         WorkbookCommand::ChartCreateEmpty {
             sheet,
             revision,
@@ -804,9 +826,13 @@ pub(crate) fn prepare(
                 revision,
                 &kind,
                 crate::chart::NewChart {
-                    anchor: calc_doc_model::ChartAnchor::TwoCell {
-                        from: host.point_at(sheet, left, top),
-                        to: host.point_at(sheet, left + width, top + height),
+                    anchor: if crate::chart::is_chart_sheet(host, sheet) {
+                        crate::chart::CHART_SHEET_FRAME
+                    } else {
+                        calc_doc_model::ChartAnchor::TwoCell {
+                            from: host.point_at(sheet, left, top),
+                            to: host.point_at(sheet, left + width, top + height),
+                        }
                     },
                     drawing_id: Some(id),
                     unique_start,
@@ -1156,6 +1182,20 @@ fn sheet_edits(
                 .ok_or("No sheet keys remain")?;
             sheet_keys.insert(key);
             SheetEdit::Insert {
+                key,
+                name: name(text)?,
+                position: std::num::NonZeroU32::new(model.sheets().len() as u32 + 1).unwrap(),
+            }
+        }
+        C::AddChart { name: text } => {
+            let key = (1u32..)
+                .map(SheetKey::new)
+                .find(|key| {
+                    !sheet_keys.contains(key) && model.sheets().iter().all(|s| s.key() != *key)
+                })
+                .ok_or("No sheet keys remain")?;
+            sheet_keys.insert(key);
+            SheetEdit::InsertChartSheet {
                 key,
                 name: name(text)?,
                 position: std::num::NonZeroU32::new(model.sheets().len() as u32 + 1).unwrap(),
