@@ -505,6 +505,41 @@ fn taking_choosing_stacking_and_wrapping() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn torow_and_tocol_coerce_optional_arguments_in_order() {
+    let mut book = Book::new();
+    assert_eq!(
+        book.dynamic("=TOROW({1;2},0.75,0.05)"),
+        numbers(&[&[1.0, 2.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},-0.025,TRUE)"),
+        rows(&[&[n(11.0), n(22.0), e(W::NA), n(44.0)]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},100,#NUM!)"),
+        e(W::Num)
+    );
+    assert_eq!(
+        book.dynamic("=TOROW({11,#N/A;22,44},#DIV/0!,#REF!)"),
+        e(W::Div0)
+    );
+    assert_eq!(
+        book.dynamic("=TOCOL({11,#N/A;22,44},2.9,\"true\")"),
+        numbers(&[&[11.0], &[22.0], &[44.0]])
+    );
+    book.number("H6", 22.0).number("I6", 44.0).set("I5", e(W::NA));
+    assert_eq!(
+        book.dynamic("=TOROW(H5:I6,2,\"TRUE\")"),
+        numbers(&[&[0.0, 22.0, 44.0]])
+    );
+    assert_eq!(
+        book.dynamic("=TOROW(H5:I6,3,TRUE)"),
+        numbers(&[&[22.0, 44.0]])
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn lambda_helpers_call_their_lambda() {
     let mut book = data();
     assert_eq!(
