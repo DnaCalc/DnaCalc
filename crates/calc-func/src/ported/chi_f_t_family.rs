@@ -550,6 +550,13 @@ pub fn t_inv_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Worksheet
 
 pub fn t_inv_2t_kernel(probability: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let v = truncate_positive_integer(deg_freedom)?;
+    // Excel 20527 (dc-j9k.286-288, bisected to the bit): a probability whose magnitude is in the
+    // first normal binade below 0x001fffffffffffff, either sign, is #DIV/0! at one degree and
+    // #NUM! at more; a negative one elsewhere stays #NUM!.
+    let magnitude = probability.abs().to_bits();
+    if (0x0010_0000_0000_0000..0x001f_ffff_ffff_ffff).contains(&magnitude) {
+        return Err(if v == 1.0 { WorksheetErrorCode::Div0 } else { WorksheetErrorCode::Num });
+    }
     if !probability.is_finite() || probability < 0.0 || probability >= 2.0 {
         return Err(WorksheetErrorCode::Num);
     }

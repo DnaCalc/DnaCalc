@@ -7963,3 +7963,25 @@ fn sum_of_squares_pairs_ranges_of_equal_count_with_different_shapes() {
         error(call(name, vec![square(), col(&[1.0, 2.0, 3.0])]), NA);
     }
 }
+
+/// Excel 20527 (dc-j9k.286-288): TINV and T.INV.2T answer #DIV/0! at one degree and #NUM! at more
+/// for a probability of either sign whose magnitude lies from DBL_MIN to 0x001ffffffffffffe;
+/// 0x001fffffffffffff and above are computed.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn t_inverse_two_tailed_refuses_the_first_normal_binade_of_probability() {
+    let b = f64::from_bits;
+    for name in ["TINV", "T.INV.2T"] {
+        for p in [0x0010_0000_0000_0000_u64, 0x0010_0000_0000_0001, 0x0010_0000_0000_0253, 0x001f_ffff_ffff_fffe] {
+            error(call(name, vec![n(b(p)), n(1.0)]), Div0);
+            error(call(name, vec![n(-b(p)), n(1.0)]), Div0);
+            for df in [2.0, 3.0, 4.0, 100.0] {
+                error(call(name, vec![n(b(p)), n(df)]), Num);
+                error(call(name, vec![n(-b(p)), n(df)]), Num);
+            }
+        }
+        assert!(number(call(name, vec![n(b(0x001f_ffff_ffff_ffff)), n(1.0)])) > 0.0);
+        assert!(number(call(name, vec![n(b(0x0020_0000_0000_0000)), n(4.0)])) > 0.0);
+        error(call(name, vec![n(-b(0x001f_ffff_ffff_ffff)), n(1.0)]), Num);
+    }
+}
