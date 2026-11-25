@@ -447,6 +447,45 @@ fn defaults(table: &mut StyleTable) {
     }
 }
 
+/// The ID of number format `code` in `table`: Excel's built-in ID when the code is one, an existing custom one, or a
+/// new custom format appended after the highest ID.
+pub(crate) fn number_format_id(table: &mut StyleTable, code: &String) -> Result<u32, String> {
+        let id = (0..=163)
+            .find(|id| {
+                calc_doc_model::builtin_number_format(*id).is_some_and(|c| {
+                    c == code
+                        || c.eq_ignore_ascii_case("general") && code.eq_ignore_ascii_case("general")
+                })
+            })
+            .or_else(|| {
+                table
+                    .number_formats
+                    .iter()
+                    .find(|n| &n.code == code)
+                    .map(|n| n.id)
+            });
+        let id = match id {
+            Some(id) => id,
+            None => {
+                let id = table
+                    .number_formats
+                    .iter()
+                    .map(|n| n.id)
+                    .max()
+                    .unwrap_or(163)
+                    .max(163)
+                    .checked_add(1)
+                    .ok_or("No number format IDs remain")?;
+                table.number_formats.push(NumberFormat {
+                    id,
+                    code: code.clone(),
+                });
+                id
+            }
+        };
+    Ok(id)
+}
+
 /// Resolve one style without changing the table's imported records. Derivations retain the
 /// source index so the codec can copy unknown XML fields into the appended record.
 pub fn patched_style(
@@ -487,39 +526,7 @@ pub fn patched_style(
         .cloned()
         .unwrap_or_default();
     if let Some(code) = &patch.number_format {
-        let id = (0..=163)
-            .find(|id| {
-                calc_doc_model::builtin_number_format(*id).is_some_and(|c| {
-                    c == code
-                        || c.eq_ignore_ascii_case("general") && code.eq_ignore_ascii_case("general")
-                })
-            })
-            .or_else(|| {
-                table
-                    .number_formats
-                    .iter()
-                    .find(|n| &n.code == code)
-                    .map(|n| n.id)
-            });
-        let id = match id {
-            Some(id) => id,
-            None => {
-                let id = table
-                    .number_formats
-                    .iter()
-                    .map(|n| n.id)
-                    .max()
-                    .unwrap_or(163)
-                    .max(163)
-                    .checked_add(1)
-                    .ok_or("No number format IDs remain")?;
-                table.number_formats.push(NumberFormat {
-                    id,
-                    code: code.clone(),
-                });
-                id
-            }
-        };
+        let id = number_format_id(table, code)?;
         xf.number_format_id = Some(id);
         xf.apply_number_format = true;
     }
