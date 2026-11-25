@@ -223,6 +223,8 @@ pub struct FormatPatch {
     pub interior: Option<InteriorPatch>,
     /// Replacement settings for the four outer border edges.
     pub borders: Option<BorderPatch>,
+    /// Apply the named cell style at this position of the style table's `cellStyleXfs`, replacing direct formatting.
+    pub style: Option<u32>,
     /// Changes to single border edges, as `Range.Borders` makes them.
     pub edges: Option<crate::EdgesPatch>,
 }
@@ -460,6 +462,25 @@ pub fn patched_style(
         .ok_or("The source cell format is unavailable")?
         .clone();
     let mut xf = original.clone();
+    if let Some(style) = patch.style {
+        let base = table
+            .cell_style_formats
+            .get(style as usize)
+            .ok_or("The cell style is unavailable")?
+            .clone();
+        xf = CellFormat {
+            apply_number_format: base.number_format_id.is_some(),
+            apply_font: base.font_id.is_some(),
+            apply_fill: base.fill_id.is_some(),
+            apply_border: base.border_id.is_some(),
+            apply_alignment: base.alignment.is_some(),
+            apply_protection: base.protection.is_some(),
+            xf_id: Some(style),
+            quote_prefix: false,
+            pivot_button: false,
+            ..base
+        };
+    }
     let parent = xf
         .xf_id
         .and_then(|id| table.cell_style_formats.get(id as usize))

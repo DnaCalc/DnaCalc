@@ -25,6 +25,7 @@ pub fn host_patch(p: FormatPatch) -> calc_host::FormatPatch {
         font_color_indexed: None,
         fill: p.fill,
         interior: None,
+        style: None,
         edges: None,
         borders: p.borders.map(|b| calc_host::BorderPatch {
             left: b.left,

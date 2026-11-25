@@ -6838,3 +6838,54 @@ fn dc_oxh8w_33_border_around_draws_the_perimeter() {
     assert_eq!(i4(&reopened, &border(&reopened, "D3", 10), "Weight"), 4);
     assert_eq!(i4(&reopened, &border(&reopened, "C3", 10), "LineStyle"), -4142);
 }
+
+fn styled_report() -> (Rc<Host>, Rc<WorkbookAutomation>) {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("../../calc-doc/tests/fixtures/dc_5sr/features.xlsx").to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    setup_session(session)
+}
+
+fn style_name(model: &WorkbookAutomation, address: &str) -> String {
+    let target = range(model, address);
+    match invoke(model, &target, "Style", vec![]).unwrap() {
+        AutoValue::Object(style) => text(model, &style, "Name"),
+        AutoValue::Null => "<mixed>".into(),
+        other => panic!("Style returned {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33_range_style_applies_a_named_style_and_survives_reopen() {
+    let (host, model) = styled_report();
+    assert_eq!(style_name(&model, "A1"), "Normal");
+    let normal = obj(invoke(&model, &range(&model, "A1"), "Style", vec![]).unwrap());
+    assert!(matches!(invoke(&model, &normal, "BuiltIn", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert_eq!(text(&model, &normal, "NumberFormat"), "General");
+    let cells = range(&model, "B2:B3");
+    invoke_kind(&model, &cells, "Style", InvokeKind::Put, vec![AutoValue::text("hyperlink")]).unwrap();
+    assert_eq!(style_name(&model, "B2:B3"), "Hyperlink");
+    assert_eq!(style_name(&model, "A2:B3"), "<mixed>");
+    assert_eq!(i4(&model, &font(&model, "B2"), "Underline"), 2);
+    // A Style object applies too.
+    let link = obj(invoke(&model, &range(&model, "B2"), "Style", vec![]).unwrap());
+    invoke_kind(&model, &range(&model, "D4"), "Style", InvokeKind::Put, vec![AutoValue::Object(link)]).unwrap();
+    assert_eq!(style_name(&model, "D4"), "Hyperlink");
+    for bad in [AutoValue::text("No such style"), AutoValue::I4(3)] {
+        assert_eq!(excel_error(invoke_kind(&model, &cells, "Style", InvokeKind::Put, vec![bad])).0, 1004);
+    }
+    // Applying the style replaces direct formatting.
+    put_font(&model, &font(&model, "B3"), "Bold", AutoValue::Bool(true)).unwrap();
+    invoke_kind(&model, &range(&model, "B3"), "Style", InvokeKind::Put, vec![AutoValue::text("Normal")]).unwrap();
+    assert!(matches!(invoke(&model, &font(&model, "B3"), "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    let reopened = reopen_formatting(&host);
+    assert_eq!(style_name(&reopened, "B2"), "Hyperlink");
+    assert_eq!(style_name(&reopened, "D4"), "Hyperlink");
+    assert_eq!(style_name(&reopened, "B3"), "Normal");
+}
