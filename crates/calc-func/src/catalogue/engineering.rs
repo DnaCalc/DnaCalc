@@ -246,11 +246,13 @@ ported_shared_family! {
     44 imlog2 |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            let re = if z.im == 0.0 {
+            let re = if z.im == 0.0 || z.re == 0.0 {
                 // Fn11's exact coefficient-bin bounds uniquely determine this binary64
-                // LN multiplier; independent normal and signed controls retain it.
+                // LN multiplier; independent normal and signed controls retain it. A pure
+                // imaginary argument takes the same route (Excel 16.0.20625.20108,
+                // IMLOG2("0+355i") real part 8.47167521439205, dc-j9k.176).
                 crate::ported::excel_numeric::excel_x87_mul(
-                    crate::ported::excel_numeric::excel_log(z.re.abs()),
+                    crate::ported::excel_numeric::excel_log(if z.im == 0.0 { z.re.abs() } else { z.im.abs() }),
                     f64::from_bits(0x3ff7_1547_652b_82ff),
                 )
             } else {
