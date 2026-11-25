@@ -8473,6 +8473,25 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
+/// dc-jupjv: `FormatConditions.Add` of the top-10, above-average and duplicate-values types makes a rule of that type
+/// (Excel's defaults: top 10 items, above the average, duplicates). Their own members (Rank, TopBottom, AboveBelow,
+/// DupeUnique) need the Top10, AboveAverage and UniqueValues interfaces in the descriptor (RUN-ON-WINDOWS.txt).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
+    let (_host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let add = |kind: i32| obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
+    let top = add(5);
+    assert_eq!(int(invoke(&model, &top, "Type", vec![]).unwrap()), 5);
+    let average = add(12);
+    assert_eq!(int(invoke(&model, &average, "Type", vec![]).unwrap()), 12);
+    let dupes = add(8);
+    assert_eq!(int(invoke(&model, &dupes, "Type", vec![]).unwrap()), 8);
+    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
+}
+
 /// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
 /// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
