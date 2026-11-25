@@ -178,12 +178,26 @@ fn workday(
     let start = super::kit::checked_date_serial(to_1900(system(site)?, present_num(site, a, 0)?))?;
     reject_logical(&a[1])?;
     let days = present_num(site, a, 1)?;
-    let (mask, list) = if intl {
-        (weekend(site, a, 2, true)?, 3)
-    } else {
-        (WeekendMask::saturday_sunday(), 2)
-    };
-    let holidays = holidays(site, a, list, sv)?;
+    if intl {
+        // Live Excel (dc-j9k.236-.239): the target's range is checked first, zero days return the
+        // start without reading the weekend or the holidays, and the holidays are read before the
+        // weekend is decoded.
+        if !days.is_finite() {
+            return fail(W::Num);
+        }
+        let target = start.trunc() + days.floor();
+        if !(0.0..=k::MAX_SERIAL_1900 as f64).contains(&target) {
+            return fail(W::Num);
+        }
+        if days.floor() == 0.0 {
+            return serial_out(site, Ok(start.trunc()));
+        }
+        let holidays = holidays(site, a, 3, sv)?;
+        let mask = weekend(site, a, 2, true)?;
+        return serial_out(site, k::workday(start, days, mask, &holidays));
+    }
+    let mask = WeekendMask::saturday_sunday();
+    let holidays = holidays(site, a, 2, sv)?;
     serial_out(site, k::workday(start, days, mask, &holidays))
 }
 

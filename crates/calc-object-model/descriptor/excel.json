@@ -91665,6 +91665,2434 @@
      "return": "HeaderFooter*"
     }
    ]
+  },
+  {
+   "name": "HeaderFooter",
+   "kind": "dispatch",
+   "guid": "{000244A1-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Text",
+     "dispid": 138,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Text",
+     "dispid": 138,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Picture",
+     "dispid": 479,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Graphic*"
+    }
+   ]
+  },
+  {
+   "name": "Graphic",
+   "kind": "dispatch",
+   "guid": "{00024459-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Brightness",
+     "dispid": 2194,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "Brightness",
+     "dispid": 2194,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorType",
+     "dispid": 2195,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:Office.MsoPictureColorType[I4]"
+    },
+    {
+     "name": "ColorType",
+     "dispid": 2195,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:Office.MsoPictureColorType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Contrast",
+     "dispid": 2196,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "Contrast",
+     "dispid": 2196,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CropBottom",
+     "dispid": 2197,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "CropBottom",
+     "dispid": 2197,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CropLeft",
+     "dispid": 2198,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "CropLeft",
+     "dispid": 2198,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CropRight",
+     "dispid": 2199,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "CropRight",
+     "dispid": 2199,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CropTop",
+     "dispid": 2200,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "CropTop",
+     "dispid": 2200,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Filename",
+     "dispid": 1415,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Filename",
+     "dispid": 1415,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Height",
+     "dispid": 123,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "Height",
+     "dispid": 123,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "LockAspectRatio",
+     "dispid": 1700,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:Office.MsoTriState[I4]"
+    },
+    {
+     "name": "LockAspectRatio",
+     "dispid": 1700,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:Office.MsoTriState[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Width",
+     "dispid": 122,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "R4"
+    },
+    {
+     "name": "Width",
+     "dispid": 122,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "R4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "Top10",
+   "kind": "dispatch",
+   "guid": "{0002449D-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "TopBottom",
+     "dispid": 2728,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlTopBottom[I4]"
+    },
+    {
+     "name": "TopBottom",
+     "dispid": 2728,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlTopBottom[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Rank",
+     "dispid": 1290,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Rank",
+     "dispid": 1290,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Percent",
+     "dispid": 2729,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "Percent",
+     "dispid": 2729,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Interior",
+     "dispid": 129,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Interior*"
+    },
+    {
+     "name": "Borders",
+     "dispid": 435,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Borders*"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CalcFor",
+     "dispid": 2730,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCalcFor[I4]"
+    },
+    {
+     "name": "CalcFor",
+     "dispid": 2730,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlCalcFor[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "AboveAverage",
+   "kind": "dispatch",
+   "guid": "{0002449E-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "AboveBelow",
+     "dispid": 2731,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlAboveBelow[I4]"
+    },
+    {
+     "name": "AboveBelow",
+     "dispid": 2731,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlAboveBelow[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Interior",
+     "dispid": 129,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Interior*"
+    },
+    {
+     "name": "Borders",
+     "dispid": 435,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Borders*"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "CalcFor",
+     "dispid": 2730,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCalcFor[I4]"
+    },
+    {
+     "name": "CalcFor",
+     "dispid": 2730,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlCalcFor[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "NumStdDev",
+     "dispid": 2732,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "NumStdDev",
+     "dispid": 2732,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "UniqueValues",
+   "kind": "dispatch",
+   "guid": "{0002449F-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "DupeUnique",
+     "dispid": 2733,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlDupeUnique[I4]"
+    },
+    {
+     "name": "DupeUnique",
+     "dispid": 2733,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlDupeUnique[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Interior",
+     "dispid": 129,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Interior*"
+    },
+    {
+     "name": "Borders",
+     "dispid": 435,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Borders*"
+    },
+    {
+     "name": "Font",
+     "dispid": 146,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Font*"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "NumberFormat",
+     "dispid": 193,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    }
+   ]
+  },
+  {
+   "name": "ColorScale",
+   "kind": "dispatch",
+   "guid": "{00024493-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ColorScaleCriteria",
+     "dispid": 2716,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "ColorScaleCriteria*"
+    }
+   ]
+  },
+  {
+   "name": "Databar",
+   "kind": "dispatch",
+   "guid": "{00024496-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "MinPoint",
+     "dispid": 2718,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "ConditionValue*"
+    },
+    {
+     "name": "MaxPoint",
+     "dispid": 2719,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "ConditionValue*"
+    },
+    {
+     "name": "PercentMin",
+     "dispid": 2720,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "PercentMin",
+     "dispid": 2720,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PercentMax",
+     "dispid": 2721,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "PercentMax",
+     "dispid": 2721,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "BarColor",
+     "dispid": 2722,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "ShowValue",
+     "dispid": 2024,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ShowValue",
+     "dispid": 2024,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Direction",
+     "dispid": 168,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Direction",
+     "dispid": 168,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "BarFillType",
+     "dispid": 2941,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlDataBarFillType[I4]"
+    },
+    {
+     "name": "BarFillType",
+     "dispid": 2941,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlDataBarFillType[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AxisPosition",
+     "dispid": 2942,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlDataBarAxisPosition[I4]"
+    },
+    {
+     "name": "AxisPosition",
+     "dispid": 2942,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlDataBarAxisPosition[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "AxisColor",
+     "dispid": 2943,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "BarBorder",
+     "dispid": 2944,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "DataBarBorder*"
+    },
+    {
+     "name": "NegativeBarFormat",
+     "dispid": 2945,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "NegativeBarFormat*"
+    }
+   ]
+  },
+  {
+   "name": "IconSetCondition",
+   "kind": "dispatch",
+   "guid": "{00024497-0000-0000-C000-000000000046}",
+   "dual": false,
+   "flags": [
+    "dispatchable"
+   ],
+   "base": "IDispatch",
+   "vtable_slots": 7,
+   "dispatch_only": true,
+   "members": [
+    {
+     "name": "Application",
+     "dispid": 148,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Application*"
+    },
+    {
+     "name": "Creator",
+     "dispid": 149,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlCreator[I4]"
+    },
+    {
+     "name": "Parent",
+     "dispid": 150,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IDispatch*"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "Priority",
+     "dispid": 985,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "I4",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "StopIfTrue",
+     "dispid": 2625,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "AppliesTo",
+     "dispid": 2626,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "Range*"
+    },
+    {
+     "name": "Type",
+     "dispid": 108,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "I4"
+    },
+    {
+     "name": "ModifyAppliesToRange",
+     "dispid": 2627,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": "Range",
+       "type": "Range*",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PTCondition",
+     "dispid": 2631,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "enum:XlPivotConditionScope[I4]"
+    },
+    {
+     "name": "ScopeType",
+     "dispid": 2615,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "enum:XlPivotConditionScope[I4]",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "SetFirstPriority",
+     "dispid": 2629,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "SetLastPriority",
+     "dispid": 2630,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "Delete",
+     "dispid": 117,
+     "invoke": "method",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VOID"
+    },
+    {
+     "name": "ReverseOrder",
+     "dispid": 2723,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ReverseOrder",
+     "dispid": 2723,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "PercentileValues",
+     "dispid": 2724,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "PercentileValues",
+     "dispid": 2724,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "ShowIconOnly",
+     "dispid": 2725,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BOOL"
+    },
+    {
+     "name": "ShowIconOnly",
+     "dispid": 2725,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BOOL",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "BSTR"
+    },
+    {
+     "name": "Formula",
+     "dispid": 261,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "BSTR",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IconSet",
+     "dispid": 2726,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "VARIANT"
+    },
+    {
+     "name": "IconSet",
+     "dispid": 2726,
+     "invoke": "put",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [
+      {
+       "name": null,
+       "type": "VARIANT",
+       "flags": [
+        "in"
+       ]
+      }
+     ],
+     "return": "VOID"
+    },
+    {
+     "name": "IconCriteria",
+     "dispid": 2727,
+     "invoke": "get",
+     "slot": null,
+     "hidden": false,
+     "restricted": false,
+     "params": [],
+     "return": "IconCriteria*"
+    }
+   ]
   }
  ]
 }

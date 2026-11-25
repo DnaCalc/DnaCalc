@@ -1357,6 +1357,43 @@ impl HostFacts for Host {
     }
 }
 
+/// Live Excel (16.0.20625, dc-j9k.236-.239): WORKDAY.INTL checks the target range first (start +
+/// floor(days) outside 0..=2958465 is #NUM!), returns the start for zero days without reading the
+/// weekend or the holidays, reads the holidays before the weekend, and only then rejects a bad weekend.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn workday_intl_checks_range_then_zero_days_then_holidays_then_weekend() {
+    let env = host();
+    let w = |args: Vec<CalcValue>| c(&env, "WORKDAY.INTL", args);
+    // The target is out of range: #NUM! whatever the weekend says.
+    error(w(vec![n(61.0), n(-100.0), t("1111111")]), Num);
+    error(w(vec![n(61.0), n(-100.0), t("abc")]), Num);
+    error(w(vec![n(61.0), n(-62.0), t("abc")]), Num);
+    error(w(vec![n(61.0), n(-61.5), t("abc")]), Num);
+    error(w(vec![n(61.0), n(2958405.0), t("abc")]), Num);
+    error(w(vec![n(2958465.0), n(1.0), t("abc")]), Num);
+    error(w(vec![n(61.0), n(-100.0), n(1.0), e(NA)]), Num);
+    // In range: a bad weekend is #VALUE! (text) or #NUM! (code).
+    error(w(vec![n(61.0), n(-61.0), t("abc")]), Value);
+    error(w(vec![n(61.0), n(-60.5), t("abc")]), Value);
+    error(w(vec![n(61.0), n(-0.5), t("abc")]), Value);
+    error(w(vec![n(61.0), n(2958404.0), t("abc")]), Value);
+    error(w(vec![n(61.0), n(1.0), t("1111111")]), Value);
+    error(w(vec![n(61.0), n(1.0), n(0.0)]), Num);
+    error(w(vec![n(61.0), n(1.0), n(18.0)]), Num);
+    // Holidays are read before the weekend.
+    error(w(vec![n(61.0), n(1.0), t("abc"), e(NA)]), NA);
+    error(w(vec![n(61.0), n(1.0), n(1.0), e(NA)]), NA);
+    // Zero days: the start, even with a bad weekend or holidays; only the start is checked.
+    exact(w(vec![n(61.0), n(0.0), n(0.0)]), 61.0);
+    exact(w(vec![n(61.0), n(0.5), t("abc")]), 61.0);
+    exact(w(vec![n(61.0), n(0.0), n(1.0), e(NA)]), 61.0);
+    exact(w(vec![n(1.0), n(0.0), t("1111111")]), 1.0);
+    exact(w(vec![n(2958465.0), n(0.0), t("abc")]), 2958465.0);
+    error(w(vec![n(2958466.0), n(0.0), n(7.0)]), Num);
+    error(w(vec![n(-1.0), n(0.0), n(7.0)]), Num);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn host_facts() {
