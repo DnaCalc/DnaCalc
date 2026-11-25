@@ -1228,7 +1228,6 @@ fn file_classes_share_one_session_and_declared_unsupported_members_stay_refused(
     );
     let expressions = [
         "Application.ExecuteExcel4Macro(\"1+1\")",
-        "ThisWorkbook.Date1904",
         "UnsupportedSave()",
     ];
     let mut module = "Private instance As ProbeEvents\nPublic Function NextCount() As Long\n If instance Is Nothing Then Set instance = New ProbeEvents\n NextCount = instance.NextCount()\nEnd Function\n".to_owned();

@@ -212,6 +212,8 @@ fn execute(
         HostOptions {
             numeric: numeric.clone(),
             calc_mode: Some(calc_host::CalcMode::Manual),
+            calculate_before_save: None,
+            precision_as_displayed: None,
             locale: super::compare::capture_locale(capture),
             formula_cell_budget: None,
         },
@@ -420,6 +422,8 @@ mod tests {
             &OpenPolicy::default(),
             HostOptions {
                 calc_mode: Some(calc_host::CalcMode::Manual),
+                calculate_before_save: None,
+                precision_as_displayed: None,
                 ..Default::default()
             },
         )
@@ -488,6 +492,8 @@ mod tests {
             &OpenPolicy::default(),
             HostOptions {
                 calc_mode: Some(calc_host::CalcMode::Manual),
+                calculate_before_save: None,
+                precision_as_displayed: None,
                 ..Default::default()
             },
         )

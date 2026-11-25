@@ -797,6 +797,8 @@ fn run_workbook_with_code(
             // The capture's Excel recalculates every formula (CalculateFullRebuild) whatever mode
             // the package declares, so the comparison calculates under the automatic mode too.
             calc_mode: Some(CalcMode::Automatic),
+            calculate_before_save: None,
+            precision_as_displayed: None,
             locale: capture_locale(capture),
         },
     );
