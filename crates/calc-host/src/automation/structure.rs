@@ -15,6 +15,7 @@ const OWNER: &str = "dc-oxh8w.43";
 impl WorkbookAutomation {
     pub(super) fn register_structure(handlers: &mut Handlers<Self>) {
         handlers.on("Sheets", "Add", InvokeKind::Method, Self::sheets_add);
+        handlers.on("Sheets", "Move", InvokeKind::Method, Self::sheets_move);
         handlers.on("Worksheet", "Name", InvokeKind::Put, Self::worksheet_set_name);
         // Typed refusals that name the bead owning the work (dc-oxh8w.47 corpus run).
         for member in ["Protect", "Unprotect"] {
@@ -304,6 +305,46 @@ impl WorkbookAutomation {
 
     fn worksheet_move(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let sheet = Self::worksheet_sheet(target)?;
+        let (before, after) = Self::move_anchors(call)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            if before.is_none() && after.is_none() {
+                return self.copy_to_new_book(session, &[sheet], true, call);
+            }
+            Self::move_one(session, sheet, before, after, call)?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    /// Sheets.Move / Worksheets.Move: every sheet the collection lists moves, in order, to the Before or
+    /// After anchor, or into a new workbook when neither is given.
+    fn sheets_move(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let (before, after) = Self::move_anchors(call)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let listed: Vec<SheetId> = self.listed(target, &meta).iter().map(|s| s.id()).collect();
+            if matches!(target.key, ObjectKey::Charts(_)) || listed.iter().any(|s| meta.chart_sheets.contains(s)) {
+                return Err(AutoError::not_modelled("Sheets.Move of chart sheets", OWNER));
+            }
+            if before.is_none() && after.is_none() {
+                return self.copy_to_new_book(session, &listed, true, call);
+            }
+            let mut after = after;
+            for sheet in listed {
+                Self::move_one(session, sheet, before, after, call)?;
+                if after.is_some() {
+                    after = Some(sheet);
+                }
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    fn move_anchors(call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
         }
@@ -312,24 +353,25 @@ impl WorkbookAutomation {
         if before.is_some() && after.is_some() {
             return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
         }
-        if before.is_none() && after.is_none() {
-            return Err(AutoError::not_modelled("Worksheet.Move to a new workbook", OWNER));
-        }
-        self.with_write(|session| {
-            let meta = self.metadata()?;
-            self.validate(target, &meta)?;
-            let order: Vec<SheetId> = session.host().model().sheets().iter().map(|s| s.id()).collect();
-            let index = |id: SheetId| order.iter().position(|s| *s == id);
-            let from = index(sheet).ok_or_else(geometry::type_mismatch)?;
-            let anchor = index(before.or(after).unwrap()).ok_or_else(geometry::type_mismatch)?;
-            // Positions are those after the move: moving later removes the sheet from before the anchor.
-            let slot = if after.is_some() { anchor + 1 } else { anchor };
-            let position = if from < slot { slot } else { slot + 1 };
-            let progress = Self::sheet_command(session, Some(sheet), SheetChange::Move { position: position as u32 })?;
-            Self::settle(session, progress, call)?;
-            self.context_changed(session);
-            Ok(AutoValue::Empty)
-        })
+        Ok((before, after))
+    }
+
+    fn move_one(
+        session: &mut HostSession,
+        sheet: SheetId,
+        before: Option<SheetId>,
+        after: Option<SheetId>,
+        call: &Call<'_>,
+    ) -> Result<(), AutoError> {
+        let order: Vec<SheetId> = session.host().model().sheets().iter().map(|s| s.id()).collect();
+        let index = |id: SheetId| order.iter().position(|s| *s == id);
+        let from = index(sheet).ok_or_else(geometry::type_mismatch)?;
+        let anchor = index(before.or(after).unwrap()).ok_or_else(geometry::type_mismatch)?;
+        // Positions are those after the move: moving later removes the sheet from before the anchor.
+        let slot = if after.is_some() { anchor + 1 } else { anchor };
+        let position = if from < slot { slot } else { slot + 1 };
+        let progress = Self::sheet_command(session, Some(sheet), SheetChange::Move { position: position as u32 })?;
+        Self::settle(session, progress, call)
     }
 }
 

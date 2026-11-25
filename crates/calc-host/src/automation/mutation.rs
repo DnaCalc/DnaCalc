@@ -325,7 +325,11 @@ impl WorkbookAutomation {
             call,
             owner,
             |_, _| Ok(PreWrite::Same),
-            |session, reference| intent(session, reference.ok_or_else(geometry::type_mismatch)?),
+            |session, reference| {
+                let reference = reference.ok_or_else(geometry::type_mismatch)?;
+                self.guard_locked(session, &reference)?;
+                intent(session, reference)
+            },
         )
     }
     pub(super) fn mutate_range(
@@ -336,6 +340,7 @@ impl WorkbookAutomation {
     ) -> Reply {
         self.mutate(target, call, |session, reference| {
             let range = reference.ok_or_else(geometry::type_mismatch)?;
+            self.guard_locked(session, &range)?;
             if range.area_count() != 1 {
                 return Err(AutoError::not_modelled(
                     format!("{} multi-area write", call.label()),
@@ -351,6 +356,7 @@ impl WorkbookAutomation {
         reference: ReferenceLike,
         value: Option<&AutoValue>,
     ) -> Result<SkinIntent, AutoError> {
+        self.guard_locked(session, &reference)?;
         let range = &reference;
         let areas = range.areas();
         if value.is_none() || matches!(value, Some(AutoValue::Empty)) {
@@ -503,20 +509,28 @@ impl WorkbookAutomation {
     /// Runs a started calculation to its end, as Excel's synchronous automation call does.
     pub(super) fn settle(
         session: &mut HostSession,
-        mut progress: Option<HostProgress>,
+        progress: Option<HostProgress>,
         call: &Call<'_>,
+    ) -> Result<(), AutoError> {
+        Self::settle_as(session, progress, &call.label())
+    }
+    /// [`Self::settle`] for work no single call started.
+    pub(super) fn settle_as(
+        session: &mut HostSession,
+        mut progress: Option<HostProgress>,
+        label: &str,
     ) -> Result<(), AutoError> {
         loop {
             match progress {
                 Some(HostProgress::Failed(ref e)) => {
                     return Err(AutoError::not_modelled(
-                        format!("{} calculation failed: {e}", call.label()),
+                        format!("{label} calculation failed: {e}"),
                         OWNER,
                     ));
                 }
                 Some(HostProgress::Waiting { .. } | HostProgress::Cancelled) => {
                     return Err(AutoError::not_modelled(
-                        format!("{} synchronous calculation is unfinished", call.label()),
+                        format!("{label} synchronous calculation is unfinished"),
                         OWNER,
                     ));
                 }
@@ -529,7 +543,7 @@ impl WorkbookAutomation {
         }
         if session.has_unfinished_calculation() {
             return Err(AutoError::not_modelled(
-                format!("{} synchronous calculation is unfinished", call.label()),
+                format!("{label} synchronous calculation is unfinished"),
                 OWNER,
             ));
         }

@@ -7930,8 +7930,9 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let both = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(first.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let count = sheet_names(&host).len();
+    // No application factory here, so a copy to a new workbook refuses naming the Workbooks owner (calc-host-vba tests the copy).
     let to_new_book = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{to_new_book:?}");
+    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{to_new_book:?}");
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
@@ -7977,8 +7978,50 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     let both = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(second.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let new_book = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{new_book:?}");
+    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{new_book:?}");
     assert_eq!(sheet_names(&host).len(), 8);
+}
+
+/// dc-oxh8w.43: Worksheets(Array(...)) is a collection of just those sheets (workbook order, no duplicates):
+/// Count and Item answer for it, Copy and Move take it as a group, an unknown member is an error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__worksheets_of_an_array_is_a_group() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+        )
+        .unwrap(),
+    );
+    let sheets = worksheets(&model);
+    for _ in 0..2 {
+        invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    }
+    let base = sheet_names(&host);
+    assert_eq!(base.len(), 3);
+    let array = |values: Vec<AutoValue>| {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+    };
+    let group = obj(invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(3), AutoValue::I4(1), AutoValue::I4(3)])]).unwrap());
+    let count = invoke(&model, &group, "Count", vec![]).unwrap();
+    assert!(matches!(count, AutoValue::I4(2)), "{count:?}");
+    let first = obj(invoke(&model, &group, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let name = invoke(&model, &first, "Name", vec![]).unwrap();
+    assert_eq!(name.as_text().as_deref(), Some(base[0].as_str()), "workbook order: sheet 1 comes first");
+    let missing = invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(1), AutoValue::I4(9)])]);
+    assert!(missing.is_err());
+    // Move the group after the middle sheet: 2, 1, 3.
+    let middle = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(2)]).unwrap());
+    invoke_kind(&model, &group, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(middle.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), vec![base[1].clone(), base[0].clone(), base[2].clone()]);
+    // Copy the group before the first sheet.
+    let head = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    invoke_kind(&model, &group, "Copy", InvokeKind::Method, vec![AutoValue::Object(head)]).unwrap();
+    assert_eq!(sheet_names(&host).len(), 5);
+    let both = invoke_kind(&model, &group, "Move", InvokeKind::Method, vec![AutoValue::Object(middle.clone()), AutoValue::Object(middle)]);
+    assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
 }
 
 /// dc-oxh8w.47: Worksheet.Visible reads and writes xlSheetVisible (-1), xlSheetHidden (0) and xlSheetVeryHidden (2);
@@ -8012,19 +8055,6 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
     put(&first, AutoValue::I4(-1)).unwrap();
     put(&added, AutoValue::I4(2)).unwrap();
     assert!(matches!(visible(&added), AutoValue::I4(2)));
-}
-
-/// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_47__protect_refuses_with_its_owner() {
-    let (_host, model) = setup();
-    let sheets = worksheets(&model);
-    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
-    for member in ["Protect", "Unprotect"] {
-        let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
-        assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
-    }
 }
 
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
@@ -8991,4 +9021,59 @@ fn dc_oxh8w_67__a_series_outline_of_a_file_held_chart_survives_a_save() {
     let border2 = border_of(&model2);
     assert_eq!(int(invoke(&model2, &border2, "Color", vec![]).unwrap()), 255);
     assert_eq!(int(invoke(&model2, &border2, "Weight", vec![]).unwrap()), 4);
+}
+
+/// dc-oxh8w.68: `Worksheet.Protect` / `Unprotect` / `ProtectContents` and the edit enforcement a macro meets. A locked cell
+/// refuses value, clear and format writes with 1004 while the sheet is protected; an unlocked cell (`Range.Locked = False`)
+/// stays writable; a wrong password is 1004 and leaves the sheet protected; `UserInterfaceOnly` lets macros edit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let flag = |name: &str| matches!(invoke(&model, &sheet, name, vec![]).unwrap(), AutoValue::Bool(true));
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let protected_error = |r: Reply| matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet"));
+    assert!(!flag("ProtectContents") && !flag("ProtectDrawingObjects") && !flag("ProtectScenarios"));
+    // Locked is the default; a cell can be unlocked while the sheet is unprotected.
+    assert!(matches!(invoke(&model, &range(&model, "A1"), "Locked", vec![]).unwrap(), AutoValue::Bool(true)));
+    put(&range(&model, "B2"), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &range(&model, "B2"), "Locked", vec![]).unwrap(), AutoValue::Bool(false)));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(1.0)]).unwrap();
+    method(&sheet, "Protect", vec![AutoValue::text("pw")]).unwrap();
+    assert!(flag("ProtectContents") && flag("ProtectDrawingObjects") && flag("ProtectScenarios") && !flag("ProtectionMode"));
+    assert!(protected_error(put(&range(&model, "A1"), "Value", vec![AutoValue::R8(2.0)])));
+    assert!(protected_error(method(&range(&model, "A1"), "ClearContents", vec![])));
+    assert!(protected_error(put(&range(&model, "A1"), "Formula", vec![AutoValue::text("=1+1")])));
+    assert!(protected_error(put(&range(&model, "A1:B2"), "Value", vec![AutoValue::R8(3.0)])));
+    assert!(protected_error(put(&range(&model, "A1"), "Locked", vec![AutoValue::Bool(false)])));
+    assert!(matches!(invoke(&model, &range(&model, "A1"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 1.0));
+    put(&range(&model, "B2"), "Value", vec![AutoValue::R8(5.0)]).unwrap();
+    // A wrong or missing password is 1004 and the sheet stays protected.
+    for args in [vec![AutoValue::text("wrong")], vec![]] {
+        let r = method(&sheet, "Unprotect", args);
+        assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("password you supplied is not correct")), "{r:?}");
+    }
+    assert!(flag("ProtectContents"));
+    method(&sheet, "Unprotect", vec![AutoValue::text("pw")]).unwrap();
+    assert!(!flag("ProtectContents"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(2.0)]).unwrap();
+    // No password: Unprotect needs none. UserInterfaceOnly protects the interface only: macros still edit.
+    method(&sheet, "Protect", vec![]).unwrap();
+    assert!(protected_error(put(&range(&model, "A1"), "Value", vec![AutoValue::R8(4.0)])));
+    method(&sheet, "Unprotect", vec![]).unwrap();
+    let args = vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)];
+    method(&sheet, "Protect", args).unwrap();
+    assert!(flag("ProtectContents") && flag("ProtectionMode"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(6.0)]).unwrap();
+    // Contents:=False leaves the cells editable and ProtectContents False.
+    method(&sheet, "Unprotect", vec![]).unwrap();
+    method(&sheet, "Protect", vec![AutoValue::Missing, AutoValue::Bool(false), AutoValue::Bool(false)]).unwrap();
+    assert!(!flag("ProtectContents") && !flag("ProtectDrawingObjects") && flag("ProtectScenarios"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(7.0)]).unwrap();
+    // Too many arguments are an argument-count error.
+    let r = method(&sheet, "Protect", vec![AutoValue::Missing; 17]);
+    assert!(matches!(r, Err(ref e) if !matches!(e, AutoError::NotModelled { .. })), "{r:?}");
 }

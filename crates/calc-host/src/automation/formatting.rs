@@ -79,6 +79,8 @@ impl WorkbookAutomation {
             InvokeKind::Put,
             Self::put_vertical_alignment,
         );
+        handlers.on("Range", "Locked", InvokeKind::Get, Self::locked);
+        handlers.on("Range", "Locked", InvokeKind::Put, Self::put_locked);
         handlers.on("Range", "WrapText", InvokeKind::Get, Self::wrap_text);
         handlers.on("Range", "WrapText", InvokeKind::Put, Self::put_wrap_text);
         handlers.on("Range", "IndentLevel", InvokeKind::Get, Self::indent_level);
@@ -144,6 +146,20 @@ impl WorkbookAutomation {
     fn wrap_text(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.read_alignment(target, call, AutoValue::Bool, |alignment| {
             Ok(alignment.is_some_and(|a| a.wrap_text))
+        })
+    }
+
+    /// `Range.Locked`: True, False, or Null when the cells differ.
+    fn locked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.read_format(target, call, AutoValue::Bool, |host, style| Ok(super::protection::style_locked(host, style)))
+    }
+
+    fn put_locked(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.put_format(target, call, || {
+            let AutoValue::Bool(locked) = call.arg(0) else {
+                return Err(AutoError::not_modelled("Range.Locked coercion", OWNER));
+            };
+            Ok(FormatPatch { locked: Some(*locked), ..Default::default() })
         })
     }
 

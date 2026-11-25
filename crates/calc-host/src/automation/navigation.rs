@@ -103,7 +103,8 @@ impl WorkbookAutomation {
     pub(super) fn listed<'a>(&self, target: &ObjectRef, meta: &'a Snapshot) -> Vec<&'a calc_doc_model::SheetEntry> {
         let chart = |s: &&calc_doc_model::SheetEntry| meta.chart_sheets.contains(&s.id());
         let all = meta.model.sheets().iter();
-        match target.key {
+        match &target.key {
+            ObjectKey::SheetGroup { sheets, .. } => all.filter(|s| sheets.contains(&s.id())).collect(),
             ObjectKey::Charts(_) => all.filter(chart).collect(),
             ObjectKey::Worksheets(_) => all.filter(|s| !chart(s) && !meta.dialog_sheets.contains(&s.id())).collect(),
             _ => all.collect(),
@@ -128,24 +129,41 @@ impl WorkbookAutomation {
             Ok(AutoValue::Object(object("Names", ObjectKey::SheetNames { workbook: meta.workbook, sheet })))
         })
     }
+    /// The sheet a name or a one-based position picks among `sheets`.
+    fn find_sheet<'a>(
+        sheets: &[&'a calc_doc_model::SheetEntry],
+        key: &AutoValue,
+    ) -> Result<&'a calc_doc_model::SheetEntry, AutoError> {
+        match key {
+            AutoValue::Text(text) => sheets
+                .iter()
+                .copied()
+                .find(|s| calc_value::workbook_names_equal(&s.name().text().to_string_lossy(), &text.to_string_lossy())),
+            other => usize::try_from(geometry::integer(other)? - 1).ok().and_then(|n| sheets.get(n).copied()),
+        }
+        .ok_or_else(|| AutoError::Status(0x8002_000Bu32 as i32))
+    }
     fn sheets_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             if call.args.len() != 1 {
                 return Err(geometry::bad_count());
             }
             let sheets = self.listed(target, meta);
-            let sheet = match call.arg(0) {
-                AutoValue::Text(text) => sheets.iter().copied().find(|s| {
-                    calc_value::workbook_names_equal(
-                        &s.name().text().to_string_lossy(),
-                        &text.to_string_lossy(),
-                    )
-                }),
-                other => usize::try_from(geometry::integer(other)? - 1)
-                    .ok()
-                    .and_then(|n| sheets.get(n).copied()),
+            if let AutoValue::Array(array) = call.arg(0) {
+                // Worksheets(Array(...)): the named or numbered sheets, as one collection.
+                let mut chosen = Vec::new();
+                for item in &array.values {
+                    let sheet = Self::find_sheet(&sheets, item)?;
+                    if !chosen.contains(&sheet.id()) {
+                        chosen.push(sheet.id());
+                    }
+                }
+                if chosen.is_empty() {
+                    return Err(geometry::type_mismatch());
+                }
+                return Ok(AutoValue::Object(object("Sheets", ObjectKey::SheetGroup { workbook: meta.workbook, sheets: chosen })));
             }
-            .ok_or_else(|| AutoError::Status(0x8002_000Bu32 as i32))?;
+            let sheet = Self::find_sheet(&sheets, call.arg(0))?;
             if meta.dialog_sheets.contains(&sheet.id()) {
                 return Err(AutoError::not_modelled("a DialogSheet from Sheets", "dc-oxh8w.57"));
             }

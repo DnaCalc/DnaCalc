@@ -53,6 +53,9 @@ impl BookRunner for OwnedBook {
         }
         Ok(!session.notify_before_close())
     }
+    fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
+        self.lent(|| Err(calc_host::automation::busy()), || self.events.automation.keep_sheets(&names))
+    }
 }
 
 /// The running workbook has no session of its own to lend: it answers while its macro is running.
@@ -77,6 +80,9 @@ impl BookRunner for LentBook {
     }
     fn close(&self) -> Result<bool, AutoError> {
         Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.75"))
+    }
+    fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
+        self.events()?.automation.keep_sheets(&names)
     }
 }
 
@@ -173,6 +179,11 @@ impl BookFactory for Factory {
         self.blank.set(n);
         // A new workbook made from a template is named BookN and has the template's contents and macros.
         self.create(&format!("Book{n}"), bytes, self.options.grant.as_ref())
+    }
+    fn add_package(&self, bytes: Vec<u8>) -> Result<u64, AutoError> {
+        let n = self.blank.get() + 1;
+        self.blank.set(n);
+        self.create(&format!("Book{n}"), bytes, None)
     }
     fn open(&self, path: &str) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
