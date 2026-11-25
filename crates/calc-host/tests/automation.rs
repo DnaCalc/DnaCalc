@@ -8423,6 +8423,83 @@ fn dc_tqcvu__format_conditions_add_set_interior_and_font_and_delete() {
     assert_eq!(count(&model, &conditions), 0);
 }
 
+/// dc-oxh8w.62: `FormatCondition.AppliesTo`, `ModifyAppliesToRange`, `Priority` put, `SetFirstPriority` and
+/// `SetLastPriority`. Moving a rule's range changes which `FormatConditions` collections see it; priorities are
+/// positions in the worksheet's list. A priority outside 1..Count, a non-range argument and a range on another
+/// worksheet are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
+    let (_host, model, _) = blank_report();
+    let conditions_of = |address: &str| {
+        let target = range(&model, address);
+        let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+        model.released(&target);
+        conditions
+    };
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let conditions = conditions_of("B2:B6");
+    let add = |formula: &str| {
+        obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text(formula)]).unwrap())
+    };
+    let (a, b, c) = (add("=B2>1"), add("=B2>2"), add("=B2>3"));
+    let priority = |r: &ObjectRef| int(invoke(&model, r, "Priority", vec![]).unwrap());
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (1, 2, 3));
+    let applies = obj(invoke(&model, &a, "AppliesTo", vec![]).unwrap());
+    assert_eq!(text(&model, &applies, "Address"), "$B$2:$B$6");
+    // Priority put, SetFirstPriority and SetLastPriority.
+    invoke_kind(&model, &c, "SetFirstPriority", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (2, 3, 1));
+    invoke_kind(&model, &c, "SetLastPriority", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (1, 2, 3));
+    invoke_kind(&model, &b, "Priority", InvokeKind::Put, vec![AutoValue::I4(1)]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (2, 1, 3));
+    for bad in [0, 4, -1] {
+        let r = invoke_kind(&model, &a, "Priority", InvokeKind::Put, vec![AutoValue::I4(bad)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    // ModifyAppliesToRange moves the rule out of B2:B6 and into D1:D2.
+    let elsewhere = range(&model, "D1:D2");
+    invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![AutoValue::Object(elsewhere)]).unwrap();
+    assert_eq!(count(&conditions), 2);
+    assert_eq!(count(&conditions_of("D1:D2")), 1);
+    let applies = obj(invoke(&model, &a, "AppliesTo", vec![]).unwrap());
+    assert_eq!(text(&model, &applies, "Address"), "$D$1:$D$2");
+    for bad in [AutoValue::text("D1"), AutoValue::I4(3)] {
+        let r = invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })) || r.is_err(), "{bad:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![]);
+    assert!(r.is_err(), "{r:?}");
+}
+
+/// dc-oxh8w.63: the alignment and protection members of a `Style` read the style's own format: Normal and a style a
+/// macro adds answer Excel's defaults, `Value` and the default member name the style, and an argument is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_63__style_alignment_and_protection_members_read_the_style_format() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine63")]).unwrap());
+    for style in [&normal, &mine] {
+        assert_eq!(int(invoke(&model, style, "HorizontalAlignment", vec![]).unwrap()), 1);
+        assert_eq!(int(invoke(&model, style, "VerticalAlignment", vec![]).unwrap()), -4107);
+        assert_eq!(int(invoke(&model, style, "IndentLevel", vec![]).unwrap()), 0);
+        assert_eq!(int(invoke(&model, style, "Orientation", vec![]).unwrap()), 0);
+        for (member, expected) in [("WrapText", false), ("ShrinkToFit", false), ("Locked", true), ("FormulaHidden", false)] {
+            let got = invoke(&model, style, member, vec![]).unwrap();
+            assert!(matches!(got, AutoValue::Bool(b) if b == expected), "{member}: {got:?}");
+        }
+    }
+    assert_eq!(text(&model, &mine, "Value"), "Mine63");
+    let default = invoke_kind(&model, &mine, "_Default", InvokeKind::Get, vec![]).unwrap();
+    assert_eq!(default.as_text().as_deref(), Some("Mine63"));
+    let r = invoke(&model, &mine, "WrapText", vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+}
+
 /// dc-orxz0: `Workbook.Styles` with Count, Item (index and name), Add and Style.Delete. A style a macro adds applies to
 /// ranges, saves and reopens; a duplicate or empty name, an unknown name, deleting Normal and deleting a style in use
 /// are refused (1004 where Excel answers an error).
