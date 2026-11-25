@@ -101,6 +101,17 @@ fn complex_text(
     Ok(text_value(&text))
 }
 
+/// IMDIV and IMSUB: operands with different suffixes are #NUM! (IMSUM and IMPRODUCT: #VALUE!; dc-j9k.348).
+fn complex_text_num_on_mixed_suffix(
+    value: Result<ParsedComplex, WorksheetErrorCode>,
+    operands: &[ParsedComplex],
+) -> Step<CalcValue> {
+    if suffix_from_operands(operands).is_err() {
+        return fail(WorksheetErrorCode::Num);
+    }
+    complex_text(value, operands)
+}
+
 fn unary_complex(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -276,7 +287,7 @@ ported_shared_family! {
     51 imdiv |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(x.div(y), &[x, y])
+        complex_text_num_on_mixed_suffix(x.div(y), &[x, y])
     }
     52 impower |s, a, sv| {
         let z = complex_of(s, 0, &a[0])?;
@@ -289,7 +300,7 @@ ported_shared_family! {
     53 imsub |s, a, sv| {
         let x = complex_of(s, 0, &a[0])?;
         let y = complex_of(s, 1, &a[1])?;
-        complex_text(Ok(x.sub(y)), &[x, y])
+        complex_text_num_on_mixed_suffix(Ok(x.sub(y)), &[x, y])
     }
     54 imsum |s, a, sv| {
         let zs = complexes(s, a, sv)?;

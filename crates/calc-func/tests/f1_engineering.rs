@@ -2325,3 +2325,16 @@ fn improduct_overflow_is_value_and_subnormal_steps_flush() {
     error(call("IMPRODUCT", vec![n(f64::from_bits(0x4340000000000001)), n(f64::from_bits(0x4010000000000000)), n(f64::from_bits(0xfe37e43c8800759e)), n(f64::from_bits(0x8890000000000000)), n(f64::from_bits(0xbf50624dd2f1a9fc)), n(f64::from_bits(0x0010000000000001)), n(f64::from_bits(0xc023ffffffffffff)), n(f64::from_bits(0xe860000000000000))]), Value); // dc-j9k.346
     text(call("IMPRODUCT", vec![n(f64::from_bits(0x8010000000000000)), n(f64::from_bits(0xbf9999999999999a)), n(f64::from_bits(0xe740000000000000)), n(f64::from_bits(0x3f9999999999999a)), n(f64::from_bits(0x2b2bff2ee48e0530)), n(f64::from_bits(0x41c0000000000000)), n(f64::from_bits(0xbfe0000000000000)), n(f64::from_bits(0x4340000000000000))]), "0"); // dc-j9k.347
 }
+
+/// Excel 16.0 build 20625 (Touchstone relay, 2026-11-25; dc-j9k.348): operands with different suffixes
+/// ("3-4j" and "i") are #NUM! in IMDIV and IMSUB, #VALUE! in IMSUM and IMPRODUCT.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mixed_suffix_error_depends_on_function() {
+    for (a, b) in [("3-4j", "i"), ("3-4i", "j"), ("3-4i", "2j"), ("j", "i")] {
+        error(call("IMDIV", vec![t(a), t(b)]), Num);
+        error(call("IMSUB", vec![t(a), t(b)]), Num);
+        error(call("IMSUM", vec![t(a), t(b)]), Value);
+        error(call("IMPRODUCT", vec![t(a), t(b)]), Value);
+    }
+}
