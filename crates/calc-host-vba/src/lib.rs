@@ -39,6 +39,8 @@ pub use command::{
     ProcedureKind, ProcedureResult,
 };
 mod command;
+mod book;
+pub use book::{ApplicationOptions, install_application};
 
 struct VbaAutomationHost {
     events_enabled: Cell<bool>,
@@ -359,6 +361,7 @@ fn prepare_project(
     let application = Rc::new(VbaAutomationHost::new());
     let automation = Rc::new(WorkbookAutomation::new(application.clone()));
     automation.context_changed_from_host(host, name);
+    automation.register();
     // The grant's policy wraps every host built for this load (CalcVBA's PolicyHost); a stricter
     // policy the thread already holds (Guarded) stays, and the thread's earlier policy is put back
     // after the load.
