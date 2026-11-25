@@ -638,8 +638,17 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
         }
         return fail(WorksheetErrorCode::Calc);
     }
-    let strict = binary_flag(site, a, 1, true)?;
     let g = grid(site, a, 0, sv)?;
+    // A one-cell reference is read as the cell's value: an error there is the result whatever the
+    // format, and a blank cell is #VALUE! (Excel 16.0.20527, Touchstone 2026-11-25).
+    if a[0].as_reference().is_some() && g.cells.len() == 1 {
+        match g.cells[0].core_ref() {
+            CoreRef::Error(code) => return fail(code),
+            CoreRef::Empty | CoreRef::Missing => return fail(WorksheetErrorCode::Value),
+            _ => {}
+        }
+    }
+    let strict = binary_flag(site, a, 1, true)?;
     let mut parts = Vec::with_capacity(g.cells.len());
     for value in &g.cells {
         parts.push(value_text(site, 0, value, strict)?);

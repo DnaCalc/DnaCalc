@@ -567,3 +567,26 @@ fn sequence_tiny_negative_dimension_is_calc() {
     error(call("SEQUENCE", vec![n(f64::from_bits(0x3d72_fe28_7039_747c)), n(f64::from_bits(0xbd9a_4031_0ea7_ccad))]), Calc);
     error(call("SEQUENCE", vec![n(-0.5)]), Value);
 }
+
+/// Excel 16.0.20527 (Touchstone, 2026-11-25; dc-j9k.277 to .281): ARRAYTOTEXT of a one-cell reference
+/// that holds an error is that error whatever the format, and of a blank one-cell reference is #VALUE!;
+/// a wider range shows its errors and blanks as text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn arraytotext_of_one_cell_reference_holding_an_error_or_blank() {
+    use calc_func::value::WorksheetErrorCode::Ref;
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(Ref), n(5.0)]);
+    sheet.column(1, 3, vec![n(1.0)]);
+    sheet.column(1, 4, vec![e(NA)]);
+    let error_cell = sheet.area(1, 1, 1, 1);
+    let blank_cell = sheet.area(1, 2, 1, 2);
+    let wide = sheet.area(1, 3, 1, 4);
+    for format in [vec![], vec![n(0.0)], vec![n(1.0)], vec![n(2.0)]] {
+        let with = |first: calc_func::value::CalcValue| [vec![first], format.clone()].concat();
+        error(call_on(&mut sheet, "ARRAYTOTEXT", with(error_cell.clone())), Ref);
+        error(call_on(&mut sheet, "ARRAYTOTEXT", with(blank_cell.clone())), Value);
+    }
+    text(call_on(&mut sheet, "ARRAYTOTEXT", vec![wide.clone()]), "1, #N/A");
+    text(call_on(&mut sheet, "ARRAYTOTEXT", vec![wide, n(1.0)]), "{1,#N/A}");
+}
