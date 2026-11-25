@@ -1356,7 +1356,7 @@ fn profiles_leave_refusal_recording_to_the_projection_once_per_call() {
     INVOCATION.set(&refusals, || {
         let app = model.application();
         let member = Descriptor::get()
-            .member(app.interface, "CalculationState", InvokeKind::Get)
+            .member(app.interface, "Interactive", InvokeKind::Get)
             .unwrap();
         let error = model
             .invoke(
@@ -5205,6 +5205,48 @@ mod xlc {
         assert_eq!(host.session.borrow().calc_mode(), CalcMode::Manual);
     }
 
+    /// Application.CalculationState is xlPending (2) while a recalculation waits and xlDone (0)
+    /// after it; Application.MultiThreadedCalculation answers Enabled, ThreadMode and
+    /// ThreadCount, and puts outside Excel's ranges are 1004 (dc-oxh8w.40).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn application_calculation_state_and_multithreaded_calculation() {
+        let (_host, model) = setup();
+        let app = model.application();
+        // The fixture's file caches wait for a first calculation in manual mode.
+        assert!(invoke_kind(&model, &app, "Calculate", InvokeKind::Method, vec![]).is_ok());
+        assert!(matches!(invoke(&model, &app, "CalculationState", vec![]), Ok(AutoValue::I4(0))));
+        assert_eq!(invoke(&model, &app, "CalculationState", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
+        // An edit in manual mode leaves formulas waiting: xlPending until Calculate.
+        let a1 = range(&model, "A1");
+        assert!(invoke_kind(&model, &a1, "Value", InvokeKind::Put, vec![AutoValue::R8(41.0)]).is_ok());
+        assert!(matches!(invoke(&model, &app, "CalculationState", vec![]), Ok(AutoValue::I4(2))));
+        assert!(invoke_kind(&model, &app, "Calculate", InvokeKind::Method, vec![]).is_ok());
+        assert!(matches!(invoke(&model, &app, "CalculationState", vec![]), Ok(AutoValue::I4(0))));
+        let mtc = obj(invoke(&model, &app, "MultiThreadedCalculation", vec![]).unwrap());
+        assert!(matches!(invoke(&model, &mtc, "Enabled", vec![]), Ok(AutoValue::Bool(true))));
+        assert!(matches!(invoke(&model, &mtc, "ThreadMode", vec![]), Ok(AutoValue::I4(0))));
+        assert!(matches!(invoke(&model, &mtc, "ThreadCount", vec![]), Ok(AutoValue::I4(n)) if n >= 1));
+        let put = |name: &str, value: AutoValue| invoke_kind(&model, &mtc, name, InvokeKind::Put, vec![value]);
+        assert!(put("Enabled", AutoValue::Bool(false)).is_ok());
+        assert!(matches!(invoke(&model, &mtc, "Enabled", vec![]), Ok(AutoValue::Bool(false))));
+        // The state belongs to the application: a second acquisition sees it.
+        let again = obj(invoke(&model, &app, "MultiThreadedCalculation", vec![]).unwrap());
+        assert!(matches!(invoke(&model, &again, "Enabled", vec![]), Ok(AutoValue::Bool(false))));
+        assert!(put("ThreadMode", AutoValue::I4(1)).is_ok());
+        assert!(put("ThreadCount", AutoValue::I4(3)).is_ok());
+        assert!(matches!(invoke(&model, &mtc, "ThreadMode", vec![]), Ok(AutoValue::I4(1))));
+        assert!(matches!(invoke(&model, &mtc, "ThreadCount", vec![]), Ok(AutoValue::I4(3))));
+        for (name, bad) in [
+            ("ThreadMode", AutoValue::I4(2)),
+            ("ThreadCount", AutoValue::I4(0)),
+            ("ThreadCount", AutoValue::I4(1025)),
+        ] {
+            assert_eq!(put(name, bad).unwrap_err().number(), 1004, "{name}");
+        }
+        assert_eq!(invoke(&model, &mtc, "Enabled", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
+    }
+
     /// The settings read-out the corpus probes print (dc-oxh8w.39): CalculationVersion and
     /// OperatingSystem as the captures record, CalculateBeforeSave from the file, the iteration
     /// settings get and put, Workbook.Date1904 from the loaded date system.
@@ -5256,6 +5298,8 @@ mod xlc {
         let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
         assert!(matches!(invoke(&model, &book, "Date1904", vec![]), Ok(AutoValue::Bool(false))));
         assert_eq!(invoke(&model, &book, "Date1904", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
+        assert!(matches!(invoke(&model, &book, "PrecisionAsDisplayed", vec![]), Ok(AutoValue::Bool(false))));
+        assert_eq!(invoke(&model, &book, "PrecisionAsDisplayed", vec![AutoValue::I4(1)]).unwrap_err().number(), 1004);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -7527,6 +7571,13 @@ fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
     invoke_kind(&model, &first, "Select", InvokeKind::Method, vec![AutoValue::Bool(true)]).unwrap();
     assert_eq!(active_name(), text(&model, &first, "Name"));
     assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    // Range.Activate moves the active cell inside the selection; outside it is a typed refusal.
+    select(&sub(&first, "B2:C3")).unwrap();
+    invoke_kind(&model, &sub(&first, "C3"), "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$C$3");
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
+    let outside = invoke_kind(&model, &sub(&first, "F9"), "Activate", InvokeKind::Method, vec![]);
+    assert!(matches!(outside, Err(AutoError::NotModelled { .. })), "{outside:?}");
     // Select(Replace:=False) would group sheets: typed refusal, no change.
     let group = invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![AutoValue::Bool(false)]);
     assert!(matches!(group, Err(AutoError::NotModelled { .. })), "{group:?}");
@@ -7595,4 +7646,31 @@ fn dc_oxh8w_46__range_range_is_relative_to_the_range() {
     let unioned = invoke(&model, &base, "Range", vec![AutoValue::text("A1,C3")]);
     assert!(matches!(unioned, Err(AutoError::NotModelled { .. })), "{unioned:?}");
     assert!(invoke(&model, &base, "Range", vec![]).is_err());
+}
+
+/// dc-oxh8w.46: Application.DisplayAlerts is a held flag (True at start); Application.CutCopyMode reads False,
+/// xlCopy (1) after a Copy and xlCut (2) after a Cut, and False clears it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__display_alerts_and_cut_copy_mode() {
+    let (_host, model) = setup();
+    let app = model.application();
+    assert!(matches!(invoke(&model, &app, "DisplayAlerts", vec![]).unwrap(), AutoValue::Bool(true)));
+    invoke_kind(&model, &app, "DisplayAlerts", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &app, "DisplayAlerts", vec![]).unwrap(), AutoValue::Bool(false)));
+    let bad = invoke_kind(&model, &app, "DisplayAlerts", InvokeKind::Put, vec![AutoValue::text("x")]);
+    assert!(bad.is_err(), "{bad:?}");
+
+    let mode = || invoke(&model, &app, "CutCopyMode", vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::Bool(false)), "{:?}", mode());
+    let source = range(&model, "A1:B2");
+    invoke_kind(&model, &source, "Copy", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::I4(1)), "{:?}", mode());
+    invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(mode(), AutoValue::Bool(false)));
+    invoke_kind(&model, &source, "Cut", InvokeKind::Method, vec![]).unwrap();
+    assert!(matches!(mode(), AutoValue::I4(2)), "{:?}", mode());
+    // Only False (and the xlCopy/xlCut constants Excel reports) are assignable here.
+    let bad = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![AutoValue::I4(7)]);
+    assert!(bad.is_err(), "{bad:?}");
 }

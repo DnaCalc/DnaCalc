@@ -74,6 +74,12 @@ impl WorkbookEvents {
         self.project.procedures()
     }
 
+    /// The files macro members wrote since the last call (Chart.Export), oldest first, as the
+    /// path the macro named and the bytes. The shell stores them; this crate has no file system.
+    pub fn take_output_files(&self) -> Vec<(String, Vec<u8>)> {
+        std::mem::take(&mut *self.application.files.borrow_mut())
+    }
+
     /// The invocation log of this project, oldest first.
     pub fn invocations(&self) -> Vec<InvocationRecord> {
         self.invocations.borrow().clone()

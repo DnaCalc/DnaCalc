@@ -1,76 +1,83 @@
 missing_member_or_command	owner	distinct_project_entries	projects	workbook_entries	workbooks
-Range.Select	dc-1nbp.5	294	88	582	122
-_Worksheet.Select	dc-1nbp.5	231	43	287	76
-Range.AdvancedFilter	dc-1nbp.5	93	4	213	8
-_Application.ActiveWindow	dc-1nbp.5	87	24	122	56
-_Application.Goto	dc-1nbp.5	50	9	59	16
-_Worksheet.Unprotect	dc-1nbp.5	28	15	54	41
-Range.Range	dc-1nbp.5	38	7	42	11
-Range.Sort Type, OrderCustom and SubField1	dc-oxh8w.36	11	2	39	9
-_Application.CutCopyMode	dc-1nbp.5	13	4	33	9
-_Worksheet.Activate	dc-1nbp.5	20	8	29	11
+_Application.ActiveWindow	dc-1nbp.5	256	46	480	86
+Range.AdvancedFilter	dc-1nbp.5	96	4	216	8
+_Worksheet.Unprotect	dc-1nbp.5	38	20	74	54
+Range.Sort Type, OrderCustom and SubField1	dc-oxh8w.43	33	12	61	19
+_Application.CutCopyMode	dc-1nbp.5	25	13	46	19
 _Worksheet.Visible	dc-1nbp.5	27	7	27	7
-_Application.Rows	dc-1nbp.5	21	13	25	16
-Names.Add RefersToR1C1	dc-oxh8w.36	9	3	24	8
-_Worksheet.Protect	dc-1nbp.5	4	4	22	22
-Range.Hidden	dc-1nbp.5	7	4	17	9
-_Worksheet.Hyperlinks	dc-1nbp.5	1	1	14	14
+_Worksheet.Protect	dc-1nbp.5	5	5	25	25
+Names.Add RefersToR1C1	dc-oxh8w.43	9	3	24	8
+PageSetup.PrintArea: Workbook("Editing protected or macro worksheets is unavailable")	dc-oxh8w.11	22	6	23	7
+Range.End	dc-1nbp.5	23	12	23	12
+Range.Hidden	dc-1nbp.5	8	5	18	10
+_Worksheet.Hyperlinks	dc-1nbp.5	2	2	15	15
+_Application.InchesToPoints	dc-1nbp.5	8	4	14	7
+Range.GoalSeek	dc-1nbp.5	13	5	13	5
 _Application.DisplayAlerts	dc-1nbp.5	11	6	12	7
-_Application.Columns	dc-1nbp.5	11	8	12	9
+File-project event reads with cached or uncertified provenance	dc-oxh8w.38	10	7	12	9
+Range.Activate	dc-1nbp.5	12	9	12	9
 Range.Clear	dc-1nbp.5	10	6	12	8
-_Worksheet.Rows	dc-1nbp.5	8	5	11	8
-Range.GoalSeek	dc-1nbp.5	10	4	10	4
-_Application.InchesToPoints	dc-1nbp.5	6	4	9	7
-Range.Value text assignment conversion (E11)	dc-1nbp.6	7	5	9	7
-File-project event reads with cached or uncertified provenance	dc-oxh8w.37	9	6	9	6
+Range.AutoFill	dc-1nbp.5	10	3	10	3
+Range.Value text assignment conversion (E11)	dc-1nbp.6	8	6	10	8
 Application.Range address form	dc-0f1k.24	9	4	9	4
+Range.AutoFilter	dc-1nbp.5	8	3	8	3
 _Worksheet.ShowAllData	dc-1nbp.5	3	3	8	8
-Range.AutoFilter	dc-1nbp.5	6	1	6	1
-_Application.Run of another workbook's project	dc-80m0f	5	3	5	3
-_Workbook.Save	dc-1nbp.5	2	2	4	4
+_Workbook.Save	dc-1nbp.5	3	2	7	4
+_Application.Run of another workbook's project	dc-oxh8w.42	7	5	7	5
+Range.ShowDetail	dc-1nbp.5	6	1	6	1
+Range.PrintOut	dc-1nbp.5	4	2	5	3
 Range.Locked	dc-1nbp.5	2	2	4	4
+_Worksheet.ShowDataForm	dc-1nbp.5	4	3	4	3
+_Worksheet.PivotTables	dc-1nbp.5	3	3	4	4
 _Workbook.Unprotect	dc-1nbp.5	2	1	4	2
+Range.Characters	dc-1nbp.5	4	2	4	2
+_Application.CommandBars	dc-1nbp.5	2	2	4	4
 Range.ColumnWidth with an unmeasured Normal font	dc-oxh8w.2	1	1	3	3
 Name.Delete	dc-1nbp.5	3	1	3	1
 Workbooks.Add	dc-1nbp.5	3	1	3	1
-Range.Activate	dc-1nbp.5	3	2	3	2
 _Application.ActiveChart	dc-1nbp.5	3	1	3	1
-Range.End	dc-1nbp.5	2	2	2	2
 _Application.DecimalSeparator	dc-1nbp.5	2	2	2	2
-_Worksheet.Columns	dc-1nbp.5	2	2	2	2
+_Worksheet._Evaluate	dc-1nbp.5	2	1	2	1
 _Application.GetSaveAsFilename	dc-1nbp.5	1	1	2	2
 _Worksheet.UsedRange	dc-1nbp.5	2	1	2	1
-_Worksheet.PivotTables	dc-1nbp.5	1	1	2	2
+PageSetup.PrintTitleRows: Workbook("Editing protected or macro worksheets is unavailable")	dc-oxh8w.11	2	1	2	1
 _Workbook.RefreshAll	dc-1nbp.5	2	2	2	2
-_Application.CommandBars	dc-1nbp.5	1	1	2	2
+ChartObject.Select	dc-1nbp.5	2	1	2	1
 _Application.OnKey	dc-1nbp.5	2	1	2	1
-PageSetup.PrintArea: Workbook("Editing protected or macro worksheets is unavailable")	dc-oxh8w.11	2	1	2	1
 Range.OutlineLevel	dc-1nbp.5	2	1	2	1
 Range.Formula: Microsoft Excel: This value doesn't match the data validation restrictions defined for this cell.	dc-0f1k.24	1	1	2	2
 _Application.DialogSheets	dc-1nbp.5	2	1	2	1
 Range.AutoFit	dc-1nbp.5	1	1	1	1
 _Chart.Select	dc-1nbp.5	1	1	1	1
 LineFormat.Visible	dc-1nbp.5	1	1	1	1
+Range.TextToColumns	dc-1nbp.5	1	1	1	1
 _Workbook.SlicerCaches	dc-1nbp.5	1	1	1	1
 Range.CurrentRegion	dc-1nbp.5	1	1	1	1
 Range.Value calculation failed: the recalculation failed: the formula at CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 7 } read CellKey { sheet: SheetId { slot: 0, generation: 0 }, row: 27, column: 21 }, which this recalculation had not evaluated yet	dc-0f1k.24	1	1	1	1
+Worksheet.Copy of a sheet with drawing objects	dc-oxh8w.43	1	1	1	1
 _Application.GetOpenFilename	dc-1nbp.5	1	1	1	1
 XlChartType 0	dc-zjsg.6	1	1	1	1
 _Application.InputBox	dc-1nbp.5	1	1	1	1
 _Chart.FullSeriesCollection	dc-1nbp.5	1	1	1	1
+Range.Subtotal	dc-1nbp.5	1	1	1	1
+Range.RemoveSubtotal	dc-1nbp.5	1	1	1	1
+Range.InsertIndent	dc-1nbp.5	1	1	1	1
 ChartObject.Visible	dc-1nbp.5	1	1	1	1
 Range.SpecialCells	dc-1nbp.5	1	1	1	1
+Font.Bold: Editing protected or macro worksheets is unavailable	dc-oxh8w.2	1	1	1	1
+Range.Insert: Shifting cells with merged, array, table, rule, chart, hidden or unloaded metadata is not modelled (dc-971p); nothing changed	dc-0f1k.24	1	1	1	1
 _Application.CellDragAndDrop	dc-1nbp.5	1	1	1	1
 Font.Strikethrough	dc-1nbp.5	1	1	1	1
 _Workbook.PrintOut	dc-1nbp.5	1	1	1	1
 _Worksheet.Buttons	dc-1nbp.5	1	1	1	1
-Range.Characters	dc-1nbp.5	1	1	1	1
+_Workbook.DialogSheets	dc-1nbp.5	1	1	1	1
 _Workbook.ProtectStructure	dc-1nbp.5	1	1	1	1
-Worksheet.PasteSpecial Format (clipboard formats other than cells)	dc-oxh8w.36	1	1	1	1
+Worksheet.PasteSpecial Format (clipboard formats other than cells)	dc-oxh8w.43	1	1	1	1
 _Application.ExecuteExcel4Macro	dc-1nbp.5	1	1	1	1
 _Application.OnTime	dc-1nbp.5	1	1	1	1
 Shape.TextFrame	dc-1nbp.5	1	1	1	1
-_Worksheet.Copy	dc-1nbp.5	1	1	1	1
+Interior.ColorIndex: Editing protected or macro worksheets is unavailable	dc-oxh8w.2	1	1	1	1
+Worksheet.Copy of a sheet with sheet-local names	dc-oxh8w.43	1	1	1	1
 Range.Name	dc-1nbp.5	1	1	1	1
 _Application.FileDialog	dc-1nbp.5	1	1	1	1
 _Application.MacroOptions	dc-1nbp.5	1	1	1	1

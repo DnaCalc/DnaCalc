@@ -307,3 +307,24 @@ Run-time errors by project: error 9 `COM status 0x8002000b` 92 entries / 31 proj
 
 Open: the 504 unstaged hashes (windows-corpus staging) and the refusal batches above, owned by the beads named
 in the close note of dc-oxh8w.30.
+
+### After dc-oxh8w.46 (selection, navigation, Rows/Columns, Range.Range)
+
+The same 2,757 workbooks, rerun with a binary built after Range.Select, Worksheet.Select/Activate,
+Application.Goto (Range, R1C1, A1, name), Worksheet and Application Rows/Columns and Range.Range (SHA-256
+`755266761018a39a5559f685948129b01da0e12732bf3ec7b7b767a340ea6d1c`; DisplayAlerts, CutCopyMode and
+Range.Activate landed after it and are not measured yet):
+
+| Entry outcome | Before, every workbook | After | Before, 315 projects | After, 312 projects |
+| --- | ---: | ---: | ---: | ---: |
+| Success | 412 | 771 | 349 | 590 |
+| VBA run-time error | 353 | 469 | 250 | 331 |
+| Typed refusal | 1,781 | 1,270 | 1,096 | 747 |
+| Needs arguments | 19 | 19 | 18 | 18 |
+
+Workbooks that ran: 2,125 before, 2,120 after (five more hit the 300 s limit with the run's CPU shared with a
+build). The new run-time errors are entries that used to stop at a refusal and now run into the next gap or an
+Excel error. Top refusals now, by distinct project ([TSV](macro-host-corpus-ranking.tsv)): `_Application.ActiveWindow`
+256 entries / 46 projects (dc-oxh8w.50), `Range.AdvancedFilter` 96 / 4, `_Worksheet.Unprotect` 38 / 20,
+`Range.Sort` OrderCustom 33 / 12 (dc-oxh8w.43), `_Worksheet.Visible` 27 / 7, `Range.End` 23 / 12 (the last four
+dc-oxh8w.47 or dc-oxh8w.43).
