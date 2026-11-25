@@ -200,13 +200,15 @@ impl WorkbookAutomation {
     fn book_object(id: u64) -> AutoValue {
         AutoValue::Object(object("Workbook", ObjectKey::Workbook(id)))
     }
+    pub(super) fn active_book_id(&self, fallback: u64) -> Result<u64, AutoError> {
+        let books = self.open_books()?;
+        let active = BOOKS.with(|books| books.borrow().active);
+        Ok(books.iter().find(|b| b.id == active).map_or(fallback, |b| b.id))
+    }
     fn active_workbook(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
-            let books = self.open_books()?;
-            let active = BOOKS.with(|books| books.borrow().active);
-            let id = books.iter().find(|b| b.id == active).map_or(meta.workbook, |b| b.id);
-            Ok(Self::book_object(id))
+            Ok(Self::book_object(self.active_book_id(meta.workbook)?))
         })
     }
     fn books_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -329,6 +331,7 @@ impl WorkbookAutomation {
     /// The other open workbook that owns `target`'s object, if it is not this one's.
     fn foreign_owner(&self, target: &ObjectRef, books: &[Listed]) -> Option<u64> {
         let id = match &target.key {
+            ObjectKey::Windows(0) => return None,
             ObjectKey::Workbook(id)
             | ObjectKey::Sheets(id)
             | ObjectKey::Worksheets(id)

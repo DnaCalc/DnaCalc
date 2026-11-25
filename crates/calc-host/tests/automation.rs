@@ -9442,3 +9442,97 @@ fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
     let r = method(&sheet, "Protect", vec![AutoValue::Missing; 17]);
     assert!(matches!(r, Err(ref e) if !matches!(e, AutoError::NotModelled { .. })), "{r:?}");
 }
+
+/// dc-p3rg9: Window view state (Zoom, ScrollRow/ScrollColumn, DisplayGridlines/Headings/Formulas/Zeros/Outline)
+/// persists through save and reopen (ww21 window/sheet-xml.json: zoomScale=125, topLeftCell=D15, showGridLines=0).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_view_state_saves_and_reopens() {
+    let (host, model, _) = blank_report();
+    let window = obj(invoke(&model, &model.application(), "ActiveWindow", vec![]).unwrap());
+    let put = |m: &WorkbookAutomation, w: &ObjectRef, name: &str, value: AutoValue| {
+        invoke_kind(m, w, name, InvokeKind::Put, vec![value]).unwrap();
+    };
+    put(&model, &window, "Zoom", AutoValue::I4(125));
+    put(&model, &window, "ScrollRow", AutoValue::I4(15));
+    put(&model, &window, "ScrollColumn", AutoValue::I4(4));
+    put(&model, &window, "DisplayGridlines", AutoValue::Bool(false));
+    put(&model, &window, "DisplayHeadings", AutoValue::Bool(false));
+    put(&model, &window, "DisplayFormulas", AutoValue::Bool(true));
+    put(&model, &window, "DisplayZeros", AutoValue::Bool(false));
+    put(&model, &window, "DisplayOutline", AutoValue::Bool(false));
+
+    let reopened = reopen_formatting(&host);
+    let w2 = obj(invoke(&reopened, &reopened.application(), "ActiveWindow", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &w2, "Zoom", vec![]).unwrap()), 125);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollRow", vec![]).unwrap()), 15);
+    assert_eq!(int(invoke(&reopened, &w2, "ScrollColumn", vec![]).unwrap()), 4);
+    for (member, expected) in [
+        ("DisplayGridlines", false),
+        ("DisplayHeadings", false),
+        ("DisplayFormulas", true),
+        ("DisplayZeros", false),
+        ("DisplayOutline", false),
+    ] {
+        let got = invoke(&reopened, &w2, member, vec![]).unwrap();
+        assert!(matches!(got, AutoValue::Bool(b) if b == expected), "{member}: {got:?}");
+    }
+}
+
+/// dc-p3rg9: Window.Caption numeric/empty coercion (ww21: 12 -> "12", "" and Empty -> ""), WindowState (-4143
+/// xlNormal default, -4137/-4140 valid, invalid -> 1004), Application.Windows collection, and Window.Split.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_caption_coercion_state_split_and_app_windows() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let put = |name: &str, value: AutoValue| invoke_kind(&model, &window, name, InvokeKind::Put, vec![value]);
+
+    // Caption numeric and empty coercion (ww21 followup/ and vba-boundaries/)
+    put("Caption", AutoValue::I4(12)).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "12");
+    put("Caption", AutoValue::R8(3.5)).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "3.5");
+    put("Caption", AutoValue::text("")).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "");
+    put("Caption", AutoValue::text("CustomTitle")).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "CustomTitle");
+    put("Caption", AutoValue::Empty).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "");
+
+    // WindowState defaults to xlNormal (-4143)
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4143);
+    put("WindowState", AutoValue::I4(-4137)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4137);
+    put("WindowState", AutoValue::I4(-4140)).unwrap();
+    assert_eq!(int(invoke(&model, &window, "WindowState", vec![]).unwrap()), -4140);
+    let bad_state = put("WindowState", AutoValue::I4(99));
+    assert!(matches!(bad_state, Err(AutoError::Excel { number: 1004, .. })), "{bad_state:?}");
+
+    // Application.Windows collection
+    put("Caption", AutoValue::text("ReportWin")).unwrap();
+    let app_windows = obj(invoke(&model, &app, "Windows", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &app_windows, "Count", vec![]).unwrap()), 1);
+    let by_index = obj(invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    assert_eq!(by_index.key, window.key);
+    let by_name = obj(invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![AutoValue::text("reportwin")]).unwrap());
+    assert_eq!(by_name.key, window.key);
+    for bad in [AutoValue::I4(2), AutoValue::text("nope")] {
+        let r = invoke_kind(&model, &app_windows, "Item", InvokeKind::Get, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}: {r:?}");
+    }
+
+    // Window.Split get/put
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(false)));
+    let c3 = range(&model, "C3");
+    invoke_kind(&model, &c3, "Select", InvokeKind::Method, vec![]).unwrap();
+    put("FreezePanes", AutoValue::Bool(true)).unwrap();
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(true)));
+    put("Split", AutoValue::Bool(false)).unwrap();
+    assert!(matches!(invoke(&model, &window, "Split", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &window, "FreezePanes", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &window, "SplitRow", vec![]).unwrap()), 0);
+    let split_true = put("Split", AutoValue::Bool(true));
+    assert!(matches!(split_true, Err(AutoError::NotModelled { owner: "dc-p3rg9", .. })), "{split_true:?}");
+}

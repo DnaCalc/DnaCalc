@@ -96,7 +96,7 @@ Public Function PumpEvents() As Double
  PumpEvents = 7
 End Function
 Public Sub NeedsWindow()
- Application.ActiveWindow.WindowState = -4137
+ Application.ActiveWindow.NewWindow
 End Sub
 ";
 

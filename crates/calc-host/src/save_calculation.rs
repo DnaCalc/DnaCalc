@@ -133,7 +133,7 @@ pub fn begin_calculated_save(
         model: host.model.clone(),
         axis_edits: host.axis_edits.clone(),
         mode: host.calc_mode(),
-        policy: policy.clone(),
+        policy: crate::save::effective_save_policy(host, policy),
         functions: host.functions.bindings(),
         waiting_live,
         calculation: None,
