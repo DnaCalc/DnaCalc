@@ -473,7 +473,7 @@ impl WorkbookAutomation {
         Self::unregister(book.id);
         Ok(AutoValue::Empty)
     }
-    fn unregister(id: u64) {
+    pub(super) fn unregister(id: u64) {
         BOOKS.with(|books| {
             let mut books = books.borrow_mut();
             books.entries.retain(|e| e.automation.upgrade().is_some_and(|a| a.workbook_identity().is_ok_and(|w| w != id)));

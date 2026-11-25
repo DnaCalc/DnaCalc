@@ -51,7 +51,7 @@ impl WorkbookAutomation {
 
     fn worksheet_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let source = Self::worksheet_sheet(target)?;
-        let (before, after) = Self::copy_anchors(call)?;
+        let (before, after) = self.copy_anchors(call)?;
         if before.is_none() && after.is_none() {
             return self.with_write(|session| {
                 let meta = self.metadata()?;
@@ -72,16 +72,16 @@ impl WorkbookAutomation {
     /// Sheets.Copy / Worksheets.Copy: every worksheet the collection lists is copied, in order, to the
     /// Before or After anchor (each copy lands after the previous one, or before the same anchor).
     fn sheets_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let (before, after) = Self::copy_anchors(call)?;
+        let (before, after) = self.copy_anchors(call)?;
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             let listed: Vec<SheetId> = self.listed(target, &meta).iter().map(|s| s.id()).collect();
-            if before.is_none() && after.is_none() {
-                return self.copy_to_new_book(session, &listed, false, call);
-            }
             if matches!(target.key, ObjectKey::Charts(_)) || listed.iter().any(|s| meta.chart_sheets.contains(s)) {
                 return Err(AutoError::not_modelled("Sheets.Copy of chart sheets", OWNER));
+            }
+            if before.is_none() && after.is_none() {
+                return self.copy_to_new_book(session, &listed, false, call);
             }
             // Refuse before anything changes.
             for source in &listed {
@@ -139,7 +139,12 @@ impl WorkbookAutomation {
             .find(|book| book.id == id)
             .and_then(|book| book.runner)
             .ok_or_else(|| AutoError::not_modelled("Sheet copy to a workbook the application does not run", OWNER))?;
-        runner.keep_sheets(names)?;
+        if let Err(error) = runner.keep_sheets(names) {
+            // The new workbook is not left behind, and the active workbook is as it was.
+            let _ = runner.close();
+            Self::unregister(id);
+            return Err(error);
+        }
         if remove {
             let mut progress = None;
             for sheet in sheets {
@@ -157,6 +162,12 @@ impl WorkbookAutomation {
             let sheets: Vec<(SheetId, String)> =
                 session.host().model().sheets().iter().map(|s| (s.id(), s.name().text().to_string_lossy())).collect();
             let kept = |name: &str| names.iter().any(|n| calc_value::workbook_names_equal(n, name));
+            // The new workbook is made from a macro-enabled package only to carry the sheets; it runs no project, so
+            // it is not macro-enabled and its sheets can be removed.
+            let identity = session.host().model().definitions().workbook_name().map(str::to_owned);
+            if let Some(name) = identity.filter(|_| session.host().model().definitions().macro_enabled()) {
+                session.set_file_identity(&name, false);
+            }
             let mut progress = None;
             for (sheet, name) in &sheets {
                 if !kept(name) {
@@ -174,12 +185,12 @@ impl WorkbookAutomation {
         .map(|_| ())
     }
 
-    fn copy_anchors(call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
+    fn copy_anchors(&self, call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
         }
-        let before = Self::sheet_argument(call.arg(0), "Worksheet.Copy Before as other than a worksheet")?;
-        let after = Self::sheet_argument(call.arg(1), "Worksheet.Copy After as other than a worksheet")?;
+        let before = self.local_sheet_argument(call.arg(0), "Worksheet.Copy Before as other than a worksheet")?;
+        let after = self.local_sheet_argument(call.arg(1), "Worksheet.Copy After as other than a worksheet")?;
         if before.is_some() && after.is_some() {
             return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
         }

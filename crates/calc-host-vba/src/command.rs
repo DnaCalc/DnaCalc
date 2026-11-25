@@ -395,7 +395,10 @@ mod tests {
 
     /// A second workbook the application owns: its own session, project and automation.
     fn second_book(name: &str, source: &str) {
-        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        second_book_from(name, source, include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm"));
+    }
+
+    fn second_book_from(name: &str, source: &str, bytes: &[u8]) {
         let mut session = HostSession::open(
             Arc::new(MemorySource::new(bytes.to_vec()).named(name)),
             &OpenPolicy::default(),
@@ -482,6 +485,26 @@ Public Function CopyAllToNew() As String
  ThisWorkbook.Worksheets.Add
  ThisWorkbook.Worksheets.Copy
  CopyAllToNew = ActiveWorkbook.Name & "/" & ActiveWorkbook.Worksheets.Count & "/" & ThisWorkbook.Worksheets.Count & "/" & n
+End Function
+Public Function CopyOneOfTwo() As String
+ ThisWorkbook.Worksheets.Add
+ ThisWorkbook.Worksheets(1).Copy
+ CopyOneOfTwo = ActiveWorkbook.Worksheets.Count & "/" & ThisWorkbook.Worksheets.Count & "/" & Workbooks.Count
+End Function
+Public Function CopyBeforeForeign() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ ThisWorkbook.Worksheets(1).Copy Before:=other.Worksheets(1)
+End Function
+Public Function MoveBeforeInGroup() As String
+ Dim src As Workbook
+ Set src = Workbooks.Add
+ src.Worksheets.Add
+ src.Worksheets.Add
+ src.Worksheets(Array(2, 3)).Move Before:=src.Worksheets(2)
+End Function
+Public Function CountBooks() As String
+ CountBooks = Workbooks.Count & "/" & ActiveWorkbook.Name & "/" & ThisWorkbook.Name
 End Function
 Public Function CopyArrayToNew() As String
  ThisWorkbook.Worksheets(Array(1, 2)).Copy
@@ -746,6 +769,17 @@ End Function
         assert!(matches!(&not_here, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{not_here:?}");
         let nowhere = run(&mut session, &owner, &[AutoValue::text("RunBare"), AutoValue::text("NoSuchProcedure")]);
         assert!(matches!(&nowhere, Err(AutoError::Excel { number: 1004, description }) if description.contains("Cannot run the macro")), "{nowhere:?}");
+        // A copy that fails leaves no orphan workbook behind and the active workbook as it was.
+        let before = text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")]));
+        // local.xlsm holds defined names the save cannot rewrite, so dropping the other sheet is refused.
+        let failed = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyOneOfTwo")]);
+        assert!(matches!(failed, Err(AutoError::Excel { number: 1004, .. })), "{failed:?}");
+        assert_eq!(text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")])), before, "no orphan BookN after a failed copy");
+        // Anchors the host cannot place faithfully are typed refusals (dc-fa8cx), never an alias or a guessed order.
+        for name in ["CopyBeforeForeign", "MoveBeforeInGroup"] {
+            let r = run(&mut session, &owner, &[AutoValue::text(&format!("Other.xlsm!{name}"))]);
+            assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "{name}: {r:?}");
+        }
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);
         assert!(matches!(none, Err(AutoError::Excel { number: 1004, .. })), "{none:?}");
@@ -820,6 +854,27 @@ End Function
         let sheet = reopened.host().model().sheets()[0].id();
         let a1 = reopened.host().model().cell(calc_value::CellKey::new(sheet, 1, 1).unwrap());
         assert!(matches!(a1, Some(calc_host::CellInput::Number(n)) if n.get() == 123.0), "{a1:?}");
+    }
+
+    /// dc-nxq05: one sheet of several copied out of a macro-enabled workbook makes a workbook of that sheet.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn copy_of_one_sheet_of_a_macro_workbook_makes_a_new_workbook() {
+        let (mut session, owner) = project();
+        second_book_from("Other.xlsm", OTHER, include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/provider.xlsm"));
+        crate::install_application(crate::ApplicationOptions {
+            max_steps: 1_000_000,
+            backend: Some(calc_vba::Backend::Interpreter),
+            loader: None,
+            saver: None,
+            grant: None,
+        });
+        let count = match run(&mut session, &owner, &[AutoValue::text("Other.xlsm!BookCount")]) {
+            Ok(AutoValue::R8(n)) => n as i64,
+            other => panic!("{other:?}"),
+        };
+        let one = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CopyOneOfTwo")]);
+        assert_eq!(text(one), format!("1/{}/{}", 2, count + 1), "{count}");
     }
 
     fn project() -> (HostSession, Rc<WorkbookEvents>) {
