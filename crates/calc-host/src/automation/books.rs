@@ -17,6 +17,9 @@ pub trait BookRunner {
     /// `Workbook.Close` of this workbook: raises `BeforeClose`; `Ok(false)` when a handler
     /// cancelled it. `Err` when the workbook cannot be closed now (its macro is running).
     fn close(&self) -> Result<bool, AutoError>;
+    /// `Worksheet.Copy` into a new workbook: this workbook, made from a copy of another, keeps only
+    /// the named sheets.
+    fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError>;
 }
 
 /// Makes new workbooks for `Workbooks.Add` and `Workbooks.Open`; the host installs one.
@@ -27,6 +30,8 @@ pub trait BookFactory {
     fn open(&self, path: &str) -> Result<u64, AutoError>;
     /// A new workbook from the template file at `path` (`Workbooks.Add Template:=path`).
     fn add_from(&self, path: &str) -> Result<u64, AutoError>;
+    /// A new workbook (named `BookN`, no macros) from package bytes: `Worksheet.Copy` to a new workbook.
+    fn add_package(&self, bytes: Vec<u8>) -> Result<u64, AutoError>;
 }
 
 /// See [`WorkbookAutomation::locate_book`].
@@ -235,7 +240,7 @@ impl WorkbookAutomation {
                 .ok_or(AutoError::Status(0x8002_000Bu32 as i32))
         })
     }
-    fn factory(&self) -> Result<Rc<dyn BookFactory>, AutoError> {
+    pub(super) fn factory(&self) -> Result<Rc<dyn BookFactory>, AutoError> {
         BOOKS
             .with(|books| books.borrow().factory.clone())
             .ok_or_else(|| AutoError::not_modelled("Workbooks.Add and Workbooks.Open without a workbook factory", "dc-oxh8w.42"))
@@ -332,6 +337,7 @@ impl WorkbookAutomation {
             | ObjectKey::Styles(id)
             | ObjectKey::BookWindow(id)
             | ObjectKey::Windows(id)
+            | ObjectKey::SheetGroup { workbook: id, .. }
             | ObjectKey::SheetNames { workbook: id, .. }
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. }

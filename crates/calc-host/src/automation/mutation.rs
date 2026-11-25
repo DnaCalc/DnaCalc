@@ -503,20 +503,28 @@ impl WorkbookAutomation {
     /// Runs a started calculation to its end, as Excel's synchronous automation call does.
     pub(super) fn settle(
         session: &mut HostSession,
-        mut progress: Option<HostProgress>,
+        progress: Option<HostProgress>,
         call: &Call<'_>,
+    ) -> Result<(), AutoError> {
+        Self::settle_as(session, progress, &call.label())
+    }
+    /// [`Self::settle`] for work no single call started.
+    pub(super) fn settle_as(
+        session: &mut HostSession,
+        mut progress: Option<HostProgress>,
+        label: &str,
     ) -> Result<(), AutoError> {
         loop {
             match progress {
                 Some(HostProgress::Failed(ref e)) => {
                     return Err(AutoError::not_modelled(
-                        format!("{} calculation failed: {e}", call.label()),
+                        format!("{label} calculation failed: {e}"),
                         OWNER,
                     ));
                 }
                 Some(HostProgress::Waiting { .. } | HostProgress::Cancelled) => {
                     return Err(AutoError::not_modelled(
-                        format!("{} synchronous calculation is unfinished", call.label()),
+                        format!("{label} synchronous calculation is unfinished"),
                         OWNER,
                     ));
                 }
@@ -529,7 +537,7 @@ impl WorkbookAutomation {
         }
         if session.has_unfinished_calculation() {
             return Err(AutoError::not_modelled(
-                format!("{} synchronous calculation is unfinished", call.label()),
+                format!("{label} synchronous calculation is unfinished"),
                 OWNER,
             ));
         }

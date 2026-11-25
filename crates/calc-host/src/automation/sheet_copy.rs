@@ -52,6 +52,13 @@ impl WorkbookAutomation {
     fn worksheet_copy(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let source = Self::worksheet_sheet(target)?;
         let (before, after) = Self::copy_anchors(call)?;
+        if before.is_none() && after.is_none() {
+            return self.with_write(|session| {
+                let meta = self.metadata()?;
+                self.validate(target, &meta)?;
+                self.copy_to_new_book(session, &[source], false, call)
+            });
+        }
         let reply = self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
@@ -70,6 +77,9 @@ impl WorkbookAutomation {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             let listed: Vec<SheetId> = self.listed(target, &meta).iter().map(|s| s.id()).collect();
+            if before.is_none() && after.is_none() {
+                return self.copy_to_new_book(session, &listed, false, call);
+            }
             if matches!(target.key, ObjectKey::Charts(_)) || listed.iter().any(|s| meta.chart_sheets.contains(s)) {
                 return Err(AutoError::not_modelled("Sheets.Copy of chart sheets", OWNER));
             }
@@ -89,6 +99,81 @@ impl WorkbookAutomation {
         })
     }
 
+    /// Copy with no Before and After: a new workbook (`Workbooks.Add`, active) made from this workbook as it
+    /// stands, kept to the named sheets, in their tab order. Every part of those sheets comes along (tables,
+    /// notes, drawing objects, sheet-local names); references from a kept sheet to a sheet left behind are
+    /// #REF! (Excel makes external links: dc-oxh8w.43).
+    pub(super) fn copy_to_new_book(&self, session: &mut HostSession, sheets: &[SheetId], remove: bool, call: &Call<'_>) -> Reply {
+        let model = session.host().model();
+        let names: Vec<String> = sheets
+            .iter()
+            .filter_map(|s| model.sheet_by_id(*s))
+            .map(|s| s.name().text().to_string_lossy())
+            .collect();
+        if remove && model.definitions().macro_enabled() {
+            return Err(AutoError::not_modelled("Move of sheets out of a macro-enabled workbook", "dc-2g5fn"));
+        }
+        if remove && model.sheets().len() <= sheets.len() {
+            // Excel keeps at least one sheet in the workbook the sheets leave.
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        }
+        // A workbook with a VBA project cannot be written as .xlsx; its package carries the project, which the
+        // new workbook does not run (the application gives it no macro grant).
+        let mut bytes = Vec::new();
+        let mut written = Err(AutoError::excel(1004, "Copy method of Worksheet class failed"));
+        for format in [crate::SpreadsheetFormat::Xlsx, crate::SpreadsheetFormat::Xlsm] {
+            let policy = crate::SavePolicy { format: crate::SaveFormat::Spreadsheet(format), ..Default::default() };
+            bytes.clear();
+            written = crate::prepare_save(session.host(), &policy)
+                .and_then(|prepared| prepared.write(&mut bytes))
+                .map_err(|e| AutoError::excel(1004, format!("Copy method of Worksheet class failed: {e}")));
+            if written.is_ok() {
+                break;
+            }
+        }
+        written?;
+        let id = self.factory()?.add_package(bytes)?;
+        let runner = self
+            .open_books()?
+            .into_iter()
+            .find(|book| book.id == id)
+            .and_then(|book| book.runner)
+            .ok_or_else(|| AutoError::not_modelled("Sheet copy to a workbook the application does not run", OWNER))?;
+        runner.keep_sheets(names)?;
+        if remove {
+            let mut progress = None;
+            for sheet in sheets {
+                progress = Self::sheet_command(session, Some(*sheet), SheetChange::Remove)?.or(progress);
+            }
+            Self::settle(session, progress, call)?;
+            self.context_changed(session);
+        }
+        Ok(AutoValue::Empty)
+    }
+
+    /// Reduces this workbook to the named sheets and makes the first of them current (see [`BookRunner::keep_sheets`]).
+    pub fn keep_sheets(&self, names: &[String]) -> Result<(), AutoError> {
+        self.with_write(|session| {
+            let sheets: Vec<(SheetId, String)> =
+                session.host().model().sheets().iter().map(|s| (s.id(), s.name().text().to_string_lossy())).collect();
+            let kept = |name: &str| names.iter().any(|n| calc_value::workbook_names_equal(n, name));
+            let mut progress = None;
+            for (sheet, name) in &sheets {
+                if !kept(name) {
+                    progress = Self::sheet_command(session, Some(*sheet), SheetChange::Remove)?.or(progress);
+                }
+            }
+            if let Some((first, _)) = sheets.iter().find(|(_, name)| kept(name)) {
+                let at = CellKey::new(*first, 1, 1).map_err(|_| geometry::type_mismatch())?;
+                session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(crate::Selection::cell(at)));
+            }
+            Self::settle_as(session, progress, "Worksheet.Copy")?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+        .map(|_| ())
+    }
+
     fn copy_anchors(call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
@@ -97,9 +182,6 @@ impl WorkbookAutomation {
         let after = Self::sheet_argument(call.arg(1), "Worksheet.Copy After as other than a worksheet")?;
         if before.is_some() && after.is_some() {
             return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
-        }
-        if before.is_none() && after.is_none() {
-            return Err(AutoError::not_modelled("Worksheet.Copy to a new workbook", OWNER));
         }
         Ok((before, after))
     }

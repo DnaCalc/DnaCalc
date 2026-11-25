@@ -7930,8 +7930,9 @@ fn dc_oxh8w_36__worksheet_copy_clones_the_sheet() {
     let both = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(first.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let count = sheet_names(&host).len();
+    // No application factory here, so a copy to a new workbook refuses naming the Workbooks owner (calc-host-vba tests the copy).
     let to_new_book = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{to_new_book:?}");
+    assert!(matches!(to_new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{to_new_book:?}");
     let bad = invoke_kind(&model, &first, "Copy", InvokeKind::Method, vec![AutoValue::I4(1)]);
     assert!(bad.is_err());
     assert_eq!(sheet_names(&host).len(), count);
@@ -7977,8 +7978,50 @@ fn dc_oxh8w_43__sheets_copy_copies_every_worksheet() {
     let both = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![AutoValue::Object(first.clone()), AutoValue::Object(second.clone())]);
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
     let new_book = invoke_kind(&model, &sheets, "Copy", InvokeKind::Method, vec![]);
-    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.43"), "{new_book:?}");
+    assert!(matches!(new_book, Err(AutoError::NotModelled { owner, .. }) if owner.to_string() == "dc-oxh8w.42"), "{new_book:?}");
     assert_eq!(sheet_names(&host).len(), 8);
+}
+
+/// dc-oxh8w.43: Worksheets(Array(...)) is a collection of just those sheets (workbook order, no duplicates):
+/// Count and Item answer for it, Copy and Move take it as a group, an unknown member is an error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__worksheets_of_an_array_is_a_group() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+        )
+        .unwrap(),
+    );
+    let sheets = worksheets(&model);
+    for _ in 0..2 {
+        invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    }
+    let base = sheet_names(&host);
+    assert_eq!(base.len(), 3);
+    let array = |values: Vec<AutoValue>| {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+    };
+    let group = obj(invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(3), AutoValue::I4(1), AutoValue::I4(3)])]).unwrap());
+    let count = invoke(&model, &group, "Count", vec![]).unwrap();
+    assert!(matches!(count, AutoValue::I4(2)), "{count:?}");
+    let first = obj(invoke(&model, &group, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let name = invoke(&model, &first, "Name", vec![]).unwrap();
+    assert_eq!(name.as_text().as_deref(), Some(base[0].as_str()), "workbook order: sheet 1 comes first");
+    let missing = invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(1), AutoValue::I4(9)])]);
+    assert!(missing.is_err());
+    // Move the group after the middle sheet: 2, 1, 3.
+    let middle = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(2)]).unwrap());
+    invoke_kind(&model, &group, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(middle.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), vec![base[1].clone(), base[0].clone(), base[2].clone()]);
+    // Copy the group before the first sheet.
+    let head = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    invoke_kind(&model, &group, "Copy", InvokeKind::Method, vec![AutoValue::Object(head)]).unwrap();
+    assert_eq!(sheet_names(&host).len(), 5);
+    let both = invoke_kind(&model, &group, "Move", InvokeKind::Method, vec![AutoValue::Object(middle.clone()), AutoValue::Object(middle)]);
+    assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
 }
 
 /// dc-oxh8w.47: Worksheet.Visible reads and writes xlSheetVisible (-1), xlSheetHidden (0) and xlSheetVeryHidden (2);

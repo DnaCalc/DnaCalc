@@ -33,6 +33,13 @@ pub enum ObjectKey {
     Worksheets(u64),
     /// The Charts collection of a workbook: its chart sheets.
     Charts(u64),
+    /// Some sheets of a workbook chosen together, as `Worksheets(Array("A", "B"))` gives (dc-oxh8w.43).
+    SheetGroup {
+        /// Host identity of the containing workbook.
+        workbook: u64,
+        /// The chosen sheets.
+        sheets: Vec<SheetId>,
+    },
     /// One worksheet in an open workbook.
     Worksheet {
         /// Host identity of the containing workbook.
