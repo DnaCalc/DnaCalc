@@ -112,13 +112,15 @@ pub(crate) struct SaveDemand {
     pub calculate_before_save: bool,
 }
 
+/// A save calculation is complete when every required cell is calculated or typed-refused. Excel saves a
+/// workbook holding a cell the engine does not model; the refused cell keeps its file cache (and its provenance)
+/// in the saved file, it is never written as calculated (dc-e6b0j).
 pub(crate) fn save_completion_valid(receipt: &calc_engine::CompletionReceipt) -> bool {
     // TABLE sessions have real results but retain their Incomplete certificate.
     matches!(
         receipt.outcome,
         crate::CompletionOutcome::Complete | crate::CompletionOutcome::Incomplete
-    ) && receipt.coverage.calculated == receipt.coverage.required
-        && receipt.coverage.refused == 0
+    ) && receipt.coverage.calculated + receipt.coverage.refused == receipt.coverage.required
         && receipt.coverage.held == 0
 }
 
@@ -350,6 +352,13 @@ pub(crate) fn prepare_image(
                 && definitions.array(at).is_none()
                 && engine.spill(at).is_none()
             {
+                if engine.permitted_cache(at).is_none()
+                    && let Some(cache) = engine.refused_file_cache(at)
+                {
+                    values.insert(at, cache.value().clone());
+                    dirty_caches.insert(at);
+                    continue;
+                }
                 if let Some(result) = engine.permitted_cache(at) {
                     let cache = match result {
                         FormulaResult::Calculated { value, .. } => cached(value),

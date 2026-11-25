@@ -30730,3 +30730,26 @@ fn dc_oxh8w_66__plain_save_passes_calculate_before_save() {
         assert_eq!(cache.value(), &cached_of(&CalcValue::number(want)), "{on}");
     }
 }
+
+/// A manual workbook with CalculateBeforeSave on saves even when a formula cell is not modelled (NOW with no
+/// clock is refused): the other cells are calculated and the refused cell keeps its file cache, as Excel saves
+/// (dc-e6b0j).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_e6b0j__manual_save_with_a_refused_cell_calculates_the_rest_and_keeps_the_refused_cache() {
+    let bytes = package_with_part("xl/worksheets/sheet1.xml", |xml| {
+        xml.replace("<sheetData/>", r#"<sheetData><row r="1"><c r="A1"><v>5</v></c><c r="B1"><f>A1*2</f><v>2</v></c><c r="C1"><f>NOW()</f><v>1.25</v></c></row></sheetData>"#)
+    });
+    let bytes = package_with_part_from(&bytes, "xl/workbook.xml", |xml| xml.replace("<calcPr ", "<calcPr calcMode=\"manual\" "));
+    let mut book = session(&bytes);
+    assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(true)).accepted());
+    let mut saved = Vec::new();
+    book.save(&SavePolicy::default(), &mut saved).expect("Excel saves; so does DNA Calc");
+    let reopened = session(&saved);
+    let r = reopened.host().sheets()[0].id();
+    let ProjectedValue::FileCached(cache) = value(reopened.host(), at(r, "B1")) else { panic!("B1 file cache") };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(10.0)));
+    let c1 = value(reopened.host(), at(r, "C1"));
+    let ProjectedValue::FileCached(cache) = c1 else { panic!("C1 file cache: {c1:?}") };
+    assert_eq!(cache.value(), &cached_of(&CalcValue::number(1.25)));
+}
