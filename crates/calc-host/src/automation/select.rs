@@ -5,7 +5,7 @@ use super::*;
 use crate::{CommandIngress, IntentError, Selection, SkinIntent};
 use calc_doc_model::SheetVisibility;
 
-/// The open bead that owns what this file refuses (grouped sheets, text references for Goto).
+/// The open bead that owns what this file refuses (grouped sheets, Goto without a Reference).
 const OWNER: &str = "dc-oxh8w.48";
 
 impl WorkbookAutomation {
@@ -14,6 +14,31 @@ impl WorkbookAutomation {
         handlers.on("Worksheet", "Select", InvokeKind::Method, Self::worksheet_select);
         handlers.on("Worksheet", "Activate", InvokeKind::Method, Self::worksheet_activate);
         handlers.on("Application", "Goto", InvokeKind::Method, Self::app_goto);
+        handlers.on("Range", "Range", InvokeKind::Get, Self::range_range);
+        handlers.on("Worksheet", "Rows", InvokeKind::Get, |m, t, c| m.sheet_axis(t, c, RangeAxis::Rows));
+        handlers.on("Worksheet", "Columns", InvokeKind::Get, |m, t, c| m.sheet_axis(t, c, RangeAxis::Columns));
+        handlers.on("Application", "Rows", InvokeKind::Get, |m, t, c| m.sheet_axis(t, c, RangeAxis::Rows));
+        handlers.on("Application", "Columns", InvokeKind::Get, |m, t, c| m.sheet_axis(t, c, RangeAxis::Columns));
+    }
+
+    /// `Worksheet.Rows`/`Columns`, and `Application.Rows`/`Columns` on the active sheet: every row or column.
+    fn sheet_axis(&self, target: &ObjectRef, call: &Call<'_>, axis: RangeAxis) -> Reply {
+        self.with_target(target, |access, meta| {
+            no_args(call)?;
+            let sheet = match &target.key {
+                ObjectKey::Worksheet { sheet, .. } => *sheet,
+                _ => match access {
+                    Access::Invocation(context) => context
+                        .user_view()
+                        .map(|v| v.active_sheet)
+                        .or_else(|| meta.active.map(|at| at.sheet())),
+                    _ => meta.active.map(|at| at.sheet()),
+                }
+                .ok_or_else(|| AutoError::not_modelled("_Application.Rows without an active worksheet", OWNER))?,
+            };
+            sheet_name(meta, sheet)?;
+            self.acquire(access, &ReferenceLike::area(GridArea::full_sheet(sheet)), axis)
+        })
     }
 
     fn failed(class: &str, member: &str) -> AutoError {
@@ -131,8 +156,8 @@ impl WorkbookAutomation {
     }
 
     /// Application.Goto(Reference, Scroll): selects the range, activating its sheet; Scroll moves a window
-    /// DNA Calc does not have, so it is read and ignored. A text reference or an omitted Reference needs the
-    /// R1C1 and name parser and Excel's last-Goto memory (dc-oxh8w.48).
+    /// DNA Calc does not have, so it is read and ignored. Text is R1C1 (relative to the active cell), A1 or a
+    /// defined name; an omitted Reference needs Excel's last-Goto memory (dc-oxh8w.48).
     fn app_goto(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());
@@ -141,21 +166,33 @@ impl WorkbookAutomation {
             AutoValue::Missing | AutoValue::Empty | AutoValue::Bool(_) => {}
             _ => return Err(geometry::type_mismatch()),
         }
-        let destination = match call.arg(0) {
-            AutoValue::Object(object) => object,
+        let held = match call.arg(0) {
+            AutoValue::Object(object) => Some(Self::held_of(object)?),
             AutoValue::Missing | AutoValue::Empty => {
                 return Err(AutoError::not_modelled("Application.Goto without a Reference", OWNER));
             }
-            AutoValue::Text(_) => {
-                return Err(AutoError::not_modelled("Application.Goto with a text reference", OWNER));
-            }
+            AutoValue::Text(_) => None,
             _ => return Err(geometry::type_mismatch()),
         };
-        let held = Self::held_of(destination)?;
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
-            let range = self.resolve(&mut Access::Session(session, false), &held)?;
+            let range = match &held {
+                Some(held) => self.resolve(&mut Access::Session(session, false), held)?,
+                None => {
+                    // R1C1 text, relative to the active cell; anything else is read as A1 or a defined name.
+                    let text = call.arg(0).as_text().unwrap_or_default();
+                    let active = Self::session_active_sheet(session)
+                        .and_then(|sheet| session.selection().active.filter(|at| at.sheet() == sheet))
+                        .or(meta.active);
+                    let spelled = crate::c_api_commands::r1c1_text_to_a1(&text, || {
+                        active.map(|at| (at.row(), at.column())).ok_or_else(|| crate::c_api_commands::XlcError::Operand("active cell"))
+                    })
+                    .unwrap_or(text);
+                    let mut access = Access::Session(session, false);
+                    self.range_argument(&mut access, &meta, &AutoValue::text(&spelled), None)?
+                }
+            };
             let areas = range.areas();
             let sheet = areas.first().map(|a| a.sheet()).ok_or_else(geometry::type_mismatch)?;
             if !Self::visible_sheet(session, sheet) {
@@ -164,6 +201,84 @@ impl WorkbookAutomation {
             Self::select_intent(session, Self::range_selection(areas), "Application", "Goto")?;
             self.context_changed(session);
             Ok(AutoValue::Empty)
+        })
+    }
+}
+
+/// Whether `text` is a plain A1 cell or cell:cell reference (`B2`, `$B$2:C3`), which Range.Range reads relative
+/// to the range's top-left cell; names, whole rows and columns and unions are not.
+fn plain_a1_area(text: &str) -> bool {
+    let cell = |part: &str| {
+        let part = part.strip_prefix('$').unwrap_or(part);
+        let letters = part.chars().take_while(|c| c.is_ascii_alphabetic()).count();
+        let rest = part[letters..].strip_prefix('$').unwrap_or(&part[letters..]);
+        (1..=3).contains(&letters) && !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())
+    };
+    let mut parts = text.split(':');
+    let (first, second) = (parts.next().unwrap_or(""), parts.next());
+    cell(first) && second.is_none_or(cell) && parts.next().is_none()
+}
+
+impl WorkbookAutomation {
+    /// Range.Range(Cell1, Cell2): a cell or area given as text is read relative to this range's top-left cell
+    /// (`Range("B2:C3").Range("A1")` is B2); a Range object is used as it is; two arguments span both.
+    fn range_range(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.is_empty() || call.args.len() > 2 {
+            return Err(geometry::bad_count());
+        }
+        self.with_range(target, |access, meta, range, _| {
+            let origin = range.areas().first().ok_or_else(geometry::type_mismatch)?.first();
+            let mut spans = Vec::new();
+            for arg in call.args.iter().take(2) {
+                if matches!(arg, AutoValue::Missing) {
+                    continue;
+                }
+                if matches!(arg, AutoValue::Empty | AutoValue::Null | AutoValue::Error(_) | AutoValue::Bool(_)) {
+                    return Err(AutoError::excel(1004, ""));
+                }
+                let area = match arg {
+                    AutoValue::Text(_) if !plain_a1_area(&arg.as_text().unwrap_or_default().trim().replace(' ', "")) => {
+                        return Err(AutoError::not_modelled("Range.Range with a name, whole row or column or union", OWNER));
+                    }
+                    _ => {
+                        let found = self.range_argument(access, meta, arg, Some(origin.sheet()))?;
+                        if found.area_count() != 1 {
+                            return Err(AutoError::excel(1004, ""));
+                        }
+                        found.areas()[0]
+                    }
+                };
+                let area = if matches!(arg, AutoValue::Text(_)) {
+                    let (dr, dc) = (origin.row() - 1, origin.column() - 1);
+                    let first = CellKey::new(area.sheet(), area.first().row() + dr, area.first().column() + dc)
+                        .map_err(|_| AutoError::excel(1004, ""))?;
+                    let last = CellKey::new(area.sheet(), area.last().row() + dr, area.last().column() + dc)
+                        .map_err(|_| AutoError::excel(1004, ""))?;
+                    GridArea::new(first, last).map_err(|_| AutoError::excel(1004, ""))?
+                } else {
+                    area
+                };
+                if area.sheet() != origin.sheet() {
+                    return Err(AutoError::excel(1004, ""));
+                }
+                spans.push(area);
+            }
+            let first = spans.first().ok_or_else(geometry::bad_count)?;
+            let (mut top, mut left, mut bottom, mut right) =
+                (first.first().row(), first.first().column(), first.last().row(), first.last().column());
+            for a in &spans {
+                top = top.min(a.first().row());
+                left = left.min(a.first().column());
+                bottom = bottom.max(a.last().row());
+                right = right.max(a.last().column());
+            }
+            let sheet = origin.sheet();
+            let area = GridArea::new(
+                CellKey::new(sheet, top, left).map_err(|_| AutoError::excel(1004, ""))?,
+                CellKey::new(sheet, bottom, right).map_err(|_| AutoError::excel(1004, ""))?,
+            )
+            .map_err(|_| AutoError::excel(1004, ""))?;
+            self.acquire(access, &ReferenceLike::area(area), RangeAxis::Cells)
         })
     }
 }

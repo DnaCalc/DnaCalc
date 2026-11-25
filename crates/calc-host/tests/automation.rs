@@ -7364,4 +7364,58 @@ fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
     assert_eq!(active_name(), text(&model, &first, "Name"));
     let bad = invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::R8(3.)]);
     assert!(bad.is_err(), "{bad:?}");
+    // A text reference is R1C1 (relative to the active cell), or A1, or a defined name.
+    let goto_text = |t: &str| invoke_kind(&model, &app, "Goto", InvokeKind::Method, vec![AutoValue::text(t)]);
+    select(&sub(&first, "B2")).unwrap();
+    goto_text("R3C4").unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$D$3");
+    goto_text("R[1]C[1]:R[2]C[3]").unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$E$4:$G$5");
+    goto_text("B7").unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$7");
+    let unknown = goto_text("NoSuchName");
+    assert!(unknown.is_err(), "{unknown:?}");
+}
+
+/// dc-oxh8w.46: Worksheet.Rows/Columns and Application.Rows/Columns are the whole sheet's rows and columns.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__worksheet_and_application_rows_and_columns_cover_the_sheet() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    for (owner, label) in [(&sheet, "Worksheet"), (&app, "Application")] {
+        let rows = obj(invoke(&model, owner, "Rows", vec![]).unwrap_or_else(|e| panic!("{label}.Rows: {e:?}")));
+        assert_eq!(text(&model, &rows, "Address"), "$1:$1048576", "{label}");
+        assert!(matches!(invoke(&model, &rows, "Count", vec![]).unwrap(), AutoValue::I4(1_048_576)), "{label}");
+        let columns = obj(invoke(&model, owner, "Columns", vec![]).unwrap());
+        assert_eq!(text(&model, &columns, "Address"), "$A:$XFD", "{label}");
+        assert!(matches!(invoke(&model, &columns, "Count", vec![]).unwrap(), AutoValue::I4(16_384)), "{label}");
+    }
+    // Neither takes arguments (the Item form is the returned range's).
+    assert!(invoke(&model, &sheet, "Rows", vec![AutoValue::I4(2)]).is_err());
+}
+
+/// dc-oxh8w.46: Range.Range reads a text cell reference relative to the range's top-left cell; a Range object is
+/// used as it is; two arguments span both; a name or union is a typed refusal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_46__range_range_is_relative_to_the_range() {
+    let (_host, model) = setup();
+    let base = range(&model, "B2:C3");
+    let address = |a: Vec<AutoValue>| {
+        let r = obj(invoke(&model, &base, "Range", a).unwrap());
+        text(&model, &r, "Address")
+    };
+    assert_eq!(address(vec![AutoValue::text("A1")]), "$B$2");
+    assert_eq!(address(vec![AutoValue::text("B2")]), "$C$3");
+    assert_eq!(address(vec![AutoValue::text("A1:B3")]), "$B$2:$C$4");
+    assert_eq!(address(vec![AutoValue::text("A1"), AutoValue::text("C3")]), "$B$2:$D$4");
+    assert_eq!(address(vec![AutoValue::Object(range(&model, "F6"))]), "$F$6");
+    assert_eq!(address(vec![AutoValue::text("D4"), AutoValue::Object(range(&model, "A1"))]), "$A$1:$E$5");
+    let off_grid = invoke(&model, &base, "Range", vec![AutoValue::text("XFD1")]);
+    assert!(matches!(off_grid, Err(AutoError::Excel { number: 1004, .. })), "{off_grid:?}");
+    let unioned = invoke(&model, &base, "Range", vec![AutoValue::text("A1,C3")]);
+    assert!(matches!(unioned, Err(AutoError::NotModelled { .. })), "{unioned:?}");
+    assert!(invoke(&model, &base, "Range", vec![]).is_err());
 }

@@ -993,7 +993,7 @@ impl WorkbookAutomation {
         })
     }
     fn range_address(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_range(target, |access, meta, range, _| {
+        self.with_range(target, |access, meta, range, view| {
             let mut options = AddressOptions::from_call(call)?;
             if options.style == geometry::ReferenceStyle::R1C1
                 && (!options.row_absolute || !options.column_absolute)
@@ -1021,10 +1021,11 @@ impl WorkbookAutomation {
             } else {
                 None
             };
-            Ok(AutoValue::text(&geometry::address(
-                &range,
+            Ok(AutoValue::text(&geometry::address_of_view(
+                range,
                 options,
                 qualifier.as_deref(),
+                view,
             )?))
         })
     }

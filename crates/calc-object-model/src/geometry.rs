@@ -125,6 +125,17 @@ pub fn address(
     options: AddressOptions,
     qualifier: Option<&str>,
 ) -> Result<String, AutoError> {
+    address_of_view(reference, options, qualifier, RangeAxis::Cells)
+}
+
+/// [`address`] for a Rows or Columns view: an area that is a whole sheet spells as rows (`$1:$1048576`) for
+/// Cells and Rows and as columns (`$A:$XFD`) for Columns, as Excel's `Columns.Address` does.
+pub fn address_of_view(
+    reference: &ReferenceLike,
+    options: AddressOptions,
+    qualifier: Option<&str>,
+    view: RangeAxis,
+) -> Result<String, AutoError> {
     fn axis(tag: char, coordinate: u32, origin: u32, absolute: bool) -> String {
         if absolute {
             return format!("{tag}{coordinate}");
@@ -183,7 +194,7 @@ pub fn address(
             text.push(',');
         }
         if area.column_count() == 16_384 || area.row_count() == 1_048_576 {
-            let rows = area.column_count() == 16_384;
+            let rows = area.column_count() == 16_384 && !(view == RangeAxis::Columns && area.row_count() == 1_048_576);
             let coordinate = |at: CellKey| {
                 if options.style == ReferenceStyle::R1C1 {
                     if rows {

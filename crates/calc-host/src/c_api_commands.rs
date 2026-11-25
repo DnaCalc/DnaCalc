@@ -681,7 +681,7 @@ fn r1c1_endpoint(text: &str) -> Option<(Option<AxisRef>, Option<AxisRef>)> {
 }
 
 /// Translate a single sheet's R1C1 area to Application.Range's A1 spelling.
-fn r1c1_text_to_a1(
+pub(crate) fn r1c1_text_to_a1(
     text: &str,
     active: impl FnOnce() -> Result<(u32, u32), XlcError>,
 ) -> Result<String, XlcError> {
