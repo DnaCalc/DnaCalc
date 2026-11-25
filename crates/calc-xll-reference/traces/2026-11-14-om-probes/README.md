@@ -174,3 +174,50 @@ The Win64 replay at DNA Calc `770faab87` compared the put outcome, both
 Value reads, and the format. It matched 16 of 136 cases. The 120 differences
 are in the ww17 WitnessSet `bank-rows/range-e11-text-ww17.json`. This
 measurement leaves the Range assignment behavior with `dc-1nbp.6`.
+
+## E3 B follow-up in ww17: A VBA reader of a dirty formula cell
+
+Excel 16.0.20625.20108 ran three fresh trials of each of six cases in
+Manual mode. The source formula `=A1*2` and the VBA reader both started
+with cached value 2. The runner changed A1 from 1 to 2 before invoking
+the requested calculation.
+
+Calculating the reader cell alone left both the dirty source and reader
+at 2 in all 15 trials. The result held with multithreaded calculation
+disabled, a volatile reader, reversed formula entry and swapped formula
+positions. The VBA counters recorded one reader entry and exit for each
+targeted recalculation after the seed. The three full-calculation controls
+updated both values to 4.
+
+The guarded Win64 DNA Calc replay at `63017313b` stopped at
+`Application.Calculation` in all six case workbooks (dc-1nbp.5). Six more
+trials used workbooks stored in Manual mode and began with the cell edit.
+The VBA snapshot reached a typed refusal for `Range.Value read an unmodelled
+formula` in all six product replays (dc-0f1k.24). The raw Excel rows include
+all stages and counter values. The ww17 E3 B WitnessSets retain both
+product outcomes. The remaining experiment work stays with dc-1nbp.6.
+
+## E5 follow-up in ww17: SaveAs to a new file
+
+Excel exercised four cases with the same VBA BeforeSave handler used
+for the ww1 ordinary Save cases. A1 started at 1 and B1 at 4 with
+`=A1*4`. The handler wrote A1=2. The save destination and original workbook
+were inspected from their saved packages.
+
+| BeforeSave | CalculateBeforeSave | Memory A1 / B1 | Destination A1 / B1 |
+|---|---|---|---|
+| Cancel=False | False | 2 / 4 | 2 / 4 |
+| Cancel=False | True | 2 / 8 | 2 / 8 |
+| Cancel=True | False | 2 / 4 | No file |
+| Cancel=True | True | 2 / 4 | No file |
+
+The original retained 1 / 4 in all four cases with identical file hashes.
+Excel passed SaveAsUI=False to the handler, and the setter returned with
+the handler's in-memory A1=2. DNA Calc at `63017313b` refused
+`_Workbook.SaveAs` in all four cases (dc-1nbp.5).
+
+The separate error-after-edit VBA case showed the authored run-time
+error 5 dialog. UI Automation could read its text, but invoking End
+required focus on the private desktop and failed. The session timed out
+and shut down its own Excel process. The unhandled-error outcome
+remains open with dc-1nbp.6.
