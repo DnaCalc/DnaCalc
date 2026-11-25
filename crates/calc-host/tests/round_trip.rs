@@ -29724,6 +29724,20 @@ fn dc_1nbp_14__calc_on_save_is_read_from_the_workbook_and_honoured_on_manual_sav
     }
 }
 
+/// Workbook.PrecisionAsDisplayed reads `calcPr/@fullPrecision` inverted: false in the file is
+/// PrecisionAsDisplayed true; true where the file is silent (dc-oxh8w.40).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_40__precision_as_displayed_is_read_from_the_workbook() {
+    for (attribute, expected) in [("", false), (" fullPrecision=\"1\"", false), (" fullPrecision=\"0\"", true)] {
+        let bytes = package_with_part("xl/workbook.xml", |xml| {
+            xml.replace("<calcPr ", &format!("<calcPr{attribute} "))
+        });
+        let book = session(&bytes);
+        assert_eq!(book.host().precision_as_displayed(), expected, "{attribute}");
+    }
+}
+
 /// Undo of a row insert and a table change keep what the formula cells showed: in Manual mode
 /// every formula cell projects its previous value as `Stale` (not empty), the values moved with
 /// their cells, and a Manual `Save(false)` still writes those values as caches. Whether Excel

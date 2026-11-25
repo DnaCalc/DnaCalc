@@ -2191,7 +2191,7 @@ fn dc_bctq_save_as_keeps_project_state_and_refreshes_document_identity() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error() {
+fn file_event_state_admits_stale_target_values_and_records_their_provenance() {
     const MODULE: &str = "Public Held As Double\nPublic Function MyFunc(ByVal x As Double) As Double\n MyFunc = x + 100\nEnd Function\nPublic Function Probe() As Double\n Probe = Held\nEnd Function\n";
     const CHANGE: &str = "Private Sub Worksheet_Change(ByVal Target As Excel.Range)\n On Error Resume Next\n Held = Target.Value2\nEnd Sub\n";
     let bytes = vba_project::replace_sources(
@@ -2256,18 +2256,21 @@ fn file_event_state_refuses_stale_target_values_even_when_vba_catches_the_error(
             assert_eq!(value(&session, 1, 2).as_number(), Some(103.));
             assert_eq!(
                 value(&session, 1, 4).as_number(),
-                Some(if file_project { 0. } else { 102. }),
+                Some(102.),
                 "{backend:?} file={file_project}"
             );
+            // Excel returns the stale value; the host admits the read and records its provenance
+            // (dc-oxh8w.38).
             let failures = session.take_workbook_event_failures();
+            assert!(failures.failures.is_empty(), "{failures:?}");
+            let observed = session.take_macro_observations();
             if file_project {
-                assert_eq!(failures.failures.len(), 1, "{failures:?}");
                 assert!(
-                    failures.failures[0].reason.contains("dc-snz.15"),
-                    "{failures:?}"
+                    observed.iter().any(|o| o.provenance == calc_host::ObservedProvenance::Stale),
+                    "{observed:?}"
                 );
             } else {
-                assert!(failures.failures.is_empty(), "{failures:?}");
+                assert!(observed.is_empty(), "{observed:?}");
             }
             enter(&mut session, 1, 2, "7");
             full(&mut session);
