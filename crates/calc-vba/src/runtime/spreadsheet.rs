@@ -528,7 +528,7 @@ impl HostServices for SpreadsheetHost {
         let mut descriptor = self.base.descriptor();
         for capability in &mut descriptor.capabilities {
             match capability.id {
-                CapabilityId::ComActivationDispatch => capability.supported = true,
+                CapabilityId::ComActivationDispatch | CapabilityId::EventPump => capability.supported = true,
                 CapabilityId::DynamicLinking if self.native_dynlink.is_some() => {
                     capability.supported = true;
                 }
@@ -547,7 +547,7 @@ impl HostServices for SpreadsheetHost {
         self.base.ui()
     }
     fn events(&self) -> &dyn EventPumpHal {
-        self.base.events()
+        self
     }
     fn fs(&self) -> &dyn FileSystemHal {
         self.base.fs()
@@ -597,6 +597,14 @@ fn platform_services(allow_com: bool, allow_dynamic_link: bool) -> Option<Arc<dy
     {
         let _ = (allow_com, allow_dynamic_link);
         None
+    }
+}
+
+/// `DoEvents` hands control to Excel to process pending events and returns 0. This host raises
+/// its events synchronously, as the change that causes them completes, so none is pending.
+impl EventPumpHal for SpreadsheetHost {
+    fn do_events_variant(&self) -> HalResult<Variant> {
+        Ok(Variant::from_i32(0))
     }
 }
 

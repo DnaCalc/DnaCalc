@@ -1340,7 +1340,7 @@ fn browser_clock_open_and_explicit_calculate_preserve_manual_file_caches() {
                 let payload = part.payload(&original);
                 let bytes = if part.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
                 let bytes = match part.name.as_str() {
-                    "xl/workbook.xml" => String::from_utf8(bytes).unwrap().replace("<sheets>", &format!("<workbookPr date1904=\"{}\"/><sheets>", u8::from(date1904))).replace("<calcPr", &format!("<calcPr calcMode=\"{}\"", if manual { "manual" } else { "auto" })).into_bytes(),
+                    "xl/workbook.xml" => String::from_utf8(bytes).unwrap().replace("<sheets>", &format!("<workbookPr date1904=\"{}\"/><sheets>", u8::from(date1904))).replace("<calcPr", &format!("<calcPr calcMode=\"{}\"", if manual { "manual\" calcOnSave=\"0" } else { "auto" })).into_bytes(),
                     "xl/worksheets/sheet1.xml" => String::from_utf8(bytes).unwrap().replace("<sheetData/>", "<sheetData><row r=\"1\"><c r=\"A1\"><f>NOW()</f><v>1.25</v></c></row><row r=\"2\"><c r=\"A2\"><f>TODAY()</f><v>1</v></c></row></sheetData>").into_bytes(),
                     _ => bytes,
                 };
