@@ -846,9 +846,6 @@ pub fn oddlyield_kernel(
         cursor = add_months_clamped(cursor, months_per_coupon)
             .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
         nc += 1;
-        if nc > 64 {
-            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-        }
     }
     let mut early_coupon = last_interest;
     let mut dcnl = 0.0;
@@ -1313,6 +1310,22 @@ mod tests {
             )
             .map(f64::to_bits),
             Ok(0xc0d56d82da7cc539)
+        );
+    }
+
+    /// Live Excel 16.0.20625 (Touchstone, dc-shqi1): ODDLYIELD has no 64-coupon cap.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddlyield_computes_past_64_coupons() {
+        assert_eq!(
+            oddlyield_kernel(36526.0, 43831.0, 32874.0, 0.05, 100.0, 100.0, 4.0, Some(0.0))
+                .map(f64::to_bits),
+            Ok(0x3fa1111111111111)
+        );
+        assert_eq!(
+            oddlyield_kernel(40000.0, 40000.0 + 365.0 * 50.0, 36000.0, 0.05, 95.0, 100.0, 4.0, Some(0.0))
+                .map(f64::to_bits),
+            Ok(0x3fa16ff23a633683)
         );
     }
 

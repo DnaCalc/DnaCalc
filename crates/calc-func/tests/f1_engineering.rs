@@ -2433,3 +2433,26 @@ fn complex_reads_the_suffix_before_the_coefficients() {
     error(call("COMPLEX", vec![e(Ref), e(Value), t("i")]), Ref);
     error(call("COMPLEX", vec![e(Div0), n(1.0)]), Div0);
 }
+
+/// Excel 16.0.20625 (Touchstone, dc-shqi1): IMLOG10 flushes subnormal imaginary parts after
+/// dividing by ln(10) and uses the real x87 LOG10_E route for pure-imaginary arguments.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imlog10_flushes_subnormal_imaginary_and_uses_real_route_for_pure_imaginary() {
+    text(call("IMLOG10", vec![t("1e9-3e-299i")]), "9");
+    text(call("IMLOG10", vec![t("1e9+3e-299i")]), "9");
+    text(call("IMLOG10", vec![t("0+8i")]), "0.903089986991944+0.682188176920921i");
+    text(call("IMLOG10", vec![t("0+11i")]), "1.04139268515823+0.682188176920921i");
+    text(call("IMLOG10", vec![t("0+166i")]), "2.22010808804006+0.682188176920921i");
+}
+
+/// Excel 16.0.20625 (Touchstone, dc-shqi1): IMEXP flushes subnormal exp(re) to 0 before scaling by
+/// circular factors, even when |im| >= 2^27 where sin/cos saturate at f64::MAX.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_flushes_subnormal_real_exp_before_scaling_past_2_pow_27() {
+    text(call("IMEXP", vec![t("-709+1e9i")]), "0");
+    text(call("IMEXP", vec![t("-709-1e9i")]), "0");
+    text(call("IMEXP", vec![t("-709+134217728i")]), "0");
+    text(call("IMEXP", vec![t("-708+1e9i")]), "5.945965327834+5.945965327834i");
+}

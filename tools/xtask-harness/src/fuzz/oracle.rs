@@ -921,11 +921,73 @@ type RequestChunk = (usize, Priority, Vec<usize>, Vec<Vec<Arg>>);
 type BatchProvenance = (BTreeMap<String, Value>, BTreeMap<String, usize>);
 
 fn requests_spill(function: &str) -> bool {
-    // ISEVEN/ISODD lift over an array argument and TRIMRANGE returns a trimmed array; read in a
-    // plain cell Excel gives the first element or #SPILL! by position (dc-j9k.235 and siblings).
-    matches!(function, "TRANSPOSE" | "TRIMRANGE" | "ISEVEN" | "ISODD")
-        || calc_catalogue::named(function)
-            .is_some_and(|entry| entry.id().family() == calc_catalogue::ported::arrays::CODE)
+    matches!(
+        function,
+        "TRANSPOSE"
+            | "TRIMRANGE"
+            | "RANDARRAY"
+            | "TEXTSPLIT"
+            | "MMULT"
+            | "MINVERSE"
+            | "MUNIT"
+            | "FREQUENCY"
+            | "LINEST"
+            | "LOGEST"
+            | "TREND"
+            | "GROWTH"
+            | "MODE.MULT"
+            | "REGEXEXTRACT"
+            | "MAKEARRAY"
+            | "MAP"
+            | "SCAN"
+            | "BYROW"
+            | "BYCOL"
+    ) || calc_catalogue::named(function).is_some_and(|entry| {
+        matches!(
+            entry.id().family(),
+            calc_catalogue::ported::arrays::CODE | calc_catalogue::group_pivot::CODE
+        )
+    })
+}
+
+fn chunk_requests_spill(
+    function: &str,
+    sent_rows: &[Vec<Arg>],
+    cases: &[FuzzCase],
+    indices: &[usize],
+) -> bool {
+    if requests_spill(function)
+        || indices
+            .iter()
+            .any(|&idx| cases[idx].prediction.starts_with("array:"))
+    {
+        return true;
+    }
+    let Some(entry) = calc_catalogue::named(function) else {
+        return false;
+    };
+    sent_rows.iter().any(|row| {
+        row.iter().enumerate().any(|(col, arg)| {
+            let origin = match arg {
+                Arg::Array { rows, cols, .. } if rows * cols > 1 => {
+                    calc_catalogue::LiftingOrigin::Array
+                }
+                Arg::Range { rows, cols, .. } if rows * cols > 1 => {
+                    calc_catalogue::LiftingOrigin::Range
+                }
+                _ => return false,
+            };
+            matches!(
+                calc_catalogue::parameter_lifting(
+                    entry,
+                    col,
+                    calc_catalogue::LiftingMode::Dynamic,
+                    origin,
+                ),
+                Some(calc_catalogue::Lifting::Elementwise | calc_catalogue::Lifting::PerReference)
+            )
+        })
+    })
 }
 
 fn dispatch_chunks(
@@ -942,12 +1004,17 @@ fn dispatch_chunks(
     let mut worker_calls = BTreeMap::new();
     let mut failure = None;
     let sweep = config.is_some_and(|cfg| cfg.sweep.is_some());
-    let spill = requests_spill(function);
     loop {
         while failure.is_none() && !sweep_paused(config) && pending.len() < max_pending {
             let Some((lane_tag, priority, indices, sent_rows)) = chunks.pop_front() else {
                 break;
             };
+            let chunk_cases = if lane_tag == 0 {
+                primary_cases
+            } else {
+                secondary_cases
+            };
+            let spill = chunk_requests_spill(function, &sent_rows, chunk_cases, &indices);
             let mut request = Request::new(function, sent_rows.clone());
             request.priority = Some(if sweep { Priority::Sweep } else { priority });
             request.echo_inputs = true;
@@ -2536,10 +2603,21 @@ mod tests {
 
     #[test]
     fn lifting_and_trimming_functions_are_read_as_spills() {
-        for function in ["TRIMRANGE", "ISEVEN", "ISODD", "TRANSPOSE", "WRAPROWS"] {
+        for function in [
+            "TRIMRANGE",
+            "TRANSPOSE",
+            "WRAPROWS",
+            "RANDARRAY",
+            "TEXTSPLIT",
+            "MMULT",
+        ] {
             assert!(requests_spill(function), "{function}");
         }
-        assert!(!requests_spill("ABS"));
+        // Scalar functions only request spill when a chunk actually lifts or predicts an array
+        // (tested in requests_spill_covers_array_functions_and_lifted_scalar_chunks).
+        for function in ["ABS", "ISEVEN", "ISODD"] {
+            assert!(!requests_spill(function), "{function}");
+        }
     }
 
     #[test]
@@ -3021,6 +3099,44 @@ mod tests {
             assert!(fault["case_error"].as_str().is_some(), "{fault}");
         }
         let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn requests_spill_covers_array_functions_and_lifted_scalar_chunks() {
+        for name in ["RANDARRAY", "TEXTSPLIT", "MMULT", "MINVERSE", "MUNIT", "TRANSPOSE", "TRIMRANGE", "SEQUENCE"] {
+            assert!(requests_spill(name), "{name} must request spill mode");
+        }
+        let scalar = vec![vec![Arg::Number(1.0_f64.to_bits())]];
+        let array = vec![vec![Arg::Array {
+            rows: 2,
+            cols: 1,
+            bits: vec![1.0_f64.to_bits(), 2.0_f64.to_bits()],
+        }]];
+        let scalar_case = vec![FuzzCase {
+            id: "c0".into(),
+            region: "r".into(),
+            round: 0,
+            args: vec![],
+            prediction: "logical:False".into(),
+            trace: Default::default(),
+            outcome_class: "logical".into(),
+        }];
+        let array_case = vec![FuzzCase {
+            id: "c1".into(),
+            region: "r".into(),
+            round: 0,
+            args: vec![],
+            prediction: "array:2x1:[logical:False,logical:True]".into(),
+            trace: Default::default(),
+            outcome_class: "array".into(),
+        }];
+        assert!(!chunk_requests_spill("ISEVEN", &scalar, &scalar_case, &[0]));
+        assert!(chunk_requests_spill("ISEVEN", &array, &array_case, &[0]));
+        assert!(!chunk_requests_spill("ISODD", &scalar, &scalar_case, &[0]));
+        assert!(chunk_requests_spill("ISODD", &array, &array_case, &[0]));
+        assert!(!chunk_requests_spill("ABS", &scalar, &scalar_case, &[0]));
+        assert!(chunk_requests_spill("ABS", &array, &scalar_case, &[0]));
+        assert!(!chunk_requests_spill("SUM", &array, &scalar_case, &[0]));
     }
 
     #[test]

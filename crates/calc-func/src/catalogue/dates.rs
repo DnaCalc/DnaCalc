@@ -175,18 +175,20 @@ fn workday(
     intl: bool,
 ) -> Step<CalcValue> {
     reject_logical(&a[0])?;
-    let start = super::kit::checked_date_serial(to_1900(system(site)?, present_num(site, a, 0)?))?;
+    let sys = system(site)?;
+    let start = super::kit::checked_date_serial(to_1900(sys, present_num(site, a, 0)?))?;
     reject_logical(&a[1])?;
     let days = present_num(site, a, 1)?;
     if intl {
-        // Live Excel (dc-j9k.236-.239): the target's range is checked first, zero days return the
-        // start without reading the weekend or the holidays, and the holidays are read before the
-        // weekend is decoded.
+        // Live Excel (dc-j9k.236-.239, dc-shqi1): the target's range is checked first (against the
+        // 1904 origin in 1904 mode), zero days return the start without reading the weekend or the
+        // holidays, and the holidays are read before the weekend is decoded.
         if !days.is_finite() {
             return fail(W::Num);
         }
+        let min_serial = if sys == DateSystem::System1904 { OFFSET_1904 } else { 0.0 };
         let target = start.trunc() + days.floor();
-        if !(0.0..=k::MAX_SERIAL_1900 as f64).contains(&target) {
+        if !(min_serial..=k::MAX_SERIAL_1900 as f64).contains(&target) {
             return fail(W::Num);
         }
         if days.floor() == 0.0 {
