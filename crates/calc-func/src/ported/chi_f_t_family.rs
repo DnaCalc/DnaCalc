@@ -170,7 +170,7 @@ pub fn chisq_inv_rt_kernel(probability: f64, deg_freedom: f64) -> Result<f64, Wo
             Err(WorksheetErrorCode::Num)
         };
     }
-    let k = truncate_positive_integer(deg_freedom)?;
+    let k = if n >= 1.0 { n } else { return Err(WorksheetErrorCode::Num) };
     if k == 1.0 {
         // Excel 20527 (cb6, dc-j9k.60): df == 1 folds q via comp(q) = 0.5 + (0.5 - q),
         // rejects comp(q) >= 1.0 with #NUM!, and evaluates 2 * erfinv(comp(q))^2.

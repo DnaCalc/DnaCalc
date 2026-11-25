@@ -406,9 +406,19 @@ pub fn lognorm_dist_kernel(
     };
     let log_x = excel_log(x);
     let d = excel_x87_sub(log_x, mean);
-    let half_square = excel_x87_div(excel_x87_mul(d, d), excel_x87_mul(sigma, sigma)) / 2.0;
+    // Excel 20527 (dc-j9k.324-327): a variance that is subnormal or whose double overflows is
+    // #DIV/0!, never a density.
+    let variance = excel_x87_mul(sigma, sigma);
+    if variance.is_subnormal() || variance == 0.0 || !(variance * 2.0).is_finite() {
+        return Err(WorksheetErrorCode::Div0);
+    }
+    let half_square = excel_x87_div(excel_x87_mul(d, d), variance) / 2.0;
     if half_square.is_nan() {
         return Err(WorksheetErrorCode::Num);
+    }
+    // The squared distance over the variance overflowed: exp(-inf) is zero (Excel 20527).
+    if half_square.is_infinite() {
+        return Ok(0.0);
     }
     const LN_SQRT_2PI: f64 = 0.9189385332046728;
     Ok(flush_subnormal(excel_exp_of_sum(

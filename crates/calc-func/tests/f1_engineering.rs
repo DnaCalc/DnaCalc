@@ -2338,3 +2338,82 @@ fn mixed_suffix_error_depends_on_function() {
         error(call("IMPRODUCT", vec![t(a), t(b)]), Value);
     }
 }
+
+/// Excel 16.0 build 20625 (Touchstone relay, 2026-11-25; dc-j9k.334/.335): IMSUM and IMPRODUCT read their
+/// arguments one at a time: an unreadable argument is #NUM!, a suffix that differs from an earlier one is
+/// #VALUE!, an overflowing IMSUM step is #NUM!; whichever comes first in argument order wins.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imsum_improduct_report_the_first_problem_in_argument_order() {
+    for name in ["IMSUM", "IMPRODUCT"] {
+        error(call(name, vec![t("i"), t("x"), t("j")]), Num);
+        error(call(name, vec![t("i"), t("j"), t("x")]), Value);
+        error(call(name, vec![t("x"), t("i"), t("j")]), Num);
+        error(call(name, vec![t("i"), t("j"), t("")]), Value);
+    }
+    error(call("IMSUM", vec![n(1.7e308), n(1.7e308), t("i"), t("j")]), Num);
+    error(call("IMSUM", vec![n(1.7e308), t("i"), t("j"), n(1.7e308)]), Value);
+    // The sweep representatives (dc-j9k.334, .335).
+    let rep334 = ["1-i", "-1", "-j", "0", "3+4i"];
+    let mut a: Vec<_> = rep334.iter().map(|s| t(s)).collect();
+    a.extend([n(-1.0), t("0-354.5i"), calc_func::value::CalcValue::empty(), t("12521X."), t(",,Z3")]);
+    error(call("IMSUM", a), Value);
+    let a = ["-1", "134217727.5", "-j", "1e-300+1e109i", "134217728"]
+        .iter().map(|s| t(s)).chain([calc_func::value::CalcValue::empty(), t("Y"), t("-i")]).collect();
+    error(call("IMSUM", a), Value);
+}
+
+/// Excel 16.0 build 20625 (Touchstone relay, 2026-11-25; dc-j9k.357): the complex exponential saturates
+/// exp(re) at the largest double before scaling by cos and sin; a component that is exactly the largest
+/// double is #NUM! (IMEXP("710+1e-15i")), as is the real route (IMEXP("710")).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_saturates_the_real_exponential() {
+    for z in ["710+i", "711+i", "1000+i", "709.783+i"] {
+        text(call("IMEXP", vec![t(z)]), "9.71297746009434E+307+1.51270661257499E+308i");
+    }
+    text(call("IMEXP", vec![t("710-i")]), "9.71297746009434E+307-1.51270661257499E+308i");
+    text(call("IMEXP", vec![t("710+0.1i")]), "1.78871215707972E+308+1.79469847735852E+307i");
+    text(call("IMEXP", vec![t("710+1.5707963i")]), "4.81690016402968E+300+1.79769313486232E+308i");
+    text(call("IMEXP", vec![t("710+3i")]), "-1.77970271470383E+308+2.53690469680938E+307i");
+    text(call("IMEXP", vec![t("-745+i")]), "0");
+    for z in ["710+1e-15i", "710+1.57079632679i", "710+3.14159265358979i", "710+0i", "710"] {
+        error(call("IMEXP", vec![t(z)]), Num);
+    }
+    error(call("IMEXP", vec![n(710.0)]), Num);
+}
+
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.357): IMEXP flushes a component below the normal range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_flushes_subnormal_components() {
+    text(call("IMEXP", vec![t("-708+i")]), "2.78320988327593E-308i");
+    text(call("IMEXP", vec![t("-709+i")]), "0");
+    text(call("IMEXP", vec![t("-708+1.5707963i")]), "3.30755300363841E-308i");
+}
+
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.358): IMEXP's circular factors are the worksheet COS and SIN.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_uses_the_worksheet_circular_factors() {
+    text(call("IMEXP", vec![t("1e-5+2e5i")]), "0.997454021377453-0.0714526097350478i");
+}
+
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.357 sweep of 1,200 IMEXP inputs): past |im| 2^27 both circular
+/// factors are the largest double, so the result is exp(re) times it in both components; an overflow is #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imexp_past_2_pow_27_scales_the_largest_double() {
+    for (z, expected) in [
+        ("-1.986408992-189136055.9i", "2.4662045569442E+307+2.4662045569442E+307i"),
+        ("-91.62273316+285604541.8i", "2.90715462570676E+268+2.90715462570676E+268i"),
+        ("-1.402125125e-07+158312174.9i", "1.79769288280326E+308+1.79769288280326E+308i"),
+        ("333.0136229-22257579.08i", "-4.81186746991685E+143+4.1989990459965E+144i"),
+        ("383.203825+600.0815279i", "-2.64852424685757E+166-9.89181844300722E+164i"),
+        ("-97.09285634-0.03653430818i", "6.80484686395056E-43-2.48721042901288E-44i"),
+    ] {
+        text(call("IMEXP", vec![t(z)]), expected);
+    }
+    error(call("IMEXP", vec![t("338.501785-232076421.2i")]), Num);
+    error(call("IMEXP", vec![t("1-1e9i")]), Num);
+}

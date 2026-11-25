@@ -184,8 +184,21 @@ impl ParsedComplex {
         })
     }
     pub(crate) fn exp(self) -> Self {
-        let s = crt_exp(self.re);
-        Self::new(s * crt_cos(self.im), s * crt_sin(self.im), None)
+        // Excel saturates the real exponential at the largest double (IMEXP("710+i") is
+        // 9.71297746009434E+307+1.51270661257499E+308i, dc-j9k.357).
+        let s = crate::ported::excel_numeric::excel_exp(self.re);
+        let s = if s == f64::INFINITY { f64::MAX } else { s };
+        // Past 2^27 both circular factors are the largest double, whatever the sign (dc-j9k.357 sweep).
+        let (sin, cos) = if self.im.abs() >= 134_217_728.0 {
+            (f64::MAX, f64::MAX)
+        } else {
+            (
+                crate::ported::excel_numeric::excel_sin(self.im),
+                crate::ported::excel_numeric::excel_cos(self.im),
+            )
+        };
+        let flush = |x: f64| if x.abs() < f64::MIN_POSITIVE { 0.0 } else { x };
+        Self::new(flush(crate::ported::excel_numeric::excel_x87_mul(s, cos)), flush(crate::ported::excel_numeric::excel_x87_mul(s, sin)), None)
     }
     pub(crate) fn ln(self) -> Result<Self, WorksheetErrorCode> {
         // Excel (dc-j9k.175, live probes): the squares flush subnormal results; a sum that is 0 or

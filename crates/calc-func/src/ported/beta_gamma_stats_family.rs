@@ -684,6 +684,13 @@ pub(super) fn gamma_halley_unit(
             if best_err <= excel_x87_mul(1e-12, target) {
                 return Ok(best_x);
             }
+            // Excel 20527 (dc-j9k.307): on exhaustion a pending Halley step no larger than one
+            // relative epsilon of x still publishes the best x (CHIINV at 5e9 shape, p = 0.1).
+            if let Ok(pdf) = gamma_dist_kernel(x, a, 1.0, false) {
+                if pdf != 0.0 && (excel_x87_div(df, pdf)).abs() <= f64::EPSILON * x {
+                    return Ok(best_x);
+                }
+            }
             return Err(WorksheetErrorCode::Num);
         }
 
