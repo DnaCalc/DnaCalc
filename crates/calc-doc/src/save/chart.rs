@@ -1132,9 +1132,31 @@ fn labels_group(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
     }
     bytes
 }
+/// A `c:numFmt` of data labels.
+fn label_format_xml(format: &(String, bool)) -> Vec<u8> {
+    let mut bytes = format!("<c:numFmt xmlns:c=\"{C}\" formatCode=").into_bytes();
+    super::text::attribute_value(&format.0, &mut bytes);
+    bytes.extend_from_slice(if format.1 { b" sourceLinked=\"1\"/>" } else { b" sourceLinked=\"0\"/>" });
+    bytes
+}
+/// One `c:dLbl`: the label of the point `idx` as `labels` states it (dc-oxh8w.29).
+fn point_xml(idx: u32, labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
+    let mut bytes = format!("<c:dLbl xmlns:c=\"{C}\"><c:idx val=\"{idx}\"/>").into_bytes();
+    bytes.extend(labels_group(labels));
+    bytes.extend_from_slice(b"</c:dLbl>");
+    bytes
+}
 /// A whole new `c:dLbls`.
 fn labels_xml(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
     let mut bytes = format!("<c:dLbls xmlns:c=\"{C}\">").into_bytes();
+    let mut points: Vec<_> = labels.points.iter().collect();
+    points.sort_by_key(|(idx, _)| *idx);
+    for (idx, point) in points {
+        bytes.extend(point_xml(*idx, point));
+    }
+    if let Some(format) = labels.number_format.as_ref() {
+        bytes.extend(label_format_xml(format));
+    }
     bytes.extend(labels_group(labels));
     bytes.extend_from_slice(b"</c:dLbls>");
     bytes
@@ -1144,15 +1166,56 @@ fn labels_xml(labels: &calc_doc_model::ChartLabels) -> Vec<u8> {
 fn labels_patch(
     reader: &mut Reader<'_>,
     span: (usize, usize),
+    before: Option<&calc_doc_model::ChartLabels>,
     after: Option<&calc_doc_model::ChartLabels>,
     patches: &mut Vec<Patch>,
 ) -> Result<usize, SaveRefusal> {
     let mut group = Vec::new();
     let mut tail = None;
+    // The `c:dLbl` overrides the element holds, by point, and where the first child and the last override end.
+    let mut stored: Vec<(Option<u32>, (usize, usize))> = Vec::new();
+    let (mut first_child, mut last_point) = (None, None);
+    // The `c:numFmt` and the first child after the points (where a new one goes).
+    let (mut format_at, mut after_points): (Option<(usize, usize)>, Option<usize>) = (None, None);
     let (close, end) = loop {
         match reader.expect()? {
             (XmlEvent::Start(e), s) => {
-                let end = reader.element_end()?;
+                first_child.get_or_insert(s.0);
+                let is_point = e.name.is(C, "dLbl");
+                let mut idx = None;
+                let end = if is_point {
+                    // The point's `c:idx` is its first child; the rest is skipped.
+                    let mut depth = 1usize;
+                    loop {
+                        match reader.expect()? {
+                            (XmlEvent::Start(inner), _) => {
+                                if depth == 1 && inner.name.is(C, "idx") {
+                                    idx = inner.attribute("val").and_then(|v| v.parse().ok());
+                                }
+                                depth += 1;
+                            }
+                            (XmlEvent::End(_), (_, end)) => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break end;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                } else {
+                    reader.element_end()?
+                };
+                if is_point {
+                    stored.push((idx, (s.0, end)));
+                    last_point = Some(end);
+                }
+                if !is_point && e.name.namespace.as_deref() == Some(C) {
+                    after_points.get_or_insert(s.0);
+                    if e.name.local == "numFmt" {
+                        format_at = Some((s.0, end));
+                    }
+                }
                 if e.name.namespace.as_deref() == Some(C) {
                     if LABEL_GROUP.contains(&e.name.local.as_str()) || e.name.local == "separator" {
                         group.push((s.0, end));
@@ -1169,6 +1232,35 @@ fn labels_patch(
         patches.push(((span.0, end), Vec::new()));
         return Ok(end);
     };
+    // Points the session changed or took away are rewritten or removed; ones it added are written after the last.
+    let (was, now) = (before.map(|b| &b.points[..]).unwrap_or(&[]), &after.points[..]);
+    for (idx, at) in &stored {
+        let Some(idx) = idx else { continue };
+        let before_point = was.iter().find(|(i, _)| i == idx).map(|(_, l)| l);
+        match now.iter().find(|(i, _)| i == idx).map(|(_, l)| l) {
+            None if before_point.is_some() => patches.push((*at, Vec::new())),
+            Some(point) if before_point != Some(point) => patches.push((*at, point_xml(*idx, point))),
+            _ => {}
+        }
+    }
+    let mut added: Vec<&(u32, calc_doc_model::ChartLabels)> =
+        now.iter().filter(|(i, _)| !stored.iter().any(|(s, _)| *s == Some(*i))).collect();
+    added.sort_by_key(|(i, _)| *i);
+    if !added.is_empty() {
+        let at = last_point.or(first_child).unwrap_or(close);
+        patches.push(((at, at), added.iter().flat_map(|(i, l)| point_xml(*i, l)).collect()));
+    }
+    if before.map(|b| &b.number_format) != Some(&after.number_format) {
+        match (format_at, after.number_format.as_ref()) {
+            (Some(at), Some(format)) => patches.push((at, label_format_xml(format))),
+            (Some(at), None) => patches.push((at, Vec::new())),
+            (None, Some(format)) => {
+                let at = after_points.unwrap_or(close);
+                patches.push(((at, at), label_format_xml(format)));
+            }
+            (None, None) => {}
+        }
+    }
     let fresh = labels_group(after);
     match group.split_first() {
         Some((first, rest)) => {
@@ -1266,7 +1358,7 @@ fn series_source(
                     patches.push(((s.0, end), bytes));
                     end
                 } else if before.labels != after.labels && e.name.is(C, "dLbls") {
-                    labels_patch(reader, s, after.labels.as_ref(), patches)?
+                    labels_patch(reader, s, before.labels.as_ref(), after.labels.as_ref(), patches)?
                 } else {
                     reader.element_end()?
                 };
@@ -1875,6 +1967,51 @@ mod colour_order_tests {
             splice.replace((start, end), &bytes);
         }
         String::from_utf8(splice.finish()).unwrap().replace(&format!(" xmlns:c=\"{C}\""), "")
+    }
+    /// dc-oxh8w.29: a retained `c:dLbls` takes the point overrides the session changed (rewritten), took away (removed) and
+    /// added (after the last), leaves the others as stored, and states a changed number format in its place.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn retained_data_labels_follow_point_overrides_and_number_format() {
+        use calc_doc_model::ChartLabels;
+        let existing = "<c:dLbls><c:dLbl><c:idx val=\"0\"/><c:spPr/><c:showVal val=\"0\"/></c:dLbl><c:dLbl><c:idx val=\"1\"/><c:showVal val=\"0\"/></c:dLbl><c:dLbl><c:idx val=\"3\"/><c:showVal val=\"0\"/></c:dLbl><c:spPr/><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>";
+        let hidden = ChartLabels::default();
+        let named = ChartLabels { category: true, ..Default::default() };
+        let run = |before: ChartLabels, after: ChartLabels| {
+            let xml = XmlPart::new(
+                "chart.xml".into(),
+                format!(r#"<c:ser xmlns:c="{C}"><c:idx val="0"/><c:order val="0"/>{existing}<c:val><c:numLit/></c:val></c:ser>"#).into_bytes(),
+                crate::xml::XmlLimits::default(),
+            );
+            let before = ChartSeries { labels: Some(before), ..Default::default() };
+            let after = ChartSeries { labels: Some(after), ..Default::default() };
+            let mut reader = Reader::new(&xml);
+            let (_, span) = reader.expect().unwrap();
+            let mut patches = Vec::new();
+            series_source(&xml, &mut reader, span, &before, &after, "barChart", "barChart", None, &mut patches).unwrap();
+            patches.sort_by_key(|(span, _)| *span);
+            let mut splice = Splice::new(xml.bytes());
+            for ((start, end), bytes) in patches {
+                splice.replace((start, end), &bytes);
+            }
+            String::from_utf8(splice.finish()).unwrap().replace(&format!(" xmlns:c=\"{C}\""), "")
+        };
+        let base = ChartLabels { value: true, points: vec![(0, hidden.clone()), (1, hidden.clone()), (3, hidden.clone())], ..Default::default() };
+        // Point 1 changes, point 3 goes, point 2 is new; point 0 stays as stored (its `c:spPr` kept).
+        let after = ChartLabels {
+            value: true,
+            points: vec![(0, hidden.clone()), (1, named.clone()), (2, named.clone())],
+            number_format: Some(("0.0".into(), false)),
+            ..Default::default()
+        };
+        let text = run(base.clone(), after);
+        assert!(text.contains("<c:dLbl><c:idx val=\"0\"/><c:spPr/><c:showVal val=\"0\"/></c:dLbl>"), "{text}");
+        assert!(text.contains("<c:dLbl><c:idx val=\"1\"/><c:showLegendKey val=\"0\"/><c:showVal val=\"0\"/><c:showCatName val=\"1\"/>"), "{text}");
+        assert!(!text.contains("<c:idx val=\"3\"/>"), "{text}");
+        assert!(text.contains("</c:dLbl><c:dLbl><c:idx val=\"2\"/><c:showLegendKey"), "{text}");
+        assert!(text.contains("</c:dLbl><c:numFmt formatCode=\"0.0\" sourceLinked=\"0\"/><c:spPr/><c:showLegendKey"), "{text}");
+        // Nothing changed: the element is as stored.
+        assert_eq!(run(base.clone(), base).matches("<c:dLbl>").count(), 3);
     }
     /// dc-oxh8w.18: rewriting a retained `c:dLbls` replaces what the labels show and keeps the rest of the element.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

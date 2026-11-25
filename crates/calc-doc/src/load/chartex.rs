@@ -158,6 +158,7 @@ fn data_labels(node: &Node) -> ChartLabels {
             position: pt.attribute("pos").map(str::to_owned).or_else(|| labels.position.clone()),
             separator: pt.child("separator").map(|s| s.text.clone()).or_else(|| labels.separator.clone()),
             deleted: false,
+            number_format: None,
             points: Vec::new(),
         };
         labels.points.push((idx, resolved));

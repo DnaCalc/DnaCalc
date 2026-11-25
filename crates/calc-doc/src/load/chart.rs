@@ -933,6 +933,11 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
                         "showPercent" => shown.percent = on,
                         "dLblPos" => shown.position = element.attribute("val").map(str::to_owned),
                         "delete" => shown.deleted = on,
+                        "numFmt" => {
+                            shown.number_format = element.attribute("formatCode").map(|code| {
+                                (code.to_owned(), matches!(element.attribute("sourceLinked"), Some("1" | "true")))
+                            })
+                        }
                         "separator" => in_separator = true,
                         _ => {}
                     }
@@ -977,6 +982,7 @@ fn read_simple_value_labels(events: &mut Events<'_>) -> Result<(bool, bool, calc
             position: p.position.or_else(|| shown.position.clone()),
             separator: p.separator.or_else(|| shown.separator.clone()),
             deleted: p.deleted.unwrap_or(shown.deleted),
+            number_format: shown.number_format.clone(),
             points: Vec::new(),
         };
         shown.points.push((p.idx, resolved));

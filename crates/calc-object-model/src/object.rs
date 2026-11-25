@@ -131,6 +131,8 @@ pub enum ReportItem {
     SeriesInterior(String, u32),
     /// The data labels of one series (chart part, place across the plots). (dc-oxh8w.18)
     DataLabels(String, u32),
+    /// The label of one point of a series (chart part, place across the plots, zero-based point). (dc-oxh8w.29)
+    DataLabel(String, u32, u32),
     /// One axis of a chart: chart part and `XlAxisType` (1 category, 2 value). (dc-oxh8w.11)
     Axis(String, u8),
     /// The title of one axis (chart part, axis type). (dc-oxh8w.12)

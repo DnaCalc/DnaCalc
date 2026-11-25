@@ -144,6 +144,28 @@ impl WorkbookAutomation {
         on("DataLabels", "Position", Put, Self::labels_put_position);
         on("DataLabels", "Separator", Get, Self::labels_separator);
         on("DataLabels", "Separator", Put, Self::labels_put_separator);
+        on("DataLabels", "NumberFormat", Get, Self::labels_number_format);
+        on("DataLabels", "NumberFormat", Put, Self::labels_put_number_format);
+        on("DataLabels", "NumberFormatLinked", Get, Self::labels_number_format_linked);
+        on("DataLabels", "NumberFormatLinked", Put, Self::labels_put_number_format_linked);
+        on("DataLabels", "Count", Get, Self::labels_count);
+        on("DataLabels", "Item", Method, Self::labels_item);
+        on("DataLabels", "Delete", Method, Self::labels_delete);
+        for label in ["DataLabel"] {
+            on(label, "ShowValue", Get, Self::labels_show_value);
+            on(label, "ShowValue", Put, Self::labels_put_show_value);
+            on(label, "ShowCategoryName", Get, Self::labels_show_category);
+            on(label, "ShowCategoryName", Put, Self::labels_put_show_category);
+            on(label, "ShowSeriesName", Get, Self::labels_show_series);
+            on(label, "ShowSeriesName", Put, Self::labels_put_show_series);
+            on(label, "ShowPercentage", Get, Self::labels_show_percent);
+            on(label, "ShowPercentage", Put, Self::labels_put_show_percent);
+            on(label, "Position", Get, Self::labels_position);
+            on(label, "Position", Put, Self::labels_put_position);
+            on(label, "Separator", Get, Self::labels_separator);
+            on(label, "Separator", Put, Self::labels_put_separator);
+            on(label, "Delete", Method, Self::labels_delete);
+        }
         on("Series", "Formula", Get, Self::series_formula);
         on("Series", "PlotOrder", Get, Self::series_plot_order);
         on("Series", "Values", Get, Self::series_values_get);

@@ -69,6 +69,7 @@ impl WorkbookAutomation {
                     | ReportItem::SeriesCollection(part)
                     | ReportItem::Series(part, _)
                     | ReportItem::DataLabels(part, _)
+                    | ReportItem::DataLabel(part, ..)
                     | ReportItem::SeriesInterior(part, _)
                     | ReportItem::Axis(part, _)
                     | ReportItem::AxisTitle(part, _)
@@ -658,7 +659,7 @@ impl WorkbookAutomation {
     }
     pub(super) fn series_at(&self, target: &ObjectRef) -> Result<(usize, calc_doc_model::ChartSeries), AutoError> {
         let ObjectKey::Report {
-            item: ReportItem::Series(_, place) | ReportItem::DataLabels(_, place) | ReportItem::SeriesInterior(_, place),
+            item: ReportItem::Series(_, place) | ReportItem::DataLabels(_, place) | ReportItem::DataLabel(_, place, _) | ReportItem::SeriesInterior(_, place),
             ..
         } = &target.key
         else {

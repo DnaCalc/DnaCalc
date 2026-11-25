@@ -74,6 +74,8 @@ pub struct ChartLabels {
     pub separator: Option<String>,
     /// `delete`: no labels at all.
     pub deleted: bool,
+    /// `numFmt`: the format code and whether it is `sourceLinked` (dc-oxh8w.29).
+    pub number_format: Option<(String, bool)>,
     /// The `c:dLbl` overrides of single points, by `c:idx` (dc-zjsg.6): each with its own parts, position and separator
     /// (its text and layout are not held).
     pub points: Vec<(u32, ChartLabels)>,

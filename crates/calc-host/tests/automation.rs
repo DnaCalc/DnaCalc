@@ -6263,6 +6263,11 @@ fn dc_oxh8w_12__tick_label_number_format_through_the_object_model() {
 
 /// A column chart over A1:B3 and its first series, for the data label tests.
 fn labelled_series() -> (Rc<Host>, Rc<WorkbookAutomation>, ObjectRef) {
+    let (host, model, _chart, series) = labelled_chart();
+    (host, model, series)
+}
+
+fn labelled_chart() -> (Rc<Host>, Rc<WorkbookAutomation>, ObjectRef, ObjectRef) {
     let (host, model, sheet) = blank_report();
     fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
     let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
@@ -6279,7 +6284,7 @@ fn labelled_series() -> (Rc<Host>, Rc<WorkbookAutomation>, ObjectRef) {
     let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
     set_source(&model, &chart, "A1:B3");
     let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
-    (host, model, series)
+    (host, model, chart, series)
 }
 
 fn saved_chart_xml(host: &Host) -> String {
@@ -6323,8 +6328,9 @@ fn dc_oxh8w_18__a_macro_toggles_series_data_labels_and_the_chart_saves_them() {
     assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
     let r = invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![]);
     assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    // The label of a point of a series that shows none is Excel's 1004.
     let r = invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(1)]);
-    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
 }
 
 /// dc-oxh8w.18: the `DataLabels` members (run once the descriptor holds DataLabels, RUN-ON-WINDOWS).
@@ -6352,6 +6358,103 @@ fn dc_oxh8w_18__data_labels_members_through_the_object_model() {
     assert!(xml.contains("<c:dLblPos val=\"inEnd\"/>"), "{xml}");
     assert!(xml.contains("<c:showSerName val=\"1\"/>"), "{xml}");
     assert!(xml.contains("<c:separator>; </c:separator>"), "{xml}");
+}
+
+/// dc-oxh8w.29: `Series.DataLabels(Index)` is the label of one point (`DataLabel`): its flags, position and separator
+/// are its own, the others follow the series; `Delete` removes it. Out-of-range indexes and positions the chart type
+/// does not allow are 1004. The chart saves each override as a `c:dLbl` and a reopened workbook reads it back.
+/// `DataLabels.Position` unstated is the chart type's default: outside end for clustered columns, centre when
+/// stacked, right for lines, best fit for pies, none (1004) for doughnuts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_29__a_macro_labels_single_points_and_reads_default_positions() {
+    let (host, model, series) = labelled_series();
+    invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let labels = obj(invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &labels, "Count", vec![]).unwrap()), 2);
+    let point = |at: i32| invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(at)]);
+    for bad in [0, 3, -1] {
+        let r = point(bad);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    let second = obj(point(2).unwrap());
+    let flag = |label: &ObjectRef, name: &str| matches!(invoke(&model, label, name, vec![]).unwrap(), AutoValue::Bool(true));
+    assert!(flag(&second, "ShowValue") && !flag(&second, "ShowCategoryName"));
+    invoke_kind(&model, &second, "ShowCategoryName", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    invoke_kind(&model, &second, "Position", InvokeKind::Put, vec![AutoValue::I4(3)]).unwrap();
+    assert!(flag(&second, "ShowCategoryName"));
+    assert_eq!(int(invoke(&model, &second, "Position", vec![]).unwrap()), 3);
+    // The first point and the series keep the series' own state.
+    let first = obj(point(1).unwrap());
+    assert!(!flag(&first, "ShowCategoryName") && !flag(&labels, "ShowCategoryName"));
+    assert_eq!(int(invoke(&model, &first, "Position", vec![]).unwrap()), 2);
+    let xml = saved_chart_xml(&host);
+    assert!(
+        xml.contains("<c:dLbl><c:idx val=\"1\"/><c:dLblPos val=\"inEnd\"/><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"1\"/>"),
+        "{xml}"
+    );
+    // A position the clustered column does not allow, and the label's Item through the collection.
+    let bad = invoke_kind(&model, &first, "Position", InvokeKind::Put, vec![AutoValue::I4(-4152)]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    let again = obj(invoke_kind(&model, &labels, "Item", InvokeKind::Method, vec![AutoValue::I4(2)]).unwrap());
+    assert!(flag(&again, "ShowCategoryName"));
+    // The labels' number format: linked to the source ("General") until a code is put, which unlinks it.
+    assert_eq!(text(&model, &labels, "NumberFormat"), "General");
+    assert!(flag(&labels, "NumberFormatLinked"));
+    invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0%")]).unwrap();
+    assert_eq!(text(&model, &labels, "NumberFormat"), "0.0%");
+    assert!(!flag(&labels, "NumberFormatLinked"));
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<c:numFmt formatCode=\"0.0%\" sourceLinked=\"0\"/><c:showLegendKey"), "{xml}");
+    let bad = invoke_kind(&model, &labels, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("")]);
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "{bad:?}");
+    // Delete takes the first point's label; its members are then 1004 and the file states it.
+    invoke_kind(&model, &first, "Delete", InvokeKind::Method, vec![]).unwrap();
+    let gone = invoke(&model, &first, "ShowValue", vec![]);
+    assert!(matches!(gone, Err(AutoError::Excel { number: 1004, .. })), "{gone:?}");
+    let xml = saved_chart_xml(&host);
+    assert!(xml.contains("<c:dLbl><c:idx val=\"0\"/><c:delete val=\"1\"/></c:dLbl><c:dLbl><c:idx val=\"1\"/>"), "{xml}");
+    // A reopened workbook reads the overrides back.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let (_h2, model2) =
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap());
+    let book = obj(invoke(&model2, &model2.application(), "ActiveWorkbook", vec![]).unwrap());
+    let sheets = obj(invoke(&model2, &book, "Worksheets", vec![]).unwrap());
+    let sheet = obj(invoke_kind(&model2, &sheets, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+    let objects = obj(invoke_kind(&model2, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(invoke_kind(&model2, &objects, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let chart = obj(invoke(&model2, &frame, "Chart", vec![]).unwrap());
+    let series2 = obj(invoke_kind(&model2, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let second2 = obj(invoke_kind(&model2, &series2, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(2)]).unwrap());
+    assert!(matches!(invoke(&model2, &second2, "ShowCategoryName", vec![]), Ok(AutoValue::Bool(true))));
+    assert_eq!(int(invoke(&model2, &second2, "Position", vec![]).unwrap()), 3);
+    let labels2 = obj(invoke_kind(&model2, &series2, "DataLabels", InvokeKind::Method, vec![]).unwrap());
+    assert_eq!(text(&model2, &labels2, "NumberFormat"), "0.0%");
+    let first2 = obj(invoke_kind(&model2, &series2, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    assert!(invoke(&model2, &first2, "ShowValue", vec![]).is_err());
+    // Defaults by chart type: a file that states no position reads as the type's own.
+    for (chart_type, position) in [(51, Some(2)), (52, Some(-4108)), (4, Some(-4152)), (5, Some(5)), (-4120, None), (1, None)] {
+        let (host, model, sheet) = blank_report();
+        fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"], &["South", "30"]]);
+        let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+        let shape = obj(
+            invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(201), AutoValue::I4(chart_type)]).unwrap(),
+        );
+        let chart = obj(invoke(&model, &shape, "Chart", vec![]).unwrap());
+        set_source(&model, &chart, "A1:B3");
+        if int(invoke(&model, &chart, "ChartType", vec![]).unwrap()) != i64::from(chart_type) {
+            invoke_kind(&model, &chart, "ChartType", InvokeKind::Put, vec![AutoValue::I4(chart_type)]).unwrap();
+        }
+        let series = obj(invoke_kind(&model, &chart, "SeriesCollection", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+        invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        let labels = obj(invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![]).unwrap());
+        let read = invoke(&model, &labels, "Position", vec![]);
+        match position {
+            Some(code) => assert_eq!(int(read.unwrap()), code, "type {chart_type}"),
+            None => assert!(matches!(read, Err(AutoError::Excel { number: 1004, .. })), "type {chart_type}: {read:?}"),
+        }
+    }
 }
 
 /// dc-oxh8w.19: a macro colours a series through Interior.Color (a BGR number); the chart saves the fill, and
