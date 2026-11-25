@@ -552,6 +552,7 @@ impl WorkbookAutomation {
             ObjectKey::Workbook(id)
             | ObjectKey::Sheets(id)
             | ObjectKey::Names(id)
+            | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),
             ObjectKey::Worksheet { workbook, sheet }
             | ObjectKey::Report {
