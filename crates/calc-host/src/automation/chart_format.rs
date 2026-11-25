@@ -26,6 +26,9 @@ impl WorkbookAutomation {
 
     /// `Interior.Color` of a series: the colour the chart draws it in, as the BGR number VBA uses.
     pub(super) fn interior_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if matches!(target.key, ObjectKey::RangeFormat(_)) {
+            return self.range_interior_get(target, call);
+        }
         let place = Self::interior_place(target)?;
         no_args(call)?;
         let part = Self::chart_token(target)?;
@@ -41,6 +44,9 @@ impl WorkbookAutomation {
     }
 
     pub(super) fn interior_put_color(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if matches!(target.key, ObjectKey::RangeFormat(_)) {
+            return self.range_interior_put(target, call);
+        }
         Self::interior_place(target)?;
         let value = match &call.args[..] {
             [v] => v,

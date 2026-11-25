@@ -58,6 +58,7 @@ fn dc_971p__format_cells_is_atomic_undoable_and_round_trips_styles() {
             font_color: Some("#123456".into()),
             font_color_indexed: None,
             fill: Some("#ffeedd".into()),
+            interior: None,
             borders: Some(BorderPatch {
                 left: true,
                 right: true,

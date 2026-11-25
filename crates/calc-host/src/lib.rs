@@ -134,7 +134,7 @@ pub use filter::{
 mod name_calculation;
 mod names;
 pub use facts::alignment as style_alignment;
-pub use format::{BorderPatch, FormatPatch, format_regions, format_samples, patched_style};
+pub use format::{BorderPatch, FillColor, FormatPatch, InteriorPatch, format_regions, format_samples, patched_style};
 pub use name_calculation::{NameCalculation, NameCalculationProgress, NameCalculationResult};
 pub use names::{NameDiagnosticEvaluation, NameEdit, NameInvocationView};
 pub mod chart;

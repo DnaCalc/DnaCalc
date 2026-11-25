@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod font;
+mod interior;
 
 const OWNER: &str = "dc-oxh8w.2";
 
@@ -32,6 +33,7 @@ const XL_VERTICAL_TEXT: i32 = -4166;
 impl WorkbookAutomation {
     pub(super) fn register_formatting(handlers: &mut Handlers<Self>) {
         Self::register_range_font(handlers);
+        Self::register_range_interior(handlers);
         handlers.on(
             "Range",
             "NumberFormat",

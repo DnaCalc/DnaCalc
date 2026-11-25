@@ -174,7 +174,7 @@ fn cell_font(host: &HostState, style: u32) -> Result<Option<&Font>, AutoError> {
 }
 
 // VBA's RGB packs the red component in the low byte. Styles store RRGGBB.
-fn reverse_rgb(rgb: u32) -> u32 {
+pub(super) fn reverse_rgb(rgb: u32) -> u32 {
     (rgb & 0xFF) << 16 | rgb & 0xFF00 | rgb >> 16 & 0xFF
 }
 

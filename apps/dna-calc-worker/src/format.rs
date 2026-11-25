@@ -24,6 +24,7 @@ pub fn host_patch(p: FormatPatch) -> calc_host::FormatPatch {
         font_color: p.font_color,
         font_color_indexed: None,
         fill: p.fill,
+        interior: None,
         borders: p.borders.map(|b| calc_host::BorderPatch {
             left: b.left,
             right: b.right,
