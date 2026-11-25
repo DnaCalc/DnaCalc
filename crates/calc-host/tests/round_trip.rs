@@ -397,7 +397,8 @@ fn contract_scoped_cut_and_cell_shifts_follow_survivors_through_undo_redo() {
             calc_host::WorkbookCommand::ShiftCells {
                 area: GridArea::cell(at(calc, "AA2")),
                 down: true,
-                insert: true
+                insert: true,
+                from_after: false,
             }
         ))
         .accepted()
@@ -6759,7 +6760,8 @@ fn contract_deleted_cell_shift_scope_does_not_revive_on_undo() {
             calc_host::WorkbookCommand::ShiftCells {
                 area,
                 down: true,
-                insert: false
+                insert: false,
+                from_after: false,
             }
         ))
         .accepted()
@@ -12275,7 +12277,8 @@ fn dc_971p__cell_shift_moves_sparse_range_styles_without_point_holes() {
         book.dispatch(SkinIntent::Command(WorkbookCommand::ShiftCells {
             area: GridArea::cell(at(s, "B5")),
             down: true,
-            insert: true
+            insert: true,
+            from_after: false,
         }))
         .accepted()
     );
