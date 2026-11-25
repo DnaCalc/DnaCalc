@@ -1,0 +1,261 @@
+//! The `Window` of a workbook (dc-oxh8w.50): `Application.ActiveWindow`, `Workbook.Windows` (one window per
+//! workbook), and its view members. `ActiveSheet`, `ActiveCell` and `Selection` read the session's selection; `FreezePanes`
+//! and `SplitRow`/`SplitColumn` read and write the sheet's stored frozen panes through `WorkbookCommand::FreezePanes`
+//! (the command the Freeze Panes menu uses). `Zoom`, `ScrollRow`, `ScrollColumn` and the `Display*` flags are
+//! held for the macro session per worksheet, seeded from the stored sheet view; they are not written to the saved
+//! file and do not move the application's own view (remainder: dc-oxh8w.64). Errors: out-of-range Zoom (10 to
+//! 400), scroll positions and non-numeric values are 1004; a wrong type is a type mismatch.
+use super::*;
+use crate::{CommandIngress, SkinIntent, WorkbookCommand};
+use calc_object_model::{Descriptor, Handler};
+
+const REMAINDER: &str = "dc-oxh8w.64";
+
+/// The flags `Window` exposes, with Excel's defaults for a fresh window.
+const FLAGS: &[(&str, bool)] = &[
+    ("DisplayGridlines", true),
+    ("DisplayHeadings", true),
+    ("DisplayFormulas", false),
+    ("DisplayZeros", true),
+    ("DisplayOutline", true),
+    ("DisplayHorizontalScrollBar", true),
+    ("DisplayVerticalScrollBar", true),
+    ("DisplayWorkbookTabs", true),
+];
+
+/// What a macro changed in a window's view of one sheet.
+#[derive(Default, Clone)]
+pub(super) struct View {
+    zoom: Option<i32>,
+    scroll: Option<(u32, u32)>,
+    flags: Vec<(&'static str, bool)>,
+}
+
+fn refused() -> AutoError {
+    AutoError::excel(1004, "Application-defined or object-defined error")
+}
+
+impl WorkbookAutomation {
+    pub(super) fn register_window(handlers: &mut Handlers<Self>) -> Vec<String> {
+        let mut pending = Vec::new();
+        let mut on = |interface: &str, member: &str, kind: InvokeKind, handler: Handler<Self>| {
+            let descriptor = Descriptor::get();
+            let present = descriptor.id(interface).is_some_and(|id| {
+                let id = descriptor.default_interface(id);
+                descriptor.member(id, member, kind).is_some()
+            });
+            if present {
+                handlers.on(interface, member, kind, handler);
+            } else {
+                pending.push(format!("{interface}.{member} ({kind:?})"));
+            }
+        };
+        use InvokeKind::{Get, Put};
+        on("Application", "ActiveWindow", Get, Self::app_active_window);
+        on("Workbook", "Windows", Get, Self::book_windows);
+        on("Windows", "Count", Get, Self::windows_count);
+        on("Windows", "Item", Get, Self::windows_item);
+        on("Windows", "_Default", Get, Self::windows_item);
+        on("Window", "Application", Get, Self::delegate);
+        on("Window", "ActiveSheet", Get, Self::window_active_sheet);
+        on("Window", "ActiveCell", Get, Self::window_active_cell);
+        on("Window", "Selection", Get, Self::window_selection);
+        on("Window", "Index", Get, Self::window_index);
+        on("Window", "Zoom", Get, Self::window_get);
+        on("Window", "Zoom", Put, Self::window_put);
+        for member in ["ScrollRow", "ScrollColumn", "FreezePanes", "SplitRow", "SplitColumn"] {
+            on("Window", member, Get, Self::window_get);
+        }
+        for member in ["ScrollRow", "ScrollColumn", "FreezePanes"] {
+            on("Window", member, Put, Self::window_put);
+        }
+        for (member, _) in FLAGS {
+            on("Window", member, Get, Self::window_get);
+            on("Window", member, Put, Self::window_put);
+        }
+        pending
+    }
+
+    fn app_active_window(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        self.with_target(target, |_, meta| Ok(AutoValue::Object(object("Window", ObjectKey::BookWindow(meta.workbook)))))
+    }
+
+    fn book_windows(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        self.with_target(target, |_, meta| Ok(AutoValue::Object(object("Windows", ObjectKey::Windows(meta.workbook)))))
+    }
+
+    fn windows_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        self.with_target(target, |_, _| Ok(AutoValue::I4(1)))
+    }
+
+    /// `Windows(1)` is the workbook's window; a name or any other index is 1004 (a macro cannot open a second window yet).
+    fn windows_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        self.with_target(target, |_, meta| {
+            let one = match call.arg(0) {
+                AutoValue::Text(_) => false,
+                other => geometry::integer(other).map_err(|_| refused())? == 1,
+            };
+            if !one {
+                return Err(refused());
+            }
+            Ok(AutoValue::Object(object("Window", ObjectKey::BookWindow(meta.workbook))))
+        })
+    }
+
+    fn window_active_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.get_active_sheet(&self.application(), call).map(|v| {
+            let _ = target;
+            v
+        })
+    }
+    fn window_active_cell(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.app_active_cell(&self.application(), call)
+    }
+    fn window_selection(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.app_selection(&self.application(), call)
+    }
+    fn window_index(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        self.with_target(target, |_, _| Ok(AutoValue::I4(1)))
+    }
+
+    /// The workbook's active worksheet and the stored view of it.
+    fn window_sheet(&self, target: &ObjectRef) -> Result<(u64, SheetId), AutoError> {
+        let ObjectKey::BookWindow(workbook) = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let mut found = None;
+        self.with_target(target, |access, meta| {
+            let sheet = match access {
+                Access::Session(session, _) => session.selection().active.map(|at| at.sheet()),
+                Access::Invocation(_) => None,
+            }
+            .or_else(|| meta.active.map(|at| at.sheet()))
+            .ok_or_else(|| AutoError::not_modelled("Window of a workbook without an active sheet", REMAINDER))?;
+            found = Some(sheet);
+            Ok(AutoValue::Empty)
+        })?;
+        Ok((workbook, found.ok_or_else(refused)?))
+    }
+
+    fn window_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let (workbook, sheet) = self.window_sheet(target)?;
+        let member = call.member.name.as_str();
+        let held = self.window_views.borrow().get(&(workbook, sheet)).cloned().unwrap_or_default();
+        self.with_target(target, |access, _| {
+            let Access::Session(session, _) = access else {
+                return Err(AutoError::not_modelled("Window members inside a worksheet invocation", REMAINDER));
+            };
+            let stored = session.host().sheet_view(sheet).unwrap_or_default();
+            Ok(match member {
+                "Zoom" => AutoValue::I4(held.zoom.unwrap_or_else(|| i32::from(stored.zoom.unwrap_or(100)))),
+                "ScrollRow" => AutoValue::I4(held.scroll.unwrap_or_else(|| stored.top_left.unwrap_or((1, 1))).0 as i32),
+                "ScrollColumn" => AutoValue::I4(held.scroll.unwrap_or_else(|| stored.top_left.unwrap_or((1, 1))).1 as i32),
+                "FreezePanes" => AutoValue::Bool(stored.frozen.is_some()),
+                "SplitRow" | "SplitColumn" => {
+                    if stored.split.is_some() {
+                        return Err(AutoError::not_modelled("Window.SplitRow of a split that is not frozen", REMAINDER));
+                    }
+                    let panes = stored.frozen;
+                    let (rows, columns) = panes.map_or((0, 0), |p| (p.rows(), p.columns()));
+                    AutoValue::I4(if member == "SplitRow" { rows } else { columns } as i32)
+                }
+                flag => {
+                    let default = FLAGS.iter().find(|(n, _)| *n == flag).map(|(_, d)| *d).ok_or_else(refused)?;
+                    AutoValue::Bool(held.flags.iter().find(|(n, _)| *n == flag).map_or(default, |(_, v)| *v))
+                }
+            })
+        })
+    }
+
+    fn window_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        let (workbook, sheet) = self.window_sheet(target)?;
+        let member = call.member.name.as_str();
+        let value = call.arg(0);
+        let mut update: Box<dyn FnOnce(&mut View)> = match member {
+            "Zoom" => {
+                let n = geometry::integer(value)?;
+                if !(10..=400).contains(&n) {
+                    return Err(refused());
+                }
+                Box::new(move |v| v.zoom = Some(n as i32))
+            }
+            "ScrollRow" | "ScrollColumn" => {
+                let n = geometry::integer(value)?;
+                let limit = if member == "ScrollRow" { 1_048_576 } else { 16_384 };
+                if !(1..=limit).contains(&n) {
+                    return Err(refused());
+                }
+                let n = n as u32;
+                let row = member == "ScrollRow";
+                Box::new(move |v| {
+                    let (r, c) = v.scroll.unwrap_or((1, 1));
+                    v.scroll = Some(if row { (n, c) } else { (r, n) });
+                })
+            }
+            "FreezePanes" => {
+                let freeze = geometry::boolean(value).map_err(|_| geometry::type_mismatch())?;
+                return self.freeze_panes(target, sheet, freeze);
+            }
+            flag => {
+                let name = FLAGS.iter().find(|(n, _)| *n == flag).map(|(n, _)| *n).ok_or_else(refused)?;
+                let on = geometry::boolean(value).map_err(|_| geometry::type_mismatch())?;
+                Box::new(move |v| match v.flags.iter_mut().find(|(n, _)| *n == name) {
+                    Some(entry) => entry.1 = on,
+                    None => v.flags.push((name, on)),
+                })
+            }
+        };
+        self.with_target(target, |_, _| Ok(AutoValue::Empty))?;
+        let mut views = self.window_views.borrow_mut();
+        let entry = views.entry((workbook, sheet)).or_default();
+        // Seed an unset scroll from nothing: unset means "the stored top-left" until a macro scrolls.
+        update(entry);
+        Ok(AutoValue::Empty)
+    }
+
+    /// `Window.FreezePanes = True` freezes above and left of the active cell (relative to the scroll position);
+    /// `False` removes the freeze. Freezing at the first cell (Excel splits the window at its middle) is refused.
+    fn freeze_panes(&self, target: &ObjectRef, sheet: SheetId, freeze: bool) -> Reply {
+        let _ = target;
+        self.with_write(|session| {
+            let (rows, columns) = if freeze {
+                let active = session.selection().active.ok_or_else(|| {
+                    AutoError::not_modelled("Window.FreezePanes without an active cell", REMAINDER)
+                })?;
+                let stored = session.host().sheet_view(sheet).unwrap_or_default();
+                let (top, left) = stored.top_left.unwrap_or((1, 1));
+                let rows = active.row().saturating_sub(top);
+                let columns = active.column().saturating_sub(left);
+                if rows == 0 && columns == 0 {
+                    return Err(AutoError::not_modelled(
+                        "Window.FreezePanes at the first visible cell (Excel freezes at the window's middle)",
+                        REMAINDER,
+                    ));
+                }
+                (rows, columns)
+            } else {
+                (0, 0)
+            };
+            let receipt = session.dispatch_from(
+                CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::FreezePanes { sheet, rows, columns }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Window.FreezePanes: {error:?}"), REMAINDER));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+}
