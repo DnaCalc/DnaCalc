@@ -302,25 +302,29 @@ fn statistical_pairs(
 
 /// FORECAST's line through the pairs (x, y), evaluated at `x`.
 fn forecast(site: &Site<'_>, x: f64, pairs: &[(f64, f64)]) -> Step<CalcValue> {
+    use k::excel_numeric::{excel_x87_add as add, excel_x87_div as div, excel_x87_mul as mul, excel_x87_sub as sub};
     let n = pairs.len();
     if n == 0 {
         return fail(WorksheetErrorCode::Div0);
     }
     let nf = n as f64;
-    let mean_x = pairs.iter().map(|(x, _)| *x).sum::<f64>() / nf;
-    let mean_y = pairs.iter().map(|(_, y)| *y).sum::<f64>() / nf;
+    let mean_x = div(pairs.iter().fold(0.0, |acc, (x, _)| add(acc, *x)), nf);
+    let mean_y = div(pairs.iter().fold(0.0, |acc, (_, y)| add(acc, *y)), nf);
     let (mut num, mut den) = (0.0, 0.0);
     for (xv, yv) in pairs {
-        let dx = xv - mean_x;
-        num += dx * (yv - mean_y);
-        den += dx * dx;
+        let dx = sub(*xv, mean_x);
+        num = add(num, mul(dx, sub(*yv, mean_y)));
+        den = add(den, mul(dx, dx));
+    }
+    if !(num.is_finite() && den.is_finite()) {
+        return fail(WorksheetErrorCode::Num);
     }
     if den == 0.0 {
         return fail(WorksheetErrorCode::Div0);
     }
-    let b = num / den;
-    let a = mean_y - b * mean_x;
-    site.number(a + b * x)
+    let b = div(num, den);
+    let a = sub(mean_y, mul(b, mean_x));
+    site.number(add(a, mul(b, x)))
 }
 
 // 3-D positions: dc-10y, Excel 16.0.20430, 2026-10-25; catalogue oracle ThreeD sheet.
