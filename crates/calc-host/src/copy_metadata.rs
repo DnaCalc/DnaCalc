@@ -261,15 +261,19 @@ pub(crate) fn append(
     if !source.same_lineage(host.model()) {
         return Err(CopyRefusal::StyleDefinitionsChanged);
     }
-    for sheet in [from.sheet(), to.sheet()] {
-        if host
-            .loaded()
-            .sheet(sheet)
-            .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
-        {
-            return Err(refusal(
-                "This paste touches conditional metadata that cannot be edited yet",
-            ));
+    let cf_on = matches!(mode, PasteMode::All | PasteMode::Formats);
+    let dv_on = matches!(mode, PasteMode::All | PasteMode::Validation);
+    if cf_on {
+        for sheet in [from.sheet(), to.sheet()] {
+            if host
+                .loaded()
+                .sheet(sheet)
+                .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
+            {
+                return Err(refusal(
+                    "This paste touches conditional metadata that cannot be edited yet",
+                ));
+            }
         }
     }
     let mut cf: BTreeMap<_, _> = host
@@ -297,8 +301,6 @@ pub(crate) fn append(
             )
         })
         .collect();
-    let cf_on = matches!(mode, PasteMode::All | PasteMode::Formats);
-    let dv_on = matches!(mode, PasteMode::All | PasteMode::Validation);
     for (sheet, rules) in cf.iter_mut().filter(|_| cf_on) {
         let mut next = Vec::new();
         for original in rules.iter() {

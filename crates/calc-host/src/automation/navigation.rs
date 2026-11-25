@@ -399,11 +399,19 @@ impl WorkbookAutomation {
                     "dc-1nbp.6",
                 ));
             }
+            let sheet_scoped = matches!(target.key, ObjectKey::SheetNames { .. });
             let node = match call.arg(0) {
-                AutoValue::Text(text) => names
-                    .iter()
-                    .find(|(shown, _)| calc_value::defined_names_equal(shown, &text.to_string_lossy()))
-                    .map(|(_, n)| *n),
+                AutoValue::Text(text) => {
+                    let wanted = text.to_string_lossy();
+                    names
+                        .iter()
+                        .find(|(shown, node)| {
+                            calc_value::defined_names_equal(shown, &wanted)
+                                || (sheet_scoped
+                                    && calc_value::defined_names_equal(&node.definition().name, &wanted))
+                        })
+                        .map(|(_, n)| *n)
+                }
                 other => usize::try_from(geometry::integer(other)? - 1)
                     .ok()
                     .and_then(|i| names.get(i).map(|(_, n)| *n)),

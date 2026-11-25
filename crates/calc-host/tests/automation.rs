@@ -10179,3 +10179,280 @@ fn dc_p7gpy_refusals_cite_open_beads() {
         "Application.Calculation without UserView.settings must cite dc-1nbp.6: {calc_in_udf:?}"
     );
 }
+
+/// dc-y7tqj (rw12 finding 17a): `Worksheet.Names("Local")` bare lookup resolves the sheet-scoped
+/// name without requiring the `Sheet1!` prefix.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__worksheet_names_bare_lookup() {
+    let (_host, model) = setup();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let sheet = obj(
+        invoke_kind(
+            &model,
+            &obj(invoke(&model, &book, "Worksheets", vec![]).unwrap()),
+            "Item",
+            InvokeKind::Get,
+            vec![AutoValue::I4(1)],
+        )
+        .unwrap(),
+    );
+    let sheet_scoped = obj(invoke(&model, &sheet, "Names", vec![]).unwrap());
+    let added = obj(
+        invoke_kind(
+            &model,
+            &sheet_scoped,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::text("Local"), AutoValue::text("=42")],
+        )
+        .unwrap(),
+    );
+    let bare = obj(
+        invoke_kind(
+            &model,
+            &sheet_scoped,
+            "Item",
+            InvokeKind::Method,
+            vec![AutoValue::text("Local")],
+        )
+        .expect("Worksheet.Names(\"Local\") bare lookup must succeed"),
+    );
+    assert_eq!(bare.key, added.key);
+}
+
+/// dc-y7tqj (rw12 finding 17b/17c): xlPasteColumnWidths preserves destination hidden/outline flags,
+/// accepts mismatched row counts, and refuses unmeasured multi-column tiling (dc-2rjye);
+/// fabricated Paste:=21 refuses typed (dc-2rjye); xlPasteValidation and xlPasteComments are not
+/// blocked by unread conditional formatting containers.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__paste_special_column_widths_and_comments_edges() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2"], &["3", "4"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    invoke_kind(&model, &range(&model, "A1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(20)]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    // Set Hidden and outline_level on column E via the host's axis layout before pasting widths onto E1:F1
+    // (mismatched row count: source is 2 rows, dest is 1 row).
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let hidden_outlined = calc_doc_model::AxisFormat::new(None, true, false)
+        .unwrap()
+        .with_outline(2, 0)
+        .unwrap();
+    let axis_edit = calc_doc_model::AxisFormatEdit::new(
+        sheet_id,
+        calc_doc_model::Axis::Columns,
+        5,
+        hidden_outlined,
+    )
+    .unwrap();
+    assert!(host
+        .session
+        .borrow_mut()
+        .dispatch(SkinIntent::Edit { edits: vec![calc_host::CellEdit::AxisFormat(axis_edit)] })
+        .accepted());
+    call("A1:B2", "Copy", vec![]).unwrap();
+    call("E1:F1", "PasteSpecial", vec![AutoValue::I4(8)])
+        .expect("xlPasteColumnWidths should accept mismatched row count");
+    assert!(matches!(invoke(&model, &range(&model, "F1"), "ColumnWidth", vec![]).unwrap(), AutoValue::R8(n) if n == 30.0));
+    let (after_a, after_e) = {
+        let session = host.session.borrow();
+        let layouts = session.host().model().definitions().axis_layouts();
+        (
+            layouts.get(sheet_id, calc_doc_model::Axis::Columns, 1),
+            layouts.get(sheet_id, calc_doc_model::Axis::Columns, 5),
+        )
+    };
+    assert_eq!(after_e.size(), after_a.size(), "xlPasteColumnWidths must copy column A's stored width to E");
+    assert!(after_e.hidden(), "xlPasteColumnWidths must preserve destination column Hidden flag");
+    assert_eq!(after_e.outline_level(), 2, "xlPasteColumnWidths must preserve destination column outline_level");
+    // Multi-column tiling (2 source columns onto 4 destination columns) refuses typed citing dc-2rjye.
+    let tiled = call("E1:H1", "PasteSpecial", vec![AutoValue::I4(8)]);
+    assert!(
+        matches!(&tiled, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
+        "expected NotModelled(dc-2rjye) for multi-column ColumnWidths tiling, got {tiled:?}"
+    );
+    // Nonexistent XL_PASTE_COMMENTS_AND_NOTES = 21 must refuse typed citing dc-2rjye.
+    let fake_21 = call("E5", "PasteSpecial", vec![AutoValue::I4(21)]);
+    assert!(
+        matches!(&fake_21, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
+        "expected NotModelled(dc-2rjye) for fabricated Paste:=21, got {fake_21:?}"
+    );
+    // Validation/Comments paste must not be blocked by an unread conditional formatting container.
+    let base = include_bytes!("fixtures/d2/structural-base.xlsx");
+    let archive = existing_wire_support::parse_zip(base);
+    let entries: Vec<_> = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(base);
+            if entry.name == "xl/worksheets/sheet1.xml" {
+                let raw = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(raw).unwrap();
+                let patched = xml.replace(
+                    "</worksheet>",
+                    "<conditionalFormatting><cfRule type=\"cellIs\" priority=\"1\"/></conditionalFormatting></worksheet>",
+                );
+                existing_wire_support::RawEntry::stored(&entry.name, patched.as_bytes())
+            } else if entry.method == 0 {
+                existing_wire_support::RawEntry::stored(&entry.name, payload)
+            } else {
+                existing_wire_support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+            }
+        })
+        .collect();
+    let pkg = existing_wire_support::build_zip(&entries);
+    let (_cf_host, cf_model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(pkg)), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let sheet_name = _cf_host.session.borrow().host().sheets()[0].name().text().to_string_lossy();
+    let cf_call = |addr: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&cf_model, &range(&cf_model, &format!("'{sheet_name}'!{addr}")), name, InvokeKind::Method, args)
+    };
+    cf_call("A2", "Copy", vec![]).unwrap();
+    cf_call("L40", "PasteSpecial", vec![AutoValue::I4(-4144)])
+        .expect("xlPasteComments must not be blocked by unread CF container");
+    cf_call("L41", "PasteSpecial", vec![AutoValue::I4(6)])
+        .expect("xlPasteValidation must not be blocked by unread CF container");
+}
+
+/// dc-y7tqj (rw12 finding 17d): valid XlAutoFilterOperator values 12..=14 refuse as NotModelled
+/// (not 1004).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__autofilter_operators_12_to_14_refuse_typed() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(&host, (1, 1), &[&["name", "qty"], &["a", "5"], &["b", "15"]]);
+    for op in [12, 13, 14] {
+        let res = invoke_kind(
+            &model,
+            &range(&model, "A1:B3"),
+            "AutoFilter",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::Missing, AutoValue::I4(op)],
+        );
+        assert!(
+            matches!(&res, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.43"),
+            "XlAutoFilterOperator {op} must refuse as NotModelled(dc-oxh8w.43), got {res:?}"
+        );
+    }
+    let bad = invoke_kind(
+        &model,
+        &range(&model, "A1:B3"),
+        "AutoFilter",
+        InvokeKind::Method,
+        vec![AutoValue::I4(1), AutoValue::Missing, AutoValue::I4(15)],
+    );
+    assert!(matches!(bad, Err(AutoError::Excel { number: 1004, .. })), "operator 15 must be 1004: {bad:?}");
+}
+
+/// dc-y7tqj (rw12 finding 17e): hiding the active worksheet moves ActiveSheet and Selection off the
+/// hidden sheet to another visible worksheet.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__worksheet_visible_false_moves_active_sheet() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let added = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+    let first_name = text(&model, &first, "Name");
+    let added_name = text(&model, &added, "Name");
+    invoke_kind(&model, &first, "Activate", InvokeKind::Method, vec![]).unwrap();
+    let active_name = || text(&model, &obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap()), "Name");
+    assert_eq!(active_name(), first_name);
+    invoke_kind(&model, &first, "Visible", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert_eq!(active_name(), added_name, "hiding ActiveSheet must activate a visible sheet");
+    let sel_sheet = text(
+        &model,
+        &obj(invoke(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Worksheet", vec![]).unwrap()),
+        "Name",
+    );
+    assert_eq!(sel_sheet, added_name, "Selection must move off the hidden sheet");
+}
+
+/// dc-y7tqj (rw12 finding 17g): AdvancedFilter xlFilterCopy copies numeric/date/bool/formula-like
+/// text cells without E11 refusal, refuses stale cells below CopyToRange, refuses cross-workbook
+/// ranges, and refuses unknown criteria headers instead of dropping all rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__advanced_filter_copy_edge_cases() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let set_text = |r: u32, c: u32, s: &str| {
+        let at = CellKey::new(sheet_id, r, c).unwrap();
+        let text = calc_doc_model::CellText::new(calc_value::ExcelText::from_utf16_code_units(
+            s.encode_utf16().collect(),
+        ))
+        .unwrap();
+        host.session
+            .borrow_mut()
+            .dispatch(SkinIntent::Edit {
+                edits: vec![calc_host::CellEdit::Set { at, input: calc_doc_model::CellInput::Text(text) }],
+            });
+    };
+    set_text(1, 1, "Tag");
+    set_text(1, 2, "Note");
+    set_text(2, 1, "123");
+    set_text(2, 2, "=1+1");
+    set_text(3, 1, "TRUE");
+    set_text(3, 2, "2026-01-01");
+    let run = |args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, "A1:B3"), "AdvancedFilter", InvokeKind::Method, args)
+    };
+    // 1) Copying numeric/formula/bool/date-like text cells must succeed without E11 refusal.
+    run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, "E1"))])
+        .expect("AdvancedFilter must copy text cells without E11 parsing");
+    assert_eq!(cell_text_of(&model, "E2"), "123");
+    assert_eq!(cell_text_of(&model, "F2"), "=1+1");
+    assert_eq!(cell_text_of(&model, "E3"), "TRUE");
+    assert_eq!(cell_text_of(&model, "F3"), "2026-01-01");
+
+    // 2) Unknown criteria header must refuse typed citing dc-hduqd (not silently drop all rows).
+    set_text(1, 9, "NoSuchColumn");
+    set_text(2, 9, ">0");
+    let unknown = run(vec![
+        AutoValue::I4(2),
+        AutoValue::Object(range(&model, "I1:I2")),
+        AutoValue::Object(range(&model, "K1")),
+    ]);
+    assert!(
+        matches!(&unknown, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-hduqd"),
+        "unknown criteria header must refuse typed citing dc-hduqd, got {unknown:?}"
+    );
+
+    // 3) Stale cells below CopyToRange must refuse typed citing dc-hduqd rather than leaving them behind.
+    set_text(10, 5, "stale");
+    let stale = run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, "E1"))]);
+    assert!(
+        matches!(&stale, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-hduqd"),
+        "stale cells below CopyToRange must refuse typed citing dc-hduqd, got {stale:?}"
+    );
+
+    // 4) Foreign-workbook CopyToRange or CriteriaRange must refuse typed citing dc-hduqd.
+    let (_other_host, other_model) = setup();
+    let foreign_range = range(&other_model, "A1");
+    let foreign = run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(foreign_range)]);
+    assert!(
+        matches!(&foreign, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-hduqd"),
+        "foreign workbook CopyToRange must refuse typed citing dc-hduqd, got {foreign:?}"
+    );
+}

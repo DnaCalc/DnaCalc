@@ -42,7 +42,12 @@ impl WorkbookAutomation {
                 AutoValue::Object(ObjectRef {
                     key: ObjectKey::Range(held) | ObjectKey::RangeView { reference: held, .. },
                     ..
-                }) => Ok(Some(held.clone())),
+                }) => {
+                    if !self.owns_range(held) {
+                        return Err(AutoError::not_modelled("Range.AdvancedFilter across workbooks", REMAINDER));
+                    }
+                    Ok(Some(held.clone()))
+                }
                 _ => Err(geometry::type_mismatch()),
             }
         };
@@ -114,6 +119,40 @@ impl WorkbookAutomation {
             let criteria_values = criteria
                 .filter(|area| area.row_count() >= 2)
                 .map(|area| CalcValue::reference(ReferenceLike::area(area)));
+            // Reject unknown or blank (computed) criteria headers instead of letting DCOUNTA
+            // collapse them to Condition::Fixed and silently drop all rows (dc-y7tqj).
+            if let Some(crit_area) = criteria.filter(|area| area.row_count() >= 2) {
+                let crit_cells = cells(crit_area)?;
+                let crit_cols = crit_area.column_count() as usize;
+                let crit_rows = crit_area.row_count() as usize;
+                let header_label = |v: &CalcValue| -> Option<String> {
+                    match v.core_ref() {
+                        CoreRef::Text(t) => Some(t.to_string_lossy()),
+                        CoreRef::Number(n) => Some(n.to_string()),
+                        CoreRef::Logical(true) => Some("TRUE".into()),
+                        CoreRef::Logical(false) => Some("FALSE".into()),
+                        _ => None,
+                    }
+                };
+                let list_headers: Vec<Option<String>> = header.iter().map(header_label).collect();
+                for c in 0..crit_cols {
+                    let has_condition = (1..crit_rows)
+                        .any(|r| !matches!(crit_cells[r * crit_cols + c].core_ref(), CoreRef::Empty | CoreRef::Missing));
+                    let crit_header = header_label(&crit_cells[c]);
+                    let known = crit_header.as_deref().is_some_and(|ch| {
+                        list_headers
+                            .iter()
+                            .flatten()
+                            .any(|lh| calc_value::workbook_names_equal(lh, ch))
+                    });
+                    if (has_condition && !known) || (crit_header.is_some() && !known) {
+                        return Err(AutoError::not_modelled(
+                            "Range.AdvancedFilter computed or unknown criteria header",
+                            REMAINDER,
+                        ));
+                    }
+                }
+            }
             for record in 1..rows as usize {
                 let row = &all[record * columns as usize..(record + 1) * columns as usize];
                 let matches = match &criteria_values {
@@ -178,26 +217,59 @@ impl WorkbookAutomation {
             )
             .map_err(|_| error_1004())?;
             self.guard_area(session, output)?;
-            let mut values = Vec::with_capacity((out_rows * columns) as usize);
-            for value in header.iter() {
-                values.push(auto_value(value)?);
-            }
-            for record in &kept {
-                for value in &all[record * columns as usize..(record + 1) * columns as usize] {
-                    values.push(auto_value(value)?);
+            if end_row < calc_value::MAX_ROWS {
+                let below = GridArea::new(
+                    CellKey::new(destination.sheet(), end_row + 1, destination.first().column())
+                        .map_err(|_| error_1004())?,
+                    CellKey::new(destination.sheet(), calc_value::MAX_ROWS, end_column)
+                        .map_err(|_| error_1004())?,
+                )
+                .map_err(|_| error_1004())?;
+                if host.model().cells(below).is_some_and(|mut cells| cells.next().is_some()) {
+                    return Err(AutoError::not_modelled(
+                        "Range.AdvancedFilter xlFilterCopy clearing existing cells below CopyToRange",
+                        REMAINDER,
+                    ));
                 }
             }
+            let cell_edit = |at: CellKey, value: &CalcValue| -> Result<crate::CellEdit, AutoError> {
+                Ok(match value.core_ref() {
+                    CoreRef::Empty | CoreRef::Missing => crate::CellEdit::Clear { area: GridArea::cell(at) },
+                    CoreRef::Number(v) => crate::CellEdit::Set {
+                        at,
+                        input: calc_doc_model::CellInput::Number(
+                            calc_doc_model::FiniteNumber::new(v).ok_or_else(geometry::type_mismatch)?,
+                        ),
+                    },
+                    CoreRef::Text(v) => crate::CellEdit::Set {
+                        at,
+                        input: calc_doc_model::CellInput::Text(
+                            calc_doc_model::CellText::new(v.clone()).ok_or_else(|| {
+                                AutoError::not_modelled("Range.AdvancedFilter text exceeds cell text limit", REMAINDER)
+                            })?,
+                        ),
+                    },
+                    CoreRef::Logical(v) => crate::CellEdit::Set { at, input: calc_doc_model::CellInput::Logical(v) },
+                    CoreRef::Error(v) => crate::CellEdit::Set { at, input: calc_doc_model::CellInput::Error(v) },
+                    _ => return Err(geometry::type_mismatch()),
+                })
+            };
             let sheet = destination.sheet();
-            let corner = |row, column| CellKey::new(sheet, row, column).map_err(|_| error_1004());
-            let area = GridArea::new(corner(destination.first().row(), destination.first().column())?, corner(end_row, end_column)?)
-                .map_err(|_| error_1004())?;
-            let array = AutoValue::Array(Box::new(calc_object_model::AutoArray {
-                rows: out_rows,
-                columns,
-                lower: (1, 1),
-                values,
-            }));
-            self.write_range(session, ReferenceLike::area(area), Some(&array))
+            let first_row = destination.first().row();
+            let first_col = destination.first().column();
+            let mut edits = Vec::with_capacity((out_rows * columns) as usize);
+            for (c, value) in header.iter().enumerate() {
+                let at = CellKey::new(sheet, first_row, first_col + c as u32).map_err(|_| error_1004())?;
+                edits.push(cell_edit(at, value)?);
+            }
+            for (r, record) in kept.iter().enumerate() {
+                for (c, value) in all[record * columns as usize..(record + 1) * columns as usize].iter().enumerate() {
+                    let at =
+                        CellKey::new(sheet, first_row + 1 + r as u32, first_col + c as u32).map_err(|_| error_1004())?;
+                    edits.push(cell_edit(at, value)?);
+                }
+            }
+            Ok(crate::SkinIntent::Edit { edits })
         })?;
         Ok(AutoValue::Bool(true))
     }

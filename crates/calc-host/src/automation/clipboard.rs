@@ -14,7 +14,6 @@ const XL_PASTE_FORMULAS: i64 = -4123;
 const XL_PASTE_FORMATS: i64 = -4122;
 const XL_PASTE_COMMENTS: i64 = -4144;
 const XL_PASTE_VALIDATION: i64 = 6;
-const XL_PASTE_COMMENTS_AND_NOTES: i64 = 21;
 const XL_PASTE_ALL_EXCEPT_BORDERS: i64 = 7;
 const XL_PASTE_FORMULAS_AND_NUMBER_FORMATS: i64 = 11;
 const XL_PASTE_VALUES_AND_NUMBER_FORMATS: i64 = 12;
@@ -98,7 +97,7 @@ impl WorkbookAutomation {
             XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME | XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => PasteMode::All,
             XL_PASTE_COLUMN_WIDTHS => PasteMode::Formats,
             XL_PASTE_VALIDATION => PasteMode::Validation,
-            XL_PASTE_COMMENTS | XL_PASTE_COMMENTS_AND_NOTES => PasteMode::Comments,
+            XL_PASTE_COMMENTS => PasteMode::Comments,
             XL_PASTE_VALUES => PasteMode::Values,
             XL_PASTE_FORMULAS => PasteMode::Formulas,
             XL_PASTE_FORMATS => PasteMode::Formats,
@@ -108,7 +107,7 @@ impl WorkbookAutomation {
             _ => {
                 return Err(AutoError::not_modelled(
                     format!("Range.PasteSpecial Paste:={paste} "),
-                    OWNER,
+                    "dc-2rjye",
                 ));
             }
         };
@@ -203,6 +202,52 @@ impl WorkbookAutomation {
                 self.guard_area(session, clip.snapshot.area())?;
             }
             cut = clip.cut;
+            if combine.column_widths {
+                if clip.cut {
+                    return Err(failed("PasteSpecial"));
+                }
+                let src_cols = clip.snapshot.area().column_count();
+                let dst_cols = to.column_count();
+                if dst_cols != 1 && dst_cols != src_cols {
+                    return Err(AutoError::not_modelled(
+                        "Range.PasteSpecial xlPasteColumnWidths tiling across a multi-column destination",
+                        "dc-2rjye",
+                    ));
+                }
+                let end_col = to
+                    .first()
+                    .column()
+                    .checked_add(src_cols - 1)
+                    .filter(|&c| c <= calc_value::MAX_COLUMNS)
+                    .ok_or_else(|| failed("PasteSpecial"))?;
+                let target_area = GridArea::new(
+                    to.first(),
+                    CellKey::new(to.sheet(), to.last().row(), end_col).map_err(|_| failed("PasteSpecial"))?,
+                )
+                .map_err(|_| failed("PasteSpecial"))?;
+                self.guard_area(session, target_area)?;
+                let layouts = session.host().model().definitions().axis_layouts();
+                let mut edits = Vec::with_capacity(src_cols as usize);
+                for (offset, index) in
+                    (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate()
+                {
+                    let src_fmt = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
+                    let column = to.first().column() + offset as u32;
+                    let dst_fmt = layouts.get(to.sheet(), calc_doc_model::Axis::Columns, column);
+                    let merged = dst_fmt
+                        .with_size(src_fmt.size(), src_fmt.custom())
+                        .ok_or_else(|| failed("PasteSpecial"))?;
+                    let edit = calc_doc_model::AxisFormatEdit::new(
+                        to.sheet(),
+                        calc_doc_model::Axis::Columns,
+                        column,
+                        merged,
+                    )
+                    .ok_or_else(|| failed("PasteSpecial"))?;
+                    edits.push(crate::CellEdit::AxisFormat(edit));
+                }
+                return Ok(SkinIntent::Edit { edits });
+            }
             let mut plan = prepare_paste_oriented(
                 session.host(),
                 PasteSource::Snapshot { snapshot: &clip.snapshot, cut: clip.cut },
@@ -211,21 +256,6 @@ impl WorkbookAutomation {
                 transpose,
             )
             .map_err(|why| AutoError::excel(1004, format!("{member} failed: {why}")))?;
-            if combine.column_widths {
-                if clip.cut {
-                    return Err(failed("PasteSpecial"));
-                }
-                // The widths only: the planner's cell edits are dropped and the source columns' bands are written.
-                let edits = plan.edits_mut();
-                edits.clear();
-                for (offset, index) in (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate() {
-                    let format = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
-                    let column = to.first().column() + offset as u32;
-                    let edit = calc_doc_model::AxisFormatEdit::new(to.sheet(), calc_doc_model::Axis::Columns, column, format)
-                        .ok_or_else(|| failed("PasteSpecial"))?;
-                    edits.push(crate::CellEdit::AxisFormat(edit));
-                }
-            }
             if combine.skip_blanks || combine.operation.is_some() {
                 if clip.cut {
                     return Err(failed("PasteSpecial"));

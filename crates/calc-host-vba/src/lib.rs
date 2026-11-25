@@ -137,7 +137,7 @@ impl std::fmt::Display for FileProjectError {
             Self::DocumentIdentity(name) => write!(f, "ambiguous document code name {name:?}"),
             Self::UnsupportedModule(name) => write!(
                 f,
-                "class, designer or unbound document module {name:?} is not modelled (dc-oxh8w.73)"
+                "unbound document module {name:?} is not modelled (dc-1nbp.7)"
             ),
             Self::Preparation(error) => f.write_str(error),
         }
@@ -202,25 +202,20 @@ pub fn prepare_file_project_with_events(
                     }
                     ModuleTarget::Class
                 }
-                calc_vba::OfficeModuleKind::Document | calc_vba::OfficeModuleKind::Designer => {
+                calc_vba::OfficeModuleKind::Document => {
                     match documents.get(&calc_value::fold_workbook_name(&module.name)) {
-                        Some(Some(sheet))
-                            if module.kind == calc_vba::OfficeModuleKind::Document =>
-                        {
-                            ModuleTarget::Worksheet(*sheet)
-                        }
-                        Some(None) if module.kind == calc_vba::OfficeModuleKind::Document => {
-                            ModuleTarget::Workbook
-                        }
-                        // A UserForm, a chart sheet or chart module, or a document module of a
-                        // sheet this file does not hold: its code loads as a class (dc-oxh8w.73).
-                        // Controls and events of a form are not modelled; code that uses one
-                        // fails to compile and the project refuses with that error.
-                        _ if documents.contains_key(&calc_value::fold_workbook_name(&module.name)) => {
-                            return Err(FileProjectError::DocumentIdentity(module.name.clone()));
-                        }
-                        _ => ModuleTarget::Class,
+                        Some(Some(sheet)) => ModuleTarget::Worksheet(*sheet),
+                        Some(None) => ModuleTarget::Workbook,
+                        None => return Err(FileProjectError::UnsupportedModule(module.name.clone())),
                     }
+                }
+                calc_vba::OfficeModuleKind::Designer => {
+                    // A UserForm (designer) module loads as a class (dc-oxh8w.73). Controls and
+                    // events of a form are not modelled; code that uses one fails to compile.
+                    if documents.contains_key(&calc_value::fold_workbook_name(&module.name)) {
+                        return Err(FileProjectError::DocumentIdentity(module.name.clone()));
+                    }
+                    ModuleTarget::Class
                 }
             };
             Ok(ModuleSource {

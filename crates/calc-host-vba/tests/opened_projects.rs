@@ -3037,3 +3037,58 @@ fn dc_cmruz_default_member_assignment_to_a_global_range_call_compiles() {
         assert!(prepared.is_ok(), "{body}: {:?}", prepared.err());
     }
 }
+
+/// dc-y7tqj (rw12 finding 17f): an unbound Document module (e.g. a chart sheet or a sheet whose
+/// codeName is not in `vba_document_names`) must refuse with `FileProjectError::UnsupportedModule`
+/// instead of silently loading as a bare `Class` module.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj__unbound_document_module_refuses_as_unsupported_module() {
+    let archive = support::parse_zip(LOCAL);
+    let mut patched_sheet = false;
+    let entries: Vec<_> = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(LOCAL);
+            if entry.name == "xl/worksheets/sheet1.xml" {
+                let raw = if entry.method == 0 {
+                    payload.to_vec()
+                } else {
+                    miniz_oxide::inflate::decompress_to_vec(payload).unwrap()
+                };
+                let xml = String::from_utf8(raw).unwrap();
+                let updated = if xml.contains("codeName=\"Sheet1\"") {
+                    xml.replace("codeName=\"Sheet1\"", "codeName=\"OtherSheet\"")
+                } else {
+                    xml.replace("<sheetPr>", "<sheetPr codeName=\"OtherSheet\">")
+                        .replace("<sheetPr/>", "<sheetPr codeName=\"OtherSheet\"/>")
+                };
+                assert_ne!(xml, updated, "expected sheet1.xml to carry sheetPr/codeName: {xml}");
+                patched_sheet = true;
+                support::RawEntry::stored(&entry.name, updated.as_bytes())
+            } else if entry.method == 0 {
+                support::RawEntry::stored(&entry.name, payload)
+            } else {
+                support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+            }
+        })
+        .collect();
+    assert!(patched_sheet, "LOCAL fixture must contain xl/worksheets/sheet1.xml");
+    let bytes = support::build_zip(&entries);
+    let session = opened(&bytes, "unbound-doc.xlsm");
+    let err = calc_host_vba::prepare_file_project_with_events(
+        &grant(),
+        session.host(),
+        "unbound-doc.xlsm",
+        100_000,
+        None,
+        false,
+    )
+    .err()
+    .expect("unbound Document module must refuse admission");
+    assert!(
+        matches!(&err, calc_host_vba::FileProjectError::UnsupportedModule(name) if name.eq_ignore_ascii_case("Sheet1")),
+        "expected UnsupportedModule(\"Sheet1\"), got {err:?}"
+    );
+}

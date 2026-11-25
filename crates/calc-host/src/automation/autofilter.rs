@@ -18,7 +18,8 @@ const XL_BOTTOM10_ITEMS: i64 = 4;
 const XL_TOP10_PERCENT: i64 = 5;
 const XL_BOTTOM10_PERCENT: i64 = 6;
 const XL_FILTER_VALUES: i64 = 7;
-const XL_FILTER_DYNAMIC: i64 = 11;
+/// Highest valid XlAutoFilterOperator (12 xlFilterNoFill, 13 xlFilterAutomaticFontColor, 14 xlFilterNoIcon).
+const XL_FILTER_NO_ICON: i64 = 14;
 
 fn error_1004() -> AutoError {
     AutoError::excel(1004, "Application-defined or object-defined error")
@@ -68,7 +69,7 @@ impl WorkbookAutomation {
     fn criterion(call: &Call<'_>) -> Result<Option<FilterCriteria>, AutoError> {
         let given = |index: usize| !call.arg(index).is_missing() && !matches!(call.arg(index), AutoValue::Empty);
         let operator = if given(2) { geometry::integer(call.arg(2))? } else { XL_AND };
-        if !(XL_AND..=XL_FILTER_DYNAMIC).contains(&operator) {
+        if !(XL_AND..=XL_FILTER_NO_ICON).contains(&operator) {
             return Err(error_1004());
         }
         if operator > XL_FILTER_VALUES {

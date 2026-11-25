@@ -52,7 +52,7 @@ impl WorkbookAutomation {
     }
 
     /// The sheet the user is on: the selection's sheet, else the document's active sheet, else the first.
-    fn session_active_sheet(session: &HostSession) -> Option<SheetId> {
+    pub(super) fn session_active_sheet(session: &HostSession) -> Option<SheetId> {
         session
             .selection()
             .active

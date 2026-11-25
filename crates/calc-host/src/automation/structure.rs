@@ -289,15 +289,40 @@ impl WorkbookAutomation {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             let model = session.host().model();
-            let others_visible = model
-                .sheets()
-                .iter()
-                .any(|s| s.id() != sheet && s.visibility() == SheetVisibility::Visible);
-            if visibility != SheetVisibility::Visible && !others_visible {
+            let sheets = model.sheets();
+            let pos = sheets.iter().position(|s| s.id() == sheet).ok_or_else(failed)?;
+            let replacement = if visibility != SheetVisibility::Visible {
+                sheets[pos + 1..]
+                    .iter()
+                    .find(|s| s.visibility() == SheetVisibility::Visible)
+                    .or_else(|| {
+                        sheets[..pos]
+                            .iter()
+                            .rev()
+                            .find(|s| s.visibility() == SheetVisibility::Visible)
+                    })
+                    .map(|s| s.id())
+            } else {
+                None
+            };
+            if visibility != SheetVisibility::Visible && replacement.is_none() {
                 return Err(failed());
             }
+            let was_active = Self::session_active_sheet(session) == Some(sheet);
             let progress = Self::sheet_command(session, Some(sheet), SheetChange::SetVisibility(visibility))?;
             Self::settle(session, progress, call)?;
+            if was_active
+                && let Some(next_sheet) = replacement
+            {
+                let selection = session
+                    .remembered_selection(next_sheet)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        let a1 = CellKey::new(next_sheet, 1, 1).expect("A1 is valid");
+                        crate::Selection::cell(a1)
+                    });
+                session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(selection));
+            }
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })

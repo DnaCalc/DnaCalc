@@ -345,13 +345,12 @@ fn worker_file_open_fault_is_reported_once_and_designer_projects_stay_typed() {
         FileOrigin::Local,
     )
     .unwrap();
+    let enabled = book.enable_macros();
     assert!(
-        !matches!(
-            book.enable_macros(),
-            Err(EnableRefused::Project(calc_host_vba::FileProjectError::UnsupportedModule(_)))
-        ),
-        "designer modules are admitted"
+        enabled.is_ok(),
+        "designer (UserForm) module without form controls must enable as a class: {enabled:?}"
     );
+    assert_eq!(book.macros(), &Macros::Enabled);
 }
 
 /// A host that publishes its add-ins' functions to an opened macro workbook (the desktop app with
