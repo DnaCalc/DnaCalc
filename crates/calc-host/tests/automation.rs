@@ -5530,6 +5530,67 @@ fn dc_oxh8w_11__a_macro_scales_the_value_axis_and_the_chart_saves_it() {
     assert!(xml.contains("<c:orientation val=\"maxMin\"/>"), "{xml}");
 }
 
+/// dc-oxh8w.26: Chart.Axes resolves axes by kind (and scatter orientation), counts arguments and refuses
+/// invalid kinds and groups with 1004; a category axis cannot take IsAuto False.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_26__axes_resolve_by_kind_and_refuse_bad_arguments() {
+    let (host, model, sheet) = blank_report();
+    fill(&host, (1, 1), &[&["", "Y"], &["1", "10"], &["2", "30"], &["3", "50"]]);
+    let charts = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &charts,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(200.0), AutoValue::R8(20.0), AutoValue::R8(300.0), AutoValue::R8(200.0)],
+        )
+        .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    set_source(&model, &chart, "A1:B4");
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let is_1004 = |r: &Result<AutoValue, AutoError>| matches!(r, Err(AutoError::Excel { number: 1004, .. }));
+    // Argument counts and invalid enum values are Excel errors, not NotModelled.
+    for args in [
+        vec![AutoValue::I4(0)],
+        vec![AutoValue::I4(4)],
+        vec![AutoValue::I4(-1)],
+        vec![AutoValue::I4(1), AutoValue::I4(3)],
+        vec![AutoValue::I4(1), AutoValue::I4(0)],
+    ] {
+        let r = axes(args.clone());
+        assert!(is_1004(&r), "{args:?}: {r:?}");
+    }
+    let r = axes(vec![AutoValue::I4(1), AutoValue::I4(1), AutoValue::I4(1)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let value = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    let category = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    // IsAuto False on the category axis is 1004, and a put with no or two values is an argument error.
+    let r = invoke_kind(&model, &category, "MinimumScaleIsAuto", InvokeKind::Put, vec![AutoValue::Bool(false)]);
+    assert!(is_1004(&r), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    let r = invoke_kind(&model, &value, "MinimumScale", InvokeKind::Put, vec![AutoValue::R8(1.0), AutoValue::R8(2.0)]);
+    assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
+    // A scatter chart has two value axes: xlCategory is the horizontal one.
+    select_cells(&host, (30, 1), (30, 1));
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let shape = obj(
+        invoke_kind(&model, &shapes, "AddChart2", InvokeKind::Method, vec![AutoValue::I4(-1), AutoValue::I4(-4169)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &shape, "Chart", vec![]).unwrap());
+    let axes = |args: Vec<AutoValue>| invoke_kind(&model, &chart, "Axes", InvokeKind::Method, args);
+    let x = obj(axes(vec![AutoValue::I4(1)]).unwrap());
+    let y = obj(axes(vec![AutoValue::I4(2)]).unwrap());
+    invoke_kind(&model, &x, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(7.0)]).unwrap();
+    invoke_kind(&model, &y, "MaximumScale", InvokeKind::Put, vec![AutoValue::R8(90.0)]).unwrap();
+    assert!(matches!(invoke(&model, &x, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 7.0));
+    assert!(matches!(invoke(&model, &y, "MaximumScale", vec![]).unwrap(), AutoValue::R8(v) if v == 90.0));
+}
+
 /// dc-oxh8w.12: axis titles and tick-label number formats set by a macro are saved in the chart part.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
