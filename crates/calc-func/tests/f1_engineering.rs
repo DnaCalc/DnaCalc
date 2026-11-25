@@ -2299,3 +2299,29 @@ fn complex_coefficients_below_1e_309_are_num() {
         assert_eq!(r.core(), &calc_func::value::CoreValue::Number(0.0), "{arg}");
     }
 }
+
+/// Excel 16.0 build 20527 (Touchstone relay, 2026-11-25; dc-j9k.339-.347): IMPRODUCT multiplies argument by
+/// argument. A step whose product overflows is #VALUE! (IMSUM's overflow is #NUM!), raised before a later
+/// argument is read; a step below the normal range is flushed to 0 and stays 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn improduct_overflow_is_value_and_subnormal_steps_flush() {
+    error(call("IMPRODUCT", vec![n(1e300), n(1e300)]), Value);
+    error(call("IMPRODUCT", vec![n(1e300), n(1e300), n(0.0)]), Value);
+    error(call("IMPRODUCT", vec![n(1e300), n(1e300), t("x")]), Value);
+    error(call("IMPRODUCT", vec![n(1e300), t("x"), n(1e300)]), Num);
+    error(call("IMPRODUCT", vec![t("1e200+1e200i"), t("1e200-1e200i")]), Value);
+    text(call("IMPRODUCT", vec![n(3e-308), n(0.5), n(1e300)]), "0");
+    text(call("IMPRODUCT", vec![n(1e-300), n(1e-10), n(1e300)]), "0");
+    text(call("IMPRODUCT", vec![n(1e-300), n(1e-300), n(1e300)]), "0");
+    // The sweep's representatives; Excel's answers are recorded on the beads.
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x4059000000000000)), n(f64::from_bits(0xc0c3880000000000)), n(f64::from_bits(0x7e37e43c8800759c)), n(f64::from_bits(0x5850000000000000)), n(f64::from_bits(0x3f747ae147ae147b)), n(f64::from_bits(0x0000000000000000)), n(f64::from_bits(0x3f1a36e2eb1c432d)), n(f64::from_bits(0xf280000000000000)), n(f64::from_bits(0xbfefae147ae147ae))]), Value); // dc-j9k.339
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x404e000000000000)), n(f64::from_bits(0xf320000000000000)), n(f64::from_bits(0xbff8000000000000)), n(f64::from_bits(0x433fffffffffffff)), n(f64::from_bits(0xd990000000000000)), n(f64::from_bits(0xbe7ad7f29abcaf48)), n(f64::from_bits(0xbf1a36e2eb1c432f)), n(f64::from_bits(0x4059000000000000)), n(f64::from_bits(0x403e000000000000)), n(f64::from_bits(0x4202a05f20000001)), n(f64::from_bits(0x7400000000000000)), n(f64::from_bits(0x3fb999999999999a))]), Value); // dc-j9k.340
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x7e37e43c8800759c)), n(f64::from_bits(0xbd719799812dea11)), n(f64::from_bits(0x7e37e43c8800759c)), n(f64::from_bits(0xf000000000000000))]), Value); // dc-j9k.341
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0xbd950a664b973575)), n(f64::from_bits(0xe38234aa619d9595)), n(f64::from_bits(0x4d74893e2c2961aa)), n(f64::from_bits(0x4a560cd5cd140a24)), n(f64::from_bits(0xc90bf1d35366fdcf)), n(f64::from_bits(0x52d0ec5ae258cd09))]), Value); // dc-j9k.342
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0xc059000000000000)), n(f64::from_bits(0x7e37e43c8800759c)), n(f64::from_bits(0x3e7ad7f29abcaf48)), n(f64::from_bits(0xbf1a36e2eb1c432d)), n(f64::from_bits(0x3f1a36e2eb1c432d)), n(f64::from_bits(0x433ffffffffffffe)), n(f64::from_bits(0x4202a05f20000000))]), Value); // dc-j9k.343
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x68a21322b2f4c432)), n(f64::from_bits(0xc1ac5122f89a090d)), n(f64::from_bits(0x3f8ac515f56a973d)), n(f64::from_bits(0x7957c156fe93319f)), n(f64::from_bits(0xc0f164c6ae689d25)), n(f64::from_bits(0xf2bbeb6508db43a7)), n(f64::from_bits(0x09d2821573cc8c78)), n(f64::from_bits(0xc44563c8d3c05b61)), n(f64::from_bits(0x528bc6856579d956)), n(f64::from_bits(0x9ec93cdf3cf68359))]), Value); // dc-j9k.344
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x3fbda972202701e2)), n(f64::from_bits(0xb7b5b3f97974e8a2)), n(f64::from_bits(0x3a82cf19db1ea4b6)), n(f64::from_bits(0x6bf88da5bc42a253)), n(f64::from_bits(0xc08ed32d18c7cc82)), n(f64::from_bits(0xc08483e25282b5f5)), n(f64::from_bits(0xc277d41735725fe9)), n(f64::from_bits(0x6a3bd1dd535e9bcf)), n(f64::from_bits(0xbfc38c7d01c670a6)), n(f64::from_bits(0xc1d2bab6bf6fad05)), n(f64::from_bits(0x3dc47f680d66d959))]), Value); // dc-j9k.345
+    error(call("IMPRODUCT", vec![n(f64::from_bits(0x4340000000000001)), n(f64::from_bits(0x4010000000000000)), n(f64::from_bits(0xfe37e43c8800759e)), n(f64::from_bits(0x8890000000000000)), n(f64::from_bits(0xbf50624dd2f1a9fc)), n(f64::from_bits(0x0010000000000001)), n(f64::from_bits(0xc023ffffffffffff)), n(f64::from_bits(0xe860000000000000))]), Value); // dc-j9k.346
+    text(call("IMPRODUCT", vec![n(f64::from_bits(0x8010000000000000)), n(f64::from_bits(0xbf9999999999999a)), n(f64::from_bits(0xe740000000000000)), n(f64::from_bits(0x3f9999999999999a)), n(f64::from_bits(0x2b2bff2ee48e0530)), n(f64::from_bits(0x41c0000000000000)), n(f64::from_bits(0xbfe0000000000000)), n(f64::from_bits(0x4340000000000000))]), "0"); // dc-j9k.347
+}
