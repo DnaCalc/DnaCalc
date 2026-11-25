@@ -436,13 +436,15 @@ pub fn calculate_with_reference_text(
             c.input_transport.as_deref() == Some("cell_value2_bulk")
                 && c.cell_layout.as_deref() == Some("touchstone/1-bulk")
         });
-    // Excel reads a database field held in a cell as one referenced cell: an error or a blank there
-    // is #VALUE! (dc-j9k.272-.276; the formula evaluator applies the same admission to a reference).
-    if cell_transport || mixed_bulk_scalar_cells || has_range {
+    // Excel reads a database field held in a cell as one referenced cell: an error there is
+    // #VALUE! (dc-j9k.272-.276; matching calc-fml's Run::admit). A blank cell stays Empty so
+    // DCOUNT/DCOUNTA still treat it as optional, and literal formula arguments (no cell
+    // transport) keep their own error.
+    if cell_transport || mixed_bulk_scalar_cells {
         for (position, argument) in prepared.iter_mut().enumerate() {
             if target.id().is_database_field(position)
                 && args[position].get("range").is_none()
-                && matches!(values[position].core_ref(), CoreRef::Error(_) | CoreRef::Empty)
+                && matches!(values[position].core_ref(), CoreRef::Error(_))
             {
                 *argument = CalcValue::error(calc_func::value::WorksheetErrorCode::Value);
             }
@@ -608,6 +610,47 @@ mod tests {
                 true
             ),
             "logical:False"
+        );
+    }
+
+    /// dc-y7tqj (rw12 finding 16): witness database_field admission matches calc-fml:
+    /// blank optional fields stay Empty for DCOUNT/DCOUNTA, and literal formula errors (no cell
+    /// transport) propagate instead of turning into #VALUE!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn database_field_matches_calc_fml_admission() {
+        let bulk = WitnessInvocation {
+            input_transport: Some("cell_value2_bulk".into()),
+            cell_layout: Some("touchstone/1-bulk".into()),
+            ..Default::default()
+        };
+        let db = json!({"range": [["Name", "Value"], ["a", "0x4000000000000000"], ["b", "0x4008000000000000"]]});
+        let crit = json!({"range": [["Name"], [null]]});
+        // Blank optional field held in a cell: DCOUNT and DCOUNTA count matching records (2.0);
+        // DPRODUCT requires a field and returns #VALUE!.
+        let blank_args = [db.clone(), json!(null), crit.clone()];
+        assert_eq!(
+            calculate("DCOUNT", &blank_args, None, Some(&bulk), true),
+            "0x4000000000000000"
+        );
+        assert_eq!(
+            calculate("DCOUNTA", &blank_args, None, Some(&bulk), true),
+            "0x4000000000000000"
+        );
+        assert_eq!(
+            calculate("DPRODUCT", &blank_args, None, Some(&bulk), true),
+            "error:Value"
+        );
+        // Held cell error under bulk transport is #VALUE! (dc-j9k.272), while a literal formula
+        // error (no cell transport) propagates as #NAME?.
+        let err_args = [db, json!({"error": "Name"}), crit];
+        assert_eq!(
+            calculate("DPRODUCT", &err_args, None, Some(&bulk), true),
+            "error:Value"
+        );
+        assert_eq!(
+            calculate("DPRODUCT", &err_args, None, None, true),
+            "error:Name"
         );
     }
 

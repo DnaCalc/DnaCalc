@@ -1648,6 +1648,55 @@ fn database_computed_criteria_and_held_field() {
     }
 }
 
+/// dc-y7tqj (rw12 finding 16): a computed criterion cell (header naming no database field or blank)
+/// holding a formula re-evaluates per record in Excel; refuse typed instead of collapsing to a
+/// fixed truth over all records. Literal computed criteria and formula field criteria still run.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_computed_criteria_formula_is_refused() {
+    use calc_func::{FunctionFault, value::NumericMode};
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("A"), n(5.0), n(7.0)]);
+    sheet.column(1, 2, vec![t("B"), n(6.0), n(8.0)]);
+    sheet.column(1, 7, vec![t("Check"), b(true)]);
+    let db = sheet.area(1, 1, 3, 2);
+    let crit = sheet.area(1, 7, 2, 7);
+    let crit_cell = CellKey::new(sheet.id, 2, 7).unwrap();
+    let call_with_host = |sheet: &mut Sheet, host: &mut Host, name: &str, args: Vec<CalcValue>| {
+        let entry = calc_func::catalogue()
+            .resolve_surface(calc_func::Notation::Call, name)
+            .unwrap();
+        let mode = NumericMode::Fast;
+        let mut services = calc_func::EvalServices::with_cells(&mode, sheet).with_host(host);
+        let mut scratch = calc_func::FunctionCallScratch::new();
+        calc_func::invoke(entry, &mut Given(args), &mut services, &mut scratch)
+    };
+    let mut formula_host = Host {
+        sheet: sheet.id,
+        formulas: vec![(crit_cell, "=A2>6".into())],
+    };
+    // Computed criterion holding a formula must refuse rather than match every record.
+    for header in [t("Check"), CalcValue::empty()] {
+        sheet.cells.insert((1, 7), header);
+        let res = call_with_host(&mut sheet, &mut formula_host, "DCOUNT", vec![db.clone(), n(1.0), crit.clone()]);
+        assert!(
+            matches!(res, Err(FunctionFault::NotImplemented { argument: Some(2), .. })),
+            "expected NotImplemented refusal for formula computed criterion, got {res:?}"
+        );
+    }
+    // Same formula cell under a matching field header is a normal field criterion (not computed).
+    sheet.cells.insert((1, 7), t("A"));
+    sheet.cells.insert((2, 7), t(">6"));
+    let field_ok = call_with_host(&mut sheet, &mut formula_host, "DCOUNT", vec![db.clone(), n(1.0), crit.clone()]);
+    exact(field_ok, 1.0);
+    // Literal computed criterion (not a formula) still runs as live Excel measured (dc-j9k.271).
+    let mut literal_host = Host { sheet: sheet.id, formulas: vec![] };
+    sheet.cells.insert((1, 7), t("Check"));
+    sheet.cells.insert((2, 7), b(true));
+    let literal_ok = call_with_host(&mut sheet, &mut literal_host, "DCOUNT", vec![db, n(1.0), crit]);
+    exact(literal_ok, 2.0);
+}
+
 /// Excel 20527: A-plus-digit database criteria are text, not time or currency.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

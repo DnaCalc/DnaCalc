@@ -106,6 +106,8 @@ fn matching(
     database: &Grid,
     headers: &[Option<Vec<u16>>],
     criteria: &Grid,
+    criteria_area: Option<crate::value::GridArea>,
+    sv: &mut EvalServices<'_>,
 ) -> Step<Vec<usize>> {
     let records = database.rows.saturating_sub(1);
     if criteria.rows < 2 {
@@ -130,6 +132,18 @@ fn matching(
                 _ => None,
             };
             let Some(column) = column else {
+                // A formula cell under a non-field header is a per-record computed criterion in
+                // Excel; refuse typed rather than collapsing it to one fixed truth (dc-y7tqj).
+                if let Some(area) = criteria_area
+                    && let Ok(key) = crate::value::CellKey::new(
+                        area.sheet(),
+                        area.first().row() + r as u32,
+                        area.first().column() + c as u32,
+                    )
+                    && sv.host().and_then(|host| host.is_formula(key)) == Some(true)
+                {
+                    return Err(site.not_modelled(Some(2)));
+                }
                 match cell.core_ref() {
                     CoreRef::Empty | CoreRef::Missing => {}
                     CoreRef::Number(n) => conditions.push(Condition::Fixed(n != 0.0)),
@@ -279,8 +293,15 @@ fn database(
             _ => fail(W::Value),
         };
     }
+    let criteria_area = match a[2].core_ref() {
+        CoreRef::Reference(reference) => match reference.areas() {
+            [area] => Some(*area),
+            _ => None,
+        },
+        _ => None,
+    };
     let criteria = grid(site, a, 2, sv)?;
-    let records = matching(site, &database, &headers, &criteria)?;
+    let records = matching(site, &database, &headers, &criteria, criteria_area, sv)?;
     let Some(column) = column else {
         return site.number(records.len() as f64);
     };
