@@ -370,8 +370,14 @@ fn sorted_indices(
     Ok(indices)
 }
 
-/// `array`'s rows (or, `by_col`, its columns) in the order of `indices`.
-fn reordered(array: &CalcArray, indices: &[usize], by_col: bool) -> Step<CalcValue> {
+/// `array`'s rows (or, `by_col`, its columns) in the order of `indices`, with the function's
+/// displayed value for an empty source cell.
+fn reordered(
+    array: &CalcArray,
+    indices: &[usize],
+    by_col: bool,
+    empty_value: CalcValue,
+) -> Step<CalcValue> {
     let ArrayShape { rows, cols } = array.shape();
     let mut cells = Vec::with_capacity(rows * cols);
     for row in 0..rows {
@@ -381,7 +387,13 @@ fn reordered(array: &CalcArray, indices: &[usize], by_col: bool) -> Step<CalcVal
             } else {
                 (indices[row], col)
             };
-            cells.push(array.get(r, c).cloned().unwrap_or_else(CalcValue::empty));
+            cells.push(
+                array
+                    .get(r, c)
+                    .filter(|value| !value.is_empty() || value.callable_value().is_some())
+                    .cloned()
+                    .unwrap_or_else(|| empty_value.clone()),
+            );
         }
     }
     Ok(CalcValue::array(
@@ -471,7 +483,7 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
         keys.push((key, down));
     }
     let order = sorted_indices(site, len, &keys)?;
-    reordered(&array, &order, by_col)
+    reordered(&array, &order, by_col, CalcValue::empty())
 }
 
 /// SORTBY: by each by_array, a row or column the length of the array's rows (or of its columns,
@@ -481,26 +493,29 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     // An argument that is one error value is the result (Excel 16.0.20430, 2026-10-25, dc-6au:
     // `=SORTBY(1,#REF!)` #REF!, `=SORTBY(1,#DIV/0!)` #DIV/0!, `=SORTBY({3;1;2},{3;1;2},#REF!)`
     // and `=SORTBY(1,1,#REF!)` #REF!).
-    for argument in &args {
-        if let CoreRef::Error(code) = argument.core_ref() {
-            return fail(code);
-        }
+    for (original, argument) in a.iter().zip(&args) {
+        let scalar = if original.as_reference().is_some()
+            && let Some(array) = argument.as_array()
+            && array.cell_count() == 1
+        {
+            array.get(0, 0).expect("the only cell in the reference")
+        } else {
+            argument
+        };
+        scalar_error(scalar)?;
     }
     let array = as_array(&args[0]);
     let ArrayShape { rows, cols } = array.shape();
     let mut keys: Vec<(Vec<CalcValue>, bool)> = Vec::new();
     let mut by_col = None;
-    let mut at = 1;
-    while at < args.len() {
-        let key = as_array(&args[at]);
-        at += 1;
-        let down = match args.get(at) {
-            Some(value) if value.as_array().is_none() => {
-                at += 1;
-                descending(site, Some(value))?
-            }
-            _ => false,
-        };
+    for pair in args[1..].chunks(2) {
+        let key = as_array(&pair[0]);
+        let order = pair.get(1);
+        // A blank order cell supplies zero. Only a missing argument defaults to ascending.
+        if order.is_some_and(CalcValue::is_empty) {
+            return fail(WorksheetErrorCode::Value);
+        }
+        let down = descending(site, order)?;
         let shape = key.shape();
         let (values, columns) = if shape.cols == 1 && shape.rows == rows {
             (
@@ -527,7 +542,7 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     let by_col = by_col.unwrap_or(false);
     let len = if by_col { cols } else { rows };
     let order = sorted_indices(site, len, &keys)?;
-    reordered(&array, &order, by_col)
+    reordered(&array, &order, by_col, CalcValue::number(0.0))
 }
 
 /// Whether two cells are the same for UNIQUE: numbers when equal as binary64 (OxFunc's rule;

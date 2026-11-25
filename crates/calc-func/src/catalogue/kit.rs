@@ -7,11 +7,12 @@
 //! array given to a value parameter and use a binary64 arithmetic site, as before the split.
 
 use super::aggregate::{self, Held, Origin};
-use super::{Parameter, ParameterClass};
+use super::ParameterClass;
 use crate::call::EvalServices;
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcArray, CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
+use calc_catalogue::DeclarationRef;
 
 /// Attaches existing kernels to the shared declarations by stable ID.
 macro_rules! attach_family {
@@ -78,8 +79,10 @@ macro_rules! ported_shared_family {
             -> Result<Box<dyn crate::call::KernelTask>, crate::call::FunctionFault> {
             let site = crate::kernel::Site::new(super::FunctionId::new($code, $member), services);
             let outcome = (|| {
-                const PARAMETERS: &[super::Parameter] = calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)).parameters;
-                super::kit::scalars(&site, arguments, PARAMETERS)?;
+                const DECLARATION: calc_catalogue::DeclarationRef = calc_catalogue::DeclarationRef::Worksheet(
+                    &calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)),
+                );
+                super::kit::scalars(&site, arguments, DECLARATION)?;
                 site.binary64()?;
                 $resume(&site, arguments, services)
             })();
@@ -96,8 +99,10 @@ macro_rules! ported_shared_family {
             #[allow(unused_variables)]
             fn body($s: &crate::kernel::Site<'_>, $a: &[crate::value::CalcValue], $sv: &mut crate::call::EvalServices<'_>)
                 -> crate::kernel::Step<crate::value::CalcValue> {
-                const PARAMETERS: &[super::Parameter] = calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)).parameters;
-                super::kit::scalars($s, $a, PARAMETERS)?;
+                const DECLARATION: calc_catalogue::DeclarationRef = calc_catalogue::DeclarationRef::Worksheet(
+                    &calc_catalogue::ported::find($decl, super::FunctionId::new($code, $member)),
+                );
+                super::kit::scalars($s, $a, DECLARATION)?;
                 $s.binary64()?;
                 $body
             }
@@ -112,12 +117,11 @@ macro_rules! ported_shared_family {
 pub(super) fn scalars(
     site: &Site<'_>,
     arguments: &[CalcValue],
-    parameters: &[Parameter],
+    declaration: DeclarationRef,
 ) -> Step<()> {
-    let last = parameters.len().saturating_sub(1);
     for (index, argument) in arguments.iter().enumerate() {
         if matches!(argument.core_ref(), CoreRef::Array(_))
-            && parameters.get(index.min(last)).map(|p| p.class) == Some(ParameterClass::Value)
+            && declaration.parameter(index).map(|p| p.class) == Some(ParameterClass::Value)
         {
             return Err(site.not_modelled(Some(index)));
         }

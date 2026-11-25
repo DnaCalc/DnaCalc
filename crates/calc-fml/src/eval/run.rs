@@ -1899,6 +1899,7 @@ impl Run<'_, '_> {
         let mut previous_match: Option<(CalcValue, CalcValue)> = None;
         let mut cells = Vec::with_capacity(shape.rows * shape.cols);
         let mut element: Vec<CalcValue> = arguments.to_vec();
+        let sortby = target.0.id() == calc_catalogue::ported::arrays::SORTBY;
         for row in 0..shape.rows {
             for col in 0..shape.cols {
                 let mut short = None;
@@ -1989,6 +1990,12 @@ impl Run<'_, '_> {
                     continue;
                 }
                 let value = self.eager(target, &element, synthetic)?;
+                // Excel 16.0.20625 uses the source and first key only until the first
+                // array result. Later positions sort a scalar zero with a scalar first key;
+                // additional keys and each position's orders still participate.
+                if sortby && value.as_array().is_some() {
+                    element[..2].fill(CalcValue::number(0.0));
+                }
                 let value = match value.core_ref() {
                     CoreRef::Reference(reference) if over_references => match reference.areas() {
                         [area] if area.cell_count() == 1 => self.reader.value_of(reference)?,
