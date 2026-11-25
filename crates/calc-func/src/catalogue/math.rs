@@ -340,15 +340,17 @@ fn sum_pairwise(
     term: fn(f64, f64) -> f64,
 ) -> Step<CalcValue> {
     validate_paired_singletons(site, a, [0, 1], services)?;
-    // Arguments of different shapes are #N/A before an error cell of either is read (Excel
+    // Arguments of different cell counts are #N/A before an error cell of either is read (Excel
     // 16.0.20527 through Touchstone, 2026-11-16: `=SUMX2PY2({#VALUE!;1},{1;2;3})`,
-    // `=SUMX2MY2({#NUM!;1},{1;2;3})` and `=SUMXMY2({#DIV/0!;1},{1;2;3})` are #N/A).
-    let (left_shape, right_shape) = {
+    // `=SUMX2MY2({#NUM!;1},{1;2;3})` and `=SUMXMY2({#DIV/0!;1},{1;2;3})` are #N/A). The shapes
+    // may differ: the cells pair in row-major order when the counts agree (dc-j9k.313, .328, .331:
+    // a 2 by 2 range against a column of four).
+    let (left_count, right_count) = {
         let left = grid(site, a, 0, services)?;
         let right = grid(site, a, 1, services)?;
-        ((left.rows, left.cols), (right.rows, right.cols))
+        (left.cells.len(), right.cells.len())
     };
-    if left_shape != right_shape {
+    if left_count != right_count {
         return fail(WorksheetErrorCode::NA);
     }
     let left = numeric_cells(site, a, 0, services)?;

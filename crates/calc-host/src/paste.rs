@@ -239,7 +239,7 @@ pub fn prepare_paste_oriented(
             }
         }
     }
-    let replaces = if flash || mode == PasteMode::Formats {
+    let replaces = if flash || !mode.writes_contents() {
         0
     } else {
         host.model().cells(target).into_iter().flatten().count() as u64

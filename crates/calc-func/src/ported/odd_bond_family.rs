@@ -545,9 +545,23 @@ pub fn oddfprice_kernel(
     let maturity = parse_date_serial(maturity)?;
     let issue = parse_date_serial(issue)?;
     let first_coupon = parse_date_serial(first_coupon)?;
+    let frequency_arg = frequency;
     let frequency = parse_frequency(frequency)?;
+    let basis_arg = basis;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
-    if !(issue < settlement && settlement < first_coupon && first_coupon <= maturity) {
+    if !(issue < settlement && settlement < first_coupon && first_coupon < maturity) {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    // Live Excel (dc-j9k.291): the first coupon sits on the coupon schedule back from the maturity
+    // (the rule ODDFYIELD already measured), else #NUM!.
+    let previous = crate::ported::coupon_family::couppcd_kernel(
+        first_coupon as f64,
+        maturity as f64,
+        frequency_arg,
+        basis_arg,
+    )
+    .map_err(OddBondEvalError::Domain)?;
+    if previous != first_coupon as f64 {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     oddfprice_inner(
@@ -601,9 +615,6 @@ pub fn oddlprice_kernel(
         cursor = add_months_clamped(cursor, months_per_coupon)
             .ok_or(OddBondEvalError::Domain(WorksheetErrorCode::Num))?;
         nc += 1;
-        if nc > 64 {
-            return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
-        }
     }
     let mut early_coupon = last_interest;
     let mut dcnl = 0.0;
@@ -1239,6 +1250,69 @@ mod tests {
                 Some(0.0),
             ),
             num_err
+        );
+    }
+
+    /// dc-j9k.291 (live Excel 16.0.20625): ODDFPRICE needs the first coupon on the maturity's
+    /// coupon schedule and before the maturity, as ODDFYIELD does.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddfprice_first_coupon_must_sit_on_the_maturity_schedule() {
+        let price = |first_coupon: f64, basis: Option<f64>| {
+            oddfprice_kernel(38353.0, 40179.0, 37987.0, first_coupon, 0.05, 0.06, 100.0, 2.0, basis)
+        };
+        // 2005-07-01 is on the schedule back from 2010-01-01.
+        assert_eq!(price(38534.0, None).map(f64::to_bits), Ok(0x4057e5b68f16ee76));
+        assert_eq!(price(38534.0, Some(1.0)).map(f64::to_bits), Ok(0x4057e5b68f16ee76));
+        let num_err = Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        assert_eq!(price(38565.0, None), num_err); // 2005-08-01
+        assert_eq!(price(38535.0, None), num_err); // 2005-07-02
+        assert_eq!(price(40179.0, None), num_err); // the maturity itself
+        // The cluster's representative, off schedule: #NUM! where the engine priced it.
+        assert_eq!(
+            oddfprice_kernel(
+                f64::from_bits(0x40e2c8e000800000),
+                f64::from_bits(0x40e9c99fffffffe0),
+                f64::from_bits(0x40d4d07ffc000000),
+                f64::from_bits(0x40e54b6000000010),
+                f64::from_bits(0x4077afe000000000),
+                f64::from_bits(0x4058800000100000),
+                f64::from_bits(0x4074a00000000000),
+                f64::from_bits(0x4010000000000000),
+                None,
+            ),
+            num_err
+        );
+    }
+
+    /// dc-j9k.304 (live Excel 16.0.20625): ODDLPRICE has no limit on the number of coupons to the maturity.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddlprice_prices_a_maturity_thousands_of_coupons_away() {
+        let price = oddlprice_kernel(
+            f64::from_bits(0x40e1ef0000000000),
+            f64::from_bits(0x41378d9200000000),
+            f64::from_bits(0x40e1d5c000000000),
+            f64::from_bits(0x3ff0000000000000),
+            f64::from_bits(0x3fe300930c0ac769),
+            f64::from_bits(0x412592da7bd93208),
+            f64::from_bits(0x4000000000000000),
+            None,
+        );
+        assert_eq!(price.map(f64::to_bits), Ok(0x407913d505265e50));
+        // dc-j9k.305 (basis 4). dc-j9k.306's representative still differs from Excel (staging, see its bead).
+        let args = |words: [u64; 6], frequency: f64, basis: Option<f64>| {
+            let f = f64::from_bits;
+            oddlprice_kernel(f(words[0]), f(words[1]), f(words[2]), f(words[3]), f(words[4]), f(words[5]), frequency, basis)
+        };
+        assert_eq!(
+            args(
+                [0x412c3a8400000000, 0x413b75fd66744f1f, 0x4103ac6000000000, 0x3fbb5602e93fdff8, 0x3fd939bbb39c49f0, 0x41138370310dd509],
+                1.0,
+                Some(4.0)
+            )
+            .map(f64::to_bits),
+            Ok(0xc0d56d82da7cc539)
         );
     }
 

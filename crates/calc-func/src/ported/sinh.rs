@@ -13,8 +13,10 @@ pub fn sinh_kernel(n: f64) -> f64 {
     // Live Excel 16.0 b20326 Range.Value2: SINH(x)=(expm1(x)-expm1(-x))/2
     // using Excel's internal Kahan expm1, 37/37 including the worksheet
     // EXP-pair misses at |x|<~0.25. libm sinh is 1 ULP off at 0.01 and 2.
-    (crate::ported::excel_numeric::excel_expm1_internal(n)
-        - crate::ported::excel_numeric::excel_expm1_internal(-n))
+    // Each arithmetic assignment stored from x87 PC64 (dc-j9k.282/283: powers of two and other
+    // inputs with trailing zero mantissa bits are truncated, not rounded up, 0 of 2,400 rows differ).
+    (crate::ported::excel_numeric::excel_expm1_spilled(n)
+        - crate::ported::excel_numeric::excel_expm1_spilled(-n))
         / 2.0
 }
 

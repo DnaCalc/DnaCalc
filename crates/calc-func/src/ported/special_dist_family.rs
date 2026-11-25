@@ -121,6 +121,11 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         if x > 171.0 {
             return Err(WorksheetErrorCode::Num);
         }
+        // Excel 20527 (dc-j9k.337, .338): the reverse product holds through 88!; from GAMMA(89)
+        // the Stirling series answers.
+        if x >= 89.0 {
+            return Ok(crate::ported::excel_numeric::gamma_excel(x));
+        }
         let mut product = 1.0;
         for k in (2..x as u32).rev() {
             product *= k as f64;
@@ -219,6 +224,11 @@ pub fn weibull_dist_kernel(
         excel_exp, excel_expm1_internal, excel_pow_chain, excel_x87_div, excel_x87_mul,
     };
     let ratio = excel_x87_div(x, beta);
+    // Excel 20527 (dc-j9k.255): a stored exponent product alpha * ln(ratio) that overflows is
+    // #NUM!, not an exponential that underflows to zero.
+    if ratio > 0.0 && !excel_x87_mul(alpha, crate::ported::excel_numeric::excel_log(ratio)).is_finite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     let power = excel_pow_chain(ratio, alpha);
     if !power.is_finite() {
         return Err(WorksheetErrorCode::Num);

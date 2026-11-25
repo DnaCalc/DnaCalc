@@ -252,7 +252,7 @@ pub(crate) fn append(
     transpose: bool,
     edits: &mut Vec<CellEdit>,
 ) -> Result<(), CopyRefusal> {
-    if !matches!(mode, PasteMode::All | PasteMode::Formats)
+    if matches!(mode, PasteMode::Values | PasteMode::Formulas)
         || (from == to && source.revision() == host.model().revision())
     {
         return Ok(());
@@ -296,7 +296,9 @@ pub(crate) fn append(
             )
         })
         .collect();
-    for (sheet, rules) in &mut cf {
+    let cf_on = matches!(mode, PasteMode::All | PasteMode::Formats);
+    let dv_on = matches!(mode, PasteMode::All | PasteMode::Validation);
+    for (sheet, rules) in cf.iter_mut().filter(|_| cf_on) {
         let mut next = Vec::new();
         for original in rules.iter() {
             let Some(origin) = original.origin() else {
@@ -338,7 +340,7 @@ pub(crate) fn append(
         *rules = next;
         let _ = sheet;
     }
-    if mode == PasteMode::All {
+    if dv_on {
         for (sheet, rules) in &mut dv {
             let mut next = Vec::new();
             for original in rules.iter() {
@@ -381,7 +383,7 @@ pub(crate) fn append(
         .styles()
         .differential_formats
         .len();
-    for original in source.definitions().conditional_rules(from.sheet()) {
+    for original in source.definitions().conditional_rules(from.sheet()).iter().filter(|_| cf_on) {
         let target = copied_areas(&original.areas, from, to, transpose)?;
         if target.is_empty() {
             continue;
@@ -456,7 +458,7 @@ pub(crate) fn append(
         }
         cf.entry(to.sheet()).or_default().push(rule);
     }
-    if mode == PasteMode::All {
+    if dv_on {
         for original in source.definitions().validations(from.sheet()) {
             let source_areas = areas(original, from.sheet());
             let target = copied_areas(&source_areas, from, to, transpose)?;
@@ -494,6 +496,8 @@ pub(crate) fn append(
                 .map_err(|_| refusal("The validation source cannot be copied"))?;
             dv.entry(to.sheet()).or_default().push(rule);
         }
+    }
+    if matches!(mode, PasteMode::All | PasteMode::Comments) {
         append_notes(host, source, from, to, cut, transpose, edits)?;
     }
     for (sheet, mut rules) in cf {
@@ -510,7 +514,7 @@ pub(crate) fn append(
             edits.push(CellEdit::ConditionalRules { sheet, rules });
         }
     }
-    if mode == PasteMode::All {
+    if dv_on {
         for (sheet, rules) in dv {
             if rules.len() > 4096 {
                 return Err(refusal("This paste would exceed 4,096 validation rules"));

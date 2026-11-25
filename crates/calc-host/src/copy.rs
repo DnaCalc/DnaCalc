@@ -183,6 +183,17 @@ pub enum PasteMode {
     Formulas,
     /// Paste cell formats only.
     Formats,
+    /// Paste the source's data validation rules only (xlPasteValidation).
+    Validation,
+    /// Paste the source's notes and threaded comments only (xlPasteComments).
+    Comments,
+}
+
+impl PasteMode {
+    /// Whether the mode writes cell contents; the others write formats or metadata only.
+    pub(crate) fn writes_contents(self) -> bool {
+        matches!(self, Self::All | Self::Values | Self::Formulas)
+    }
 }
 
 /// An immutable copy of authored content, cell formats and current values. It stays in the host;
@@ -321,7 +332,7 @@ impl CopySnapshot {
             return Err(CopyRefusal::TransposeTable);
         }
         if transpose
-            && !matches!(mode, PasteMode::Values | PasteMode::Formats)
+            && matches!(mode, PasteMode::All | PasteMode::Formulas)
             && (self
                 .spills
                 .iter()
@@ -463,7 +474,7 @@ pub fn check_destination(
             cells: to.cell_count(),
         });
     }
-    if mode == PasteMode::Formats {
+    if !mode.writes_contents() {
         return Ok(());
     }
     for area in host
@@ -757,7 +768,7 @@ fn copy_edits_from(
     let definitions = source_model.definitions();
     let mut legacy: Vec<ArrayFormula> = Vec::new();
     for array in definitions.arrays_meeting(from) {
-        if matches!(mode, PasteMode::Values | PasteMode::Formats) {
+        if !matches!(mode, PasteMode::All | PasteMode::Formulas) {
             continue;
         }
         if array.kind() != ArrayKind::Legacy {
@@ -841,7 +852,7 @@ fn copy_edits_from(
             if matches!(mode, PasteMode::All | PasteMode::Formats) {
                 restyle(&mut edits, target, source_style(source));
             }
-            if mode == PasteMode::Formats {
+            if !matches!(mode, PasteMode::All | PasteMode::Values | PasteMode::Formulas) {
                 continue;
             }
             if mode == PasteMode::Values {

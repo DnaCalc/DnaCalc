@@ -1103,12 +1103,16 @@ impl SequenceWork {
         let raw_cols = scalar(args.get(1))?;
         let start = scalar(args.get(2))?;
         let step = scalar(args.get(3))?;
-        if !raw_rows.is_finite() || !raw_cols.is_finite() || raw_rows < 0.0 || raw_cols < 0.0 {
+        if !raw_rows.is_finite() || !raw_cols.is_finite() {
             return Err(DynamicArrayReshapeEvalError::InvalidCount);
         }
-        // Excel checks each floored dimension against the sheet's rows before the empty case.
+        // Excel checks each floored dimension against the sheet's rows before the empty case; a
+        // negative dimension within 2^-23 of zero floors to zero (#CALC!, Excel 20527).
         let floor_rows = super::text_kernels::date_integer_floor(raw_rows);
         let floor_cols = super::text_kernels::date_integer_floor(raw_cols);
+        if floor_rows < 0.0 || floor_cols < 0.0 {
+            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        }
         if floor_rows > GRID_ROWS as f64 || floor_cols > GRID_ROWS as f64 {
             return Err(DynamicArrayReshapeEvalError::InvalidCount);
         }

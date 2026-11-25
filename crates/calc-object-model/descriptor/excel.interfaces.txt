@@ -85,3 +85,6 @@ UniqueValues
 ColorScale
 Databar
 IconSetCondition
+AutoFilter
+Filters
+Filter

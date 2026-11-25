@@ -64,15 +64,16 @@ ported_shared_family! {
         if rows == 0.0 || cols == 0.0 {
             return fail(WorksheetErrorCode::Calc);
         }
+        let (lo, hi) = if whole { (min.ceil(), max.floor()) } else { (min, max) };
+        if hi < lo {
+            return fail(WorksheetErrorCode::Value);
+        }
+        // Excel 16.0.20527: a minimum above the maximum is #VALUE! before the size can spill.
         if cols > 16_384.0 {
             return fail(WorksheetErrorCode::Spill);
         }
         if rows * cols > RANDARRAY_LIMIT {
             return Err(s.not_modelled(None));
-        }
-        let (lo, hi) = if whole { (min.ceil(), max.floor()) } else { (min, max) };
-        if hi < lo {
-            return fail(WorksheetErrorCode::Value);
         }
         let mut cells = Vec::with_capacity(rows as usize);
         for _ in 0..rows as usize {
