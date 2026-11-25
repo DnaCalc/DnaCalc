@@ -180,6 +180,7 @@ impl WorkbookAutomation {
                         return Err(AutoError::excel(1004, error.to_string()));
                     }
                 }
+                session.notify_document_event(crate::DocumentEvent::NewSheet { sheet: added });
                 first_added.get_or_insert(added);
             }
             let added = first_added.expect("at least one sheet");

@@ -80,6 +80,14 @@ while True:
         os._exit(1)
     marked = any(g["f"] == "CRASHON" and any(g["v"][i * max(1, len(g["v"]) // g["n"])] == "402a000000000000" for i in range(g["n"]))
                  for g in groups)
+    if any(g["f"] == "DEADLINEON" and any(g["v"][i * max(1, len(g["v"]) // g["n"])] == "402a000000000000" for i in range(g["n"]))
+           for g in groups):
+        # the real worker's watchdog killed Excel at the batch deadline: it reports excel-crashed with deadline true
+        send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": 1, "error": "excel-crashed",
+                   "detail": "COMException: The RPC server is unavailable (0x800706BA) (deadline) [calc]", "deadline": True})
+        time.sleep(0.1)
+        hello(True)
+        continue
     if any(g["f"] == "CRASH" for g in groups) and not crashed or any(g["f"] == "CRASHALWAYS" for g in groups) or marked:
         crashed = True
         send("R", {"id": payload["id"], "env_id": "fake00000001", "worker": NAME, "batch": 1, "error": "excel-crashed",

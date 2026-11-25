@@ -20,6 +20,10 @@ impl WorkbookAutomation {
     pub(super) fn register_application(handlers: &mut Handlers<Self>) {
         handlers.on("Application", "ScreenUpdating", InvokeKind::Get, Self::get_screen_updating);
         handlers.on("Application", "ScreenUpdating", InvokeKind::Put, Self::put_screen_updating);
+        handlers.on("Application", "DisplayAlerts", InvokeKind::Get, Self::get_display_alerts);
+        handlers.on("Application", "DisplayAlerts", InvokeKind::Put, Self::put_display_alerts);
+        handlers.on("Application", "CutCopyMode", InvokeKind::Get, Self::get_cut_copy_mode);
+        handlers.on("Application", "CutCopyMode", InvokeKind::Put, Self::put_cut_copy_mode);
         handlers.on("Application", "StatusBar", InvokeKind::Get, Self::get_status_bar);
         handlers.on("Application", "StatusBar", InvokeKind::Put, Self::put_status_bar);
         handlers.on("Application", "Build", InvokeKind::Get, Self::get_build);
@@ -323,6 +327,45 @@ impl WorkbookAutomation {
             return Err(geometry::bad_count());
         }
         self.screen_updating.set(geometry::boolean(call.arg(0))?);
+        Ok(AutoValue::Empty)
+    }
+
+    fn get_display_alerts(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(AutoValue::Bool(self.display_alerts.get()))
+    }
+
+    fn put_display_alerts(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        self.display_alerts.set(geometry::boolean(call.arg(0))?);
+        Ok(AutoValue::Empty)
+    }
+
+    /// `Application.CutCopyMode`: False with nothing marked, xlCopy (1) or xlCut (2) while the clipboard holds a
+    /// Range.Copy or Range.Cut.
+    fn get_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        Ok(match self.clipboard.borrow().as_ref() {
+            None => AutoValue::Bool(false),
+            Some(clip) if clip.is_cut() => AutoValue::I4(2),
+            Some(_) => AutoValue::I4(1),
+        })
+    }
+
+    /// Assigning False cancels Cut or Copy mode and empties the clipboard's marked range; Excel accepts the
+    /// xlCopy and xlCut constants it reports (a no-op while that mode is on), refused otherwise.
+    fn put_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        match call.arg(0) {
+            AutoValue::Bool(false) => *self.clipboard.borrow_mut() = None,
+            AutoValue::I2(0) | AutoValue::I4(0) => *self.clipboard.borrow_mut() = None,
+            AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => {}
+            _ => return Err(excel_error()),
+        }
         Ok(AutoValue::Empty)
     }
 }

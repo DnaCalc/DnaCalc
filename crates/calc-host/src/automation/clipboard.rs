@@ -41,6 +41,12 @@ pub(super) struct Clip {
     cut: bool,
 }
 
+impl Clip {
+    pub(super) fn is_cut(&self) -> bool {
+        self.cut
+    }
+}
+
 fn failed(member: &str) -> AutoError {
     AutoError::excel(1004, format!("{member} method of Range class failed"))
 }

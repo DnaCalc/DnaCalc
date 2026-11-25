@@ -39,9 +39,10 @@ first calculation and binds document modules by the persisted VBA code names. UD
 and admitted Open/Change/Calculate/BeforeSave handlers share one owning session;
 reopen starts fresh state. Unsupported source, signatures, document events and
 class/designer modules remain named refusals. The Preserve open policy executes no
-VBA. File events refuse cached or uncertified Target values before copying them into
-module state, including when VBA catches the read error; retaining that provenance in
-state remains open. File-project worksheet lookup also admits the recorded private
+VBA. File events admit cached, stale or uncertified Target values, as Excel returns the
+loaded cache, and the session records each such read with its provenance
+(`HostSession::take_macro_observations`, dc-oxh8w.38); the provenance is not copied into
+VBA module state itself. File-project worksheet lookup also admits the recorded private
 standard-module functions through internal entries in their own modules, using the
 same runtime and state. The original VBA visibility and saved source are retained.
 Private scalar signatures are supported. Other private signatures register typed
