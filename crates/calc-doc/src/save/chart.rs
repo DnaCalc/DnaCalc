@@ -251,6 +251,7 @@ fn source_with_xml(
                 keep.categories = original.categories.clone();
                 keep.values = original.values.clone();
                 keep.fill = original.fill.clone();
+                keep.line = original.line.clone();
                 keep.labels = original.labels.clone();
                 keep.show_values = original.show_values;
                 keep.value_labels_source_linked = original.value_labels_source_linked;
@@ -1095,8 +1096,8 @@ fn plot_series(
             .as_bytes(),
         );
         added.extend(data_xml("tx", s.name.as_ref()));
-        if s.fill.is_some() {
-            added.extend(colour::fresh(s.fill.as_deref()));
+        if s.fill.is_some() || s.line != ChartBorder::default() {
+            added.extend(colour::fresh_series(s.fill.as_deref(), &s.line));
         }
         if let Some(labels) = s.labels.as_ref() {
             added.extend(labels_xml(labels));
@@ -1413,9 +1414,16 @@ fn series_source(
     let (close, end) = loop {
         match reader.expect()? {
             (XmlEvent::Start(e), s) => {
-                let end = if before.fill != after.fill && e.name.is(C, "spPr") {
-                    let (end, bytes) =
-                        colour::replace(xml, reader, s, after.fill.as_deref(), false)?;
+                let end = if (before.fill != after.fill || before.line != after.line) && e.name.is(C, "spPr") {
+                    let (end, bytes) = if before.line != after.line {
+                        let edit = colour::AreaEdit {
+                            fill: (before.fill != after.fill).then_some(after.fill.as_deref()),
+                            border: Some(&after.line),
+                        };
+                        colour::replace_area(xml, reader, s, edit)?
+                    } else {
+                        colour::replace(xml, reader, s, after.fill.as_deref(), false)?
+                    };
                     patches.push(((s.0, end), bytes));
                     end
                 } else if before.labels != after.labels && e.name.is(C, "dLbls") {
@@ -1440,7 +1448,7 @@ fn series_source(
             format!("<c:order xmlns:c=\"{C}\" val=\"{order}\"/>").into_bytes(),
         ));
     }
-    if before.fill != after.fill && children.iter().filter(|(n, _)| n.is(C, "spPr")).count() > 1 {
+    if (before.fill != after.fill || before.line != after.line) && children.iter().filter(|(n, _)| n.is(C, "spPr")).count() > 1 {
         return Err(reader.invalid("Duplicate series shape records (dc-971p.58)"));
     }
     if before.labels != after.labels {
@@ -1501,7 +1509,7 @@ fn series_source(
                 "cat"
             }
         {
-            if before.fill != after.fill && !children.iter().any(|(n, _)| n.is(C, "spPr")) {
+            if (before.fill != after.fill || before.line != after.line) && !children.iter().any(|(n, _)| n.is(C, "spPr")) {
                 let at = children
                     .iter()
                     .find(|(n, _)| {
@@ -1509,7 +1517,7 @@ fn series_source(
                             && !matches!(n.local.as_str(), "idx" | "order" | "tx")
                     })
                     .map_or(close, |(_, s)| s.0);
-                patches.push(((at, at), colour::fresh(after.fill.as_deref())));
+                patches.push(((at, at), colour::fresh_series(after.fill.as_deref(), &after.line)));
             }
         }
         if old == new {

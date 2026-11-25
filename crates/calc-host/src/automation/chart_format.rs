@@ -193,27 +193,45 @@ impl WorkbookAutomation {
         Ok(report(workbook, sheet, "Border", ReportItem::ChartBorder(part, plot)))
     }
 
-    /// `Series.Border`: the series line is dc-oxh8w.67's.
-    pub(super) fn series_border(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+    /// `Series.Border`: the outline of the series (a bar's border, a line's line).
+    pub(super) fn series_border(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        Err(AutoError::not_modelled("Series.Border", "dc-oxh8w.67"))
+        let (place, _) = self.series_at(target)?;
+        let part = Self::chart_token(target)?;
+        let (workbook, sheet, _) = Self::report_key(target)?;
+        Ok(report(workbook, sheet, "Border", ReportItem::SeriesBorder(part, place as u32)))
     }
 
-    fn border_plot(target: &ObjectRef) -> Result<bool, AutoError> {
+    /// The outline a `Border` object of a chart denotes, as the file states it.
+    fn border_state(&self, target: &ObjectRef) -> Result<calc_doc_model::ChartBorder, AutoError> {
         match &target.key {
-            ObjectKey::Report { item: ReportItem::ChartBorder(_, plot), .. } => Ok(*plot),
+            ObjectKey::Report { item: ReportItem::ChartBorder(_, plot), .. } => {
+                let plot = *plot;
+                self.real_chart(target, |c| if plot { c.plot_border.clone() } else { c.area_border.clone() })
+            }
+            ObjectKey::Report { item: ReportItem::SeriesBorder(..), .. } => {
+                let (place, _) = self.series_at(target)?;
+                self.real_chart(target, |c| c.plots.iter().flat_map(|p| p.series.iter()).nth(place).map(|s| s.line.clone()))?
+                    .ok_or_else(|| AutoError::excel(424, "Object required"))
+            }
             _ => Err(geometry::type_mismatch()),
         }
     }
 
     pub(super) fn chart_border_get(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        let plot = Self::border_plot(target)?;
-        let border = self.real_chart(target, |c| if plot { c.plot_border.clone() } else { c.area_border.clone() })?;
+        let border = self.border_state(target)?;
+        let series = matches!(target.key, ObjectKey::Report { item: ReportItem::SeriesBorder(..), .. });
+        // A series that states nothing draws in Excel's automatic style, which differs by chart type: its answers wait
+        // for Excel's (dc-oxh8w.60).
+        let unstated = |what: &str| AutoError::not_modelled(format!("{what} of a series outline the file does not state"), "dc-oxh8w.60");
         match call.member.name.as_str() {
             "LineStyle" => {
                 if border.none {
                     return Ok(AutoValue::I4(-4142));
+                }
+                if series && border == calc_doc_model::ChartBorder::default() {
+                    return Err(unstated("Border.LineStyle"));
                 }
                 let code = border
                     .dash
@@ -222,34 +240,51 @@ impl WorkbookAutomation {
                 code.map(AutoValue::I4).ok_or_else(|| AutoError::not_modelled("Border.LineStyle of this dash", "dc-oxh8w.67"))
             }
             "Weight" => {
+                if series && border.width.is_none() {
+                    return Err(unstated("Border.Weight"));
+                }
                 let width = border.width.unwrap_or(9525);
                 let pick = WEIGHTS.iter().min_by_key(|(_, w)| w.abs_diff(width)).map_or(2, |(c, _)| *c);
                 Ok(AutoValue::I4(pick))
             }
-            "Color" => {
+            "Color" | "ColorIndex" => {
+                if series && border.color.is_none() {
+                    return Err(unstated("Border.Color"));
+                }
                 let rgb = border.color.as_deref().unwrap_or(DEFAULT_BORDER_COLOR);
-                bgr(rgb).map(AutoValue::I4).ok_or_else(|| AutoError::excel(424, "Object required"))
+                if call.member.name == "Color" {
+                    return bgr(rgb).map(AutoValue::I4).ok_or_else(|| AutoError::excel(424, "Object required"));
+                }
+                // The palette entry nearest the colour, as the cell borders answer.
+                let value = u32::from_str_radix(rgb, 16).map_err(|_| AutoError::excel(424, "Object required"))?;
+                let channels = |v: u32| [(v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF].map(|c| c as i64);
+                let wanted = channels(value);
+                let nearest = calc_func::DEFAULT_PALETTE
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, p)| {
+                        let have = channels(u32::from_str_radix(p.trim_start_matches('#'), 16).unwrap_or(0));
+                        (0..3).map(|i| (have[i] - wanted[i]).pow(2)).sum::<i64>()
+                    })
+                    .map_or(1, |(i, _)| i as i32 + 1);
+                Ok(AutoValue::I4(nearest))
             }
-            _ => Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.67")),
+            _ => Err(geometry::type_mismatch()),
         }
     }
 
     pub(super) fn chart_border_put(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        let plot = Self::border_plot(target)?;
         let member = call.member.name.as_str();
         let [value] = &call.args[..] else {
             return Err(geometry::bad_count());
         };
-        if member == "ColorIndex" {
-            return Err(AutoError::not_modelled("Border.ColorIndex of a chart", "dc-oxh8w.67"));
-        }
         let number = super::report_draw::number(value).map_err(|_| AutoError::excel(1004, "Unable to set the property of the Border class"))?;
         let bad = || AutoError::excel(1004, format!("Unable to set the {member} property of the Border class"));
         if !number.is_finite() || number.fract() != 0.0 || number.abs() > f64::from(i32::MAX) {
             return Err(bad());
         }
         let number = number as i32;
-        let mut border = self.real_chart(target, |c| if plot { c.plot_border.clone() } else { c.area_border.clone() })?;
+        let mut border = self.border_state(target)?;
         match member {
             "LineStyle" => match LINE_STYLES.iter().find(|(c, _)| *c == number).ok_or_else(bad)?.1 {
                 None => border.none = true,
@@ -266,6 +301,17 @@ impl WorkbookAutomation {
                     border.color.get_or_insert_with(|| DEFAULT_BORDER_COLOR.to_owned());
                 }
             }
+            "ColorIndex" => {
+                // 1..=56 index the default palette; xlColorIndexAutomatic (-4105) is the automatic colour.
+                if number == -4105 {
+                    border.none = false;
+                    border.color = None;
+                } else {
+                    let rgb = usize::try_from(number - 1).ok().and_then(|i| calc_func::DEFAULT_PALETTE.get(i)).ok_or_else(bad)?;
+                    border.none = false;
+                    border.color = Some(rgb.trim_start_matches('#').to_ascii_uppercase());
+                }
+            }
             _ => {
                 if !(0..=0xFF_FF_FF).contains(&number) {
                     return Err(bad());
@@ -276,6 +322,20 @@ impl WorkbookAutomation {
         }
         let part = Self::chart_token(target)?;
         let (_, sheet, _) = Self::report_key(target)?;
+        if matches!(target.key, ObjectKey::Report { item: ReportItem::SeriesBorder(..), .. }) {
+            let (plot, series) = self.series_coords(target)?;
+            return self.command(call, |s| {
+                Ok(WorkbookCommand::ChartSeriesBorder {
+                    sheet,
+                    revision: s.host().revision().get(),
+                    part: part.clone(),
+                    plot,
+                    series,
+                    border: border.clone(),
+                })
+            });
+        }
+        let plot = matches!(&target.key, ObjectKey::Report { item: ReportItem::ChartBorder(_, true), .. });
         self.command(call, |s| {
             Ok(WorkbookCommand::ChartAreaBorder {
                 sheet,

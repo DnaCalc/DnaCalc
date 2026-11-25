@@ -189,7 +189,7 @@ impl WorkbookAutomation {
     }
 
     fn get_border_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..), .. }) {
+        if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..) | calc_object_model::ReportItem::SeriesBorder(..), .. }) {
             return self.chart_border_get(target, call);
         }
         format_arity(call, 0)?;
@@ -228,7 +228,7 @@ impl WorkbookAutomation {
     }
 
     fn put_border_property(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..), .. }) {
+        if matches!(target.key, ObjectKey::Report { item: calc_object_model::ReportItem::ChartBorder(..) | calc_object_model::ReportItem::SeriesBorder(..), .. }) {
             return self.chart_border_put(target, call);
         }
         format_arity(call, 1)?;

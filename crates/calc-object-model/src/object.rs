@@ -178,6 +178,8 @@ pub enum ReportItem {
     PlotArea(String),
     /// The `Border` of the chart area (`false`) or the plot area (`true`) of a chart (chart part). (dc-oxh8w.61)
     ChartBorder(String, bool),
+    /// The outline of a series (dc-oxh8w.67): the chart part and the series' place.
+    SeriesBorder(String, u32),
     /// The `Interior`, `Format`, `Format.Fill` or `Format.Fill.ForeColor` of the chart area, the plot area or a series.
     /// (dc-oxh8w.31)
     ChartPaint(String, Paint, PaintLevel),

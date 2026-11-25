@@ -6655,7 +6655,9 @@ fn dc_oxh8w_61__borders_of_chart_and_plot_area_and_category_axis_formats() {
     }
     let r = invoke_kind(&model, &area, "Weight", InvokeKind::Put, vec![]);
     assert!(matches!(r, Err(AutoError::Status(-2147352562))), "{r:?}");
-    let r = invoke(&model, &series, "Border", vec![]);
+    // A series that states no outline answers typed-refused until Excel's automatic styles are recorded (dc-oxh8w.60).
+    let series_border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let r = invoke(&model, &series_border, "LineStyle", vec![]);
     assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
 
     // A category axis states a tick-label format and unlinks.
@@ -8876,4 +8878,69 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     }
     assert_eq!(cell_text_of(&model, "B11"), "4");
     assert_eq!(cell_text_of(&model, "B14"), "4");
+}
+
+/// dc-oxh8w.67: `Series.Border` (Color, ColorIndex, LineStyle, Weight) and `ColorIndex` of the chart-area borders: stated,
+/// saved to the series' own `a:ln` (the fill stays) and read back after a save; bad values are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_67__series_border_and_color_index() {
+    let (host, model, chart, series) = labelled_chart();
+    let border = obj(invoke(&model, &series, "Border", vec![]).unwrap());
+    let put = |target: &ObjectRef, member: &str, value: i32| {
+        invoke_kind(&model, target, member, InvokeKind::Put, vec![AutoValue::I4(value)])
+    };
+    put(&border, "Color", 255).unwrap();
+    put(&border, "Weight", -4138).unwrap();
+    put(&border, "LineStyle", -4115).unwrap();
+    assert_eq!(int(invoke(&model, &border, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &border, "Weight", vec![]).unwrap()), -4138);
+    assert_eq!(int(invoke(&model, &border, "LineStyle", vec![]).unwrap()), -4115);
+    // The palette: index 3 is red, and the colour reads back as that index.
+    put(&border, "ColorIndex", 5).unwrap();
+    assert_eq!(int(invoke(&model, &border, "Color", vec![]).unwrap()), 0xFF_00_00);
+    assert_eq!(int(invoke(&model, &border, "ColorIndex", vec![]).unwrap()), 5);
+    for bad in [0, 57, -1] {
+        let r = put(&border, "ColorIndex", bad);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    let xml = saved_chart_xml(&host);
+    let ser = &xml[xml.find("<c:ser>").expect("ser")..xml.find("</c:ser>").unwrap()];
+    let ln = &ser[ser.find("<a:ln").expect("series a:ln")..];
+    assert!(ln.contains("w=\"19050\"") && ln.contains("<a:srgbClr val=\"0000FF\"/>") && ln.contains("<a:prstDash val=\"dash\"/>"), "{xml}");
+    put(&border, "LineStyle", -4142).unwrap();
+    assert_eq!(int(invoke(&model, &border, "LineStyle", vec![]).unwrap()), -4142);
+    assert!(saved_chart_xml(&host).contains("<a:noFill/>"));
+    // ColorIndex on a chart-area border.
+    let area = obj(invoke(&model, &obj(invoke(&model, &chart, "ChartArea", vec![]).unwrap()), "Border", vec![]).unwrap());
+    put(&area, "ColorIndex", 3).unwrap();
+    assert_eq!(int(invoke(&model, &area, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model, &area, "ColorIndex", vec![]).unwrap()), 3);
+}
+
+/// dc-oxh8w.67: the outline of a series of a chart the file holds is written into its own `c:spPr` and read back after a save.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_67__a_series_outline_of_a_file_held_chart_survives_a_save() {
+    let open = |bytes: Vec<u8>| {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let border_of = |model: &WorkbookAutomation| {
+        let book = obj(invoke(model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+        let charts = obj(invoke(model, &book, "Charts", vec![]).unwrap());
+        let chart = obj(invoke_kind(model, &charts, "Item", InvokeKind::Get, vec![AutoValue::I4(1)]).unwrap());
+        let all = obj(invoke_kind(model, &chart, "SeriesCollection", InvokeKind::Method, vec![]).unwrap());
+        let series = obj(invoke_kind(model, &all, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+        obj(invoke(model, &series, "Border", vec![]).unwrap())
+    };
+    let (host, model) = open(include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec());
+    let border = border_of(&model);
+    invoke_kind(&model, &border, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    invoke_kind(&model, &border, "Weight", InvokeKind::Put, vec![AutoValue::I4(4)]).unwrap();
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let (_host2, model2) = open(bytes);
+    let border2 = border_of(&model2);
+    assert_eq!(int(invoke(&model2, &border2, "Color", vec![]).unwrap()), 255);
+    assert_eq!(int(invoke(&model2, &border2, "Weight", vec![]).unwrap()), 4);
 }
