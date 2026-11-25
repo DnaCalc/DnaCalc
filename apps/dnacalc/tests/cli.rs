@@ -232,11 +232,17 @@ fn diff_counts_a_workbook_without_cached_values_as_missing_not_passed() {
 /// `run --all` gives one outcome per public entry, each in its own session, with the counts.
 #[test]
 fn run_all_reports_one_outcome_per_entry() {
-    let book = inbook("dna-simple.xlsm");
-    let (report, code, _) = dnacalc(&["run", &book, "--all", "--macro-level", "guarded", "--json"]);
+    let book = root().join("crates/calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+    let book = book.to_str().unwrap();
+    let (report, code, _) = dnacalc(&["run", book, "--all", "--macro-level", "guarded", "--json"]);
     assert!(code <= 1, "{report}");
     let rows = report["invocations"].as_array().unwrap();
-    assert!(!rows.is_empty());
+    let my_func = rows.iter().find(|row| row["entry"] == "Module1.MyFunc").unwrap();
+    assert_eq!(my_func["procedure"], "function");
+    assert_eq!(my_func["outcome"], serde_json::json!({
+        "kind": "success", "result": {"type": "number", "value": 101.0}
+    }));
+    assert!(!rows.iter().any(|row| row["entry"] == "Module1.SecretFunc"));
     assert_eq!(report["entries"].as_u64().unwrap(), rows.len() as u64);
     let counted = ["success", "runtime_error", "refused", "failed", "needs_arguments"]
         .iter()
@@ -245,6 +251,6 @@ fn run_all_reports_one_outcome_per_entry() {
     assert_eq!(counted, rows.len() as u64);
     assert!(rows.iter().all(|r| r["outcome"]["kind"].is_string() && r["invocation"] == "command"));
     // Without a macro level nothing runs.
-    let (_, code, _) = dnacalc(&["run", &book, "--all", "--json"]);
+    let (_, code, _) = dnacalc(&["run", book, "--all", "--json"]);
     assert_eq!(code, 2);
 }

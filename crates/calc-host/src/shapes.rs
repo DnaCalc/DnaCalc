@@ -444,12 +444,20 @@ impl HostState {
     /// workbook; 0 when hidden): what `Range.Text` fits a General number into. The same measure as
     /// the workbook facts' `column_width` (`CELL("width")`).
     pub(crate) fn column_characters(&self, sheet: SheetId, column: u32) -> f64 {
-        let mdw = crate::facts::maximum_digit_width_at(self.styles(), 96.0).unwrap_or(7.0);
         let format = self.model().definitions().axis_layouts().get(
             sheet,
             calc_doc_model::Axis::Columns,
             column,
         );
+        self.column_characters_of(sheet, format)
+    }
+
+    pub(crate) fn column_characters_of(
+        &self,
+        sheet: SheetId,
+        format: calc_doc_model::AxisFormat,
+    ) -> f64 {
+        let mdw = crate::facts::maximum_digit_width_at(self.styles(), 96.0).unwrap_or(7.0);
         if format.hidden() {
             return 0.0;
         }

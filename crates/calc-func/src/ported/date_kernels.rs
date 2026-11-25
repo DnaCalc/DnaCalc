@@ -389,7 +389,7 @@ fn last_day_of_previous_month(year: i64, month: i64) -> i64 {
 }
 
 pub(crate) fn datedif(start_serial: f64, end_serial: f64, unit: DateDiffUnit) -> Result<f64, W> {
-    // Excel validates the rounded calendar serials, then uses truncated serials for unit D.
+    // Excel validates the rounded calendar serials. The order check and unit D use truncated days.
     let rounded_start = rounded_serial(start_serial)?;
     let rounded_end = rounded_serial(end_serial)?;
     let start = start_serial.trunc();
@@ -419,6 +419,17 @@ pub(crate) fn datedif(start_serial: f64, end_serial: f64, unit: DateDiffUnit) ->
         }
         DateDiffUnit::M => Ok(((ey - sy) * 12 + month_span) as f64),
         DateDiffUnit::Ym => Ok(month_span.rem_euclid(12) as f64),
+        DateDiffUnit::Yd if rounded_end < rounded_start => {
+            // Equal truncated inputs can round to adjacent dates in reverse order. Excel wraps
+            // the remaining day through March using the start year's calendar. From April on,
+            // it tests the following year with a four-year leap cycle.
+            let leap_day = if sm <= 3 {
+                excel_days_in_month(sy, 2) == 29
+            } else {
+                (sy + 1) % 4 == 0
+            };
+            Ok((365 + i64::from(leap_day) + rounded_end - rounded_start) as f64)
+        }
         DateDiffUnit::Yd if month_span.rem_euclid(12) == 0 => Ok(remaining_days()),
         DateDiffUnit::Yd => {
             // With whole months left over, Excel projects the end month and day onto the

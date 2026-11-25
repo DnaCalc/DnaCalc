@@ -637,70 +637,58 @@ impl super::LoadedProject {
         max_steps: u64,
     ) -> Result<ProcedureResult, ProcedureError> {
         use calcvba_runtime::Variant;
-        let kind = self
-            .procedures()
-            .into_iter()
+        let procedure = api::Session::procedures(&*self.session)
+            .iter()
             .find(|p| {
-                p.public
+                p.visibility == api::Visibility::Public
+                    && matches!(p.kind, api::ProcedureKind::Sub | api::ProcedureKind::Function)
                     && p.module.eq_ignore_ascii_case(module)
                     && p.name.eq_ignore_ascii_case(name)
             })
-            .map(|p| p.kind)
             .ok_or_else(|| ProcedureError::Unknown(format!("{module}.{name}")))?;
-        let bound = api::Session::bind(
-            &*self.session,
-            module,
-            name,
-            match kind {
-                ProcedureKind::Sub => api::ProcedureKind::Sub,
-                ProcedureKind::Function => api::ProcedureKind::Function,
-            },
-        )
-        .map_err(map_error)?;
-        // An omitted trailing optional argument takes its declared default, as VBA's own call does.
-        let parameters = api::Session::procedures(&*self.session)
-            .iter()
-            .find(|p| {
-                p.module.eq_ignore_ascii_case(module) && p.name.eq_ignore_ascii_case(name)
-            })
-            .map(|p| p.parameters.clone())
-            .unwrap_or_default();
+        let bound = api::Session::bind(&*self.session, module, name, procedure.kind)
+            .map_err(map_error)?;
+        let parameters = &procedure.parameters;
+        if arguments.len() > parameters.len() {
+            return Err(ProcedureError::Arguments);
+        }
+        // An optional slot can be omitted in the middle of the argument list.
+        let default = |p: &api::Parameter| {
+            if !p.optional || p.param_array {
+                return Err(ProcedureError::Arguments);
+            }
+            Ok(p.default.clone().unwrap_or_else(|| Variant::from_error_code(-2147352572)))
+        };
         let mut args: Vec<Variant> = arguments
             .iter()
             .enumerate()
-            .map(|(position, a)| match a {
+            .map(|(position, a)| Ok(match a {
                 ProcedureArg::Empty => Variant::empty(),
-                ProcedureArg::Missing => Variant::from_error_code(-2147352572),
+                ProcedureArg::Missing => return default(&parameters[position]),
                 ProcedureArg::Bool(b) => Variant::from_bool(*b),
                 // A number takes the declared numeric type, as VBA's own call coerces it.
-                ProcedureArg::Number(n) => match parameters.get(position).map(|p| &p.ty) {
-                    Some(api::Type::Long) if n.fract() == 0.0 && n.abs() <= f64::from(i32::MAX) => {
+                ProcedureArg::Number(n) => match parameters[position].ty {
+                    api::Type::Long if n.fract() == 0.0 && n.abs() <= f64::from(i32::MAX) => {
                         Variant::from_i32(*n as i32)
                     }
-                    Some(api::Type::Integer) if n.fract() == 0.0 && n.abs() <= f64::from(i16::MAX) => {
+                    api::Type::Integer if n.fract() == 0.0 && n.abs() <= f64::from(i16::MAX) => {
                         Variant::from_i16(*n as i16)
                     }
-                    Some(api::Type::Byte) if n.fract() == 0.0 && (0.0..=255.0).contains(n) => {
+                    api::Type::Byte if n.fract() == 0.0 && (0.0..=255.0).contains(n) => {
                         Variant::from_u8(*n as u8)
                     }
-                    Some(api::Type::Single) => Variant::from_f32(*n as f32),
-                    Some(api::Type::Date) => Variant::from_date_f64(*n),
-                    Some(api::Type::Currency) if (n * 10_000.0).abs() < 9.0e18 => {
+                    api::Type::Single => Variant::from_f32(*n as f32),
+                    api::Type::Date => Variant::from_date_f64(*n),
+                    api::Type::Currency if (n * 10_000.0).abs() < 9.0e18 => {
                         Variant::from_currency_scaled_i64((n * 10_000.0).round() as i64)
                     }
                     _ => Variant::from_f64(*n),
                 },
                 ProcedureArg::Text(t) => Variant::from_string(t.as_str()),
-            })
-            .collect();
+            }))
+            .collect::<Result<_, _>>()?;
         for parameter in parameters.iter().skip(args.len()) {
-            if !parameter.optional || parameter.param_array {
-                break;
-            }
-            args.push(match &parameter.default {
-                Some(default) => default.clone(),
-                None => Variant::from_error_code(-2147352572),
-            });
+            args.push(default(parameter)?);
         }
         let refused = RefCell::new(None);
         let lease = next_lease();

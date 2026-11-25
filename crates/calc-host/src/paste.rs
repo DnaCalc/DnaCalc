@@ -64,6 +64,9 @@ impl PastePlan {
             .take(8)
             .collect()
     }
+    pub(crate) fn edits_mut(&mut self) -> &mut Vec<CellEdit> {
+        &mut self.edits
+    }
     /// Return the destination after any expansion of the selected range.
     pub fn target(&self) -> GridArea {
         self.target

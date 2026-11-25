@@ -22,6 +22,7 @@ pub fn host_patch(p: FormatPatch) -> calc_host::FormatPatch {
         superscript: p.superscript,
         subscript: p.subscript,
         font_color: p.font_color,
+        font_color_indexed: None,
         fill: p.fill,
         borders: p.borders.map(|b| calc_host::BorderPatch {
             left: b.left,

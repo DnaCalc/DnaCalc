@@ -315,6 +315,21 @@ pub enum WorkbookCommand {
         /// Six-digit RGB color, or `None` for automatic coloring.
         fill: Option<String>,
     },
+    /// Set what a series' data labels show (dc-oxh8w.18); `None` removes the series' own labels.
+    ChartSeriesLabels {
+        /// Worksheet that owns the target.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the target.
+        part: String,
+        /// Zero-based position of the plot within the chart.
+        plot: u32,
+        /// Series index stored in the chart.
+        series: u32,
+        /// The labels the series states (`None`: it states none and follows its plot).
+        labels: Option<calc_doc_model::ChartLabels>,
+    },
     /// Change the text style of a chart element.
     ChartElementTextStyle {
         /// Worksheet that owns the target.
@@ -813,6 +828,14 @@ pub(crate) fn prepare(
             series,
             fill,
         } => crate::chart::prepare_series_style(host, sheet, revision, &part, plot, series, fill),
+        WorkbookCommand::ChartSeriesLabels {
+            sheet,
+            revision,
+            part,
+            plot,
+            series,
+            labels,
+        } => crate::chart::prepare_series_labels(host, sheet, revision, &part, plot, series, labels),
         WorkbookCommand::ChartElementTextStyle {
             sheet,
             revision,

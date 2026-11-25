@@ -279,6 +279,9 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
             if excel && p.kind == "lineChart" {
                 bytes.extend(b"<c:marker><c:symbol val=\"none\"/></c:marker>");
             }
+            if let Some(labels) = s.labels.as_ref() {
+                bytes.extend(super::labels_xml(labels));
+            }
             for (slot, data) in [
                 (if scatter { "xVal" } else { "cat" }, s.categories.as_ref()),
                 (if scatter { "yVal" } else { "val" }, s.values.as_ref()),
