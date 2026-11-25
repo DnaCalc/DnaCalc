@@ -6,11 +6,12 @@ use crate::{CommandIngress, IntentError, Selection, SkinIntent};
 use calc_doc_model::SheetVisibility;
 
 /// The open bead that owns what this file refuses (grouped sheets, Goto without a Reference).
-const OWNER: &str = "dc-oxh8w.48";
+const OWNER: &str = "dc-oxh8w.49";
 
 impl WorkbookAutomation {
     pub(super) fn register_select(handlers: &mut Handlers<Self>) {
         handlers.on("Range", "Select", InvokeKind::Method, Self::range_select);
+        handlers.on("Range", "Activate", InvokeKind::Method, Self::range_activate);
         handlers.on("Worksheet", "Select", InvokeKind::Method, Self::worksheet_select);
         handlers.on("Worksheet", "Activate", InvokeKind::Method, Self::worksheet_activate);
         handlers.on("Application", "Goto", InvokeKind::Method, Self::app_goto);
@@ -109,6 +110,34 @@ impl WorkbookAutomation {
         })
     }
 
+    /// Range.Activate: the range's first cell becomes the active cell. Inside the current selection the selection
+    /// stays; a cell outside it is not captured from Excel yet (dc-oxh8w.49).
+    fn range_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let held = Self::held_of(target)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let range = self.resolve(&mut Access::Session(session, false), &held)?;
+            let cell = range.areas().first().ok_or_else(geometry::type_mismatch)?.first();
+            if Self::session_active_sheet(session) != Some(cell.sheet()) {
+                return Err(Self::failed("Range", "Activate"));
+            }
+            let current = session.selection().clone();
+            let inside = current.areas.iter().any(|a| {
+                a.sheet() == cell.sheet()
+                    && (a.first().row()..=a.last().row()).contains(&cell.row())
+                    && (a.first().column()..=a.last().column()).contains(&cell.column())
+            });
+            if !inside {
+                return Err(AutoError::not_modelled("Range.Activate outside the current selection", OWNER));
+            }
+            Self::select_intent(session, Selection { active: Some(cell), areas: current.areas }, "Range", "Activate")?;
+            self.context_changed(session);
+            Ok(AutoValue::Bool(true))
+        })
+    }
+
     /// Makes `sheet` the active sheet with the selection it last held (A1 when it never held one).
     fn activate_sheet(&self, target: &ObjectRef, class: &str, member: &str) -> Result<(), AutoError> {
         let sheet = Self::worksheet_sheet(target)?;
@@ -157,7 +186,7 @@ impl WorkbookAutomation {
 
     /// Application.Goto(Reference, Scroll): selects the range, activating its sheet; Scroll moves a window
     /// DNA Calc does not have, so it is read and ignored. Text is R1C1 (relative to the active cell), A1 or a
-    /// defined name; an omitted Reference needs Excel's last-Goto memory (dc-oxh8w.48).
+    /// defined name; an omitted Reference needs Excel's last-Goto memory (dc-oxh8w.49).
     fn app_goto(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         if call.args.len() > 2 {
             return Err(geometry::bad_count());

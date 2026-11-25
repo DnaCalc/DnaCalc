@@ -149,6 +149,8 @@ pub struct WorkbookAutomation {
     next_workbook: Cell<u64>,
     /// `Application.ScreenUpdating`: a flag the application holds; no renderer is attached here.
     screen_updating: Cell<bool>,
+    /// `Application.DisplayAlerts`: a flag the application holds; no dialog is shown here.
+    display_alerts: Cell<bool>,
     /// `Application.StatusBar`: the text set, or None for the default status.
     status_bar: RefCell<Option<String>>,
     /// Tracker identities are interned. Every acquired wrapper owns one reference; views own
@@ -305,6 +307,7 @@ impl WorkbookAutomation {
             snapshot: RefCell::new(None),
             next_workbook: Cell::new(1),
             screen_updating: Cell::new(true),
+            display_alerts: Cell::new(true),
             status_bar: RefCell::new(None),
             ranges: RefCell::default(),
             find: RefCell::default(),
