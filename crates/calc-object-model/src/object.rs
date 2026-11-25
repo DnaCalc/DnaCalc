@@ -225,6 +225,10 @@ pub enum ReportItem {
     ConditionInterior(u32),
     /// The `Font` of the `FormatCondition` at that position. (dc-tqcvu)
     ConditionFont(u32),
+    /// The `Borders` collection of the `FormatCondition` at that position. (dc-jupjv)
+    ConditionBorders(u32),
+    /// One `Border` edge of the `FormatCondition` at that position (`XlBordersIndex`). (dc-jupjv)
+    ConditionBorder(u32, i32),
     /// One page break: horizontal (`true`) or vertical, and the row or column after the break.
     PageBreak(bool, u32),
 }

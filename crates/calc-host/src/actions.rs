@@ -1723,27 +1723,31 @@ pub(crate) fn conditional_edits(
                 rules[i].authored = true;
             }
             ConditionalChange::Format { dxf } => {
-                let id = parsed
-                    .dxf
-                    .ok_or("This rule has no format of its own to change (dc-tqcvu)")?
-                    as usize;
-                let shared = rules.iter().enumerate().any(|(n, other)| {
-                    n != i
-                        && crate::conditional_rule(other)
-                            .map(|r| r.dxf == parsed.dxf)
-                            .unwrap_or(true)
-                });
-                if id < host.loaded().styles().differential_formats.len() {
-                    return Err("This rule's format came from the file; changing it needs a new format record (dc-oxh8w.62)".into());
-                }
-                if shared {
-                    return Err("This rule shares its format with another rule; changing it would change both (dc-tqcvu)".into());
-                }
                 let mut styles = (**host.styles()).clone();
-                *styles
-                    .differential_formats
-                    .get_mut(id)
-                    .ok_or("The rule's format is missing from the styles part")? = *dxf;
+                let needs_copy = match parsed.dxf {
+                    None => true,
+                    Some(id) => {
+                        (id as usize) < host.loaded().styles().differential_formats.len()
+                            || rules.iter().enumerate().any(|(n, other)| {
+                                n != i
+                                    && crate::conditional_rule(other)
+                                        .map(|r| r.dxf == parsed.dxf)
+                                        .unwrap_or(true)
+                            })
+                    }
+                };
+                if needs_copy {
+                    let new_id = u32::try_from(styles.differential_formats.len())
+                        .map_err(|_| "Too many differential formats")?;
+                    styles.differential_formats.push(*dxf);
+                    rules[i] = calc_doc::conditional_with_dxf(&rules[i], new_id)?;
+                } else {
+                    let id = parsed.dxf.unwrap() as usize;
+                    *styles
+                        .differential_formats
+                        .get_mut(id)
+                        .ok_or("The rule's format is missing from the styles part")? = *dxf;
+                }
                 rules[i].authored = true;
                 staged_styles = Some(styles);
             }

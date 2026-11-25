@@ -8521,6 +8521,186 @@ fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
     assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
 }
 
+/// dc-jupjv (ww21): FormatCondition.Operator on an expression rule and absent Formula2 return Empty;
+/// an unset FormatCondition.Interior.Color returns 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__expression_operator_formula2_and_unset_interior_match_excel() {
+    let (_host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let cell_rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    let expr_rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>B3")],
+        )
+        .unwrap(),
+    );
+    assert!(matches!(invoke(&model, &cell_rule, "Formula2", vec![]).unwrap(), AutoValue::Empty));
+    assert!(matches!(invoke(&model, &expr_rule, "Operator", vec![]).unwrap(), AutoValue::Empty));
+    assert!(matches!(invoke(&model, &expr_rule, "Formula2", vec![]).unwrap(), AutoValue::Empty));
+    let interior = obj(invoke(&model, &cell_rule, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&model, &interior, "Color", vec![]).unwrap()), 0);
+}
+
+/// dc-jupjv (ww21): FormatCondition.Font Bold=False / Italic=False (dxf b/i val="0"), Font.Underline,
+/// NumberFormat and Borders get/put round-trip through save/reopen; invalid arguments give 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__font_false_underline_number_format_and_borders() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    // Font: Bold=False, Italic=False, Underline=xlUnderlineStyleSingle (2).
+    let font = obj(invoke(&model, &rule, "Font", vec![]).unwrap());
+    invoke_kind(&model, &font, "Bold", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &font, "Italic", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    invoke_kind(&model, &font, "Underline", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    assert!(matches!(invoke(&model, &font, "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&model, &font, "Italic", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&model, &font, "Underline", vec![]).unwrap()), 2);
+    let bad_u = invoke_kind(&model, &font, "Underline", InvokeKind::Put, vec![AutoValue::I4(999)]);
+    assert!(matches!(bad_u, Err(AutoError::Excel { number: 1004, .. })), "{bad_u:?}");
+    // NumberFormat: initially Empty, then "0.00".
+    assert!(matches!(invoke(&model, &rule, "NumberFormat", vec![]).unwrap(), AutoValue::Empty));
+    invoke_kind(&model, &rule, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &rule, "NumberFormat"), "0.00");
+    let bad_nf = invoke_kind(&model, &rule, "NumberFormat", InvokeKind::Put, vec![AutoValue::I4(7)]);
+    assert!(matches!(bad_nf, Err(AutoError::Excel { number: 1004, .. })), "{bad_nf:?}");
+    // Borders: xlEdgeLeft (7) Continuous, Thin, Red (255).
+    let borders = obj(invoke(&model, &rule, "Borders", vec![]).unwrap());
+    let left = obj(invoke(&model, &borders, "Item", vec![AutoValue::I4(7)]).unwrap());
+    invoke_kind(&model, &left, "LineStyle", InvokeKind::Put, vec![AutoValue::I4(1)]).unwrap();
+    invoke_kind(&model, &left, "Weight", InvokeKind::Put, vec![AutoValue::I4(2)]).unwrap();
+    invoke_kind(&model, &left, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    assert_eq!(int(invoke(&model, &left, "LineStyle", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &left, "Weight", vec![]).unwrap()), 2);
+    assert_eq!(int(invoke(&model, &left, "Color", vec![]).unwrap()), 255);
+    let bad_edge = invoke(&model, &borders, "Item", vec![AutoValue::I4(99)]);
+    assert!(matches!(bad_edge, Err(AutoError::Excel { number: 1004, .. })), "{bad_edge:?}");
+    // Save and verify the dxf XML carries explicit b val="0" and i val="0", and reopens intact.
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).unwrap();
+    let reopened = reopen_formatting(&host);
+    let r_target = range(&reopened, "B2:B6");
+    let r_conds = obj(invoke(&reopened, &r_target, "FormatConditions", vec![]).unwrap());
+    let r_rule = obj(invoke_kind(&reopened, &r_conds, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let r_font = obj(invoke(&reopened, &r_rule, "Font", vec![]).unwrap());
+    assert!(matches!(invoke(&reopened, &r_font, "Bold", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert!(matches!(invoke(&reopened, &r_font, "Italic", vec![]).unwrap(), AutoValue::Bool(false)));
+    assert_eq!(int(invoke(&reopened, &r_font, "Underline", vec![]).unwrap()), 2);
+    assert_eq!(text(&reopened, &r_rule, "NumberFormat"), "0.00");
+    let r_borders = obj(invoke(&reopened, &r_rule, "Borders", vec![]).unwrap());
+    let r_left = obj(invoke(&reopened, &r_borders, "Item", vec![AutoValue::I4(7)]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_left, "LineStyle", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&reopened, &r_left, "Color", vec![]).unwrap()), 255);
+    // Confirm the reopened dxf carries bold_off and italic_off from b/i val="0".
+    let dxfs = host.session.borrow().host().styles().differential_formats.clone();
+    let dxf = dxfs.last().unwrap();
+    let f = dxf.font.as_ref().unwrap();
+    assert!(!f.bold && f.bold_off, "expected explicit bold_off: {f:?}");
+    assert!(!f.italic && f.italic_off, "expected explicit italic_off: {f:?}");
+}
+
+/// dc-jupjv: editing a FormatCondition whose dxf came from the opened file copies-on-write to a new dxf
+/// instead of refusing or mutating loaded dxf records.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__file_dxf_copy_on_write() {
+    let (host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let rule = obj(
+        invoke_kind(
+            &model,
+            &conditions,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("=3")],
+        )
+        .unwrap(),
+    );
+    let interior = obj(invoke(&model, &rule, "Interior", vec![]).unwrap());
+    invoke_kind(&model, &interior, "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    // Reopen so the rule's dxfId points into loaded.styles().differential_formats.
+    let reopened = reopen_formatting(&host);
+    let r_target = range(&reopened, "B2:B6");
+    let r_conds = obj(invoke(&reopened, &r_target, "FormatConditions", vec![]).unwrap());
+    let r_rule = obj(invoke_kind(&reopened, &r_conds, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    let r_interior = obj(invoke(&reopened, &r_rule, "Interior", vec![]).unwrap());
+    assert_eq!(int(invoke(&reopened, &r_interior, "Color", vec![]).unwrap()), 255);
+    invoke_kind(&reopened, &r_interior, "Color", InvokeKind::Put, vec![AutoValue::I4(65_280)]).unwrap();
+    assert_eq!(int(invoke(&reopened, &r_interior, "Color", vec![]).unwrap()), 65_280);
+}
+
+/// dc-jupjv (ww21 Condition.Delete.partial): deleting FormatConditions over part of a rule's range
+/// removes the rule only from the requested cells and keeps the remaining strips intact.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__partial_delete_subtracts_range() {
+    let (_host, model, _) = blank_report();
+    let conditions_of = |addr: &str| {
+        let r = range(&model, addr);
+        let c = obj(invoke(&model, &r, "FormatConditions", vec![]).unwrap());
+        model.released(&r);
+        c
+    };
+    let count = |addr: &str| int(invoke(&model, &conditions_of(addr), "Count", vec![]).unwrap());
+    let conds = conditions_of("B2:B6");
+    for formula in ["=B2>1", "=B2>2", "=B2>3"] {
+        invoke_kind(
+            &model,
+            &conds,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text(formula)],
+        )
+        .unwrap();
+    }
+    invoke_kind(&model, &conditions_of("B3:B4"), "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count("B2"), 3);
+    assert_eq!(count("B3:B4"), 0);
+    assert_eq!(count("B5:B6"), 3);
+    // 2D hole cutout: remove C3 from B2:D4.
+    let box_conds = conditions_of("B2:D4");
+    invoke_kind(
+        &model,
+        &box_conds,
+        "Add",
+        InvokeKind::Method,
+        vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text("=B2>9")],
+    )
+    .unwrap();
+    invoke_kind(&model, &conditions_of("C3"), "Delete", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(count("C3"), 0);
+    assert_eq!(count("C2"), 1);
+    assert_eq!(count("C4"), 1);
+    assert_eq!(count("D3"), 1);
+}
+
 /// dc-lj4j5: `Style.NumberFormat` put changes the format of a style no cell uses yet; a range given the style shows it.
 /// Normal is in use by every cell, so changing it is refused with a typed not-modelled error; an unusable format code
 /// is 1004.

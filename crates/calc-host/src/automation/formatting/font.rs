@@ -4,7 +4,7 @@ use calc_doc_model::{Font, StyleColor};
 
 const AUTOMATIC_COLOR: i32 = -4105;
 const NO_COLOR: i32 = -4142;
-const UNDERLINES: &[(i32, &str)] = &[
+pub(super) const UNDERLINES: &[(i32, &str)] = &[
     (-4142, "none"),
     (2, "single"),
     (-4119, "double"),

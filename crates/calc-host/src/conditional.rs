@@ -450,8 +450,14 @@ impl HostState {
                     .as_ref()
                     .and_then(|font| font.color.as_ref())
                     .and_then(|color| resolve(self, color)),
-                bold: d.font.as_ref().and_then(|f| f.bold.then_some(true)),
-                italic: d.font.as_ref().and_then(|f| f.italic.then_some(true)),
+                bold: d
+                    .font
+                    .as_ref()
+                    .and_then(|f| f.bold.then_some(true).or_else(|| f.bold_off.then_some(false))),
+                italic: d
+                    .font
+                    .as_ref()
+                    .and_then(|f| f.italic.then_some(true).or_else(|| f.italic_off.then_some(false))),
                 underline: d
                     .font
                     .as_ref()
