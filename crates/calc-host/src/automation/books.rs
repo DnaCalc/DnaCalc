@@ -277,7 +277,7 @@ impl WorkbookAutomation {
             Err(AutoError::not_modelled("Workbook.Close of the workbook whose macro is running", "dc-oxh8w.75"))
         })
     }
-    fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+    pub(super) fn workbook_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
             no_args(call)?;
             Self::make_active(meta.workbook);

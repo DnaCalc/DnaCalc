@@ -75,6 +75,9 @@ CRASH_WINDOW = 3600.0
 DEADLINE_BUDGET = 20
 POISON_SECONDS = 3600.0
 ISOLATION_STALL_SECONDS = 10.0
+ISOLATION_FAIL_SECONDS = 300.0     # past any batch deadline: queued isolated calls fail and the worker restarts
+STOP_GRACE_SECONDS = 20.0          # stop waits this long for the run process to exit before it ends the tree
+STALL_NOTE_SECONDS = 1800.0
 
 
 @contextmanager
@@ -259,6 +262,7 @@ class Broker:
         self.conns = []
         self.last_answer = None
         self.last_isolated_dispatch = 0.0
+        self.last_stall_recovery = None            # (monotonic time, calls failed, worker name)
         self.last_health = 0.0
         self.last_costs_save = time.monotonic()
         self.costs_saved = None
@@ -1372,12 +1376,57 @@ class Broker:
             asyncio.create_task(run())
 
     def broker_flags(self):
+        flags = []
         cutoff = time.monotonic() - self.opt("isolation_stall_seconds", ISOLATION_STALL_SECONDS)
         if self.last_isolated_dispatch <= cutoff and any(
             isolated and piece.t_received <= cutoff for piece, _, isolated in self.batcher.waiting()
         ):
-            return ["isolated queue stalled"]
-        return []
+            flags.append("isolated queue stalled")
+        recovery = self.last_stall_recovery
+        if recovery is not None and time.monotonic() - recovery[0] < STALL_NOTE_SECONDS:
+            flags.append(f"isolation worker restarted after a stall {time.monotonic() - recovery[0]:.0f}s ago "
+                         f"({recovery[2]}; {recovery[1]} calls failed isolation-stalled)")
+        return flags
+
+    def stalled_isolated_pieces(self):
+        cutoff = time.monotonic() - self.opt("isolation_fail_seconds", ISOLATION_FAIL_SECONDS)
+        if self.last_isolated_dispatch > cutoff:
+            return []
+        return {id(piece): piece for piece, _, isolated in self.batcher.waiting()
+                if isolated and piece.t_received <= cutoff}.values()
+
+    def heal_isolation_stall(self):
+        """Isolated calls that waited past the stall limit fail with a typed error; the isolation worker restarts."""
+        pieces = list(self.stalled_isolated_pieces())
+        if not pieces:
+            return
+        slot = self.isolation_slot()
+        failed = 0
+        for piece in pieces:
+            key = (piece.origin, piece.rid)
+            request = self.requests.get(key)
+            self.batcher.discard_request(piece.rid, origin=piece.origin)
+            for each in request.pieces.values() if request else (piece,):
+                if not each.done:
+                    failed += each.remaining or 0
+                    self.fail_piece(each, "isolation-stalled",
+                                    "the isolated queue stalled; its worker was restarted, resubmit the call")
+            if request is not None and self.requests.pop(key, None) is not None:
+                self.cache_bytes -= request.cache_bytes
+        name = slot.name if slot is not None else "none"
+        self.last_stall_recovery = (time.monotonic(), failed, name)
+        self.last_isolated_dispatch = time.monotonic()
+        self.log_event("isolation-stall-healed", worker=name, calls=failed, pieces=len(pieces))
+        if slot is not None and slot.state in ("idle", "busy"):
+            slot.state = "new"
+            asyncio.create_task(self.restart_after_stall(slot))
+        self.kick()
+
+    async def restart_after_stall(self, slot):
+        try:
+            await self.restart_slot(slot)
+        finally:
+            self.kick()
 
     def queue_snapshot(self):
         """Attribute each queued call to one worker for display. Shared work can dispatch elsewhere."""
@@ -1508,6 +1557,7 @@ class Broker:
             self.prepare()
             stop = self.state_dir / "stop"
             stop.unlink(missing_ok=True)
+            (self.state_dir / "run.pid").write_text(str(os.getpid()), encoding="ascii")
             tasks = []
             server = None
             try:
@@ -1528,6 +1578,7 @@ class Broker:
                 self.write_health()
                 while not stop.exists():
                     self.expire_sweeps()
+                    self.heal_isolation_stall()
                     self.write_status()
                     self.evict()
                     self.heal()
@@ -1561,6 +1612,7 @@ class Broker:
                 status = {"pid": os.getpid(), "running": False, "utc": stopped_at, "health": f"DOWN broker stopped utc={stopped_at}"}
                 self.write_diagnostic("status.json", json.dumps(status))
                 self.write_diagnostic("health.txt", status["health"] + "\n")
+                (self.state_dir / "run.pid").unlink(missing_ok=True)
 
 
 def command_start(options):
@@ -1664,8 +1716,65 @@ def command_status(options):
     raise SystemExit(0 if str(data.get("health")).startswith("OK") else 1)
 
 
+def process_alive(pid):
+    if os.name == "nt":
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True).stdout
+        return str(pid) in out
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:                                     # a zombie is gone for our purposes
+        return Path(f"/proc/{pid}/stat").read_text().split(") ")[-1][0] != "Z"
+    except OSError:
+        return True
+
+
+def end_process_tree(pid):
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        return
+    import signal
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and process_alive(pid):
+        time.sleep(0.1)
+    if process_alive(pid):
+        os.kill(pid, signal.SIGKILL)
+
+
+def end_run_process(state, grace):
+    """After the lock is free the run process may still be alive (it left it alive twice on 2026-11-25).
+    Wait `grace` seconds for it to exit, then end its process tree. Returns the sentence stop prints."""
+    pid_file = state / "run.pid"
+    try:
+        pid = int(pid_file.read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return "touchstone broker stopped"
+    if pid == os.getpid():
+        return "touchstone broker stopped"
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline and process_alive(pid):
+        time.sleep(0.2)
+    if not process_alive(pid):
+        pid_file.unlink(missing_ok=True)
+        return "touchstone broker stopped"
+    end_process_tree(pid)
+    time.sleep(0.3)
+    if process_alive(pid):
+        raise RuntimeError(f"touchstone broker run process {pid} is still alive after the stop and the tree kill")
+    pid_file.unlink(missing_ok=True)
+    return f"touchstone broker stopped; its run process {pid} outlived the stop for {grace:.0f}s and was ended"
+
+
 def command_stop(options):
     deadline = time.monotonic() + 150
+    grace = getattr(options, "stop_grace", STOP_GRACE_SECONDS)
     while time.monotonic() < deadline:
         with state_lock(options.state / "start.lock") as acquired:
             if acquired:
@@ -1673,7 +1782,7 @@ def command_stop(options):
                 while time.monotonic() < deadline:
                     with state_lock(options.state / "service.lock") as stopped:
                         if stopped:
-                            print("touchstone broker stopped")
+                            print(end_run_process(options.state, grace))
                             return
                     time.sleep(0.2)
                 raise TimeoutError("stop not confirmed; no process was killed")
@@ -1696,6 +1805,7 @@ def parse_since(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--stop-grace", type=float, default=STOP_GRACE_SECONDS)
     parser.add_argument("command", choices=["start", "ensure", "stop", "run", "status", "stats", "waits", "heal"])
     parser.add_argument("--state", type=Path, default=DEFAULT_STATE)
     parser.add_argument("--workers", type=int, default=3)

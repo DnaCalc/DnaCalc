@@ -102,6 +102,12 @@ pub enum ConditionalChange {
     },
     /// Delete the selected rule.
     Remove,
+    /// Give the selected rule priority `rank` (1 = highest) in the worksheet's list, the others keeping their order
+    /// (`FormatCondition.Priority`, `SetFirstPriority`, `SetLastPriority`; dc-oxh8w.62).
+    Priority {
+        /// The rule's new 1-based position in priority order.
+        rank: u32,
+    },
     /// Replace the differential format (`dxf`) the selected rule applies: what a macro sets through
     /// `FormatCondition.Interior` and `.Font` (dc-tqcvu). The rule must own its format; one shared with
     /// another rule is refused rather than changed under that rule.
@@ -1669,6 +1675,18 @@ pub(crate) fn conditional_edits(
                     return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
                 }
                 rules.remove(i);
+            }
+            ConditionalChange::Priority { rank } => {
+                let mut order = (0..rules.len()).collect::<Vec<_>>();
+                order.sort_by_key(|&n| rules[n].priority);
+                let old = order.iter().position(|&n| n == i).unwrap();
+                let to = (rank as usize).checked_sub(1).filter(|t| *t < order.len()).ok_or("Priority is out of range")?;
+                let moved = order.remove(old);
+                order.insert(to, moved);
+                for (rank, index) in order.into_iter().enumerate() {
+                    rules[index].priority = rank as i64 + 1;
+                    rules[index].authored = true;
+                }
             }
             ConditionalChange::Move { up } => {
                 let mut order = (0..rules.len()).collect::<Vec<_>>();
