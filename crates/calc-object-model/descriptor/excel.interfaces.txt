@@ -73,3 +73,7 @@ MultiThreadedCalculation
 # PageSetup.Pages, FirstPage and EvenPage (dc-oxh8w.45).
 Pages
 Page
+
+# Page.LeftHeader..RightFooter return HeaderFooter, whose Text and Picture return Graphic (dc-oxh8w.45).
+HeaderFooter
+Graphic
