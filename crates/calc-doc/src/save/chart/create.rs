@@ -425,7 +425,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         }
         bytes.extend(format!("</c:{}>", a.kind).as_bytes());
     }
-    bytes.extend(colour::fresh_fill(chart.plot_fill.as_deref()));
+    bytes.extend(colour::fresh_fill(chart.plot_fill.as_deref(), &chart.plot_border));
     bytes.extend(b"</c:plotArea>");
     if let Some(pos) = &chart.legend {
         bytes.extend(
@@ -438,7 +438,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
         bytes.extend(b"<c:showDLblsOverMax val=\"0\"/><c:extLst><c:ext uri=\"{56B9EC1D-385E-4148-901F-78D8002777C0}\" xmlns:c16r3=\"http://schemas.microsoft.com/office/drawing/2017/03/chart\"><c16r3:dataDisplayOptions16><c16r3:dispNaAsBlank val=\"1\"/></c16r3:dataDisplayOptions16></c:ext></c:extLst>");
     }
     bytes.extend(b"</c:chart>");
-    bytes.extend(colour::fresh_fill(chart.area_fill.as_deref()));
+    bytes.extend(colour::fresh_fill(chart.area_fill.as_deref(), &chart.area_border));
     if chart.text_style != Default::default() {
         bytes.extend(font::fresh(&chart.text_style));
     }

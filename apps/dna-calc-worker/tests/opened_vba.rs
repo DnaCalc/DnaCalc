@@ -1181,3 +1181,47 @@ fn dc_1nbp_7_page_worker_replays_me_range_and_cross_sheet_change_in_automatic_an
         assert_eq!(read_num(&server, sheet_s, 1, 6), 172.0);
     }
 }
+
+/// A macro's Chart.Export reaches the page: the server queues the file, announces it with
+/// `Event::MacroFiles` and hands it over with `Request::TakeMacroFile`, once (dc-oxh8w.54).
+/// The desktop shell takes the same files through `Workbook::take_macro_output_files`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_macro_chart_export_reaches_the_page_as_a_file() {
+    use dna_calc_worker::server::Server;
+    use dna_calc_worker::wire::{Event, Reply, Request};
+    let export = "Private Sub Workbook_Open()\n Dim frame As Object\n Application.Range(\"A1\").Value2 = \"Region\"\n \
+        Application.Range(\"B1\").Value2 = \"Q1\"\n Application.Range(\"A2\").Value2 = \"North\"\n \
+        Application.Range(\"B2\").Value2 = 10\n \
+        Set frame = Application.ActiveSheet.ChartObjects.Add(10, 10, 300, 200)\n \
+        frame.Chart.SetSourceData Application.Range(\"A1:B2\")\n frame.Chart.Export \"out.png\", \"PNG\"\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", ""),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", export),
+        ],
+    );
+    let mut server = Server::new();
+    server.set_open_origin(FileOrigin::Local);
+    let opened = server.execute_current(Request::Open { name: "export.xlsm".into() }, Some(bytes));
+    assert!(opened.reply.is_ok(), "{:?}", opened.reply);
+    assert!(server.take_events().iter().all(|e| !matches!(e, Event::MacroFiles { .. })), "disabled macros wrote nothing");
+    let enabled = server.execute_current(Request::EnableMacros, None);
+    assert!(enabled.reply.is_ok(), "{:?}", enabled.reply);
+    let mut announced = server.take_events();
+    announced.extend(server.take_events());
+    let count: u64 = announced
+        .iter()
+        .filter_map(|e| if let Event::MacroFiles { count, .. } = e { Some(*count) } else { None })
+        .sum();
+    assert_eq!(count, 1, "{announced:?}");
+    let taken = server.execute_current(Request::TakeMacroFile, None);
+    assert_eq!(taken.reply, Ok(Reply::MacroFile { name: "out.png".into(), remaining: 0 }));
+    // Whatever exporter the process holds draws it (another test may install a stub): the bytes arrive.
+    assert!(taken.bytes.as_deref().is_some_and(|file| !file.is_empty()), "{:?}", taken.bytes);
+    let again = server.execute_current(Request::TakeMacroFile, None);
+    assert!(again.reply.is_err(), "taking the file empties the queue");
+}

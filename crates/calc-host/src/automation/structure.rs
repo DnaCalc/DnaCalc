@@ -2,6 +2,7 @@
 //! (dc-oxh8w.4). Each is one session command (`WorkbookCommand::Sheet`), so undo, recalculation and
 //! events are the ones every other Automation write uses.
 use super::*;
+use calc_doc_model::SheetVisibility;
 use calc_object_model::ReportItem;
 use crate::{NameEdit, CommandIngress, HostProgress, IntentError, SheetChange, SkinIntent, WorkbookCommand};
 
@@ -15,6 +16,17 @@ impl WorkbookAutomation {
     pub(super) fn register_structure(handlers: &mut Handlers<Self>) {
         handlers.on("Sheets", "Add", InvokeKind::Method, Self::sheets_add);
         handlers.on("Worksheet", "Name", InvokeKind::Put, Self::worksheet_set_name);
+        // Typed refusals that name the bead owning the work (dc-oxh8w.47 corpus run).
+        handlers.on("Range", "AdvancedFilter", InvokeKind::Method, |_, _, call| {
+            Err(AutoError::not_modelled(call.label(), "dc-oxh8w.71"))
+        });
+        for member in ["Protect", "Unprotect"] {
+            handlers.on("Worksheet", member, InvokeKind::Method, |_, _, call| {
+                Err(AutoError::not_modelled(call.label(), "dc-oxh8w.68"))
+            });
+        }
+        handlers.on("Worksheet", "Visible", InvokeKind::Get, Self::worksheet_visible);
+        handlers.on("Worksheet", "Visible", InvokeKind::Put, Self::worksheet_set_visible);
         handlers.on("Worksheet", "Delete", InvokeKind::Method, Self::worksheet_delete);
         handlers.on("Worksheet", "Move", InvokeKind::Method, Self::worksheet_move);
         handlers.on("Names", "Add", InvokeKind::Method, Self::names_add);
@@ -233,6 +245,61 @@ impl WorkbookAutomation {
         self.sheet_change(target, call, SheetChange::Rename { name })
     }
 
+    /// `Worksheet.Visible`: xlSheetVisible -1, xlSheetHidden 0, xlSheetVeryHidden 2.
+    fn worksheet_visible(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            let ObjectKey::Worksheet { sheet, .. } = target.key else {
+                return Err(geometry::type_mismatch());
+            };
+            let visibility = meta.model.sheet_by_id(sheet).ok_or_else(geometry::type_mismatch)?.visibility();
+            Ok(AutoValue::I4(match visibility {
+                SheetVisibility::Visible => -1,
+                SheetVisibility::Hidden => 0,
+                SheetVisibility::VeryHidden => 2,
+            }))
+        })
+    }
+
+    /// `Worksheet.Visible = v`: True/False or an xlSheetVisibility value. Hiding the last visible
+    /// sheet, or any other value, is 1004 "Unable to set the Visible property of the Worksheet class".
+    fn worksheet_set_visible(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        let [value] = call.args.as_slice() else {
+            return Err(geometry::bad_count());
+        };
+        let failed = || AutoError::excel(1004, "Unable to set the Visible property of the Worksheet class");
+        let visibility = match value {
+            AutoValue::Bool(true) => SheetVisibility::Visible,
+            AutoValue::Bool(false) => SheetVisibility::Hidden,
+            AutoValue::I2(_) | AutoValue::I4(_) | AutoValue::R4(_) | AutoValue::R8(_) => {
+                match crate::automation::report_draw::number(value)? {
+                    n if n == -1.0 => SheetVisibility::Visible,
+                    n if n == 0.0 => SheetVisibility::Hidden,
+                    n if n == 2.0 => SheetVisibility::VeryHidden,
+                    _ => return Err(failed()),
+                }
+            }
+            _ => return Err(geometry::type_mismatch()),
+        };
+        let sheet = Self::worksheet_sheet(target)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let model = session.host().model();
+            let others_visible = model
+                .sheets()
+                .iter()
+                .any(|s| s.id() != sheet && s.visibility() == SheetVisibility::Visible);
+            if visibility != SheetVisibility::Visible && !others_visible {
+                return Err(failed());
+            }
+            let progress = Self::sheet_command(session, Some(sheet), SheetChange::SetVisibility(visibility))?;
+            Self::settle(session, progress, call)?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
     fn worksheet_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         self.sheet_change(target, call, SheetChange::Remove)
@@ -311,7 +378,11 @@ impl WorkbookAutomation {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
             let scope = match &sheet_part {
-                None => calc_doc_model::NameScope::Workbook,
+                None => match target.key {
+                    // Worksheet.Names.Add scopes a bare name to that worksheet.
+                    ObjectKey::SheetNames { sheet, .. } => calc_doc_model::NameScope::Sheet(sheet),
+                    _ => calc_doc_model::NameScope::Workbook,
+                },
                 Some(part) => {
                     let wanted = match part.strip_prefix('\'').and_then(|p| p.strip_suffix('\'')) {
                         Some(quoted) => quoted.replace("''", "'"),

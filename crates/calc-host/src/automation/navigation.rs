@@ -8,6 +8,7 @@ impl WorkbookAutomation {
         handlers.on("Workbook", "Charts", InvokeKind::Get, Self::charts);
         handlers.on("Workbook", "Sheets", InvokeKind::Get, Self::sheets);
         handlers.on("Workbook", "Names", InvokeKind::Get, Self::names);
+        handlers.on("Worksheet", "Names", InvokeKind::Get, Self::worksheet_names);
         handlers.on("Worksheet", "Range", InvokeKind::Get, Self::worksheet_range);
         handlers.on("Worksheet", "Cells", InvokeKind::Get, Self::worksheet_cells);
         handlers.on("Worksheet", "Index", InvokeKind::Get, Self::worksheet_index);
@@ -115,6 +116,16 @@ impl WorkbookAutomation {
                 "Names",
                 ObjectKey::Names(meta.workbook),
             )))
+        })
+    }
+    /// Worksheet.Names: the names scoped to this worksheet.
+    fn worksheet_names(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.with_target(target, |_, meta| {
+            no_args(call)?;
+            let ObjectKey::Worksheet { sheet, .. } = target.key else {
+                return Err(geometry::type_mismatch());
+            };
+            Ok(AutoValue::Object(object("Names", ObjectKey::SheetNames { workbook: meta.workbook, sheet })))
         })
     }
     fn sheets_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -353,6 +364,9 @@ impl WorkbookAutomation {
                     "dc-zsn.2",
                 ));
             }
+            if let ObjectKey::SheetNames { sheet, .. } = target.key {
+                names.retain(|(_, n)| n.definition().scope == calc_doc_model::NameScope::Sheet(sheet));
+            }
             f(meta, &names)
         })
     }
@@ -413,6 +427,9 @@ impl WorkbookAutomation {
     fn names_parent(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_names(target, |meta, _| {
             no_args(call)?;
+            if let ObjectKey::SheetNames { workbook, sheet } = target.key {
+                return Ok(AutoValue::Object(object("Worksheet", ObjectKey::Worksheet { workbook, sheet })));
+            }
             Ok(AutoValue::Object(object(
                 "Workbook",
                 ObjectKey::Workbook(meta.workbook),

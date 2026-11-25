@@ -59,6 +59,10 @@ pub enum ObjectKey {
         /// Position among the workbook's named cell styles.
         index: u32,
     },
+    /// The window showing a workbook (`Window`): one per open workbook. (dc-oxh8w.50)
+    BookWindow(u64),
+    /// The `Windows` collection of a workbook: its one window. (dc-oxh8w.50)
+    Windows(u64),
     /// The `Styles` collection of a workbook (dc-orxz0).
     Styles(u64),
     /// Areas owns one acquisition of the original tracked range, preserving area order.
@@ -72,6 +76,13 @@ pub enum ObjectKey {
     },
     /// The defined names collection of the identified workbook.
     Names(u64),
+    /// The names scoped to one worksheet (`Worksheet.Names`).
+    SheetNames {
+        /// Host identity of the containing workbook.
+        workbook: u64,
+        /// The worksheet whose scoped names it lists.
+        sheet: SheetId,
+    },
     /// One defined name in an open workbook.
     Name {
         /// Host identity of the containing workbook.
@@ -165,6 +176,8 @@ pub enum ReportItem {
     ChartArea(String),
     /// The plot area of a chart (chart part). (dc-oxh8w.31)
     PlotArea(String),
+    /// The `Border` of the chart area (`false`) or the plot area (`true`) of a chart (chart part). (dc-oxh8w.61)
+    ChartBorder(String, bool),
     /// The `Interior`, `Format`, `Format.Fill` or `Format.Fill.ForeColor` of the chart area, the plot area or a series.
     /// (dc-oxh8w.31)
     ChartPaint(String, Paint, PaintLevel),

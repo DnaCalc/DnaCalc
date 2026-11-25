@@ -37,7 +37,9 @@ pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory};
 mod cells;
 mod clipboard;
 mod formatting;
+mod window;
 mod find;
+mod range_end;
 mod formula;
 mod mutation;
 mod navigation;
@@ -192,6 +194,10 @@ pub struct WorkbookAutomation {
     find: RefCell<find::FindState>,
     /// What the last Range.Copy or Range.Cut without a Destination left (dc-oxh8w.15).
     clipboard: RefCell<Option<clipboard::Clip>>,
+    /// The areas the last `Application.Goto` selected: `Goto` without a Reference returns to them (dc-oxh8w.49).
+    last_goto: RefCell<Option<Vec<GridArea>>>,
+    /// The view state a macro sets on windows, per workbook and sheet (dc-oxh8w.50).
+    window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
 }
 
 struct RangeLeases {
@@ -309,6 +315,7 @@ impl WorkbookAutomation {
         Self::register_cells(&mut handlers);
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
+        Self::register_range_end(&mut handlers);
         Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
         Self::register_books(&mut handlers);
@@ -317,6 +324,7 @@ impl WorkbookAutomation {
         let _ = Self::register_report(&mut handlers);
         // Printing registers likewise (dc-oxh8w.8).
         let _ = Self::register_print(&mut handlers);
+        let _ = Self::register_window(&mut handlers);
         handlers.on(
             "Application",
             "EnableEvents",
@@ -336,6 +344,8 @@ impl WorkbookAutomation {
             ranges: RefCell::default(),
             find: RefCell::default(),
             clipboard: RefCell::new(None),
+            last_goto: RefCell::new(None),
+            window_views: RefCell::new(HashMap::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
@@ -626,6 +636,10 @@ impl WorkbookAutomation {
             | ObjectKey::Worksheets(id)
             | ObjectKey::Charts(id)
             | ObjectKey::Names(id)
+            | ObjectKey::Styles(id)
+            | ObjectKey::BookWindow(id)
+            | ObjectKey::Windows(id)
+            | ObjectKey::SheetNames { workbook: id, .. }
             | ObjectKey::Style { workbook: id, .. }
             | ObjectKey::Name { workbook: id, .. } => Some(id),
             ObjectKey::Worksheet { workbook, sheet }

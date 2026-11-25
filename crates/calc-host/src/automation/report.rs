@@ -132,7 +132,9 @@ impl WorkbookAutomation {
         for area in ["ChartArea", "PlotArea"] {
             on(area, "Interior", Get, Self::area_interior);
             on(area, "Format", Get, Self::paint_format);
+            on(area, "Border", Get, Self::area_border);
         }
+        on("Series", "Border", Get, Self::series_border);
         on("ChartFormat", "Fill", Get, Self::paint_next);
         on("ChartFillFormat", "ForeColor", Get, Self::paint_next);
         on("Interior", "Color", Get, Self::interior_color);

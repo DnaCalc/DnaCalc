@@ -137,7 +137,7 @@ impl std::fmt::Display for FileProjectError {
             Self::DocumentIdentity(name) => write!(f, "ambiguous document code name {name:?}"),
             Self::UnsupportedModule(name) => write!(
                 f,
-                "class, designer or unbound document module {name:?} is not modelled"
+                "class, designer or unbound document module {name:?} is not modelled (dc-oxh8w.73)"
             ),
             Self::Preparation(error) => f.write_str(error),
         }

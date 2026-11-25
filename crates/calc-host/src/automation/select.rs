@@ -197,15 +197,28 @@ impl WorkbookAutomation {
         }
         let held = match call.arg(0) {
             AutoValue::Object(object) => Some(Self::held_of(object)?),
-            AutoValue::Missing | AutoValue::Empty => {
-                return Err(AutoError::not_modelled("Application.Goto without a Reference", OWNER));
+            // Excel: the destination is the last range Goto selected. Before any Goto, Excel's answer is
+            // not recorded here (dc-oxh8w.49, RUN-ON-WINDOWS item 4): typed refusal.
+            AutoValue::Missing | AutoValue::Empty if self.last_goto.borrow().is_none() => {
+                return Err(AutoError::not_modelled("Application.Goto without a Reference before any Goto", OWNER));
             }
+            AutoValue::Missing | AutoValue::Empty => None,
             AutoValue::Text(_) => None,
             _ => return Err(geometry::type_mismatch()),
         };
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
+            let remembered = if held.is_none() && call.arg(0).as_text().is_none() { self.last_goto.borrow().clone() } else { None };
+            if let Some(areas) = remembered {
+                let sheet = areas.first().map(|a| a.sheet()).ok_or_else(geometry::type_mismatch)?;
+                if !Self::visible_sheet(session, sheet) {
+                    return Err(Self::failed("Application", "Goto"));
+                }
+                Self::select_intent(session, Self::range_selection(&areas), "Application", "Goto")?;
+                self.context_changed(session);
+                return Ok(AutoValue::Empty);
+            }
             let range = match &held {
                 Some(held) => self.resolve(&mut Access::Session(session, false), held)?,
                 None => {
@@ -228,6 +241,7 @@ impl WorkbookAutomation {
                 return Err(Self::failed("Application", "Goto"));
             }
             Self::select_intent(session, Self::range_selection(areas), "Application", "Goto")?;
+            *self.last_goto.borrow_mut() = Some(areas.to_vec());
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })

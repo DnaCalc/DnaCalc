@@ -329,24 +329,60 @@ Excel error. Top refusals now, by distinct project ([TSV](macro-host-corpus-rank
 `Range.Sort` OrderCustom 33 / 12 (dc-oxh8w.43), `_Worksheet.Visible` 27 / 7, `Range.End` 23 / 12 (the last four
 dc-oxh8w.47 or dc-oxh8w.43).
 
-### Windows corpus files recovered by SHA-256 (ww20)
+### Remaining corpus files recovered by SHA-256 (ww20)
 
 ww20 recovered all 491 Windows corpus files from local retained copies and verified each copy against
-the triage-clean SHA-256 list before and after transfer. No copy was opened in Excel. The remaining
-13 hashes belong to the FUSE set (12) and the download set (1) in the member census.
+the triage-clean SHA-256 list before and after transfer. It also recovered the 12 FUSE files and the
+VBA-UTC workbook from the download set on kode-fi. No copy was opened in Excel.
 
-The 491 files ran on dna-firehorse with the same baseline binary (`4171b7f6…4d38`) and Bubblewrap
+All 504 files ran on dna-firehorse with the same baseline binary (`4171b7f6…4d38`) and Bubblewrap
 limits as the original run. Both invocations ran in Guarded mode, with and without `--fixtures`.
 
 | Outcome | Without fixtures | With fixtures |
 | --- | ---: | ---: |
-| Workbooks attempted | 491 | 491 |
+| Workbooks attempted | 504 | 504 |
 | Project admitted | 28 | 28 |
-| Project admission refused | 463 | 463 |
+| Project admission refused | 476 | 476 |
 | No result | 0 | 0 |
 | Callable entries | 0 | 0 |
 
 The largest refusal group was 210 copies of the W010 Member Oracle form. Tests using the unresolved
-`OxVba_TestEventServer` reference accounted for another 28 files. These runs add no entries to the
-ranking. Together with the 2,757 attempted earlier, the baseline now covers 3,248 of the 3,261 hashes
-in the reconciled cohort. The manifests, per-file receipts and aggregate are in `ww20`.
+`OxVba_TestEventServer` reference accounted for another 28 files. The VBA-UTC document project was
+refused at assignment to `Worksheet.Cells` (dc-hsa5.12). These runs add no entries to the ranking.
+Together with the 2,757 attempted earlier, all 3,261 hashes in the reconciled cohort have been
+attempted. The 30 attempts without a result in the original run are recorded above. The manifests,
+per-file receipts and aggregate are in `ww20`.
+
+### Whole triage-clean set on this host (dc-oxh8w.47, 2026-11-25)
+
+The 491 `windows/corpus` workbooks (macro-capable files in `r2:dnacalc-corpus/windows/corpus`, 4,141 candidates
+hashed, 491 matched the unstaged list) were copied to `~/corpus-macro/wb` next to the 2,757 from
+`sources/xl-unique`, so 3,248 of the 3,261 triage-clean hashes are staged (the other 13, 12 FUSE and one
+download, were run by ww20 above). Every staged workbook ran again, one fresh Bubblewrap each (limits as above,
+six at a time), `--all --fixtures --macro-level guarded --json`, with a binary built from master after
+dc-oxh8w.46 (Worksheet.Visible, Goto without Reference and the refusal owners .68, .71 and .73 came after it; SHA-256 `182bca2c989d19c661061c16db5488e77dfc106d68a242fe09c5b2efb12a53fd`).
+
+| Workbooks | Count |
+| --- | ---: |
+| Staged and attempted | 3,248 |
+| Opened, project admitted, entries run | 2,147 |
+| Project not admitted | 1,065 |
+| No result (timeout, signal or unreadable output) | 36 |
+
+| Entry outcome | Every workbook (2,147) | 311 distinct projects |
+| --- | ---: | ---: |
+| Success | 787 | 599 |
+| VBA run-time error | 504 | 359 |
+| Typed refusal | 1,216 | 707 |
+| Needs arguments | 19 | 18 |
+| Not callable | 5 | 5 |
+| Failed | 2 | 2 |
+
+The 491 added workbooks admit only 22 (the 2,757 earlier ones admitted 2,125), which agrees with ww20's 28 of 504.
+Admission refusals by cause (1,065): class, designer or unbound document module 590 (UserForm and Sheet modules,
+dc-oxh8w.73), locked VBA project 91, document project compile errors (dc-hsa5.*) about 200 in a long tail
+(undefined Sub or Function 54, `New TestEventServer` 28, parse failures 25, `Range`/`Cells` as assignment target 34,
+undefined xl constants 18), unsupported ThisWorkbook attachment signature 18, xlsm content type 15.
+Top refusals by distinct project (TSV above): `_Application.ActiveWindow` 261 entries / 48 projects (dc-oxh8w.50),
+`Range.AdvancedFilter` 96 / 4 (dc-oxh8w.71), `_Worksheet.Unprotect` 36 / 18 and `_Worksheet.Protect` 5 / 5 (dc-oxh8w.68),
+`Range.Sort` OrderCustom 34 / 13 (dc-oxh8w.43), `_Worksheet.Visible` 27 / 7 (implemented after this run), `Range.End` 23 / 12.
