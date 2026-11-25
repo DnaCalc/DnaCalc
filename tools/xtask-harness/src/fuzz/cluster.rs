@@ -129,6 +129,8 @@ fn result_kind_label(encoded: &str) -> String {
         "logical".to_owned()
     } else if encoded.starts_with("text:") {
         "text".to_owned()
+    } else if encoded.starts_with("array:") {
+        "array".to_owned()
     } else if let Some(fault) = encoded.strip_prefix("fault:") {
         format!("fault:{fault}")
     } else {
