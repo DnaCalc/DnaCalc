@@ -166,8 +166,8 @@ fn sub_area(site: &Site<'_>, a: &[CalcValue], take: bool) -> Step<Option<CalcVal
     } else {
         (0, 0)
     };
-    let row_count = result(site, k::slice_count(a.get(1), row_full))?;
-    let col_count = result(site, k::slice_count(a.get(2), col_full))?;
+    let row_count = result(site, k::truncated_integer(a.get(1), row_full))?;
+    let col_count = result(site, k::truncated_integer(a.get(2), col_full))?;
     let span = |len: usize, n: isize| {
         if take {
             k::take_span(len, n)
