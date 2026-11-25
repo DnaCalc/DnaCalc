@@ -172,16 +172,13 @@ impl WorkbookAutomation {
     }
 
     fn window_active_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.get_active_sheet(&self.application(), call).map(|v| {
-            let _ = target;
-            v
-        })
+        self.get_active_sheet(target, call)
     }
-    fn window_active_cell(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.app_active_cell(&self.application(), call)
+    fn window_active_cell(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.own_active_cell(target, call)
     }
-    fn window_selection(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.app_selection(&self.application(), call)
+    fn window_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.own_selection(target, call)
     }
     /// Caption (the workbook's name), Type (xlWorkbook), WindowNumber (the one window), Visible and Activate.
     fn window_book_member(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

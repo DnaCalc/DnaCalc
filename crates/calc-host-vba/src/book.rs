@@ -145,7 +145,13 @@ struct Factory {
 }
 
 impl Factory {
-    fn create(&self, name: &str, bytes: Vec<u8>, grant: Option<&ProjectGrant>) -> Result<u64, AutoError> {
+    fn create(
+        &self,
+        name: &str,
+        bytes: Vec<u8>,
+        grant: Option<&ProjectGrant>,
+        read_only: bool,
+    ) -> Result<u64, AutoError> {
         let fail = |what: String| AutoError::excel(1004, what);
         let mut session = HostSession::open(
             Arc::new(MemorySource::new(bytes).named(name)),
@@ -154,18 +160,23 @@ impl Factory {
         )
         .map_err(|why| fail(format!("'{name}' could not be opened: {why:?}")))?;
         let project = match grant {
-            Some(grant) => crate::open_file_project(
+            Some(grant) => crate::prepare_file_project_with_events(
                 grant,
-                &mut session,
+                session.host(),
                 name,
                 self.options.max_steps,
                 self.options.backend,
+                session.workbook_events_enabled(),
             )
             .map_err(|why| fail(why.to_string()))?,
             None => None,
         };
+        let has_file_project = project.is_some();
         let events = match project {
-            Some(project) => project,
+            Some(project) => {
+                project.clone().install(&mut session);
+                project
+            }
             None => crate::prepare(
                 session.host(),
                 name,
@@ -180,7 +191,16 @@ impl Factory {
             .map_err(fail)?,
         };
         let id = events.automation.workbook_identity()?;
-        events.adopt_with_saver(session, true, self.options.saver.clone());
+        calc_host::automation::set_book_read_only(id, read_only);
+        let runner = Rc::new(OwnedBook {
+            events: events.clone(),
+            session: RefCell::new(session),
+            saver: self.options.saver.clone(),
+        });
+        events.automation.register_owned(runner.clone(), true);
+        if has_file_project {
+            runner.session.borrow_mut().notify_workbook_open();
+        }
         Ok(id)
     }
 }
@@ -215,7 +235,7 @@ impl BookFactory for Factory {
     fn add(&self) -> Result<u64, AutoError> {
         let n = self.blank.get() + 1;
         self.blank.set(n);
-        self.create(&format!("Book{n}"), calc_doc::blank_package(), None)
+        self.create(&format!("Book{n}"), calc_doc::blank_package(), None, false)
     }
     fn add_from(&self, path: &str) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
@@ -225,17 +245,22 @@ impl BookFactory for Factory {
         *count += 1;
         let name = format!("{stem}{count}");
         // ww21 Workbooks.Add.Template: a workbook made from Data.xlsx is named Data1 (empty Path).
-        self.create(&name, bytes, self.options.grant.as_ref())
+        self.create(&name, bytes, self.options.grant.as_ref(), false)
     }
     fn add_package(&self, bytes: Vec<u8>) -> Result<u64, AutoError> {
         let n = self.blank.get() + 1;
         self.blank.set(n);
-        self.create(&format!("Book{n}"), bytes, None)
+        self.create(&format!("Book{n}"), bytes, None, false)
     }
     fn open(&self, path: &str) -> Result<u64, AutoError> {
-        self.open_with_password(path, None)
+        self.open_with_options(path, false, None)
     }
-    fn open_with_password(&self, path: &str, password: Option<&str>) -> Result<u64, AutoError> {
+    fn open_with_options(
+        &self,
+        path: &str,
+        read_only: bool,
+        password: Option<&str>,
+    ) -> Result<u64, AutoError> {
         let bytes = self.read(path)?;
         if bytes.starts_with(OLE2_MAGIC) && password.is_some_and(|p| !p.is_empty()) {
             return Err(AutoError::not_modelled(
@@ -244,7 +269,7 @@ impl BookFactory for Factory {
             ));
         }
         // ww21 Workbooks.Open.password.unencrypted: Password is ignored for unencrypted files.
-        self.create(path, bytes, self.options.grant.as_ref())
+        self.create(path, bytes, self.options.grant.as_ref(), read_only)
     }
 }
 

@@ -32,8 +32,14 @@ pub trait BookFactory {
     fn add(&self) -> Result<u64, AutoError>;
     /// The workbook at `path`, registered and active. Returns its workbook identity.
     fn open(&self, path: &str) -> Result<u64, AutoError>;
-    /// The workbook at `path` with an optional open password (ww21: ignored for unencrypted files).
-    fn open_with_password(&self, path: &str, _password: Option<&str>) -> Result<u64, AutoError> {
+    /// The workbook at `path`, applying `read_only` before `Workbook_Open` fires and with an
+    /// optional open password (ww21: ignored for unencrypted files).
+    fn open_with_options(
+        &self,
+        path: &str,
+        _read_only: bool,
+        _password: Option<&str>,
+    ) -> Result<u64, AutoError> {
         self.open(path)
     }
     /// A new workbook from the template file at `path` (`Workbooks.Add Template:=path`).
@@ -96,6 +102,17 @@ pub(super) fn next_identity() -> u64 {
 /// Install the factory `Workbooks.Add` and `Workbooks.Open` use on this thread.
 pub fn set_book_factory(factory: Option<Rc<dyn BookFactory>>) {
     BOOKS.with(|books| books.borrow_mut().factory = factory);
+}
+
+/// Record whether open workbook `id` was opened read-only (`Workbooks.Open ReadOnly:=True`).
+pub fn set_book_read_only(id: u64, read_only: bool) {
+    BOOKS.with(|books| {
+        let mut books = books.borrow_mut();
+        books.read_only.retain(|r| *r != id);
+        if read_only {
+            books.read_only.push(id);
+        }
+    });
 }
 
 /// One open workbook as the collection lists it.
@@ -211,7 +228,15 @@ impl WorkbookAutomation {
     pub(super) fn active_book_id(&self, fallback: u64) -> Result<u64, AutoError> {
         let books = self.open_books()?;
         let active = BOOKS.with(|books| books.borrow().active);
-        Ok(books.iter().find(|b| b.id == active).map_or(fallback, |b| b.id))
+        Ok(books
+            .iter()
+            .find(|b| {
+                b.id == active
+                    && (b.id == fallback
+                        || b.owned
+                        || b.automation.as_ref().is_some_and(|a| a.is_lent()))
+            })
+            .map_or(fallback, |b| b.id))
     }
     fn active_workbook(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, meta| {
@@ -285,14 +310,12 @@ impl WorkbookAutomation {
                 return Err(AutoError::excel(1004, "Workbooks.Open: the file name must be text"));
             };
             let (read_only, password) = open_options(call)?;
-            let id = self.factory()?.open_with_password(&path.to_string_lossy(), password.as_deref())?;
-            BOOKS.with(|books| {
-                let mut books = books.borrow_mut();
-                books.read_only.retain(|r| *r != id);
-                if read_only {
-                    books.read_only.push(id);
-                }
-            });
+            let id = self.factory()?.open_with_options(
+                &path.to_string_lossy(),
+                read_only,
+                password.as_deref(),
+            )?;
+            set_book_read_only(id, read_only);
             Ok(Self::book_object(id))
         })
     }
@@ -323,6 +346,51 @@ impl WorkbookAutomation {
             Self::make_active(meta.workbook);
             Ok(AutoValue::Empty)
         })
+    }
+    /// Whether this workbook owns the tracked range `reference`.
+    pub(super) fn owns_range(&self, reference: &StoredReference) -> bool {
+        self.ranges.borrow().contains_key(reference)
+    }
+    /// Route a call to another open workbook `id`.
+    fn call_book(
+        &self,
+        books: &[Listed],
+        id: u64,
+        target: &ObjectRef,
+        call: &Call<'_>,
+    ) -> Option<Reply> {
+        let book = books.iter().find(|b| b.id == id)?;
+        if let Some(automation) = book.automation.as_ref().filter(|a| a.is_lent()) {
+            return Some(automation.invoke(target, call));
+        }
+        if let Some(runner) = &book.runner {
+            return Some(runner.invoke(target, call));
+        }
+        Some(Err(AutoError::not_modelled(
+            format!("{} of another open workbook without a session", call.label()),
+            "dc-oxh8w.75",
+        )))
+    }
+    /// If another open workbook is currently active, forward an `Application.*` call to it.
+    pub(super) fn active_book_call(&self, target: &ObjectRef, call: &Call<'_>) -> Option<Reply> {
+        let books = self.open_books().ok()?;
+        let own = self.metadata().ok()?.workbook;
+        let active = self.active_book_id(own).ok()?;
+        if active == own {
+            return None;
+        }
+        self.call_book(&books, active, target, call)
+    }
+    /// If `reference` is held by another open workbook, forward `call` to that workbook.
+    pub(super) fn range_book_call(
+        &self,
+        reference: &StoredReference,
+        target: &ObjectRef,
+        call: &Call<'_>,
+    ) -> Option<Reply> {
+        let books = self.open_books().ok()?;
+        let id = self.range_holder(reference, &books)?;
+        self.call_book(&books, id, target, call)
     }
     /// The workbook other than this one that holds the tracked range `reference`.
     fn range_holder(&self, reference: &StoredReference, books: &[Listed]) -> Option<u64> {

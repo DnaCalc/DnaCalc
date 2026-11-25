@@ -404,10 +404,13 @@ impl EventSource {
         lease: u64,
     ) -> Result<(), String> {
         if callback_active() {
-            return api::with_native_callback_context(|budget| {
+            match api::with_native_callback_context(|budget| {
                 self.raise_in_context(name, arguments, context, budget, lease, true)
-            })
-            .map_err(|e| format!("nested event context (dc-hsa5.12): {e}"))?;
+            }) {
+                Ok(result) => return result,
+                Err(_) if RUN_DEPTH.with(|d| d.get() > 0) => {}
+                Err(e) => return Err(format!("nested event context (dc-hsa5.12): {e}")),
+            }
         }
         let mut budget = api::TypedContext {
             remaining_blocks: max_steps,
