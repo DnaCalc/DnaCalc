@@ -247,7 +247,7 @@ class Broker:
         self.cache_bytes = 0
         self.counters = {"calls": 0, "batches": 0, "requests": 0, "refused": 0, "errors": 0}
         self.crash_counts = {}
-        self.poisoned = {}                       # request id -> wall-clock expiry (crash/excel-error quarantine)
+        self.poisoned = {}                       # (origin, rid) -> wall-clock expiry (crash/excel-error quarantine)
         self.poisoned_deadlines = {}             # (origin, rid) -> {"until": float, "detail": str}
         self.crash_times = {}                    # function -> times of calls that crashed Excel alone (the budget)
         self.deadline_times = {}                 # function -> times of calls killed at their deadline alone (its own budget)
@@ -298,8 +298,12 @@ class Broker:
             data = json.loads((self.state_dir / "isolated.json").read_text(encoding="ascii"))
             self.batcher.isolate.update(data.get("isolated", []))
             self.crash_counts.update({k: int(v) for k, v in data.get("crash_counts", {}).items()})
-            self.poisoned.update({rid: until for rid, until in data.get("poisoned_requests", {}).items()
-                                  if isinstance(until, (int, float)) and until > time.time()})
+            raw_poisoned = data.get("poisoned_requests", [])
+            if isinstance(raw_poisoned, list):
+                for item in raw_poisoned:
+                    if (isinstance(item, list) and len(item) == 3 and isinstance(item[2], (int, float))
+                            and item[2] > time.time()):
+                        self.poisoned[(str(item[0]), str(item[1]))] = float(item[2])
             for item in data.get("poisoned_deadlines", []):
                 if (isinstance(item, list) and len(item) == 4 and isinstance(item[2], (int, float))
                         and item[2] > time.time()):
@@ -317,7 +321,7 @@ class Broker:
 
     def save_isolated(self):
         data = {"isolated": sorted(self.batcher.isolate), "crash_counts": self.crash_counts,
-                "poisoned_requests": self.poisoned,
+                "poisoned_requests": [[o, r, until] for (o, r), until in self.poisoned.items()],
                 "poisoned_deadlines": [[o, r, info["until"], info["detail"]]
                                        for (o, r), info in self.poisoned_deadlines.items()]}
         self.isolated_dirty = not self.write_diagnostic("isolated.json", json.dumps(data))
@@ -526,9 +530,9 @@ class Broker:
             conn.send(protocol.ERROR, self.tag({"id": rid, "code": "excel-deadline",
                                                  "detail": deadline_poison["detail"]}, body.get("c")), True)
             return
-        if self.poisoned.get(rid, 0) > time.time():
+        if self.poisoned.get(key, 0) > time.time():
             conn.send(protocol.ERROR, self.tag({"id": rid, "code": "excel-crashed",
-                                                 "detail": self.poison_detail(rid)}, body.get("c")), True)
+                                                 "detail": self.poison_detail(key)}, body.get("c")), True)
             return
         req = self.requests.get(key)
         if req is None:
@@ -750,11 +754,17 @@ class Broker:
 
     async def recycle_slot(self, slot):
         reason = dict(slot.since)
+        proc = slot.proc
+        gen = slot.generation
         try:
-            hello = await self.loop.run_in_executor(self.executor, slot.proc.recycle)
+            hello = await self.loop.run_in_executor(self.executor, proc.recycle)
+            if slot.generation != gen:
+                return
             self.adopt_hello(slot, hello)
             self.log_event("recycled", worker=slot.name, after=reason)
         except Exception as error:
+            if slot.generation != gen:
+                return
             self.log_event("recycle-failed", worker=slot.name, detail=str(error)[:200])
             await self.restart_slot(slot)
         self.kick()
@@ -859,7 +869,7 @@ class Broker:
                 # nothing ran: give the work back to the queue
                 self.batcher.requeue(batch)
                 self.log_event("drift-before", worker=slot.name, detail=detail)
-                await self.finish_restart(slot)
+                await self.finish_restart(slot, expected_gen=gen)
                 self.kick()
                 return
             failure = (error, detail)
@@ -877,7 +887,7 @@ class Broker:
                         self.quarantine_repeat_deadlines(slot, batch, number, detail)
                     if not batch.pieces or not all(p.done for p in batch.pieces):
                         self.on_crash(slot, batch, number, detail, confined, deadline_kill)
-                    await self.finish_restart(slot, counted=not confined and not deadline_kill)
+                    await self.finish_restart(slot, counted=not confined and not deadline_kill, expected_gen=gen)
                     self.kick()
                     return
                 if deadline_kill:
@@ -907,7 +917,7 @@ class Broker:
             if failure[0] in ("excel-timeout", "worker-lost"):
                 await self.restart_slot(slot, counted=failure[0] != "excel-timeout")
             elif restart:
-                await self.finish_restart(slot, counted=not deadline_kill)
+                await self.finish_restart(slot, counted=not deadline_kill, expected_gen=gen)
             else:
                 slot.state = "idle"
             self.kick()
@@ -930,18 +940,28 @@ class Broker:
         slot.state = "idle"
         self.kick()
 
-    async def recycle_after_worker_event(self, slot):
+    async def recycle_after_worker_event(self, slot, proc=None, expected_gen=None):
         # The worker recycled its Excel itself (drift or crash); it announces a new hello, or a failed start.
+        proc = slot.proc if proc is None else proc
+        gen = slot.generation if expected_gen is None else expected_gen
+        if slot.generation != gen:
+            return
         try:
-            hello = await self.loop.run_in_executor(self.executor, slot.proc.await_restart)
+            hello = await self.loop.run_in_executor(self.executor, proc.await_restart)
+            if slot.generation != gen:
+                return
             self.adopt_hello(slot, hello)
         except Exception as error:
-            await self.loop.run_in_executor(self.executor, slot.proc.kill)
+            if slot.generation != gen:
+                return
+            await self.loop.run_in_executor(self.executor, proc.kill)
+            if slot.generation != gen:
+                return
             self.mark_down(slot, str(error))
 
     # ---- failed requests and isolated crashes ----------------------------------------
-    def poison_detail(self, rid):
-        until = datetime.fromtimestamp(self.poisoned[rid], timezone.utc).isoformat(timespec="seconds")
+    def poison_detail(self, key):
+        until = datetime.fromtimestamp(self.poisoned[key], timezone.utc).isoformat(timespec="seconds")
         return f"Excel failed twice for this request; resubmission refused until {until}"
 
     def quarantine_repeat_deadlines(self, slot, batch, number, detail):
@@ -993,12 +1013,12 @@ class Broker:
             self.batcher.discard_request(rid, origin=origin)
             target_keys = [key]
         else:
-            self.poisoned[rid] = until
+            self.poisoned[key] = until
             self.save_isolated()
-            self.batcher.discard_request(rid)
+            self.batcher.discard_request(rid, origin=origin)
             code = "excel-crashed"
-            msg = self.poison_detail(rid)
-            target_keys = [k for k in self.requests if k[1] == rid]
+            msg = self.poison_detail(key)
+            target_keys = [key]
         for request_key in target_keys:
             request = self.requests.get(request_key)
             if request is None:
@@ -1092,18 +1112,24 @@ class Broker:
         counter = "deadline_calls" if deadline_kill else "crashed_calls"
         self.counters[counter] = self.counters.get(counter, 0) + 1
 
-    async def finish_restart(self, slot, counted=True):
+    async def finish_restart(self, slot, counted=True, expected_gen=None):
         """The worker restarts its own Excel after a crash; that is a restart, so it counts against the hourly cap,
         except after a crash of a suspect or isolated call (the isolation worker exists to take those). The cap
         never takes the last worker that is up."""
+        if expected_gen is not None and slot.generation != expected_gen:
+            return
+        proc = slot.proc
+        gen = slot.generation if expected_gen is None else expected_gen
         if counted:
             if self.cap_reached(slot) and any(s is not slot and s.state in ("idle", "busy", "new") for s in self.slots):
-                await self.loop.run_in_executor(self.executor, slot.proc.kill)
+                await self.loop.run_in_executor(self.executor, proc.kill)
+                if slot.generation != gen:
+                    return
                 self.mark_down(slot, f"restart cap reached ({self.opt('restart_cap', RESTART_CAP)} per hour) after a crash")
                 return
             slot.attempts.append(time.time())
         slot.restarts += 1
-        await self.recycle_after_worker_event(slot)
+        await self.recycle_after_worker_event(slot, proc=proc, expected_gen=gen)
 
     async def restart_slot(self, slot, counted=True, old_proc=None, expected_gen=None):
         """After a missed deadline or a lost worker process: start it once more, within the cap; a failed start
@@ -1198,13 +1224,15 @@ class Broker:
             return
         if other.generation != gen:
             return
-        other.state = "idle"
         if second.get("error"):
             self.log_event("leak-check-error", worker=other.name, detail=second.get("error"))
             if second["error"] in ("excel-crashed", "fingerprint-drift-after", "fingerprint-drift-before"):
-                await self.recycle_after_worker_event(other)
+                await self.recycle_after_worker_event(other, proc=proc, expected_gen=gen)
+            else:
+                other.state = "idle"
             self.kick()
             return
+        other.state = "idle"
         differences = self.compare_reversed(batch.groups, result["groups"], second["groups"], [first_worker, other.name],
                                             [result["env_id"], second["env_id"]], "reversed")
         self.leak_checks["checked"] += 1
@@ -1370,8 +1398,8 @@ class Broker:
 
     def evict(self):
         wall_time = time.time()
-        for rid in [rid for rid, until in self.poisoned.items() if until <= wall_time]:
-            del self.poisoned[rid]
+        for key in [k for k, until in self.poisoned.items() if until <= wall_time]:
+            del self.poisoned[key]
         for key in [k for k, info in self.poisoned_deadlines.items() if info["until"] <= wall_time]:
             del self.poisoned_deadlines[key]
         now = time.monotonic()

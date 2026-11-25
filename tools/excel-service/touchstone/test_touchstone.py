@@ -839,6 +839,58 @@ class StopAndStallTests(unittest.TestCase):
         again = conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [ONE]}])
         self.assertEqual(again.raw(15)[1], [ONE])
 
+    def test_heal_isolation_stall_does_not_race_recycle_after_worker_event(self):
+        broker, state, stop = start_broker(
+            3, {"isolation_stall_seconds": 0, "isolation_fail_seconds": 0.3, "restart_cap": 1, "cooldown": 60.0}
+        )
+        self.addCleanup(stop)
+        from touchstone import client
+        conn = client.Connection.open(endpoint=state / "endpoint.json", socket_path=state / "none.sock", name="stall-recycle")
+        self.addCleanup(conn.close)
+        isolation = broker.isolation_slot()
+        old_proc = isolation.proc
+        in_await = threading.Event()
+        release_await = threading.Event()
+
+        def slow_await_restart():
+            in_await.set()
+            release_await.wait(15)
+            raise RuntimeError("old worker killed while awaiting restart")
+
+        old_proc.await_restart = slow_await_restart
+
+        async def isolate():
+            broker.batcher.isolate.update({"CRASHON", "ID"})
+        asyncio.run_coroutine_threadsafe(isolate(), broker.loop).result(3)
+
+        crashed = conn.submit_groups([{"f": "CRASHON", "k": "n", "n": 1, "v": ["402a000000000000"]}])
+        self.assertTrue(in_await.wait(10), "isolation slot never entered recycle_after_worker_event")
+        letters, answers = crashed.raw(10)
+        self.assertEqual(letters, ["x"])
+        self.assertEqual(answers[0]["reason"], "excel-crashed")
+
+        queued = conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [ONE]}])
+        with self.assertRaises(Exception) as caught:
+            queued.raw(15)
+        self.assertIn("isolation-stalled", str(caught.exception))
+
+        deadline = time.monotonic() + 15
+        while (isolation.proc is old_proc or isolation.state != "idle") and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertIsNot(isolation.proc, old_proc)
+        self.assertEqual(isolation.state, "idle")
+        new_proc = isolation.proc
+        new_hello = isolation.hello
+
+        # Now let the old recycle_after_worker_event wake up and fail; it must not kill or down the new worker.
+        release_await.set()
+        time.sleep(0.5)
+        self.assertIs(isolation.proc, new_proc)
+        self.assertEqual(isolation.hello, new_hello)
+        self.assertEqual(isolation.state, "idle", f"stale recycle_after_worker_event marked slot {isolation.state}: {isolation.down_reason}")
+        self.assertIsNone(new_proc.process.poll(), "stale recycle_after_worker_event killed the new healthy worker")
+        self.assertEqual(conn.submit_groups([{"f": "ID", "k": "n", "n": 1, "v": [ONE]}]).raw(15)[1], [ONE])
+
 
 class DiskFullTests(unittest.TestCase):
     def test_status_and_batch_writes_recover_while_the_broker_serves_answers(self):
@@ -1675,11 +1727,13 @@ class SelfHealingTests(unittest.TestCase):
         rid = "17" * 16
         with self.assertRaisesRegex(ServiceError, "excel-crashed"):
             conn.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(5)
+        reconnected = self.connect(state, name="incident-client")
+        self.addCleanup(reconnected.close)
+        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
+            reconnected.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(5)
         other = self.connect(state, name="another-client")
         self.addCleanup(other.close)
-        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
-            other.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(5)
-        self.assertEqual(other.submit_rows("ID", [[number(ONE)]]).raw(5), (["n"], [ONE]))
+        self.assertEqual(other.submit_rows("ID", [[number(ONE)]], rid=rid).raw(5), (["n"], [ONE]))
         broker.batch_log.flush()
         records = list(logs.BatchLog.read(state / "log"))
         batches = [r for r in records if "EXCELERROR" in r.get("fns", {})]
@@ -1698,7 +1752,32 @@ class SelfHealingTests(unittest.TestCase):
         from broker import Broker
         restarted = Broker(broker.options)
         restarted.load_persisted()
-        self.assertGreater(restarted.poisoned[rid], time.time())
+        self.assertGreater(restarted.poisoned[("tcp:incident-client", rid)], time.time())
+
+    def test_crash_quarantine_scopes_poisoned_by_origin(self):
+        from touchstone.client import ServiceError
+        from broker import Broker
+
+        broker, state, stop = start_broker(3, {"health_seconds": 0.1})
+        self.addCleanup(stop)
+        conn_a = self.connect(state, name="lane-a")
+        conn_b = self.connect(state, name="lane-b")
+        self.addCleanup(conn_a.close)
+        self.addCleanup(conn_b.close)
+        rid = "22" * 16
+        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
+            conn_a.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(10)
+        # Reconnecting with the same client name (same origin) remains quarantined.
+        conn_a_reconnected = self.connect(state, name="lane-a")
+        self.addCleanup(conn_a_reconnected.close)
+        with self.assertRaisesRegex(ServiceError, "excel-crashed"):
+            conn_a_reconnected.submit_rows("EXCELERROR", [[number(TWO)]], rid=rid).raw(10)
+        # A different origin sharing the same rid must not be blocked by lane-a's crash quarantine.
+        self.assertEqual(conn_b.submit_rows("ID", [[number(ONE)]], rid=rid).raw(10), (["n"], [ONE]))
+        restarted = Broker(broker.options)
+        restarted.load_persisted()
+        self.assertGreater(restarted.poisoned[("tcp:lane-a", rid)], time.time())
+        self.assertNotIn(("tcp:lane-b", rid), restarted.poisoned)
 
     def test_capped_isolation_worker_does_not_hold_its_queue(self):
         with patch.dict(os.environ, {"TOUCHSTONE_TEST_FAIL_START": "w2"}):
