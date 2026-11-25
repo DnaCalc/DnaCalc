@@ -307,19 +307,39 @@ impl DescriptorTypeLibResolver {
         })
     }
 
-    /// The enumeration names the descriptor's parameters and return types mention
-    /// (`enum:XlCalculation[I4]`): a variable declared `As XlCalculation` holds a Long.
-    fn enum_type_names(descriptor: &Descriptor) -> Vec<String> {
+    /// The enumeration names belonging to `library`: those mentioned by descriptor parameters and
+    /// return types (`enum:XlCalculation[I4]`, `enum:Office.MsoTriState[I4]`), plus constant-only
+    /// enumerations whose members this library exposes. A variable declared `As XlCalculation`
+    /// holds a Long.
+    fn enum_type_names(descriptor: &Descriptor, library: &str) -> Vec<String> {
         let mut names = std::collections::BTreeSet::new();
         for (id, _) in descriptor.types() {
+            let owner_matches = descriptor.library(id).name.eq_ignore_ascii_case(library);
             for member in descriptor.members(id) {
                 let texts = member.params.iter().map(|p| p.ty.as_str()).chain([member.ret.as_str()]);
                 for text in texts {
                     if let Some(rest) = text.strip_prefix("enum:") {
-                        names.insert(rest.split('[').next().unwrap_or(rest).to_owned());
+                        let raw = rest.split('[').next().unwrap_or(rest);
+                        if let Some((lib, name)) = raw.split_once('.') {
+                            if lib.eq_ignore_ascii_case(library) {
+                                names.insert(name.to_owned());
+                            }
+                        } else if owner_matches {
+                            names.insert(raw.to_owned());
+                        }
                     }
                 }
             }
+        }
+        let extras: &[&str] = if library.eq_ignore_ascii_case("Excel") {
+            EXCEL_CONSTANT_ONLY_ENUMS
+        } else if library.eq_ignore_ascii_case("Office") {
+            OFFICE_CONSTANT_ONLY_ENUMS
+        } else {
+            &[]
+        };
+        for &name in extras {
+            names.insert(name.to_owned());
         }
         names.into_iter().collect()
     }
@@ -401,7 +421,7 @@ impl DescriptorTypeLibResolver {
                 members: vec![],
                 events: vec![],
                 coclass_names,
-                enum_type_names: Self::enum_type_names(descriptor),
+                enum_type_names: Self::enum_type_names(descriptor, library),
                 coclass_prog_ids: vec![],
                 app_objects,
                 extensible: false,
@@ -1375,6 +1395,52 @@ const OFFICE_ENUM_CONSTANTS: &[(&str, i64)] = &[
     ("msoAutomationSecurityForceDisable", 3),
 ];
 
+/// Excel enumerations whose constants are exposed above but that do not appear in any descriptor
+/// member signature (`excel.json`), pending full enum export in `tools/com-descriptor` (dc-md2j3).
+const EXCEL_CONSTANT_ONLY_ENUMS: &[&str] = &[
+    "Constants",
+    "XlApplicationInternational",
+    "XlBuiltInDialog",
+    "XlCVError",
+    "XlCellInsertionMode",
+    "XlColumnDataType",
+    "XlDVAlertStyle",
+    "XlDVType",
+    "XlDeleteShiftDirection",
+    "XlFindLookIn",
+    "XlFormatConditionOperator",
+    "XlFormatFromRightOrBelow",
+    "XlInsertShiftDirection",
+    "XlLineStyle",
+    "XlLookAt",
+    "XlPivotFieldOrientation",
+    "XlPivotTableSourceType",
+    "XlPivotTableVersionList",
+    "XlPlatform",
+    "XlRangeValueDataType",
+    "XlReadingOrder",
+    "XlReferenceType",
+    "XlSearchOrder",
+    "XlSearchWithin",
+    "XlSortOn",
+    "XlSummaryColumn",
+    "XlThemeColor",
+    "XlTrendlineType",
+    "XlUnderlineStyle",
+    "XlWBATemplate",
+];
+
+/// Office enumerations whose constants are exposed above but that do not appear in any descriptor
+/// member signature (`office.json`).
+const OFFICE_CONSTANT_ONLY_ENUMS: &[&str] = &[
+    "MsoAutoShapeType",
+    "MsoAutomationSecurity",
+    "MsoConnectorType",
+    "MsoShapeType",
+    "MsoTextOrientation",
+    "MsoTriState",
+];
+
 fn excel_constants() -> Vec<TypeLibConstantMetadata> {
     XL_CV_ERROR
         .iter()
@@ -1397,4 +1463,100 @@ fn office_constants() -> Vec<TypeLibConstantMetadata> {
             value: ComDefaultValue::Int(value),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// dc-y7tqj (rw12 finding 22d): `enum_type_names` must be scoped per library (no Office/Mso
+    /// leaks into Excel, no Excel/Xl leaks into Office, no dotted `Office.*` names) and include
+    /// constant-only enums exposed by each library.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_y7tqj_enum_type_names_scoped_per_library_and_include_constant_only_enums() {
+        let resolver = DescriptorTypeLibResolver {
+            has_workbook: true,
+            events: crate::events::DocumentEvents::All,
+        };
+        let req = |name: &str| TypeLibResolveRequest {
+            reference_name: name.into(),
+            requested_coclass: None,
+            importlib_hint: None,
+            libid_hint: None,
+            major_version_hint: None,
+            minor_version_hint: None,
+            lcid_hint: None,
+        };
+        let excel = resolver.resolve_descriptor_library("Excel", &req("Excel")).expect("Excel typelib");
+        assert!(
+            excel.enum_type_names.iter().all(|n| !n.contains('.') && !n.starts_with("Mso")),
+            "Excel enum_type_names leaked Office/dotted entries: {:?}",
+            excel.enum_type_names.iter().filter(|n| n.contains('.') || n.starts_with("Mso")).collect::<Vec<_>>()
+        );
+        for expected in [
+            "XlCalculation",
+            "XlCVError",
+            "XlLineStyle",
+            "XlUnderlineStyle",
+            "XlDVType",
+            "XlDVAlertStyle",
+            "XlFormatConditionOperator",
+            "XlInsertShiftDirection",
+            "XlDeleteShiftDirection",
+            "XlFindLookIn",
+            "XlLookAt",
+            "XlSearchOrder",
+            "XlSearchWithin",
+            "XlSortOn",
+            "XlThemeColor",
+            "XlReferenceType",
+            "XlReadingOrder",
+            "XlPlatform",
+            "XlWBATemplate",
+            "XlRangeValueDataType",
+            "XlBuiltInDialog",
+            "XlColumnDataType",
+            "XlCellInsertionMode",
+            "XlApplicationInternational",
+            "XlFormatFromRightOrBelow",
+            "XlPivotFieldOrientation",
+            "XlPivotTableSourceType",
+            "XlPivotTableVersionList",
+            "XlSummaryColumn",
+            "XlTrendlineType",
+            "Constants",
+        ] {
+            assert!(
+                excel.enum_type_names.iter().any(|n| n == expected),
+                "Excel enum_type_names missing {expected}"
+            );
+        }
+        let office = resolver.resolve_descriptor_library("Office", &req("Office")).expect("Office typelib");
+        assert!(
+            office.enum_type_names.iter().all(|n| !n.contains('.') && !n.starts_with("Xl")),
+            "Office enum_type_names leaked Excel/dotted entries: {:?}",
+            office.enum_type_names.iter().filter(|n| n.contains('.') || n.starts_with("Xl")).collect::<Vec<_>>()
+        );
+        for expected in [
+            "MsoTriState",
+            "MsoAutomationSecurity",
+            "MsoAutoShapeType",
+            "MsoShapeType",
+            "MsoConnectorType",
+            "MsoTextOrientation",
+        ] {
+            assert!(
+                office.enum_type_names.iter().any(|n| n == expected),
+                "Office enum_type_names missing {expected}"
+            );
+        }
+        // Compile a VBA module using constant-only enums from both libraries.
+        let src = "Public Function EnumCheck() As Long\n Dim a As XlCVError\n Dim b As XlLineStyle\n Dim c As MsoShapeType\n a = xlErrNA\n b = xlContinuous\n c = msoChart\n EnumCheck = a + b + c\nEnd Function\n";
+        let loaded = crate::load_module("Enums", src, 10_000).expect("constant-only enums must compile");
+        assert_eq!(
+            loaded.call("EnumCheck", &[]).unwrap(),
+            calc_func::value::CalcValue::number(2046.0)
+        );
+    }
 }

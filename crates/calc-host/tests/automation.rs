@@ -10456,3 +10456,70 @@ fn dc_y7tqj__advanced_filter_copy_edge_cases() {
         "foreign workbook CopyToRange must refuse typed citing dc-hduqd, got {foreign:?}"
     );
 }
+
+/// dc-y7tqj (rw12 finding 22a): Application.MultiThreadedCalculation puts must enforce UDF
+/// write-protection (1004 inside a worksheet function invocation, leaving state unchanged).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_multithreaded_calculation_puts_respect_udf_write_protection() {
+    struct StubContext(CellKey);
+    impl UserFunctionContext for StubContext {
+        fn caller(&self) -> Option<CellKey> { Some(self.0) }
+        fn refuse(&mut self, reason: &'static str) -> String { reason.into() }
+        fn values_of(&mut self, _: &calc_value::ReferenceLike) -> Result<CalcValue, String> { Ok(CalcValue::empty()) }
+        fn worksheet_function(&mut self, _: &str, _: &[CalcValue]) -> Result<CalcValue, String> { Ok(CalcValue::empty()) }
+    }
+    let (host, model) = setup();
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let cell = CellKey::new(sheet_id, 1, 1).unwrap();
+    let mtc = obj(invoke(&model, &model.application(), "MultiThreadedCalculation", vec![]).unwrap());
+    let mut ctx = StubContext(cell);
+    let loan = Loan(RefCell::new(&mut ctx));
+    INVOCATION.set(&loan, || {
+        for (member, val) in [
+            ("Enabled", AutoValue::Bool(false)),
+            ("ThreadMode", AutoValue::I4(1)),
+            ("ThreadCount", AutoValue::I4(2)),
+        ] {
+            let res = invoke_kind(&model, &mtc, member, InvokeKind::Put, vec![val]);
+            assert!(
+                matches!(res, Err(AutoError::Excel { number: 1004, .. })),
+                "MultiThreadedCalculation.{member} put inside UDF must fail with 1004, got {res:?}"
+            );
+        }
+    });
+    assert!(matches!(invoke(&model, &mtc, "Enabled", vec![]).unwrap(), AutoValue::Bool(true)));
+    assert!(matches!(invoke(&model, &mtc, "ThreadMode", vec![]).unwrap(), AutoValue::I4(0)));
+}
+
+/// dc-y7tqj (rw12 finding 22b): Application.CalculationState must return xlPending (2), not
+/// xlDone (0), when a calculation is cancelled while dirty formulas remain.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_calculation_state_stays_pending_after_cancel() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let at = |r, c| CellKey::new(sheet_id, r, c).unwrap();
+    {
+        let mut s = host.session.borrow_mut();
+        s.dispatch(SkinIntent::SetCalcMode(CalcMode::Automatic));
+        for (r, text) in [(1, "1"), (2, "=A1+1"), (3, "=A2+1"), (4, "=A3+1")] {
+            assert!(s.dispatch(SkinIntent::EnterCell { at: at(r, 1), text: text.into() }).accepted());
+        }
+        while s.has_pending_calculation() {
+            s.advance_calculation();
+        }
+        assert_eq!(s.host().calculation_state(), 0);
+        // With budget=1, editing A1 leaves dirty formulas after one step; cancelling must keep xlPending (2).
+        s.set_calculation_budget(calc_host::WorkBudget::evaluations(1));
+        assert!(s.dispatch(SkinIntent::EnterCell { at: at(1, 1), text: "2".into() }).accepted());
+        assert!(s.has_pending_calculation());
+        s.cancel_calculation();
+        assert!(!s.has_pending_calculation());
+        assert_eq!(s.host().calculation_state(), 2, "cancelled calculation with dirty formulas must report xlPending (2)");
+    }
+    let state = invoke(&model, &model.application(), "CalculationState", vec![]).unwrap();
+    assert!(matches!(state, AutoValue::I4(2)), "Application.CalculationState after cancel must be 2, got {state:?}");
+}

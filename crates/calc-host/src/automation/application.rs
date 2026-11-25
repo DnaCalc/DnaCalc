@@ -254,12 +254,14 @@ impl WorkbookAutomation {
     }
 
     fn put_mtc_enabled(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
-        if call.args.len() != 1 {
-            return Err(excel_error());
-        }
-        let (_, mode, count) = self.multithreaded.get();
-        self.multithreaded.set((geometry::boolean(call.arg(0))?, mode, count));
-        Ok(AutoValue::Empty)
+        self.with_write(|_| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            let (_, mode, count) = self.multithreaded.get();
+            self.multithreaded.set((geometry::boolean(call.arg(0))?, mode, count));
+            Ok(AutoValue::Empty)
+        })
     }
 
     /// xlThreadModeAutomatic (0) or xlThreadModeManual (1).
@@ -269,16 +271,18 @@ impl WorkbookAutomation {
     }
 
     fn put_mtc_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
-        if call.args.len() != 1 {
-            return Err(excel_error());
-        }
-        let mode = match geometry::integer(call.arg(0)) {
-            Ok(mode @ (0 | 1)) => mode as i32,
-            _ => return Err(AutoError::excel(1004, "Unable to set the ThreadMode property of the MultiThreadedCalculation class")),
-        };
-        let (enabled, _, count) = self.multithreaded.get();
-        self.multithreaded.set((enabled, mode, count));
-        Ok(AutoValue::Empty)
+        self.with_write(|_| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            let mode = match geometry::integer(call.arg(0)) {
+                Ok(mode @ (0 | 1)) => mode as i32,
+                _ => return Err(AutoError::excel(1004, "Unable to set the ThreadMode property of the MultiThreadedCalculation class")),
+            };
+            let (enabled, _, count) = self.multithreaded.get();
+            self.multithreaded.set((enabled, mode, count));
+            Ok(AutoValue::Empty)
+        })
     }
 
     /// Automatic mode uses every logical processor; manual mode the count set.
@@ -294,16 +298,18 @@ impl WorkbookAutomation {
 
     /// Excel's thread box takes 1 to 1024.
     fn put_mtc_count(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
-        if call.args.len() != 1 {
-            return Err(excel_error());
-        }
-        let count = match geometry::integer(call.arg(0)) {
-            Ok(count @ 1..=1024) => count as i32,
-            _ => return Err(AutoError::excel(1004, "Unable to set the ThreadCount property of the MultiThreadedCalculation class")),
-        };
-        let (enabled, mode, _) = self.multithreaded.get();
-        self.multithreaded.set((enabled, mode, count));
-        Ok(AutoValue::Empty)
+        self.with_write(|_| {
+            if call.args.len() != 1 {
+                return Err(excel_error());
+            }
+            let count = match geometry::integer(call.arg(0)) {
+                Ok(count @ 1..=1024) => count as i32,
+                _ => return Err(AutoError::excel(1004, "Unable to set the ThreadCount property of the MultiThreadedCalculation class")),
+            };
+            let (enabled, mode, _) = self.multithreaded.get();
+            self.multithreaded.set((enabled, mode, count));
+            Ok(AutoValue::Empty)
+        })
     }
 
     /// `Application.Build`: the build number of the Excel the captures were taken from

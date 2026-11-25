@@ -1888,6 +1888,7 @@ impl Server {
         self.pending_name = None;
         self.pending_save = None;
         self.save_as_target = None;
+        self.macro_files.clear();
         let interrupted = self.book.has_pending_calculation();
         if interrupted {
             self.book.cancel_calculation();

@@ -1236,6 +1236,46 @@ fn a_macro_chart_export_reaches_the_page_as_a_file() {
     assert!(again.reply.is_err(), "taking the file empties the queue");
 }
 
+/// dc-y7tqj (rw12 finding 22c): switching workbooks (`Server::install`) must clear queued
+/// `macro_files` so the next workbook cannot take files exported by the previous one.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_server_install_clears_macro_files_across_workbook_switch() {
+    use dna_calc_worker::server::Server;
+    use dna_calc_worker::wire::Request;
+    let export = "Private Sub Workbook_Open()\n Dim frame As Object\n Application.Range(\"A1\").Value2 = \"Region\"\n \
+        Application.Range(\"B1\").Value2 = \"Q1\"\n Application.Range(\"A2\").Value2 = \"North\"\n \
+        Application.Range(\"B2\").Value2 = 10\n \
+        Set frame = Application.ActiveSheet.ChartObjects.Add(10, 10, 300, 200)\n \
+        frame.Chart.SetSourceData Application.Range(\"A1:B2\")\n frame.Chart.Export \"leaked.png\", \"PNG\"\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[
+            ("Module1", ""),
+            ("PrivateModule", "Option Private Module\n"),
+            ("Sheet1", ""),
+            ("ThisWorkbook", export),
+        ],
+    );
+    let mut server = Server::new();
+    server.set_open_origin(FileOrigin::Local);
+    assert!(server.execute_current(Request::Open { name: "export.xlsm".into() }, Some(bytes)).reply.is_ok());
+    assert!(server.execute_current(Request::EnableMacros, None).reply.is_ok());
+    // Do NOT take the exported file; switch to a fresh workbook instead.
+    assert!(
+        server
+            .execute_current(Request::Open { name: "fresh.xlsx".into() }, Some(calc_host::blank_package()))
+            .reply
+            .is_ok()
+    );
+    let taken = server.execute_current(Request::TakeMacroFile, None);
+    assert!(
+        taken.reply.is_err(),
+        "macro_files from previous workbook must not leak across Server::install: {:?}",
+        taken.reply
+    );
+}
+
 /// dc-oxh8w.75: the browser worker installs the workbook factory on macro enable so `Workbooks.Add`
 /// works and `Workbooks.Open` reads from the page-supplied file loader.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1958,3 +1958,22 @@ fn dc_0k9__calculation_modes() {
     let (host, _) = open_package(dc_hqcv_support::package(""), HostOptions::default());
     assert_eq!(host.calc_mode(), CalcMode::Automatic);
 }
+
+/// dc-y7tqj (rw12 finding 22b): `HostState::calculation_state` must return `xlPending` (2), not
+/// `xlDone` (0), after a calculation failure leaves dirty formulas uncalculated.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_y7tqj_calculation_state_stays_pending_after_recalc_failure() {
+    let mut book = Book::open(HostOptions::default());
+    let mut stop = StopAt::new(1);
+    assert!(matches!(
+        step(&mut book.host, WorkBudget::UNLIMITED, &mut stop),
+        HostProgress::Failed(RecalcFailed::Failed(RecalcFailure::ReadFailed { .. }))
+    ));
+    assert!(!book.host.has_pending_calculation());
+    assert_eq!(
+        book.host.calculation_state(),
+        2,
+        "failed calculation with dirty formulas must report xlPending (2)"
+    );
+}
