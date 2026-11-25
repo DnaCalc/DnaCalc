@@ -84,8 +84,8 @@ the Windows host's own dispatch; this section lists what the portable translatio
 | 31 | `CALCULATE.NOW` | `Application.Calculate` | yes |
 | 42 | `FORMAT.NUMBER` | `Range.NumberFormat` (selection) | yes |
 | 47 | `COLUMN.WIDTH` | `Range.ColumnWidth` | refused by the member |
-| 49, 50 | `CUT`, `COPY` | `Range.Cut`, `Range.Copy` | destination form |
-| 51 | `PASTE` | `Worksheet.Paste` | refused by the member |
+| 49, 50 | `CUT`, `COPY` | `Range.Cut`, `Range.Copy` | destination and clipboard forms |
+| 51 | `PASTE` | `Worksheet.Paste` | from the workbook profile's clipboard |
 | 52 | `CLEAR` (1 all, 2 formats, 3 formulas, 4 notes) | `Range.Clear`, `ClearFormats`, `ClearContents`, `ClearComments` (selection) | type 3 only |
 | 54, 55 | `EDIT.DELETE`, `INSERT` (1 to 4) | `Range.Delete`, `Range.Insert`, or the entire row or column | supported cell shifts and whole axes |
 | 61, 110 | `DEFINE.NAME`, `DELETE.NAME` | `Names.Add` (RefersToR1C1), `Names.Item` then `Name.Delete` | refused by the member |
@@ -102,11 +102,27 @@ refusals owned by dc-oxh8w.9 before any workbook call. CLEAR and shift codes mus
 enumerated values exactly.
 
 The Windows C2 capture records 57 Excel12 outcomes, including omitted operands, multi-cell
-FORMULA, and RUN result types. Replay and the remaining portable translations belong to dc-oxh8w.9.
-That bead also owns relative or qualified text references and coercion beyond text and Boolean
-False for `Application.StatusBar`.
+FORMULA, and RUN result types. Replay and coercion beyond text and Boolean False for
+`Application.StatusBar` belong to dc-oxh8w.9.
 [C2 capture](../../crates/calc-xll-reference/traces/2026-11-25-ww17-c2/README.md) ·
 [Excel StatusBar](https://learn.microsoft.com/en-us/office/vba/api/excel.application.statusbar)
+
+## Portable command translation (batch 2, dc-oxh8w.9)
+
+The portable dispatcher resolves R1C1 text operands against the active cell. It accepts single
+cells, rectangles, and whole rows or columns on one worksheet. The sheet qualifier can use
+Excel's quoted form, including doubled apostrophes. Workbook-qualified and 3-D addresses have
+typed refusals. Qualified SELECT remains refused pending replay of the C2 cross-sheet SELECT
+failure and measurement of same-sheet qualified SELECT.
+
+| Ordinal | Command | Translation |
+| ---: | --- | --- |
+| 53 | `PASTE.SPECIAL` | `Range.PasteSpecial` on the selection. Worksheet paste codes 1–4 select all, formulas, values or formats. It accepts transpose and the default or explicit None operation. Other paste forms and host clipboard gaps remain open. |
+| 386 | `WORKBOOK.NAME` | `Application.Sheets.Item(oldname)` then `Worksheet.Name = newname` in the active workbook. |
+
+The worksheet argument codes and rename operands follow Microsoft's
+[Excel 4.0 Macro Functions Reference](https://excel-dna.net/assets/files/excel-c-api-excel-4-macro-reference-7df97f7e896ff61d528847f9124b1927.pdf).
+Excel12 return values and effects for these added forms still need Windows capture under dc-oxh8w.9.
 
 ## Application
 

@@ -33,6 +33,17 @@ impl InProcessTransport {
         self.deliver_events(events)?;
         Ok(progress)
     }
+
+    /// Advance DnaCalc.Clock and deliver publications through the same transport as other RTD.
+    pub fn advance_model_clock(&self, elapsed: std::time::Duration) -> Result<(), String> {
+        let events = {
+            let mut server = self.server.borrow_mut();
+            server.advance_model_clock(elapsed);
+            server.take_events()
+        };
+        self.deliver_events(events)
+    }
+
     fn deliver_events(&self, events: Vec<Event>) -> Result<(), String> {
         for event in events {
             let received = match event {

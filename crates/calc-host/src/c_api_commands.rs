@@ -1,4 +1,4 @@
-//! The Excel C API `xlc*` commands of batch 1 (dc-oxh8w.5), as translations to object-model
+//! Excel C API `xlc*` commands as translations to object-model
 //! members. A command is implemented once, here: it decodes its operands the way the XLM command
 //! documents them, then calls the same described member Excel's object model has for the
 //! operation (`Range.FormulaR1C1`, `Application.Calculate`, `Names.Add`, ...) on whatever
@@ -19,13 +19,13 @@
 use calc_object_model::{
     AutoError, AutoValue, Call, Descriptor, InvokeKind, ObjectModel, ObjectRef, geometry,
 };
-use calc_fml::reference::column_letters;
+use calc_fml::reference::{AxisRef, column_letters};
 use calc_value::{MAX_COLUMNS, MAX_ROWS};
 
 /// Owner of every refusal this module raises for an unmeasured form.
 const OWNER: &str = "dc-oxh8w.9";
 
-/// One batch-1 command: its ordinal (the callback number without the `xlCommand` bit), the SDK
+/// One command: its ordinal (the callback number without the `xlCommand` bit), the SDK
 /// symbol, the XLM name, the most operands it takes and the object-model member it translates to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct XlcCommand {
@@ -57,7 +57,7 @@ const fn c(
     }
 }
 
-/// Every command batch 1 serves, by ordinal.
+/// The portable dispatcher commands, by ordinal.
 pub const COMMANDS: &[XlcCommand] = &[
     c(4, "xlcSave", "SAVE", 0, "_Workbook.Save"),
     c(17, "xlcRun", "RUN", 2, "_Application.Run"),
@@ -68,6 +68,7 @@ pub const COMMANDS: &[XlcCommand] = &[
     c(50, "xlcCopy", "COPY", 2, "Range.Copy"),
     c(51, "xlcPaste", "PASTE", 1, "_Worksheet.Paste"),
     c(52, "xlcClear", "CLEAR", 1, "Range.Clear"),
+    c(53, "xlcPasteSpecial", "PASTE.SPECIAL", 7, "Range.PasteSpecial"),
     c(54, "xlcEditDelete", "EDIT.DELETE", 1, "Range.Delete"),
     c(55, "xlcInsert", "INSERT", 2, "Range.Insert"),
     c(61, "xlcDefineName", "DEFINE.NAME", 7, "Names.Add"),
@@ -79,15 +80,16 @@ pub const COMMANDS: &[XlcCommand] = &[
     c(127, "xlcRowHeight", "ROW.HEIGHT", 4, "Range.RowHeight"),
     c(141, "xlcEcho", "ECHO", 1, "_Application.ScreenUpdating"),
     c(167, "xlcCalculateDocument", "CALCULATE.DOCUMENT", 0, "_Worksheet.Calculate"),
+    c(386, "xlcWorkbookName", "WORKBOOK.NAME", 2, "_Worksheet.Name"),
 ];
 
-/// The command with this ordinal, when batch 1 serves it.
+/// The command with this ordinal, when the dispatcher serves it.
 pub fn command(ordinal: u16) -> Option<&'static XlcCommand> {
     COMMANDS.iter().find(|command| command.ordinal == ordinal)
 }
 
 /// The command a callback number (`xlCommand | ordinal`) names; `None` when the command bit is
-/// absent or batch 1 does not serve the ordinal.
+/// absent or the dispatcher does not serve the ordinal.
 pub fn command_for_callback(callback: u32) -> Option<&'static XlcCommand> {
     if callback & 0xC000 != 0x8000 {
         return None;
@@ -98,7 +100,7 @@ pub fn command_for_callback(callback: u32) -> Option<&'static XlcCommand> {
 /// Why a command did not complete.
 #[derive(Clone, Debug, PartialEq)]
 pub enum XlcError {
-    /// Batch 1 does not serve this ordinal (the caller's refusal names the owning bead).
+    /// The dispatcher does not serve this ordinal (the caller's refusal names the owning bead).
     NotServed(u16),
     /// More operands than the command takes, or an operand of a type the command cannot read
     /// (Excel answers `xlretInvCount` / `xlretInvXloper`).
@@ -144,6 +146,7 @@ pub fn execute(model: &dyn ObjectModel, ordinal: u16, operands: &[AutoValue]) ->
         50 => run.copy_cut("Copy"),
         51 => run.paste(),
         52 => run.clear(),
+        53 => run.paste_special(),
         54 => run.shift("Delete", [-4159, -4162]),
         55 => run.shift("Insert", [-4161, -4121]),
         61 => run.define_name(),
@@ -155,6 +158,7 @@ pub fn execute(model: &dyn ObjectModel, ordinal: u16, operands: &[AutoValue]) ->
         127 => run.row_height(),
         141 => run.echo(),
         167 => run.calculate_document(),
+        386 => run.workbook_name(),
         _ => Err(XlcError::NotServed(ordinal)),
     };
     if let Err(XlcError::Model(error @ AutoError::NotModelled { .. })) = &result {
@@ -225,8 +229,8 @@ impl Run<'_> {
         match self.operand(index) {
             AutoValue::Object(object) => Ok(object.clone()),
             AutoValue::Missing => self.object(&self.application(), "Selection"),
-            AutoValue::Text(_) => {
-                let a1 = r1c1_text_to_a1(&self.operand(index).as_text().unwrap_or_default())?;
+            AutoValue::Text(text) => {
+                let a1 = r1c1_text_to_a1(&text.to_string_lossy(), || self.active_coordinates())?;
                 match self.call(
                     &self.application(),
                     "Range",
@@ -239,6 +243,17 @@ impl Run<'_> {
             }
             _ => Err(XlcError::Operand("reference operand")),
         }
+    }
+
+    fn active_coordinates(&self) -> Result<(u32, u32), XlcError> {
+        let active = self.object(&self.application(), "ActiveCell")?;
+        let coordinate = |member| match self.call(&active, member, InvokeKind::Get, vec![])? {
+            AutoValue::I4(value) => u32::try_from(value).map_err(|_| INVALID_REFERENCE),
+            _ => Err(INVALID_REFERENCE),
+        };
+        let position = (|| Ok((coordinate("Row")?, coordinate("Column")?)))();
+        self.model.released(&active);
+        position
     }
 
     fn put(&self, range: &ObjectRef, member: &str, value: AutoValue) -> Result<(), XlcError> {
@@ -372,6 +387,10 @@ impl Run<'_> {
         if self.operands.is_empty() {
             return Err(refuse("SELECT without a selection"));
         }
+        // The C2 capture's cross-sheet SELECT failed without changing the current sheet.
+        if self.operand(0).as_text().is_some_and(|text| text.contains('!')) {
+            return Err(refuse("SELECT with a sheet-qualified text reference"));
+        }
         let range = self.range(0)?;
         self.method(&range, "Select", vec![])
     }
@@ -449,6 +468,53 @@ impl Run<'_> {
         self.method(&sheet, "Paste", args)
     }
 
+    // Worksheet PASTE.SPECIAL translates XLM dialog ordinals to VBA enumeration values.
+    fn paste_special(&self) -> Result<(), XlcError> {
+        self.require_supported_operands(4, "PASTE.SPECIAL chart or external clipboard form")?;
+        if matches!(self.operand(0), AutoValue::Missing | AutoValue::Text(_)) {
+            return Err(refuse("PASTE.SPECIAL without a worksheet paste code"));
+        }
+        let paste = match self.number(0)? {
+            1.0 => -4104, // xlPasteAll
+            2.0 => -4123, // xlPasteFormulas
+            3.0 => -4163, // xlPasteValues
+            4.0 => -4122, // xlPasteFormats
+            5.0 | 6.0 => return Err(refuse("PASTE.SPECIAL comments or all except borders")),
+            _ => return Err(XlcError::Operand("paste_num")),
+        };
+        let operation = if self.operand(1).is_missing() {
+            AutoValue::Missing
+        } else {
+            AutoValue::I4(match self.number(1)? {
+                1.0 => -4142, // xlPasteSpecialOperationNone
+                2.0 | 3.0 | 4.0 | 5.0 => return Err(refuse("PASTE.SPECIAL arithmetic operation")),
+                _ => return Err(XlcError::Operand("operation_num")),
+            })
+        };
+        let flag = |index| match self.operand(index) {
+            AutoValue::Missing => Ok(AutoValue::Missing),
+            value => geometry::boolean(value)
+                .map(AutoValue::Bool)
+                .map_err(|_| XlcError::Operand("logical operand")),
+        };
+        let args = vec![AutoValue::I4(paste), operation, flag(2)?, flag(3)?];
+        let selection = self.object(&self.application(), "Selection")?;
+        let result = self.method(&selection, "PasteSpecial", args);
+        self.model.released(&selection);
+        result
+    }
+
+    // WORKBOOK.NAME (oldname_text, newname_text) renames a sheet in the active workbook.
+    fn workbook_name(&self) -> Result<(), XlcError> {
+        let old = self.text(0)?;
+        let new = self.text(1)?;
+        let sheets = self.object(&self.application(), "Sheets")?;
+        let AutoValue::Object(sheet) = self.call(&sheets, "Item", InvokeKind::Get, vec![old])? else {
+            return Err(XlcError::Operand("Sheets.Item did not answer an object"));
+        };
+        self.put(&sheet, "Name", new)
+    }
+
     // DEFINE.NAME (name_text, refers_to): refers_to is formula text in R1C1.
     fn define_name(&self) -> Result<(), XlcError> {
         self.require_supported_operands(2, "DEFINE.NAME with additional name options")?;
@@ -486,39 +552,92 @@ impl Run<'_> {
     }
 }
 
-/// Convert an absolute XLM cell or rectangle to the A1 notation Application.Range takes.
-/// Resolving a relative or qualified reference requires the Excel command's binding context.
-fn r1c1_text_to_a1(text: &str) -> Result<String, XlcError> {
-    const NEEDS_CONTEXT: &str = "a sheet-qualified or relative text reference";
-    const INVALID: XlcError = XlcError::Operand("text reference");
+const INVALID_REFERENCE: XlcError = XlcError::Operand("text reference");
 
-    fn axis(text: &str, limit: u32) -> Result<Option<u32>, XlcError> {
+/// Each endpoint has a row, a column, or both. An empty coordinate after R or C is relative zero.
+fn r1c1_endpoint(text: &str) -> Option<(Option<AxisRef>, Option<AxisRef>)> {
+    fn axis(text: &str, limit: u32) -> Option<AxisRef> {
         if text.is_empty() {
-            return Ok(None);
+            return Some(AxisRef::Relative(0));
         }
-        text.parse::<u32>()
+        if let Some(offset) = text.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
+            let offset = offset.parse::<i32>().ok()?;
+            return (offset.unsigned_abs() < limit).then_some(AxisRef::Relative(offset));
+        }
+        if !text.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        let index = text.parse().ok()?;
+        (1..=limit).contains(&index).then_some(AxisRef::Absolute(index))
+    }
+
+    if let Some(row) = text.strip_prefix(['R', 'r']) {
+        if let Some((row, column)) = row.split_once(['C', 'c']) {
+            Some((Some(axis(row, MAX_ROWS)?), Some(axis(column, MAX_COLUMNS)?)))
+        } else {
+            Some((Some(axis(row, MAX_ROWS)?), None))
+        }
+    } else {
+        Some((None, Some(axis(text.strip_prefix(['C', 'c'])?, MAX_COLUMNS)?)))
+    }
+}
+
+/// Translate a single sheet's R1C1 area to Application.Range's A1 spelling.
+fn r1c1_text_to_a1(
+    text: &str,
+    active: impl FnOnce() -> Result<(u32, u32), XlcError>,
+) -> Result<String, XlcError> {
+    let (qualifier, body) = match text.rsplit_once('!') {
+        None => ("", text),
+        Some((qualifier, body)) => {
+            if qualifier.contains(['[', ']', ':']) {
+                return Err(refuse("a workbook-qualified or 3-D text reference"));
+            }
+            let quoted = qualifier.strip_prefix('\'').and_then(|q| q.strip_suffix('\''));
+            let valid = match quoted {
+                Some(sheet) => !sheet.is_empty() && !sheet.replace("''", "").contains('\''),
+                None => !qualifier.is_empty()
+                    && qualifier.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '.')),
+            };
+            if !valid {
+                return Err(INVALID_REFERENCE);
+            }
+            (&text[..text.len() - body.len()], body)
+        }
+    };
+    let (first, last) = body.split_once(':').unwrap_or((body, body));
+    let first = r1c1_endpoint(first).ok_or(INVALID_REFERENCE)?;
+    let last = r1c1_endpoint(last).ok_or(INVALID_REFERENCE)?;
+    if first.0.is_some() != last.0.is_some() || first.1.is_some() != last.1.is_some() {
+        return Err(INVALID_REFERENCE);
+    }
+    let (row, column) = if [first.0, first.1, last.0, last.1]
+        .into_iter()
+        .any(|axis| matches!(axis, Some(AxisRef::Relative(_))))
+    {
+        active()?
+    } else {
+        (1, 1)
+    };
+    let place = |axis: AxisRef, origin, limit| {
+        u32::try_from(axis.at(origin))
             .ok()
             .filter(|n| (1..=limit).contains(n))
-            .map(Some)
-            .ok_or(INVALID)
-    }
-
-    fn cell(part: &str) -> Result<String, XlcError> {
-        let rest = part.strip_prefix(['R', 'r']).ok_or(INVALID)?;
-        let (row, column) = rest.split_once(['C', 'c']).ok_or(INVALID)?;
-        let (Some(row), Some(column)) = (axis(row, MAX_ROWS)?, axis(column, MAX_COLUMNS)?) else {
-            return Err(refuse(NEEDS_CONTEXT));
-        };
-        Ok(format!("{}{row}", column_letters(column)))
-    }
-
-    if text.contains(['!', '['])
-        || text.split(':').any(|part| part.eq_ignore_ascii_case("R") || part.eq_ignore_ascii_case("C"))
-    {
-        return Err(refuse(NEEDS_CONTEXT));
-    }
-    match text.split_once(':') {
-        Some((first, last)) => Ok(format!("{}:{}", cell(first)?, cell(last)?)),
-        None => cell(text),
+            .ok_or(INVALID_REFERENCE)
+    };
+    let cell = |(r, c): (Option<AxisRef>, Option<AxisRef>)| {
+        let row = r.map(|axis| place(axis, row, MAX_ROWS)).transpose()?;
+        let column = c.map(|axis| place(axis, column, MAX_COLUMNS)).transpose()?;
+        Ok::<_, XlcError>(format!(
+            "{}{}",
+            column.map(column_letters).unwrap_or_default(),
+            row.map(|row| row.to_string()).unwrap_or_default(),
+        ))
+    };
+    let a1 = cell(first)?;
+    if first == last && first.0.is_some() && first.1.is_some() {
+        Ok(format!("{qualifier}{a1}"))
+    } else {
+        Ok(format!("{qualifier}{a1}:{}", cell(last)?))
     }
 }

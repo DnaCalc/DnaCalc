@@ -55,6 +55,67 @@ fn sequence_argument_coercion_order() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn sortby_lifts_each_order_argument() {
+    let mut book = Book::new();
+    book.number("E1", -1.0).number("E2", 1.0);
+    book.number("F2", 10.0).number("F3", 20.0);
+    book.set("G1", e(W::Ref));
+    for (formula, expected) in [
+        (
+            "=SORTBY({30;10;20},{3;1;2},{-1;1})",
+            numbers(&[&[30.0], &[0.0]]),
+        ),
+        (
+            "=SORTBY({30;10;20},{3;1;2},{0;-1;1})",
+            rows(&[&[e(W::Value)], &[n(30.0)], &[n(0.0)]]),
+        ),
+        (
+            "=SORTBY({#REF!;10;20},{3;1;2},{-1;1})",
+            rows(&[&[e(W::Ref)], &[n(0.0)]]),
+        ),
+        (
+            "=SORTBY({30;10;20},{3;1;2},{-1,1;1,-1})",
+            numbers(&[&[30.0, 0.0], &[0.0, 0.0]]),
+        ),
+        (
+            "=SORTBY({30;10;20},{3;1;2},E1:E2)",
+            numbers(&[&[30.0], &[0.0]]),
+        ),
+        (
+            "=SORTBY({30;10;20},{3;1;2},E1)",
+            numbers(&[&[30.0], &[20.0], &[10.0]]),
+        ),
+        (
+            "=SORTBY({30;10;20},{1;1;1},{1;-1},{3;1;2},{-1;1;1})",
+            rows(&[&[n(30.0)], &[e(W::Value)], &[e(W::NA)]]),
+        ),
+        (
+            "=SORTBY({10,20,30},1,{-1;1},7,1)",
+            numbers(&[&[10.0], &[0.0]]),
+        ),
+        (
+            "=SORTBY(F1:F3,{3;1;2},{-1;1})",
+            numbers(&[&[0.0], &[0.0]]),
+        ),
+        (
+            "=SORTBY(F1:F3,{3;1;2},-1)",
+            numbers(&[&[0.0], &[20.0], &[10.0]]),
+        ),
+        (
+            "=SORTBY(G1,3,{-1;1})",
+            rows(&[&[e(W::Ref)], &[e(W::Ref)]]),
+        ),
+        (
+            "=SORTBY(30,G1,{-1;1})",
+            rows(&[&[e(W::Ref)], &[e(W::Ref)]]),
+        ),
+    ] {
+        assert_eq!(book.dynamic(formula), expected, "{formula}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn sort_indices_and_orders_use_tolerant_floor() {
     let mut book = Book::new();
     for (function, args) in [("SORT", "{3;1;2},1"), ("SORTBY", "{3;1;2},{3;1;2}")] {

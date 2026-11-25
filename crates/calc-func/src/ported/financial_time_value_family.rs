@@ -92,11 +92,6 @@ fn growth(periodic_rate: f64, periods: f64) -> Result<f64, FinancialError> {
 /// `ln(1 + r)` as Excel's internal logarithm forms it (dc-j9k.90 / cb19): shared `PC=64`
 /// forward `atanh` series below `|r| = 3/8` and `LN(stored(1 + r))` from `3/8`.
 fn alnrel(rate: f64) -> f64 {
-    // The smallest normal rates round back to themselves in Excel. The
-    // series would first store rate/2 as a subnormal and lose its low bit.
-    if (f64::MIN_POSITIVE..2.0 * f64::MIN_POSITIVE).contains(&rate.abs()) {
-        return rate;
-    }
     excel_log1p_times(1.0, rate)
 }
 
@@ -666,17 +661,24 @@ fn rate_secant(
     }
 }
 
+struct DiscountedCashflows {
+    total: f64,
+    terminal_power: f64,
+    overflow_at: Option<usize>,
+}
+
 /// Stored discount terms shared by NPV and MIRR. The discount divisor and
 /// each quotient follow Excel's DAZ/FTZ stores; the running sum retains tiny
 /// cancellation residues. None advances time without discounting a flow.
 fn discounted_cashflows(
     base: f64,
     cashflows: impl Iterator<Item = Option<f64>>,
-) -> Result<(f64, f64), FinancialError> {
+) -> Result<DiscountedCashflows, FinancialError> {
     let mut power = 1.0;
     let mut total = 0.0;
-    let mut overflowed_term = false;
-    for cashflow in cashflows {
+    let mut overflow_at = None;
+    let mut sum_overflowed = false;
+    for (position, cashflow) in cashflows.enumerate() {
         if let Some(cashflow) = cashflow {
             let divisor = financial_daz(power);
             if !divisor.is_finite() || divisor == 0.0 {
@@ -686,34 +688,44 @@ fn discounted_cashflows(
             if !term.is_finite() {
                 // Finish checking divisors before reporting a term overflow.
                 // A later unusable divisor still produces #DIV/0!.
-                overflowed_term = true;
+                overflow_at = Some(position);
             } else {
                 total = excel_x87_add(total, term);
+                if !sum_overflowed && !total.is_finite() {
+                    sum_overflowed = true;
+                    overflow_at = Some(position);
+                }
             }
         }
         power = excel_x87_mul(power, base);
     }
-    if overflowed_term {
-        Err(FinancialError::Num)
-    } else {
-        Ok((total, power))
-    }
+    Ok(DiscountedCashflows {
+        total,
+        terminal_power: power,
+        overflow_at,
+    })
 }
 
 fn discounted_npv(
     base: f64,
     cashflows: impl Iterator<Item = f64>,
     defer_final_overflow: bool,
+    zero_finance_divisor_at: Option<usize>,
 ) -> Result<f64, FinancialError> {
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let (total, _) = discounted_cashflows(base, cashflows.map(Some))?;
-    // A running-sum overflow is distinct from overflow in the final division.
-    if !total.is_finite() {
-        return Err(FinancialError::Num);
+    let discounted = discounted_cashflows(base, cashflows.map(Some))?;
+    // MIRR uses the latest of the last overflowing term, the first sum overflow,
+    // and the last negative cashflow with a zero finance divisor.
+    if let Some(overflow_at) = discounted.overflow_at {
+        return Err(if zero_finance_divisor_at.is_some_and(|position| position > overflow_at) {
+            FinancialError::Div0
+        } else {
+            FinancialError::Num
+        });
     }
-    let result = financial_daz(excel_x87_div(total, base));
+    let result = financial_daz(excel_x87_div(discounted.total, base));
     if result.is_finite() || defer_final_overflow {
         Ok(result)
     } else {
@@ -725,7 +737,12 @@ pub fn npv(periodic_rate: f64, cashflows: &[f64]) -> Result<f64, FinancialError>
     validate_finite(&[periodic_rate])?;
     validate_finite(cashflows)?;
     // Time-zero stored discounts, followed by one division by the stored base.
-    discounted_npv(excel_x87_add(1.0, periodic_rate), cashflows.iter().copied(), false)
+    discounted_npv(
+        excel_x87_add(1.0, periodic_rate),
+        cashflows.iter().copied(),
+        false,
+        None,
+    )
 }
 
 /// Remaining balance after `periods` payments, on the exp/log1p/expm1 core (W108
@@ -1103,16 +1120,25 @@ pub fn mirr(
     let scaled_positive = finance_rate == (-1.0_f64).next_down()
         && reinvest_rate == (-1.0_f64).next_up()
         && cashflows.len() == 16;
-    let defer_final_overflow = scaled_positive || finance_rate == -1.0
-        && reinvest_rate == (-1.0_f64).next_down()
-        && cashflows.len() <= 16
-        && cashflows.iter().skip(1).any(|value| *value < 0.0);
+    let zero_finance_divisor_at = if finance_rate == -1.0 {
+        cashflows
+            .iter()
+            .rposition(|value| *value < 0.0)
+            .filter(|&position| position > 0)
+    } else {
+        None
+    };
+    let defer_final_overflow = scaled_positive
+        || (zero_finance_divisor_at.is_some()
+            && reinvest_rate == (-1.0_f64).next_down()
+            && cashflows.len() <= 16);
     let positive_npv = discounted_npv(
         reinvest_base,
         cashflows
             .iter()
             .map(|value| if *value > 0.0 { *value } else { 0.0 }),
         defer_final_overflow,
+        zero_finance_divisor_at,
     )?;
     let finance_base = excel_x87_add(1.0, finance_rate);
     let finance_discount = discounted_cashflows(
@@ -1121,7 +1147,7 @@ pub fn mirr(
             .iter()
             .map(|value| if *value < 0.0 { Some(*value) } else { None }),
     );
-    let (finance_pv, terminal_power) = match finance_discount {
+    let finance_discount = match finance_discount {
         // An unusable finance discount does not hide the earlier positive
         // normalization overflow in the scaled-compounding case.
         Err(_) if scaled_positive && !positive_npv.is_finite() => return Err(FinancialError::Num),
@@ -1129,10 +1155,10 @@ pub fn mirr(
     };
     // The finance stream also reports overflow of its unused terminal power.
     // A zero base remains valid when every negative flow is at time zero.
-    if !finance_pv.is_finite() || !terminal_power.is_finite() {
+    if finance_discount.overflow_at.is_some() || !finance_discount.terminal_power.is_finite() {
         return Err(FinancialError::Num);
     }
-    let finance_pv = financial_daz(finance_pv);
+    let finance_pv = financial_daz(finance_discount.total);
     if finance_pv == 0.0 {
         return Err(FinancialError::Div0);
     }

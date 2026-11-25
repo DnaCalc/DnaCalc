@@ -12,6 +12,11 @@ _Worksheet
 Worksheet          # coclass
 DocEvents
 Range
+Font
+Interior
+Borders
+Border
+Style
 Areas
 Names
 Name

@@ -275,7 +275,7 @@ fn worker_file_events_and_udfs_share_one_state_through_open_edit_and_save() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed() {
+fn worker_file_open_fault_is_reported_once_and_designer_projects_stay_typed() {
     let bytes = vba_project::replace_sources(
         LOCAL,
         &[
@@ -317,30 +317,21 @@ fn worker_file_open_fault_is_reported_once_and_unsupported_projects_stay_typed()
     assert_eq!(number(&book, 4), 1.);
     assert!(book.take_workbook_event_failures().failures.is_empty());
 
-    let unsupported = include_bytes!(
+    let captured = include_bytes!(
         "../../../crates/calc-engine/tests/fixtures/excel-calc-probes/P22/eng9-20261103/cases/automatic-basic/artifact.xlsm"
     );
-    // The file opens with its project held; enabling it is what refuses the project.
     let mut p22 = Workbook::open_with_project_policy(
         "p22.xlsm",
-        unsupported.to_vec(),
+        captured.to_vec(),
         WorkBudget::UNLIMITED,
         FileOrigin::Local,
     )
     .unwrap();
-    let refusal = match p22.enable_macros() {
-        Err(EnableRefused::Project(calc_host_vba::FileProjectError::Preparation(detail))) => detail,
-        Err(other) => panic!("expected the remaining automatic-event refusal: {other:?}"), // ubs:ignore[rust.ownership.panic-macro] A different refusal must fail this regression.
-        Ok(()) => panic!("unsupported automatic events cannot run on file open"), // ubs:ignore[rust.ownership.panic-macro] Unexpected admission must fail this regression.
-    };
     assert_eq!(p22.macros(), &Macros::Disabled(FileOrigin::Local));
-    assert!(
-        refusal.contains("unsupported automatic-event prefix"),
-        "{refusal}"
-    );
-    assert!(refusal.contains("dc-hsa5.12"), "{refusal}");
+    p22.enable_macros().unwrap();
+    assert_eq!(p22.macros(), &Macros::Enabled);
     let designer = vba_project::replace_project_declaration(
-        unsupported,
+        captured,
         "Class=P22Events",
         "BaseClass=P22Events",
     );
