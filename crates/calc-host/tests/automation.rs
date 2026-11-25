@@ -8463,6 +8463,33 @@ fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
     assert!(r.is_err(), "{r:?}");
 }
 
+/// dc-oxh8w.63: the alignment and protection members of a `Style` read the style's own format: Normal and a style a
+/// macro adds answer Excel's defaults, `Value` and the default member name the style, and an argument is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_63__style_alignment_and_protection_members_read_the_style_format() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine63")]).unwrap());
+    for style in [&normal, &mine] {
+        assert_eq!(int(invoke(&model, style, "HorizontalAlignment", vec![]).unwrap()), 1);
+        assert_eq!(int(invoke(&model, style, "VerticalAlignment", vec![]).unwrap()), -4107);
+        assert_eq!(int(invoke(&model, style, "IndentLevel", vec![]).unwrap()), 0);
+        assert_eq!(int(invoke(&model, style, "Orientation", vec![]).unwrap()), 0);
+        for (member, expected) in [("WrapText", false), ("ShrinkToFit", false), ("Locked", true), ("FormulaHidden", false)] {
+            let got = invoke(&model, style, member, vec![]).unwrap();
+            assert!(matches!(got, AutoValue::Bool(b) if b == expected), "{member}: {got:?}");
+        }
+    }
+    assert_eq!(text(&model, &mine, "Value"), "Mine63");
+    let default = invoke_kind(&model, &mine, "_Default", InvokeKind::Get, vec![]).unwrap();
+    assert_eq!(default.as_text().as_deref(), Some("Mine63"));
+    let r = invoke(&model, &mine, "WrapText", vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+}
+
 /// dc-orxz0: `Workbook.Styles` with Count, Item (index and name), Add and Style.Delete. A style a macro adds applies to
 /// ranges, saves and reopens; a duplicate or empty name, an unknown name, deleting Normal and deleting a style in use
 /// are refused (1004 where Excel answers an error).
