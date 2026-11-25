@@ -121,6 +121,11 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         if x > 171.0 {
             return Err(WorksheetErrorCode::Num);
         }
+        // Excel 20527 (dc-j9k.337, .338): the reverse product holds through 88!; from GAMMA(89)
+        // the Stirling series answers.
+        if x >= 89.0 {
+            return Ok(crate::ported::excel_numeric::gamma_excel(x));
+        }
         let mut product = 1.0;
         for k in (2..x as u32).rev() {
             product *= k as f64;

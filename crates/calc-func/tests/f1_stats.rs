@@ -8019,3 +8019,19 @@ fn weibull_exponent_product_overflow_is_num() {
         }
     }
 }
+
+/// Excel 20527 (dc-j9k.337, .338): GAMMA of an integer is the reverse product through 88 and the
+/// Stirling series from 89 (the reverse product is 1 to 16 ulps off from there).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_integers_switch_to_the_stirling_series_at_89() {
+    let b = f64::from_bits;
+    exact(call("GAMMA", vec![n(100.0)]), b(0x6051_66c6_98cf_183e));
+    exact(call("GAMMA", vec![n(b(0x4061_8000_0000_0000))]), b(0x718d_8895_7d1c_3025));
+    exact(call("GAMMA", vec![n(89.0)]), b(0x5bd0_550c_4b30_7440));
+    let mut product = 1.0;
+    for k in (2..88).rev() {
+        product *= k as f64;
+    }
+    exact(call("GAMMA", vec![n(88.0)]), product);
+}
