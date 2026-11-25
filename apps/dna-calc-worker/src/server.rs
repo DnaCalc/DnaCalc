@@ -116,6 +116,8 @@ pub struct Server {
     clipboard_session: String,
     paste_plan: Option<(u64, calc_host::PastePlan)>,
     pending_save: Option<(u64, PendingSave)>,
+    /// Files macros wrote (Chart.Export) that the page has not taken yet.
+    macro_files: std::collections::VecDeque<(String, Vec<u8>)>,
     pending_name: Option<PendingName>,
     next_name: u64,
     save_as_target: Option<(String, calc_host::SpreadsheetFormat)>,
@@ -411,6 +413,7 @@ impl Server {
             clipboard_session: crate::services::session_nonce(),
             paste_plan: None,
             pending_save: None,
+            macro_files: Default::default(),
             pending_name: None,
             next_name: 1,
             save_as_target: None,
@@ -1205,6 +1208,11 @@ impl Server {
                             waiting: matches!(progress, P::Waiting | P::WaitingForLive),
                         }),
                     }
+                }
+                Request::TakeMacroFile => {
+                    let (name, file) = self.macro_files.pop_front().ok_or("No macro file is waiting")?;
+                    out = Some(file);
+                    Ok(Reply::MacroFile { name, remaining: self.macro_files.len() as u64 })
                 }
                 Request::Intent(intent) => {
                     self.intent_bytes = bytes;
@@ -3834,6 +3842,7 @@ impl Server {
             Event::ProjectionFailed { id: failed, .. } => *failed != id,
             Event::Calculation { .. }
             | Event::SaveReady { .. }
+            | Event::MacroFiles { .. }
             | Event::WorkbookEventFailed { .. } => true,
         });
     }
@@ -4157,6 +4166,12 @@ impl Server {
     /// evaluation here. Geometry-only revisions also publish, keeping value/style/layout roots
     /// related even when no displayed text changed.
     fn collect(&mut self) {
+        let written = self.book.take_macro_output_files();
+        if !written.is_empty() {
+            let count = written.len() as u64;
+            self.macro_files.extend(written);
+            self.events.push(Event::MacroFiles { workbook: self.workbook, count });
+        }
         let failures = self.book.take_workbook_event_failures();
         for (index, failure) in failures.failures.into_iter().enumerate() {
             let event = match failure.event {
@@ -7038,6 +7053,7 @@ mod tile_tests {
                 Event::ProjectionFailed { reason, .. } => panic!("{reason}"),
                 Event::Calculation { .. }
                 | Event::SaveReady { .. }
+                | Event::MacroFiles { .. }
                 | Event::WorkbookEventFailed { .. } => {
                     unreachable!("projection helper removes owner controls")
                 }

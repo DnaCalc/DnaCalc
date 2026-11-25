@@ -1234,6 +1234,8 @@ pub enum Request {
     PollSave {
         token: u64,
     },
+    /// The oldest file a macro wrote (Chart.Export): [`Reply::MacroFile`], its bytes beside the reply.
+    TakeMacroFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1267,6 +1269,7 @@ impl Request {
                 | Self::SaveWithContext { .. }
                 | Self::SaveCalculated
                 | Self::PollSave { .. }
+                | Self::TakeMacroFile
                 | Self::Intent(_)
                 | Self::LoadVbaModule { .. }
                 | Self::LoadVbaProject { .. }
@@ -1814,6 +1817,12 @@ pub enum Reply {
         saved: String,
         model_revision: u64,
     },
+    /// A file a macro wrote, as the path it named; the bytes come beside the reply. `remaining`
+    /// files are still waiting.
+    MacroFile {
+        name: String,
+        remaining: u64,
+    },
 }
 
 /// One page of the ledger: how many formula cells its scope holds, how many the filter keeps,
@@ -2054,6 +2063,12 @@ pub enum Event {
     SaveReady {
         workbook: u64,
         token: u64,
+    },
+    /// A macro wrote `count` more files (Chart.Export); the page takes them with
+    /// [`Request::TakeMacroFile`] and offers each as a download.
+    MacroFiles {
+        workbook: u64,
+        count: u64,
     },
     TileAdmission(crate::tiles::TileStamp),
     Tiles(crate::tiles::TileBatch),

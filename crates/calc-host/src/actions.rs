@@ -51,6 +51,8 @@ pub enum SheetChange {
     Hide,
     /// Make the selected worksheet visible.
     Show,
+    /// Set the worksheet's visibility, including very hidden (`Worksheet.Visible`, dc-oxh8w.47).
+    SetVisibility(SheetVisibility),
 }
 
 /// Edit to a worksheet's conditional formatting rules.
@@ -353,6 +355,19 @@ pub enum WorkbookCommand {
         plot_area: bool,
         /// Six-digit RGB color, or `None` for the chart's own.
         fill: Option<String>,
+    },
+    /// Set the outline of a chart's chart area or plot area (dc-oxh8w.61).
+    ChartAreaBorder {
+        /// Worksheet that owns the target.
+        sheet: SheetId,
+        /// Workbook revision against which this command was prepared.
+        revision: u64,
+        /// Package part path identifying the target.
+        part: String,
+        /// The plot area (`true`) or the chart area (`false`).
+        plot_area: bool,
+        /// The outline the area has afterwards.
+        border: calc_doc_model::ChartBorder,
     },
     /// Change the color of a chart series.
     ChartSeriesStyle {
@@ -908,6 +923,13 @@ pub(crate) fn prepare(
             plot_area,
             fill,
         } => crate::chart::prepare_area_style(host, sheet, revision, &part, plot_area, fill),
+        WorkbookCommand::ChartAreaBorder {
+            sheet,
+            revision,
+            part,
+            plot_area,
+            border,
+        } => crate::chart::prepare_area_border(host, sheet, revision, &part, plot_area, border),
         WorkbookCommand::ChartSeriesStyle {
             sheet,
             revision,
@@ -1263,6 +1285,7 @@ fn sheet_edits(
             }
         }
         C::Remove => SheetEdit::Remove { sheet: require()? },
+        C::SetVisibility(visibility) => SheetEdit::SetVisibility { sheet: require()?, visibility },
         C::Hide | C::Show => {
             let sheet = require()?;
             if model.sheet_by_id(sheet).unwrap().visibility() == SheetVisibility::VeryHidden {

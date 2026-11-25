@@ -2491,6 +2491,8 @@ fn assemble(
         element_text: Default::default(),
         area_fill: None,
         plot_fill: None,
+        area_border: Default::default(),
+        plot_border: Default::default(),
         element_text_complex: Default::default(),
     });
     host.loaded()
@@ -2647,6 +2649,26 @@ pub(crate) fn prepare_area_style(
         return Ok(Vec::new());
     }
     *slot = fill;
+    host.loaded().check_chart_properties(sheet, chart).map_err(|e| e.to_string())?;
+    Ok(vec![crate::CellEdit::Charts { sheet, charts }])
+}
+/// `ChartArea.Border` and `PlotArea.Border`: the outline of the chart area or the plot area (dc-oxh8w.61).
+pub(crate) fn prepare_area_border(
+    host: &HostState,
+    sheet: SheetId,
+    revision: u64,
+    part: &str,
+    plot_area: bool,
+    border: calc_doc_model::ChartBorder,
+) -> Result<Vec<crate::CellEdit>, String> {
+    prepare_properties(host, sheet, revision, part, None, false, None)?;
+    let mut charts = host.model().definitions().charts(sheet).to_vec();
+    let chart = charts.iter_mut().find(|c| c.part == part).ok_or("The chart is unavailable")?;
+    let slot = if plot_area { &mut chart.plot_border } else { &mut chart.area_border };
+    if *slot == border {
+        return Ok(Vec::new());
+    }
+    *slot = border;
     host.loaded().check_chart_properties(sheet, chart).map_err(|e| e.to_string())?;
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
