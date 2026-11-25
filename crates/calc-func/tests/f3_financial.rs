@@ -3408,6 +3408,38 @@ fn mirr_zero_finance_divisor_precedes_final_positive_overflow() {
     error(call("MIRR", vec![col(&flows), n(-1.0), n(below)]), Num);
 }
 
+/// Excel 16.0.20625.20108 resolves competing discount errors by cashflow position.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_zero_finance_divisor_competes_with_positive_discount_overflow() {
+    let reinvest = (-1.0_f64).next_down();
+    let mirr = |flows: &[f64]| call("MIRR", vec![col(flows), n(-1.0), n(reinvest)]);
+    let mut flows = vec![0.0; 16];
+    flows[1] = -1.0;
+    flows[4] = 2.0_f64.powi(1024 - 52 * 4);
+    flows[5] = -1.0;
+    error(mirr(&flows), Div0);
+
+    // A later overflowing term supersedes the zero finance divisor.
+    flows[6] = 2.0_f64.powi(1024 - 52 * 6);
+    error(mirr(&flows), Num);
+    flows[7] = -1.0;
+    error(mirr(&flows), Div0);
+
+    // The first overflow from adding finite terms supplies its position.
+    flows.fill(0.0);
+    flows[0] = 2.0_f64.powi(1023);
+    flows[4] = 2.0_f64.powi(1023 - 52 * 4);
+    flows[5] = -1.0;
+    flows[6] = 2.0_f64.powi(1023 - 52 * 6);
+    error(mirr(&flows), Div0);
+
+    flows[6] = 2.0_f64.powi(1024 - 52 * 6);
+    error(mirr(&flows), Num);
+    flows[7] = -1.0;
+    error(mirr(&flows), Div0);
+}
+
 /// Excel 20527 retains a finite compounded MIRR after normalization overflow.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
