@@ -7017,6 +7017,16 @@ fn dc_jtl4m__paste_special_operation_skip_blanks_and_worksheet_paste_special() {
     assert_eq!(value("A40"), "", "an empty destination");
     call("A40", "PasteSpecial", operation(2)).unwrap();
     assert_eq!([value("A40"), value("B40"), value("C40")], ["10", "20", "0"]);
+    // A blank copied cell counts as zero: add and subtract keep the destination, multiply gives 0, divide #DIV/0!.
+    fill(&host, (30, 1), &[&["7", "8", "9"]]);
+    call("A2:C2", "Copy", vec![]).unwrap();
+    call("A30", "PasteSpecial", operation(2)).unwrap();
+    assert_eq!([value("A30"), value("B30"), value("C30")], ["12", "8", "16"]);
+    call("A30", "PasteSpecial", operation(4)).unwrap();
+    assert_eq!([value("A30"), value("B30"), value("C30")], ["60", "0", "112"]);
+    fill(&host, (31, 1), &[&["7", "8", "9"]]);
+    call("A31", "PasteSpecial", operation(5)).unwrap();
+    assert_eq!(text(&model, &range(&model, "B31"), "Text"), "#DIV/0!");
     // A formula destination is refused typed and nothing changes.
     call("A4", "Copy", vec![]).unwrap();
     call("A12", "PasteSpecial", operation(2)).unwrap();
@@ -8410,6 +8420,191 @@ fn dc_tqcvu__format_conditions_add_set_interior_and_font_and_delete() {
     assert_eq!(count(&model, &conditions), 0);
 }
 
+/// dc-oxh8w.62: `FormatCondition.AppliesTo`, `ModifyAppliesToRange`, `Priority` put, `SetFirstPriority` and
+/// `SetLastPriority`. Moving a rule's range changes which `FormatConditions` collections see it; priorities are
+/// positions in the worksheet's list. A priority outside 1..Count, a non-range argument and a range on another
+/// worksheet are 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_62__format_condition_applies_to_and_priority() {
+    let (_host, model, _) = blank_report();
+    let conditions_of = |address: &str| {
+        let target = range(&model, address);
+        let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+        model.released(&target);
+        conditions
+    };
+    let count = |c: &ObjectRef| int(invoke(&model, c, "Count", vec![]).unwrap());
+    let conditions = conditions_of("B2:B6");
+    let add = |formula: &str| {
+        obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::text(formula)]).unwrap())
+    };
+    let (a, b, c) = (add("=B2>1"), add("=B2>2"), add("=B2>3"));
+    let priority = |r: &ObjectRef| int(invoke(&model, r, "Priority", vec![]).unwrap());
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (1, 2, 3));
+    let applies = obj(invoke(&model, &a, "AppliesTo", vec![]).unwrap());
+    assert_eq!(text(&model, &applies, "Address"), "$B$2:$B$6");
+    // Priority put, SetFirstPriority and SetLastPriority.
+    invoke_kind(&model, &c, "SetFirstPriority", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (2, 3, 1));
+    invoke_kind(&model, &c, "SetLastPriority", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (1, 2, 3));
+    invoke_kind(&model, &b, "Priority", InvokeKind::Put, vec![AutoValue::I4(1)]).unwrap();
+    assert_eq!((priority(&a), priority(&b), priority(&c)), (2, 1, 3));
+    for bad in [0, 4, -1] {
+        let r = invoke_kind(&model, &a, "Priority", InvokeKind::Put, vec![AutoValue::I4(bad)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{bad}: {r:?}");
+    }
+    // ModifyAppliesToRange moves the rule out of B2:B6 and into D1:D2.
+    let elsewhere = range(&model, "D1:D2");
+    invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![AutoValue::Object(elsewhere)]).unwrap();
+    assert_eq!(count(&conditions), 2);
+    assert_eq!(count(&conditions_of("D1:D2")), 1);
+    let applies = obj(invoke(&model, &a, "AppliesTo", vec![]).unwrap());
+    assert_eq!(text(&model, &applies, "Address"), "$D$1:$D$2");
+    for bad in [AutoValue::text("D1"), AutoValue::I4(3)] {
+        let r = invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![bad.clone()]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })) || r.is_err(), "{bad:?}: {r:?}");
+    }
+    let r = invoke_kind(&model, &a, "ModifyAppliesToRange", InvokeKind::Method, vec![]);
+    assert!(r.is_err(), "{r:?}");
+}
+
+/// dc-jupjv: `FormatConditions.Add` of the top-10, above-average and duplicate-values types makes a rule of that type
+/// (Excel's defaults: top 10 items, above the average, duplicates). Their own members (Rank, TopBottom, AboveBelow,
+/// DupeUnique) need the Top10, AboveAverage and UniqueValues interfaces in the descriptor (RUN-ON-WINDOWS.txt).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_jupjv__format_conditions_add_top10_average_and_duplicates() {
+    let (_host, model, _) = blank_report();
+    let target = range(&model, "B2:B6");
+    let conditions = obj(invoke(&model, &target, "FormatConditions", vec![]).unwrap());
+    let add = |kind: i32| obj(invoke_kind(&model, &conditions, "Add", InvokeKind::Method, vec![AutoValue::I4(kind)]).unwrap());
+    let top = add(5);
+    assert_eq!(int(invoke(&model, &top, "Type", vec![]).unwrap()), 5);
+    let average = add(12);
+    assert_eq!(int(invoke(&model, &average, "Type", vec![]).unwrap()), 12);
+    let dupes = add(8);
+    assert_eq!(int(invoke(&model, &dupes, "Type", vec![]).unwrap()), 8);
+    assert_eq!(int(invoke(&model, &conditions, "Count", vec![]).unwrap()), 3);
+}
+
+/// dc-lj4j5: `Style.NumberFormat` put changes the format of a style no cell uses yet; a range given the style shows it.
+/// Normal is in use by every cell, so changing it is refused with a typed not-modelled error; an unusable format code
+/// is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_number_format_put() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine5")]).unwrap());
+    invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.00")]).unwrap();
+    assert_eq!(text(&model, &mine, "NumberFormat"), "0.00");
+    let cell = range(&model, "D2");
+    invoke_kind(&model, &cell, "Value", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine5")]).unwrap();
+    assert_eq!(text(&model, &cell, "NumberFormat"), "0.00");
+    assert_eq!(text(&model, &cell, "Text"), "30.00");
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "NumberFormat", InvokeKind::Put, vec![AutoValue::text("0.0")]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "NumberFormat", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-lj4j5: `Style.WrapText/ShrinkToFit/Locked/FormulaHidden` puts change a style no cell uses; a cell given the style
+/// shows them; Normal (in use) is refused typed; a non-boolean is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_lj4j5__style_flag_puts() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine6")]).unwrap());
+    for m in ["WrapText", "ShrinkToFit", "FormulaHidden"] {
+        invoke_kind(&model, &mine, m, InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+        assert!(matches!(invoke(&model, &mine, m, vec![]).unwrap(), AutoValue::Bool(true)), "{m}");
+    }
+    invoke_kind(&model, &mine, "Locked", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &mine, "Locked", vec![]).unwrap(), AutoValue::Bool(false)));
+    let cell = range(&model, "E2");
+    invoke_kind(&model, &cell, "Style", InvokeKind::Put, vec![AutoValue::text("Mine6")]).unwrap();
+    assert!(matches!(invoke(&model, &cell, "WrapText", vec![]).unwrap(), AutoValue::Bool(true)));
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let r = invoke_kind(&model, &normal, "WrapText", InvokeKind::Put, vec![AutoValue::Bool(true)]);
+    assert!(matches!(r, Err(AutoError::NotModelled { .. })), "{r:?}");
+    let r = invoke_kind(&model, &mine, "WrapText", InvokeKind::Put, vec![AutoValue::I4(3)]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-p3rg9: `Window.Caption` put sets the window's title for the macro session and the get returns it; a non-text
+/// value is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p3rg9__window_caption_put() {
+    let (_host, model, _) = blank_report();
+    let window = obj(invoke(&model, &model.application(), "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let before = text(&model, &window, "Caption");
+    assert_eq!(before, text(&model, &book, "Name"));
+    invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::text("Quarterly")]).unwrap();
+    assert_eq!(text(&model, &window, "Caption"), "Quarterly");
+    // The workbook's own name is unchanged.
+    assert_eq!(text(&model, &book, "Name"), before);
+    let r = invoke_kind(&model, &window, "Caption", InvokeKind::Put, vec![AutoValue::Object(book.clone())]);
+    assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "{r:?}");
+}
+
+/// dc-oxh8w.69: `Window.Caption` is the workbook's name, `Type` is xlWorkbook, `WindowNumber` is 1, `Visible` is True,
+/// and `Activate` makes the workbook active. An argument is 1004-class error rather than ignored.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_69__window_caption_type_number_visible_and_activate() {
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+    let window = obj(invoke(&model, &app, "ActiveWindow", vec![]).unwrap());
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    assert_eq!(text(&model, &window, "Caption"), text(&model, &book, "Name"));
+    assert_eq!(int(invoke(&model, &window, "Type", vec![]).unwrap()), 1);
+    assert_eq!(int(invoke(&model, &window, "WindowNumber", vec![]).unwrap()), 1);
+    assert!(matches!(invoke(&model, &window, "Visible", vec![]).unwrap(), AutoValue::Bool(true)));
+    invoke_kind(&model, &window, "Activate", InvokeKind::Method, vec![]).unwrap();
+    let active = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    assert_eq!(active.key, book.key);
+    let r = invoke_kind(&model, &window, "Activate", InvokeKind::Method, vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+    let r = invoke(&model, &window, "Caption", vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+}
+
+/// dc-oxh8w.63: the alignment and protection members of a `Style` read the style's own format: Normal and a style a
+/// macro adds answer Excel's defaults, `Value` and the default member name the style, and an argument is 1004.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_63__style_alignment_and_protection_members_read_the_style_format() {
+    let (_host, model, _) = blank_report();
+    let book = obj(invoke(&model, &model.application(), "ActiveWorkbook", vec![]).unwrap());
+    let styles = obj(invoke(&model, &book, "Styles", vec![]).unwrap());
+    let normal = obj(invoke_kind(&model, &styles, "Item", InvokeKind::Get, vec![AutoValue::text("Normal")]).unwrap());
+    let mine = obj(invoke_kind(&model, &styles, "Add", InvokeKind::Method, vec![AutoValue::text("Mine63")]).unwrap());
+    for style in [&normal, &mine] {
+        assert_eq!(int(invoke(&model, style, "HorizontalAlignment", vec![]).unwrap()), 1);
+        assert_eq!(int(invoke(&model, style, "VerticalAlignment", vec![]).unwrap()), -4107);
+        assert_eq!(int(invoke(&model, style, "IndentLevel", vec![]).unwrap()), 0);
+        assert_eq!(int(invoke(&model, style, "Orientation", vec![]).unwrap()), 0);
+        for (member, expected) in [("WrapText", false), ("ShrinkToFit", false), ("Locked", true), ("FormulaHidden", false)] {
+            let got = invoke(&model, style, member, vec![]).unwrap();
+            assert!(matches!(got, AutoValue::Bool(b) if b == expected), "{member}: {got:?}");
+        }
+    }
+    assert_eq!(text(&model, &mine, "Value"), "Mine63");
+    let default = invoke_kind(&model, &mine, "_Default", InvokeKind::Get, vec![]).unwrap();
+    assert_eq!(default.as_text().as_deref(), Some("Mine63"));
+    let r = invoke(&model, &mine, "WrapText", vec![AutoValue::I4(1)]);
+    assert!(r.is_err(), "{r:?}");
+}
+
 /// dc-orxz0: `Workbook.Styles` with Count, Item (index and name), Add and Style.Delete. A style a macro adds applies to
 /// ranges, saves and reopens; a duplicate or empty name, an unknown name, deleting Normal and deleting a style in use
 /// are refused (1004 where Excel answers an error).
@@ -8600,4 +8795,133 @@ fn dc_oxh8w_71__advanced_filter_copies_matching_records() {
     assert!(bad(vec![AutoValue::I4(2), AutoValue::Missing]));
     let inplace = run(vec![AutoValue::I4(1), AutoValue::Missing]);
     assert!(matches!(inplace, Err(AutoError::NotModelled { .. })), "{inplace:?}");
+}
+
+/// dc-oxh8w.43: Range.AutoFilter switches the filter on and off and sets one column's criterion through the
+/// host's own AutoFilter command; Worksheet.AutoFilterMode, FilterMode and ShowAllData read and clear it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__range_auto_filter_sets_criteria() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["name", "qty"], &["a", "5"], &["b", "15"], &["c", "25"], &["d", "35"]]);
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let get = |name: &str| invoke(&model, &sheet, name, vec![]).unwrap();
+    let hidden = || -> Vec<u32> {
+        let session = host.session.borrow();
+        let id = session.host().sheets()[0].id();
+        session
+            .host()
+            .model()
+            .definitions()
+            .auto_filter(id)
+            .map(|f| f.filtered_rows.iter().copied().collect())
+            .unwrap_or_default()
+    };
+    let filter = |address: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), "AutoFilter", InvokeKind::Method, args)
+    };
+    let t = |s: &str| AutoValue::text(s);
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    // No Field: on over the current region of a single cell.
+    filter("A1", vec![]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(true)));
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(false)));
+    // Field 2 > 10: rows 2 hidden.
+    filter("A1:B5", vec![AutoValue::I4(2), t(">10")]).unwrap();
+    assert_eq!(hidden(), vec![2]);
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(true)));
+    // Second criterion with xlAnd narrows; xlOr widens.
+    filter("A1:B5", vec![AutoValue::I4(2), t(">10"), AutoValue::I4(1), t("<30")]).unwrap();
+    assert_eq!(hidden(), vec![2, 5]);
+    filter("A1:B5", vec![AutoValue::I4(2), t("<10"), AutoValue::I4(2), t(">30")]).unwrap();
+    assert_eq!(hidden(), vec![3, 4]);
+    // Top 2 items; a plain number is equality; an array is xlFilterValues.
+    filter("A1:B5", vec![AutoValue::I4(2), AutoValue::I4(2), AutoValue::I4(3)]).unwrap();
+    assert_eq!(hidden(), vec![2, 3]);
+    filter("A1:B5", vec![AutoValue::I4(2), AutoValue::I4(15)]).unwrap();
+    assert_eq!(hidden(), vec![2, 4, 5]);
+    let values = AutoValue::Array(Box::new(calc_object_model::AutoArray {
+        rows: 1,
+        columns: 2,
+        lower: (1, 1),
+        values: vec![t("5"), t("35")],
+    }));
+    filter("A1:B5", vec![AutoValue::I4(2), values, AutoValue::I4(7)]).unwrap();
+    assert_eq!(hidden(), vec![3, 4]);
+    // Text criteria on column 1 combine with column 2.
+    filter("A1:B5", vec![AutoValue::I4(1), t("<>a")]).unwrap();
+    assert_eq!(hidden(), vec![2, 3, 4]);
+    // ShowAllData clears the criteria and keeps the filter; a second call is an error.
+    invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(hidden(), Vec::<u32>::new());
+    assert!(matches!(get("FilterMode"), AutoValue::Bool(false)));
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(true)));
+    assert!(matches!(
+        invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+    // Argument errors are 1004; colour filters refuse typed.
+    assert!(matches!(filter("A1:B5", vec![AutoValue::I4(3), t(">1")]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(filter("A1:B5", vec![AutoValue::I4(0), t(">1")]), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(
+        filter("A1:B5", vec![AutoValue::I4(1), t("x"), AutoValue::I4(20)]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+    assert!(matches!(
+        filter("A1:B5", vec![AutoValue::I4(1), t("x"), AutoValue::I4(8)]),
+        Err(AutoError::NotModelled { .. })
+    ));
+    // No Field again switches it off; AutoFilterMode = False does the same, True is an error.
+    filter("A1:B5", vec![]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    filter("A1:B5", vec![]).unwrap();
+    invoke_kind(&model, &sheet, "AutoFilterMode", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(get("AutoFilterMode"), AutoValue::Bool(false)));
+    assert!(matches!(
+        invoke_kind(&model, &sheet, "AutoFilterMode", InvokeKind::Put, vec![AutoValue::Bool(true)]),
+        Err(AutoError::Excel { number: 1004, .. })
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    fill(&host, (1, 1), &[&["1", "2"], &["3", "4"]]);
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let width = |address: &str| invoke(&model, &range(&model, address), "ColumnWidth", vec![]).unwrap();
+    invoke_kind(&model, &range(&model, "A1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(20)]).unwrap();
+    invoke_kind(&model, &range(&model, "B1"), "ColumnWidth", InvokeKind::Put, vec![AutoValue::I4(30)]).unwrap();
+    // xlPasteColumnWidths (8) sets the destination columns' widths and writes no cell.
+    call("A1:B2", "Copy", vec![]).unwrap();
+    call("E5", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("E1"), AutoValue::R8(n) if n == 20.0));
+    assert!(matches!(width("F1"), AutoValue::R8(n) if n == 30.0));
+    assert_eq!(cell_text_of(&model, "E5"), "", "no cell content is pasted");
+    // The widths stay on the clipboard for a second paste; a destination past column XFD is 1004.
+    call("H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(matches!(width("I1"), AutoValue::R8(n) if n == 30.0));
+    assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
+    // xlPasteAllUsingSourceTheme (13) and xlPasteAllMergingConditionalFormats (14) paste everything within one workbook.
+    for (paste, at) in [(13, "A10"), (14, "A13")] {
+        call(at, "PasteSpecial", vec![AutoValue::I4(paste)]).unwrap();
+    }
+    assert_eq!(cell_text_of(&model, "B11"), "4");
+    assert_eq!(cell_text_of(&model, "B14"), "4");
 }

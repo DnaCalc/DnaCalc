@@ -463,3 +463,47 @@ fn sort_orders_adjacent_binary64_keys_exactly() {
         }
     }
 }
+
+/// dc-ztvv.26.132: Excel never builds a dynamic array larger than the sheet. Excel 16.0.20527
+/// (Touchstone, 2026-11-25): a SEQUENCE or RANDARRAY dimension above 1,048,576 after flooring is
+/// #VALUE! (checked before the zero-dimension #CALC!); more than 16,384 columns is #SPILL!. The
+/// call must return at once, without building the cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sequence_and_randarray_beyond_the_grid_answer_without_allocating() {
+    use calc_func::value::WorksheetErrorCode::Spill;
+    let huge = f64::from_bits(0x68db_eece_93c9_0823);
+    for name in ["SEQUENCE", "RANDARRAY"] {
+        error(call(name, vec![n(huge)]), Value);
+        error(call(name, vec![n(huge), n(1.0)]), Value);
+        error(call(name, vec![n(1.0), n(huge)]), Value);
+        error(call(name, vec![n(1_048_577.0), n(1.0)]), Value);
+        error(call(name, vec![n(1.0), n(1_048_577.5)]), Value);
+        error(call(name, vec![n(1_048_577.0), n(0.0)]), Value);
+        error(call(name, vec![n(0.0), n(1e300)]), Value);
+        error(call(name, vec![n(1.0), n(16_385.0)]), Spill);
+        error(call(name, vec![n(1.0), n(1_048_576.0)]), Spill);
+    }
+    error(call("SEQUENCE", vec![n(1_048_576.0), n(1_048_576.0)]), Spill);
+    error(call("SEQUENCE", vec![n(0.5), n(1.0)]), Calc);
+    assert_eq!(array(call("SEQUENCE", vec![n(1_048_576.9)])).0, 1_048_576);
+}
+
+/// dc-ztvv.26.132: EXPAND's target dimension, truncated, is #VALUE! below 1 or from 2^31, #NUM!
+/// above 1,048,576, and a result of more than 16,384 columns is #SPILL! (Excel 16.0.20527).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn expand_beyond_the_grid_answers_without_allocating() {
+    use calc_func::value::WorksheetErrorCode::Spill;
+    let huge = f64::from_bits(0x68db_eece_93c9_0823);
+    error(call("EXPAND", vec![n(1.0), n(huge)]), Value);
+    error(call("EXPAND", vec![n(1.0), n(1.0), n(huge)]), Value);
+    error(call("EXPAND", vec![n(1.0), n(2_147_483_648.0), n(1.0)]), Value);
+    error(call("EXPAND", vec![n(1.0), n(2_147_483_647.9), n(1.0)]), Num);
+    error(call("EXPAND", vec![n(1.0), n(1.0), n(1_000_000_000.0)]), Num);
+    error(call("EXPAND", vec![n(1.0), n(1_048_577.1), n(1.0)]), Num);
+    error(call("EXPAND", vec![n(1.0), n(0.99), n(1.0)]), Value);
+    error(call("EXPAND", vec![n(1.0), n(1.0), n(16_385.0)]), Spill);
+    error(call("EXPAND", vec![n(1.0), n(1_048_576.0), n(1_048_576.0)]), Spill);
+    assert_eq!(array(call("EXPAND", vec![n(1.0), n(1.5), n(1.0)])), (1, 1, vec![1.0]));
+}

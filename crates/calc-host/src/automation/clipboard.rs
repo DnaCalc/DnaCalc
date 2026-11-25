@@ -12,6 +12,9 @@ const XL_PASTE_ALL: i64 = -4104;
 const XL_PASTE_VALUES: i64 = -4163;
 const XL_PASTE_FORMULAS: i64 = -4123;
 const XL_PASTE_FORMATS: i64 = -4122;
+const XL_PASTE_COLUMN_WIDTHS: i64 = 8;
+const XL_PASTE_ALL_USING_SOURCE_THEME: i64 = 13;
+const XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS: i64 = 14;
 const XL_PASTE_OPERATION_NONE: i64 = -4142;
 const XL_PASTE_OPERATION_ADD: i64 = 2;
 const XL_PASTE_OPERATION_SUBTRACT: i64 = 3;
@@ -25,7 +28,7 @@ const XL_PASTE_OPERATIONS: [i64; 5] = [
     XL_PASTE_OPERATION_DIVIDE,
 ];
 
-const NO_COMBINE: Combine = Combine { operation: None, skip_blanks: false };
+const NO_COMBINE: Combine = Combine { operation: None, skip_blanks: false, column_widths: false };
 
 /// What Paste Special does on top of the paste plan.
 #[derive(Clone, Copy)]
@@ -33,6 +36,8 @@ struct Combine {
     /// One of the xlPasteSpecialOperation constants other than xlNone, when given.
     operation: Option<i64>,
     skip_blanks: bool,
+    /// xlPasteColumnWidths: only the source columns' widths are pasted.
+    column_widths: bool,
 }
 
 /// What the last Copy or Cut left.
@@ -83,7 +88,9 @@ impl WorkbookAutomation {
         let given = |index: usize| !matches!(call.arg(index), AutoValue::Missing | AutoValue::Empty);
         let paste = if given(0) { geometry::integer(call.arg(0))? } else { XL_PASTE_ALL };
         let mode = match paste {
-            XL_PASTE_ALL => PasteMode::All,
+            // Within one workbook the source theme is the destination's, and conditional formats merge as they do on All.
+            XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME | XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => PasteMode::All,
+            XL_PASTE_COLUMN_WIDTHS => PasteMode::Formats,
             XL_PASTE_VALUES => PasteMode::Values,
             XL_PASTE_FORMULAS => PasteMode::Formulas,
             XL_PASTE_FORMATS => PasteMode::Formats,
@@ -106,8 +113,15 @@ impl WorkbookAutomation {
         let combine = Combine {
             operation: (operation != XL_PASTE_OPERATION_NONE).then_some(operation),
             skip_blanks: flag(2)?,
+            column_widths: false,
         };
         let transpose = flag(3)?;
+        if paste == XL_PASTE_COLUMN_WIDTHS {
+            if transpose || combine.skip_blanks || combine.operation.is_some() {
+                return Err(AutoError::not_modelled("Range.PasteSpecial column widths with Transpose, SkipBlanks or Operation", OWNER));
+            }
+            return self.paste_clip(target, call, mode, false, false, Combine { column_widths: true, ..combine });
+        }
         self.paste_clip(target, call, mode, transpose, false, combine)
     }
 
@@ -181,6 +195,21 @@ impl WorkbookAutomation {
                 transpose,
             )
             .map_err(|why| AutoError::excel(1004, format!("{member} failed: {why}")))?;
+            if combine.column_widths {
+                if clip.cut {
+                    return Err(failed("PasteSpecial"));
+                }
+                // The widths only: the planner's cell edits are dropped and the source columns' bands are written.
+                let edits = plan.edits_mut();
+                edits.clear();
+                for (offset, index) in (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate() {
+                    let format = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
+                    let column = to.first().column() + offset as u32;
+                    let edit = calc_doc_model::AxisFormatEdit::new(to.sheet(), calc_doc_model::Axis::Columns, column, format)
+                        .ok_or_else(|| failed("PasteSpecial"))?;
+                    edits.push(crate::CellEdit::AxisFormat(edit));
+                }
+            }
             if combine.skip_blanks || combine.operation.is_some() {
                 if clip.cut {
                     return Err(failed("PasteSpecial"));
@@ -216,6 +245,7 @@ impl WorkbookAutomation {
             .iter()
             .filter_map(|edit| match edit {
                 CellEdit::Set { at, .. } => Some(*at),
+                CellEdit::Clear { area } => Some(area.first()),
                 _ => None,
             })
             .collect();
@@ -233,29 +263,32 @@ impl WorkbookAutomation {
             current.insert(cell.at(), number);
         }
         for edit in plan.edits_mut().iter_mut() {
-            match edit {
-                CellEdit::Set { at, input } => {
-                    let CellInput::Number(source) = input else {
-                        return Err(refuse("with a source that is not a number"));
-                    };
-                    let (dest, source) = (current[at], source.get());
-                    let result = match operation {
-                        XL_PASTE_OPERATION_ADD => dest + source,
-                        XL_PASTE_OPERATION_SUBTRACT => dest - source,
-                        XL_PASTE_OPERATION_MULTIPLY => dest * source,
-                        _ if source == 0.0 => {
-                            *input = CellInput::Error(WorksheetErrorCode::Div0);
-                            continue;
-                        }
-                        _ => dest / source,
-                    };
-                    *input = crate::FiniteNumber::new(result)
-                        .map(CellInput::Number)
-                        .unwrap_or(CellInput::Error(WorksheetErrorCode::Num));
+            // A blank source cell counts as zero.
+            let (at, source) = match edit {
+                CellEdit::Set { at, input } => match input {
+                    CellInput::Number(source) => (*at, source.get()),
+                    _ => return Err(refuse("with a source that is not a number")),
+                },
+                CellEdit::Clear { area } => (area.first(), 0.0),
+                _ => continue,
+            };
+            let dest = current[&at];
+            let result = match operation {
+                XL_PASTE_OPERATION_ADD => dest + source,
+                XL_PASTE_OPERATION_SUBTRACT => dest - source,
+                XL_PASTE_OPERATION_MULTIPLY => dest * source,
+                _ if source == 0.0 => {
+                    *edit = CellEdit::Set { at, input: CellInput::Error(WorksheetErrorCode::Div0) };
+                    continue;
                 }
-                CellEdit::Clear { .. } => return Err(refuse("with a blank source cell (use SkipBlanks)")),
-                _ => {}
-            }
+                _ => dest / source,
+            };
+            *edit = CellEdit::Set {
+                at,
+                input: crate::FiniteNumber::new(result)
+                    .map(CellInput::Number)
+                    .unwrap_or(CellInput::Error(WorksheetErrorCode::Num)),
+            };
         }
         Ok(())
     }

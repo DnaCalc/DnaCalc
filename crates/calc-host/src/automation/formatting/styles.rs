@@ -11,7 +11,26 @@ impl WorkbookAutomation {
         handlers.on("Styles", "_Default", InvokeKind::Get, Self::styles_item);
         handlers.on("Styles", "Add", InvokeKind::Method, Self::styles_add);
         handlers.on("Style", "Delete", InvokeKind::Method, Self::style_delete);
-        for member in ["Name", "NameLocal", "BuiltIn", "NumberFormat"] {
+        handlers.on("Style", "NumberFormat", InvokeKind::Put, Self::style_put_number_format);
+        for member in ["WrapText", "ShrinkToFit", "Locked", "FormulaHidden"] {
+            handlers.on("Style", member, InvokeKind::Put, Self::style_put_flag);
+        }
+        for member in [
+            "Name",
+            "NameLocal",
+            "BuiltIn",
+            "NumberFormat",
+            "Value",
+            "_Default",
+            "HorizontalAlignment",
+            "VerticalAlignment",
+            "WrapText",
+            "ShrinkToFit",
+            "IndentLevel",
+            "Orientation",
+            "Locked",
+            "FormulaHidden",
+        ] {
             handlers.on("Style", member, InvokeKind::Get, Self::style_member);
         }
     }
@@ -103,7 +122,46 @@ impl WorkbookAutomation {
             let styles = host.styles();
             let style = styles.cell_styles.get(index as usize).ok_or_else(|| AutoError::excel(424, "Object required"))?;
             Ok(match call.member.name.as_str() {
-                "Name" | "NameLocal" => AutoValue::text(&style.name),
+                "Name" | "NameLocal" | "Value" | "_Default" => AutoValue::text(&style.name),
+                "HorizontalAlignment" | "VerticalAlignment" | "WrapText" | "ShrinkToFit" | "IndentLevel" | "Orientation"
+                | "Locked" | "FormulaHidden" => {
+                    let base = styles.cell_style_formats.get(style.xf_id as usize).ok_or_else(|| {
+                        AutoError::not_modelled(format!("{} of a missing style format", call.label()), "dc-oxh8w.63")
+                    })?;
+                    let alignment = base.alignment.as_ref();
+                    match call.member.name.as_str() {
+                        "HorizontalAlignment" => {
+                            AutoValue::I4(format_enum_value(HORIZONTAL, alignment.and_then(|a| a.horizontal.as_deref()), call)?)
+                        }
+                        "VerticalAlignment" => {
+                            AutoValue::I4(format_enum_value(VERTICAL, alignment.and_then(|a| a.vertical.as_deref()), call)?)
+                        }
+                        "WrapText" => AutoValue::Bool(alignment.is_some_and(|a| a.wrap_text)),
+                        "ShrinkToFit" => AutoValue::Bool(alignment.is_some_and(|a| a.shrink_to_fit)),
+                        "IndentLevel" => {
+                            let indent = alignment.and_then(|a| a.indent.as_deref()).unwrap_or("0");
+                            AutoValue::I4(indent.parse().map_err(|_| {
+                                AutoError::not_modelled(format!("Style.IndentLevel stored as {indent}"), "dc-oxh8w.63")
+                            })?)
+                        }
+                        "Orientation" => {
+                            let rotation = alignment.and_then(|a| a.text_rotation.as_deref()).unwrap_or("0");
+                            AutoValue::I4(match rotation.parse::<i32>() {
+                                Ok(n @ 0..=90) => n,
+                                Ok(n @ 91..=180) => 90 - n,
+                                Ok(255) => XL_VERTICAL_TEXT,
+                                _ => {
+                                    return Err(AutoError::not_modelled(
+                                        format!("Style.Orientation stored as {rotation}"),
+                                        "dc-oxh8w.63",
+                                    ));
+                                }
+                            })
+                        }
+                        "Locked" => AutoValue::Bool(base.protection.as_ref().and_then(|p| p.locked).unwrap_or(true)),
+                        _ => AutoValue::Bool(base.protection.as_ref().and_then(|p| p.hidden).unwrap_or(false)),
+                    }
+                }
                 "BuiltIn" => AutoValue::Bool(style.builtin_id.is_some() && !style.custom_builtin),
                 _ => {
                     let base = styles
@@ -189,6 +247,54 @@ impl WorkbookAutomation {
         })?;
         let AutoValue::I4(index) = index else { return Err(format_error()) };
         Ok(AutoValue::Object(object("Style", ObjectKey::Style { workbook, index: index as u32 })))
+    }
+
+    /// `Style.NumberFormat = code` for a style no cell format uses; one in use is refused (dc-lj4j5).
+    fn style_put_number_format(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Style { index, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let AutoValue::Text(code) = call.arg(0) else {
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        };
+        let code = code.to_string_lossy();
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable { change: crate::StyleChange::NumberFormat { index, code: code.clone() } }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.NumberFormat: {error:?}"), "dc-lj4j5"));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
+    }
+
+    /// `Style.WrapText/ShrinkToFit/Locked/FormulaHidden = bool` for a style no cell format uses (dc-lj4j5).
+    fn style_put_flag(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 1)?;
+        let ObjectKey::Style { index, .. } = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let AutoValue::Bool(value) = call.arg(0) else {
+            return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
+        };
+        let member = call.member.name.clone();
+        self.with_write(|session| {
+            let receipt = session.dispatch_from(
+                crate::CommandIngress::Automation,
+                SkinIntent::Command(WorkbookCommand::StyleTable {
+                    change: crate::StyleChange::Flag { index, member: member.clone(), value: *value },
+                }),
+            );
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Style.{member}: {error:?}"), "dc-lj4j5"));
+            }
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
+        })
     }
 
     fn style_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

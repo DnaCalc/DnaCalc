@@ -49,13 +49,23 @@ ported_shared_family! {
         s.number((lo + (unit * range).floor()).min(hi))
     }
     3 randarray |s, a, sv| {
-        let rows = if given(a, 0) { num(s, a, 0)?.trunc() } else { 1.0 };
-        let cols = if given(a, 1) { num(s, a, 1)?.trunc() } else { 1.0 };
+        let floor = crate::ported::text_kernels::date_integer_floor;
+        let rows = if given(a, 0) { floor(num(s, a, 0)?) } else { 1.0 };
+        let cols = if given(a, 1) { floor(num(s, a, 1)?) } else { 1.0 };
         let min = if given(a, 2) { num(s, a, 2)? } else { 0.0 };
         let max = if given(a, 3) { num(s, a, 3)? } else { 1.0 };
         let whole = if given(a, 4) { opt_flag(s, a, 4, false)? } else { false };
-        if rows < 1.0 || cols < 1.0 {
+        // Excel 16.0.20527 (dc-ztvv.26.132): a floored dimension below 0 or above the sheet's
+        // rows is #VALUE!, then a zero one is #CALC!; more than 16,384 columns cannot spill.
+        let sheet_rows = 1_048_576.0;
+        if rows < 0.0 || cols < 0.0 || rows > sheet_rows || cols > sheet_rows {
             return fail(WorksheetErrorCode::Value);
+        }
+        if rows == 0.0 || cols == 0.0 {
+            return fail(WorksheetErrorCode::Calc);
+        }
+        if cols > 16_384.0 {
+            return fail(WorksheetErrorCode::Spill);
         }
         if rows * cols > RANDARRAY_LIMIT {
             return Err(s.not_modelled(None));

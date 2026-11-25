@@ -102,6 +102,12 @@ pub enum ConditionalChange {
     },
     /// Delete the selected rule.
     Remove,
+    /// Give the selected rule priority `rank` (1 = highest) in the worksheet's list, the others keeping their order
+    /// (`FormatCondition.Priority`, `SetFirstPriority`, `SetLastPriority`; dc-oxh8w.62).
+    Priority {
+        /// The rule's new 1-based position in priority order.
+        rank: u32,
+    },
     /// Replace the differential format (`dxf`) the selected rule applies: what a macro sets through
     /// `FormatCondition.Interior` and `.Font` (dc-tqcvu). The rule must own its format; one shared with
     /// another rule is refused rather than changed under that rule.
@@ -122,6 +128,23 @@ pub enum StyleChange {
     Remove {
         /// Position among the workbook's named styles.
         index: u32,
+    },
+    /// Set a boolean property (`WrapText`, `ShrinkToFit`, `Locked`, `FormulaHidden`) of a style no cell format uses
+    /// (dc-lj4j5).
+    Flag {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// The Excel member name.
+        member: String,
+        /// The new value.
+        value: bool,
+    },
+    /// Set the number format of a style no cell format uses (dc-lj4j5).
+    NumberFormat {
+        /// Position among the workbook's named styles.
+        index: u32,
+        /// Excel number format code.
+        code: String,
     },
 }
 
@@ -1459,6 +1482,43 @@ fn style_table_edits(host: &HostState, change: StyleChange) -> Result<Vec<CellEd
             }
             styles.cell_styles.remove(index);
         }
+        StyleChange::Flag { index, member, value } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing it needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let base = styles.cell_style_formats.get_mut(xf_id as usize).ok_or("The style's format is missing")?;
+            match member.as_str() {
+                "WrapText" => {
+                    base.alignment.get_or_insert_with(Default::default).wrap_text = value;
+                    base.apply_alignment = true;
+                }
+                "ShrinkToFit" => {
+                    base.alignment.get_or_insert_with(Default::default).shrink_to_fit = value;
+                    base.apply_alignment = true;
+                }
+                "Locked" => {
+                    base.protection.get_or_insert_with(Default::default).locked = Some(value);
+                    base.apply_protection = true;
+                }
+                _ => {
+                    base.protection.get_or_insert_with(Default::default).hidden = Some(value);
+                    base.apply_protection = true;
+                }
+            }
+        }
+        StyleChange::NumberFormat { index, code } => {
+            let style = styles.cell_styles.get(index as usize).ok_or("The style is unavailable")?;
+            let xf_id = style.xf_id;
+            if styles.cell_formats.iter().any(|xf| xf.xf_id == Some(xf_id)) {
+                return Err("The style is in use; changing its format needs the cell formats updated (dc-lj4j5)".into());
+            }
+            let id = crate::format::number_format_id(&mut styles, &code)?;
+            let base = styles.cell_style_formats.get_mut(xf_id as usize).ok_or("The style's format is missing")?;
+            base.number_format_id = Some(id);
+            base.apply_number_format = true;
+        }
     }
     Ok(vec![CellEdit::Styles(std::sync::Arc::new(styles))])
 }
@@ -1669,6 +1729,18 @@ pub(crate) fn conditional_edits(
                     return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
                 }
                 rules.remove(i);
+            }
+            ConditionalChange::Priority { rank } => {
+                let mut order = (0..rules.len()).collect::<Vec<_>>();
+                order.sort_by_key(|&n| rules[n].priority);
+                let old = order.iter().position(|&n| n == i).unwrap();
+                let to = (rank as usize).checked_sub(1).filter(|t| *t < order.len()).ok_or("Priority is out of range")?;
+                let moved = order.remove(old);
+                order.insert(to, moved);
+                for (rank, index) in order.into_iter().enumerate() {
+                    rules[index].priority = rank as i64 + 1;
+                    rules[index].authored = true;
+                }
             }
             ConditionalChange::Move { up } => {
                 let mut order = (0..rules.len()).collect::<Vec<_>>();

@@ -60,6 +60,12 @@ impl WorkbookAutomation {
         on("Window", "ActiveSheet", Get, Self::window_active_sheet);
         on("Window", "ActiveCell", Get, Self::window_active_cell);
         on("Window", "Selection", Get, Self::window_selection);
+        on("Window", "Caption", Get, Self::window_book_member);
+        on("Window", "Caption", Put, Self::window_put_caption);
+        on("Window", "Type", Get, Self::window_book_member);
+        on("Window", "WindowNumber", Get, Self::window_book_member);
+        on("Window", "Visible", Get, Self::window_book_member);
+        on("Window", "Activate", InvokeKind::Method, Self::window_book_member);
         on("Window", "Index", Get, Self::window_index);
         on("Window", "Zoom", Get, Self::window_get);
         on("Window", "Zoom", Put, Self::window_put);
@@ -120,6 +126,37 @@ impl WorkbookAutomation {
     fn window_selection(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.app_selection(&self.application(), call)
     }
+    /// Caption (the workbook's name), Type (xlWorkbook), WindowNumber (the one window), Visible and Activate.
+    fn window_book_member(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        no_args(call)?;
+        let ObjectKey::BookWindow(workbook) = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        match call.member.name.as_str() {
+            "Caption" => {
+                let held = self.window_captions.borrow().get(&workbook).cloned();
+                self.with_target(target, |_, meta| Ok(AutoValue::text(&held.clone().unwrap_or_else(|| book_name(&meta.full_name).to_string()))))
+            }
+            "Type" | "WindowNumber" => self.with_target(target, |_, _| Ok(AutoValue::I4(1))),
+            "Visible" => self.with_target(target, |_, _| Ok(AutoValue::Bool(true))),
+            _ => self.workbook_activate(&object("Workbook", ObjectKey::Workbook(workbook)), call),
+        }
+    }
+    /// `Window.Caption = text`: held for the macro session; the workbook's name is unchanged (dc-p3rg9).
+    fn window_put_caption(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        if call.args.len() != 1 {
+            return Err(geometry::bad_count());
+        }
+        let ObjectKey::BookWindow(workbook) = target.key else {
+            return Err(geometry::type_mismatch());
+        };
+        let AutoValue::Text(caption) = call.arg(0) else { return Err(refused()) };
+        let caption = caption.to_string_lossy();
+        self.with_target(target, |_, _| Ok(AutoValue::Empty))?;
+        self.window_captions.borrow_mut().insert(workbook, caption);
+        Ok(AutoValue::Empty)
+    }
+
     fn window_index(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         self.with_target(target, |_, _| Ok(AutoValue::I4(1)))

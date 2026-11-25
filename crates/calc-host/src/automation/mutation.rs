@@ -69,18 +69,13 @@ impl WorkbookAutomation {
         }) {
             return reply;
         }
-        if EVENT_SESSION.is_set() {
-            if let Some(reply) = EVENT_SESSION.with(|(model, loan)| {
-                if !std::ptr::eq(model, self) {
-                    return None;
-                }
-                Some(loan.write(&mut |session| {
-                    self.context_changed(session);
-                    call(session)
-                }))
-            }) {
-                return reply;
-            }
+        if let Some(reply) = event_loan(self, |loan| {
+            loan.write(&mut |session| {
+                self.context_changed(session);
+                call(session)
+            })
+        }) {
+            return reply;
         }
         self.host.with_session_mut(&mut |session| {
             self.context_changed(session);

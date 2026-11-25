@@ -253,6 +253,11 @@ impl CopySnapshot {
         })
     }
 
+    /// The format band of the source sheet's column or row `index` when the snapshot was taken.
+    pub fn axis_format(&self, axis: calc_doc_model::Axis, index: u32) -> calc_doc_model::AxisFormat {
+        self.model.definitions().axis_layouts().get(self.from.sheet(), axis, index)
+    }
+
     /// Return the worksheet range captured in this snapshot.
     pub fn area(&self) -> GridArea {
         self.from

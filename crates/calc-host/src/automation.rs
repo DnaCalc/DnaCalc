@@ -40,6 +40,7 @@ mod formatting;
 mod window;
 mod find;
 mod advanced_filter;
+mod autofilter;
 mod range_end;
 mod formula;
 mod mutation;
@@ -84,9 +85,38 @@ pub fn busy() -> AutoError {
     AutoError::not_modelled("Automation session is busy", OWNER)
 }
 
-scoped_tls_hkt::scoped_thread_local!(static EVENT_SESSION: for<'a> (
-    &'a WorkbookAutomation, &'a (dyn EventSession + 'a)
-));
+/// One workbook's lent session. A nested loan (a macro in one workbook running another's)
+/// keeps the loans it covers in `outer`, so the workbook that is running stays reachable
+/// (dc-oxh8w.56).
+struct Frame<'a> {
+    model: &'a WorkbookAutomation,
+    loan: &'a (dyn EventSession + 'a),
+    outer: Option<&'a Frame<'a>>,
+}
+
+impl<'a> Frame<'a> {
+    /// The loan of `model`, searching the nested loans from the innermost.
+    fn find(&self, model: &WorkbookAutomation) -> Option<&'a (dyn EventSession + 'a)> {
+        let mut frame = Some(self);
+        while let Some(f) = frame {
+            if std::ptr::eq(f.model, model) {
+                return Some(f.loan);
+            }
+            frame = f.outer;
+        }
+        None
+    }
+}
+
+scoped_tls_hkt::scoped_thread_local!(static EVENT_SESSION: for<'a> &'a Frame<'a>);
+
+/// The session loan the running event or macro holds for `model`, if any.
+fn event_loan<T>(model: &WorkbookAutomation, use_loan: impl FnOnce(&dyn EventSession) -> T) -> Option<T> {
+    if !EVENT_SESSION.is_set() {
+        return None;
+    }
+    EVENT_SESSION.with(|frame| frame.find(model).map(use_loan))
+}
 
 trait EventSession {
     fn read(&self, call: &mut dyn FnMut(&HostSession, bool) -> Reply) -> Reply;
@@ -170,6 +200,8 @@ pub struct WorkbookAutomation {
     last_goto: RefCell<Option<Vec<GridArea>>>,
     /// The view state a macro sets on windows, per workbook and sheet (dc-oxh8w.50).
     window_views: RefCell<HashMap<(u64, SheetId), window::View>>,
+    /// Window captions a macro set, by workbook (dc-p3rg9).
+    window_captions: RefCell<HashMap<u64, String>>,
 }
 
 struct RangeLeases {
@@ -288,6 +320,7 @@ impl WorkbookAutomation {
         Self::register_formula(&mut handlers);
         Self::register_find(&mut handlers);
         Self::register_advanced_filter(&mut handlers);
+        Self::register_autofilter(&mut handlers);
         Self::register_range_end(&mut handlers);
         Self::register_clipboard(&mut handlers);
         Self::register_application(&mut handlers);
@@ -319,6 +352,7 @@ impl WorkbookAutomation {
             clipboard: RefCell::new(None),
             last_goto: RefCell::new(None),
             window_views: RefCell::new(HashMap::new()),
+            window_captions: RefCell::new(HashMap::new()),
         }
     }
     /// Read the workbook profile's registered member handlers.
@@ -411,7 +445,19 @@ impl WorkbookAutomation {
     ) -> T {
         self.context_changed(session);
         let loan = EventLoan(RefCell::new(session), strict_file_provenance);
-        EVENT_SESSION.set((&**self, &loan), call)
+        if EVENT_SESSION.is_set() {
+            return EVENT_SESSION.with(|outer| {
+                let frame = Frame { model: &**self, loan: &loan, outer: Some(outer) };
+                EVENT_SESSION.set(&frame, call)
+            });
+        }
+        let frame = Frame { model: &**self, loan: &loan, outer: None };
+        EVENT_SESSION.set(&frame, call)
+    }
+    /// Whether this workbook's session is lent to a running macro or event, so other workbooks'
+    /// macros reach it through that loan.
+    pub fn is_lent(&self) -> bool {
+        event_loan(self, |_| ()).is_some()
     }
     /// The workbook object identity for the current snapshot.
     pub fn workbook_object(&self) -> Result<ObjectRef, AutoError> {
@@ -571,21 +617,16 @@ impl WorkbookAutomation {
         }
         // With no worksheet invocation, an event reads its borrowed session. The scoped
         // loan cannot survive the callback, including unwinding and nested delivery.
-        if EVENT_SESSION.is_set() {
-            let result = EVENT_SESSION.with(|(model, loan)| {
-                if !std::ptr::eq(model, self) {
-                    return None;
-                }
-                let status = loan.read(&mut |session, strict| {
-                    self.context_changed(session);
-                    value = Some(call(Access::Session(session, strict)));
-                    Ok(AutoValue::Empty)
-                });
-                Some(status.and_then(|_| value.take().expect("event callback called once")))
+        let result = event_loan(self, |loan| {
+            let status = loan.read(&mut |session, strict| {
+                self.context_changed(session);
+                value = Some(call(Access::Session(session, strict)));
+                Ok(AutoValue::Empty)
             });
-            if let Some(result) = result {
-                return result;
-            }
+            status.and_then(|_| value.take().expect("event callback called once"))
+        });
+        if let Some(result) = result {
+            return result;
         }
         let status = self.host.with_session(&mut |session| {
             self.context_changed(session);
@@ -1240,6 +1281,9 @@ impl ObjectModel for WorkbookAutomation {
         }
     }
     fn released(&self, target: &ObjectRef) {
+        if self.foreign_release(target) {
+            return;
+        }
         if let ObjectKey::Range(reference)
         | ObjectKey::RangeFormat(reference)
         | ObjectKey::RangeEdge { reference, .. }
