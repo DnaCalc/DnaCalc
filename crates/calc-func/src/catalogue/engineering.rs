@@ -225,7 +225,13 @@ ported_shared_family! {
             let result = ParsedComplex::new(crate::ported::excel_numeric::excel_exp(x), 0.0, None);
             complex_text(Ok(result), &[z])
         } else {
-            unary_complex(s, a, |z| Ok(z.exp()))
+            unary_complex(s, a, |z| {
+                // The circular factor admits |im| < 2^27 only (IMEXP("1-1e9i") is #NUM!, dc-j9k.175).
+                if z.im.abs() >= 134_217_728.0 {
+                    return Err(WorksheetErrorCode::Num);
+                }
+                Ok(z.exp())
+            })
         }
     }
     42 imln |s, a, sv| { unary_complex(s, a, |z| z.ln()) }
