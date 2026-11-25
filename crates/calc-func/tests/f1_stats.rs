@@ -7859,3 +7859,41 @@ fn chitest_pairs_by_cell_count_and_reads_negative_and_zero_expected() {
         error(call_on(&mut sheet, name, vec![a7, a5]), Div0);
     }
 }
+
+/// Excel 20527 (dc-j9k.307): CHIINV admits degrees of freedom above 1e10 (the stored answers are
+/// the Halley solver's), and on step exhaustion publishes the best x when the next step is below
+/// one relative epsilon (CHIINV(0.1, 1e10) and GAMMA.INV(0.5, 5.696e9, 1)).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn chi_inverse_above_ten_billion_degrees_and_exhaustion_at_one_epsilon() {
+    let b = f64::from_bits;
+    for name in ["CHIINV", "CHISQ.INV.RT"] {
+        exact(call(name, vec![n(0.625), n(b(0x4202_a05f_2008_0000))]), b(0x4202_a059_9fcf_eb8e));
+        exact(call(name, vec![n(0.5), n(b(0x4202_a05f_3f40_0000))]), b(0x4202_a05f_3f3a_aaab));
+        exact(call(name, vec![n(0.1), n(b(0x4202_a05f_2000_0000))]), b(0x4202_a075_3fb9_8286));
+        error(call(name, vec![n(0.5), n(b(0x4212_a05f_2000_0000))]), Num);
+    }
+    exact(call("GAMMA.INV", vec![n(0.5), n(b(0x41f5_383a_5480_0000)), n(1.0)]), b(0x41f5_383a_547a_aaab));
+}
+
+/// Excel 20527 (dc-j9k.324-327): the LOGNORM.DIST density is #DIV/0! when the variance is subnormal
+/// or twice it overflows, and is zero (not #NUM!) when the squared distance over the variance overflows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lognorm_density_variance_underflow_and_overflow_are_div0() {
+    let b = f64::from_bits;
+    let flag = |x: bool| f1_support::b(x);
+    for name in ["LOGNORM.DIST"] {
+        let pdf = |x: f64, mean: f64, sigma: f64| call(name, vec![n(x), n(mean), n(sigma), flag(false)]);
+        error(pdf(10.0, b(0x3e7a_d7f2_9abc_af48), b(0x7fc3_ba4f_e83b_c71b)), Div0);
+        error(pdf(b(0x3fb9_9999_9999_999a), b(0x3e7a_d7f2_9abc_af48), b(0x7fba_14c9_a21c_7df7)), Div0);
+        error(pdf(b(0x3fb9_9999_9999_999a), -0.5, b(0x0010_0000_0000_0001)), Div0);
+        error(pdf(1.0, b(0x3fb9_9999_9999_999a), b(0x0010_0000_0000_0003)), Div0);
+        error(pdf(10.0, 0.0, 1e154), Div0);
+        error(pdf(10.0, 0.0, 1e-154), Div0);
+        exact(pdf(10.0, 0.0, b(0x2000_0000_0000_0000)), 0.0);
+        exact(pdf(10.0, 0.0, b(0x2000_0000_0000_0028)), 0.0);
+        // The cumulative form divides by sigma, not by its square.
+        assert!(number(call(name, vec![n(10.0), n(0.0), n(1e-154), flag(true)])) >= 0.0);
+    }
+}

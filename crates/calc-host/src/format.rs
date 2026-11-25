@@ -227,6 +227,8 @@ pub struct FormatPatch {
     pub style: Option<u32>,
     /// Changes to single border edges, as `Range.Borders` makes them.
     pub edges: Option<crate::EdgesPatch>,
+    /// Format Cells' Protection tab: whether the cells are locked (`Range.Locked`).
+    pub locked: Option<bool>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 /// Changes to a cell fill. A colour set on a cell without a pattern makes the fill solid, as in Excel.
@@ -557,6 +559,14 @@ pub fn patched_style(
     if a != before {
         xf.alignment = Some(a);
         xf.apply_alignment = true;
+    }
+    if let Some(locked) = patch.locked {
+        let mut protection = xf.protection.clone().or(parent.protection).unwrap_or_default();
+        if protection.locked.unwrap_or(true) != locked {
+            protection.locked = Some(locked);
+            xf.protection = Some(protection);
+            xf.apply_protection = true;
+        }
     }
     let source = xf.font_id.or(parent.font_id).unwrap_or(0);
     let mut font = table

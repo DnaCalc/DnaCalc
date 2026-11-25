@@ -86,6 +86,15 @@ Public Sub ExportChart()
  frame.Chart.SetSourceData Application.Range(\"A1:B3\")
  frame.Chart.Export \"out.png\", \"PNG\"
 End Sub
+Public Function EnumVariable() As Double
+ Dim mode As XlCalculation
+ mode = Application.Calculation
+ EnumVariable = mode
+End Function
+Public Function PumpEvents() As Double
+ DoEvents
+ PumpEvents = 7
+End Function
 Public Sub NeedsWindow()
  Application.ActiveWindow.WindowState = -4137
 End Sub
@@ -307,5 +316,19 @@ fn a_macro_chart_export_writes_through_the_host_file_output() {
         assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{run:?}");
         assert_eq!(owner.take_output_files(), [("out.png".to_owned(), b"Png 400x267".to_vec())]);
         assert!(owner.take_output_files().is_empty(), "taking the files empties the list");
+    }
+}
+
+/// A variable declared `As XlCalculation` holds a Long (Excel's enumerations are Long), so
+/// assigning `Application.Calculation` to it works; `DoEvents` runs and returns.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn an_excel_enum_typed_variable_holds_a_long_and_do_events_returns() {
+    for backend in backends() {
+        let (mut session, owner) = project(calc_macro_security::VbaPolicy::Guarded, backend);
+        let mode = owner.run_procedure(&mut session, "Module1.EnumVariable", &[]);
+        assert_eq!(mode.outcome, Outcome::Success(ProcedureResult::Number(-4105.0)), "{mode:?}");
+        let pump = owner.run_procedure(&mut session, "Module1.PumpEvents", &[]);
+        assert_eq!(pump.outcome, Outcome::Success(ProcedureResult::Number(7.0)), "{pump:?}");
     }
 }

@@ -8057,19 +8057,6 @@ fn dc_oxh8w_47__worksheet_visible_get_and_put() {
     assert!(matches!(visible(&added), AutoValue::I4(2)));
 }
 
-/// dc-oxh8w.47: members the corpus run found missing refuse with the open bead that owns them.
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_47__protect_refuses_with_its_owner() {
-    let (_host, model) = setup();
-    let sheets = worksheets(&model);
-    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
-    for member in ["Protect", "Unprotect"] {
-        let r = invoke_kind(&model, &first, member, InvokeKind::Method, vec![]);
-        assert!(matches!(r, Err(AutoError::NotModelled { owner, .. }) if owner == "dc-oxh8w.68"), "{member}: {r:?}");
-    }
-}
-
 /// dc-oxh8w.49: Application.Goto without a Reference goes to the last range Goto selected (Excel documentation);
 /// before any Goto it is a typed refusal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -9034,4 +9021,59 @@ fn dc_oxh8w_67__a_series_outline_of_a_file_held_chart_survives_a_save() {
     let border2 = border_of(&model2);
     assert_eq!(int(invoke(&model2, &border2, "Color", vec![]).unwrap()), 255);
     assert_eq!(int(invoke(&model2, &border2, "Weight", vec![]).unwrap()), 4);
+}
+
+/// dc-oxh8w.68: `Worksheet.Protect` / `Unprotect` / `ProtectContents` and the edit enforcement a macro meets. A locked cell
+/// refuses value, clear and format writes with 1004 while the sheet is protected; an unlocked cell (`Range.Locked = False`)
+/// stays writable; a wrong password is 1004 and leaves the sheet protected; `UserInterfaceOnly` lets macros edit.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let flag = |name: &str| matches!(invoke(&model, &sheet, name, vec![]).unwrap(), AutoValue::Bool(true));
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let protected_error = |r: Reply| matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet"));
+    assert!(!flag("ProtectContents") && !flag("ProtectDrawingObjects") && !flag("ProtectScenarios"));
+    // Locked is the default; a cell can be unlocked while the sheet is unprotected.
+    assert!(matches!(invoke(&model, &range(&model, "A1"), "Locked", vec![]).unwrap(), AutoValue::Bool(true)));
+    put(&range(&model, "B2"), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    assert!(matches!(invoke(&model, &range(&model, "B2"), "Locked", vec![]).unwrap(), AutoValue::Bool(false)));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(1.0)]).unwrap();
+    method(&sheet, "Protect", vec![AutoValue::text("pw")]).unwrap();
+    assert!(flag("ProtectContents") && flag("ProtectDrawingObjects") && flag("ProtectScenarios") && !flag("ProtectionMode"));
+    assert!(protected_error(put(&range(&model, "A1"), "Value", vec![AutoValue::R8(2.0)])));
+    assert!(protected_error(method(&range(&model, "A1"), "ClearContents", vec![])));
+    assert!(protected_error(put(&range(&model, "A1"), "Formula", vec![AutoValue::text("=1+1")])));
+    assert!(protected_error(put(&range(&model, "A1:B2"), "Value", vec![AutoValue::R8(3.0)])));
+    assert!(protected_error(put(&range(&model, "A1"), "Locked", vec![AutoValue::Bool(false)])));
+    assert!(matches!(invoke(&model, &range(&model, "A1"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 1.0));
+    put(&range(&model, "B2"), "Value", vec![AutoValue::R8(5.0)]).unwrap();
+    // A wrong or missing password is 1004 and the sheet stays protected.
+    for args in [vec![AutoValue::text("wrong")], vec![]] {
+        let r = method(&sheet, "Unprotect", args);
+        assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("password you supplied is not correct")), "{r:?}");
+    }
+    assert!(flag("ProtectContents"));
+    method(&sheet, "Unprotect", vec![AutoValue::text("pw")]).unwrap();
+    assert!(!flag("ProtectContents"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(2.0)]).unwrap();
+    // No password: Unprotect needs none. UserInterfaceOnly protects the interface only: macros still edit.
+    method(&sheet, "Protect", vec![]).unwrap();
+    assert!(protected_error(put(&range(&model, "A1"), "Value", vec![AutoValue::R8(4.0)])));
+    method(&sheet, "Unprotect", vec![]).unwrap();
+    let args = vec![AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)];
+    method(&sheet, "Protect", args).unwrap();
+    assert!(flag("ProtectContents") && flag("ProtectionMode"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(6.0)]).unwrap();
+    // Contents:=False leaves the cells editable and ProtectContents False.
+    method(&sheet, "Unprotect", vec![]).unwrap();
+    method(&sheet, "Protect", vec![AutoValue::Missing, AutoValue::Bool(false), AutoValue::Bool(false)]).unwrap();
+    assert!(!flag("ProtectContents") && !flag("ProtectDrawingObjects") && flag("ProtectScenarios"));
+    put(&range(&model, "A1"), "Value", vec![AutoValue::R8(7.0)]).unwrap();
+    // Too many arguments are an argument-count error.
+    let r = method(&sheet, "Protect", vec![AutoValue::Missing; 17]);
+    assert!(matches!(r, Err(ref e) if !matches!(e, AutoError::NotModelled { .. })), "{r:?}");
 }

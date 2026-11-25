@@ -507,3 +507,37 @@ fn expand_beyond_the_grid_answers_without_allocating() {
     error(call("EXPAND", vec![n(1.0), n(1_048_576.0), n(1_048_576.0)]), Spill);
     assert_eq!(array(call("EXPAND", vec![n(1.0), n(1.5), n(1.0)])), (1, 1, vec![1.0]));
 }
+
+/// Excel 16.0.20527 (Touchstone, 2026-11-25; dc-j9k.256 to .269): the wrap count is truncated and must be in
+/// 1..=2147483647 (else #NUM!); an error vector wins first, then the count's own error, then a blank or
+/// two-dimensional vector is #VALUE!, then the count range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn wraprows_and_wrapcols_count_and_argument_order() {
+    let column = || arr_values(vec![vec![n(1.0)], vec![n(2.0)], vec![n(3.0)]]);
+    let square = || arr_values(vec![vec![n(1.0), n(2.0)], vec![n(3.0), n(4.0)]]);
+    let blank = calc_func::value::CalcValue::empty;
+    for (rows_name, cols_name) in [("WRAPROWS", false), ("WRAPCOLS", true)] {
+        // WRAPROWS puts the vector in one row when the count is at least its length; WRAPCOLS in one column.
+        let (r, c) = if cols_name { (3, 1) } else { (1, 3) };
+        assert_eq!(array(call(rows_name, vec![column(), n(1.5 + 99_999.0)])), (r, c, vec![1.0, 2.0, 3.0]));
+        assert_eq!(array(call(rows_name, vec![column(), n(2_147_483_647.5)])), (r, c, vec![1.0, 2.0, 3.0]));
+        for bad in [0.5, 0.0, -1.0, 2_147_483_648.0, 4_294_967_296.0, 1e100] {
+            error(call(rows_name, vec![column(), n(bad)]), Num);
+            error(call(rows_name, vec![n(5.0), n(bad)]), Num);
+        }
+        assert_eq!(call(rows_name, vec![n(5.0), n(1.5)]), Ok(n(5.0)));
+        error(call(rows_name, vec![square(), n(0.0)]), Value);
+        error(call(rows_name, vec![square(), e(NA)]), NA);
+        error(call(rows_name, vec![e(NA), n(-1.0)]), NA);
+        error(call(rows_name, vec![blank(), n(2.0)]), Value);
+        error(call(rows_name, vec![blank(), n(0.0)]), Value);
+        error(call(rows_name, vec![column(), blank()]), Num);
+    }
+    // 1.5 truncates to 1: a column wraps to a column (rows), a row to one column per element (cols).
+    assert_eq!(array(call("WRAPROWS", vec![column(), n(1.5)])), (3, 1, vec![1.0, 2.0, 3.0]));
+    let padded = call("WRAPROWS", vec![column(), n(2.0), e(NA)]).unwrap();
+    let padded = padded.as_array().unwrap();
+    assert_eq!((padded.shape().rows, padded.shape().cols), (2, 2));
+    assert_eq!(padded.get(1, 1).unwrap().as_error(), Some(NA));
+}

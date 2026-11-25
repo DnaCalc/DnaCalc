@@ -253,6 +253,7 @@ impl DescriptorTypeLibResolver {
                 members: vec![],
                 events: vec![],
                 coclass_names: vec!["Range".into()],
+                enum_type_names: Vec::new(),
                 coclass_prog_ids: vec![],
                 app_objects: vec![],
                 extensible: false,
@@ -299,10 +300,28 @@ impl DescriptorTypeLibResolver {
             members: vec![numeric],
             events: vec![],
             coclass_names: vec!["Range".into()],
+            enum_type_names: Vec::new(),
             coclass_prog_ids: vec![],
             app_objects: vec![],
             extensible: false,
         })
+    }
+
+    /// The enumeration names the descriptor's parameters and return types mention
+    /// (`enum:XlCalculation[I4]`): a variable declared `As XlCalculation` holds a Long.
+    fn enum_type_names(descriptor: &Descriptor) -> Vec<String> {
+        let mut names = std::collections::BTreeSet::new();
+        for (id, _) in descriptor.types() {
+            for member in descriptor.members(id) {
+                let texts = member.params.iter().map(|p| p.ty.as_str()).chain([member.ret.as_str()]);
+                for text in texts {
+                    if let Some(rest) = text.strip_prefix("enum:") {
+                        names.insert(rest.split('[').next().unwrap_or(rest).to_owned());
+                    }
+                }
+            }
+        }
+        names.into_iter().collect()
     }
 
     fn library_coclasses(descriptor: &Descriptor, library: &str) -> Vec<String> {
@@ -382,6 +401,7 @@ impl DescriptorTypeLibResolver {
                 members: vec![],
                 events: vec![],
                 coclass_names,
+                enum_type_names: Self::enum_type_names(descriptor),
                 coclass_prog_ids: vec![],
                 app_objects,
                 extensible: false,
@@ -426,6 +446,7 @@ impl DescriptorTypeLibResolver {
                 events: vec![],
                 coclass_names,
                 coclass_prog_ids: vec![],
+                enum_type_names: Vec::new(),
                 app_objects,
                 extensible: false,
             });
@@ -460,6 +481,7 @@ impl DescriptorTypeLibResolver {
             members,
             events,
             coclass_names,
+            enum_type_names: Vec::new(),
             coclass_prog_ids: vec![],
             app_objects,
             extensible: false,
