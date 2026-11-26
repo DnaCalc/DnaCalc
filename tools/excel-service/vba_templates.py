@@ -15,6 +15,7 @@ from pathlib import Path
 DIRECTORY = Path(__file__).with_name("vba-probes")
 CATALOGUE = json.loads((DIRECTORY / "catalogue.json").read_text(encoding="ascii"))
 PLACEHOLDER = re.compile(r"\{\{([a-z][a-z_]*)\}\}")
+SHEET_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}")      # vba-probe-policy.json sheet_name, ASCII only
 ADDRESS = re.compile(r"([A-Z]{1,3})([1-9][0-9]{0,6})")
 TEXT_FIRST_REFUSED = "=+-@"
 
@@ -40,9 +41,11 @@ def _address_ok(value):
 def render(kind, value, sheet_names):
     """One parameter value as VBA source text, or a ValueError."""
     if kind == "sheet":
-        if not isinstance(value, str) or value.lower() not in sheet_names:
+        # sheet_names maps the ASCII-lowercase of each plain case sheet name to its own spelling; the module gets that spelling.
+        canonical = sheet_names.get(value.lower()) if isinstance(value, str) and SHEET_NAME.fullmatch(value) else None
+        if canonical is None:
             raise ValueError("VBA template parameter must name a case sheet")
-        return '"' + value + '"'            # a case sheet name is letters, digits, spaces and underscores
+        return '"' + canonical + '"'        # letters, digits, spaces and underscores only
     if kind == "address":
         if not _address_ok(value):
             raise ValueError("VBA template parameter must be one A1 cell")
@@ -79,7 +82,7 @@ def expand(case):
     sheets = case["sheets"]
     if not isinstance(sheets, list) or any(not isinstance(s, dict) or not isinstance(s.get("name"), str) for s in sheets):
         raise ValueError("invalid VBA sheet count")
-    sheet_names = {s["name"].lower() for s in sheets}
+    sheet_names = {s["name"].lower(): s["name"] for s in sheets if SHEET_NAME.fullmatch(s["name"])}
     rendered = {name: render(kind, params[name], sheet_names) for name, kind in entry["params"].items()}
     modules = []
     for module in entry["modules"]:
@@ -90,7 +93,10 @@ def expand(case):
     if not isinstance(calls, list) or any(not isinstance(c, dict) or c.get("procedure") not in entry["entry_points"] for c in calls):
         raise ValueError("a VBA call must name an entry point of the template")
     expanded = {key: case[key] for key in ("sheets", "calls", "readback", "event_log")}
-    expanded["names"] = case.get("names", {})
+    names = case.get("names", {})
+    if not isinstance(names, dict):
+        raise ValueError("invalid VBA defined names: names is an object")
+    expanded["names"] = names
     expanded["modules"] = modules
     return expanded
 

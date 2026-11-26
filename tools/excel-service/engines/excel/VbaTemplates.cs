@@ -13,25 +13,36 @@ static class VbaTemplates
 {
     static readonly Dictionary<string, object> Catalogue = (Dictionary<string, object>)Json.Parse(Resource("vba-probes/catalogue.json"));
     static readonly Regex Placeholder = new(@"\{\{([a-z][a-z_]*)\}\}", RegexOptions.CultureInvariant);
+    static readonly Regex SheetName = new(@"\A[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}\z", RegexOptions.CultureInvariant);
     static readonly Regex Address = new(@"\A([A-Z]{1,3})([1-9][0-9]{0,6})\z", RegexOptions.CultureInvariant);
 
-    static string Resource(string name)
+    static byte[] ResourceBytes(string name)
     {
         using var stream = typeof(VbaTemplates).Assembly.GetManifestResourceStream(name)
             ?? throw new RefusedVbaException("VBA template file is missing: " + name);
-        using var reader = new StreamReader(stream, new UTF8Encoding(false));
-        return reader.ReadToEnd();
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
     }
+
+    static string Resource(string name) => Encoding.UTF8.GetString(ResourceBytes(name));
 
     static long Limit(string key) => (long)((Dictionary<string, object>)Catalogue["limits"])[key];
 
     static string TemplateSource(Dictionary<string, object> entry)
     {
         var file = (string)entry["file"];
-        var text = Resource("vba-probes/" + file);
-        if (Convert.ToHexString(SHA256.HashData(Encoding.ASCII.GetBytes(text))).ToLowerInvariant() != (string)entry["sha256"])
+        var data = ResourceBytes("vba-probes/" + file);          // the raw stream bytes are what the manifest pins
+        if (Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant() != (string)entry["sha256"])
             throw new RefusedVbaException("VBA template file differs from its pinned hash: " + file);
-        return text;
+        try
+        {
+            return Encoding.GetEncoding("us-ascii", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback).GetString(data);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new RefusedVbaException("VBA template file is not ASCII: " + file);
+        }
     }
 
     /// <summary>The pinned SHA-256 of each module file of a template, in catalogue order (bound into the case digest).</summary>
@@ -47,14 +58,15 @@ static class VbaTemplates
         return column <= 16384 && long.Parse(m.Groups[2].Value) <= 1048576;
     }
 
-    static string Render(string kind, object value, HashSet<string> sheetNames)
+    static string Render(string kind, object value, Dictionary<string, string> sheetNames)
     {
         switch (kind)
         {
             case "sheet":
-                if (value is not string sheet || !sheetNames.Contains(sheet.ToLowerInvariant()))
+                // sheetNames maps the ASCII-lowercase of each plain case sheet name to its own spelling; the module gets that spelling.
+                if (value is not string sheet || !SheetName.IsMatch(sheet) || !sheetNames.TryGetValue(sheet.ToLowerInvariant(), out var canonical))
                     throw new RefusedVbaException("VBA template parameter must name a case sheet");
-                return "\"" + sheet + "\"";
+                return "\"" + canonical + "\"";
             case "address":
                 if (!AddressOk(value)) throw new RefusedVbaException("VBA template parameter must be one A1 cell");
                 return "\"" + (string)value + "\"";
@@ -94,7 +106,12 @@ static class VbaTemplates
         if (probe["sheets"] is not List<object> sheets
             || sheets.Any(s => s is not Dictionary<string, object> d || d.GetValueOrDefault("name") is not string))
             throw new RefusedVbaException("invalid VBA sheet count");
-        var sheetNames = sheets.Select(s => ((string)((Dictionary<string, object>)s)["name"]).ToLowerInvariant()).ToHashSet();
+        var sheetNames = new Dictionary<string, string>();
+        foreach (var sheet in sheets)
+        {
+            var sheetName = (string)((Dictionary<string, object>)sheet)["name"];
+            if (SheetName.IsMatch(sheetName)) sheetNames.TryAdd(sheetName.ToLowerInvariant(), sheetName);
+        }
         var rendered = declared.ToDictionary(p => p.Key, p => Render((string)p.Value, given[p.Key], sheetNames));
         var modules = new List<object>();
         foreach (var item in (List<object>)entry["modules"])
@@ -104,6 +121,9 @@ static class VbaTemplates
                 ? text : throw new RefusedVbaException("VBA template uses an undeclared parameter: " + m.Groups[1].Value));
             modules.Add(new Dictionary<string, object> { ["name"] = module["name"], ["kind"] = module["kind"], ["source"] = source });
         }
+        if (probe.TryGetValue("names", out var givenNames) && givenNames is not Dictionary<string, object>)
+            throw new RefusedVbaException("invalid VBA defined names: names is an object");
+        var names = probe.GetValueOrDefault("names") ?? new Dictionary<string, object>();
         var entryPoints = ((List<object>)entry["entry_points"]).Cast<string>().ToHashSet();
         if (probe["calls"] is not List<object> calls
             || calls.Any(c => c is not Dictionary<string, object> d || d.GetValueOrDefault("procedure") is not string p || !entryPoints.Contains(p)))
@@ -111,7 +131,7 @@ static class VbaTemplates
         return new Dictionary<string, object>
         {
             ["sheets"] = probe["sheets"],
-            ["names"] = probe.GetValueOrDefault("names") ?? new Dictionary<string, object>(),
+            ["names"] = names,
             ["modules"] = modules,
             ["calls"] = probe["calls"],
             ["readback"] = probe["readback"],

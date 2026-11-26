@@ -690,6 +690,39 @@ class AdmissionTests(unittest.TestCase):
         other["v"][0]["params"]["message"] = "other"
         self.assertNotEqual(digest(other), digest(self.template_group()))
 
+    def test_vba_template_expand_refuses_a_sheet_name_that_is_not_a_plain_sheet_name(self):
+        """dc-b8s4b: expand() alone (no grammar after it) never interpolates a crafted or non-ASCII sheet name."""
+        import vba_templates
+        crafted = 'Data"): Rem "'
+        case = self.template_group()["v"][0]
+        case["sheets"][0]["name"] = crafted
+        case["params"]["target_sheet"] = crafted
+        with self.assertRaisesRegex(ValueError, "case sheet"):
+            vba_templates.expand(case)
+        kelvin = self.template_group()["v"][0]
+        kelvin["sheets"][0]["name"] = "\u212a"
+        kelvin["params"]["target_sheet"] = "K"
+        with self.assertRaisesRegex(ValueError, "case sheet"):
+            vba_templates.expand(kelvin)
+        kelvin["params"]["target_sheet"] = "\u212a"
+        with self.assertRaisesRegex(ValueError, "case sheet"):
+            vba_templates.expand(kelvin)
+        mixed = self.template_group()["v"][0]
+        mixed["params"]["target_sheet"] = "dATA"          # the case sheet's own spelling is what the module gets
+        self.assertIn('Worksheets("Data")', vba_templates.expand(mixed)["modules"][0]["source"])
+
+    def test_vba_refuses_names_null_in_both_validators(self):
+        group = self.template_group(names=None)
+        with self.assertRaisesRegex(ValueError, "(?i)names"):
+            self.admission.check(group)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_refuses_names_null(self):
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                input=json.dumps(self.template_group(names=None)), text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("names", result.stderr.lower())
+
     def refused_template_cases(self):
         """dc-erfm3: the template route refuses anything the reviewed catalogue does not name."""
         params = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))["params"]
