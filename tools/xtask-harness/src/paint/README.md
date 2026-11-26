@@ -7,12 +7,15 @@ Use `--bundle DIR`, `--workbook FILE`, `--zooms 100` or `--excel EXE` to select 
 `--normal-font "Arial,10"` changes Normal in generated inputs; imported workbooks keep their font.
 `--locale en-ZA` sets the headless browser's language before the worker opens a workbook.
 The capture records its actual language; Excel's regional context is recorded independently.
-Chrome is the default; `--browser firefox` uses the same capture and comparison route.
-Firefox needs the reference display scale; a different scale is rejected without resampling.
+Chrome is the default. If ChromeDriver reports a Chrome version mismatch, the command prints the
+required ChromeDriver major version and tries Firefox with geckodriver for the browser captures.
+Set `--browser chromium` or `--browser firefox` to select a specific browser. Optional WebView2
+captures use ChromeDriver. Firefox needs the reference display scale and rejects a different scale
+without resampling.
 `--sheet-height 734` keeps the same visible sheet area when application controls occupy more
 space. The command checks the actual CSS viewport and sheet height. Original reference bounds
 still determine which cells can be compared; the requested height is recorded with the inputs.
-Python with Pillow and NumPy, ChromeDriver and installed Excel are required. Nothing is installed.
+Live comparison requires Excel, a browser with its driver, and Python with Pillow and NumPy.
 `DNACALC_PAINT_PYTHON` selects an installed interpreter; the default is `python` on PATH.
 The fifth authored input, `everyday`, holds merged blocks (horizontal, vertical, numeric), numbers in
 narrow columns (`####`, General narrowed to the column), wrapped text without a stored row height, left, right and

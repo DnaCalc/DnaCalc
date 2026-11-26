@@ -119,7 +119,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     let mut locale = None;
     let mut decimal_separator = None;
     let mut thousands_separator = None;
-    let mut browser = &BROWSERS[0];
+    let mut headless_browser = None;
     let mut sheet_height = None;
     let mut desktop_exe = None;
     let mut zooms = vec![100, 75, 150];
@@ -146,10 +146,14 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "--decimal-separator" => decimal_separator = Some(value.clone()),
             "--thousands-separator" => thousands_separator = Some(value.clone()),
             "--browser" => {
-                browser = BROWSERS
-                    .iter()
-                    .find(|b| b.name == value.as_str())
-                    .ok_or_else(|| format!("Unknown browser {value}; choose chromium or firefox"))?
+                headless_browser = Some(
+                    BROWSERS
+                        .iter()
+                        .find(|b| b.name == value.as_str())
+                        .ok_or_else(|| {
+                            format!("Unknown browser {value}; choose chromium or firefox")
+                        })?,
+                );
             }
             "--sheet-height" => {
                 let height = value.parse::<u32>().map_err(|e| e.to_string())?;
@@ -333,6 +337,7 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             .map_err(|e| format!("cannot start {}: {e}", exe.display()))?;
         desktop_app = Some(DriverProcess { child, port });
         let driver_version = {
+            let browser = &BROWSERS[0];
             let driver = variable_file(browser.variable)
                 .or_else(|| find_on_path(browser.program))
                 .ok_or("no chromedriver")?;
@@ -364,13 +369,25 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
             "driver_version":driver_version,"webview2_product":"read from /json/version of the running runtime"});
     }
     for (label, mode, attach) in passes {
-        let (_driver, session) = open_attached(
-            browser,
-            &out.join("downloads"),
-            locale.as_deref(),
-            attach.as_deref(),
-            None,
-        )?;
+        let preferred = if attach.is_some() {
+            &BROWSERS[0]
+        } else {
+            headless_browser.unwrap_or(&BROWSERS[0])
+        };
+        let allow_fallback = attach.is_none() && headless_browser.is_none();
+        let (browser, (_driver, session)) =
+            open_paint_browser(preferred, allow_fallback, |browser| {
+                open_attached(
+                    browser,
+                    &out.join("downloads"),
+                    locale.as_deref(),
+                    attach.as_deref(),
+                    None,
+                )
+            })?;
+        if attach.is_none() {
+            headless_browser = Some(browser);
+        }
         let result = (|| {
             for (book, input) in books.iter().zip(&inputs) {
                 start_group(app, &session, &renderer::page(&url, Some(mode)))?;
@@ -549,6 +566,37 @@ fn execute(ws: &Workspace, app: &App, raw: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn open_paint_browser<T>(
+    browser: &'static Browser,
+    allow_fallback: bool,
+    mut open: impl FnMut(&Browser) -> Result<T, String>,
+) -> Result<(&'static Browser, T), String> {
+    let error = match open(browser) {
+        Ok(session) => return Ok((browser, session)),
+        Err(error) if browser.name == "chromium" => error,
+        Err(error) => return Err(error),
+    };
+    let Some((_, current_version)) = error.split_once("Current browser version is ") else {
+        return Err(error);
+    };
+    if !error.contains("This version of ChromeDriver only supports Chrome version ") {
+        return Err(error);
+    }
+    let major = current_version.split('.').next().unwrap_or("");
+    if major.is_empty() || !major.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(error);
+    }
+    let diagnosis = format!("Use ChromeDriver major version {major}. {error}");
+    if !allow_fallback {
+        return Err(diagnosis);
+    }
+    let firefox = &BROWSERS[1];
+    eprintln!("PAINT {diagnosis}\nPAINT Retrying with Firefox.");
+    open(firefox)
+        .map(|session| (firefox, session))
+        .map_err(|firefox_error| format!("{diagnosis}\nFirefox startup failed: {firefox_error}"))
+}
+
 fn capture_viewport(
     session: &Session,
     browser: &Browser,
@@ -577,6 +625,60 @@ fn paint_frames(session: &Session) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    const CHROME_VERSION_MISMATCH: &str = "POST /session: session not created: session not created: This version of ChromeDriver only supports Chrome version 155
+Current browser version is 157.0.2.3 with binary path C:/Chrome/chrome.exe";
+
+    #[test]
+    fn paint_retries_firefox_after_chrome_version_mismatch() {
+        let mut attempts = Vec::new();
+        let (browser, session) = open_paint_browser(&BROWSERS[0], true, |browser| {
+            attempts.push(browser.name);
+            match browser.name {
+                "chromium" => Err(CHROME_VERSION_MISMATCH.into()),
+                "firefox" => Ok(42),
+                _ => unreachable!(),
+            }
+        })
+        .expect("matching Firefox driver should supply the paint session");
+        assert_eq!(attempts, ["chromium", "firefox"]);
+        assert_eq!(browser.name, "firefox");
+        assert_eq!(session, 42);
+    }
+
+    #[test]
+    fn paint_keeps_driver_errors_and_respects_browser_selection() {
+        let mismatch = open_paint_browser::<()>(&BROWSERS[0], false, |browser| {
+            assert_eq!(browser.name, "chromium");
+            Err(CHROME_VERSION_MISMATCH.into())
+        })
+        .err()
+        .unwrap();
+        assert!(mismatch.contains("Use ChromeDriver major version 157."));
+        assert!(mismatch.contains(CHROME_VERSION_MISMATCH));
+
+        let startup_error = "POST /session: session not created: Chrome failed to start";
+        let error = open_paint_browser::<()>(&BROWSERS[0], true, |browser| {
+            assert_eq!(browser.name, "chromium");
+            Err(startup_error.into())
+        })
+        .err()
+        .unwrap();
+        assert_eq!(error, startup_error);
+
+        let error = open_paint_browser::<()>(&BROWSERS[0], true, |browser| {
+            Err(if browser.name == "chromium" {
+                CHROME_VERSION_MISMATCH
+            } else {
+                "geckodriver is unavailable"
+            }
+            .into())
+        })
+        .err()
+        .unwrap();
+        assert!(error.contains("Use ChromeDriver major version 157."));
+        assert!(error.contains("Firefox startup failed: geckodriver is unavailable"));
+    }
+
     /// Native-only: runs Python against synthetic raster controls without starting Excel or a browser.
     #[test]
     fn cell_measurements_reject_known_paint_damage() {
