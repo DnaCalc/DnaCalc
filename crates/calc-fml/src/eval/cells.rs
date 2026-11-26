@@ -146,7 +146,7 @@ impl<'r> SharedReader<'r> {
         if area.cell_count() > MAX_LIFTED_CELLS {
             return Err(EvalFault::NotModelled {
                 construct: "a range of more than 2^24 cells lifted as an array",
-                owner: "dc-10y",
+                owner: "dc-b1l",
             });
         }
         let total = area.cell_count() as usize;

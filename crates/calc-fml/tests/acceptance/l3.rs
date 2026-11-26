@@ -389,7 +389,7 @@ fn three_d_references_reach_the_functions_that_take_them() {
         book.refusal("=PIVOTBY(Ja:Ma!A1,A1:A3,A1:A3,SUM)", "B1"),
         CompileError::NotModelled {
             gap: calc_fml::Gap::Construct {
-                owner: "dc-10y",
+                owner: "dc-b1l",
                 ..
             },
             ..

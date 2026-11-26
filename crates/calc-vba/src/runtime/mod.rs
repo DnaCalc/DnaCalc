@@ -403,7 +403,7 @@ fn validate_project_modules(
     let compiled = env.modules().collect::<Vec<_>>();
     if compiled.len() != manifest.modules.len() {
         return Err(Error::UnsupportedSignature(
-            "project module inventory changed its directory identity (dc-snz.15)".into(),
+            "project module inventory changed its directory identity (dc-snz)".into(),
         ));
     }
     // The compiler preserves active manifest order and honors exported VB_Name.
@@ -415,7 +415,7 @@ fn validate_project_modules(
                 != calcvba_symbol::model::fold_identifier(module.module_name)
         {
             return Err(Error::UnsupportedSignature(format!(
-                "project module {} changed its directory identity (dc-snz.15)",
+                "project module {} changed its directory identity (dc-snz)",
                 unit.module_name
             )));
         }

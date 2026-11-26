@@ -117,7 +117,7 @@ pub const LICENSES_FILE: &str = "tools/xtask/licenses.json";
 const TOOLCHAIN_FILE: &str = "rust-toolchain.toml";
 
 /// What the desktop job does, as its output and `packaging.json` say it.
-const DESKTOP_WHAT: &str = "a release build of the native-only packages, not a packaging smoke: no desktop application package exists yet, so nothing is packaged, installed or started; bead dc-x704 replaces this with a real packaging smoke once the desktop application exists (it depends on dnacalc-m2.1)";
+const DESKTOP_WHAT: &str = "a release build of the native-only packages, not a packaging smoke: no desktop application package exists yet, so nothing is packaged, installed or started; bead dc-fk66 replaces this with a real packaging smoke once the desktop application exists (it depends on dnacalc-m2.1)";
 
 /// Browser runs keep console output with `--nocapture`; native runs use `--show-output` so
 /// successful cases retain output under their own test names.
@@ -2049,17 +2049,17 @@ fn desktop_job(
         })
         .collect();
     let desktop = if executables.is_empty() {
-        let note = "no desktop application package exists yet: no workspace package outside tools/ has a bin target, so there is nothing to package, install or start; this job is a release build of the native-only packages until bead dc-x704 replaces it with a packaging smoke of the desktop application (dc-x704 depends on dnacalc-m2.1)";
+        let note = "no desktop application package exists yet: no workspace package outside tools/ has a bin target, so there is nothing to package, install or start; this job is a release build of the native-only packages until bead dc-fk66 replaces it with a packaging smoke of the desktop application (dc-fk66 depends on dnacalc-m2.1)";
         println!("CI note: {note}");
         json!({ "exists": false, "executables": executables, "note": note })
     } else {
-        let note = "a bin target exists outside tools/, but this job does not package, install or start it; bead dc-x704 owns that packaging smoke";
+        let note = "a bin target exists outside tools/, but this job does not package, install or start it; bead dc-fk66 owns that packaging smoke";
         println!("CI note: {note}");
         json!({ "exists": true, "executables": executables, "note": note })
     };
     record.insert("what".into(), json!(DESKTOP_WHAT));
     record.insert("packaged".into(), json!(false));
-    record.insert("packaging_smoke_owner".into(), json!("dc-x704"));
+    record.insert("packaging_smoke_owner".into(), json!("dc-fk66"));
     record.insert("runs".into(), json!([run_json("release-build", &merged)]));
     record.insert("built".into(), Value::Array(built));
     record.insert("desktop_application".into(), desktop);
@@ -2477,7 +2477,7 @@ error: 1 target failed:
         // The desktop job says what it is: a release build, no package, and who owns the smoke.
         let what = Job::Desktop.what().unwrap();
         assert!(what.starts_with("a release build of the native-only packages"));
-        assert!(what.contains("nothing is packaged") && what.contains("dc-x704"));
+        assert!(what.contains("nothing is packaged") && what.contains("dc-fk66"));
         assert_eq!(Job::Wasm.what(), None);
     }
 

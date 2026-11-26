@@ -109,14 +109,14 @@ fn replace_with(
             (XmlEvent::Start(e), s) => {
                 let end = if keep_line && e.name.is(A, "ln") {
                     if line_span.is_some() {
-                        return Err(reader.invalid("The chart area has duplicate outline records (dc-oxh8w.61)"));
+                        return Err(reader.invalid("The chart area has duplicate outline records (dc-zjsg)"));
                     }
                     let end = reader.element_end()?;
                     line_span = Some((s.0, end));
                     end
                 } else if !outline && !keep_line && e.name.is(A, "ln") {
                     if line {
-                        return Err(reader.invalid("Duplicate series outline records (dc-971p.58)"));
+                        return Err(reader.invalid("Duplicate series outline records (dc-zjsg)"));
                     }
                     line = true;
                     let (end, bytes) = replace_with(xml, reader, s, color, true, None)?;
@@ -147,7 +147,7 @@ fn replace_with(
         return Ok((end, xml.bytes()[span.0..end].to_vec()));
     }
     if fills.len() > 1 {
-        return Err(reader.invalid("Duplicate series fill records (dc-971p.58)"));
+        return Err(reader.invalid("Duplicate series fill records (dc-zjsg)"));
     }
     let fill_at = children
         .iter()

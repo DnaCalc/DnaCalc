@@ -537,7 +537,16 @@ impl WorkbookAutomation {
         call: &Call<'_>,
         intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
     ) -> Reply {
-        self.mutate_pre(target, call, OWNER, |_, _| Ok(PreWrite::Same), intent)
+        self.mutate_with_owner(target, call, OWNER, intent)
+    }
+    pub(super) fn mutate_with_owner(
+        &self,
+        target: &ObjectRef,
+        call: &Call<'_>,
+        owner: &'static str,
+        intent: impl FnMut(&HostSession, Option<ReferenceLike>) -> Result<SkinIntent, AutoError>,
+    ) -> Reply {
+        self.mutate_pre(target, call, owner, |_, _| Ok(PreWrite::Same), intent)
     }
     /// Runs a started calculation to its end, as Excel's synchronous automation call does.
     pub(super) fn settle(

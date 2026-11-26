@@ -97,7 +97,7 @@ impl calc_host::automation::AutomationHost for DesktopAutomationHost {
             Ok(None) => None,
             Err(why) => Some(Err(calc_object_model::AutoError::not_modelled(
                 why,
-                "dc-0f1k.24",
+                "dc-17spk",
             ))),
             Ok(Some(())) => Some(Err(calc_host::automation::busy())),
         }

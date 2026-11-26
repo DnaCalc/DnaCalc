@@ -8,8 +8,8 @@ use crate::{Points, ShapeChange, WorkbookCommand};
 use calc_doc_model::{ChartAnchor, Shape, ShapeColour, ShapeFill, ShapeKind, ShapeLine};
 use calc_object_model::ReportItem;
 
-const CHARTS: &str = "dc-piw0.2";
-const SHAPES: &str = "dc-piw0.3";
+const CHARTS: &str = "dc-piw0";
+const SHAPES: &str = "dc-zjsg";
 const EMU_PER_POINT: f64 = 12_700.0;
 
 fn single(value: f64) -> AutoValue {
@@ -764,7 +764,7 @@ impl WorkbookAutomation {
             _ => {
                 return Err(AutoError::not_modelled(
                     "Series.Values/XValues put of an array of literals",
-                    "dc-piw0.6",
+                    "dc-piw0",
                 ));
             }
         };

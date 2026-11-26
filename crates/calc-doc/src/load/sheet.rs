@@ -1230,7 +1230,7 @@ pub(super) fn load_sheet(
                     sheet.load.review.conditional_extensions = true;
                 }
                 if unread > 0 {
-                    sheet.load.review.unsupported.push(format!("{unread} extension-only conditional rules are preserved but cannot be displayed or edited (dc-971p.8)"));
+                    sheet.load.review.unsupported.push(format!("{unread} extension-only conditional rules are preserved but cannot be displayed or edited (dc-971p)"));
                 }
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "hyperlinks") => {
@@ -1334,7 +1334,7 @@ pub(super) fn load_sheet(
     super::outline::read(&xml, &mut load.geometry)?;
     if load.geometry.outline_unsupported {
         load.review.unsupported.push(
-            "Imported outline metadata cannot be edited here (dc-971p.39); its source is retained"
+            "Imported outline metadata cannot be edited here (dc-971p); its source is retained"
                 .into(),
         );
     }
@@ -1349,7 +1349,7 @@ pub(super) fn load_sheet(
         })
         .count();
     if unread > 0 {
-        load.review.unsupported.push(format!("{unread} extension-only data bars are preserved but cannot be displayed or edited (dc-971p.8)"));
+        load.review.unsupported.push(format!("{unread} extension-only data bars are preserved but cannot be displayed or edited (dc-971p)"));
     }
     load.conditional_formats =
         super::conditional::with_extensions(std::mem::take(&mut load.conditional_formats), &bars);

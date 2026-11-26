@@ -184,7 +184,7 @@ fn run(
         .filter(|(n, _, _)| n.is(A, "latin"))
         .collect::<Vec<_>>();
     if fills.len() > 1 || latin.len() > 1 {
-        return Err(reader.invalid("Duplicate chart text fill/font records (dc-971p.59)"));
+        return Err(reader.invalid("Duplicate chart text fill/font records (dc-zjsg)"));
     }
     let size = style.size.map(|n| n.to_string());
     let boolean = |v: Option<bool>| v.map(|v| if v { "1" } else { "0" });
@@ -278,7 +278,7 @@ pub(super) fn apply(
     validate(&changed).map_err(|s| SaveRefusal::ChartNotModelled {
         part: xml.name().into(),
         detail: s.into(),
-        owner: "dc-971p.59",
+        owner: "dc-zjsg",
     })?;
     let mut reader = Reader::new(xml);
     reader.expect()?;
@@ -289,7 +289,7 @@ pub(super) fn apply(
             (XmlEvent::Start(e), span) if e.name.is(C, "txPr") => {
                 if found {
                     return Err(
-                        reader.invalid("Duplicate chart-space text properties (dc-971p.59)")
+                        reader.invalid("Duplicate chart-space text properties (dc-zjsg)")
                     );
                 }
                 found = true;
@@ -320,7 +320,7 @@ pub(super) fn apply(
 }
 pub(crate) fn validate(style: &ChartTextStyle) -> Result<(), &'static str> {
     if style.size.is_some_and(|n| !(100..=40900).contains(&n)) {
-        return Err("Use a chart font size from 1 to 409 points (dc-971p.59)");
+        return Err("Use a chart font size from 1 to 409 points (dc-zjsg)");
     }
     if style.family.as_ref().is_some_and(|s| {
         s.is_empty()
@@ -329,7 +329,7 @@ pub(crate) fn validate(style: &ChartTextStyle) -> Result<(), &'static str> {
                 .any(|c| c < ' ' || matches!(c, '\u{fffe}' | '\u{ffff}'))
     }) {
         return Err(
-            "Use a font family of 1 to 255 characters without control characters (dc-971p.59)",
+            "Use a font family of 1 to 255 characters without control characters (dc-zjsg)",
         );
     }
     if style
@@ -337,7 +337,7 @@ pub(crate) fn validate(style: &ChartTextStyle) -> Result<(), &'static str> {
         .as_ref()
         .is_some_and(|s| s.len() != 6 || !s.bytes().all(|c| c.is_ascii_hexdigit()))
     {
-        return Err("Use a six-digit RGB text colour or Automatic (dc-971p.59)");
+        return Err("Use a six-digit RGB text colour or Automatic (dc-zjsg)");
     }
     Ok(())
 }
@@ -635,7 +635,7 @@ pub(super) fn apply_elements(
         validate(&changed).map_err(|detail| SaveRefusal::ChartNotModelled {
             part: xml.name().into(),
             detail: detail.into(),
-            owner: "dc-971p.61",
+            owner: "dc-zjsg",
         })?;
         let current = xml.with_bytes(bytes);
         let Some(wanted) = element_span(&current, target)? else {
@@ -643,7 +643,7 @@ pub(super) fn apply_elements(
                 return Err(SaveRefusal::ChartNotModelled {
                     part: xml.name().into(),
                     detail: "The selected chart text object is absent".into(),
-                    owner: "dc-971p.61",
+                    owner: "dc-zjsg",
                 });
             }
             bytes = current.bytes().to_vec();

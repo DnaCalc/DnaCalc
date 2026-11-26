@@ -1753,7 +1753,7 @@ fn begin_with_scope(
                     .map(|node| live_anchor(state, *node))
                     .collect(),
                 construct: "cyclic targets in a Manual range calculation",
-                owner: "dc-hsa5.11",
+                owner: "dc-y2o",
             });
         }
         work
@@ -1763,21 +1763,21 @@ fn begin_with_scope(
 fn iterative_range_refusal() -> StartError {
     StartError::NotModeledScope {
         construct: "iterative range calculation with circular formulas",
-        owner: "dc-hsa5.11",
+        owner: "dc-y2o",
     }
 }
 
 fn dynamic_range_failure() -> RecalcFailure {
     RecalcFailure::NotModeledScope {
         construct: "a dynamic circular reference in an iterative range calculation",
-        owner: "dc-hsa5.11",
+        owner: "dc-y2o",
     }
 }
 
 fn mixed_range_spill_failure() -> RecalcFailure {
     RecalcFailure::NotModeledScope {
         construct: "multi-cell spill placement in an iterative mixed range calculation",
-        owner: "dc-hsa5.11",
+        owner: "dc-y2o",
     }
 }
 
@@ -2246,7 +2246,7 @@ fn apply(
             if !matches!(done.result, FormulaResult::Calculated { .. }) || done.spill.is_some() {
                 work.failure = Some(RecalcFailure::NotModeledScope {
                     construct: "an iterative provisional callback without a scalar result",
-                    owner: "dc-hsa5.11",
+                    owner: "dc-y2o",
                 });
             }
         }
@@ -2364,7 +2364,7 @@ fn exclude_range_target(
         command: work.admission.command,
         targets: vec![at],
         construct,
-        owner: "dc-hsa5.11",
+        owner: "dc-y2o",
     });
 }
 
@@ -4662,7 +4662,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
         Err(()) => {
             let refusal = NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "spill ranges that kept changing size within one recalculation",
-                owner: "dc-10y",
+                owner: "dc-b1l",
             });
             for node in roots
                 .into_iter()
@@ -5002,7 +5002,7 @@ fn stage(
         // that refusal would discard the warm seed needed by a later command.
         work.failure = Some(RecalcFailure::NotModeledScope {
             construct: "a typed refusal before dependency discovery completes in an iterative mixed range",
-            owner: "dc-hsa5.11",
+            owner: "dc-y2o",
         });
         return;
     }
@@ -6307,7 +6307,7 @@ fn evaluate_unstamped(
             if week.as_ref().is_some_and(PassWeek::history_dependent) {
                 Err(EvalFault::NotModelled {
                     construct: "a WEEKNUM that read the pass state before its own formula set one",
-                    owner: "dc-amhpx",
+                    owner: "dc-b1l",
                 })
             } else {
                 outcome
@@ -6593,7 +6593,7 @@ fn array_outcome(
                 Collision::Unknown => Err(Placed::Refused(NotModeled::Evaluation(
                     EvalFault::NotModelled {
                         construct: "a spill over the file's area of another array formula whose result is not calculated",
-                        owner: "dc-10y",
+                        owner: "dc-b1l",
                     },
                 ))),
             }

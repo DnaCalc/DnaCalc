@@ -870,7 +870,7 @@ pub(crate) fn prepare_properties(
     legend: Option<bool>,
 ) -> Result<Vec<crate::CellEdit>, String> {
     if revision != host.revision().get() {
-        return Err("The workbook changed; reopen the chart controls (dc-e5z5)".into());
+        return Err("The workbook changed; reopen the chart controls (dc-zjsg)".into());
     }
     // A chart sheet a macro made has no loaded part (dc-oxh8w.23).
     let source = host.loaded().sheet(sheet);
@@ -879,12 +879,12 @@ pub(crate) fn prepare_properties(
     }
     if source.is_some_and(|s| s.protected() || s.is_macro_sheet()) {
         return Err(
-            "Editing charts on this protected or macro worksheet is not modelled (dc-e5z5)".into(),
+            "Editing charts on this protected or macro worksheet is not modelled (dc-zjsg)".into(),
         );
     }
     if host.loaded().workbook_part().ends_with(".bin") {
         return Err(
-            "Save as XLSX and reopen before editing charts in an XLSB workbook (dc-e5z5)".into(),
+            "Save as XLSX and reopen before editing charts in an XLSB workbook (dc-zjsg)".into(),
         );
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
@@ -939,7 +939,7 @@ pub(crate) fn prepare_series(
     // Reuse the chart target, protection, format and revision checks.
     prepare_properties(host, sheet, revision, part, None, false, None)?;
     if !host.axis_edits.is_empty() {
-        return Err("Save and reopen before editing chart sources after inserting or deleting rows or columns (dc-971p.46)".into());
+        return Err("Save and reopen before editing chart sources after inserting or deleting rows or columns (dc-zjsg)".into());
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
     let chart = charts
@@ -978,7 +978,7 @@ pub(crate) fn prepare_series(
         p.kind.as_str(),
         "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
     ) {
-        return Err("Editing series of this chart type is not modelled (dc-971p.46)".into());
+        return Err("Editing series of this chart type is not modelled (dc-zjsg)".into());
     }
     let position = series
         .map(|index| {
@@ -991,15 +991,15 @@ pub(crate) fn prepare_series(
     if remove {
         let i = position.ok_or("Select a series to remove")?;
         if p.series.len() == 1 {
-            return Err("Keep at least one series in a chart plot (dc-971p.46)".into());
+            return Err("Keep at least one series in a chart plot (dc-zjsg)".into());
         }
         p.series.remove(i);
     } else {
         if position.is_none() && total >= 255 {
-            return Err("A chart can have at most 255 series (dc-971p.46)".into());
+            return Err("A chart can have at most 255 series (dc-zjsg)".into());
         }
         if position.is_none() && matches!(p.kind.as_str(), "pieChart" | "doughnutChart") {
-            return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-971p.46)".into());
+            return Err("Adding pie or doughnut series is not modelled; edit the existing series (dc-zjsg)".into());
         }
         let mut changed =
             position
@@ -1023,7 +1023,7 @@ pub(crate) fn prepare_series(
                         || matches!(c, '\u{fffe}' | '\u{ffff}')
                 })
             {
-                return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-971p.46)".into());
+                return Err("The series name contains unsupported text or exceeds 32,767 UTF-16 units (dc-zjsg)".into());
             }
             changed.name = if text.is_empty() {
                 None
@@ -1047,7 +1047,7 @@ pub(crate) fn prepare_series(
             changed.values = Some(range(&text, true, false)?);
         }
         if changed.values.is_none() {
-            return Err("Choose a values range for the new series (dc-971p.46)".into());
+            return Err("Choose a values range for the new series (dc-zjsg)".into());
         }
         if let Some(i) = position {
             p.series[i] = changed;
@@ -1348,19 +1348,19 @@ pub(crate) fn prepare_axis(
         .ok_or("The chart is unavailable")?;
     check_axes_for_edit(host, sheet, part)?;
     if chart.axes.iter().filter(|a| a.id == id).count() != 1 {
-        return Err("The axis identity changed; reopen its controls (dc-971p.46)".into());
+        return Err("The axis identity changed; reopen its controls (dc-zjsg)".into());
     }
     value_axes(
         &chart.axes,
         &chart.plots[0].axis_ids,
         chart.plots[0].kind == "scatterChart",
     )
-    .map_err(|e| format!("{e} (dc-971p.46)"))?;
+    .map_err(|e| format!("{e} (dc-zjsg)"))?;
     let axis = chart
         .axes
         .iter_mut()
         .find(|a| a.id == id && a.kind == "valAx")
-        .ok_or("Choose a value axis (dc-971p.46)")?;
+        .ok_or("Choose a value axis (dc-zjsg)")?;
     let canonical = |value: Option<String>| -> Result<Option<String>, String> {
         value
             .filter(|s| !s.trim().is_empty())
@@ -1370,7 +1370,7 @@ pub(crate) fn prepare_axis(
                     .ok()
                     .filter(|n| n.is_finite())
                     .map(|n| n.to_string())
-                    .ok_or_else(|| "Use finite numeric axis bounds and units (dc-971p.46)".into())
+                    .ok_or_else(|| "Use finite numeric axis bounds and units (dc-zjsg)".into())
             })
             .transpose()
     };
@@ -1378,7 +1378,7 @@ pub(crate) fn prepare_axis(
     axis.maximum = canonical(maximum)?;
     axis.major_unit = canonical(major_unit)?;
     axis.reversed = reversed;
-    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-971p.50)"))?;
+    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-zjsg)"))?;
     host.loaded()
         .check_chart_properties(sheet, chart)
         .map_err(|e| e.to_string())?;
@@ -1411,7 +1411,7 @@ fn check_axes_for_edit(host: &HostState, sheet: SheetId, part: &str) -> Result<(
         .ok_or("The chart is unavailable")?;
     if !axes_associated(&view) || (view.plots.len() != 1 && !combination_supported(&view)) {
         return Err(
-            "Editing unassociated axes or this combination is not modelled (dc-971p.51)".into(),
+            "Editing unassociated axes or this combination is not modelled (dc-zjsg)".into(),
         );
     }
     Ok(())
@@ -1472,7 +1472,7 @@ pub fn combination_supported(chart: &ChartView) -> bool {
 /// Plots sharing a value axis share its data extent as well as its authored properties.
 pub fn category_scale(chart: &ChartView, plot: &PlotView) -> Result<ChartScale, String> {
     if !axes_associated(chart) {
-        return Err("Unassociated chart axes are preserved but not drawn here (dc-971p.51)".into());
+        return Err("Unassociated chart axes are preserved but not drawn here (dc-zjsg)".into());
     }
     let axes = value_axes(&chart.axes, &plot.axis_ids, false)?;
     let axis = axes[0];
@@ -1496,7 +1496,7 @@ pub fn plot_scale_range(plot: &PlotView, log: bool) -> Result<(f64, f64), String
     }
     if plot.stacked {
         return Err(
-            "Logarithmic stacked plots are preserved but not drawn or edited here (dc-971p.50)"
+            "Logarithmic stacked plots are preserved but not drawn or edited here (dc-zjsg)"
                 .into(),
         );
     }
@@ -1582,7 +1582,7 @@ fn axis_view_scale(
         .plots
         .iter()
         .find(|p| p.axis_ids.contains(&axis.id))
-        .ok_or("The axis is not associated with a plot (dc-971p.50)")?;
+        .ok_or("The axis is not associated with a plot (dc-zjsg)")?;
     let (low, high) = if plot.kind == ChartKind::Scatter {
         let axes = value_axes(&view.axes, &plot.axis_ids, true)?;
         let x = if axes[0].id == axis.id { axis } else { axes[0] };
@@ -1595,7 +1595,7 @@ fn axis_view_scale(
     ) {
         return category_scale(&view, plot);
     } else {
-        return Err("This plot has no editable value axis (dc-971p.50)".into());
+        return Err("This plot has no editable value axis (dc-zjsg)".into());
     };
     chart_scale(low, high, Some(axis))
 }
@@ -1620,7 +1620,7 @@ pub(crate) fn prepare_axis_labels(
         .axes
         .iter_mut()
         .find(|a| a.id == id)
-        .ok_or("The axis identity changed; reopen its controls (dc-971p.46)")?;
+        .ok_or("The axis identity changed; reopen its controls (dc-zjsg)")?;
     if let Some(title) = title {
         axis.title = title;
     }
@@ -1659,7 +1659,7 @@ pub(crate) fn prepare_log_axis(
         .axes
         .iter_mut()
         .find(|a| a.id == id && a.kind == "valAx")
-        .ok_or("Choose a value axis (dc-971p.50)")?;
+        .ok_or("Choose a value axis (dc-zjsg)")?;
     axis.log_base = base
         .map(|v| {
             v.trim()
@@ -1667,10 +1667,10 @@ pub(crate) fn prepare_log_axis(
                 .ok()
                 .filter(|n| n.is_finite() && (2. ..=1000.).contains(n))
                 .map(|n| n.to_string())
-                .ok_or_else(|| "Use a logarithmic base from 2 to 1,000 (dc-971p.50)".to_string())
+                .ok_or_else(|| "Use a logarithmic base from 2 to 1,000 (dc-zjsg)".to_string())
         })
         .transpose()?;
-    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-971p.50)"))?;
+    validate_axis_view(host, sheet, part, axis).map_err(|e| format!("{e} (dc-zjsg)"))?;
     host.loaded()
         .check_chart_properties(sheet, chart)
         .map_err(|e| e.to_string())?;
@@ -1775,11 +1775,11 @@ pub(crate) fn prepare_type(
         .ok_or("The chart is unavailable")?;
     check_axes_for_edit(host, sheet, part)?;
     if chart.plots.len() > 3 || plot as usize >= chart.plots.len() {
-        return Err("Choose a plot in a single chart or a category combination of up to three plots (dc-971p.59)".into());
+        return Err("Choose a plot in a single chart or a category combination of up to three plots (dc-zjsg)".into());
     }
     let combo = chart.plots.len() > 1;
     if combo && kind == "bar" {
-        return Err("Combination type changes use vertical plots (dc-971p.59)".into());
+        return Err("Combination type changes use vertical plots (dc-zjsg)".into());
     }
     if combo
         && stacked
@@ -1789,7 +1789,7 @@ pub(crate) fn prepare_type(
                 && chart.plots[plot as usize].axis_ids.contains(&a.id)
         })
     {
-        return Err("Changing secondary-axis combination plots to stacked grouping is not modelled (dc-971p.60)".into());
+        return Err("Changing secondary-axis combination plots to stacked grouping is not modelled (dc-zjsg)".into());
     }
     if stacked
         && chart
@@ -1797,7 +1797,7 @@ pub(crate) fn prepare_type(
             .iter()
             .any(|a| a.log_base.is_some() && chart.plots[plot as usize].axis_ids.contains(&a.id))
     {
-        return Err("Stacked logarithmic plots are not modelled (dc-971p.50)".into());
+        return Err("Stacked logarithmic plots are not modelled (dc-zjsg)".into());
     }
     let p = &mut chart.plots[plot as usize];
     let category = |kind: &str| matches!(kind, "barChart" | "lineChart" | "areaChart");
@@ -1809,10 +1809,10 @@ pub(crate) fn prepare_type(
         "area" => ("areaChart", None),
         "pie" => ("pieChart", None),
         "doughnut" => ("doughnutChart", None),
-        _ => return Err("Choose a supported two-dimensional chart type (dc-971p.46)".into()),
+        _ => return Err("Choose a supported two-dimensional chart type (dc-zjsg)".into()),
     };
     if category(&p.kind) && category(next) {
-        value_axes(&chart.axes, &p.axis_ids, false).map_err(|e| format!("{e} (dc-971p.46)"))?;
+        value_axes(&chart.axes, &p.axis_ids, false).map_err(|e| format!("{e} (dc-zjsg)"))?;
         let horizontal = p.kind == "barChart" && p.bar_direction.as_deref() == Some("bar");
         if !combo && horizontal != (kind == "bar") {
             for axis in &mut chart.axes {
@@ -1830,12 +1830,12 @@ pub(crate) fn prepare_type(
         }
     } else if !(pie(&p.kind) && pie(next)) {
         return Err(
-            "Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-971p.46)".into(),
+            "Convert within column/bar/line/area, or between pie and doughnut; scatter and cross-family conversions are not modelled (dc-zjsg)".into(),
         );
     }
     if pie(next) && p.series.len() != 1 {
         return Err(
-            "Changing multi-series pie or doughnut charts is not modelled (dc-971p.46)".into(),
+            "Changing multi-series pie or doughnut charts is not modelled (dc-zjsg)".into(),
         );
     }
     if pie(next) && stacked {
@@ -1909,7 +1909,7 @@ fn range_data(
     let text = text.trim().trim_start_matches('=').trim();
     let crate::ReferenceTarget::Area(area) = host.resolve_reference_text(origin, text) else {
         return Err(
-            "Use a single worksheet cell or a one-row or one-column A1 range (dc-971p.46)".into(),
+            "Use a single worksheet cell or a one-row or one-column A1 range (dc-zjsg)".into(),
         );
     };
     let count = u64::from(area.row_count()) * u64::from(area.column_count());
@@ -1917,7 +1917,7 @@ fn range_data(
         || (area.row_count() > 1 && area.column_count() > 1)
         || (single && count != 1)
     {
-        return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-971p.46)".into());
+        return Err("Chart ranges must be one row or column with at most 32,767 cells; a name reference must be one cell (dc-zjsg)".into());
     }
     // Canonical absolute references keep edits independent of the selected cell.
     let sheet_name = host
@@ -2104,7 +2104,7 @@ pub(crate) fn prepare_create(
     headers: bool,
     categories: bool,
 ) -> Result<Vec<crate::CellEdit>, String> {
-    let fail = |s: &str| format!("{s} (dc-971p.49)");
+    let fail = |s: &str| format!("{s} (dc-zjsg)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; select the chart data again"));
     }
@@ -2157,7 +2157,7 @@ pub(crate) fn prepare_create_empty(
     kind: &str,
     new: NewChart,
 ) -> Result<Vec<crate::CellEdit>, String> {
-    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    let fail = |s: &str| format!("{s} (dc-piw0)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; read the sheet again"));
     }
@@ -2234,7 +2234,7 @@ pub(crate) fn prepare_set_source(
     headers: u32,
     categories: u32,
 ) -> Result<Vec<crate::CellEdit>, String> {
-    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    let fail = |s: &str| format!("{s} (dc-piw0)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; read the chart again"));
     }
@@ -2324,7 +2324,7 @@ fn assemble(
     );
     if combo && count < 2 && count > 0 {
         return Err(fail(
-            "Select at least two values series for a category combination (dc-971p.51)",
+            "Select at least two values series for a category combination (dc-zjsg)",
         ));
     }
     if kind == "combo-three" && count < 3 && count > 0 {
@@ -2513,7 +2513,7 @@ pub(crate) fn prepare_frame(
     place: Option<[crate::Points; 4]>,
 ) -> Result<Vec<crate::CellEdit>, String> {
     use calc_doc_model::ChartAnchor;
-    let fail = |s: &str| format!("{s} (dc-piw0.2)");
+    let fail = |s: &str| format!("{s} (dc-piw0)");
     if revision != host.revision().get() {
         return Err(fail("The workbook changed; read the chart again"));
     }
@@ -2570,13 +2570,13 @@ pub(crate) fn prepare_legend(
 ) -> Result<Vec<crate::CellEdit>, String> {
     prepare_properties(host, sheet, revision, part, None, false, None)?;
     if !matches!(position, "l" | "r" | "t" | "b" | "tr") {
-        return Err("Choose Left, Right, Top, Bottom or Top right (dc-971p.52)".into());
+        return Err("Choose Left, Right, Top, Bottom or Top right (dc-zjsg)".into());
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
     let chart = charts
         .iter_mut()
         .find(|c| c.part == part)
-        .ok_or("The chart is unavailable (dc-971p.52)")?;
+        .ok_or("The chart is unavailable (dc-zjsg)")?;
     chart.legend = Some(position.into());
     host.loaded()
         .check_chart_properties(sheet, chart)
@@ -2610,7 +2610,7 @@ pub(crate) fn prepare_series_labels(
         plot.kind.as_str(),
         "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
     ) {
-        return Err("Data labels of this chart type are not modelled (dc-oxh8w.18)".into());
+        return Err("Data labels of this chart type are not modelled (dc-zjsg)".into());
     }
     let series = plot
         .series
@@ -2641,7 +2641,7 @@ pub(crate) fn prepare_area_style(
     prepare_properties(host, sheet, revision, part, None, false, None)?;
     let fill = fill.map(|s| s.trim().strip_prefix('#').unwrap_or(s.trim()).to_ascii_uppercase());
     if fill.as_ref().is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit())) {
-        return Err("Use a six-digit RGB colour (dc-oxh8w.31)".into());
+        return Err("Use a six-digit RGB colour (dc-zjsg)".into());
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
     let chart = charts.iter_mut().find(|c| c.part == part).ok_or("The chart is unavailable")?;
@@ -2691,7 +2691,7 @@ pub(crate) fn prepare_series_style(
         .as_ref()
         .is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
     {
-        return Err("Use a six-digit RGB colour, or Automatic (dc-971p.58)".into());
+        return Err("Use a six-digit RGB colour, or Automatic (dc-zjsg)".into());
     }
     let mut charts = host.model().definitions().charts(sheet).to_vec();
     let chart = charts
@@ -2706,7 +2706,7 @@ pub(crate) fn prepare_series_style(
         plot.kind.as_str(),
         "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
     ) {
-        return Err("Series colours for this chart type are not modelled (dc-971p.58)".into());
+        return Err("Series colours for this chart type are not modelled (dc-zjsg)".into());
     }
     let series = plot
         .series
@@ -2825,12 +2825,12 @@ pub(crate) fn prepare_element_text_style(
     };
     if chart.element_text_complex.contains(target) {
         return Err(
-            "Editing chart text with several runs or paragraphs is not modelled (dc-971p.61)"
+            "Editing chart text with several runs or paragraphs is not modelled (dc-zjsg)"
                 .into(),
         );
     }
     if !valid {
-        return Err("Choose an existing title, legend or axis (dc-971p.61)".into());
+        return Err("Choose an existing title, legend or axis (dc-zjsg)".into());
     }
     style.color = style
         .color

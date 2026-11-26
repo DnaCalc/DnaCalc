@@ -13467,7 +13467,7 @@ fn dc_971p__transpose_modes_keep_captured_values_and_refuse_unsupported_or_parti
         )
         .unwrap_err();
         assert!(
-            reason.contains("not modelled") && reason.contains("dc-971p."),
+            reason.contains("not modelled") && reason.contains("dc-971p"),
             "{reason}"
         );
         assert_eq!((book.host().revision(), book.history_depth()), original);
@@ -19517,7 +19517,7 @@ fn dc_971p_40__rejected_candidate_does_not_call_live_user_function_providers() {
         .host()
         .check_entry(at(s, "A1"), input.as_ref())
         .unwrap_err();
-    assert!(failure.title.contains("dc-971p.40"));
+    assert!(failure.title.contains("dc-971p"));
     assert!(
         !book
             .dispatch(SkinIntent::EnterCell {

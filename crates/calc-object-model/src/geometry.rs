@@ -185,7 +185,7 @@ pub fn address_of_view(
     if options.external {
         text.push_str(
             qualifier
-                .ok_or_else(|| AutoError::not_modelled("Range.Address External", "dc-1nbp.5"))?,
+                .ok_or_else(|| AutoError::not_modelled("Range.Address External", "dc-oxh8w"))?,
         );
         text.push('!');
     }

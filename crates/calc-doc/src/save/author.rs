@@ -1362,7 +1362,7 @@ pub(super) fn plan(
             if sheet.geometry().outline_unsupported {
                 return Err(SaveRefusal::OutlineNotModelled {
                     part: sheet.part().name().to_owned(),
-                    owner: "dc-971p.39",
+                    owner: "dc-971p",
                 });
             }
             if sheets.iter().any(|other| {

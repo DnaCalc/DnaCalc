@@ -40,13 +40,13 @@ pub fn print_references(
     tokens.push(&text[start..]);
     if quoted || tokens.len() > 128 {
         return Err(
-            "Print ranges need at most 128 references on this worksheet (dc-971p.56)".into(),
+            "Print ranges need at most 128 references on this worksheet (dc-971p)".into(),
         );
     }
     let origin = CellKey::new(sheet, 1, 1).map_err(|e| e.to_string())?;
     tokens.into_iter().map(|t|match host.resolve_reference_text(origin,t.trim().trim_start_matches('=')) {
         crate::ReferenceTarget::Area(area) if area.sheet()==sheet=>Ok(area),
-        _=>Err("Print ranges need cell ranges or whole rows/columns on this worksheet (dc-971p.56)".into()),
+        _=>Err("Print ranges need cell ranges or whole rows/columns on this worksheet (dc-971p)".into()),
     }).collect()
 }
 /// Return the text of a worksheet-scoped print name, if defined.
@@ -67,7 +67,7 @@ pub(crate) fn prepare(
     change: PageSetupChange,
 ) -> Result<Vec<CellEdit>, String> {
     if host.revision().get() != revision {
-        return Err("The workbook changed; reopen Page Setup (dc-971p.56)".into());
+        return Err("The workbook changed; reopen Page Setup (dc-971p)".into());
     }
     crate::can_edit(host, CellKey::new(sheet, 1, 1).map_err(|e| e.to_string())?)?;
     let original = host.model().definitions().page_setup(sheet);
@@ -77,7 +77,7 @@ pub(crate) fn prepare(
     }
     for (name, value) in change.headers {
         if !HEADER_FIELDS.contains(&name.as_str()) {
-            return Err("Unknown header/footer field (dc-971p.56)".into());
+            return Err("Unknown header/footer field (dc-971p)".into());
         }
         if value.is_empty() {
             setup.headers.remove(&name);
@@ -144,7 +144,7 @@ pub(crate) fn prepare(
                         format!("${}:${}", col(a.column()), col(b.column()))
                     } else {
                         return Err(
-                            "Print titles need whole rows and/or whole columns (dc-971p.56)".into(),
+                            "Print titles need whole rows and/or whole columns (dc-971p)".into(),
                         );
                     }
                 } else {
@@ -160,7 +160,7 @@ pub(crate) fn prepare(
             }
             if row_titles > 1 || col_titles > 1 {
                 return Err(
-                    "Choose one consecutive title row band and one title column band (dc-971p.56)"
+                    "Choose one consecutive title row band and one title column band (dc-971p)"
                         .into(),
                 );
             }

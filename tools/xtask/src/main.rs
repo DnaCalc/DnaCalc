@@ -11,6 +11,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "prune" => xtask::prune::run(rest),
         Some((command, rest)) if command == "keep" => xtask::keep::run(rest),
         Some((command, rest)) if command == "health" => xtask::health::run(rest),
+        Some((command, rest)) if command == "refusal-owners" => xtask::refusal_owners::run(rest),
         _ => harness::run(&args),
     }
 }

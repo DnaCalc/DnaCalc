@@ -253,7 +253,7 @@ pub fn shift_formula(
     let catalog = SnapshotCatalog::new(root);
     if !calc_fml::reference::shift_formula_supported(text, at, area, down, name, &catalog) {
         return Err(
-            "cell shifts with crossing ranges, whole-axis/3D references or relative names need Excel readings (dc-971p.7)",
+            "cell shifts with crossing ranges, whole-axis/3D references or relative names need Excel readings (dc-971p)",
         );
     }
     let edit = StructuralEdit::ShiftCells { area, down, insert };

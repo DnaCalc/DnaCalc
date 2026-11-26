@@ -429,7 +429,7 @@ pub(crate) fn from_calc(
         CoreRef::Text(s) => AutoValue::Text(s.clone()),
         CoreRef::Error(error) => AutoValue::Error(
             2000 + calc_xll_host::error_number(error).ok_or_else(|| {
-                AutoError::not_modelled("Automation worksheet error", "dc-1nbp.5")
+                AutoError::not_modelled("Automation worksheet error", "dc-17spk")
             })?,
         ),
         CoreRef::Array(array) => AutoValue::Array(Box::new(AutoArray {
@@ -444,7 +444,7 @@ pub(crate) fn from_calc(
         _ => {
             return Err(AutoError::not_modelled(
                 "Automation value kind",
-                "dc-1nbp.5",
+                "dc-17spk",
             ));
         }
     })

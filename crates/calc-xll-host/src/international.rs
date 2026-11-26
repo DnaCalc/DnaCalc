@@ -19,7 +19,7 @@ fn regional(kind: u32) -> Result<String, String> {
     };
     if count <= 0 {
         return Err(format!(
-            "dc-snz.20: Windows regional setting {kind}: {}",
+            "dc-snz.2: Windows regional setting {kind}: {}",
             std::io::Error::last_os_error()
         ));
     }
@@ -48,7 +48,7 @@ pub(crate) fn settings() -> Result<CalcValue, String> {
         1 | 5 | 8 | 9 => 1,
         2 | 6 | 12 | 13 => 2,
         3 | 7 | 10 | 11 => 3,
-        _ => return Err("dc-snz.20: unknown Windows currency format".into()),
+        _ => return Err("dc-snz.2: unknown Windows currency format".into()),
     };
     let date_order = number(0x21)?;
     let array_column = if decimal == "," { "\\" } else { "," };

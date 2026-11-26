@@ -206,7 +206,7 @@ pub fn chart_svg(chart: &ChartView, width: f64, height: f64) -> String {
                 right: width,
                 bottom: height,
             },
-            "Unassociated chart axes are preserved but not drawn here (dc-971p.51)",
+            "Unassociated chart axes are preserved but not drawn here (dc-zjsg)",
         );
         svg.push_str("</svg>");
         return text_colour(svg, chart);
@@ -699,7 +699,7 @@ fn combination_layouts(chart: &ChartView, area: Area) -> Result<Vec<CategoryLayo
                 .is_some_and(|axes| axes[0].cross_between.is_none())
         })
     {
-        return Err("Three-plot category crossing with an area is preserved but needs an Excel measurement before drawing (dc-971p.59)".into());
+        return Err("Three-plot category crossing with an area is preserved but needs an Excel measurement before drawing (dc-zjsg)".into());
     }
     let first = calc_host::chart::category_scale(chart, &chart.plots[0])?;
     let width = |s: calc_host::chart::ChartScale, id: u32| {
@@ -871,7 +871,7 @@ fn category_marks(
         axis_notice(
             svg,
             &area,
-            "The stored category crossing is preserved but not drawn here (dc-971p.59)",
+            "The stored category crossing is preserved but not drawn here (dc-zjsg)",
         );
         return;
     }
@@ -879,7 +879,7 @@ fn category_marks(
         axis_notice(
             svg,
             &area,
-            "Midpoint category crossing for columns and bars is preserved but not drawn here (dc-971p.59)",
+            "Midpoint category crossing for columns and bars is preserved but not drawn here (dc-zjsg)",
         );
         return;
     }

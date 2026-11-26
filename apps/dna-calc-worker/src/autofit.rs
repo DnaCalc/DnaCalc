@@ -339,7 +339,7 @@ pub fn text_style_for(
                 Some("fill" | "justify" | "distributed" | "centerContinuous")
             ))
     {
-        out.unsupported=Some("Shrink-to-fit with wrapping, rotation, merged cells or special horizontal alignment is preserved but not painted (dc-971p.6)".into());
+        out.unsupported=Some("Shrink-to-fit with wrapping, rotation, merged cells or special horizontal alignment is preserved but not painted (dc-971p)".into());
     }
     table_style(host, at, out, font_id, fill_id, automatic_font)
 }

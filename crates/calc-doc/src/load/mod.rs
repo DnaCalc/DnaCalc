@@ -613,7 +613,7 @@ impl LoadedWorkbook {
                 let source = self.sheet(sheet).ok_or_else(|| crate::SaveRefusal::ChartNotModelled {
                     part: chart.part.clone(),
                     detail: "Save and reopen the new worksheet before moving a chart".into(),
-                    owner: "dc-zjsg.14",
+                    owner: "dc-zjsg",
                 })?;
                 crate::save::chart::check_frames(&self.package, &self.model, source, &[(original, chart)], &[], &[], &[])?;
             }
@@ -643,7 +643,7 @@ impl LoadedWorkbook {
         let fail = |detail: &str| crate::SaveRefusal::ChartNotModelled {
             part: "charts".into(),
             detail: detail.into(),
-            owner: "dc-971p.49",
+            owner: "dc-zjsg",
         };
         let original = self.model.definitions().charts(sheet);
         // A chart the file holds on another sheet and `charts` holds now was moved here (`Chart.Location`,
@@ -737,7 +737,7 @@ impl LoadedWorkbook {
             } else {
                 Err(crate::SaveRefusal::InvalidPart {
                     part: "worksheet".into(),
-                    detail: "Hyperlinks have no original worksheet (dc-971p.38)".into(),
+                    detail: "Hyperlinks have no original worksheet (dc-971p)".into(),
                 })
             };
         };
@@ -2632,7 +2632,7 @@ impl LoadedWorkbook {
         };
         let invalid = || crate::SaveRefusal::InvalidPart {
             part: source.part().name().into(),
-            detail: "The original note drawing cannot follow row sorting (dc-971p.38)".into(),
+            detail: "The original note drawing cannot follow row sorting (dc-971p)".into(),
         };
         let rels = self.package.relationships_of(Some(source.part().name()));
         let mut drawing = None;

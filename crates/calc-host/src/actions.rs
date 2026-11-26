@@ -826,14 +826,14 @@ pub(crate) fn prepare(
         WorkbookCommand::RefreshConnection { revision, name } => {
             if revision != host.revision().get() {
                 return Err(
-                    "The workbook changed before refreshing the connection (dc-8wp.18)".into(),
+                    "The workbook changed before refreshing the connection (dc-8wp)".into(),
                 );
             }
             let model = host
                 .model()
                 .definitions()
                 .data_model()
-                .ok_or("The workbook has no data model (dc-8wp.18)")?;
+                .ok_or("The workbook has no data model (dc-8wp)")?;
             if model
                 .model_connection
                 .as_ref()
@@ -939,7 +939,7 @@ pub(crate) fn prepare(
                 || width < 0.0
                 || height < 0.0
             {
-                return Err("Use a position and a size on the worksheet (dc-piw0.2)".into());
+                return Err("Use a position and a size on the worksheet (dc-piw0)".into());
             }
             let id = host.next_drawing_id(sheet);
             crate::chart::prepare_create_empty(
@@ -1395,7 +1395,7 @@ pub(crate) fn axis_format_edits(
     }
     let loaded = host.loaded().sheet(sheet);
     if loaded.is_some_and(|s| s.geometry().outline_unsupported) {
-        return Err("Imported outline metadata is not modelled for dimension edits (dc-971p.39); nothing changed".into());
+        return Err("Imported outline metadata is not modelled for dimension edits (dc-971p); nothing changed".into());
     }
     if loaded.is_some_and(|s| s.protected()) {
         return Err("Dimensions on a protected sheet are not available here".to_owned());
@@ -1423,7 +1423,7 @@ pub(crate) fn axis_format_edits(
                 f.unsupported && first <= f.area.last().row() && last > f.area.first().row()
             })
     {
-        return Err("Row visibility for imported filter metadata is not modelled (dc-971p.37); nothing changed".into());
+        return Err("Row visibility for imported filter metadata is not modelled (dc-971p); nothing changed".into());
     }
     if rows
         && host
@@ -1445,7 +1445,7 @@ pub(crate) fn axis_format_edits(
             })
     {
         return Err(
-            "Rows hidden by an imported table filter cannot be resized or shown here (dc-971p.37)"
+            "Rows hidden by an imported table filter cannot be resized or shown here (dc-971p)"
                 .into(),
         );
     }
@@ -1719,7 +1719,7 @@ pub(crate) fn conditional_edits(
         .sheet(sheet)
         .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
     {
-        return Err("This worksheet has additional conditional-rule metadata; editing its rules is unavailable and the file is preserved (dc-971p.8)".into());
+        return Err("This worksheet has additional conditional-rule metadata; editing its rules is unavailable and the file is preserved (dc-971p)".into());
     }
     let mut rules = host.model().definitions().conditional_rules(sheet).to_vec();
     let ranges = |text: &str| -> Result<Vec<GridArea>, String> {
@@ -1840,14 +1840,14 @@ pub(crate) fn conditional_edits(
             } => {
                 let areas = ranges(&applies)?;
                 if parsed.extension_id.is_some() {
-                    return Err("Editing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
+                    return Err("Editing extension-backed rules is unavailable; the imported rule is preserved (dc-971p)".into());
                 }
                 let mut formulas = formulas;
                 if formulas != rules[i].formulas {
                     if !matches!(parsed.kind.as_str(), "cellIs" | "expression")
                         || formulas.len() != rules[i].formulas.len()
                     {
-                        return Err("This rule condition cannot be edited yet (dc-971p.8)".into());
+                        return Err("This rule condition cannot be edited yet (dc-971p)".into());
                     }
                     for formula in &mut formulas {
                         let text = crate::FormulaText::new(
@@ -1926,7 +1926,7 @@ pub(crate) fn conditional_edits(
             }
             ConditionalChange::Remove => {
                 if parsed.extension_id.is_some() {
-                    return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p.8)".into());
+                    return Err("Removing extension-backed rules is unavailable; the imported rule is preserved (dc-971p)".into());
                 }
                 rules.remove(i);
             }
@@ -1987,7 +1987,7 @@ fn sort_rows(
     options: &SortOptions,
 ) -> Result<Vec<CellEdit>, String> {
     let unavailable = |detail: &str| {
-        format!("Sorting {detail} is not modelled (dc-971p.38); nothing was changed")
+        format!("Sorting {detail} is not modelled (dc-971p); nothing was changed")
     };
     if revision != host.revision().get() {
         return Err("The workbook changed before sorting; select the range again".into());
@@ -2270,18 +2270,18 @@ fn sort_rows(
     }
     let value = calc_engine::DetachedFormula::compile_dynamic(host.model(), &formula, data.first())
         .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
-        .map_err(|e| format!("Sort could not calculate the row order (dc-971p.38): {e}"))?;
+        .map_err(|e| format!("Sort could not calculate the row order (dc-971p): {e}"))?;
     let calc_value::CoreRef::Array(order) = value.core_ref() else {
         return Err(match value.core_ref() {
             calc_value::CoreRef::Error(code) => format!(
-                "Sort could not calculate the row order: {} (dc-971p.38)",
+                "Sort could not calculate the row order: {} (dc-971p)",
                 code.excel_spelling()
             ),
-            _ => "Sort did not return a row order (dc-971p.38)".into(),
+            _ => "Sort did not return a row order (dc-971p)".into(),
         });
     };
     if order.shape().rows != count as usize || order.shape().cols != 1 {
-        return Err("Sort returned an unexpected row count (dc-971p.38)".into());
+        return Err("Sort returned an unexpected row count (dc-971p)".into());
     }
     let mut seen = BTreeSet::new();
     let mut edits = Vec::new();
@@ -2293,14 +2293,14 @@ fn sort_rows(
         let Some(calc_value::CoreRef::Number(number)) =
             order.get(index as usize, 0).map(|v| v.core_ref())
         else {
-            return Err("Sort did not return numeric row positions (dc-971p.38)".into());
+            return Err("Sort did not return numeric row positions (dc-971p)".into());
         };
         if number < 1.
             || number > f64::from(count)
             || number.fract() != 0.
             || !seen.insert(number as u32)
         {
-            return Err("Sort returned invalid row positions (dc-971p.38)".into());
+            return Err("Sort returned invalid row positions (dc-971p)".into());
         }
         order_rows.push(first + number as u32 - 1);
     }
@@ -2479,7 +2479,7 @@ fn sort_option_keys(
     options: &SortOptions,
 ) -> Result<(Vec<usize>, Option<String>), String> {
     let unavailable =
-        |detail: &str| format!("Sorting {detail} is not modelled (dc-971p.38); nothing changed");
+        |detail: &str| format!("Sorting {detail} is not modelled (dc-971p); nothing changed");
     if options.case_sensitive && !options.custom_order.is_empty() {
         return Err(unavailable("case-sensitive custom lists"));
     }
@@ -2516,7 +2516,7 @@ fn sort_option_keys(
     }
     if keys[0].descending {
         return Err(
-            "Reverse the custom list entries to reverse their order (dc-971p.38); nothing changed"
+            "Reverse the custom list entries to reverse their order (dc-971p); nothing changed"
                 .into(),
         );
     }
@@ -2525,7 +2525,7 @@ fn sort_option_keys(
         || order.join("\n").encode_utf16().count() > 255
     {
         return Err(
-            "Enter 1 to 32 nonempty custom entries, at most 255 characters in total (dc-971p.38)"
+            "Enter 1 to 32 nonempty custom entries, at most 255 characters in total (dc-971p)"
                 .into(),
         );
     }
@@ -2540,7 +2540,7 @@ fn sort_option_keys(
     let evaluate = |text: &str| {
         calc_engine::DetachedFormula::compile_dynamic(host.model(), text, data.first())
             .and_then(|f| f.evaluate(&host.engine, host.model(), data.first()))
-            .map_err(|e| format!("Custom order could not be calculated (dc-971p.38): {e}"))
+            .map_err(|e| format!("Custom order could not be calculated (dc-971p): {e}"))
     };
     let xmatch = file_call_name(calc_catalogue::lookup::XMATCH);
     let unique = evaluate(&format!("{xmatch}({list},{list},0)"))?;
@@ -2556,7 +2556,7 @@ fn sort_option_keys(
         };
     if !distinct {
         return Err(
-            "Every custom entry must be distinct, ignoring case (dc-971p.38); nothing changed"
+            "Every custom entry must be distinct, ignoring case (dc-971p); nothing changed"
                 .into(),
         );
     }
@@ -2567,10 +2567,10 @@ fn sort_option_keys(
     );
     let ranks = evaluate(&format!("{xmatch}({range},{list},0)"))?;
     let calc_value::CoreRef::Array(ranks) = ranks.core_ref() else {
-        return Err("The custom key did not return row positions (dc-971p.38)".into());
+        return Err("The custom key did not return row positions (dc-971p)".into());
     };
     if ranks.shape().rows != data.row_count() as usize || ranks.shape().cols != 1 {
-        return Err("The custom key returned an unexpected row count (dc-971p.38)".into());
+        return Err("The custom key returned an unexpected row count (dc-971p)".into());
     }
     for cell in page
         .cells()
@@ -2591,7 +2591,7 @@ fn sort_option_keys(
                 matches!(v.core_ref(), calc_value::CoreRef::Number(n) if n >= 1.0 && n <= order.len() as f64)
             })
         {
-            return Err("Every nonblank first-key value must be text included in the custom list (dc-971p.38); nothing changed".into());
+            return Err("Every nonblank first-key value must be text included in the custom list (dc-971p); nothing changed".into());
         }
     }
     Ok((widths, Some(list)))

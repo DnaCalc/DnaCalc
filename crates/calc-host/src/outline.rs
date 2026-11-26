@@ -44,7 +44,7 @@ pub(crate) fn prepare(
     change: OutlineChange,
 ) -> Result<Vec<CellEdit>, String> {
     if host.revision().get() != revision {
-        return Err("The workbook changed before outlining (dc-971p.39)".into());
+        return Err("The workbook changed before outlining (dc-971p)".into());
     }
     crate::can_edit(
         host,
@@ -56,7 +56,7 @@ pub(crate) fn prepare(
     let groups = old.outline_groups(sheet, axis);
     let range = |first: u32, last: u32| -> Result<(), String> {
         if first < 1 || first > last || last > axis.size() || last - first >= 16384 {
-            Err("Outline at most 16384 valid rows or columns at once (dc-971p.39)".into())
+            Err("Outline at most 16384 valid rows or columns at once (dc-971p)".into())
         } else {
             Ok(())
         }
@@ -73,7 +73,7 @@ pub(crate) fn prepare(
             range(first, last)?;
             let add = matches!(change, OutlineChange::Group { .. });
             if add && (first..=last).any(|i| old.get(sheet, axis, i).outline_level() == 7) {
-                return Err("Excel outlines have at most seven grouped levels (dc-971p.39)".into());
+                return Err("Excel outlines have at most seven grouped levels (dc-971p)".into());
             }
             for index in first..=last {
                 let level = old.get(sheet, axis, index).outline_level();
@@ -97,7 +97,7 @@ pub(crate) fn prepare(
             }
             for group in next.outline_groups(sheet, axis) {
                 if group.summary < 1 || group.summary > axis.size() {
-                    return Err("An outline needs an adjacent summary row or column inside the worksheet (dc-971p.39)".into());
+                    return Err("An outline needs an adjacent summary row or column inside the worksheet (dc-971p)".into());
                 }
                 if groups.iter().any(|g| {
                     let level = if first <= g.first && last >= g.last {
@@ -157,10 +157,10 @@ pub(crate) fn prepare(
             candidates.sort_by_key(|g| (g.last - g.first, std::cmp::Reverse(g.level)));
             let group = candidates
                 .first()
-                .ok_or("Select grouped detail or its summary band (dc-971p.39)")?;
+                .ok_or("Select grouped detail or its summary band (dc-971p)")?;
             if group.summary < 1 || group.summary > axis.size() {
                 return Err(
-                    "The outline has no summary band inside the worksheet (dc-971p.39)".into(),
+                    "The outline has no summary band inside the worksheet (dc-971p)".into(),
                 );
             }
             let f = next.get(sheet, axis, group.summary);
@@ -178,12 +178,12 @@ pub(crate) fn prepare(
         }
         OutlineChange::ShowLevel(level) => {
             if !(1..=8).contains(&level) {
-                return Err("Choose an outline level from 1 to 8 (dc-971p.39)".into());
+                return Err("Choose an outline level from 1 to 8 (dc-971p)".into());
             }
             for group in &groups {
                 if group.summary < 1 || group.summary > axis.size() {
                     return Err(
-                        "The outline has no summary band inside the worksheet (dc-971p.39)".into(),
+                        "The outline has no summary band inside the worksheet (dc-971p)".into(),
                     );
                 }
                 let f = next.get(sheet, axis, group.summary);
@@ -215,7 +215,7 @@ pub(crate) fn prepare(
             }
             for group in next.outline_groups(sheet, axis) {
                 if group.summary < 1 || group.summary > axis.size() {
-                    return Err("This summary direction would put a control outside the worksheet (dc-971p.39)".into());
+                    return Err("This summary direction would put a control outside the worksheet (dc-971p)".into());
                 }
                 if groups.iter().any(|g| {
                     g.first == group.first

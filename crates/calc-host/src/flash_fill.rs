@@ -67,7 +67,7 @@ fn infer(examples: &[(String, String)]) -> Result<Vec<Pattern>, String> {
     let mut patterns = Vec::new();
     let mut work = 0usize;
     let limit = || {
-        "Narrow the examples; Flash Fill exceeded its pattern search limit (dc-971p.47); nothing changed".to_owned()
+        "Narrow the examples; Flash Fill exceeded its pattern search limit (dc-971p); nothing changed".to_owned()
     };
     for kind in kinds {
         for case in [LetterCase::Keep, LetterCase::Upper, LetterCase::Lower] {
@@ -112,11 +112,11 @@ fn infer(examples: &[(String, String)]) -> Result<Vec<Pattern>, String> {
 }
 fn text(value: &ExcelText) -> Result<String, String> {
     String::from_utf16(value.utf16_code_units())
-        .map_err(|_| "Flash Fill needs text with valid Unicode characters (dc-971p.47)".into())
+        .map_err(|_| "Flash Fill needs text with valid Unicode characters (dc-971p)".into())
 }
 
 pub(crate) fn prepare(host: &HostState, to: GridArea) -> Result<Vec<CellEdit>, String> {
-    let refuse = |detail: &str| format!("{detail} (dc-971p.47); nothing changed");
+    let refuse = |detail: &str| format!("{detail} (dc-971p); nothing changed");
     if to.column_count() != 1 || to.row_count() < 3 || to.first().column() == 1 {
         return Err(refuse(
             "Select one output column with two text examples and blank cells below; source text belongs immediately to its left",

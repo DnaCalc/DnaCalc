@@ -22,7 +22,7 @@ use std::{
     rc::Rc,
 };
 
-const OWNER: &str = "dc-piw0.5";
+const OWNER: &str = "dc-piw0";
 type Reply = Result<AutoValue, AutoError>;
 
 struct PortableAppHost {
@@ -196,7 +196,7 @@ impl InvocationModel {
             return Err(AutoError::not_modelled("_Application.Caller Index", OWNER));
         }
         if self.values_only {
-            return Err(AutoError::not_modelled(crate::NEEDS_A_WORKBOOK, "dc-svqh"));
+            return Err(AutoError::not_modelled(crate::NEEDS_A_WORKBOOK, "dc-0f1k"));
         }
         match Self::with_ctx(|ctx| Ok(ctx.caller()))? {
             Some(range) => Ok(AutoValue::Object(Self::range_object(range, RangeAxis::Cells))),

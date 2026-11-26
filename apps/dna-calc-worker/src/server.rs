@@ -324,7 +324,7 @@ mod mixed_range_tests {
                 } = event
                     && *id == command
                 {
-                    assert_eq!(owner, "dc-hsa5.11");
+                    assert_eq!(owner, "dc-y2o");
                     for target in targets {
                         assert!(!refused.contains(target));
                         refused.push(*target);
@@ -2249,7 +2249,7 @@ impl Server {
             .sheet(at.sheet())
             .is_some_and(|s| s.conditional_formats().iter().any(|b| b.unread_container))
         {
-            unsupported.push("Additional rule metadata is preserved; conditional-rule editing is unavailable on this worksheet (dc-971p.8)".into());
+            unsupported.push("Additional rule metadata is preserved; conditional-rule editing is unavailable on this worksheet (dc-971p)".into());
         }
 
         if count > 5000 {

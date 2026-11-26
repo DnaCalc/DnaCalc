@@ -107,7 +107,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
         return Err("The name's worksheet is unavailable".into());
     }
     if !valid_name(&edit.name) {
-        return Err("Use an Excel name: start with a letter, underscore or backslash; use no spaces or cell-reference spelling (dc-971p.34)".into());
+        return Err("Use an Excel name: start with a letter, underscore or backslash; use no spaces or cell-reference spelling (dc-971p)".into());
     }
     let formula = edit
         .formula
@@ -119,7 +119,7 @@ pub(crate) fn prepare(host: &HostState, edit: NameEdit) -> Result<Vec<CellEdit>,
             || parsed.expression().is_none()
         {
             return Err(
-                "The name's formula is incomplete or has unsupported syntax (dc-971p.34)".into(),
+                "The name's formula is incomplete or has unsupported syntax (dc-971p)".into(),
             );
         }
     }
@@ -1127,7 +1127,7 @@ mod tests {
                 Err(calc_engine::NotModeled::Evaluation(
                     calc_fml::EvalFault::NotModelled {
                         construct: "a detached formula that reads a formula cell with no published value",
-                        owner: "dc-6yw",
+                        owner: "dc-hsa5",
                     }
                 ))
             ),

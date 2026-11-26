@@ -104,11 +104,11 @@ pub enum CopyRefusal {
 impl fmt::Display for CopyRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Metadata(reason)=>write!(f,"{reason} (dc-971p.40); nothing changed"),
-            Self::TransposeCut => f.write_str("Transposing a cut is not modelled (dc-971p.35); use Copy first"),
-            Self::TransposeTable => f.write_str("Transposing table cells is not modelled (dc-971p.35); copy their Values to an ordinary range first"),
-            Self::TransposeArray => f.write_str("Transposing array formulas is not modelled (dc-971p.35); choose Values or Cell formats instead"),
-            Self::TransposeFill => f.write_str("Transposing a fill is not modelled (dc-971p.35); copy the cells and use Paste instead"),
+            Self::Metadata(reason)=>write!(f,"{reason} (dc-971p); nothing changed"),
+            Self::TransposeCut => f.write_str("Transposing a cut is not modelled (dc-971p); use Copy first"),
+            Self::TransposeTable => f.write_str("Transposing table cells is not modelled (dc-971p); copy their Values to an ordinary range first"),
+            Self::TransposeArray => f.write_str("Transposing array formulas is not modelled (dc-971p); choose Values or Cell formats instead"),
+            Self::TransposeFill => f.write_str("Transposing a fill is not modelled (dc-971p); copy the cells and use Paste instead"),
             Self::LegacyFill => f.write_str(
                 "fill from a legacy array is not modelled; copy its whole extent instead",
             ),
@@ -116,7 +116,7 @@ impl fmt::Display for CopyRefusal {
                 f.write_str("the cut source changed; cut it again before moving it")
             }
             Self::StyleDefinitionsChanged => f.write_str(
-                "the copied styles belong to another workbook or have unsupported source changes (dc-971p.6); copy the source again",
+                "the copied styles belong to another workbook or have unsupported source changes (dc-971p); copy the source again",
             ),
             Self::UnavailableValue { at } => write!(
                 f,

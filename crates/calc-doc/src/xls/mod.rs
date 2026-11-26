@@ -176,7 +176,7 @@ fn convert_compound(
     // A BIFF5 or BIFF7 workbook: its strings are bytes in this code page.
     let v5 = biff5.then(|| globals.code_page.unwrap_or(1252));
     if globals.encrypted && !decrypted {
-        return Err(refuse(name, "an encrypted workbook (FILEPASS), which dc-4j0e.7 reads"));
+        return Err(refuse(name, "an encrypted workbook (FILEPASS), which dc-4j0e reads"));
     }
     // Each sheet's substream: its BOF at the BOUNDSHEET offset, to its EOF.
     let mut parts: Vec<(String, &'static str, Vec<u8>)> = Vec::new();

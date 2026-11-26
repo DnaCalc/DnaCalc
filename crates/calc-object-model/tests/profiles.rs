@@ -473,14 +473,14 @@ fn values_only_preserves_book1_shell_and_uniform_workbook_refusals() {
     assert!(matches!(
         invoke(&model, &app, "ActiveSheet", InvokeKind::Get, vec![]),
         Err(AutoError::NotModelled {
-            owner: "dc-svqh",
+            owner: "dc-0f1k",
             ..
         })
     ));
     assert!(matches!(
         invoke(&model, &app, "Calculate", InvokeKind::Method, vec![]),
         Err(AutoError::NotModelled {
-            owner: "dc-1nbp.5",
+            owner: "dc-oxh8w",
             ..
         })
     ));

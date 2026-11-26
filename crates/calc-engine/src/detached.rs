@@ -491,7 +491,7 @@ impl DetachedFormula {
         if uncomputed.get().is_some() {
             return Err(NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "a detached formula that reads a formula cell with no published value",
-                owner: "dc-6yw",
+                owner: "dc-hsa5",
             }));
         }
         if context.policy == DetachedReadPolicy::CurrentValues

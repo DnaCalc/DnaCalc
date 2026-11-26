@@ -13,7 +13,7 @@ use super::*;
 use crate::{CommandIngress, SkinIntent, TableChange, WorkbookCommand};
 use calc_object_model::{Descriptor, Handler, ReportItem};
 
-const TABLES: &str = "dc-piw0.1";
+const TABLES: &str = "dc-piw0";
 
 const XL_SRC_RANGE: i64 = 1;
 const XL_YES: i64 = 1;

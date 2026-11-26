@@ -326,7 +326,7 @@ pub const UNHELD_ENTRIES: &[UnheldEntry] = &[
         1,
         255,
         CALL_ARGS,
-        Implementation::NotHeld { owner: "dc-gh22" },
+        Implementation::NotHeld { owner: "dc-snz.2" },
     )),
     macro_sheet_only(entry(
         2,
@@ -334,7 +334,7 @@ pub const UNHELD_ENTRIES: &[UnheldEntry] = &[
         2,
         3,
         REGISTER_ID_ARGS,
-        Implementation::NotHeld { owner: "dc-gh22" },
+        Implementation::NotHeld { owner: "dc-snz.2" },
     )),
     rtd(),
     entry(

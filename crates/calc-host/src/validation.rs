@@ -466,7 +466,7 @@ impl HostState {
         use calc_doc_model::{ArrayFormula, ArrayKind, FormulaText, OpBatch, WorkbookOp};
         let unavailable = |reason: &str| ValidationFailure {
             style: ErrorStyle::Stop,
-            title: "Validation unavailable (dc-971p.40)".into(),
+            title: "Validation unavailable (dc-971p)".into(),
             message: reason.into(),
         };
         if input.is_none() && rule.allow_blank {
@@ -723,7 +723,7 @@ impl HostState {
         let unavailable = |reason| {
             Some(ValidationStatus::Unavailable {
                 reason,
-                owner: "dc-971p.40",
+                owner: "dc-971p",
             })
         };
         let current = match context.read_cell(at) {

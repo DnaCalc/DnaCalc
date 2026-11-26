@@ -923,7 +923,7 @@ fn dc_hsa5_11__mixed_range_rejects_automatic_and_new_spills() {
         receipt.recalc,
         Some(calc_host::HostProgress::Failed(
             calc_host::RecalcFailed::Refused(calc_engine::StartError::NotModeledScope {
-                owner: "dc-hsa5.11",
+                owner: "dc-y2o",
                 ..
             })
         ))
@@ -951,7 +951,7 @@ fn dc_hsa5_11__mixed_range_rejects_automatic_and_new_spills() {
             page.recalc_failure(),
             Some(calc_host::RecalcFailed::Failed(
                 calc_engine::RecalcFailure::NotModeledScope {
-                    owner: "dc-hsa5.11",
+                    owner: "dc-y2o",
                     ..
                 }
             ))
@@ -1082,7 +1082,7 @@ fn dc_hsa5_11__mixed_range_unknown_array_collision_keeps_seed() {
                 page.recalc_failure(),
                 Some(calc_host::RecalcFailed::Failed(
                     calc_engine::RecalcFailure::NotModeledScope {
-                        owner: "dc-hsa5.11",
+                        owner: "dc-y2o",
                         ..
                     }
                 ))
@@ -1151,7 +1151,7 @@ fn dc_hsa5_11__mixed_range_boundary_refusal_keeps_hidden_cycle_seed() {
             page.recalc_failure(),
             Some(calc_host::RecalcFailed::Failed(
                 calc_engine::RecalcFailure::NotModeledScope {
-                    owner: "dc-hsa5.11",
+                    owner: "dc-y2o",
                     ..
                 }
             ))
@@ -1190,7 +1190,7 @@ fn p14_refused(
         } = event
             && *held == command
         {
-            assert_eq!(*owner, "dc-hsa5.11");
+            assert_eq!(*owner, "dc-y2o");
             for target in targets {
                 assert!(refused.insert(*target), "duplicate refusal {target:?}");
             }
@@ -1847,7 +1847,7 @@ fn dc_hsa5_11__dynamic_range_neighbors_keep_scope_and_value_errors_distinct() {
                     page.recalc_failure(),
                     Some(calc_host::RecalcFailed::Failed(
                         calc_engine::RecalcFailure::NotModeledScope {
-                            owner: "dc-hsa5.11",
+                            owner: "dc-y2o",
                             ..
                         }
                     ))
@@ -2754,7 +2754,7 @@ fn dc_hsa5_11__eng14_range_paths_and_retained_seeds() {
                     let mut union = std::collections::BTreeSet::new();
                     for e in &events {
                         if let CalcEvent::TargetsRefused { targets, owner, .. } = e {
-                            assert_eq!(*owner, "dc-hsa5.11");
+                            assert_eq!(*owner, "dc-y2o");
                             for target in targets {
                                 assert!(union.insert(*target), "no duplicate refusal {target:?}");
                             }
@@ -3599,7 +3599,7 @@ fn dc_hsa5_11__cached_iterative_array_reads_refuse_unknown_shapes() {
                 page.recalc_failure(),
                 Some(calc_host::RecalcFailed::Failed(
                     calc_engine::RecalcFailure::NotModeledScope {
-                        owner: "dc-hsa5.11",
+                        owner: "dc-y2o",
                         ..
                     }
                 ))

@@ -193,7 +193,7 @@ impl CodeCache {
                 .any(|route| route.document_class.is_none() && route.native.is_some())
         {
             return Err(Error::UnsupportedBackend(
-                "dynamic native WithEvents binding requires the interpreter (dc-snz.15)".into(),
+                "dynamic native WithEvents binding requires the interpreter (dc-snz)".into(),
             ));
         }
         let (module, functions, spreadsheet, event_project) = split_module(module, model, values_only);

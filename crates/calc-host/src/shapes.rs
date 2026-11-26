@@ -254,7 +254,7 @@ fn emu_of(points: f64) -> i64 {
 }
 
 fn refusal(s: &str) -> String {
-    format!("{s} (dc-piw0.3); nothing changed")
+    format!("{s} (dc-zjsg); nothing changed")
 }
 
 /// A shape's default name: Excel numbers it from its id (the first object of a drawing has id 2

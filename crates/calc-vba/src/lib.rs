@@ -253,9 +253,9 @@ impl fmt::Debug for RefusedVbaFunction {
 impl RefusedVbaFunction {
     fn package(&self) -> &'static str {
         if self.reason == NEEDS_A_WORKBOOK {
-            "dc-svqh"
+            "dc-0f1k"
         } else {
-            "dc-snz.15"
+            "dc-snz"
         }
     }
 }

@@ -27,11 +27,11 @@
 pub(crate) const UNASSIGNED: &str = "no package (a name in no function category)";
 
 const F1: &str = "exactness dc-j9k";
-const F2: &str = "exactness dc-uar";
+const F2: &str = "exactness dc-zmk";
 const F3: &str = "exactness dc-j9k";
 const REGEX: &str = "exactness dc-zmk.12";
-const L1: &str = "language dc-10y";
-const L2: &str = "language dc-10y";
+const L1: &str = "language dc-b1l";
+const L2: &str = "language dc-b1l";
 
 use calc_catalogue::{FunctionId, operators, ported, unheld};
 

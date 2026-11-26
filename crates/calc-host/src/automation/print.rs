@@ -139,7 +139,7 @@ impl WorkbookAutomation {
             if let Some(e) = receipt.error {
                 let text = format!("{e:?}");
                 if !text.contains(crate::page_setup::NO_CHANGES) {
-                    return Err(AutoError::not_modelled(format!("{label}: {text}"), "dc-oxh8w.11"));
+                    return Err(AutoError::not_modelled(format!("{label}: {text}"), "dc-oxh8w"));
                 }
             }
             self.context_changed(session);
@@ -190,7 +190,7 @@ impl WorkbookAutomation {
         let manual = Self::manual_lines(s, sheet, horizontal);
         let geometry = print_plan::print_geometry(host, sheet);
         let plan = print_plan::print_plan(host, sheet, &geometry, (0, 0))
-            .map_err(|e| AutoError::not_modelled(format!("page breaks: {e}"), "dc-oxh8w.11"))?;
+            .map_err(|e| AutoError::not_modelled(format!("page breaks: {e}"), "dc-oxh8w"))?;
         // Excel calls a break partial when the print range does not start in the first column (row) of the sheet.
         let partial = if horizontal {
             plan.pages.iter().map(|p| p.body.0.3).min().is_some_and(|c| c > 1)

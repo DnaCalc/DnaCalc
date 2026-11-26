@@ -701,7 +701,7 @@ enum Held {
 }
 
 fn not_modelled(construct: &'static str) -> EvalFault {
-    not_modelled_by(construct, "dc-10y")
+    not_modelled_by(construct, "dc-b1l")
 }
 
 fn not_modelled_by(construct: &'static str, owner: &'static str) -> EvalFault {
@@ -2541,7 +2541,7 @@ impl Run<'_, '_> {
                     SpillExtent::NotModelled => {
                         return Err(EvalFault::NotModelled {
                             construct: "a spilled range reference (#) the reader does not know",
-                            owner: "dc-10y",
+                            owner: "dc-b1l",
                         });
                     }
                 },
@@ -5200,7 +5200,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
     }
 
     fn refuse(&mut self, reason: &'static str) -> String {
-        let fault = not_modelled_by(reason, "dc-snz.5");
+        let fault = not_modelled_by(reason, "dc-snz");
         let text = format!("{fault:?}");
         self.fault.get_or_insert(fault);
         text
@@ -5301,7 +5301,7 @@ impl calc_func::UserFunctionContext for UserCallContext<'_, '_, '_> {
         name: &str,
         arguments: &[CalcValue],
     ) -> Result<CalcValue, String> {
-        self.worksheet_function_for(name, arguments, "dc-snz.5")
+        self.worksheet_function_for(name, arguments, "dc-snz")
     }
 
     fn evaluate_constant_expression(
