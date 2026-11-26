@@ -6369,6 +6369,32 @@ fn saved_chart_xml(host: &Host) -> String {
         .replace(" xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"", "")
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_58__pending_point_and_label_members_name_their_owning_bead() {
+    let (_, model, series) = labelled_series();
+    let points = invoke_kind(&model, &series, "Points", InvokeKind::Method, vec![AutoValue::I4(1)]);
+    assert_eq!(points.unwrap_err(), AutoError::not_modelled("Series.Points", "dc-oxh8w.58"));
+
+    invoke_kind(&model, &series, "HasDataLabels", InvokeKind::Put, vec![AutoValue::Bool(true)]).unwrap();
+    let labels = obj(invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![]).unwrap());
+    let label = obj(invoke_kind(&model, &series, "DataLabels", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
+    for (target, interface, member) in [
+        (&labels, "DataLabels", "Font"),
+        (&label, "DataLabel", "NumberFormat"),
+        (&label, "DataLabel", "NumberFormatLinked"),
+        (&label, "DataLabel", "Text"),
+        (&label, "DataLabel", "Caption"),
+        (&label, "DataLabel", "Left"),
+        (&label, "DataLabel", "Top"),
+    ] {
+        assert_eq!(
+            invoke(&model, target, member, vec![]).unwrap_err(),
+            AutoError::not_modelled(format!("{interface}.{member}"), "dc-oxh8w.58"),
+        );
+    }
+}
+
 /// dc-oxh8w.18: a macro turns a series' data labels on and off; the chart saves them and invalid arguments are 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -7858,6 +7884,38 @@ fn dc_oxh8w_48__file_held_charts_move_between_sheets_and_save() {
     let only = obj(invoke_kind(&model2, &objects2, "Item", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap());
     let column = obj(invoke(&model2, &only, "Chart", vec![]).unwrap());
     assert!(matches!(invoke(&model2, &column, "ChartType", vec![]), Ok(AutoValue::I4(51))));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_59__file_held_chart_frame_edits_name_their_owning_bead() {
+    let session = HostSession::open(
+        Arc::new(MemorySource::new(
+            include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx")
+                .to_vec(),
+        )),
+        &OpenPolicy::default(),
+        HostOptions::default(),
+    )
+    .unwrap();
+    let (host, model) = setup_session(session);
+    let revision = host.session.borrow().host().revision();
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![AutoValue::I4(1)])
+            .unwrap(),
+    );
+    let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
+    for (target, interface, member, value) in [
+        (&frame, "ChartObject", "Name", AutoValue::text("Sales")),
+        (&frame, "ChartObject", "Left", AutoValue::R8(50.7)),
+        (&frame, "ChartObject", "Top", AutoValue::R8(30.0)),
+        (&chart, "_Chart", "Name", AutoValue::text("Sales")),
+    ] {
+        let error = invoke_kind(&model, target, member, InvokeKind::Put, vec![value]).unwrap_err();
+        assert_eq!(error, AutoError::not_modelled(format!("{interface}.{member}"), "dc-oxh8w.59"));
+    }
+    assert_eq!(host.session.borrow().host().revision(), revision);
 }
 
 /// dc-3qsm0: a chart-sheet chart moved onto a sheet keeps the content edits made after the move (its source sheet is

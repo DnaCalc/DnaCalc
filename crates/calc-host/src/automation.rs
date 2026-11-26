@@ -15,7 +15,7 @@ use calc_object_model::profile::{
     worksheet_function,
 };
 use calc_object_model::{
-    AutoArray, AutoError, AutoValue, Call, EventSource, Handlers, InvokeKind, ObjectKey,
+    AutoArray, AutoError, AutoValue, Call, Descriptor, EventSource, Handlers, InvokeKind, ObjectKey,
     ObjectModel, ObjectRef,
 };
 use calc_value::{
@@ -878,7 +878,18 @@ impl WorkbookAutomation {
         })
     }
     fn fallback_member(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.fallback.handlers().dispatch(&self.fallback, target, call, "dc-oxh8w")
+        let interface = Descriptor::get().ty(call.interface).name.as_str();
+        let owner = match (interface, call.member.name.as_str()) {
+            ("Series", "Points")
+            | ("Points", "Count" | "Item" | "_Default")
+            | ("Point", "HasDataLabel" | "DataLabel")
+            | ("DataLabels", "Font")
+            | ("DataLabel", "Font" | "NumberFormat" | "NumberFormatLinked" | "Text" | "Caption" | "Left" | "Top") => {
+                chart_labels::POINTS
+            }
+            _ => OWNER,
+        };
+        self.fallback.handlers().dispatch(&self.fallback, target, call, owner)
     }
     fn delegate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |_, _| self.fallback_member(target, call))
