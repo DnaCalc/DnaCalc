@@ -332,6 +332,12 @@ pub(crate) fn beta_inv_kernel(
     } else {
         (probability, alpha, beta, false)
     };
+    // Excel 16.0.20527 (dc-j9k.558-561): the searched shape's square must stay in binary64
+    // range: a*a overflows from 2^512, and 10/(a*a) overflows below 2.3585344276198308e-154.
+    let square = alpha * alpha;
+    if square.is_infinite() || (10.0 / square).is_infinite() {
+        return Err(WorksheetErrorCode::Num);
+    }
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_mul, excel_x87_sub};
     let z = flush_subnormal(beta_newton_lower(probability, alpha, beta)?.unwrap_or_else(|| {
         bisect_inverse_closest(probability, 0.0, 1.0, |v| regularized_beta(v, alpha, beta))
@@ -1776,5 +1782,35 @@ mod tests {
                 "cb27 S1c BETA.INV({p:#018x}, {a:#018x}, {b:#018x}): got {got:#018x}, expected {expected:#018x}"
             );
         }
+    }
+
+    /// Excel 16.0.20527 (dc-j9k.558-561): BETA.INV answers #NUM! when the (reflected) first shape's
+    /// square leaves the binary64 range: a*a overflows (a >= 2^512) or 10/(a*a) overflows
+    /// (a < 2.3585344276198308e-154, with a large second shape). Edges bisected in Touchstone.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_558_beta_inv_first_shape_square_range() {
+        let f = f64::from_bits;
+        let inv = |p: f64, a: f64, b: f64| beta_inv_kernel(p, a, b, 0.0, 1.0);
+        let num = Err(WorksheetErrorCode::Num);
+        assert_eq!(inv(0.25, f(0x5fefffffffffffff), 1.0).unwrap().to_bits(), 0x3feffffde7210be9);
+        assert_eq!(inv(0.25, f(0x5ff0000000000000), 1.0), num);
+        assert_eq!(inv(0.25, f(0x5ff0000000000000), 0.5), num);
+        assert_eq!(inv(0.25, f(0x5ff0000000000000), 1e300), num);
+        assert_eq!(inv(0.25, 1e300, 1e300), num);
+        // Upper probabilities reflect: the second shape plays the first.
+        assert_eq!(inv(0.75, 1.0, 1e200), num);
+        assert_eq!(inv(0.75, 1e200, 1.0).unwrap().to_bits(), 0x3ff0000000000000);
+        assert_eq!(inv(0.25, f(0x20094c583ada5b52), 1e10), num);
+        assert_eq!(inv(0.25, f(0x20094c583ada5b53), 1e10).unwrap().to_bits(), 0x3eb0c6f7a0b5ed8d);
+        assert_eq!(inv(0.25, 1e-160, 1e100), num);
+        assert_eq!(inv(0.75, 1e-200, 1e30).unwrap().to_bits(), 0x3fe0000000000000);
+        // Fuzz representatives dc-j9k.558, .560, .561 (dc-j9k.559's huge second shape stays open).
+        assert_eq!(inv(f(0x3fd0000000000000), f(0x7fd4038bf534d068), f(0x7f8311010084cf1b)), num);
+        let five = |p: u64, a: u64, b: u64, lo: u64, hi: u64| {
+            beta_inv_kernel(f(p), f(a), f(b), f(lo), f(hi))
+        };
+        assert_eq!(five(0x0010000000000001, 0x0010000000000000, 0x3ff8000000000000, 0x3fb999999999999a, 0x4000000000000000), num);
+        assert_eq!(five(0x3fdd97827c1998b0, 0x7fb3c3acfab6ce1e, 0x7fc03562a6521aa3, 0xc053c8f68b61246b, 0x3ff0000000000000), num);
     }
 }
