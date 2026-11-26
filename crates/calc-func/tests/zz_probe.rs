@@ -14,6 +14,7 @@ fn zz_probe() {
         let f = parts.next().unwrap();
         let args: Vec<_> = parts.next().unwrap().split(',').filter(|s| !s.is_empty()).map(|s| match s {
             "null" => missing(),
+            s if s.starts_with("T:") => t(&s[2..]),
             "true" => b(true),
             "false" => b(false),
             h => n(f64::from_bits(u64::from_str_radix(h, 16).unwrap())),

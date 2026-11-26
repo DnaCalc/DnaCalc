@@ -488,6 +488,12 @@ impl ParsedComplex {
             return Ok(Self::new(0.0, 0.0, None));
         }
         let on_axis = self.im == 0.0 || self.re == 0.0;
+        // Excel forms the squared modulus of every operand but a positive real and a pure
+        // imaginary one: beyond the binary64 range it is #NUM! (Excel 20625, dc-j9k.490).
+        let squares_modulus = !(self.re == 0.0 || (self.im == 0.0 && self.re > 0.0));
+        if squares_modulus && (self.re * self.re + self.im * self.im).is_infinite() {
+            return Err(WorksheetErrorCode::Num);
+        }
         let scale = if on_axis {
             crate::ported::power_fn::power_kernel(self.abs(), exponent)
                 .map_err(|_| WorksheetErrorCode::Num)?

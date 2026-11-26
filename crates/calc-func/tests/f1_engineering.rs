@@ -2494,3 +2494,22 @@ fn imexp_flushes_subnormal_real_exp_before_scaling_past_2_pow_27() {
     text(call("IMEXP", vec![t("-709+134217728i")]), "0");
     text(call("IMEXP", vec![t("-708+1e9i")]), "5.945965327834+5.945965327834i");
 }
+
+/// dc-j9k.490 (Excel 20625): IMPOWER forms the squared modulus of every operand except a positive
+/// real and a pure imaginary one, so a squared modulus beyond the binary64 range is #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_squared_modulus_overflow_off_axis_and_negative_real() {
+    use calc_func::value::WorksheetErrorCode::Num;
+    for power in [1.0, 0.5, -0.025] {
+        error(call("IMPOWER", vec![n(-1e155), n(power)]), Num);
+        error(call("IMPOWER", vec![t("-1E+155"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("1E+155+1i"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("1+1E+155i"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("-1E+155-1E+155i"), n(power)]), Num);
+        // a positive real and a pure imaginary operand are formed without the square
+        text(call("IMPOWER", vec![t("1E+155"), n(1.0)]), "1E+155");
+    }
+    text(call("IMPOWER", vec![t("1E+155i"), n(1.0)]), "6.1257422745431E+138+1E+155i");
+    text(call("IMPOWER", vec![n(-1.3e154), n(1.0)]), "-1.3E+154+1.59269299138121E+138i");
+}
