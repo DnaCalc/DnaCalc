@@ -555,6 +555,32 @@ fn taking_choosing_stacking_and_wrapping() {
     assert_eq!(book.dynamic("=EXPAND({1,2},1,1)"), e(W::Value));
 }
 
+/// dc-5299v (rw13 finding 12): WRAPROWS/WRAPCOLS with a one-cell reference pad (`E1`) through
+/// formula evaluation dereferences the pad cell, while a one-cell error or blank vector propagates
+/// its scalar error / #VALUE! ahead of count validation.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn wraprows_and_wrapcols_one_cell_reference_pad_and_error_or_blank_vector() {
+    let mut book = Book::new();
+    book.set("A1", e(W::NA))
+        .number("A2", 5.0)
+        .number("A3", 6.0)
+        .number("A4", 7.0)
+        .number("E1", 99.0);
+    assert_eq!(
+        book.dynamic("=WRAPROWS(A2:A4,2,E1)"),
+        numbers(&[&[5.0, 6.0], &[7.0, 99.0]])
+    );
+    assert_eq!(
+        book.dynamic("=WRAPCOLS(A2:A4,2,E1)"),
+        numbers(&[&[5.0, 7.0], &[6.0, 99.0]])
+    );
+    assert_eq!(book.dynamic("=WRAPROWS(A1,-1)"), e(W::NA));
+    assert_eq!(book.dynamic("=WRAPCOLS(A1,-1)"), e(W::NA));
+    assert_eq!(book.dynamic("=WRAPROWS(C1,-1)"), e(W::Value));
+    assert_eq!(book.dynamic("=WRAPCOLS(C1,-1)"), e(W::Value));
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn torow_and_tocol_coerce_optional_arguments_in_order() {

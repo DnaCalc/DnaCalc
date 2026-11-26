@@ -253,6 +253,31 @@ mod tests {
         );
     }
 
+    /// dc-5299v: fallback spans > 10_000 and end_period >= 2^53 return typed NotModelled when the
+    /// closed form overflows while PMT remains finite.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn fallback_spans_over_limit_or_beyond_2_53_return_not_modelled() {
+        // span > 10_000 with end_period < 2^53
+        assert_eq!(
+            cumprinc_kernel(0.032, 20_000.0, f64::MAX, 1.0, 20_000.0, 0.0),
+            Err(CumulativeFinanceEvalError::NotModelled)
+        );
+        assert_eq!(
+            cumipmt_kernel(0.032, 20_000.0, f64::MAX, 1.0, 20_000.0, 0.0),
+            Err(CumulativeFinanceEvalError::NotModelled)
+        );
+        // end_period >= 2^53 with span == 5_000 <= 10_000
+        assert_eq!(
+            cumprinc_kernel(0.032, 1e16, f64::MAX, 1e16 - 5_000.0, 1e16, 0.0),
+            Err(CumulativeFinanceEvalError::NotModelled)
+        );
+        assert_eq!(
+            cumipmt_kernel(0.032, 1e16, f64::MAX, 1e16 - 5_000.0, 1e16, 0.0),
+            Err(CumulativeFinanceEvalError::NotModelled)
+        );
+    }
+
     /// Live Excel (dc-j9k.323): nper and the periods have no i32 limit; the principal of a vanishing
     /// loan is 0 and the interest of a huge-nper loan is the payment count times the payment.
     #[cfg_attr(not(target_arch = "wasm32"), test)]

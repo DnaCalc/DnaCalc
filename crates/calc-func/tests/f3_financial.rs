@@ -4714,3 +4714,31 @@ fn mirr_sign_conditions_follow_the_discounting() {
     error(mirr(&[-1.0, -2.0, -3.0], 0.1, -1e241), Num);
     error(mirr(&[-0.5, -100.0], 0.1, -1e241), Num);
 }
+
+/// dc-5299v (rw13 finding 12): when the closed form overflows while PMT stays finite (e.g.
+/// rate = 0.032, pv = f64::MAX, EndOfPeriod), CUMPRINC and CUMIPMT refuse typed NotModelled for
+/// fallback spans > 10_000 and for end_period >= 2^53 instead of walking or fabricating #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn cumprinc_and_cumipmt_refuse_not_modelled_fallback_spans() {
+    for name in ["CUMPRINC", "CUMIPMT"] {
+        // Fallback span > 10_000 periods (end_period < 2^53)
+        let long_span = call(
+            name,
+            vec![n(0.032), n(20_000.0), n(f64::MAX), n(1.0), n(20_000.0), n(0.0)],
+        );
+        assert!(
+            matches!(long_span, Err(calc_func::FunctionFault::NotImplemented { .. })),
+            "{name} span > 10_000 fallback must return typed NotImplemented: {long_span:?}"
+        );
+        // Fallback end_period >= 2^53 (with span == 5_000 <= 10_000)
+        let huge_end = call(
+            name,
+            vec![n(0.032), n(1e16), n(f64::MAX), n(1e16 - 5_000.0), n(1e16), n(0.0)],
+        );
+        assert!(
+            matches!(huge_end, Err(calc_func::FunctionFault::NotImplemented { .. })),
+            "{name} end_period >= 2^53 fallback must return typed NotImplemented: {huge_end:?}"
+        );
+    }
+}

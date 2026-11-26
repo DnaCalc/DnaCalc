@@ -591,18 +591,22 @@ fn arraytotext_of_one_cell_reference_holding_an_error_or_blank() {
     text(call_on(&mut sheet, "ARRAYTOTEXT", vec![wide, n(1.0)]), "{1,#N/A}");
 }
 
-/// Excel 16.0.20625 (Touchstone sheet cases, dc-shqi1): a one-cell reference to an error or blank
-/// is dereferenced as a scalar in WRAPROWS/WRAPCOLS (error wins over bad count; blank or missing
-/// returns #VALUE! even before a #DIV/0! count); a one-cell reference pad supplies that cell value.
+/// Excel 16.0.20625 (Touchstone sheet cases, dc-shqi1, dc-5299v): a one-cell reference to an
+/// error or blank is dereferenced as a scalar in WRAPROWS/WRAPCOLS (error wins over bad count;
+/// blank or missing returns #VALUE! even before a #DIV/0! count). `pad_with` is a value parameter
+/// (`V`), so `calc_func::invoke` rejects a raw reference at index 2 (formula evaluation dereferences
+/// a one-cell pad reference in `calc-fml`, tested in `calc-fml/tests/acceptance/f3.rs`).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn wraprows_and_wrapcols_one_cell_references_missing_and_pad_ref() {
+    use calc_func::FunctionFault;
     use calc_func::value::WorksheetErrorCode::Div0;
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![e(NA), n(5.0), n(6.0), n(7.0)]);
     sheet.column(1, 5, vec![n(99.0)]);
     let err_cell = sheet.area(1, 1, 1, 1);
     let blank_cell = sheet.area(1, 3, 1, 3);
+    let pad_cell = sheet.area(1, 5, 1, 5);
     let vec_ref = sheet.area(2, 1, 4, 1);
     for name in ["WRAPROWS", "WRAPCOLS"] {
         error(call_on(&mut sheet, name, vec![err_cell.clone(), n(-1.0)]), NA);
@@ -613,10 +617,18 @@ fn wraprows_and_wrapcols_one_cell_references_missing_and_pad_ref() {
         error(call_on(&mut sheet, name, vec![blank_cell.clone(), e(Div0)]), Value);
         error(call_on(&mut sheet, name, vec![missing(), n(2.0)]), Value);
         error(call_on(&mut sheet, name, vec![missing(), e(Div0)]), Value);
+        assert!(matches!(
+            call_on(&mut sheet, name, vec![vec_ref.clone(), n(2.0), pad_cell.clone()]),
+            Err(FunctionFault::ReferenceArgument { index: 2, .. })
+        ));
     }
     assert_eq!(
-        array(call_on(&mut sheet, "WRAPROWS", vec![vec_ref, n(2.0), n(99.0)])),
+        array(call_on(&mut sheet, "WRAPROWS", vec![vec_ref.clone(), n(2.0), n(99.0)])),
         (2, 2, vec![5.0, 6.0, 7.0, 99.0])
+    );
+    assert_eq!(
+        array(call_on(&mut sheet, "WRAPCOLS", vec![vec_ref, n(2.0), n(99.0)])),
+        (2, 2, vec![5.0, 7.0, 6.0, 99.0])
     );
 }
 
