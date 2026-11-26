@@ -511,7 +511,7 @@ class Admission:
             for arg in args:
                 self._range_cell(arg)
                 # the worker counts UTF-16 units (rw17 parity)
-                if arg.get("type") == "text" and len(arg.get("value", "").encode("utf-16-le")) // 2 > 1024:
+                if arg.get("type") == "text" and len(arg.get("value", "").encode("utf-16-le", errors="surrogatepass")) // 2 > 1024:
                     raise ValueError("invalid range text")
                 # Case text reaches cells through the probe's own writes: it must be data, never a formula.
                 if arg.get("type") == "text" and arg.get("value", "")[:1] in tuple(VBA_FORMULA_START):
@@ -548,7 +548,7 @@ class Admission:
                 raise ValueError(f"invalid VBA {field} count")
             for place in addresses:
                 sheet, bang, cell = place.rpartition("!") if isinstance(place, str) else ("", "", "")
-                if not bang or sheet.lower() not in sheet_names or not _vba_address(cell):
+                if not bang or not sheet.isascii() or sheet.lower() not in sheet_names or not _vba_address(cell):
                     raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
 
     def _check_vba_layout_formula(self, formula, procedures=()):

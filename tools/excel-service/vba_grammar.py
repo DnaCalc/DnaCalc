@@ -141,6 +141,8 @@ class Case:
         for proc in list(self.procs.values()):
             Body(self, proc).run()
         classes = {key: NUMBER for key in self.params | self.numeric}
+        for key in self.params & self.strings:
+            classes[key] = NUMTEXT          # a number argument becomes number text in an As String parameter
         changed = True
         while changed:
             changed = False
@@ -269,6 +271,8 @@ class Case:
                 refuse(tokens[pos].text, text)
             if tokens[pos + 1].low in NUMERIC_TYPES:
                 self.numeric.add(f"{module}.{name}.{name}")
+            elif tokens[pos + 1].low == "string":
+                self.strings.add(f"{module}.{name}.{name}")
             pos += 2
         if pos != len(tokens):
             refuse(tokens[pos].text, text)
@@ -350,6 +354,8 @@ class Body:
                                     numeric=ptype in NUMERIC_TYPES, param=True)
             if ptype in NUMERIC_TYPES:
                 case.numeric.add(self.prefix + pname)
+            if ptype == "string":
+                case.strings.add(self.prefix + pname)
             case.params.add(self.prefix + pname)
         if proc.is_function:
             self.scope[proc.name] = Var(self.prefix + proc.name)
