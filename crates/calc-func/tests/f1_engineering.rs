@@ -359,6 +359,17 @@ fn complex_text_uses_directed_fifteen_x87_including_binade4_and_slivers() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.401: the real-axis IMSEC reciprocal uses SEC's rounding.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imsec_real_axis_uses_excel_reciprocal_rounding() {
+    for bits in [0x3e7a_d7f2_9abc_af48, 0xbe7a_d7f2_9abc_af48] {
+        text(call("IMSEC", vec![n(f64::from_bits(bits))]), "1");
+    }
+    text(call("IMSEC", vec![n(2e-7)]), "1.00000000000002");
+    error(call("IMSEC", vec![n(134_217_728.0)]), Num);
+}
+
 /// Excel 16.0.20625 (dc-j9k.397) applies the imaginary limit before reducing the real angle.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

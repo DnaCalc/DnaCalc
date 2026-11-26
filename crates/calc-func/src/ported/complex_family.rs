@@ -446,6 +446,10 @@ impl ParsedComplex {
         ))
     }
     pub(crate) fn sec(self) -> Result<Self, WorksheetErrorCode> {
+        if self.im == 0.0 {
+            let real = crate::ported::sec::sec_kernel(self.re)?;
+            return Ok(Self::new(real, 0.0, None));
+        }
         self.circular_reciprocal(Self::cos)
     }
     pub(crate) fn csc(self) -> Result<Self, WorksheetErrorCode> {
