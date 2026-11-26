@@ -121,6 +121,20 @@ fn unary_complex(
     complex_text(kernel(z), &[z])
 }
 
+/// IMSIN and IMCOS admit |re| up to 2^27 - 1 (Touchstone Excel 20625, dc-j9k.449).
+fn complex_sine_cosine(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(ParsedComplex) -> ParsedComplex,
+) -> Step<CalcValue> {
+    use crate::ported::real_policy::EXCEL_TRIG_MAX_ABS_ARG;
+    let z = complex_of(site, 0, &a[0])?;
+    if z.re.abs() > EXCEL_TRIG_MAX_ABS_ARG - 1.0 {
+        return fail(WorksheetErrorCode::Num);
+    }
+    complex_text(Ok(kernel(z)), &[z])
+}
+
 fn complex_number(
     site: &Site<'_>,
     a: &[CalcValue],
@@ -249,7 +263,7 @@ ported_shared_family! {
     33 imargument |s, a, sv| { complex_number(s, a, |z| z.argument()) }
     34 imreal |s, a, sv| { complex_number(s, a, |z| Ok(z.re)) }
     35 imconjugate |s, a, sv| { unary_complex(s, a, |z| Ok(z.conj())) }
-    36 imcos |s, a, sv| { unary_complex(s, a, |z| Ok(z.cos())) }
+    36 imcos |s, a, sv| { complex_sine_cosine(s, a, ParsedComplex::cos) }
     37 imcosh |s, a, sv| { unary_complex(s, a, |z| { z.check_real_hyperbolic_domain()?; Ok(z.cosh()) }) }
     38 imcot |s, a, sv| { unary_complex(s, a, |z| z.cot()) }
     39 imcsc |s, a, sv| { unary_complex(s, a, |z| z.csc()) }
@@ -312,7 +326,7 @@ ported_shared_family! {
     }
     45 imsec |s, a, sv| { unary_complex(s, a, |z| z.sec()) }
     46 imsech |s, a, sv| { unary_complex(s, a, |z| z.sech()) }
-    47 imsin |s, a, sv| { unary_complex(s, a, |z| Ok(z.sin())) }
+    47 imsin |s, a, sv| { complex_sine_cosine(s, a, ParsedComplex::sin) }
     48 imsinh |s, a, sv| { unary_complex(s, a, |z| { z.check_real_hyperbolic_domain()?; Ok(z.sinh()) }) }
     49 imsqrt |s, a, sv| { unary_complex(s, a, |z| Ok(z.sqrt())) }
     50 imtan |s, a, sv| { unary_complex(s, a, |z| z.tan()) }
