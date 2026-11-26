@@ -1585,4 +1585,31 @@ mod tests {
             }
         }
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_570_chisq_dist_gratio_series_matches_excel_stop_epsilon() {
+        // Live Excel 16.0 b20625 (Touchstone ng6): gratio_series stops at
+        // c / ans <= f64::EPSILON (2^-52), not 2^-53.
+        assert_eq!(
+            chisq_dist_kernel(
+                f64::from_bits(0x404b_7eb8_51eb_851b),
+                f64::from_bits(0x405a_c000_0000_0001),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ede_6ea1_c0cd_3ea7
+        );
+        assert_eq!(
+            chisq_dist_kernel(
+                f64::from_bits(0x404b_7fff_ffff_fffc),
+                f64::from_bits(0x405a_c000_0000_0001),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ede_94e9_d2a7_6179
+        );
+    }
 }
