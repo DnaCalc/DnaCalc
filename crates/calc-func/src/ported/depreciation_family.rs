@@ -226,7 +226,15 @@ fn declining_interval_depreciation(
     no_switch: bool,
 ) -> Result<f64, WorksheetErrorCode> {
     validate_finite(&[cost, salvage, life, start_period, end_period, factor])?;
-    if cost < 0.0 || salvage < 0.0 || life <= 0.0 || factor < 0.0 {
+    if cost < 0.0 || salvage < 0.0 || factor < 0.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
+    // Excel 16.0.20625 (dc-j9k.527): a zero life with both periods zero divides by zero;
+    // every other zero or negative life is #NUM!.
+    if life == 0.0 && start_period == 0.0 && end_period == 0.0 {
+        return Err(WorksheetErrorCode::Div0);
+    }
+    if life <= 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
     if start_period < 0.0 || end_period < start_period || end_period > life {
@@ -484,6 +492,37 @@ mod tests {
 
     fn text(s: &str) -> CalcValue {
         CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()))
+    }
+
+    /// Excel 16.0.20625 (dc-j9k.527): VDB with life 0 is #DIV/0! only when start and end are both 0.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn vdb_zero_life_divides_only_at_zero_periods() {
+        let vdb = |c: f64, s: f64, l: f64, a: f64, b: f64, f: f64, ns: bool| vdb_kernel(c, s, l, a, b, f, ns);
+        for ns in [false, true] {
+            assert_eq!(vdb(10.0, 0.0, 0.0, 0.0, 0.0, 2.0, ns), Err(WorksheetErrorCode::Div0));
+            assert_eq!(vdb(10.0, 5.0, 0.0, 0.0, 0.0, 0.0, ns), Err(WorksheetErrorCode::Div0));
+            assert_eq!(vdb(10.0, 0.0, 0.0, 0.0, 1.0, 2.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(10.0, 0.0, 0.0, 1.0, 1.0, 2.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(10.0, 0.0, 0.0, 1.0, 0.0, 2.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(10.0, 0.0, -1.0, 0.0, 0.0, 2.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(-1.0, 0.0, 0.0, 0.0, 0.0, 2.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(10.0, 0.0, 0.0, 0.0, 0.0, -1.0, ns), Err(WorksheetErrorCode::Num));
+            assert_eq!(vdb(10.0, 0.0, 1e-300, 0.0, 0.0, 2.0, ns), Ok(0.0));
+        }
+        // The cluster's representative.
+        assert_eq!(
+            vdb_kernel(
+                f64::from_bits(0x3fdd06538a08eeb2),
+                f64::from_bits(0x403cd4a373a75222),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                false
+            ),
+            Err(WorksheetErrorCode::Div0)
+        );
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -47,11 +47,12 @@ enum Kind {
     VarP,
 }
 
-/// A field label's text: text as it is; a number or a logical as their text.
+/// A field label's text: text as it is; a number, a logical or an error as their text.
 fn label(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Vec<u16>>> {
     match value.core_ref() {
         CoreRef::Empty | CoreRef::Missing => Ok(None),
-        CoreRef::Error(code) => fail(code),
+        // Excel 16.0.20625 (dc-j9k.528): an error in the label row is a label with the error's text.
+        CoreRef::Error(code) => Ok(Some(code.excel_spelling().encode_utf16().collect())),
         _ => Ok(Some(
             site.argument(index, crate::coerce::text(value))?
                 .into_owned(),

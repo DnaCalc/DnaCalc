@@ -442,6 +442,27 @@ fn countif_numeric_criterion_rejects_non_numeric_labels() {
     ));
 }
 
+/// Excel 16.0.20625 (dc-j9k.526): the serials of day zero and of days past February in early 1900
+/// count from the month start in the 1900 calendar that has a 29 February: EDATE(0,2) is 60, not 59.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn early_1900_day_zero_serials_match_excel() {
+    let e = host();
+    for (serial, months, excel) in [
+        (0.0, 1.0, 31.0), (0.0, 2.0, 60.0), (0.0, 3.0, 91.0), (0.0, 12.0, 366.0),
+        (1.0, 2.0, 61.0), (2.0, 2.0, 62.0), (1.0, 1.0, 32.0), (30.0, 1.0, 59.0),
+        (0.0, 24.0, 731.0), (60.0, 0.0, 59.0), (60.0, 1.0, 89.0), (60.0, 3.0, 150.0), (29.0, 1.0, 59.0),
+    ] {
+        exact(c(&e, "EDATE", vec![n(serial), n(months)]), excel);
+    }
+    for (y, m, d, excel) in [
+        (1900.0, 3.0, 0.0, 60.0), (1900.0, 1.0, 60.0, 60.0), (1900.0, 4.0, 0.0, 91.0),
+        (1900.0, 2.0, 30.0, 61.0), (1900.0, 2.0, 28.0, 59.0), (1900.0, 3.0, 1.0, 61.0),
+    ] {
+        exact(c(&e, "DATE", vec![n(y), n(m), n(d)]), excel);
+    }
+}
+
 /// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
 /// captured serial and return-type bits locate the observed conversion boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -1646,6 +1667,29 @@ fn database_computed_criteria_and_held_field() {
         sheet.cells.insert((1, 7), t("A"));
         error(call_on(&mut sheet, "DPRODUCT", vec![db.clone(), held, crit.clone()]), code);
     }
+}
+
+/// Excel 16.0.20625 (dc-j9k.528): an error in the database's label row is not propagated; it is a
+/// label whose text is the error's spelling, so a field out of range is #VALUE! and "#NAME?" selects it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_error_label_is_a_label_not_a_propagated_error() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(Name), n(1.0), n(2.0), n(3.0)]);
+    sheet.column(1, 2, vec![t("b"), n(10.0), n(20.0), n(30.0)]);
+    sheet.column(1, 3, vec![t("b"), n(10.0)]);
+    let db = sheet.area(1, 1, 4, 2);
+    let crit = sheet.area(1, 3, 2, 3);
+    error(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(5.0), crit.clone()]), Value);
+    error(call_on(&mut sheet, "DSUM", vec![db.clone(), n(3.0), crit.clone()]), Value);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(1.0), crit.clone()]), 1.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(2.0), crit.clone()]), 10.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#NAME?"), crit.clone()]), 1.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("b"), crit.clone()]), 10.0);
+    error(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#N/A"), crit.clone()]), Value);
+    exact(call_on(&mut sheet, "DGET", vec![db.clone(), t("b"), crit.clone()]), 10.0);
+    // dc-j9k.532: a fractional negative field truncates to 0 and is out of range.
+    error(call_on(&mut sheet, "DSTDEV", vec![db, n(-0.99), crit]), Value);
 }
 
 /// dc-y7tqj (rw12 finding 16): a computed criterion cell (header naming no database field or blank)

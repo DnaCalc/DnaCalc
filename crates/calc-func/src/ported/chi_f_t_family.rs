@@ -1573,4 +1573,43 @@ mod tests {
             Ok(0x7fb4_5f30_6dc9_c883)
         );
     }
+
+    /// Excel 16.0.20625 (dc-j9k.529 sibling check): CHISQ.INV with a huge df is #NUM!, not the
+    /// GAMMA.INV #DIV/0! band, for p = 0.5 and p = 1.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn chisq_inv_huge_df_is_num() {
+        for p in [0.5, 1.0] {
+            for df in [1e307, 6e307, 1.2e308, 1.6e308] {
+                assert_eq!(chisq_inv_kernel(p, df), Err(WorksheetErrorCode::Num), "{p} {df}");
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_570_chisq_dist_gratio_series_matches_excel_stop_epsilon() {
+        // Live Excel 16.0 b20625 (Touchstone ng6): gratio_series stops at
+        // c / ans <= f64::EPSILON (2^-52), not 2^-53.
+        assert_eq!(
+            chisq_dist_kernel(
+                f64::from_bits(0x404b_7eb8_51eb_851b),
+                f64::from_bits(0x405a_c000_0000_0001),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ede_6ea1_c0cd_3ea7
+        );
+        assert_eq!(
+            chisq_dist_kernel(
+                f64::from_bits(0x404b_7fff_ffff_fffc),
+                f64::from_bits(0x405a_c000_0000_0001),
+                true,
+            )
+            .unwrap()
+            .to_bits(),
+            0x3ede_94e9_d2a7_6179
+        );
+    }
 }

@@ -1099,19 +1099,16 @@ pub fn excel_serial_from_ymd(
 ) -> Option<f64> {
     match date_system {
         DateSystem::System1900 => {
-            if year == 1900 && month == 2 && day == 29 {
-                return Some(60.0);
-            }
+            // Excel 16.0.20625 (dc-j9k.526): the serial is the 1900 month start (with the
+            // phantom 29 February counted from March) plus day - 1, so (1900, 3, 0) is 60.
             let base = days_from_civil(1899, 12, 31);
-            let days = days_from_civil(year, month, 1) - base + (day - 1);
-            if days < 0 {
+            let month_start = days_from_civil(year, month, 1) - base;
+            let month_start = if month_start >= 60 { month_start + 1 } else { month_start };
+            let serial = month_start + (day - 1);
+            if serial < 0 {
                 return None;
             }
-            Some(if days >= 60 {
-                (days + 1) as f64
-            } else {
-                days as f64
-            })
+            Some(serial as f64)
         }
         DateSystem::System1904 => {
             let base = days_from_civil(1904, 1, 1);
