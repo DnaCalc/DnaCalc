@@ -2078,6 +2078,20 @@ fn lognormal_inverse_publishes_subnormal_results() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.404: a non-finite normal inverse is a lognormal inverse error.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn lognormal_inverse_rejects_overflow_before_exponentiation() {
+    for name in ["LOGINV", "LOGNORM.INV"] {
+        error(
+            call(name, vec![n(f64::from_bits(0x3f56_7dcc_05dd_5000)), n(1.0), n(f64::from_bits(0x7fe0_ba7d_b52e_ed08))]),
+            Num,
+        );
+        error(call(name, vec![n(0.2), n(-f64::MAX), n(1e300)]), Num);
+        exact(call(name, vec![n(0.2), n(0.0), n(1e300)]), 0.0);
+    }
+}
+
 /// Excel 20527: scalar sigma does not bypass the sample-size check.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

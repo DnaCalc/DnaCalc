@@ -430,7 +430,12 @@ pub fn lognorm_dist_kernel(
 pub fn lognorm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
     // Excel 20527: both lognormal inverse names match EXP of the stored
     // scaled normal inverse on independent midpoint and general controls.
-    Ok(crate::ported::excel_numeric::excel_exp(norm_inv_kernel(p, mean, sigma)?))
+    let exponent = norm_inv_kernel(p, mean, sigma)?;
+    if !exponent.is_finite() {
+        // An overflowing normal inverse is #NUM! before EXP (dc-j9k.404).
+        return Err(WorksheetErrorCode::Num);
+    }
+    Ok(crate::ported::excel_numeric::excel_exp(exponent))
 }
 
 pub fn confidence_norm_kernel(
