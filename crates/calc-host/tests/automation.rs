@@ -8163,6 +8163,48 @@ fn dc_oxh8w_43__worksheets_of_an_array_is_a_group() {
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
 }
 
+/// dc-fa8cx (ww22 Excel 16.0.20625): a group moved Before or After one of its own sheets changes nothing and
+/// activates its first sheet in tab order; Array(3,2) moved Before sheet 1 keeps tab order (2,3,1,4), active 2.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_fa8cx__group_move_anchored_inside_the_group() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+        )
+        .unwrap(),
+    );
+    let sheets = worksheets(&model);
+    for _ in 0..3 {
+        invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    }
+    let base = sheet_names(&host);
+    assert_eq!(base.len(), 4);
+    let array = |values: Vec<AutoValue>| {
+        AutoValue::Array(Box::new(calc_object_model::AutoArray { rows: 1, columns: values.len() as u32, lower: (1, 1), values }))
+    };
+    let item = |i: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(i)]).unwrap());
+    let app = model.application();
+    let active = || {
+        let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+        invoke(&model, &sheet, "Name", vec![]).unwrap().as_text().unwrap().to_string()
+    };
+    let group = |a: i32, b: i32| obj(invoke(&model, &sheets, "Item", vec![array(vec![AutoValue::I4(a), AutoValue::I4(b)])]).unwrap());
+    invoke_kind(&model, &item(1), "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &group(2, 3), "Move", InvokeKind::Method, vec![AutoValue::Object(item(2))]).unwrap();
+    assert_eq!(sheet_names(&host), base);
+    assert_eq!(active(), base[1]);
+    invoke_kind(&model, &item(1), "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &group(2, 3), "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(item(3))]).unwrap();
+    assert_eq!(sheet_names(&host), base);
+    assert_eq!(active(), base[1]);
+    invoke_kind(&model, &group(3, 2), "Move", InvokeKind::Method, vec![AutoValue::Object(item(1))]).unwrap();
+    assert_eq!(sheet_names(&host), vec![base[1].clone(), base[2].clone(), base[0].clone(), base[3].clone()]);
+    assert_eq!(active(), base[1]);
+}
+
 /// dc-oxh8w.47: Worksheet.Visible reads and writes xlSheetVisible (-1), xlSheetHidden (0) and xlSheetVeryHidden (2);
 /// True and False map to visible and hidden; the last visible sheet cannot be hidden and other values are 1004.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

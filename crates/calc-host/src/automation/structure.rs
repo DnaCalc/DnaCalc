@@ -365,19 +365,44 @@ impl WorkbookAutomation {
             if before.is_none() && after.is_none() {
                 return self.copy_to_new_book(session, &listed, true, call);
             }
-            if before.or(after).is_some_and(|anchor| listed.contains(&anchor)) {
-                return Err(AutoError::not_modelled("Sheets.Move with a Before or After sheet inside the moved group", "dc-fa8cx"));
-            }
+            // ww22 (Excel 16.0.20625): an anchor inside the moved group changes nothing.
+            let inside = before.or(after).is_some_and(|anchor| listed.contains(&anchor));
+            let first = listed.first().copied();
             let mut after = after;
-            for sheet in listed {
-                Self::move_one(session, sheet, before, after, call)?;
-                if after.is_some() {
-                    after = Some(sheet);
+            if !inside {
+                for sheet in listed {
+                    Self::move_one(session, sheet, before, after, call)?;
+                    if after.is_some() {
+                        after = Some(sheet);
+                    }
                 }
+            }
+            // The first moved sheet (tab order) becomes the active sheet.
+            if let Some(first) = first {
+                Self::activate_moved(session, first)?;
             }
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })
+    }
+
+    /// Makes `sheet` the active sheet with the selection it last held (A1 when it never held one).
+    fn activate_moved(session: &mut HostSession, sheet: SheetId) -> Result<(), AutoError> {
+        if Self::session_active_sheet(session) == Some(sheet) {
+            return Ok(());
+        }
+        let selection = match session.remembered_selection(sheet) {
+            Some(kept) => kept.clone(),
+            None => {
+                let a1 = CellKey::new(sheet, 1, 1).map_err(|_| geometry::type_mismatch())?;
+                crate::Selection { active: Some(a1), areas: vec![calc_value::GridArea::cell(a1)] }
+            }
+        };
+        let receipt = session.dispatch_from(CommandIngress::Automation, SkinIntent::Select(selection));
+        match receipt.error {
+            None => Ok(()),
+            Some(other) => Err(AutoError::excel(1004, other.to_string())),
+        }
     }
 
     fn move_anchors(&self, call: &Call<'_>) -> Result<(Option<SheetId>, Option<SheetId>), AutoError> {

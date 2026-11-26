@@ -820,10 +820,13 @@ End Function
         assert!(matches!(failed, Err(AutoError::Excel { number: 1004, .. })), "{failed:?}");
         assert_eq!(text(run(&mut session, &owner, &[AutoValue::text("Other.xlsm!CountBooks")])), before, "no orphan BookN after a failed copy");
         // Anchors the host cannot place faithfully are typed refusals (dc-fa8cx), never an alias or a guessed order.
-        for name in ["CopyBeforeForeign", "MoveBeforeInGroup"] {
+        for name in ["CopyBeforeForeign"] {
             let r = run(&mut session, &owner, &[AutoValue::text(&format!("Other.xlsm!{name}"))]);
             assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "{name}: {r:?}");
         }
+        // ww22 (Excel): a group moved Before one of its own sheets is accepted and changes nothing.
+        let r = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!MoveBeforeInGroup")]);
+        assert!(r.is_ok(), "MoveBeforeInGroup: {r:?}");
         // dc-mkdhw: a Sheets.Add anchored on another workbook's sheet is refused likewise, not aliased to a local SheetId.
         let r = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!SheetsAddBeforeForeign")]);
         assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "Sheets.Add: {r:?}");
