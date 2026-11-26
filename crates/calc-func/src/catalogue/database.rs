@@ -8,7 +8,7 @@
 //! ([`super::conditional`]), except that text with no operator matches the text that begins with
 //! it; a blank criteria cell sets no condition, and a criteria reference needs a row below its
 //! labels. The field is a label or a 1-based column number; DCOUNT and DCOUNTA may leave it out to
-//! count matching records. A label the database lacks in the field is #VALUE!. A criteria
+//! count matching records (a blank cell as the field is #VALUE!). A label the database lacks in the field is #VALUE!. A criteria
 //! header that names no field (or is blank) makes its cells computed criteria: a nonzero number or
 //! TRUE holds for every record, zero, FALSE, text and errors for none (live Excel, dc-j9k.271-.273).
 //!
@@ -72,7 +72,9 @@ fn field(
     optional: bool,
 ) -> Step<Option<usize>> {
     match value.core_ref() {
-        CoreRef::Missing | CoreRef::Empty if optional => Ok(None),
+        // Only an omitted field counts the records; a blank cell is field 0, #VALUE! (Excel 20625,
+        // Touchstone 2026-11-26, dc-j9k.555 and .557).
+        CoreRef::Missing if optional => Ok(None),
         CoreRef::Text(text) => {
             let units = text.utf16_code_units();
             headers
@@ -84,7 +86,9 @@ fn field(
         CoreRef::Error(code) => fail(code),
         _ => {
             let n = site.number_argument(1, value)?;
-            let column = n.trunc();
+            // The column number is floored with the tolerance of the date arguments: 0.9999999 is
+            // column 1 but 0.9999996 is 0, 2.9999999 is column 3 (Excel 20625, Touchstone 2026-11-26).
+            let column = crate::ported::text_kernels::date_integer_floor(n);
             if column < 1.0 || column > headers.len() as f64 {
                 return fail(W::Value);
             }
@@ -217,7 +221,7 @@ fn database_grid(
     sv: &mut EvalServices<'_>,
     kind: Kind,
 ) -> Step<Grid> {
-    let no_field = matches!(a[1].core_ref(), CoreRef::Missing | CoreRef::Empty);
+    let no_field = matches!(a[1].core_ref(), CoreRef::Missing);
     if kind != Kind::Get
         && !no_field
         && let CoreRef::Reference(reference) = a[0].core_ref()
