@@ -385,6 +385,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "scoped-tls-hkt",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

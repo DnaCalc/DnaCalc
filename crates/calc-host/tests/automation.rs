@@ -10386,6 +10386,49 @@ fn dc_ml3k0__allow_flags_read_back_through_protection() {
     }
 }
 
+/// dc-9b7zd (ww22 protect/packages.json text.xlsx, Excel 16.0.20625.20108): a sheet the file protects with the SHA-512
+/// hash of the password "abc" (salt, spinCount 100000) unprotects with that text only: a wrong one is 1004 and leaves
+/// it protected, an omitted one opens the Unprotect Sheet prompt (typed refusal), the right one unprotects.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9b7zd__unprotect_checks_the_password_hash_a_file_holds() {
+    let blank = blank_package();
+    let archive = existing_wire_support::parse_zip(&blank);
+    let entries = archive
+        .entries
+        .iter()
+        .map(|entry| {
+            let payload = entry.payload(&blank);
+            if entry.name == "xl/worksheets/sheet1.xml" {
+                let bytes = if entry.method == 0 { payload.to_vec() } else { miniz_oxide::inflate::decompress_to_vec(payload).unwrap() };
+                let xml = String::from_utf8(bytes).unwrap().replace(
+                    "<sheetData/>",
+                    "<sheetData/><sheetProtection algorithmName=\"SHA-512\" hashValue=\"HlkqK902Kw0Yyj0cUNuJMJoH1ti513mUsZNFUXfNOfu0S6HHtjsGr9IF43bSiwYn+2RUYBiETeJGY7bShrpAiQ==\" saltValue=\"LofWZ3ZdLXNq/7wV9Ll0WA==\" spinCount=\"100000\" sheet=\"1\" formatCells=\"0\"/>",
+                );
+                existing_wire_support::RawEntry::stored(&entry.name, xml.as_bytes())
+            } else if entry.method == 0 {
+                existing_wire_support::RawEntry::stored(&entry.name, payload)
+            } else {
+                existing_wire_support::RawEntry::deflated(&entry.name, payload, entry.size, entry.crc32)
+            }
+        })
+        .collect::<Vec<_>>();
+    let package = existing_wire_support::build_zip(&entries);
+    let (_host, model) = setup_session(HostSession::open(Arc::new(MemorySource::new(package)), &OpenPolicy::default(), HostOptions::default()).unwrap());
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let contents = || matches!(invoke(&model, &sheet, "ProtectContents", vec![]).unwrap(), AutoValue::Bool(true));
+    let unprotect = |args: Vec<AutoValue>| invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, args);
+    assert!(contents());
+    let r = unprotect(vec![AutoValue::text("wrong")]);
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.starts_with("The password you supplied is not correct")), "{r:?}");
+    assert!(contents(), "a wrong password unprotected the sheet");
+    let r = unprotect(vec![]);
+    assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-9b7zd", .. })), "{r:?}");
+    assert!(contents());
+    unprotect(vec![AutoValue::text("abc")]).unwrap();
+    assert!(!contents(), "the right password did not unprotect the sheet");
+}
+
 /// dc-p7gpy (rw12 Finding 19): typed refusals must cite OPEN owning beads, never closed ones.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

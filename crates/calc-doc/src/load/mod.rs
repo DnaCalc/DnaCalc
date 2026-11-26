@@ -116,6 +116,30 @@ const WORKBOOK_CONTENT_TYPES: [&str; 4] = [
     "application/vnd.ms-excel.template.macroEnabled.main+xml",
 ];
 
+/// A `sheetProtection` element as the file holds it (ECMA-376 18.3.1.85): the password hash and which commands the
+/// protection still allows.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FileProtection {
+    /// `algorithmName` (`SHA-512` for the modern hash); empty when absent.
+    pub algorithm: String,
+    /// `hashValue`, base64.
+    pub hash: String,
+    /// `saltValue`, base64.
+    pub salt: String,
+    /// `spinCount`.
+    pub spin_count: u32,
+    /// The legacy 16-bit `password` hash, hexadecimal text.
+    pub legacy_password: String,
+    /// `objects`: drawing objects protected.
+    pub objects: bool,
+    /// `scenarios`: scenarios protected.
+    pub scenarios: bool,
+    /// Allowed commands in `Worksheet.Protect` argument order (formatCells, formatColumns, formatRows, insertColumns,
+    /// insertRows, insertHyperlinks, deleteColumns, deleteRows, sort, autoFilter, pivotTables); a command is allowed
+    /// when its attribute is `0`/`false`.
+    pub allow: [bool; 11],
+}
+
 /// One sheet's records beside the model: its part, and the style and formula records of its
 /// occupied cells.
 #[derive(Clone, Debug)]
@@ -135,6 +159,7 @@ pub struct LoadedSheet {
     /// A chart sheet or a dialog sheet, carried as its part (see [`LoadedSheet::preserved_kind`]).
     preserved: Option<&'static str>,
     protected: bool,
+    protection: Option<FileProtection>,
     merged_areas: Vec<GridArea>,
     ignored_number_text: Vec<GridArea>,
     validations: Arc<[Validation]>,
@@ -164,6 +189,7 @@ impl LoadedSheet {
             macro_sheet: false,
             preserved: None,
             protected: false,
+            protection: None,
             merged_areas: Vec::new(),
             ignored_number_text: Vec::new(),
             validations: Arc::from([]),
@@ -179,6 +205,10 @@ impl LoadedSheet {
     /// Whether worksheet protection is enabled. Editing locked/unlocked subsets is not yet modelled.
     pub fn protected(&self) -> bool {
         self.protected
+    }
+    /// The `sheetProtection` element of the sheet as the file holds it (password hash and Allow* attributes).
+    pub fn protection(&self) -> Option<&FileProtection> {
+        self.protection.as_ref()
     }
     /// Imported merged ranges, retained as metadata; ordinary cells remain canonical inputs.
     pub fn merged_areas(&self) -> &[GridArea] {
@@ -2342,6 +2372,7 @@ pub fn load_preserving_sheet_ids(
                     macro_sheet: declared.macro_sheet,
                     preserved: declared.preserved,
                     protected: loaded.protected,
+                    protection: loaded.protection,
                     merged_areas: loaded.merged_areas,
                     ignored_number_text: loaded.ignored_number_text,
                     validations: loaded.validations.into(),

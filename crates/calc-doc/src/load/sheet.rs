@@ -36,6 +36,7 @@ pub(super) struct SheetLoad {
     pub(super) conditional_sources: Vec<calc_doc_model::ConditionalRuleSource>,
     pub(super) review: super::SheetReview,
     pub(super) protected: bool,
+    pub(super) protection: Option<super::FileProtection>,
     pub(super) merged_areas: Vec<GridArea>,
     pub(super) ignored_number_text: Vec<GridArea>,
     pub(super) part: Arc<SourcePart>,
@@ -1064,6 +1065,7 @@ fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
         conditional_sources: Vec::new(),
         review: Default::default(),
         protected: false,
+        protection: None,
         merged_areas: Vec::new(),
         ignored_number_text: Vec::new(),
         part: source,
@@ -1132,6 +1134,7 @@ pub(super) fn load_sheet(
             conditional_sources: Vec::new(),
             review: super::review::read(package, part, id),
             protected: false,
+            protection: None,
             merged_areas: Vec::new(),
             ignored_number_text: Vec::new(),
             part: source,
@@ -1196,6 +1199,25 @@ pub(super) fn load_sheet(
                 if element.name.is(MAIN_NAMESPACE, "sheetProtection") =>
             {
                 sheet.load.protected = matches!(element.attribute("sheet"), Some("1" | "true"));
+                let on = |name: &str| matches!(element.attribute(name), Some("1" | "true"));
+                let mut allow = [false; 11];
+                for (slot, name) in allow.iter_mut().zip([
+                    "formatCells", "formatColumns", "formatRows", "insertColumns", "insertRows", "insertHyperlinks",
+                    "deleteColumns", "deleteRows", "sort", "autoFilter", "pivotTables",
+                ]) {
+                    // Every one of these commands is locked unless its attribute says 0.
+                    *slot = matches!(element.attribute(name), Some("0" | "false"));
+                }
+                sheet.load.protection = Some(super::FileProtection {
+                    algorithm: element.attribute("algorithmName").unwrap_or_default().to_owned(),
+                    hash: element.attribute("hashValue").unwrap_or_default().to_owned(),
+                    salt: element.attribute("saltValue").unwrap_or_default().to_owned(),
+                    spin_count: element.attribute("spinCount").and_then(|v| v.parse().ok()).unwrap_or(0),
+                    legacy_password: element.attribute("password").unwrap_or_default().to_owned(),
+                    objects: on("objects"),
+                    scenarios: on("scenarios"),
+                    allow,
+                });
                 events.skip()?;
             }
             Some(XmlEvent::Start(element))

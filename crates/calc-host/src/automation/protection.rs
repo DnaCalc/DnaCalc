@@ -14,12 +14,88 @@ const ALLOW_OWNER: &str = "dc-ml3k0";
 #[derive(Clone, Debug)]
 pub(super) struct SheetProtect {
     password: Option<String>,
+    /// The password hash a file's `sheetProtection` holds (a sheet that loaded protected with a password).
+    file_hash: Option<calc_doc::FileProtection>,
     drawing_objects: bool,
     contents: bool,
     scenarios: bool,
     user_interface_only: bool,
     /// The eleven Allow* arguments (Protect arguments 6 to 16), in argument order.
     allow: [bool; 11],
+}
+
+impl SheetProtect {
+    /// Whether a password guards the protection.
+    fn has_password(&self) -> bool {
+        self.password.is_some() || self.file_hash.is_some()
+    }
+
+    /// Whether `given` is the password: compared as text for a macro's Protect, hashed as Excel does for a file's
+    /// SHA-512 `sheetProtection` (salt, then the spun hash). The legacy 16-bit hash and other algorithms are
+    /// refused typed: no Excel answer has been captured for them.
+    fn password_matches(&self, given: &str) -> Result<bool, AutoError> {
+        if let Some(password) = &self.password {
+            return Ok(password == given);
+        }
+        let Some(file) = &self.file_hash else { return Ok(given.is_empty()) };
+        if file.algorithm != "SHA-512" || file.hash.is_empty() {
+            return Err(AutoError::not_modelled("Worksheet.Unprotect of a sheet with a legacy or unknown password hash", OWNER));
+        }
+        let salt = base64_decode(&file.salt).ok_or_else(|| AutoError::not_modelled("a sheetProtection saltValue that is not base64", OWNER))?;
+        Ok(base64_encode(&sha512_password_hash(&salt, given, file.spin_count)) == file.hash)
+    }
+}
+
+/// The sheet-protection password hash of ECMA-376 (agile): SHA-512 of the salt and the UTF-16LE password, then `spin_count` rounds
+/// of SHA-512 over the previous hash and the round number (little-endian u32). Verified against Excel's own
+/// `sheetProtection` (ww22 protect/packages.json, password "abc").
+fn sha512_password_hash(salt: &[u8], password: &str, spin_count: u32) -> Vec<u8> {
+    use sha2::{Digest, Sha512};
+    let mut hasher = Sha512::new();
+    hasher.update(salt);
+    for unit in password.encode_utf16() {
+        hasher.update(unit.to_le_bytes());
+    }
+    let mut hash = hasher.finalize().to_vec();
+    for round in 0..spin_count {
+        let mut hasher = Sha512::new();
+        hasher.update(&hash);
+        hasher.update(round.to_le_bytes());
+        hash = hasher.finalize().to_vec();
+    }
+    hash
+}
+
+const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn base64_encode(bytes: &[u8]) -> String {
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |n, (i, b)| n | (u32::from(*b) << (16 - 8 * i)));
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(BASE64[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+fn base64_decode(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    let (mut n, mut bits) = (0u32, 0);
+    for c in text.trim_end_matches('=').bytes() {
+        n = (n << 6) | BASE64.iter().position(|&b| b == c)? as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((n >> bits) as u8);
+            n &= (1 << bits) - 1;
+        }
+    }
+    Some(out)
 }
 
 /// Index into [`SheetProtect::allow`].
@@ -74,13 +150,16 @@ impl WorkbookAutomation {
         if let Some(held) = self.sheet_protect.borrow().get(&sheet) {
             return held.clone();
         }
-        host.loaded().sheet(sheet).is_some_and(|s| s.protected()).then(|| SheetProtect {
+        let loaded = host.loaded().sheet(sheet).filter(|s| s.protected())?;
+        let file = loaded.protection();
+        Some(SheetProtect {
             password: None,
-            drawing_objects: false,
+            file_hash: file.filter(|f| !f.hash.is_empty() || !f.legacy_password.is_empty()).cloned(),
+            drawing_objects: file.is_some_and(|f| f.objects),
             contents: true,
-            scenarios: false,
+            scenarios: file.is_some_and(|f| f.scenarios),
             user_interface_only: false,
-            allow: [false; 11],
+            allow: file.map_or([false; 11], |f| f.allow),
         })
     }
 
@@ -240,6 +319,7 @@ impl WorkbookAutomation {
         };
         let protect = SheetProtect {
             password,
+            file_hash: None,
             drawing_objects: flag(1, true)?,
             contents: flag(2, true)?,
             scenarios: flag(3, true)?,
@@ -262,11 +342,12 @@ impl WorkbookAutomation {
                 // ww22 Protect.Again: the same Password protects again with the new arguments (UserInterfaceOnly
                 // becomes True), a wrong one is 1004 and changes nothing, an omitted one opens the Unprotect Sheet
                 // prompt.
-                Some(held) if held.password.is_some() && self.sheet_protect.borrow().contains_key(&sheet) => {
+                Some(held) if held.has_password() => {
                     if call.arg(0).is_missing() {
                         return Err(AutoError::not_modelled("Worksheet.Protect password prompt on a protected sheet", OWNER));
                     }
-                    if held.password != protect.password {
+                    let given = protect.password.clone().unwrap_or_default();
+                    if !held.password_matches(&given)? {
                         return Err(wrong_password());
                     }
                     self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
@@ -300,14 +381,11 @@ impl WorkbookAutomation {
             let Some(held) = self.sheet_protection(session.host(), sheet) else {
                 return Ok(AutoValue::Empty);
             };
-            if !self.sheet_protect.borrow().contains_key(&sheet) {
-                return Err(AutoError::not_modelled("Worksheet.Unprotect of a sheet the file protects", OWNER));
-            }
             // ww21 Unprotect.omitted: Excel opens the Unprotect Sheet dialog.
-            if held.password.is_some() && call.arg(0).is_missing() {
+            if held.has_password() && call.arg(0).is_missing() {
                 return Err(AutoError::not_modelled("Worksheet.Unprotect password prompt", OWNER));
             }
-            if held.password.is_some() && held.password != given {
+            if held.has_password() && !held.password_matches(&given.clone().unwrap_or_default())? {
                 return Err(wrong_password());
             }
             self.sheet_protect.borrow_mut().insert(sheet, None);
