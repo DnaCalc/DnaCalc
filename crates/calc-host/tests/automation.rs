@@ -7945,38 +7945,56 @@ fn dc_oxh8w_48__file_held_charts_move_between_sheets_and_save() {
     assert!(matches!(invoke(&model2, &column, "ChartType", vec![]), Ok(AutoValue::I4(51))));
 }
 
+/// dc-oxh8w.59 (ww22/ww24, Excel 16.0.20625): a chart frame the file holds takes `ChartObject.Name` (XML metacharacters
+/// included) and Left/Top/Width/Height (singles); the save patches the stored frame's `cNvPr name` and its anchor, and the
+/// reopened workbook reads them back. Embedded `Chart.Name` still raises 7.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_59__file_held_chart_frame_edits_name_their_owning_bead() {
-    let session = HostSession::open(
-        Arc::new(MemorySource::new(
-            include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx")
-                .to_vec(),
-        )),
-        &OpenPolicy::default(),
-        HostOptions::default(),
-    )
-    .unwrap();
-    let (host, model) = setup_session(session);
-    let revision = host.session.borrow().host().revision();
-    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
-    let frame = obj(
-        invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![AutoValue::I4(1)])
-            .unwrap(),
-    );
+fn dc_oxh8w_59__file_held_chart_frames_take_a_name_and_a_place_and_save_them() {
+    let open = |bytes: Vec<u8>| {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(bytes)), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let fixture = include_bytes!("../../calc-doc/tests/fixtures/preserved_sheets/chart-sheet-and-embedded.xlsx").to_vec();
+    let (host, model) = open(fixture);
+    let frame_of = |model: &WorkbookAutomation| {
+        let sheet = obj(invoke(model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        obj(invoke_kind(model, &sheet, "ChartObjects", InvokeKind::Method, vec![AutoValue::I4(1)]).unwrap())
+    };
+    let frame = frame_of(&model);
     let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
-    for (target, interface, member, value) in [
-        (&frame, "ChartObject", "Name", AutoValue::text("Sales")),
-        (&frame, "ChartObject", "Left", AutoValue::R8(50.7)),
-        (&frame, "ChartObject", "Top", AutoValue::R8(30.0)),
-    ] {
-        let error = invoke_kind(&model, target, member, InvokeKind::Put, vec![value]).unwrap_err();
-        assert_eq!(error, AutoError::not_modelled(format!("{interface}.{member}"), "dc-oxh8w.59"));
-    }
+    invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text("New & <First>")]).unwrap();
+    invoke_kind(&model, &frame, "Left", InvokeKind::Put, vec![AutoValue::R8(50.7)]).unwrap();
+    invoke_kind(&model, &frame, "Top", InvokeKind::Put, vec![AutoValue::R8(33.3)]).unwrap();
+    let real = |model: &WorkbookAutomation, frame: &ObjectRef, member: &str| match invoke(model, frame, member, vec![]).unwrap() {
+        AutoValue::R8(v) => v,
+        other => panic!("{member}: {other:?}"),
+    };
+    assert_eq!(text_of(invoke(&model, &frame, "Name", vec![]).unwrap()), "New & <First>");
+    assert_eq!(real(&model, &frame, "Left").to_bits(), f64::from(50.7_f32).to_bits());
+    assert_eq!(real(&model, &frame, "Top").to_bits(), f64::from(33.3_f32).to_bits());
     // Excel raises error 7 for an embedded chart's Chart.Name whether the file holds it or not (ww22 VBA).
     let r = invoke_kind(&model, &chart, "Name", InvokeKind::Put, vec![AutoValue::text("Sales")]);
     assert!(matches!(&r, Err(AutoError::Excel { number: 7, .. })), "{r:?}");
-    assert_eq!(host.session.borrow().host().revision(), revision);
+    let mut bytes = Vec::new();
+    host.session.borrow_mut().save(&SavePolicy::default(), &mut bytes).expect("the save is not refused");
+    let document = calc_doc::open(Arc::new(MemorySource::new(bytes.clone())), &OpenPolicy::default()).unwrap();
+    let drawings: String = document
+        .package()
+        .parts()
+        .iter()
+        .map(|p| p.name().to_owned())
+        .filter(|n| n.starts_with("xl/drawings/drawing"))
+        .map(|n| String::from_utf8(document.package().read_part(&n).unwrap()).unwrap())
+        .collect();
+    assert!(drawings.contains("name=\"New &amp; &lt;First"), "{drawings}");
+    let (_host2, model2) = open(bytes);
+    let frame2 = frame_of(&model2);
+    assert_eq!(text_of(invoke(&model2, &frame2, "Name", vec![]).unwrap()), "New & <First>");
+    // The stored anchor is in EMU: 50.7 pt reads back as the nearest EMU, within one EMU of the single.
+    for (member, want) in [("Left", 50.7_f64), ("Top", 33.3)] {
+        let got = real(&model2, &frame2, member);
+        assert!((got - want).abs() < 1.0 / 12700.0 + 1e-4, "{member} reopened as {got}");
+    }
 }
 
 /// dc-3qsm0: a chart-sheet chart moved onto a sheet keeps the content edits made after the move (its source sheet is
@@ -11799,4 +11817,33 @@ fn dc_oxh8w_43__worksheet_copy_copies_notes() {
     let copy = host.session.borrow().host().sheets()[1].id();
     assert_eq!(counts(copy), 1, "the copy carries the note");
     assert_eq!(counts(source), 1, "the source keeps its own");
+}
+
+/// dc-oxh8w.59 (ww22/ww24, Excel 16.0.20625): a chart frame's Left, Top, Width and Height are stored as singles: 50.7 reads
+/// back 50.70000076293945 (bits 40495999a0000000), 33.3 as 33.29999923706055, 211.9 and 123.4 likewise.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_59__chart_frame_geometry_reads_back_as_singles() {
+    let (_host, model, sheet) = blank_report();
+    let objects = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
+    let frame = obj(
+        invoke_kind(
+            &model,
+            &objects,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::R8(50.7), AutoValue::R8(33.3), AutoValue::R8(211.9), AutoValue::R8(123.4)],
+        )
+        .unwrap(),
+    );
+    for (member, value) in [("Left", 50.7_f64), ("Top", 33.3), ("Width", 211.9), ("Height", 123.4)] {
+        let AutoValue::R8(got) = invoke(&model, &frame, member, vec![]).unwrap() else { panic!("{member}") };
+        assert_eq!(got.to_bits(), f64::from(value as f32).to_bits(), "{member} read {got}");
+    }
+    // Separate puts round likewise.
+    for (member, value) in [("Left", 12.3_f64), ("Top", 45.6)] {
+        invoke_kind(&model, &frame, member, InvokeKind::Put, vec![AutoValue::R8(value)]).unwrap();
+        let AutoValue::R8(got) = invoke(&model, &frame, member, vec![]).unwrap() else { panic!("{member}") };
+        assert_eq!(got.to_bits(), f64::from(value as f32).to_bits(), "{member} put {value} read {got}");
+    }
 }

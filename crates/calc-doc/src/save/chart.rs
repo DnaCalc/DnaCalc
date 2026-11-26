@@ -101,6 +101,8 @@ pub(crate) fn check_unique_chart_part(base: &ModelRoot, part: &str) -> Result<()
 pub(crate) fn content_changed(before: &Chart, after: &Chart) -> bool {
     let mut same = after.clone();
     same.anchor = before.anchor;
+    // The frame's name is patched into the drawing, not the chart part.
+    same.name = before.name.clone();
     same != *before
 }
 

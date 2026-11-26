@@ -589,7 +589,7 @@ pub(super) fn finish(
             .iter()
             .copied()
             .zip(kept.iter().copied())
-            .filter(|(old, now)| old.anchor != now.anchor)
+            .filter(|(old, now)| old.anchor != now.anchor || old.name != now.name)
             .collect();
         let plan = super::stored::plan(before.definitions().shapes(sheet), after.definitions().shapes(sheet))?;
         if new.is_empty() && plan.is_empty() && chart_anchors.is_empty() && moved_in.is_empty() && removed.is_empty() {
@@ -699,7 +699,7 @@ pub(crate) fn add_with(
             "A drawing shared by worksheets cannot acquire a chart",
         ));
     }
-    let mut chart_map: std::collections::BTreeMap<String, ChartAnchor> = Default::default();
+    let mut chart_map: std::collections::BTreeMap<String, super::stored::FrameEdit> = Default::default();
     if !chart_anchors.is_empty() {
         let rels = package.relationships_of(Some(&drawing)).ok_or_else(|| {
             invalid(&drawing, "The drawing has no relationships for the chart frame")
@@ -718,7 +718,13 @@ pub(crate) fn add_with(
                     "The chart frame relationship was not found uniquely in its drawing",
                 ));
             };
-            chart_map.insert(first.id.clone(), now.anchor);
+            chart_map.insert(
+                first.id.clone(),
+                super::stored::FrameEdit {
+                    anchor: (old.anchor != now.anchor).then_some(now.anchor),
+                    name: (old.name != now.name).then(|| now.name.clone()),
+                },
+            );
         }
     }
     let mut deleted: BTreeSet<String> = BTreeSet::new();

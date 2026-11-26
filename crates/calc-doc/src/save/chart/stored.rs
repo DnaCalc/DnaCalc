@@ -658,12 +658,18 @@ pub(crate) fn edit(xml: &XmlPart, edits: &BTreeMap<u32, StoredEdit<'_>>) -> Resu
     edit_with_charts(xml, edits, &BTreeMap::new(), &BTreeSet::new())
 }
 
-/// Like [`edit`], also rewriting the anchors of chart frames whose `c:chart` / `cx:chart` relationship id appears in
+/// What the session changed about a chart frame the file holds: its anchor, its `cNvPr` name, or both.
+pub(crate) struct FrameEdit {
+    pub anchor: Option<ChartAnchor>,
+    pub name: Option<String>,
+}
+
+/// Like [`edit`], also rewriting the anchors and names of chart frames whose `c:chart` / `cx:chart` relationship id appears in
 /// `chart_anchors` (dc-zjsg.14), preserving `editAs` and every other byte of the frame and any alternatives around it.
 pub(crate) fn edit_with_charts(
     xml: &XmlPart,
     edits: &BTreeMap<u32, StoredEdit<'_>>,
-    chart_anchors: &BTreeMap<String, ChartAnchor>,
+    chart_anchors: &BTreeMap<String, FrameEdit>,
     deleted_charts: &BTreeSet<String>,
 ) -> Result<Vec<u8>, SaveRefusal> {
     let ix = index(xml)?;
@@ -720,26 +726,35 @@ pub(crate) fn edit_with_charts(
             return Err(refuse("Multiple chart anchors inside one drawing element are not modelled"));
         }
         let rel = *found.iter().next().unwrap();
-        let new_anchor = &chart_anchors[rel];
-        let mut patched_anchor = false;
-        for anchor in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
-            let local = ix.els[anchor].local.as_str();
-            if matches!(local, "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor") {
-                let kind_matches = matches!(
-                    (local, new_anchor),
-                    ("twoCellAnchor", ChartAnchor::TwoCell { .. })
-                        | ("oneCellAnchor", ChartAnchor::OneCell { .. })
-                        | ("absoluteAnchor", ChartAnchor::Absolute { .. })
-                );
-                if !kind_matches {
-                    return Err(refuse("Changing a chart anchor kind is not modelled"));
+        let edit = &chart_anchors[rel];
+        let mut patched_anchor = edit.anchor.is_none();
+        if let Some(new_anchor) = &edit.anchor {
+            for anchor in (child..ix.els.len()).take_while(|&i| ix.els[i].start < c.end) {
+                let local = ix.els[anchor].local.as_str();
+                if matches!(local, "twoCellAnchor" | "oneCellAnchor" | "absoluteAnchor") {
+                    let kind_matches = matches!(
+                        (local, new_anchor),
+                        ("twoCellAnchor", ChartAnchor::TwoCell { .. })
+                            | ("oneCellAnchor", ChartAnchor::OneCell { .. })
+                            | ("absoluteAnchor", ChartAnchor::Absolute { .. })
+                    );
+                    if !kind_matches {
+                        return Err(refuse("Changing a chart anchor kind is not modelled"));
+                    }
+                    anchor_patches(&ix, anchor, new_anchor, &mut patches);
+                    patched_anchor = true;
                 }
-                anchor_patches(&ix, anchor, new_anchor, &mut patches);
-                patched_anchor = true;
             }
         }
         if !patched_anchor {
             return Err(refuse("A chart anchor to rewrite has no supported anchor element"));
+        }
+        if let Some(name) = &edit.name {
+            let frame = (child..ix.els.len())
+                .take_while(|&i| ix.els[i].start < c.end)
+                .find(|&i| ix.els[i].local == "graphicFrame")
+                .ok_or_else(|| refuse("A chart frame to rename has no graphic frame"))?;
+            name_patch(&ix, frame, name, None, &mut patches)?;
         }
         matched_charts.insert(rel.to_owned());
     }
@@ -887,7 +902,10 @@ mod tests {
                 },
             ),
         ]);
-        let out = String::from_utf8(edit_with_charts(&part, &BTreeMap::new(), &anchors, &BTreeSet::new()).unwrap()).unwrap();
+        let frames = |m: BTreeMap<String, ChartAnchor>| -> BTreeMap<String, super::FrameEdit> {
+            m.into_iter().map(|(k, a)| (k, super::FrameEdit { anchor: Some(a), name: None })).collect()
+        };
+        let out = String::from_utf8(edit_with_charts(&part, &BTreeMap::new(), &frames(anchors), &BTreeSet::new()).unwrap()).unwrap();
         let expected = xml
             .replace("<xdr:row>19</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>17</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>")
             .replace("<xdr:row>30</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>", "<xdr:row>28</xdr:row><xdr:rowOff>127000</xdr:rowOff></xdr:to>");
@@ -900,6 +918,6 @@ mod tests {
                 to: DrawingPoint::default(),
             },
         )]);
-        assert!(edit_with_charts(&part, &BTreeMap::new(), &missing, &BTreeSet::new()).is_err());
+        assert!(edit_with_charts(&part, &BTreeMap::new(), &frames(missing), &BTreeSet::new()).is_err());
     }
 }

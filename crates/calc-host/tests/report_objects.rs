@@ -1980,11 +1980,17 @@ fn dw5_dc_zjsg_14__one_cell_and_absolute_chart_anchors_rewrite_on_save() {
     let abs_rect_after = cx_reloaded.host().anchor_rectangle(sheet, &abs_after.anchor);
     assert!((wf_rect_after.3 - wf_rect.3).abs() < 1e-6, "{wf_rect:?} {wf_rect_after:?}");
     assert!((abs_rect_after.1 - abs_rect.1).abs() < 1e-6 && (abs_rect_after.3 - abs_rect.3).abs() < 1e-6, "{abs_rect:?} {abs_rect_after:?}");
-    // 6. Non-anchor chart frame changes (e.g. renaming the frame) are still refused.
+    // 6. Renaming the frame is saved (dc-oxh8w.59, Excel ww22/ww24); other non-anchor frame changes are still refused.
+    let mut renamed = sd_before.clone();
+    renamed.name = "Renamed frame".into();
+    assert!(
+        cx_reloaded.host().loaded().check_chart_properties(sheet, &renamed).is_ok(),
+        "a frame name edit is patched into the drawing"
+    );
     let mut bad = sd_before.clone();
-    bad.name = "Renamed frame".into();
+    bad.edit_as = Some("twoCell".into());
     assert!(
         cx_reloaded.host().loaded().check_chart_properties(sheet, &bad).is_err(),
-        "non-anchor frame edits must remain refused"
+        "non-anchor, non-name frame edits must remain refused"
     );
 }

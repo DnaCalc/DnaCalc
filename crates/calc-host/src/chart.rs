@@ -2504,8 +2504,7 @@ fn assemble(
 
 pub(crate) const FILE_HELD_FRAME_OWNER: &str = "dc-oxh8w.59";
 
-/// Sheet commands can name and place charts created in this session. File-held chart frame
-/// setters still need Excel readback of the drawing changes.
+/// Name and place a chart frame: one made in this session, or one the file holds (its stored frame is patched on save).
 pub(crate) fn prepare_frame(
     host: &HostState,
     sheet: SheetId,
@@ -2524,9 +2523,11 @@ pub(crate) fn prepare_frame(
         .iter()
         .position(|c| c.part == part)
         .ok_or_else(|| fail("The chart no longer exists"))?;
-    if file_held(host, part) {
+    // The saver patches a stored frame's name and anchor in place, keeping its anchor kind. Excel's answer for a
+    // one-cell or absolute stored anchor is unmeasured, so those keep refusing a new place.
+    if file_held(host, part) && place.is_some() && !matches!(charts[index].anchor, ChartAnchor::TwoCell { .. }) {
         return Err(format!(
-            "A chart the file holds keeps its name and place ({FILE_HELD_FRAME_OWNER})"
+            "A chart the file holds with a one-cell or absolute anchor keeps its place ({FILE_HELD_FRAME_OWNER})"
         ));
     }
     if let Some(name) = name {

@@ -200,12 +200,6 @@ impl WorkbookAutomation {
         let (_, sheet, _) = Self::report_key(target)?;
         self.command(call, |s| {
             let mut rect = Self::chart_rectangle(s, sheet, &part)?;
-            if crate::chart::file_held(s.host(), &part) {
-                return Err(AutoError::not_modelled(
-                    call.label(),
-                    crate::chart::FILE_HELD_FRAME_OWNER,
-                ));
-            }
             if let Some((side, value)) = side {
                 rect[side as usize] = value;
             }

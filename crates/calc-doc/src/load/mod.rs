@@ -704,7 +704,7 @@ impl LoadedWorkbook {
             if crate::save::chart::content_changed(old, new) {
                 crate::save::chart::source(&self.package, &self.model, old, new)?;
             }
-            if old.anchor != new.anchor {
+            if old.anchor != new.anchor || old.name != new.name {
                 anchor_edits.push((old, new));
             }
         }
