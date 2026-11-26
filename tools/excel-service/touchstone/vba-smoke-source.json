@@ -1,0 +1,50 @@
+{
+  "sheets": [
+    {
+      "name": "Data",
+      "cells": {
+        "A1": {
+          "type": "number",
+          "bits": "3ff0000000000000"
+        }
+      }
+    },
+    {
+      "name": "Events",
+      "cells": {}
+    }
+  ],
+  "modules": [
+    {
+      "name": "Module1",
+      "kind": "standard",
+      "source": "Option Explicit\nPublic Function Probe(ByVal x As Variant) As Variant\n    ThisWorkbook.Worksheets(\"Data\").Range(\"A1\").Value2 = x\n    Probe = x * 2\nEnd Function\nPublic Function ErrProbe() As Variant\n    On Error GoTo 100\n    Err.Raise 5, \"Module1\", \"probe error\"\n    Exit Function\n100:\n    ErrProbe = Array(\"Touchstone.Vba.Err\", CLng(Err.Number), Err.Description)\nEnd Function\n"
+    },
+    {
+      "name": "Sheet1",
+      "kind": "document",
+      "source": "Private Sub Worksheet_Change(ByVal Target As Range)\n    ThisWorkbook.Worksheets(\"Events\").Range(\"A1\").Value2 = \"Change\"\nEnd Sub\n"
+    }
+  ],
+  "calls": [
+    {
+      "procedure": "Module1.Probe",
+      "args": [
+        {
+          "type": "number",
+          "bits": "4035000000000000"
+        }
+      ]
+    },
+    {
+      "procedure": "Module1.ErrProbe",
+      "args": []
+    }
+  ],
+  "readback": [
+    "Data!A1"
+  ],
+  "event_log": [
+    "Events!A1"
+  ]
+}

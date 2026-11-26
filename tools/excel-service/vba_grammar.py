@@ -45,8 +45,11 @@ FORMULA_START = RULES["formula_chars"]
 # Taint classes of a value (dc-5qqoz): TEXT is a string that cannot start with = + - or @; NUMBER is a number
 # or boolean (it may be negative, so its text may start with -); NUMTEXT is a string made from a number;
 # BAD is anything else. A cell write takes TEXT or NUMBER; a concatenation's leading operand must be TEXT.
-TEXT, NUMBER, NUMTEXT, BAD = 0, 1, 2, 3
-SAFE, NUM, UNSAFE = ("safe",), ("num",), ("unsafe",)
+# rw17 (dc-erfm3): SAFE is a string that is also never empty (a non-empty literal, TypeName), the only kind that
+# may lead a concatenation; TEXT may be empty at run time ("", vbNullString, Empty, Null, Left(s, 0), an
+# unassigned variable), so a number after it could lead the result.
+SAFE_TEXT, TEXT, NUMBER, NUMTEXT, BAD = 0, 1, 2, 3, 4
+SAFE, MAYBE, NUM, UNSAFE = ("safe",), ("maybe",), ("num",), ("unsafe",)
 ARITHMETIC = {"-", "*", "/", "\\", "^", "mod", "=", "<", ">", "<=", ">=", "<>", "and", "or", "xor", "eqv", "imp", "is", "like"}
 BINARY = ARITHMETIC | {"+", "&"}
 
@@ -124,6 +127,7 @@ class Case:
         self.writes = []          # (node, line): values written to cells
         self.numeric = set()      # variables whose declared type holds only numbers and booleans
         self.params = set()       # procedure parameters: a case argument may be a (negative) number
+        self.strings = set()      # variables declared As String: a number assigned to one becomes number text
 
     def declared(self, token, line):
         if token.kind != "id" or not IDENTIFIER.fullmatch(token.text) or token.low in RESERVED \
@@ -144,17 +148,22 @@ class Case:
                 new = max(classes.get(key, TEXT), self.classify(node, classes))
                 if key in self.numeric:
                     new = NUMBER
+                elif key in self.strings and new == NUMBER:
+                    new = NUMTEXT
                 if new != classes.get(key, TEXT):
                     classes[key] = new
                     changed = True
         for node, line in self.writes:
             if self.classify(node, classes) > NUMBER:
                 refuse("a cell value that is not plainly data", line)
-        return {p.key for p in self.procs.values() if p.public and self.kinds[p.module] == "standard"}
+        self.entry_points = {p.key for p in self.procs.values() if p.public and self.kinds[p.module] == "standard"}
+        return self.entry_points
 
     def classify(self, node, classes):
         tag = node[0]
         if tag == "safe":
+            return SAFE_TEXT
+        if tag == "maybe":
             return TEXT
         if tag == "num":
             return NUMBER
@@ -168,15 +177,21 @@ class Case:
         if tag == "join":                       # Array(...): the elements are written one by one
             return max(found, default=TEXT)
         if tag == "str":                        # Left, CStr, LCase, UCase: the text of the first argument
-            return TEXT if found[0] == TEXT else NUMTEXT
+            if found[0] == NUMBER:
+                return NUMTEXT
+            if found[0] > NUMBER:
+                return found[0]
+            return TEXT if node[2] == "left" else found[0]
         ops = node[2]                           # "cat": operands joined by the operators between them
-        if any(op not in ("+", "&") for op in ops):
+        if "+" in ops:                          # + adds a number, a boolean or a numeric string: only numbers
+            return NUMBER if all(op not in ("&",) for op in ops) and all(c == NUMBER for c in found) else BAD
+        if any(op not in ("&",) for op in ops):
             return BAD if "&" in ops else NUMBER
-        if "&" in ops:
-            if found[0] != TEXT or "+" in ops and any(c != TEXT for c in found):
-                return BAD
-            return TEXT
-        return NUMTEXT if NUMTEXT in found else NUMBER if NUMBER in found else TEXT
+        if any(c > TEXT for c in found) and found[0] > SAFE_TEXT:
+            return BAD
+        if found[0] == SAFE_TEXT:
+            return SAFE_TEXT
+        return TEXT if all(c <= TEXT for c in found) else BAD
 
     def scan(self, module, kind, source):
         self.kinds[module] = kind
@@ -297,6 +312,8 @@ class Case:
             scope[name] = Var(prefix + name, OBJECT_TYPES.get(vtype, "val"), numeric=vtype in NUMERIC_TYPES, array=array)
             if vtype in NUMERIC_TYPES:
                 self.numeric.add(prefix + name)
+            if vtype == "string":
+                self.strings.add(prefix + name)
             if pos == len(tokens):
                 return
             if tokens[pos].text != ",":
@@ -316,8 +333,10 @@ class Case:
     def literal(token):
         if token.kind == "str":
             body = token.text[1:-1].replace('""', '"')
-            return UNSAFE if body[:1] and body[0] in FORMULA_START else SAFE
-        return SAFE
+            if not body:
+                return MAYBE
+            return UNSAFE if body[0] in FORMULA_START else SAFE
+        return NUM          # a number or a hex literal (&H8000 is -32768)
 
 
 class Body:
@@ -575,7 +594,8 @@ class Statement:
                 self.fail()
         else:
             self.expect("=")
-            self.expression()
+            self.case.flows.append((var.key, NUM))      # a numeric loop: the variable holds numbers
+            self.case.flows.append((var.key, self.expression()))
             self.expect("to")
             self.expression()
             if self.peek().low == "step":
@@ -682,7 +702,7 @@ class Statement:
         word = token.low
         case, body = self.case, self.body
         if token.kind == "num":
-            return "val", SAFE, None
+            return "val", NUM, None
         if token.kind == "hex":                  # &H8000 is -32768
             return "val", NUM, None
         if token.kind == "str":
@@ -693,13 +713,17 @@ class Statement:
             return "val", node, None
         if token.kind != "id":
             self.fail(token)
-        if word in ("true", "false", "empty", "null", "nothing") or word in CONSTANTS:
-            return "val", NUM if word.startswith("xl") else SAFE, None
+        if word in ("true", "false") or word.startswith("xl") and word in CONSTANTS:
+            return "val", NUM, None
+        if word in ("empty", "null", "nothing", "vbnullstring"):
+            return "val", MAYBE, None
+        if word in CONSTANTS:
+            return "val", SAFE, None
         if word in BUILTINS:
             low, high, safety = BUILTINS[word]
             args = self.arguments(low, high)
             node = {"num": NUM, "text": SAFE, "never": UNSAFE}.get(safety) or (
-                ("join" if word == "array" else "str", args))
+                (("join", args) if word == "array" else ("str", args, word)))
             return "val", node, None
         kind = None
         if word == "thisworkbook":
@@ -808,7 +832,7 @@ class Statement:
 
 def check_modules(modules, sheet_count):
     """Check every module of a case. `modules` is [(name, kind, source)]. Returns the lowercase entry points
-    ("module.procedure") a call may name; raises ValueError on the first refused construct."""
+    ("module.procedure") a call may name and every standard-module procedure name; raises ValueError on the first refused construct."""
     seen = set()
     for name, kind, source in modules:
         low = name.lower()
@@ -820,4 +844,8 @@ def check_modules(modules, sheet_count):
         if not valid or low in seen or kind not in ("standard", "document"):
             raise ValueError(f"invalid or duplicate VBA module name or kind: {escape(str(name))}")
         seen.add(low)
-    return Case(list(modules)).run()
+    case = Case(list(modules))
+    entry_points = case.run()
+    # Every procedure of a standard module, Private ones too: a worksheet formula calls a Private Function (rw17).
+    names = {p.key for p in case.procs.values() if case.kinds[p.module] == "standard"}
+    return entry_points, names

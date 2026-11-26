@@ -82,8 +82,11 @@ static class VbaGrammar
     // Taint classes of a value (dc-5qqoz): Text is a string that cannot start with = + - or @; Number is a number or
     // boolean (it may be negative, so its text may start with -); NumText is a string made from a number; Bad is
     // anything else. A cell write takes Text or Number; a concatenation's leading operand must be Text.
-    const int Text = 0, Number = 1, NumText = 2, Bad = 3;
-    static readonly Node Safe = new("safe"), Num = new("num"), Unsafe = new("unsafe");
+    // rw17 (dc-erfm3): SafeText is a string that is also never empty (a non-empty literal, TypeName), the only kind that
+    // may lead a concatenation; Text may be empty at run time ("", vbNullString, Empty, Null, Left(s, 0), an unassigned
+    // variable), so a number after it could lead the result.
+    const int SafeText = 0, Text = 1, Number = 2, NumText = 3, Bad = 4;
+    static readonly Node Safe = new("safe"), Maybe = new("maybe"), Num = new("num"), Unsafe = new("unsafe");
 
     sealed class Last
     {
@@ -160,6 +163,8 @@ static class VbaGrammar
         public readonly List<(Node node, string line)> Writes = new();
         public readonly HashSet<string> Numeric = new();
         public readonly HashSet<string> Params = new();
+        public readonly HashSet<string> Strings = new();     // declared As String: a number assigned becomes number text
+        public HashSet<string> AllProcedures = new();
 
         public Case(List<(string, string, string)> modules)
         {
@@ -189,6 +194,7 @@ static class VbaGrammar
                     int old = classes.GetValueOrDefault(key, Text);
                     int next = Math.Max(old, Classify(node, classes));
                     if (Numeric.Contains(key)) next = Number;
+                    else if (Strings.Contains(key) && next == Number) next = NumText;
                     if (next != old)
                     {
                         classes[key] = next;
@@ -198,6 +204,7 @@ static class VbaGrammar
             }
             foreach (var (node, line) in Writes)
                 if (Classify(node, classes) > Number) throw Refuse("a cell value that is not plainly data", line);
+            AllProcedures = Procs.Values.Where(p => Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
             return Procs.Values.Where(p => p.Public && Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
         }
 
@@ -205,7 +212,8 @@ static class VbaGrammar
         {
             switch (node.Tag)
             {
-                case "safe": return Text;
+                case "safe": return SafeText;
+                case "maybe": return Text;
                 case "num": return Number;
                 case "unsafe": return Bad;
                 case "var": return classes.GetValueOrDefault(node.Key, Text);
@@ -213,12 +221,19 @@ static class VbaGrammar
             var found = node.Items.Select(n => Classify(n, classes)).ToList();
             if (found.Contains(Bad)) return Bad;
             if (node.Tag == "join") return found.Count == 0 ? Text : found.Max();   // Array(...): elements written one by one
-            if (node.Tag == "str") return found[0] == Text ? Text : NumText;        // Left, CStr, LCase, UCase
+            if (node.Tag == "str")                                                   // Left, CStr, LCase, UCase
+            {
+                if (found[0] == Number) return NumText;
+                if (found[0] > Number) return found[0];
+                return node.Key == "left" ? Text : found[0];
+            }
             var ops = node.Ops;                                                      // "cat": operands and the operators between
-            if (ops.Any(op => op is not ("+" or "&"))) return ops.Contains("&") ? Bad : Number;
-            if (ops.Contains("&"))
-                return found[0] != Text || ops.Contains("+") && found.Any(c => c != Text) ? Bad : Text;
-            return found.Contains(NumText) ? NumText : found.Contains(Number) ? Number : Text;
+            if (ops.Contains("+"))                  // + adds a number, a boolean or a numeric string: only numbers
+                return !ops.Contains("&") && found.All(c => c == Number) ? Number : Bad;
+            if (ops.Any(op => op != "&")) return ops.Contains("&") ? Bad : Number;
+            if (found[0] > SafeText && found.Any(c => c > Text)) return Bad;
+            if (found[0] == SafeText) return SafeText;
+            return Text;
         }
 
         void Scan(string module, string kind, string source)
@@ -352,6 +367,7 @@ static class VbaGrammar
                 }
                 scope[name] = new Var(prefix + name, ObjectTypes.GetValueOrDefault(vtype, "val"), NumericTypes.Contains(vtype), array: array);
                 if (NumericTypes.Contains(vtype)) Numeric.Add(prefix + name);
+                if (vtype == "string") Strings.Add(prefix + name);
                 if (pos == tokens.Count) return;
                 if (tokens[pos].Text != ",") throw Refuse(tokens[pos].Text, text);
                 pos++;
@@ -372,9 +388,10 @@ static class VbaGrammar
             if (token.Kind == "str")
             {
                 var body = token.Text[1..^1].Replace("\"\"", "\"");
-                return body.Length > 0 && FormulaStart.Contains(body[0]) ? Unsafe : Safe;
+                if (body.Length == 0) return Maybe;
+                return FormulaStart.Contains(body[0]) ? Unsafe : Safe;
             }
-            return Safe;
+            return Num;      // a number or a hex literal (&H8000 is -32768)
         }
     }
 
@@ -649,7 +666,8 @@ static class VbaGrammar
             else
             {
                 Expect("=");
-                Expression();
+                cs.Flows.Add((v.Key, Num));      // a numeric loop: the variable holds numbers
+                cs.Flows.Add((v.Key, Expression()));
                 Expect("to");
                 Expression();
                 if (Peek().Low == "step") { Take(); Expression(); }
@@ -762,7 +780,7 @@ static class VbaGrammar
         {
             var token = Take();
             var word = token.Low;
-            if (token.Kind == "num") return ("val", Safe, null);
+            if (token.Kind == "num") return ("val", Num, null);
             if (token.Kind == "hex") return ("val", Num, null);        // &H8000 is -32768
             if (token.Kind == "str") return ("val", Case.Literal(token), null);
             if (token.Text == "(")
@@ -772,8 +790,10 @@ static class VbaGrammar
                 return ("val", inner, null);
             }
             if (token.Kind != "id") throw Fail(token);
-            if (word is "true" or "false" or "empty" or "null" or "nothing" || Constants.Contains(word))
-                return ("val", word.StartsWith("xl", StringComparison.Ordinal) ? Num : Safe, null);
+            if (word is "true" or "false" || word.StartsWith("xl", StringComparison.Ordinal) && Constants.Contains(word))
+                return ("val", Num, null);
+            if (word is "empty" or "null" or "nothing" or "vbnullstring") return ("val", Maybe, null);
+            if (Constants.Contains(word)) return ("val", Safe, null);
             if (Builtins.TryGetValue(word, out var builtin))
             {
                 var args = Arguments(builtin.low, builtin.high);
@@ -782,7 +802,7 @@ static class VbaGrammar
                     "num" => Num,
                     "text" => Safe,
                     "never" => Unsafe,
-                    _ => new Node(word == "array" ? "join" : "str", items: args),
+                    _ => new Node(word == "array" ? "join" : "str", key: word, items: args),
                 }, null);
             }
             string kind;
@@ -897,7 +917,7 @@ static class VbaGrammar
     }
 
     /// <summary>Checks every module of a case; returns the lowercase entry points ("module.procedure") a call may name.</summary>
-    public static HashSet<string> CheckModules(List<(string name, string kind, string source)> modules, int sheetCount)
+    public static (HashSet<string> entryPoints, HashSet<string> procedures) CheckModules(List<(string name, string kind, string source)> modules, int sheetCount)
     {
         var seen = new HashSet<string>();
         foreach (var (name, kind, _) in modules)
@@ -909,6 +929,9 @@ static class VbaGrammar
             if (!valid || !seen.Add(low) || kind is not ("standard" or "document"))
                 throw new RefusedVbaException("invalid or duplicate VBA module name or kind: " + Escape(name));
         }
-        return new Case(modules.Select(m => (m.name, m.kind, m.source)).ToList()).Run();
+        var checkedCase = new Case(modules.Select(m => (m.name, m.kind, m.source)).ToList());
+        var entryPoints = checkedCase.Run();
+        // Every procedure of a standard module, Private ones too: a worksheet formula calls a Private Function (rw17).
+        return (entryPoints, checkedCase.AllProcedures);
     }
 }

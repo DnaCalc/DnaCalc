@@ -66,6 +66,19 @@ a formula: its text (any text of 1 to 255 characters) is entered by FormulaLocal
 into a cell (a number, date, time, percentage or currency takes the number format Excel gives it), and its answer adds
 `"nf"`, the cell's NumberFormat after the entry (decoded as `number_format`). Send the cases of one layout together.
 
+**Probe templates (dc-erfm3, the route to use).** A VBA case does not carry VBA source. It names a template from the
+catalogue `tools/excel-service/vba-probes/catalogue.json` and gives typed parameters: `{"template", "params", "sheets",
+"calls", "readback", "event_log", "names"?}` with no `modules`. Each template's module files (`vba-probes/*.bas`) are
+reviewed once by the coordinator and pinned by SHA-256 in the catalogue; `policy.py` and the worker (`VbaTemplates.cs`,
+files embedded in the build) refuse a file that differs from its pin and build the .xlsm from the pinned text and the
+parameters only. Parameter types: `sheet` (a case sheet's name), `address` (one A1 cell), `text` (1..255 printable ASCII
+characters, not starting with `=`, `+`, `-` or `@`; rendered as one quoted VBA string), `long` (an integer) and
+`enum:a|b` (a listed word). Every `{{name}}` in a template is a declared parameter and every parameter must be given; a
+call names one of the template's `entry_points`. `touchstone/vba-smoke.json` is the reviewed smoke case on template
+`smoke` (it expands to the source in `vba-smoke-source.json`). To add a template: add the `.bas` files and a catalogue
+entry with their hashes, and have the coordinator review them. The expanded modules still pass the grammar below. The
+free-source `modules` shape below stays accepted only while the template route awaits its review; approvals stay frozen.
+
 A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
 `sheets` and `names` in the sheet-case layout shape, and the following fields. No workbook travels with the case: the
 worker writes the source-only .xlsm itself from the checked `sheets` and `modules` (the sheet names, the `ThisWorkbook`

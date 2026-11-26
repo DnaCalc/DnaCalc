@@ -622,6 +622,120 @@ class AdmissionTests(unittest.TestCase):
             yield "layout boolean", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "boolean", "value": value}}}])
         yield "layout boolean", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "boolean"}}}])
 
+    def template_group(self, **changes):
+        smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
+        smoke.update(changes)
+        smoke = {"names": {}, **smoke}
+        return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [smoke]}
+
+    def refused_template_cases(self):
+        """dc-erfm3: the template route refuses anything the reviewed catalogue does not name."""
+        params = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))["params"]
+        yield "unknown", self.template_group(template="nosuch")
+        yield "do not match", self.template_group(params={k: v for k, v in params.items() if k != "message"})
+        yield "do not match", self.template_group(params={**params, "extra": "x"})
+        for bad in ("=WEBSERVICE(1)", "+1", "-1", "@SUM(1)", "", "x" * 256, "caf\u00e9", "line\nbreak", 7, None):
+            yield "text parameter", self.template_group(params={**params, "message": bad})
+        yield "case sheet", self.template_group(params={**params, "target_sheet": "Nowhere"})
+        yield "case sheet", self.template_group(params={**params, "event_sheet": 'Data"'})
+        for bad in ("A0", "$A$1", "a1", "XFE1", "A1048577", "Data!A1", 'A1"', 5):
+            yield "one a1 cell", self.template_group(params={**params, "target_cell": bad})
+        yield "entry point", self.template_group(calls=[{"procedure": "Module1.Other", "args": []}])
+        yield "case fields", self.template_group(modules=[])
+        yield "case fields", {**self.template_group(), "v": [{k: v for k, v in self.template_group()["v"][0].items() if k != "sheets"}]}
+
+    def test_vba_template_route_expands_the_smoke_case_to_the_reviewed_source(self):
+        group = self.template_group()
+        self.admission.check(group)
+        import vba_templates
+        smoke_source = json.loads((HERE / "vba-smoke-source.json").read_text(encoding="ascii"))
+        expanded = vba_templates.expand(group["v"][0])
+        self.assertEqual(expanded["modules"], smoke_source["modules"])
+        self.assertEqual({k: v for k, v in expanded.items() if k != "modules"},
+                         {"names": {}, **{k: v for k, v in smoke_source.items() if k != "modules"}})
+
+    def test_vba_template_text_is_quoted_as_one_string_literal(self):
+        import vba_templates
+        group = self.template_group()
+        group["v"][0]["params"]["message"] = 'say "hi" {{target_cell}}'
+        self.admission.check(group)
+        source = vba_templates.expand(group["v"][0])["modules"][0]["source"]
+        self.assertIn('Err.Raise 5, "Module1", "say ""hi"" {{target_cell}}"', source)
+
+    def test_vba_template_route_refuses_what_the_catalogue_does_not_name(self):
+        for message, group in self.refused_template_cases():
+            with self.subTest(message=message, case=json.dumps(group["v"][0].get("params"))[:120]), \
+                    self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
+                self.admission.check(group)
+
+    def test_vba_template_files_match_their_pinned_hashes_and_a_changed_file_is_refused(self):
+        import hashlib, vba_templates
+        for name, entry in vba_templates.CATALOGUE["templates"].items():
+            for module in entry["modules"]:
+                data = (vba_templates.DIRECTORY / module["file"]).read_bytes()
+                self.assertEqual(hashlib.sha256(data).hexdigest(), module["sha256"], module["file"])
+        saved = vba_templates.CATALOGUE["templates"]["smoke"]["modules"][0]["sha256"]
+        try:
+            vba_templates.CATALOGUE["templates"]["smoke"]["modules"][0]["sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "pinned hash"):
+                self.admission.check(self.template_group())
+        finally:
+            vba_templates.CATALOGUE["templates"]["smoke"]["modules"][0]["sha256"] = saved
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_template_route_agrees_with_the_policy(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+
+        def run(group):
+            return subprocess.run([worker, "--check-vba-policy"], input=json.dumps(group), text=True,
+                                  capture_output=True, timeout=60)
+        self.assertEqual(run(self.template_group()).returncode, 0)
+        for message, group in self.refused_template_cases():
+            with self.subTest(message=message, case=json.dumps(group["v"][0].get("params"))[:120]):
+                result = run(group)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(message.lower(), result.stderr.lower())
+
+    def refused_rw17_cases(self):
+        """rw17 (dc-erfm3): the four bypasses, in one list for both validators."""
+        write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
+        probe = lambda line, sig="ByVal x As Long": f"Public Function Probe({sig}) As Long\n{line}\nProbe = 1\nEnd Function\n"
+        # 1: a Private Function (and a dotted name's last part) is still callable from a worksheet formula.
+        for name in ("FLATTEN", "HAS", "HASANY", "HASALL"):
+            hijack = f"Private Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
+            yield "collides", vba_group(hijack + probe(""),
+                                        sheets=[{"name": "Data", "cells": {
+                                            "A1": {"type": "formula", "formula": f'={name}("=WEBSERVICE(""http://x"")")'}}}])
+        yield "collides", vba_group(modules=[{"name": "Mode", "kind": "standard",
+                                              "source": "Public Function Sngl(ByVal x As Variant) As Variant\nSngl = x\nEnd Function\n"
+                                                        + probe("")}],
+                                    calls=[{"procedure": "Mode.Probe", "args": [number(ONE)]}])
+        # 2: a TEXT that can be empty at run time does not make the leading operand safe.
+        for lead in ('""', 'vbNullString', 'Empty', 'Null', 'Left("a", 0)', 'e', 's', 'v'):
+            for rest in ('(-1) & "x"', 'CStr(-1) & "x"', 'x & "x"'):
+                decl = {"e": 'Const e = ""\n', "s": 'Dim s As String\n', "v": 'Dim v As Variant\n'}.get(lead, "")
+                yield "plainly data", vba_group(probe(decl + write + lead + " & " + rest))
+        yield "plainly data", vba_group(probe(write + 'Left("" & (-1), 1) & "x"'))
+        # 3: + on a number, a boolean or a numeric string adds.
+        for expression in ('True + 0 & "x"', 'Left(True + 0, 1) & "x"', '(True + True) & "x"', '(" -1" + 0) & "x"',
+                           '("&H8000" + 0) & "x"', 'Left("&HFFFF" + 0, 1) & "x"', '("0" + True) & "x"'):
+            yield "plainly data", vba_group(probe(write + expression))
+        # 4: a negative hex Const and a numeric For variable are numbers.
+        yield "plainly data", vba_group(probe('Const h = &H8000\n' + write + 'Left(h, 1) & "x"'))
+        yield "plainly data", vba_group(probe('Const h = &HFFFF\n' + write + 'h & "x"'))
+        yield "plainly data", vba_group(probe('Dim i As Variant\nFor i = -1 To -1\n' + write + 'i & "x"\nNext i'))
+        yield "plainly data", vba_group(probe('Dim i As Variant\nFor i = -1 To -1\n' + write + 'Left(i, 1) & "x"\nNext i'))
+        yield "plainly data", vba_group(probe('Dim s As String\ns = -1\n' + write + 's'))
+        # parity: non-BMP text counts the way the worker counts it (UTF-16 units)
+        yield "frame budget", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "text", "value": "\U0001F600" * 3500}}}])
+        yield "invalid range", vba_group(calls=[{"procedure": "Probes.Probe", "args": [{"type": "text", "value": "\U0001F600" * 600}]}])
+
+    def test_vba_refuses_the_rw17_bypasses(self):
+        for message, group in self.refused_rw17_cases():
+            with self.subTest(message=message, case=json.dumps(group["v"][0]["modules"])[:200]), \
+                    self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
+                self.admission.check(group)
+
     def test_vba_refuses_the_rw16_bypasses_and_parity_differentials(self):
         for message, group in self.refused_rw16_cases():
             with self.subTest(message=message, case=json.dumps(group["v"][0]["modules"])[:200]), \
@@ -706,10 +820,10 @@ class AdmissionTests(unittest.TestCase):
         accepted.append(vba_group(sheets=[{"name": "My Data", "cells": {
             "A2": {"type": "formula", "formula": "='My Data'!A1+Data!A1"}}}, {"name": "Data", "cells": {}}]))
         for group in accepted:
-            with self.subTest(accepted=group["v"][0]["modules"][0]["source"][:40]):
+            with self.subTest(accepted=str(group["v"][0].get("template") or group["v"][0]["modules"][0]["source"][:40])):
                 result = run(group)
                 self.assertEqual(result.returncode, 0, result.stderr)
-        for message, group in (*self.refused_vba_cases(), *self.refused_rw16_cases()):
+        for message, group in (*self.refused_vba_cases(), *self.refused_rw16_cases(), *self.refused_rw17_cases()):
             with self.subTest(message=message):
                 result = run(group)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
