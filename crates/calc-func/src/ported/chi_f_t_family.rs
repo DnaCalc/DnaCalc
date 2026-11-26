@@ -299,9 +299,23 @@ pub(crate) fn f_tails(f: f64, d1: f64, d2: f64) -> (f64, f64) {
     if n >= d2 {
         bratio_from_wrapper(d2 / 2.0, d1 / 2.0, small, large)
     } else {
+        // A stored beta argument below the normal range reads as zero (Excel 20625:
+        // F.DIST(1e-305, 2, 2000, TRUE) and F.DIST(1e-307, 1, 10, TRUE) are 0, dc-j9k.505).
+        if small.is_subnormal() {
+            return (1.0, 0.0);
+        }
         let (left, right) = bratio_from_wrapper(d1 / 2.0, d2 / 2.0, small, large);
         (right, left)
     }
+}
+
+/// Excel's cumulative and right-tail F calls store the ratio `d2 / (d1 x)` when `d1 x < d2`; a
+/// ratio beyond the binary64 range is #NUM! (Excel 20625: F.DIST(x, 2, 2000, TRUE) is #NUM! below
+/// x = 5.5626846462680035e-306, where 2000 / (2 x) passes the largest double, dc-j9k.505).
+fn f_ratio_overflows(x: f64, d1: f64, d2: f64) -> bool {
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
+    let n = excel_x87_mul(d1, x);
+    n > 0.0 && n < d2 && !excel_x87_div(d2, n).is_finite()
 }
 
 pub fn f_dist_kernel(
@@ -317,6 +331,9 @@ pub fn f_dist_kernel(
         if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
             return Err(WorksheetErrorCode::Div0);
         }
+        if f_ratio_overflows(x, d1, d2) {
+            return Err(WorksheetErrorCode::Num);
+        }
         Ok(f_tails(x, d1, d2).1)
     } else {
         f_pdf_kernel(x, d1, d2).map(crate::ported::beta_gamma_stats_family::flush_subnormal)
@@ -329,6 +346,9 @@ pub fn f_dist_rt_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetEr
     let d2 = truncate_positive_integer(deg2)?;
     if !crate::ported::excel_numeric::excel_x87_mul(d1, x).is_finite() {
         return Err(WorksheetErrorCode::Div0);
+    }
+    if f_ratio_overflows(x, d1, d2) {
+        return Err(WorksheetErrorCode::Num);
     }
     let tail = f_tails(x, d1, d2).0;
     // The general right-tail arm flushes positive subnormals; the d1=2

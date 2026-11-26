@@ -8109,3 +8109,27 @@ fn confidence_norm_scales_by_the_stored_quotient() {
         );
     }
 }
+
+/// dc-j9k.505 (Excel 20625): the cumulative and right-tail F calls store the ratio d2 / (d1 x) when
+/// d1 x < d2 (beyond the binary64 range it is #NUM!), and read a stored beta argument below the
+/// normal range as zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn f_dist_tiny_x_ratio_overflow_and_subnormal_argument() {
+    use calc_func::value::WorksheetErrorCode::Num;
+    let f = |name: &str, x: f64, d1: f64, d2: f64, cum: Option<bool>| {
+        let mut args = vec![n(x), n(d1), n(d2)];
+        if let Some(c) = cum {
+            args.push(b(c));
+        }
+        call(name, args)
+    };
+    error(f("F.DIST", f64::from_bits(0x0010_0000_0000_0003), 2.0, 2000.0, Some(true)), Num);
+    error(f("F.DIST", 1e-307, 2.0, 2000.0, Some(true)), Num);
+    error(f("F.DIST.RT", 1e-307, 2.0, 2000.0, None), Num);
+    error(f("FDIST", 1e-307, 2.0, 2000.0, None), Num);
+    exact(f("F.DIST", 1e-305, 2.0, 2000.0, Some(true)), 0.0);
+    exact(f("F.DIST", 1e-307, 1.0, 10.0, Some(true)), 0.0);
+    exact(f("F.DIST", 2.3e-308, 1.0, 3.0, Some(true)), 0.0);
+    exact(f("F.DIST.RT", 1e-307, 1.0, 1.0, None), 1.0);
+}
