@@ -8294,6 +8294,34 @@ fn dc_j9k_587_lognorm_density_num_vs_div0_and_half_square_overflow() {
     assert!(number(pdf(1e-300, ln_x - 2.50e-10, 1e-10)).is_finite());
 }
 
+/// Excel 16.0 b20625 (Touchstone, dc-j9k.571 and dc-j9k.572): BETA.DIST PDF and CDF (bfrac arm)
+/// propagate `#DIV/0!` when `deviance_series` overflows `x + np` (within `|x - np| < 0.2*(x + np)`)
+/// and `#NUM!` when `deviance` overflows outside the series range or `a + b` overflows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_571_572_beta_dist_deviance_div0_and_num_overflow() {
+    let b = f64::from_bits;
+    let beta = |x: f64, a: f64, bb: f64, cum: bool| {
+        call("BETA.DIST", vec![n(x), n(a), n(bb), f1_support::b(cum)])
+    };
+    // dc-j9k.571 minimal rep (CDF, (n-k) + n*y overflows inside deviance_series -> #DIV/0!):
+    error(beta(b(0x3fd6_4ea6_84a1_e05a), b(0x7fdc_4aaf_a7cf_d850), b(0x7fdc_00a4_3342_d9a9), true), Div0);
+    // dc-j9k.571 PDF on minimal rep and worst rep (k + n*x overflows inside deviance_series -> #DIV/0!):
+    error(beta(b(0x3fd6_4ea6_84a1_e05a), b(0x7fdc_4aaf_a7cf_d850), b(0x7fdc_00a4_3342_d9a9), false), Div0);
+    error(beta(b(0x3fec_8ae4_5f54_d67d), b(0x7fde_3c96_360b_0edc), b(0x7fc6_49e6_fe64_e67d), false), Div0);
+    // dc-j9k.572 rep (CDF & PDF, k*ln(k/(n*x)) overflows outside deviance_series -> #NUM!):
+    error(beta(b(0x3e7a_d7f2_9abc_af48), b(0x7fb5_f262_b8bd_f206), b(0x7fbb_e4ef_3883_e707), true), Num);
+    error(beta(b(0x3e7a_d7f2_9abc_af48), b(0x7fb5_f262_b8bd_f206), b(0x7fbb_e4ef_3883_e707), false), Num);
+    // Live Excel PDF controls (15/15 matched): finite deviance sums stay 0.0, overflowing deviance or a+b -> #NUM!.
+    exact(beta(0.3, 5.73e307, 5.73e307, false), 0.0);
+    exact(beta(0.3, 5e307, 1e307, false), 0.0);
+    exact(beta(0.3, 1e307, 5e307, false), 0.0);
+    exact(beta(1e-5, 1.541e307, 1.959e307, false), 0.0);
+    error(beta(1e-6, 1.541e307, 1.959e307, false), Num);
+    error(beta(0.3, 1e308, 1e308, false), Num);
+    error(beta(1e-7, 5.73e307, 5.73e307, false), Num);
+}
+
 /// Excel 20527 (dc-j9k.309, .354): a significance of 309 or more places is #DIV/0! (10^309
 /// overflows) in PERCENTRANK, PERCENTRANK.INC and PERCENTRANK.EXC, after the out-of-range
 /// (#N/A) and the single-member checks; 308 places still answer.

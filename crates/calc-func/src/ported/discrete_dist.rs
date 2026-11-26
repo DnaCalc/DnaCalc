@@ -92,6 +92,30 @@ pub(crate) fn deviance(x: f64, np: f64) -> f64 {
     )
 }
 
+/// Checked Loader deviance matching Excel 16.0 b20625 (dc-j9k.571, dc-j9k.572):
+/// inside the series range (`|x - np| < 0.2*(x + np)` in x87), `x + np` overflowing binary64
+/// turns the guarded division `d / (x + np)` into `#DIV/0!`; outside it, non-finite deviance
+/// returns `#NUM!`.
+pub(crate) fn deviance_checked(x: f64, np: f64) -> R {
+    if excel_deviance_in_series(x, np) {
+        let sum = excel_x87_add(x, np);
+        if !sum.is_finite() {
+            return Err(WorksheetErrorCode::Div0);
+        }
+        let value = excel_deviance_series(x, np);
+        return if value.is_finite() { Ok(value) } else { Err(NUM) };
+    }
+    let value = excel_x87_add(
+        excel_x87_mul(x, excel_log(excel_x87_div(x, np))),
+        excel_x87_sub(np, x),
+    );
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(NUM)
+    }
+}
+
 /// The binomial mass of `x` successes in `n` trials, `0 < p < 1` (Loader's saddle-point form).
 fn binom_mass(x: f64, n: f64, p: f64, q: f64) -> f64 {
     if x == 0.0 {
@@ -128,19 +152,30 @@ pub(crate) fn beta_density(x: f64, a: f64, b: f64) -> Option<f64> {
     beta_density_at(x, excel_x87_sub(1.0, x), a, b)
 }
 
+pub(crate) fn beta_density_checked(x: f64, a: f64, b: f64) -> R {
+    beta_density_at_checked(x, excel_x87_sub(1.0, x), a, b)
+}
+
 /// [`beta_density`] at the pair `(x, y)` the incomplete beta holds. Both shapes above 1 take `y`;
 /// the `a == 1` and `b == 1` forms use `x` alone; for `a < 1 || b < 1` the complement term uses
 /// `excel_log1p_times(b - 1, -x)` up to `0.99` and `y` directly above `0.99` (matching Excel's
 /// `0.99` complement switch so tiny `y` does not cancel in `1 - x`).
 pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
+    beta_density_at_checked(x, y, a, b).ok()
+}
+
+/// Checked variant of [`beta_density_at`] propagating intermediate `#DIV/0!` (series sum overflow)
+/// and `#NUM!` (deviance or `a + b` overflow) from Loader's binomial saddle-point exponent
+/// (Excel 16.0 b20625, dc-j9k.571 and dc-j9k.572).
+pub(crate) fn beta_density_at_checked(x: f64, y: f64, a: f64, b: f64) -> R {
     if a == 1.0 {
-        return Some(excel_exp_running(
+        return Ok(excel_exp_running(
             excel_log1p_times(b - 1.0, -x),
             &[-excel_log(b)],
         ));
     }
     if b == 1.0 {
-        return Some(excel_exp_running(
+        return Ok(excel_exp_running(
             excel_x87_mul(a - 1.0, excel_log(x)),
             &[-excel_log(a)],
         ));
@@ -164,19 +199,22 @@ pub(crate) fn beta_density_at(x: f64, y: f64, a: f64, b: f64) -> Option<f64> {
         };
         let (s1, d1) = two_sum(t1, log_y_term);
         let (s2, d2) = two_sum(s1, -ln_beta);
-        return Some(excel_x87_mul(
+        return Ok(excel_x87_mul(
             crate::ported::excel_numeric::excel_exp(s2),
             excel_x87_add(1.0, excel_x87_add(d1, d2)),
         ));
     }
     let k = excel_x87_sub(a, 1.0);
     let n = excel_x87_sub(excel_x87_add(a, b), 2.0);
-    if !(n > k) {
-        return Some(f64::NAN);
+    if !n.is_finite() {
+        return Err(NUM);
     }
-    let exponent = binom_exponent(k, n, x, y);
+    if !(n > k) {
+        return Ok(f64::NAN);
+    }
+    let exponent = binom_exponent_checked(k, n, x, y)?;
     let normalizer = binom_normalizer(k, n);
-    Some(excel_exp_running(
+    Ok(excel_exp_running(
         exponent,
         &[
             normalizer[0],
@@ -195,6 +233,20 @@ fn binom_exponent(x: f64, n: f64, p: f64, q: f64) -> f64 {
     let lc = excel_x87_sub(lc, deviance(x, excel_x87_mul(n, p)));
     let lc = excel_x87_sub(lc, stirling_error(n - x));
     excel_x87_sub(lc, deviance(n - x, excel_x87_mul(n, q)))
+}
+
+fn binom_exponent_checked(x: f64, n: f64, p: f64, q: f64) -> R {
+    let lc = excel_x87_sub(stirling_error(n), stirling_error(x));
+    let d1 = deviance_checked(x, excel_x87_mul(n, p))?;
+    let lc = excel_x87_sub(lc, d1);
+    let lc = excel_x87_sub(lc, stirling_error(n - x));
+    let d2 = deviance_checked(n - x, excel_x87_mul(n, q))?;
+    let lc = excel_x87_sub(lc, d2);
+    if lc.is_finite() {
+        Ok(lc)
+    } else {
+        Err(NUM)
+    }
 }
 
 /// `sqrt(n / (2 pi x (n - x)))` as halves of stored logarithms, in this order: outside the series

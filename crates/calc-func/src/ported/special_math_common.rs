@@ -1362,10 +1362,10 @@ pub(crate) fn excel_ln_beta(a: f64, b: f64) -> f64 {
 /// `x^a y^b / B(a, b)` as Excel's recurrence arm forms it: the stored `x y` times the beta density
 /// (dc-6332.8: with Excel's own density, all 80 calls at each of BETA.DIST(x, a, 2) for eleven
 /// `a`, less one row).
-fn excel_brcomp(a: f64, b: f64, x: f64, y: f64) -> Option<f64> {
+fn excel_brcomp_checked(a: f64, b: f64, x: f64, y: f64) -> Result<f64, WorksheetErrorCode> {
     use crate::ported::excel_numeric::excel_x87_mul;
-    let density = crate::ported::discrete_dist::beta_density_at(x, y, a, b)?;
-    Some(excel_x87_mul(excel_x87_mul(x, y), density))
+    let density = crate::ported::discrete_dist::beta_density_at_checked(x, y, a, b)?;
+    Ok(excel_x87_mul(excel_x87_mul(x, y), density))
 }
 
 /// bpser: power series expansion for Ix(a, b) when b <= 1 or b*x <= 0.7.
@@ -1703,19 +1703,24 @@ fn bratio_brcmp1(mu: i32, a: f64, b: f64, x: f64, y: f64) -> f64 {
 }
 
 /// bfrac: continued fraction expansion for Ix(a, b) when a, b > 1.
-fn bratio_bfrac(a: f64, b: f64, x: f64, y: f64) -> f64 {
+fn bratio_bfrac_checked(a: f64, b: f64, x: f64, y: f64) -> Result<f64, WorksheetErrorCode> {
     // Below 0.99, the continued fraction uses the density at x and its stored complement.
     // Above 0.99, 1 - x cancels up to 53 bits for F/T callers, so Excel reflects the
     // prefactor to the complementary density using the caller's y (dc-j9k.58).
-    // When the density normalizer overflows, retain the scaled beta prefactor.
-    let bf = if x > 0.99 {
-        excel_brcomp(b, a, y, x)
+    // Intermediate #DIV/0! (series sum overflow) and #NUM! (deviance/shape overflow) propagate
+    // directly (dc-j9k.571, dc-j9k.572); when the density itself overflows to +Inf or is NaN for
+    // absorbed shapes above 0.99, retain the scaled beta prefactor.
+    let raw_bf = if x > 0.99 {
+        excel_brcomp_checked(b, a, y, x)?
     } else {
-        excel_brcomp(a, b, x, crate::ported::excel_numeric::excel_x87_sub(1.0, x))
-    }
-    .filter(|value| value.is_finite())
-    .unwrap_or_else(|| bratio_brcomp(a, b, x, y));
-    crate::ported::excel_numeric::excel_beta_fraction(a, b, x, y, bf)
+        excel_brcomp_checked(a, b, x, crate::ported::excel_numeric::excel_x87_sub(1.0, x))?
+    };
+    let bf = if raw_bf.is_finite() {
+        raw_bf
+    } else {
+        bratio_brcomp(a, b, x, y)
+    };
+    Ok(crate::ported::excel_numeric::excel_beta_fraction(a, b, x, y, bf))
 }
 
 /// bgrat: asymptotic expansion for Ix(a, b) when a is larger than b. Adds the
@@ -2105,7 +2110,7 @@ pub(crate) fn bratio_checked(a: f64, b: f64, x: f64, y: f64) -> Result<(f64, f64
             w1 = 0.5 + (0.5 - w);
         }
         "bfrac" => {
-            w = bratio_bfrac(a0, b0, x0, y0);
+            w = bratio_bfrac_checked(a0, b0, x0, y0)?;
             w1 = 0.5 + (0.5 - w);
         }
         "bup_160" => {

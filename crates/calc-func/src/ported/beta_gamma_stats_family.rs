@@ -100,14 +100,13 @@ pub(crate) fn beta_dist_kernel(
         };
     }
     if z > 0.0 && z < 1.0 {
-        if let Some(pdf) = crate::ported::discrete_dist::beta_density(z, alpha, beta) {
-            let pdf = excel_x87_div(pdf, width);
-            return if pdf.is_finite() {
-                Ok(pdf)
-            } else {
-                Err(WorksheetErrorCode::Num)
-            };
-        }
+        let pdf = crate::ported::discrete_dist::beta_density_checked(z, alpha, beta)?;
+        let pdf = excel_x87_div(pdf, width);
+        return if pdf.is_finite() {
+            Ok(pdf)
+        } else {
+            Err(WorksheetErrorCode::Num)
+        };
     }
     let log_pdf = (alpha - 1.0) * crt_log(z) + (beta - 1.0) * crt_log(1.0 - z)
         - beta_log_norm(alpha, beta)
