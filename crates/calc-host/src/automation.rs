@@ -39,6 +39,7 @@ mod clipboard;
 mod formatting;
 mod window;
 mod protection;
+pub(crate) use protection::ProtectionSave;
 mod find;
 mod advanced_filter;
 mod autofilter;

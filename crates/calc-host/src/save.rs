@@ -251,13 +251,14 @@ pub fn prepare_save_with_cache_policy(
 }
 
 pub(crate) fn effective_save_policy(host: &HostState, policy: &SavePolicy) -> SavePolicy {
-    if host.sheet_view_overrides.is_empty() {
+    if host.sheet_view_overrides.is_empty() && host.sheet_protection_saves.is_empty() {
         return policy.clone();
     }
     let mut views = policy.views.as_deref().cloned().unwrap_or_else(|| calc_doc::SaveViews {
         revision: host.revision().get(),
         active_sheet: None,
         sheets: BTreeMap::new(),
+        protections: BTreeMap::new(),
     });
     for (&sheet, o) in &host.sheet_view_overrides {
         if host.model.sheet_by_id(sheet).is_none() {
@@ -288,6 +289,10 @@ pub(crate) fn effective_save_policy(host: &HostState, policy: &SavePolicy) -> Sa
         } else if let Some(view) = host.sheet_view(sheet) {
             views.sheets.insert(sheet, view);
         }
+    }
+    for (&sheet, saved) in &host.sheet_protection_saves {
+        let Some(name) = host.model.sheet_by_id(sheet).map(|s| s.name().text().to_string_lossy()) else { continue };
+        views.protections.insert(sheet, saved.as_ref().map(|saved| saved.to_save(&name)));
     }
     SavePolicy {
         views: Some(Arc::new(views)),

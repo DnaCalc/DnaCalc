@@ -1521,6 +1521,25 @@ pub(super) fn plan(
             );
         }
     }
+    if let Some(views) = views.filter(|v| !v.protections.is_empty()) {
+        for sheet in sheets.iter().filter(|s| model.sheet_by_id(s.id()).is_some()) {
+            let Some(protection) = views.protections.get(&sheet.id()) else { continue };
+            if super::sheets::is_chart_sheet_part(sheet.part().name()) {
+                continue;
+            }
+            if sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged { part: sheet.part().name().to_owned() });
+            }
+            if let Some(kind) = sheet.preserved_kind() {
+                return Err(SaveRefusal::PreservedSheetChanged { part: sheet.part().name().to_owned(), kind });
+            }
+            let original = super::sheets::read_sheet(package, sheet.part().name())?;
+            let current = out.rewritten.remove(sheet.part().name()).map(|bytes| original.with_bytes(bytes));
+            let xml = current.as_ref().unwrap_or(&original);
+            let bytes = super::protection::rewrite(xml, protection.as_ref())?;
+            out.rewritten.insert(sheet.part().name().to_owned(), bytes);
+        }
+    }
     if conditional_changed {
         for sheet in sheets.iter().filter(|s| {
             base.definitions().conditional_rules(s.id())

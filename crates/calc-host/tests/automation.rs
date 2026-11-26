@@ -9970,6 +9970,67 @@ fn dc_9b7zd__protect_accepts_an_integer_password() {
     }
 }
 
+/// ww24 g/case4-5 (Excel 16.0.20625.20108): a numeric Password is the text Excel shows for it (1.5 needs "1.5", 123.0 needs
+/// "123"); Unprotect given a number is 1004 whatever it equals, and the sheet stays protected.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9b7zd__protect_floating_point_password_and_numeric_unprotect() {
+    let (_host, model, _) = blank_report();
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let protected = || matches!(invoke(&model, &sheet, "ProtectContents", vec![]).unwrap(), AutoValue::Bool(true));
+    let call = |name: &str, args: Vec<AutoValue>| invoke_kind(&model, &sheet, name, InvokeKind::Method, args);
+    for (password, text, number) in [(1.5, "1.5", AutoValue::R8(1.5)), (123.0, "123", AutoValue::R8(123.0))] {
+        call("Protect", vec![AutoValue::R8(password)]).unwrap();
+        assert!(protected());
+        let by_number = call("Unprotect", vec![number]);
+        assert!(matches!(by_number, Err(AutoError::Excel { number: 1004, .. })), "{by_number:?}");
+        let by_int = call("Unprotect", vec![AutoValue::I4(123)]);
+        assert!(matches!(by_int, Err(AutoError::Excel { number: 1004, .. })), "{by_int:?}");
+        assert!(protected());
+        call("Unprotect", vec![AutoValue::text(text)]).unwrap();
+        assert!(!protected());
+    }
+}
+
+/// ww24 g/case10 (Excel 16.0.20625.20108): a macro's Protect saves as `sheetProtection`: passwordless `sheet objects scenarios`,
+/// with a password the SHA-512 hash (spinCount 100000), Contents only `sheet` alone, Drawing and Scenarios only `objects
+/// scenarios` without `sheet`. The saved password hash unprotects after reopen; UserInterfaceOnly is not saved (ww22: False
+/// after reopen); an Unprotect removes the element.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9b7zd__macro_protect_saves_as_sheet_protection() {
+    let (host, model, _) = blank_report();
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let call = |name: &str, args: Vec<AutoValue>| invoke_kind(&model, &sheet, name, InvokeKind::Method, args).unwrap();
+    let xml = || saved_part(&mut host.session.borrow_mut(), "xl/worksheets/sheet");
+    let element = |xml: &str| xml.find("<sheetProtection").map(|at| xml[at..xml[at..].find("/>").unwrap() + at + 2].to_owned());
+    assert_eq!(element(&xml()), None);
+    call("Protect", vec![]);
+    assert_eq!(element(&xml()).as_deref(), Some("<sheetProtection sheet=\"1\" objects=\"1\" scenarios=\"1\"/>"));
+    call("Unprotect", vec![]);
+    assert_eq!(element(&xml()), None);
+    call("Protect", vec![AutoValue::Missing, AutoValue::Bool(false), AutoValue::Bool(true), AutoValue::Bool(false)]);
+    assert_eq!(element(&xml()).as_deref(), Some("<sheetProtection sheet=\"1\"/>"));
+    call("Unprotect", vec![]);
+    call("Protect", vec![AutoValue::Missing, AutoValue::Bool(true), AutoValue::Bool(false), AutoValue::Bool(true)]);
+    assert_eq!(element(&xml()).as_deref(), Some("<sheetProtection objects=\"1\" scenarios=\"1\"/>"));
+    call("Unprotect", vec![]);
+
+    call("Protect", vec![AutoValue::text("abc"), AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Bool(true)]);
+    let saved = element(&xml()).expect("a sheetProtection element");
+    assert!(saved.starts_with("<sheetProtection algorithmName=\"SHA-512\" hashValue=\""), "{saved}");
+    assert!(saved.contains("spinCount=\"100000\" sheet=\"1\" objects=\"1\" scenarios=\"1\"/>"), "{saved}");
+    let reopened = reopen_formatting(&host);
+    let sheet2 = obj(invoke(&reopened, &reopened.application(), "ActiveSheet", vec![]).unwrap());
+    let flag = |name: &str| matches!(invoke(&reopened, &sheet2, name, vec![]).unwrap(), AutoValue::Bool(true));
+    assert!(flag("ProtectContents") && flag("ProtectDrawingObjects") && flag("ProtectScenarios"));
+    assert!(!flag("ProtectionMode"), "UserInterfaceOnly survived the reopen");
+    let unprotect = |text: &str| invoke_kind(&reopened, &sheet2, "Unprotect", InvokeKind::Method, vec![AutoValue::text(text)]);
+    assert!(matches!(unprotect("nope"), Err(AutoError::Excel { number: 1004, .. })));
+    unprotect("abc").unwrap();
+    assert!(!flag("ProtectContents"));
+}
+
 /// dc-p3rg9: Window view state (Zoom, ScrollRow/ScrollColumn, DisplayGridlines/Headings/Formulas/Zeros/Outline)
 /// persists through save and reopen (ww21 window/sheet-xml.json: zoomScale=125, topLeftCell=D15, showGridLines=0).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -10604,13 +10665,15 @@ fn dc_p7gpy_refusals_cite_open_beads() {
     let (_host, model, _) = blank_report();
     let app = model.application();
 
-    // 1. protection.rs: fractional Password -> dc-9b7zd (was closed dc-oxh8w.68)
+    // 1. protection.rs: Unprotect of a passworded sheet without a password (the modal prompt) -> dc-9b7zd
     let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
-    let protect = invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::R8(123.5)]);
+    invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::text("pw")]).unwrap();
+    let protect = invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![]);
     assert!(
         matches!(&protect, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-9b7zd"),
-        "Protect fractional password must cite dc-9b7zd: {protect:?}"
+        "the Unprotect prompt must cite dc-9b7zd: {protect:?}"
     );
+    invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![AutoValue::text("pw")]).unwrap();
 
     // 2. chart_format.rs & chart_axes.rs: unstated Series.Border -> dc-yship (was closed dc-oxh8w.60);
     //    Chart.Axes without Type / secondary group -> dc-oxh8w.3 (was closed dc-oxh8w.48).

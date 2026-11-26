@@ -3963,6 +3963,7 @@ impl Server {
             revision: input.revision,
             active_sheet: Some(input.active_sheet.id()),
             sheets,
+            protections: Default::default(),
         })
     }
     /// The sheet's geometry as it goes on the wire (the display's column and row sizes).

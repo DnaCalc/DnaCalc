@@ -139,7 +139,7 @@ pub use save::file_form::{
     FileForm, FileFormError, file_form, file_form_with_links, file_form_with_lookup,
 };
 pub use save::{
-    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, SaveViews,
+    DocumentSnapshot, SaveFormat, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, SaveViews, SheetProtectionSave,
     SpreadsheetFormat, StructuralEdits, WriteError, conditional_rule, merge_template_sheets,
     new_condition_rule, new_conditional_rule, prepare_save, rename_template_sheet, write,
 };
