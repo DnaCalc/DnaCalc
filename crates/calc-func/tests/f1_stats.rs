@@ -8261,6 +8261,39 @@ fn lognorm_density_variance_underflow_and_overflow_are_div0() {
     }
 }
 
+/// Excel 16.0 b20625 (Touchstone, dc-j9k.587): when `sigma^2` underflows (subnormal or zero),
+/// LOGNORM.DIST density returns `#NUM!` if `exp(-(ln(sigma) + ln(sqrt(2*pi)) + ln(x)))` overflows
+/// binary64 and `#DIV/0!` otherwise; when `sigma^2` is normal, `d^2 / (2 * sigma^2)` overflowing
+/// binary64 returns `#NUM!` (not `0.0`), while finite `d^2 / (2 * sigma^2)` still cancels negative
+/// log terms inside `exp_of_sum`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_587_lognorm_density_num_vs_div0_and_half_square_overflow() {
+    let b = f64::from_bits;
+    let pdf = |x: f64, mean: f64, sigma: f64| {
+        call("LOGNORM.DIST", vec![n(x), n(mean), n(sigma), f1_support::b(false)])
+    };
+    // dc-j9k.587 sweep representatives:
+    error(pdf(b(0x0010_0000_0000_0000), 100.0, b(0x0010_0000_0000_0003)), Num);
+    error(pdf(b(0x0010_0000_0000_0000), b(0xc202_a05f_2000_0000), b(0x0010_0000_0000_0001)), Num);
+    // Exact 1-ULP normalizer boundary at sigma = 1e-160 (subnormal/zero variance):
+    error(pdf(b(0x2112_2922_fbd5_7e0e), 0.0, 1e-160), Num);
+    error(pdf(b(0x2112_2922_fbd5_7e0f), 0.0, 1e-160), Div0);
+    // Boundary at sigma = DBL_MIN (x = 0.0997 -> #NUM!, x = 0.0998 -> #DIV/0!):
+    error(pdf(0.0997, 0.0, b(0x0010_0000_0000_0000)), Num);
+    error(pdf(0.0998, 0.0, b(0x0010_0000_0000_0000)), Div0);
+    // Exact 1-ULP half_square = d^2 / (2 * sigma^2) overflow boundary at x = DBL_MIN, mean = 0:
+    error(pdf(b(0x0010_0000_0000_0000), 0.0, b(0x207f_4e97_3050_fbaa)), Num);
+    exact(pdf(b(0x0010_0000_0000_0000), 0.0, b(0x207f_4e97_3050_fbab)), 0.0);
+    // d^2 overflow with normal variance -> #NUM!, just below -> 0.0:
+    exact(pdf(1.0, 1e154, 1.0), 0.0);
+    error(pdf(1.0, 1e155, 1.0), Num);
+    // Normal variance with negative log sum < -ln(DBL_MAX): finite half_square still cancels it:
+    let ln_x = 1e-300_f64.ln();
+    error(pdf(1e-300, ln_x - 2.48e-10, 1e-10), Num);
+    assert!(number(pdf(1e-300, ln_x - 2.50e-10, 1e-10)).is_finite());
+}
+
 /// Excel 20527 (dc-j9k.309, .354): a significance of 309 or more places is #DIV/0! (10^309
 /// overflows) in PERCENTRANK, PERCENTRANK.INC and PERCENTRANK.EXC, after the out-of-range
 /// (#N/A) and the single-member checks; 308 places still answer.

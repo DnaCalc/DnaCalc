@@ -405,26 +405,28 @@ pub fn lognorm_dist_kernel(
         excel_exp_of_sum, excel_log, excel_x87_div, excel_x87_mul, excel_x87_sub,
     };
     let log_x = excel_log(x);
+    let log_sigma = excel_log(sigma);
     let d = excel_x87_sub(log_x, mean);
-    // Excel 20527 (dc-j9k.324-327): a variance that is subnormal or whose double overflows is
-    // #DIV/0!, never a density.
+    const LN_SQRT_2PI: f64 = 0.9189385332046728;
+    // Excel 16.0 b20625 (dc-j9k.324-327, dc-j9k.587): a variance that is subnormal or whose double
+    // overflows is #DIV/0!, except when the log-normalizer itself overflows binary64 (`#NUM!`).
     let variance = excel_x87_mul(sigma, sigma);
-    if variance.is_subnormal() || variance == 0.0 || !(variance * 2.0).is_finite() {
+    let two_variance = variance * 2.0;
+    if variance.is_subnormal() || variance == 0.0 || !two_variance.is_finite() {
+        if !excel_exp_of_sum(0.0, &[log_sigma, LN_SQRT_2PI, log_x]).is_finite() {
+            return Err(WorksheetErrorCode::Num);
+        }
         return Err(WorksheetErrorCode::Div0);
     }
-    let half_square = excel_x87_div(excel_x87_mul(d, d), variance) / 2.0;
-    if half_square.is_nan() {
+    let half_square = excel_x87_div(excel_x87_mul(d, d), two_variance);
+    if !half_square.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    // The squared distance over the variance overflowed: exp(-inf) is zero (Excel 20527).
-    if half_square.is_infinite() {
-        return Ok(0.0);
+    let value = excel_exp_of_sum(half_square, &[log_sigma, LN_SQRT_2PI, log_x]);
+    if !value.is_finite() {
+        return Err(WorksheetErrorCode::Num);
     }
-    const LN_SQRT_2PI: f64 = 0.9189385332046728;
-    Ok(flush_subnormal(excel_exp_of_sum(
-        half_square,
-        &[excel_log(sigma), LN_SQRT_2PI, log_x],
-    )))
+    Ok(flush_subnormal(value))
 }
 
 pub fn lognorm_inv_kernel(p: f64, mean: f64, sigma: f64) -> Result<f64, WorksheetErrorCode> {
