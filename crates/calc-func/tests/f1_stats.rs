@@ -895,6 +895,52 @@ fn trend_matrix_histories_keep_scalar_cell_shape() {
     error(call_on(&mut sheet, "TREND", vec![held_error, x, number]), Ref);
 }
 
+/// Excel 20625 pairs rectangular histories in row-major order and preserves the forecast shape.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_and_growth_keep_rectangular_history_shape() {
+    let y = arr(vec![vec![2.0, 4.0], vec![6.0, 8.0], vec![10.0, 12.0]]);
+    let x = arr(vec![vec![1.0, 2.0], vec![3.0, 4.0], vec![5.0, 6.0]]);
+    for (name, first, last) in [
+        ("TREND", 0x3fff_ffff_ffff_fffa, 0x4028_0000_0000_0001),
+        ("GROWTH", 0x4004_55a2_df3a_c7c7, 0x402c_358c_15e9_ac36),
+    ] {
+        for args in [vec![y.clone()], vec![y.clone(), x.clone()]] {
+            let (rows, cols, cells) = array(call(name, args));
+            assert_eq!((rows, cols), (3, 2));
+            assert_eq!(cells[0].to_bits(), first);
+            assert_eq!(cells[5].to_bits(), last);
+        }
+        error(call(name, vec![y.clone(), col(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])]), Ref);
+        error(call(name, vec![y.clone(), x.clone(), e(NA)]), Value);
+    }
+}
+
+/// Excel uses columns for observations in a row-oriented multivariable fit and prediction.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_uses_the_row_history_observation_axis() {
+    let y = arr(vec![vec![2.0, 4.0, 6.0, 8.0]]);
+    let x = arr(vec![vec![1.0, 2.0, 3.0, 4.0], vec![1.0, 4.0, 9.0, 16.0]]);
+    let new_x = arr(vec![vec![5.0, 6.0, 7.0], vec![25.0, 36.0, 49.0]]);
+    let (rows, cols, cells) = array(call("TREND", vec![y.clone(), x, new_x]));
+    assert_eq!((rows, cols, cells), (1, 3, vec![10.0, 12.0, 14.0]));
+    error(call("TREND", vec![y, col(&[1.0, 2.0, 3.0, 4.0])]), Ref);
+}
+
+/// A single observation derives its predictor axis from known_x.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn trend_and_growth_keep_single_observation_predictor_axis() {
+    let x = col(&[1.0, 2.0, 3.0]);
+    for name in ["TREND", "GROWTH"] {
+        exact(call(name, vec![n(2.0), x.clone(), col(&[4.0, 5.0, 6.0])]), 2.0);
+        error(call(name, vec![n(2.0), x.clone(), arr(vec![vec![4.0, 5.0, 6.0]])]), Ref);
+        let new_x = arr(vec![vec![4.0, 7.0], vec![5.0, 8.0], vec![6.0, 9.0]]);
+        assert_eq!(array(call(name, vec![n(2.0), x.clone(), new_x])), (1, 2, vec![2.0, 2.0]));
+    }
+}
+
 /// Excel 20527 cell-backed argument and independent error-priority controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

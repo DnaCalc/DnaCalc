@@ -10,6 +10,7 @@ enum VectorShape {
     Scalar,
     Row(usize),
     Column(usize),
+    Matrix { rows: usize, cols: usize },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -188,9 +189,9 @@ fn collect_numeric_vector_arg(arg: &CalcValue) -> Result<NumericVector, Workshee
 }
 
 /// A known_y or known_x argument of LINEST, LOGEST, TREND and GROWTH, read for its shape before
-/// its values: a text, logical or blank value is #VALUE! only when the shapes of known_y and
-/// known_x agree, and a shape disagreement is #REF! whatever the values are. An error value still
-/// comes first, and an omitted known_y is #VALUE! (Excel 16.0.20527, dcztvv_r23 and dcztvv_r24:
+/// its values: text, logicals, blanks and held errors give #VALUE! after the shapes agree.
+/// A shape disagreement gives #REF!. Direct errors follow scalar admission, and an omitted
+/// known_y is #VALUE! (Excel 16.0.20527, dcztvv_r23 and dcztvv_r24:
 /// `=LINEST("-11.827",X)`, `LINEST(TRUE,X)`, `LINEST(E1,X)` and `LINEST("",X)` with X eight rows
 /// by two columns are #REF!, `LINEST(NA(),X)` #N/A, `LINEST(1/0,X)` #DIV/0!, `LINEST(,X)` #VALUE!;
 /// `=LINEST("5",{1;2;3})` is #VALUE! and `LINEST(E1:E2,{1;2;3})` #REF!; eight known y with the
@@ -214,7 +215,7 @@ fn shape_first_cell(cell: &CalcValue, non_numeric: &mut bool) -> Result<f64, Wor
     }
 }
 
-fn shape_first_matrix(arg: &CalcValue, held_errors_as_values: bool) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
+fn shape_first_matrix(arg: &CalcValue) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
     if matches!(arg.core_ref(), CoreRef::Missing) {
         return Err(WorksheetErrorCode::Value);
     }
@@ -224,7 +225,7 @@ fn shape_first_matrix(arg: &CalcValue, held_errors_as_values: bool) -> Result<Sh
             let shape = array.shape();
             let mut values = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                if held_errors_as_values && matches!(cell.core_ref(), CoreRef::Error(_)) {
+                if matches!(cell.core_ref(), CoreRef::Error(_)) {
                     non_numeric = true;
                     values.push(f64::NAN);
                 } else {
@@ -258,8 +259,7 @@ fn shape_first_inputs(
     args: &[CalcValue],
     input: RegressionInput,
 ) -> Result<(NumericVector, PreparedPredictorInput), WorksheetErrorCode> {
-    let held_errors_as_values = input == RegressionInput::Coefficients;
-    if held_errors_as_values {
+    if input == RegressionInput::Coefficients {
         if let CoreRef::Array(array) = args[0].core_ref() {
             if array.shape().rows == 1 && array.shape().cols == 1
                 && matches!(array.get(0, 0).expect("single-cell array").core_ref(), CoreRef::Error(_))
@@ -268,18 +268,33 @@ fn shape_first_inputs(
             }
         }
     }
-    let known_y = shape_first_matrix(&args[0], held_errors_as_values)?;
+    let x_argument = args
+        .get(1)
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing));
+    if input == RegressionInput::Forecast && let Some(x) = x_argument {
+        let shape = |arg: &CalcValue| {
+            arg.as_array().map_or((1, 1), |array| {
+                let shape = array.shape();
+                (shape.rows, shape.cols)
+            })
+        };
+        let (y_rows, y_cols) = shape(&args[0]);
+        let (x_rows, x_cols) = shape(x);
+        let rectangular_y = y_rows > 1 && y_cols > 1;
+        let rectangular_x = x_rows > 1 && x_cols > 1;
+        if (rectangular_y && (y_rows, y_cols) != (x_rows, x_cols))
+            || ((y_rows, y_cols) == (1, 1)
+                && rectangular_x
+                && !matches!(args[0].core_ref(), CoreRef::Missing))
+        {
+            return Err(WorksheetErrorCode::Ref);
+        }
+    }
+    let known_y = shape_first_matrix(&args[0])?;
     let y = known_y.value;
     let paired_matrix = y.rows > 1 && y.cols > 1;
-    if paired_matrix && input == RegressionInput::Forecast {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    let mut known_x_raw = args
-        .get(1)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| shape_first_matrix(arg, held_errors_as_values))
-        .transpose()?;
-    // LINEST and LOGEST pair equal rectangles cell for cell in row-major order.
+    let mut known_x_raw = x_argument.map(shape_first_matrix).transpose()?;
+    // Equal history rectangles pair cell for cell in row-major order.
     // Omitted known_x uses the ordinary sequence over all of the cells.
     if paired_matrix && let Some(x) = &mut known_x_raw {
         if (x.value.rows, x.value.cols) != (y.rows, y.cols) {
@@ -287,7 +302,7 @@ fn shape_first_inputs(
         }
         x.value.rows = x.value.values.len();
         x.value.cols = 1;
-    } else if input == RegressionInput::Coefficients && let Some(x) = &mut known_x_raw {
+    } else if let Some(x) = &mut known_x_raw {
         // The y vector fixes the observation axis. Normalize row-oriented
         // predictors to one observation per row for the fit.
         if y.rows == 1 && y.cols > 1 {
@@ -302,7 +317,8 @@ fn shape_first_inputs(
     let shape = match (y.rows, y.cols) {
         (1, 1) => VectorShape::Scalar,
         (1, cols) => VectorShape::Row(cols),
-        _ => VectorShape::Column(y.values.len()),
+        (rows, 1) => VectorShape::Column(rows),
+        (rows, cols) => VectorShape::Matrix { rows, cols },
     };
     let y = NumericVector { values: y.values, shape };
     let x_non_numeric = known_x_raw.as_ref().is_some_and(|x| x.non_numeric);
@@ -385,6 +401,7 @@ fn default_output_shape_for_known_y(shape: VectorShape) -> OutputShape {
         VectorShape::Scalar => OutputShape::Scalar,
         VectorShape::Row(cols) => OutputShape::Row(cols),
         VectorShape::Column(rows) => OutputShape::Column(rows),
+        VectorShape::Matrix { rows, cols } => OutputShape::Matrix { rows, cols },
     }
 }
 
@@ -491,6 +508,7 @@ fn prediction_input_from_optional(
     raw: Option<NumericMatrix>,
     known_y: &NumericVector,
     known_x: &PreparedPredictorInput,
+    row_oriented: bool,
 ) -> Result<PreparedPredictorInput, WorksheetErrorCode> {
     match raw {
         None => Ok(PreparedPredictorInput {
@@ -522,11 +540,14 @@ fn prediction_input_from_optional(
                 });
             }
 
+            let matrix = if row_oriented { matrix.transpose() } else { matrix };
             if matrix.cols != predictor_count {
                 return Err(WorksheetErrorCode::Ref);
             }
             let output_shape = if matrix.rows == 1 {
                 OutputShape::Scalar
+            } else if row_oriented {
+                OutputShape::Row(matrix.rows)
             } else {
                 OutputShape::Column(matrix.rows)
             };
@@ -1249,94 +1270,45 @@ fn forecast_pair_kernel(
     Ok(CalcValue::number(a + b * x))
 }
 
-fn forecast_scalar(value: &CalcValue) -> CoreRef<'_> {
-    // The catalogue reads cell references into arrays before invoking the kernel.
-    value
-        .as_array()
-        .filter(|array| array.shape().rows == 1 && array.shape().cols == 1)
-        .and_then(|array| array.get(0, 0))
-        .unwrap_or(value)
-        .core_ref()
-}
-
 pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    // Excel 20527 reports VALUE for a nonnumeric scalar new_x with two numeric 2x2 histories,
-    // even when new_x or the optional constant argument contains a worksheet error.
-    let numeric_matrix = |index: usize| {
-        args.get(index).and_then(CalcValue::as_array).is_some_and(|a| {
-            let shape = a.shape();
-            shape.rows == 2 && shape.cols == 2 && a.iter_row_major().all(|v| v.as_number().is_some())
-        })
-    };
-    if numeric_matrix(1) && args.first().is_some_and(|v| {
-        matches!(forecast_scalar(v), CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
-    }) {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    if numeric_matrix(0) && numeric_matrix(1) && args.get(2).is_some_and(|v| {
-        matches!(forecast_scalar(v), CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Error(_))
-    }) {
-        return Err(WorksheetErrorCode::Value);
-    }
-    let (known_y, known_x) = match paired_forecast_matrices(args, true) {
-        Some(pair) => pair,
-        None => shape_first_inputs(args, RegressionInput::Forecast)?,
-    };
-    let new_x_raw = args
-        .get(2)
-        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
-        .transpose()?;
-    let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
-    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
-    trend_kernel(&known_y, &known_x, &new_x, use_const)
-}
-
-/// Excel 20527 pairs numeric 2x2 histories in row-major order when TREND or GROWTH
-/// forecasts a numeric 2x2 matrix. TREND also has a captured numeric scalar case.
-fn paired_forecast_matrices(
-    args: &[CalcValue],
-    allow_scalar_prediction: bool,
-) -> Option<(NumericVector, PreparedPredictorInput)> {
-    let matrix_values = |index: usize| {
-        let array = args.get(index)?.as_array()?;
-        let shape = array.shape();
-        if shape.rows != 2 || shape.cols != 2 {
-            return None;
-        }
-        array.iter_row_major().map(CalcValue::as_number).collect::<Option<Vec<_>>>()
-    };
-    let y = matrix_values(0)?;
-    let x = matrix_values(1)?;
-    let scalar_prediction = allow_scalar_prediction
-        && args
-            .get(2)
-            .is_some_and(|arg| matches!(forecast_scalar(arg), CoreRef::Number(_)));
-    if !scalar_prediction {
-        matrix_values(2)?;
-    }
-    Some((
-        NumericVector { values: y, shape: VectorShape::Column(4) },
-        PreparedPredictorInput {
-            predictors: NumericMatrix { rows: 4, cols: 1, values: x },
-            output_shape: OutputShape::Column(4),
-        },
-    ))
+    evaluate_forecast_series(args, trend_kernel)
 }
 
 pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    let (known_y, known_x) = match paired_forecast_matrices(args, false) {
-        Some(pair) => pair,
-        None => shape_first_inputs(args, RegressionInput::Forecast)?,
-    };
+    evaluate_forecast_series(args, growth_kernel)
+}
+
+fn evaluate_forecast_series(
+    args: &[CalcValue],
+    evaluate: fn(&NumericVector, &PreparedPredictorInput, &PreparedPredictorInput, bool)
+        -> Result<CalcValue, WorksheetErrorCode>,
+) -> Result<CalcValue, WorksheetErrorCode> {
+    let (known_y, known_x) = shape_first_inputs(args, RegressionInput::Forecast)?;
     let new_x_raw = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| collect_numeric_matrix_arg(arg))
+        .map(|arg| {
+            if matches!(known_y.shape, VectorShape::Matrix { .. }) {
+                let x = shape_first_matrix(arg).map_err(|_| WorksheetErrorCode::Value)?;
+                if x.non_numeric {
+                    return Err(WorksheetErrorCode::Value);
+                }
+                Ok(x.value)
+            } else {
+                collect_numeric_matrix_arg(arg)
+            }
+        })
         .transpose()?;
-    let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
+    // One observation has no axis of its own. A column of predictors puts
+    // observations in columns in new_x, just like a row-shaped known_y.
+    let column_of_predictors = known_y.shape == VectorShape::Scalar
+        && args.get(1).and_then(CalcValue::as_array).is_some_and(|array| {
+            array.shape().rows > 1 && array.shape().cols == 1
+        });
+    let row_oriented = matches!(known_y.shape, VectorShape::Row(_)) || column_of_predictors;
+    let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x, row_oriented)?;
     let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
-    growth_kernel(&known_y, &known_x, &new_x, use_const)
+    evaluate(&known_y, &known_x, &new_x, use_const)
 }
 
 pub(crate) fn eval_forecast_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
