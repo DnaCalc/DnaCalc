@@ -2116,6 +2116,28 @@ fn z_test_checks_sample_count_after_scalar_argument_errors() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.407 and dc-j9k.408: ZTEST publishes the midpoint on standardization overflow.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn z_test_standardization_overflow_returns_the_midpoint() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(f64::from_bits(0x3f16_c9f8_3b0c_3bab)), n(f64::from_bits(0xbefb_fadd_4679_6187))]);
+    sheet.column(1, 2, vec![n(1.0), n(5.0), n(3.0)]);
+    sheet.column(1, 3, vec![n(f64::MAX), n(f64::MAX)]);
+    let pair = sheet.area(1, 1, 2, 1);
+    let triple = sheet.area(1, 2, 3, 2);
+    let overflowed_mean = sheet.area(1, 3, 2, 3);
+    for name in ["ZTEST", "Z.TEST"] {
+        exact(call_on(&mut sheet, name, vec![pair.clone(), n(1e308)]), 0.5);
+        exact(
+            call_on(&mut sheet, name, vec![triple.clone(), n(-1.0), n(f64::from_bits(0x0010_0000_0000_0003))]),
+            0.5,
+        );
+        exact(call_on(&mut sheet, name, vec![triple.clone(), n(1e150), n(1.0)]), 1.0);
+        error(call_on(&mut sheet, name, vec![overflowed_mean.clone(), n(0.0), n(1.0)]), Num);
+    }
+}
+
 /// Excel 16.0.20527: a single blank cell differs from an array element or
 /// a blank within a multi-cell range, and argument errors keep their order.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -53,6 +53,10 @@ pub fn z_test_kernel(
     // F1 (dc-8dq): (x - mean) * sqrt(n) / sigma, as Excel's Z.TEST gives Z.TEST({1,5,3},2) (the
     // catalogue oracle's capture); dividing by sigma/sqrt(n) is one ulp away there.
     let z = (x - mean) * (values.len() as f64).sqrt() / sigma;
+    // Excel returns the midpoint when standardization overflows with a valid mean (dc-j9k.407).
+    if mean.is_finite() && z.is_infinite() {
+        return Ok(0.5);
+    }
     crate::ported::normal_log_family::norm_s_dist_kernel(z, true)
 }
 
