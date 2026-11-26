@@ -416,6 +416,21 @@ fn numeral_systems() {
     error(call("DECIMAL", vec![t("FF"), n(10.0)]), Num);
 }
 
+/// Excel 16.0.20625, dc-j9k.413: ARABIC validates the original length and trims worksheet whitespace.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn arabic_trims_boundary_whitespace_before_parsing() {
+    for (input, expected) in [("  \n", 0.0), ("\r\n", 0.0), ("\tIV\r", 4.0), (" -iV \n", -4.0)] {
+        exact(call("ARABIC", vec![t(input)]), expected);
+    }
+    error(call("ARABIC", vec![t(" - ")]), Num);
+    for input in ["I\nV", "- IV", "\u{000c}IV", "\u{00a0}IV", "ı"] {
+        error(call("ARABIC", vec![t(input)]), Value);
+    }
+    exact(call("ARABIC", vec![t(&"I".repeat(255))]), 255.0);
+    error(call("ARABIC", vec![t(&format!("{}\n", "I".repeat(255)))]), Value);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn series_and_paired_sums() {
