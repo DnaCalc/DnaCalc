@@ -218,6 +218,16 @@ impl Module {
                         import_lib: None,
                     },
                 ];
+                if references.msforms {
+                    refs.push(sym::ProjectReference::TypeLibrary {
+                        name: "MSForms".into(),
+                        guid: Some(format!("{{{}}}", crate::office::MSFORMS_LIBRARY)),
+                        version_major: None,
+                        version_minor: None,
+                        lcid: None,
+                        import_lib: None,
+                    });
+                }
                 if uses_dnacalc_objects {
                     refs.push(sym::ProjectReference::TypeLibrary {
                         name: "DnaCalcObjects".into(),
@@ -382,10 +392,12 @@ fn is_descriptor_reference(reference: &sym::ProjectReference) -> bool {
         sym::ProjectReference::TypeLibrary { name, guid, .. } => {
             name.eq_ignore_ascii_case("Excel")
                 || name.eq_ignore_ascii_case("Office")
+                || name.eq_ignore_ascii_case("MSForms")
                 || guid.as_deref().is_some_and(|g| {
                     let upper = g.to_ascii_uppercase();
                     upper.contains(crate::office::EXCEL_LIBRARY)
                         || upper.contains(crate::office::OFFICE_LIBRARY)
+                        || upper.contains(crate::office::MSFORMS_LIBRARY)
                 })
         }
         _ => false,

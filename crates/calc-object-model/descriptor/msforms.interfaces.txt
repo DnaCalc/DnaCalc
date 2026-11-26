@@ -1,0 +1,8 @@
+# MSForms library {0D452EE1-E08F-101A-852E-02608C4D0BB4} 2.0 (FM20.DLL): every coclass and
+# dispinterface of the library is written to msforms.json, and its enumerations to
+# crates/calc-vba/src/msforms_constants.rs. Unlike the other libraries this one is not written by
+# reading an installed type library: tools/com-descriptor --facts reads OxForms' recorded fact
+# file (docs/evidence/W010_complete_msforms_object_model_parity/beads/oxforms-jbjp.2/
+# fm20_typelib_facts.v1.json, FM20.DLL 16.0.20131.20012, SHA-256 2c0e732b...09fe):
+#   com-descriptor --facts <fm20_typelib_facts.v1.json> --out crates/calc-object-model/descriptor/msforms.json \
+#       --constants-out crates/calc-vba/src/msforms_constants.rs

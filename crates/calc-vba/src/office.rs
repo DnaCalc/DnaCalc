@@ -75,6 +75,9 @@ pub(crate) const VBA_LIBRARY: &str = "000204EF-0000-0000-C000-000000000046";
 pub(crate) const EXCEL_LIBRARY: &str = "00020813-0000-0000-C000-000000000046";
 /// The Office object library: supplied from DNA Calc's committed object-model descriptor.
 pub(crate) const OFFICE_LIBRARY: &str = "2DF8D04C-5BFA-101B-BDE5-00AA0044DE52";
+/// The Microsoft Forms 2.0 object library (FM20): supplied from DNA Calc's committed MSForms
+/// descriptor on every platform (dc-1jia7).
+pub(crate) const MSFORMS_LIBRARY: &str = "0D452EE1-E08F-101A-852E-02608C4D0BB4";
 /// OLE Automation (stdole2.tlb): CalcVBA's catalogue knows it on every platform.
 pub(crate) const STDOLE_LIBRARY: &str = "00020430-0000-0000-C000-000000000046";
 
@@ -215,12 +218,19 @@ impl OfficeProject {
                 OfficeReference::TypeLibrary { .. }
                     if matches!(
                         reference.guid().as_deref(),
-                        Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY)
+                        Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY | MSFORMS_LIBRARY)
                     ) => {}
                 _ => references.push(held.type_library().map_err(|e| e.to_string())?),
             }
         }
         Ok(references)
+    }
+
+    /// Whether the project lists the MSForms library (by its GUID).
+    pub fn lists_msforms(&self) -> bool {
+        self.references
+            .iter()
+            .any(|reference| reference.guid().as_deref() == Some(MSFORMS_LIBRARY))
     }
 
     /// The references that need the platform's registered type libraries (all but VBA, Excel,
@@ -231,7 +241,13 @@ impl OfficeProject {
             .filter(|reference| {
                 !matches!(
                     reference.guid().as_deref(),
-                    Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY | STDOLE_LIBRARY)
+                    Some(
+                        VBA_LIBRARY
+                            | EXCEL_LIBRARY
+                            | OFFICE_LIBRARY
+                            | STDOLE_LIBRARY
+                            | MSFORMS_LIBRARY
+                    )
                 )
             })
             .collect()

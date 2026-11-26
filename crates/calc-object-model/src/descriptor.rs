@@ -394,6 +394,9 @@ pub struct Descriptor {
     library_of: Vec<usize>,
     by_name: HashMap<String, InterfaceId>,
     by_guid: HashMap<Guid, InterfaceId>,
+    /// Types by (library index, lower-case name): libraries may repeat a type name (MSForms'
+    /// `Font`, `Page`, `Pages` beside Excel's), which `by_name` resolves to the first library.
+    by_library_name: HashMap<(usize, String), InterfaceId>,
     xlc_reach: HashMap<String, Vec<Capability>>,
 }
 
@@ -402,6 +405,7 @@ const EXCEL: &[u8] = include_bytes!("../descriptor/excel.json");
 const OFFICE: &[u8] = include_bytes!("../descriptor/office.json");
 const ADDIN_DESIGNER: &[u8] = include_bytes!("../descriptor/addin-designer.json");
 const ACCESSIBILITY: &[u8] = include_bytes!("../descriptor/accessibility.json");
+const MSFORMS: &[u8] = include_bytes!("../descriptor/msforms.json");
 
 const REACH: &[u8] = include_bytes!("../descriptor/reach.json");
 
@@ -413,7 +417,7 @@ struct ReachOverlay {
 }
 
 impl Descriptor {
-    /// The committed descriptor (Excel, Office, Add-in Designer, Accessibility), parsed once.
+    /// The committed descriptor (Excel, Office, Add-in Designer, Accessibility, MSForms), parsed once.
     pub fn get() -> &'static Descriptor {
         static DESCRIPTOR: OnceLock<Descriptor> = OnceLock::new();
         DESCRIPTOR.get_or_init(|| {
@@ -425,6 +429,7 @@ impl Descriptor {
                 text(OFFICE),
                 text(ADDIN_DESIGNER),
                 text(ACCESSIBILITY),
+                text(MSFORMS),
             ])
             .expect("committed object-model descriptor is valid JSON");
             descriptor.load_reach(REACH).expect("committed reach overlay matches the descriptor");
@@ -442,6 +447,7 @@ impl Descriptor {
             library_of: Vec::new(),
             by_name: HashMap::new(),
             by_guid: HashMap::new(),
+            by_library_name: HashMap::new(),
             xlc_reach: HashMap::new(),
         };
         for text in files {
@@ -454,6 +460,10 @@ impl Descriptor {
                     descriptor.by_guid.entry(guid).or_insert(id);
                 }
                 descriptor.by_name.entry(ty.name.to_ascii_lowercase()).or_insert(id);
+                descriptor
+                    .by_library_name
+                    .entry((library, ty.name.to_ascii_lowercase()))
+                    .or_insert(id);
                 descriptor.types.push(ty);
                 descriptor.library_of.push(library);
             }
@@ -491,6 +501,22 @@ impl Descriptor {
         let name = name.rsplit('.').next().unwrap_or(name);
         self.by_name.get(&name.to_ascii_lowercase()).copied()
     }
+    /// A type by name within the library of `owner`, else by [`Descriptor::id`]: the lookup for the
+    /// names a type of that library mentions (its base, its default interface).
+    pub fn id_near(&self, owner: InterfaceId, name: &str) -> Option<InterfaceId> {
+        let name = name.rsplit('.').next().unwrap_or(name);
+        let library = self.library_of[owner.0 as usize];
+        self.by_library_name
+            .get(&(library, name.to_ascii_lowercase()))
+            .copied()
+            .or_else(|| self.id(name))
+    }
+    /// A type by name within the library called `library` (case-insensitive).
+    pub fn id_in(&self, library: &str, name: &str) -> Option<InterfaceId> {
+        let name = name.rsplit('.').next().unwrap_or(name);
+        let index = self.libraries.iter().position(|l| l.name.eq_ignore_ascii_case(library))?;
+        self.by_library_name.get(&(index, name.to_ascii_lowercase())).copied()
+    }
     /// Find the first described type with this GUID.
     pub fn by_guid(&self, guid: &Guid) -> Option<InterfaceId> {
         self.by_guid.get(guid).copied()
@@ -512,7 +538,7 @@ impl Descriptor {
         let ty = self.ty(id);
         if ty.kind == TypeKind::Coclass {
             if let Some(default) = ty.coclass_interfaces.iter().find(|i| i.default && !i.source) {
-                if let Some(found) = self.id(&default.name) {
+                if let Some(found) = self.id_near(id, &default.name) {
                     return found;
                 }
             }
@@ -530,7 +556,7 @@ impl Descriptor {
                 .base
                 .as_deref()
                 .filter(|base| !base.eq_ignore_ascii_case("IDispatch") && !base.eq_ignore_ascii_case("IUnknown"))
-                .and_then(|base| self.id(base));
+                .and_then(|base| self.id_near(at, base));
         }
         chain.iter().rev().flat_map(|at| self.ty(*at).members.iter()).collect()
     }

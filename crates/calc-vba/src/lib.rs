@@ -7,6 +7,7 @@ use calc_func::value::{CellKey, ReferenceLike};
 use calc_func::{UserFunction, UserFunctionContext};
 pub use calcvba_host::Backend;
 mod descriptor;
+mod msforms_constants;
 pub mod events;
 mod invocation_model;
 pub mod office;

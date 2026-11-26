@@ -14,21 +14,33 @@
 //! type name per line, `#` starting a comment. A listed name the library does not define is
 //! reported on stderr and the run exits 1 after writing the descriptor of the names it found.
 //!
-//! Native only, and Windows only: elsewhere it prints that it needs Windows and exits 2.
+//! `--facts <facts.json> --out <json> [--constants-out <rs>]` writes a descriptor from a recorded
+//! type-library fact file instead (any platform; see `facts.rs`).
+//!
+//! Native only. Reading a type library needs Windows: elsewhere it prints that and exits 2.
 
 #[cfg(target_arch = "wasm32")]
 compile_error!("com-descriptor is native-only and must not be built for wasm32");
 
+mod facts;
 #[cfg(windows)]
 mod typelib;
 
 #[cfg(windows)]
 fn main() {
-    std::process::exit(typelib::run(std::env::args().skip(1).collect()));
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--facts") {
+        std::process::exit(facts::run(&args));
+    }
+    std::process::exit(typelib::run(args));
 }
 
 #[cfg(not(windows))]
 fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--facts") {
+        std::process::exit(facts::run(&args));
+    }
     eprintln!("com-descriptor needs Windows: it reads COM type libraries through oleaut32");
     std::process::exit(2);
 }
