@@ -1,0 +1,84 @@
+{
+  "double.xlsx": {
+    "xl/workbook.xml": [
+      "<ns0:workbookPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" defaultThemeVersion=\"202300\" />",
+      "<ns0:sheets xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:ns1=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><ns0:sheet name=\"Sheet1\" sheetId=\"1\" ns1:id=\"rId1\" /></ns0:sheets>",
+      "<ns0:calcPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" calcId=\"191029\" calcOnSave=\"0\" />"
+    ],
+    "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+    "xl/worksheets/sheet1.xml": {
+      "sheetProtection": {
+        "algorithmName": "SHA-512",
+        "hashValue": "BMC3FHxpHniLEee3aQ9i/2dNgfrC3kNvfUOo1EBTpP0Dx2kcHw47wfVBiy8PAXsvBw3W+OOWjif/0JQpS84/8A==",
+        "saltValue": "ZEYMdmDr90s3gBDgtyALzg==",
+        "spinCount": "100000",
+        "sheet": "1",
+        "formatCells": "0"
+      }
+    }
+  },
+  "empty-text.xlsx": {
+    "xl/workbook.xml": [
+      "<ns0:workbookPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" defaultThemeVersion=\"202300\" />",
+      "<ns0:sheets xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:ns1=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><ns0:sheet name=\"Sheet1\" sheetId=\"1\" ns1:id=\"rId1\" /></ns0:sheets>",
+      "<ns0:calcPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" calcId=\"191029\" calcOnSave=\"0\" />"
+    ],
+    "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+    "xl/worksheets/sheet1.xml": {
+      "sheetProtection": {
+        "sheet": "1",
+        "formatCells": "0"
+      }
+    }
+  },
+  "integer.xlsx": {
+    "xl/workbook.xml": [
+      "<ns0:workbookPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" defaultThemeVersion=\"202300\" />",
+      "<ns0:sheets xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:ns1=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><ns0:sheet name=\"Sheet1\" sheetId=\"1\" ns1:id=\"rId1\" /></ns0:sheets>",
+      "<ns0:calcPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" calcId=\"191029\" calcOnSave=\"0\" />"
+    ],
+    "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+    "xl/worksheets/sheet1.xml": {
+      "sheetProtection": {
+        "algorithmName": "SHA-512",
+        "hashValue": "t0bPeNu/r0qwdvU+XB9rjw4/mYpW/y759h2UQXdFSm9iAAnY7J0ebwFuQ73wSPxrf3ELSnMmseRo781p5SXm4g==",
+        "saltValue": "uLqSWNK76RuepKuo8MdhrA==",
+        "spinCount": "100000",
+        "sheet": "1",
+        "formatCells": "0"
+      }
+    }
+  },
+  "omitted.xlsx": {
+    "xl/workbook.xml": [
+      "<ns0:workbookPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" defaultThemeVersion=\"202300\" />",
+      "<ns0:sheets xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:ns1=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><ns0:sheet name=\"Sheet1\" sheetId=\"1\" ns1:id=\"rId1\" /></ns0:sheets>",
+      "<ns0:calcPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" calcId=\"191029\" calcOnSave=\"0\" />"
+    ],
+    "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+    "xl/worksheets/sheet1.xml": {
+      "sheetProtection": {
+        "sheet": "1",
+        "formatCells": "0"
+      }
+    }
+  },
+  "text.xlsx": {
+    "xl/workbook.xml": [
+      "<ns0:workbookPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" defaultThemeVersion=\"202300\" />",
+      "<ns0:sheets xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:ns1=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><ns0:sheet name=\"Sheet1\" sheetId=\"1\" ns1:id=\"rId1\" /></ns0:sheets>",
+      "<ns0:calcPr xmlns:ns0=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" calcId=\"191029\" calcOnSave=\"0\" />"
+    ],
+    "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+    "xl/worksheets/sheet1.xml": {
+      "sheetProtection": {
+        "algorithmName": "SHA-512",
+        "hashValue": "HlkqK902Kw0Yyj0cUNuJMJoH1ti513mUsZNFUXfNOfu0S6HHtjsGr9IF43bSiwYn+2RUYBiETeJGY7bShrpAiQ==",
+        "saltValue": "LofWZ3ZdLXNq/7wV9Ll0WA==",
+        "spinCount": "100000",
+        "sheet": "1",
+        "formatCells": "0"
+      }
+    }
+  }
+}

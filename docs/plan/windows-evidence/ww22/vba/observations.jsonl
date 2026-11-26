@@ -1,0 +1,15 @@
+{"id":"VBA.Move.before-inside","ok":true,"value":{"sheet":"B","active":["A","B","C","D"],"name":"Sheet2","source":["A","B","C","D"],"vba":"OK"}}
+{"id":"VBA.Move.after-inside","ok":true,"value":{"sheet":"B","active":["A","B","C","D"],"name":"Sheet3","source":["A","B","C","D"],"vba":"OK"}}
+{"id":"VBA.Move.reversed","ok":true,"value":{"sheet":"B","active":["B","C","A","D"],"name":"Sheet4","source":["B","C","A","D"],"vba":"OK"}}
+{"id":"VBA.Move.group-no-anchor","ok":true,"value":{"sheet":"B","active":["B","C"],"name":"Book1","source":["A","D"],"vba":"OK"}}
+{"id":"VBA.Member.1","ok":true,"value":"Error|Error 2042"}
+{"id":"VBA.Member.2","ok":true,"value":"2"}
+{"id":"VBA.Member.3","ok":true,"value":"1"}
+{"id":"VBA.Member.4","ok":true,"value":"9"}
+{"id":"VBA.Member.5","ok":true,"value":"1004|Unable to get the Match property of the WorksheetFunction class"}
+{"id":"VBA.Member.6","ok":true,"value":"7|3"}
+{"id":"VBA.Member.7","ok":true,"value":"OK"}
+{"id":"VBA.Member.8","ok":true,"value":"OK"}
+{"id":"VBA.Member.9","ok":true,"value":"-2147024809|The item with the specified name wasn't found."}
+{"id":"Paste.Enum.21","ok":true,"value":{"library":"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE"}}
+{"id":"VBA.MultiBook.Calculate","ok":true,"value":{"second":"Sheet8","first_cells":[{"address":"$A$1","value":5.0,"text":"5","formula":"5","format":"General"},{"address":"$B$1","value":10.0,"text":"10","formula":"=A1*2","format":"General"},{"address":"$C$1","value":15.0,"text":"15","formula":"=A1+10","format":"General"},{"address":"$F$1","value":null,"text":"","formula":"","format":"General"},{"address":"$F$2","value":null,"text":"","formula":"","format":"General"}],"active":"Sheet8","vba":"OK","second_cells":[{"address":"$A$1","value":2.0,"text":"2","formula":"2","format":"General"},{"address":"$B$1","value":4.0,"text":"4","formula":"=A1*2","format":"General"},{"address":"$C$1","value":12.0,"text":"12","formula":"=A1+10","format":"General"},{"address":"$F$1","value":null,"text":"","formula":"","format":"General"},{"address":"$F$2","value":null,"text":"","formula":"","format":"General"}],"first":"Sheet7","number_of_books":2}}

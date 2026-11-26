@@ -1,0 +1,148 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.RangeSelection",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:02:48.7715845Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "sheets",
+      "source": "sheets/observations.jsonl"
+    },
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:07:23.8571439Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "followup",
+      "source": "followup/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Range.Activate.B2:D5",
+      "reading": "sheets",
+      "args": [
+        "A1:B2 selected",
+        "B2:D5"
+      ],
+      "expected_bits": "text:[true,true,{\"active\":\"$B$2\",\"selection\":\"$A$1:$B$2\"}]",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Range.Activate.A1:B1",
+      "reading": "sheets",
+      "args": [
+        "A1:B2 selected",
+        "A1:B1"
+      ],
+      "expected_bits": "text:[true,true,{\"active\":\"$A$1\",\"selection\":\"$A$1:$B$2\"}]",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.True.inactive",
+      "reading": "followup",
+      "args": [
+        "True",
+        "inactive",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"0|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.True.copy",
+      "reading": "followup",
+      "args": [
+        "True",
+        "copy",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"1|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.True.cut",
+      "reading": "followup",
+      "args": [
+        "True",
+        "cut",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"2|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.1.inactive",
+      "reading": "followup",
+      "args": [
+        "1",
+        "inactive",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"0|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.1.copy",
+      "reading": "followup",
+      "args": [
+        "1",
+        "copy",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"1|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.1.cut",
+      "reading": "followup",
+      "args": [
+        "1",
+        "cut",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"2|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.2.inactive",
+      "reading": "followup",
+      "args": [
+        "2",
+        "inactive",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"0|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.2.copy",
+      "reading": "followup",
+      "args": [
+        "2",
+        "copy",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"1|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.CutCopyMode.2.cut",
+      "reading": "followup",
+      "args": [
+        "2",
+        "cut",
+        "A1=4 in source when mode is primed"
+      ],
+      "expected_bits": "text:\"2|0\"",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.49\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

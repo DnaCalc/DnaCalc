@@ -1,0 +1,29 @@
+{"id":"BlankOnBlank.2.False","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":3.0,"text":"3","formula":"3","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.3.False","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":-3.0,"text":"-3","formula":"-3","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.4.False","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":0.0,"text":"0","formula":"0","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":0.0,"text":"0","formula":"0","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.5.False","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":0.0,"text":"0","formula":"0","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":-2146826281,"text":"#DIV/0!","formula":"#DIV/0!","format":"General"},{"address":"$D$4","value":-2146826281,"text":"#DIV/0!","formula":"#DIV/0!","format":"General"}]}}
+{"id":"BlankOnBlank.2.True","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":3.0,"text":"3","formula":"3","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.3.True","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":-3.0,"text":"-3","formula":"-3","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.4.True","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":0.0,"text":"0","formula":"0","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":0.0,"text":"0","formula":"0","format":"General"}]}}
+{"id":"BlankOnBlank.5.True","ok":true,"value":{"returned":true,"cells":[{"address":"$D$1","value":0.0,"text":"0","formula":"0","format":"General"},{"address":"$D$2","value":null,"text":"","formula":"","format":"General"},{"address":"$D$3","value":7.0,"text":"7","formula":"7","format":"General"},{"address":"$D$4","value":-2146826281,"text":"#DIV/0!","formula":"#DIV/0!","format":"General"}]}}
+{"id":"VBA.CutCopyMode.True.inactive","ok":true,"value":"0|0"}
+{"id":"VBA.CutCopyMode.True.copy","ok":true,"value":"1|0"}
+{"id":"VBA.CutCopyMode.True.cut","ok":true,"value":"2|0"}
+{"id":"VBA.CutCopyMode.1.inactive","ok":true,"value":"0|0"}
+{"id":"VBA.CutCopyMode.1.copy","ok":true,"value":"1|0"}
+{"id":"VBA.CutCopyMode.1.cut","ok":true,"value":"2|0"}
+{"id":"VBA.CutCopyMode.2.inactive","ok":true,"value":"0|0"}
+{"id":"VBA.CutCopyMode.2.copy","ok":true,"value":"1|0"}
+{"id":"VBA.CutCopyMode.2.cut","ok":true,"value":"2|0"}
+{"id":"VBA.CutCopyMode.0.0.inactive","ok":true,"value":"0|0"}
+{"id":"VBA.CutCopyMode.0.0.copy","ok":true,"value":"1|0"}
+{"id":"VBA.CutCopyMode.0.0.cut","ok":true,"value":"2|0"}
+{"id":"VBA.CutCopyMode.Empty.inactive","ok":true,"value":"0|0"}
+{"id":"VBA.CutCopyMode.Empty.copy","ok":true,"value":"1|0"}
+{"id":"VBA.CutCopyMode.Empty.cut","ok":true,"value":"2|0"}
+{"id":"AdvancedFilter.Stale.known","ok":false,"hresult":"0x800A03EC","description":"The extract range has a missing or invalid field name."}
+{"id":"AdvancedFilter.Stale.unknown","ok":false,"hresult":"0x800A03EC","description":"The extract range has a missing or invalid field name."}
+{"id":"AdvancedFilter.Stale.computed","ok":false,"hresult":"0x800A03EC","description":"The extract range has a missing or invalid field name."}
+{"id":"Paste.Format.7","ok":true,"value":{"cell":[{"address":"$E$7","value":3.0,"text":"3.00","formula":"=1+2","format":"0.00"}],"locked":false,"fill":255.0,"ret":true,"border":-4115,"bold":true,"alignment":-4108}}
+{"id":"Paste.Format.11","ok":true,"value":{"cell":[{"address":"$E$11","value":3.0,"text":"3.00","formula":"=1+2","format":"0.00"}],"locked":true,"fill":16777215.0,"ret":true,"border":-4115,"bold":false,"alignment":-4152}}
+{"id":"Paste.Format.12","ok":true,"value":{"cell":[{"address":"$E$12","value":3.0,"text":"3.00","formula":"3","format":"0.00"}],"locked":true,"fill":16777215.0,"ret":true,"border":-4115,"bold":false,"alignment":-4152}}

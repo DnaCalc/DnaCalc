@@ -1,0 +1,73 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.SheetCopyMove",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:02:48.7715845Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "sheets",
+      "source": "sheets/observations.jsonl"
+    },
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:04:49.5231201Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "vba",
+      "source": "vba/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Copy.CrossWorkbook.Before",
+      "reading": "sheets",
+      "args": [
+        "Data",
+        "Before:=Target",
+        "Keep!A1=17",
+        "Data!A1==Keep!A1"
+      ],
+      "expected_bits": "text:{\"active_book\":\"Sheet3\",\"active_sheet\":\"Data\",\"cell\":[{\"address\":\"$A$1\",\"format\":\"General\",\"formula\":\"=[Sheet2]Keep!A1\",\"text\":\"17\",\"value\":17.0}],\"destination\":[\"Data\",\"Target\"],\"destination_book\":\"Sheet3\",\"links\":[\"Sheet2\"],\"source\":[\"Keep\",\"Data\"]}",
+      "calc_func": "text:{\"owner\":\"dc-fa8cx\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Move.CrossWorkbook.Before",
+      "reading": "sheets",
+      "args": [
+        "Data",
+        "Before:=Target",
+        "Keep!A1=17",
+        "Data!A1==Keep!A1"
+      ],
+      "expected_bits": "text:{\"active_book\":\"Sheet5\",\"active_sheet\":\"Data\",\"cell\":[{\"address\":\"$A$1\",\"format\":\"General\",\"formula\":\"=[Sheet4]Keep!A1\",\"text\":\"17\",\"value\":17.0}],\"destination\":[\"Data\",\"Target\"],\"destination_book\":\"Sheet5\",\"links\":[\"Sheet4\"],\"source\":[\"Keep\"]}",
+      "calc_func": "text:{\"owner\":\"dc-fa8cx\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.Move.before-inside",
+      "reading": "vba",
+      "args": [
+        "A,B,C,D",
+        "Worksheets(Array(2,3)).Move Before:=Worksheets(2)"
+      ],
+      "expected_bits": "text:{\"active\":[\"A\",\"B\",\"C\",\"D\"],\"name\":\"Sheet2\",\"sheet\":\"B\",\"source\":[\"A\",\"B\",\"C\",\"D\"],\"vba\":\"OK\"}",
+      "calc_func": "text:{\"owner\":\"dc-fa8cx\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "VBA.Move.after-inside",
+      "reading": "vba",
+      "args": [
+        "A,B,C,D",
+        "Worksheets(Array(2,3)).Move After:=Worksheets(3)"
+      ],
+      "expected_bits": "text:{\"active\":[\"A\",\"B\",\"C\",\"D\"],\"name\":\"Sheet3\",\"sheet\":\"B\",\"source\":[\"A\",\"B\",\"C\",\"D\"],\"vba\":\"OK\"}",
+      "calc_func": "text:{\"owner\":\"dc-fa8cx\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

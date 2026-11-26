@@ -1,0 +1,161 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.PasteSpecial",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:03:34.1306482Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "paste",
+      "source": "paste/observations.jsonl"
+    },
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:07:23.8571439Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "followup",
+      "source": "followup/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Widths.E1:H1",
+      "reading": "paste",
+      "args": [
+        "A1:B2",
+        "E1:H1",
+        "8",
+        "A width=20, B width=5 then Hidden=True, D:H width=12 and D1:H3=7"
+      ],
+      "expected_bits": "text:[true,{\"cells\":[{\"address\":\"$D$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$E$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$F$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0}],\"columns\":[{\"column\":\"D\",\"hidden\":false,\"outline\":1.0,\"width\":12.0},{\"column\":\"E\",\"hidden\":false,\"outline\":1.0,\"width\":20.0},{\"column\":\"F\",\"hidden\":true,\"outline\":1.0,\"width\":8.43},{\"column\":\"G\",\"hidden\":false,\"outline\":1.0,\"width\":20.0},{\"column\":\"H\",\"hidden\":true,\"outline\":1.0,\"width\":8.43}],\"error\":null,\"result\":true}]",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Widths.E1:G1",
+      "reading": "paste",
+      "args": [
+        "A1:B2",
+        "E1:G1",
+        "8",
+        "A width=20, B width=5 then Hidden=True, D:H width=12 and D1:H3=7"
+      ],
+      "expected_bits": "text:[true,{\"cells\":[{\"address\":\"$D$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$E$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$F$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0}],\"columns\":[{\"column\":\"D\",\"hidden\":false,\"outline\":1.0,\"width\":12.0},{\"column\":\"E\",\"hidden\":false,\"outline\":1.0,\"width\":20.0},{\"column\":\"F\",\"hidden\":true,\"outline\":1.0,\"width\":8.43},{\"column\":\"G\",\"hidden\":false,\"outline\":1.0,\"width\":12.0},{\"column\":\"H\",\"hidden\":false,\"outline\":1.0,\"width\":12.0}],\"error\":null,\"result\":true}]",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Note.21.True",
+      "reading": "paste",
+      "args": [
+        "A1",
+        "D1",
+        "21",
+        "source note exists=True; destination note exists"
+      ],
+      "expected_bits": "text:{\"error\":{\"hr\":\"0x800A03EC\",\"message\":\"Unable to get the PasteSpecial property of the Range class\"},\"note\":\"destination note\",\"returned\":null,\"value\":\"destination\"}",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Conditions.14.True",
+      "reading": "paste",
+      "args": [
+        "A1",
+        "E30",
+        "14",
+        "A1=4; =A1>2 on A1:A2 exists=True; =E29>9 on E29:E31"
+      ],
+      "expected_bits": "text:[true,{\"after\":[{\"applies\":\"$E$30\",\"color\":65280.0,\"formula\":\"=E30>2\",\"priority\":1},{\"applies\":\"$E$29:$E$31\",\"color\":255.0,\"formula\":\"=E29>9\",\"priority\":2},{\"applies\":\"$A$1:$A$2\",\"color\":65280.0,\"formula\":\"=A1>2\",\"priority\":3}],\"before\":[{\"applies\":\"$E$29:$E$31\",\"color\":255.0,\"formula\":\"=E29>9\",\"priority\":1},{\"applies\":\"$A$1:$A$2\",\"color\":65280.0,\"formula\":\"=A1>2\",\"priority\":2}],\"returned\":true,\"value\":4.0}]",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Note.21.False",
+      "reading": "paste",
+      "args": [
+        "A1",
+        "D1",
+        "21",
+        "source note exists=False; destination note exists"
+      ],
+      "expected_bits": "text:{\"error\":{\"hr\":\"0x800A03EC\",\"message\":\"Unable to get the PasteSpecial property of the Range class\"},\"note\":\"destination note\",\"returned\":null,\"value\":\"destination\"}",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Conditions.14.False",
+      "reading": "paste",
+      "args": [
+        "A1",
+        "E30",
+        "14",
+        "A1=4; =A1>2 on A1:A2 exists=False; =E29>9 on E29:E31"
+      ],
+      "expected_bits": "text:[true,{\"after\":[{\"applies\":\"$E$29:$E$31\",\"color\":255.0,\"formula\":\"=E29>9\",\"priority\":1}],\"before\":[{\"applies\":\"$E$29:$E$31\",\"color\":255.0,\"formula\":\"=E29>9\",\"priority\":1}],\"returned\":true,\"value\":4.0}]",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "BlankOnBlank.2.False",
+      "reading": "followup",
+      "args": [
+        "A1:A4",
+        "D1",
+        "-4163",
+        "2",
+        "False",
+        "A1=3,A2:A3 empty,A4=0,D1:D2 empty,D3=7,D4 empty",
+        "D2"
+      ],
+      "expected_bits": "text:Empty",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "BlankOnBlank.3.False",
+      "reading": "followup",
+      "args": [
+        "A1:A4",
+        "D1",
+        "-4163",
+        "3",
+        "False",
+        "A1=3,A2:A3 empty,A4=0,D1:D2 empty,D3=7,D4 empty",
+        "D2"
+      ],
+      "expected_bits": "text:Empty",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "BlankOnBlank.4.False",
+      "reading": "followup",
+      "args": [
+        "A1:A4",
+        "D1",
+        "-4163",
+        "4",
+        "False",
+        "A1=3,A2:A3 empty,A4=0,D1:D2 empty,D3=7,D4 empty",
+        "D2"
+      ],
+      "expected_bits": "text:Empty",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "BlankOnBlank.5.False",
+      "reading": "followup",
+      "args": [
+        "A1:A4",
+        "D1",
+        "-4163",
+        "5",
+        "False",
+        "A1=3,A2:A3 empty,A4=0,D1:D2 empty,D3=7,D4 empty",
+        "D2"
+      ],
+      "expected_bits": "text:Empty",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{"id":"MultiBook.Calculate","ok":true,"value":{"activeEvents":null,"second":"Sheet3","activeValue":4.0,"first":"Sheet2","nonActiveEvents":1.0,"active":"Sheet3","nonActive":6.0,"before":{"nonActive":4.0,"active":4.0}}}
+{"id":"MultiBook.CalculateFull","ok":true,"value":{"activeEvents":1.0,"second":"Sheet3","activeValue":4.0,"first":"Sheet2","nonActiveEvents":1.0,"active":"Sheet3","nonActive":8.0,"before":{"nonActive":6.0,"active":4.0}}}
+{"id":"MultiBook.CalculateFullRebuild","ok":true,"value":{"activeEvents":1.0,"second":"Sheet3","activeValue":4.0,"first":"Sheet2","nonActiveEvents":1.0,"active":"Sheet3","nonActive":10.0,"before":{"nonActive":8.0,"active":4.0}}}
+{"id":"MultiBook.CloseSaveCancelled","ok":true,"value":{"result":null,"target":42.0,"open":["before-save.xlsm","Sheet3"],"books":2,"beforeSaveEvents":1.0,"saved":false}}

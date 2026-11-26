@@ -1,0 +1,11 @@
+{"id":"Copy.CrossWorkbook.Before","ok":true,"value":{"source":["Keep","Data"],"cell":[{"address":"$A$1","value":17.0,"text":"17","formula":"=[Sheet2]Keep!A1","format":"General"}],"destination":["Data","Target"],"destination_book":"Sheet3","active_sheet":"Data","active_book":"Sheet3","links":["Sheet2"]}}
+{"id":"Move.CrossWorkbook.Before","ok":true,"value":{"source":["Keep"],"cell":[{"address":"$A$1","value":17.0,"text":"17","formula":"=[Sheet4]Keep!A1","format":"General"}],"destination":["Data","Target"],"destination_book":"Sheet5","active_sheet":"Data","active_book":"Sheet5","links":["Sheet4"]}}
+{"id":"Group.before-inside","ok":false,"hresult":"0x80131501","description":"A positional parameter cannot be found that accepts argument 'System.Object[]'."}
+{"id":"Group.after-inside","ok":false,"hresult":"0x80131501","description":"A positional parameter cannot be found that accepts argument 'System.Object[]'."}
+{"id":"Group.reversed","ok":false,"hresult":"0x80131501","description":"A positional parameter cannot be found that accepts argument 'System.Object[]'."}
+{"id":"Group.new-copy-external","ok":true,"value":{"source_book":"Sheet9","source":["A","B","C","D"],"active_book":"Book1","cell":[{"address":"$A$1","value":17.0,"text":"17","formula":"=[Sheet9]B!A1","format":"General"}],"links":["Sheet9"],"active_sheet":"A","books":2,"active":["A"]}}
+{"id":"Group.last-visible-move","ok":false,"hresult":"0x800A03EC","description":"There needs to be at least one visible sheet in the workbook."}
+{"id":"Worksheet.Names.Add.ForeignQualifier","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"Range.Activate.B2:D5","ok":true,"value":[true,true,{"selection":"$A$1:$B$2","active":"$B$2"}]}
+{"id":"Range.Activate.A1:B1","ok":true,"value":[true,true,{"selection":"$A$1:$B$2","active":"$A$1"}]}
+{"id":"Workbook.VBProject.DefaultProfile","ok":true,"value":{"name":"VBAProject","count":3}}

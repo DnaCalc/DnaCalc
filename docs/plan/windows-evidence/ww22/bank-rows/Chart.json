@@ -1,0 +1,223 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Chart",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:06:55.2393776Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "charts",
+      "source": "charts/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Points.0",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.0",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"description\":\"Parameter not valid\",\"hresult\":\"0x800A03EC\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Points.1",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.1",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"has\":false,\"name\":\"S1P1\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Points.3",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.3",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"has\":false,\"name\":\"S1P3\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Points.4",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.4",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"description\":\"Parameter not valid\",\"hresult\":\"0x800A03EC\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Points.Beta",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.Beta",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"description\":\"Type mismatch. (0x80020005 (DISP_E_TYPEMISMATCH))\",\"hresult\":\"0x80020005\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Points.Collection",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Points.Collection",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"count\":3,\"first\":\"S1P1\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Point.Initial.Label",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Point.Initial.Label",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:null",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Point.Enable.One",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Point.Enable.One",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"count\":3,\"point\":true,\"series\":false,\"text\":\"3\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Point.Disable.Middle",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "Point.Disable.Middle",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"count\":3,\"points\":[{\"has\":true,\"point\":1},{\"has\":false,\"point\":2},{\"has\":true,\"point\":3}],\"series\":true}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "DataLabels.Font",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "DataLabels.Font",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"after\":[{\"bold\":true,\"color\":255,\"size\":14.0},{\"bold\":true,\"color\":255,\"size\":14.0},{\"bold\":true,\"color\":255,\"size\":14.0}],\"before\":{\"bold\":false,\"color\":0,\"size\":10.0}}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "DataLabel.NumberFormat",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "DataLabel.NumberFormat",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"before\":{\"format\":\"General\",\"linked\":true,\"text\":\"3\"},\"neighbor\":\"General\",\"put\":{\"format\":\"0.00\",\"linked\":false,\"text\":\"3.00\"},\"relink\":{\"format\":\"General\",\"linked\":true,\"text\":\"3\"}}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "DataLabel.TextAndPosition",
+      "reading": "charts",
+      "args": [
+        "clustered column; Alpha=3, Beta=6, Gamma=9",
+        "DataLabel.TextAndPosition",
+        "charts/probe.ps1"
+      ],
+      "expected_bits": "text:{\"after\":{\"caption\":\"Custom\",\"left\":30.5,\"text\":\"Custom\",\"top\":40.25},\"before\":{\"caption\":\"3\",\"left\":50.393779527559055,\"text\":\"3\",\"top\":98.76519685039369},\"neighbor\":\"9\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.58\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.objectName",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "objectName",
+        "New & <First>"
+      ],
+      "expected_bits": "text:{\"after\":{\"chartName\":\"Data New & <First>\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"New & <First>\"},\"before\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"lookups\":[{\"error\":\"The item with the specified name wasn't found.\",\"key\":\"First\"},{\"found\":\"New & <First>\",\"key\":\"New & <First>\"}],\"reopened\":{\"chartName\":\"Data New & <First>\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"New & <First>\"},\"shapes\":[{\"id\":2,\"name\":\"New & <First>\"},{\"id\":3,\"name\":\"Second\"},{\"id\":4,\"name\":\"Other\"}]}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.chartName",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "chartName",
+        "New & <First>"
+      ],
+      "expected_bits": "text:{\"description\":\"Insufficient memory to continue the execution of the program.\",\"hresult\":\"0x8007000E\"}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.duplicate-chart",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "duplicate-chart",
+        "Second"
+      ],
+      "expected_bits": "text:{\"after\":{\"chartName\":\"Data Second\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"Second\"},\"before\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"lookups\":[{\"error\":\"The item with the specified name wasn't found.\",\"key\":\"First\"},{\"found\":\"Second\",\"key\":\"Second\"}],\"reopened\":{\"chartName\":\"Data Second\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"Second\"},\"shapes\":[{\"id\":2,\"name\":\"Second\"},{\"id\":3,\"name\":\"Second\"},{\"id\":4,\"name\":\"Other\"}]}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.duplicate-shape",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "duplicate-shape",
+        "Other"
+      ],
+      "expected_bits": "text:{\"after\":{\"chartName\":\"Data Other\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"Other\"},\"before\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"lookups\":[{\"error\":\"The item with the specified name wasn't found.\",\"key\":\"First\"},{\"found\":\"Other\",\"key\":\"Other\"}],\"reopened\":{\"chartName\":\"Data Other\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"Other\"},\"shapes\":[{\"id\":2,\"name\":\"Other\"},{\"id\":3,\"name\":\"Second\"},{\"id\":4,\"name\":\"Other\"}]}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.left",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "left",
+        "404959999999999a"
+      ],
+      "expected_bits": "text:{\"after\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"40495999a0000000\",\"value\":50.70000076293945},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"before\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"lookups\":[{\"found\":\"First\",\"key\":\"First\"},{\"found\":\"First\",\"key\":\"First\"}],\"reopened\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"40495999a0000000\",\"value\":50.70000076293945},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"shapes\":[{\"id\":2,\"name\":\"First\"},{\"id\":3,\"name\":\"Second\"},{\"id\":4,\"name\":\"Other\"}]}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Frame.top",
+      "reading": "charts",
+      "args": [
+        "reopened base.xlsx, Data",
+        "First (15,20,300,200); Second; Other",
+        "top",
+        "404959999999999a"
+      ],
+      "expected_bits": "text:{\"after\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"40495999a0000000\",\"value\":50.70000076293945},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"before\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"4034000000000000\",\"value\":20.0},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"lookups\":[{\"found\":\"First\",\"key\":\"First\"},{\"found\":\"First\",\"key\":\"First\"}],\"reopened\":{\"chartName\":\"Data First\",\"geometry\":{\"Height\":{\"bits\":\"4069000000000000\",\"value\":200.0},\"Left\":{\"bits\":\"402e000000000000\",\"value\":15.0},\"Top\":{\"bits\":\"40495999a0000000\",\"value\":50.70000076293945},\"Width\":{\"bits\":\"4072c00000000000\",\"value\":300.0}},\"objectName\":\"First\"},\"shapes\":[{\"id\":2,\"name\":\"First\"},{\"id\":3,\"name\":\"Second\"},{\"id\":4,\"name\":\"Other\"}]}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.59\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}
