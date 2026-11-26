@@ -206,7 +206,8 @@ impl Factory {
             saver: self.options.saver.clone(),
         });
         events.automation.register_owned(runner.clone(), true);
-        if has_file_project {
+        // EnableEvents is off in the opener: Excel raises no Workbook_Open (the switch itself is per book here).
+        if has_file_project && calc_host::automation::opener_events_enabled() {
             runner.session.borrow_mut().notify_workbook_open();
         }
         Ok(id)

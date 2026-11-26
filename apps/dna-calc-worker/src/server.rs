@@ -1123,11 +1123,8 @@ impl Server {
                         let name = target
                             .as_ref()
                             .map_or_else(|| self.book.save_name(), |(n, _)| n.clone());
-                        match self.book.finish_ordinary_save(save) {
+                        match self.book.finish_ordinary_save_as(save, target) {
                             Ok((bytes, _)) => {
-                                if let Some((name, format)) = target {
-                                    self.book.saved_as(name, format);
-                                }
                                 out = Some(bytes);
                                 Ok(Reply::Done {
                                     outcome: self.outcome(true, None, 0.0),
@@ -1191,15 +1188,12 @@ impl Server {
                                 .map_or_else(|| self.book.save_name(), |(n, _)| n.clone());
                             let (bytes, _) = match save {
                                 PendingSave::Calculated(save) => {
-                                    self.book.finish_calculated_save(save)?
+                                    self.book.finish_calculated_save_as(save, target)?
                                 }
                                 PendingSave::Ordinary(save) => {
-                                    self.book.finish_ordinary_save(save)?
+                                    self.book.finish_ordinary_save_as(save, target)?
                                 }
                             };
-                            if let Some((name, format)) = target {
-                                self.book.saved_as(name, format);
-                            }
                             out = Some(bytes);
                             Ok(Reply::SaveImage {
                                 outcome: self.outcome(true, None, 0.0),

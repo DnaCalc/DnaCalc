@@ -99,6 +99,32 @@ pub(super) fn next_identity() -> u64 {
     })
 }
 
+/// Whether `name` ends in a workbook file extension: a saved book does, while an unsaved one from a template
+/// (`my.report1`) may carry a dot without one.
+fn has_file_extension(name: &str) -> bool {
+    const EXTENSIONS: [&str; 10] = ["xlsx", "xlsm", "xlsb", "xls", "xltx", "xltm", "xlt", "xlam", "xla", "csv"];
+    name.rsplit_once('.').is_some_and(|(_, ext)| EXTENSIONS.iter().any(|known| ext.eq_ignore_ascii_case(known)))
+}
+
+thread_local! {
+    /// `Application.EnableEvents` as the workbook that is opening another one holds it (Excel's switch is
+    /// application-wide, so the opened book starts under it and its `Workbook_Open` does not fire when it is off).
+    static OPENER_EVENTS: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+/// Whether the call that is opening a workbook runs with `Application.EnableEvents` on.
+pub fn opener_events_enabled() -> bool {
+    OPENER_EVENTS.with(|events| events.get())
+}
+
+/// Run `open` with the opener's `EnableEvents` visible to the factory, restoring the previous value after.
+fn with_opener_events<T>(enabled: bool, open: impl FnOnce() -> T) -> T {
+    let previous = OPENER_EVENTS.with(|events| events.replace(enabled));
+    let out = open();
+    OPENER_EVENTS.with(|events| events.set(previous));
+    out
+}
+
 /// Install the factory `Workbooks.Add` and `Workbooks.Open` use on this thread.
 pub fn set_book_factory(factory: Option<Rc<dyn BookFactory>>) {
     BOOKS.with(|books| books.borrow_mut().factory = factory);
@@ -281,15 +307,16 @@ impl WorkbookAutomation {
             .ok_or_else(|| AutoError::not_modelled("Workbooks.Add and Workbooks.Open without a workbook factory", "dc-oxh8w.75"))
     }
     fn books_add(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, _| {
+        self.with_target(target, |_, meta| {
             if call.args.len() > 1 {
                 return Err(geometry::bad_count());
             }
+            let events = meta.enabled.get();
             // Template: the default worksheet workbook (xlWBATWorksheet = -4167), or a template file.
             let factory = self.factory()?;
             let id = match call.arg(0) {
-                AutoValue::Missing => factory.add()?,
-                AutoValue::Text(path) => factory.add_from(&path.to_string_lossy())?,
+                AutoValue::Missing => with_opener_events(events, || factory.add())?,
+                AutoValue::Text(path) => with_opener_events(events, || factory.add_from(&path.to_string_lossy()))?,
                 other => match template_kind(other) {
                     Some(-4167) => factory.add()?,
                     Some(-4109 | 3 | 4) => {
@@ -302,7 +329,8 @@ impl WorkbookAutomation {
         })
     }
     fn books_open(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, _| {
+        self.with_target(target, |_, meta| {
+            let events = meta.enabled.get();
             if call.args.is_empty() || call.args.len() > 15 {
                 return Err(geometry::bad_count());
             }
@@ -310,11 +338,10 @@ impl WorkbookAutomation {
                 return Err(AutoError::excel(1004, "Workbooks.Open: the file name must be text"));
             };
             let (read_only, password) = open_options(call)?;
-            let id = self.factory()?.open_with_options(
-                &path.to_string_lossy(),
-                read_only,
-                password.as_deref(),
-            )?;
+            let factory = self.factory()?;
+            let id = with_opener_events(events, || {
+                factory.open_with_options(&path.to_string_lossy(), read_only, password.as_deref())
+            })?;
             set_book_read_only(id, read_only);
             Ok(Self::book_object(id))
         })
@@ -520,7 +547,7 @@ impl WorkbookAutomation {
                             "dc-oxh8w.75",
                         ));
                     }
-                    if book_path(&book.full_name).is_empty() && !book.full_name.contains('.') {
+                    if book_path(&book.full_name).is_empty() && !has_file_extension(&book.full_name) {
                         return Err(AutoError::not_modelled(
                             "Workbook.Close SaveChanges True on an unsaved workbook (Save As dialog)",
                             "dc-oxh8w.75",
@@ -635,4 +662,19 @@ fn open_options(call: &Call<'_>) -> Result<(bool, Option<String>), AutoError> {
         return Err(AutoError::not_modelled("Workbooks.Open CorruptLoad other than xlNormalLoad", "dc-oxh8w.75"));
     }
     Ok((read_only, password))
+}
+
+#[cfg(test)]
+mod dc_mkdhw_tests {
+    use super::has_file_extension;
+
+    /// dc-mkdhw (rw13 finding 11): an unsaved book named from a dotted template (`my.report1`) has no file extension.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dotted_unsaved_template_names_have_no_file_extension() {
+        assert!(!has_file_extension("my.report1"));
+        assert!(!has_file_extension("Book1"));
+        assert!(has_file_extension("Target.xlsm"));
+        assert!(has_file_extension("my.report.XLSX"));
+    }
 }

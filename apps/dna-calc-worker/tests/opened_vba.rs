@@ -1364,3 +1364,65 @@ fn dc_qrnem_cooperative_save_raises_after_save() {
         "D1: {d1:?}"
     );
 }
+
+fn after_save_book(name: &str) -> dna_calc_worker::workbook::Workbook {
+    use dna_calc_worker::workbook::{EnableMode, Workbook};
+    let book_src = "Private Sub Workbook_AfterSave(ByVal Success As Boolean)\n \
+        ThisWorkbook.Worksheets(1).Range(\"D1\").Value2 = CStr(Success) & \":\" & ThisWorkbook.Name\nEnd Sub\n";
+    let bytes = vba_project::replace_sources(
+        LOCAL,
+        &[("Module1", ""), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", book_src)],
+    );
+    let mut book =
+        Workbook::open_with_project_policy(name, bytes, calc_host::WorkBudget::UNLIMITED, FileOrigin::Local).unwrap();
+    book.enable_macros_as(EnableMode::Person).unwrap();
+    book
+}
+
+fn d1_text(book: &dna_calc_worker::workbook::Workbook) -> String {
+    let sheet = book.host().model().sheets()[0].id();
+    match book.host().model().cell(calc_value::CellKey::new(sheet, 1, 4).unwrap()) {
+        Some(calc_host::CellInput::Text(t)) => t.text().to_string_lossy(),
+        other => format!("{other:?}"),
+    }
+}
+
+/// dc-mkdhw (rw13 finding 11): Save As raises `Workbook_AfterSave` once the workbook has its new name
+/// (`ThisWorkbook.Name` inside the handler is the saved-as name, not the old one).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mkdhw_save_as_raises_after_save_under_the_new_name() {
+    let mut book = after_save_book("old.xlsm");
+    let policy = calc_host::SavePolicy::default();
+    let mut save = book.begin_ordinary_save_operation(false, &policy, true).unwrap();
+    while save.needs_advance(book.host()) {
+        book.advance_ordinary_save(&mut save, calc_host::WorkBudget::UNLIMITED);
+    }
+    let target = Some(("new.xlsm".to_owned(), calc_host::SpreadsheetFormat::Xlsm));
+    book.finish_ordinary_save_as(save, target).unwrap();
+    assert_eq!(d1_text(&book), "True:new.xlsm");
+}
+
+/// dc-mkdhw (rw13 finding 11): a calculated save (`Request::SaveCalculated`) raises `Workbook_AfterSave` too.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mkdhw_calculated_save_raises_after_save() {
+    let mut book = after_save_book("calc.xlsm");
+    for _ in 0..1000 {
+        if !book.has_pending_calculation() {
+            break;
+        }
+        book.advance_calculation();
+    }
+    let mut save = book.begin_calculated_save().unwrap();
+    let mut progress = save.progress();
+    for _ in 0..1000 {
+        if matches!(progress, calc_host::CalculatedSaveProgress::Ready | calc_host::CalculatedSaveProgress::Failed) {
+            break;
+        }
+        progress = save.advance(book.host(), calc_host::WorkBudget::UNLIMITED);
+    }
+    assert_eq!(progress, calc_host::CalculatedSaveProgress::Ready);
+    book.finish_calculated_save_as(save, None).unwrap();
+    assert_eq!(d1_text(&book), "True:calc.xlsm");
+}

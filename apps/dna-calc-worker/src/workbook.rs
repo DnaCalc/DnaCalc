@@ -1065,22 +1065,50 @@ impl Workbook {
         &mut self,
         save: calc_host::OrdinarySave,
     ) -> Result<(Vec<u8>, SaveReceipt), String> {
+        self.finish_ordinary_save_as(save, None)
+    }
+    /// Finishes an ordinary save; a Save As `target` (name, format) is applied once the package is written and
+    /// before `AfterSave` is raised, so the handler sees the new name.
+    pub fn finish_ordinary_save_as(
+        &mut self,
+        save: calc_host::OrdinarySave,
+        target: Option<(String, calc_host::SpreadsheetFormat)>,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
         let result = save
             .finish()
             .map_err(|error| error.to_string())
             .and_then(|prepared| self.write_prepared_save(prepared));
-        self.session.notify_after_save(result.is_ok());
-        result
+        self.settle_save(result, target)
     }
     pub fn finish_calculated_save(
         &mut self,
         save: calc_host::CalculatingSave,
     ) -> Result<(Vec<u8>, SaveReceipt), String> {
-        let prepared = self
+        self.finish_calculated_save_as(save, None)
+    }
+    /// [`Self::finish_ordinary_save_as`] for a calculated save.
+    pub fn finish_calculated_save_as(
+        &mut self,
+        save: calc_host::CalculatingSave,
+        target: Option<(String, calc_host::SpreadsheetFormat)>,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
+        let result = self
             .session
             .finish_calculated_save(save)
-            .map_err(|error| error.to_string())?;
-        self.write_prepared_save(prepared)
+            .map_err(|error| error.to_string())
+            .and_then(|prepared| self.write_prepared_save(prepared));
+        self.settle_save(result, target)
+    }
+    fn settle_save(
+        &mut self,
+        result: Result<(Vec<u8>, SaveReceipt), String>,
+        target: Option<(String, calc_host::SpreadsheetFormat)>,
+    ) -> Result<(Vec<u8>, SaveReceipt), String> {
+        if let (Ok(_), Some((name, format))) = (&result, target) {
+            self.saved_as(name, format);
+        }
+        self.session.notify_after_save(result.is_ok());
+        result
     }
     fn write_prepared_save(
         &mut self,
