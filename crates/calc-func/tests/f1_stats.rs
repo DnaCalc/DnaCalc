@@ -8456,3 +8456,24 @@ fn skew_p_stores_every_stage_like_skew() {
         v(0xbfe15796826e4e3f),
     );
 }
+
+/// Excel 16.0.20625 (dc-j9k.531): in the array form a k that is a reference to a cell holding an
+/// error is #VALUE!, while a k typed as the error propagates it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn aggregate_k_cell_error_is_value() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(1.0), n(5.0), n(3.0)]);
+    sheet.column(1, 2, vec![e(NA), n(2.0)]);
+    let data = sheet.area(1, 1, 3, 1);
+    let k_error = sheet.area(1, 2, 1, 2);
+    let k_two = sheet.area(2, 2, 2, 2);
+    for function in [14.0, 15.0, 16.0, 17.0, 18.0, 19.0] {
+        for option in [4.0, 6.0] {
+            error(call_on(&mut sheet, "AGGREGATE", vec![n(function), n(option), data.clone(), k_error.clone()]), Value);
+            error(call_on(&mut sheet, "AGGREGATE", vec![n(function), n(option), data.clone(), e(NA)]), NA);
+        }
+    }
+    exact(call_on(&mut sheet, "AGGREGATE", vec![n(14.0), n(4.0), data, k_two]), 3.0);
+}
+

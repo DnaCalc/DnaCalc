@@ -309,6 +309,11 @@ ported_shared_family! {
                     cell = value.clone();
                     Ok(())
                 })?;
+                // Excel 16.0.20625 (dc-j9k.531): an error in the k cell is #VALUE!; an error typed
+                // as k propagates (below).
+                if matches!(cell.core_ref(), CoreRef::Error(_)) {
+                    return fail(WorksheetErrorCode::Value);
+                }
                 s.number_argument(3, &cell)?
             }
             _ => num(s, a, 3)?,
