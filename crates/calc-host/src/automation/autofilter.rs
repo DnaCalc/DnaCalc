@@ -141,6 +141,8 @@ impl WorkbookAutomation {
             let existing = session.host().model().definitions().auto_filter(sheet).map(|f| f.area);
             if area.cell_count() == 1 && existing.is_none() {
                 area = Self::current_region(session.host().model(), area.first());
+                // The widened region is what the filter's header buttons and hidden rows touch.
+                self.guard_area(session, area)?;
             }
             let change = match field {
                 None if existing.is_some() => FilterChange::Remove,
@@ -192,6 +194,7 @@ impl WorkbookAutomation {
         }
         let sheet = Self::worksheet_sheet(target)?;
         self.mutate(target, call, |session, _| {
+            self.refuse_while_protected(session, sheet, "Worksheet.AutoFilterMode = False")?;
             Ok(SkinIntent::Command(WorkbookCommand::AutoFilter {
                 sheet,
                 revision: session.host().revision().get(),
@@ -206,6 +209,7 @@ impl WorkbookAutomation {
         no_args(call)?;
         let sheet = Self::worksheet_sheet(target)?;
         self.mutate(target, call, |session, _| {
+            self.refuse_while_protected(session, sheet, "Worksheet.ShowAllData")?;
             let filtering = session
                 .host()
                 .model()

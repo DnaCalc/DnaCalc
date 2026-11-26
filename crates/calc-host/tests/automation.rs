@@ -10797,3 +10797,75 @@ fn dc_y7tqj_chart_location_rolls_back_when_chart_sheet_removal_fails() {
         "chart sheet must retain its chart after Chart.Location rollback"
     );
 }
+
+/// rw13 finding 5 (dc-v55ku): a multi-cell Copy/Cut/Paste onto a one-cell unlocked destination writes the whole
+/// rectangle the source's size gives, so its locked neighbours meet the protection too.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_v55ku__a_one_cell_destination_guards_the_whole_rectangle_written() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let protected_error = |r: &Reply| matches!(r, Err(AutoError::Excel { number: 1004, description }) if description.contains("protected sheet"));
+    for (address, value) in [("A1", 1.0), ("A2", 2.0), ("B3", 9.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    put(&range(&model, "B2"), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    method(&sheet, "Protect", vec![]).unwrap();
+    let a = |name: &str| AutoValue::Object(range(&model, name));
+    let r = method(&range(&model, "A1:A2"), "Copy", vec![a("B2")]);
+    assert!(protected_error(&r), "Copy of two cells onto B2 reaches locked B3: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "B3"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 9.0), "B3 was written");
+    assert!(matches!(invoke(&model, &range(&model, "B2"), "Value", vec![]).unwrap(), AutoValue::Empty), "B2 was written");
+    method(&range(&model, "A1:A2"), "Copy", vec![]).unwrap();
+    let r = method(&range(&model, "B2"), "PasteSpecial", vec![]);
+    assert!(protected_error(&r), "Paste of two cells onto B2 reaches locked B3: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "B3"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 9.0), "B3 was pasted");
+    // Transposed, the two cells make a row: B2:C2 reaches locked C2.
+    let r = method(&range(&model, "B2"), "PasteSpecial", vec![AutoValue::I4(-4104), AutoValue::I4(-4142), AutoValue::Bool(false), AutoValue::Bool(true)]);
+    assert!(protected_error(&r), "Transposed paste reaches locked C2: {r:?}");
+}
+
+/// rw13 finding 5 (dc-v55ku): on a sheet protected for contents a table delete or unlist, an AutoFilter removal, a
+/// one-cell AutoFilter that widens over locked cells and a cell Insert are refused (typed where Excel's answer is not
+/// captured, dc-5oumk) and change nothing; `UserInterfaceOnly` is not modelled on a protected sheet either.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_v55ku__table_filter_and_insert_meet_the_protection() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let put = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Put, args);
+    let method = |target: &ObjectRef, name: &str, args: Vec<AutoValue>| invoke_kind(&model, target, name, InvokeKind::Method, args);
+    for (address, value) in [("A1", "h1"), ("B1", "h2")] {
+        put(&range(&model, address), "Value", vec![AutoValue::text(value)]).unwrap();
+    }
+    for (address, value) in [("A2", 1.0), ("B2", 2.0)] {
+        put(&range(&model, address), "Value", vec![AutoValue::R8(value)]).unwrap();
+    }
+    put(&range(&model, "D10"), "Value", vec![AutoValue::text("f")]).unwrap();
+    put(&range(&model, "D11"), "Value", vec![AutoValue::R8(1.0)]).unwrap();
+    put(&range(&model, "D11"), "Locked", vec![AutoValue::Bool(false)]).unwrap();
+    let tables = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let args = vec![AutoValue::I4(1), AutoValue::Object(range(&model, "A1:B2")), AutoValue::Missing, AutoValue::I4(1)];
+    invoke_kind(&model, &tables, "Add", InvokeKind::Method, args).unwrap();
+    method(&range(&model, "D10:D11"), "AutoFilter", vec![]).unwrap();
+    method(&sheet, "Protect", vec![]).unwrap();
+    let refused = |r: &Reply| matches!(r, Err(AutoError::NotModelled { owner: "dc-5oumk", .. }));
+    let table = obj(invoke(&model, &tables, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let r = method(&table, "Delete", vec![]);
+    assert!(refused(&r), "ListObject.Delete on a protected sheet: {r:?}");
+    assert_eq!(int(invoke(&model, &tables, "Count", vec![]).unwrap()), 1, "the table was deleted");
+    assert!(matches!(invoke(&model, &range(&model, "A2"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 1.0), "A2 was cleared");
+    let r = method(&table, "Unlist", vec![]);
+    assert!(refused(&r), "ListObject.Unlist on a protected sheet: {r:?}");
+    assert_eq!(int(invoke(&model, &tables, "Count", vec![]).unwrap()), 1, "the table was unlisted");
+    let r = put(&sheet, "AutoFilterMode", vec![AutoValue::Bool(false)]);
+    assert!(refused(&r), "AutoFilterMode = False on a protected sheet: {r:?}");
+    assert!(matches!(invoke(&model, &sheet, "AutoFilterMode", vec![]).unwrap(), AutoValue::Bool(true)), "the filter was removed");
+    let r = method(&range(&model, "D11"), "Insert", vec![]);
+    assert!(refused(&r), "Range.Insert on a protected sheet: {r:?}");
+    assert!(matches!(invoke(&model, &range(&model, "D11"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 1.0), "D2 shifted");
+}
