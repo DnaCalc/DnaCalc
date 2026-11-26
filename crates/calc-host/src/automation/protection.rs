@@ -255,11 +255,23 @@ impl WorkbookAutomation {
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
-            // Protecting a sheet that is already protected leaves its protection as it is.
             match self.sheet_protection(session.host(), sheet) {
                 None => {
                     self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
                 }
+                // ww22 Protect.Again: the same Password protects again with the new arguments (UserInterfaceOnly
+                // becomes True), a wrong one is 1004 and changes nothing, an omitted one opens the Unprotect Sheet
+                // prompt.
+                Some(held) if held.password.is_some() && self.sheet_protect.borrow().contains_key(&sheet) => {
+                    if call.arg(0).is_missing() {
+                        return Err(AutoError::not_modelled("Worksheet.Protect password prompt on a protected sheet", OWNER));
+                    }
+                    if held.password != protect.password {
+                        return Err(wrong_password());
+                    }
+                    self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
+                }
+                // Protecting a sheet that is already protected without a password leaves its protection as it is.
                 Some(held) if protect.user_interface_only && !held.user_interface_only => {
                     return Err(AutoError::not_modelled(
                         "Worksheet.Protect with UserInterfaceOnly on a sheet already protected",
