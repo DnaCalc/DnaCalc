@@ -77,7 +77,9 @@ characters, not starting with `=`, `+`, `-` or `@`; rendered as one quoted VBA s
 call names one of the template's `entry_points`. `touchstone/vba-smoke.json` is the reviewed smoke case on template
 `smoke` (it expands to the source in `vba-smoke-source.json`). To add a template: add the `.bas` files and a catalogue
 entry with their hashes, and have the coordinator review them. The expanded modules still pass the grammar below. The
-free-source `modules` shape below stays accepted only while the template route awaits its review; approvals stay frozen.
+free-source `modules` shape below is no longer accepted on the wire (dc-45ndr): a case without `template` and `params` is
+refused. It describes the expanded form the validators check. The approval digest binds the template name, its parameters and the
+pinned module hashes as well as the expansion; approvals stay frozen.
 
 A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
 `sheets` and `names` in the sheet-case layout shape, and the following fields. No workbook travels with the case: the

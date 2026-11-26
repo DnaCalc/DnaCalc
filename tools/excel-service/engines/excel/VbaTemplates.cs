@@ -34,6 +34,11 @@ static class VbaTemplates
         return text;
     }
 
+    /// <summary>The pinned SHA-256 of each module file of a template, in catalogue order (bound into the case digest).</summary>
+    public static List<object> Pins(string template) =>
+        ((List<object>)((Dictionary<string, object>)((Dictionary<string, object>)Catalogue["templates"])[template])["modules"])
+        .Select(m => (object)(string)((Dictionary<string, object>)m)["sha256"]).ToList();
+
     static bool AddressOk(object value)
     {
         if (value is not string text || Address.Match(text) is not { Success: true } m) return false;

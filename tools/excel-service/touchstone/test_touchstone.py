@@ -72,6 +72,21 @@ def vba_group(source=None, **changes):
     return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [case]}
 
 
+def worker_flag(group, action="check"):
+    """--check-vba-policy / --build-vba-package for a template case (the route Excel gets); the offline -expanded seam
+    for a case that carries modules (grammar tests)."""
+    expanded = "template" not in group["v"][0]
+    return f"--{action}-vba-" + ("expanded" if expanded else "policy" if action == "check" else "package")
+
+
+def template_vba_group(**changes):
+    """The reviewed smoke template as a _VBA group: the only form that reaches Excel (dc-45ndr)."""
+    case = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
+    case.update(calls=[{"procedure": "Module1.Probe", "args": [number(ONE)]}], readback=["Data!A1"], event_log=["Data!B1"])
+    case.update(changes)
+    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [{"names": {}, **case}]}
+
+
 class ProtocolTests(unittest.TestCase):
     def test_a_cached_refusal_is_replayed_with_its_original_code_and_detail(self):
         from broker import Broker
@@ -403,10 +418,14 @@ class AdmissionTests(unittest.TestCase):
         cls.policy = policy
         cls.admission = policy.admission(ROOT)
 
+    def check_source(self, group):
+        """The grammar and layout checks on a case that carries modules (the internal seam behind the template route)."""
+        self.admission.check_expanded_vba_case(group, group["v"][0])
+
     def test_vba_allows_a_workbook_probe_and_a_listed_literal_object(self):
-        self.admission.check(vba_group())
-        self.admission.check(vba_group(IMPLICIT_VBA_PARAMETERS))
-        self.admission.check(vba_group(DICTIONARY_VBA_SOURCE))
+        self.check_source(vba_group())
+        self.check_source(vba_group(IMPLICIT_VBA_PARAMETERS))
+        self.check_source(vba_group(DICTIONARY_VBA_SOURCE))
 
     def refused_vba_sources(self):
         refused = [
@@ -628,6 +647,49 @@ class AdmissionTests(unittest.TestCase):
         smoke = {"names": {}, **smoke}
         return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [smoke]}
 
+    def rw18_free_source_group(self):
+        """dc-45ndr: the review's request, no template and free module source."""
+        return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [{
+            "sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
+            "modules": [{"name": "Probes", "kind": "standard",
+                         "source": "Public Function Probe(ByVal x As Long) As Long\n    Probe = x + 1\nEnd Function\n"}],
+            "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
+            "readback": ["Data!A1"], "event_log": []}]}
+
+    def test_vba_refuses_a_request_without_a_template(self):
+        group = self.rw18_free_source_group()
+        with self.assertRaisesRegex(ValueError, "(?i)template"):
+            self.admission.check(group)
+        template_only = self.template_group()
+        del template_only["v"][0]["params"]
+        with self.assertRaisesRegex(ValueError, "(?i)template"):
+            self.admission.check(template_only)
+        with self.assertRaisesRegex(ValueError, "(?i)template"):
+            protocol.vba_case(group["v"][0])
+        with self.assertRaisesRegex(ValueError, "(?i)template"):
+            protocol.vba_case({k: v for k, v in group["v"][0].items() if k != "modules"})
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_refuses_a_request_without_a_template(self):
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                input=json.dumps(self.rw18_free_source_group()), text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("template", result.stderr.lower())
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_digest_binds_the_template_name_and_parameters(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+
+        def digest(group):
+            result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(group), text=True,
+                                    capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return result.stdout.strip()
+        self.assertNotEqual(digest(self.template_group()), "68d83307c26f4e147fab56ea90b4c72f4502523a51d4c93c91c1ba8fad4c57c3")
+        other = self.template_group()
+        other["v"][0]["params"]["message"] = "other"
+        self.assertNotEqual(digest(other), digest(self.template_group()))
+
     def refused_template_cases(self):
         """dc-erfm3: the template route refuses anything the reviewed catalogue does not name."""
         params = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))["params"]
@@ -734,29 +796,29 @@ class AdmissionTests(unittest.TestCase):
         for message, group in self.refused_rw17_cases():
             with self.subTest(message=message, case=json.dumps(group["v"][0]["modules"])[:200]), \
                     self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
-                self.admission.check(group)
+                self.check_source(group)
 
     def test_vba_refuses_the_rw16_bypasses_and_parity_differentials(self):
         for message, group in self.refused_rw16_cases():
             with self.subTest(message=message, case=json.dumps(group["v"][0]["modules"])[:200]), \
                     self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
-                self.admission.check(group)
+                self.check_source(group)
 
     def test_vba_accepts_what_the_rw16_rules_leave_alone(self):
         write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
         for line in (write + 'x', write + '-x', write + 'x + 1', write + '"a" & x', write + '"a" & CStr(-1)',
                      write + 'CStr("a") & x', write + 'Len("a")', write + '"a" & xlUp'):
             with self.subTest(line=line):
-                self.admission.check(vba_group(
+                self.check_source(vba_group(
                     f"Public Function Probe(ByVal x As Long) As Long\n{line}\nProbe = 1\nEnd Function\n"))
 
     def test_vba_refuses_package_unsafe_layout_and_module_names(self):
         for message, group in self.refused_vba_cases():
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
-                self.admission.check(group)
-        self.admission.check(vba_group(sheets=[{"name": "Data", "cells": {
+                self.check_source(group)
+        self.check_source(vba_group(sheets=[{"name": "Data", "cells": {
             "A2": {"type": "formula", "formula": '=SUM(A1,1)&"[x]"'}}}]))
-        self.admission.check(vba_group(sheets=[{"name": "My Data", "cells": {
+        self.check_source(vba_group(sheets=[{"name": "My Data", "cells": {
             "A2": {"type": "formula", "formula": "='My Data'!A1+Data!A1"}}}, {"name": "Data", "cells": {}}]))
 
     def test_the_reviewed_smoke_case_is_accepted(self):
@@ -777,39 +839,42 @@ class AdmissionTests(unittest.TestCase):
     def test_text_that_is_data_is_accepted_as_a_cell_write(self):
         for line in self.accepted_cell_writes():
             with self.subTest(line=line):
-                self.admission.check(vba_group(
+                self.check_source(vba_group(
                     f"Public Function Probe(ByVal x As Long) As Long\n{line}\nProbe = x\nEnd Function\n"))
 
     def test_vba_refuses_a_case_larger_than_one_submit_frame(self):
         big = {"type": "text", "value": "x" * 1000}
         calls = [{"procedure": "Probes.Probe", "args": [big] * 16} for _ in range(8)]
         with self.assertRaisesRegex(ValueError, "frame budget"):
-            self.admission.check(vba_group(calls=calls))
+            self.check_source(vba_group(calls=calls))
         protocol.submit_frames("0" * 32, [vba_group()])      # an admitted case always fits
 
     def test_vba_accepts_multiple_declarations_module_variables_and_tab_continuations(self):
         for source in (MULTI_DECLARATION_VBA_SOURCE, MODULE_VARIABLE_VBA_SOURCE, TAB_CONTINUATION_VBA_SOURCE):
             with self.subTest(source=source):
-                self.admission.check(vba_group(source))
+                self.check_source(vba_group(source))
 
     def test_vba_checks_the_case_shape_limits_and_call_destination(self):
         source = "Public Function Probe(ByVal x As Long) As Long\nProbe = x\nEnd Function\n"
         for detail, group in [
-            ("one VBA case", dict(vba_group(), n=2)),
+            ("one VBA case", None),
             ("module source", vba_group(source + "'" + "x" * 20000)),
             ("procedure", vba_group(calls=[{"procedure": "Other.Probe", "args": []}])),
             ("readback", vba_group(readback=["Other!A1"])),
             ("event_log", vba_group(event_log=["Data!A:A"])),
         ]:
             with self.subTest(detail=detail), self.assertRaisesRegex(ValueError, detail):
-                self.admission.check(group)
+                if group is None:
+                    self.admission.check(dict(self.template_group(), n=2))
+                else:
+                    self.check_source(group)
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_refuses_what_the_policy_refuses_and_accepts_what_it_accepts(self):
         worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
 
         def run(group):
-            return subprocess.run([worker, "--check-vba-policy"], input=json.dumps(group), text=True,
+            return subprocess.run([worker, worker_flag(group)], input=json.dumps(group), text=True,
                                   capture_output=True, timeout=30)
         smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
         accepted = [vba_group(source) for source in (None, *ACCEPTED_VBA_SOURCES)]
@@ -837,7 +902,7 @@ class AdmissionTests(unittest.TestCase):
         text = json.dumps(vba_group())
         duplicated = text.replace('"names": {}', '"names": {"Auto_Open": "=1"}, "names": {}')
         self.assertNotEqual(text, duplicated)
-        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"], input=duplicated,
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-expanded"], input=duplicated,
                                 text=True, capture_output=True, timeout=30)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
 
@@ -872,11 +937,11 @@ class AdmissionTests(unittest.TestCase):
         for source in cases:
             group = vba_group(source)
             try:
-                self.admission.check(group)
+                self.check_source(group)
                 expected = 0
             except ValueError:
                 expected = 1
-            result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(group), text=True,
+            result = subprocess.run([worker, "--check-vba-expanded"], input=json.dumps(group), text=True,
                                     capture_output=True, timeout=30)
             accepted += expected == 0
             if result.returncode != expected:
@@ -892,7 +957,7 @@ class AdmissionTests(unittest.TestCase):
                 command = [worker, "--check-vba-policy"] + ([directory] if verify else [])
                 return subprocess.run(command, input=json.dumps(group), text=True, capture_output=True, timeout=30)
 
-            group = vba_group()
+            group = template_vba_group()
             digest = check(group, verify=False)
             self.assertEqual(digest.returncode, 0, digest.stderr)
             self.assertRegex(digest.stdout.strip(), r"^[0-9a-f]{64}$")
@@ -901,9 +966,11 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(check(group).returncode, 0)
             reordered = json.loads(json.dumps(group, sort_keys=True))
             self.assertEqual(check(reordered).returncode, 0)
-            for changed in (vba_group(readback=["Data!A2"]),
-                            vba_group(calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}]),
-                            vba_group(DICTIONARY_VBA_SOURCE)):
+            other_param = template_vba_group()
+            other_param["v"][0]["params"]["message"] = "other"
+            for changed in (template_vba_group(readback=["Data!A2"]),
+                            template_vba_group(calls=[{"procedure": "Module1.Probe", "args": [number(TWO)]}]),
+                            other_param):
                 self.assertIn("unapproved", check(changed).stderr)
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
@@ -914,7 +981,7 @@ class AdmissionTests(unittest.TestCase):
         def build(group):
             with tempfile.TemporaryDirectory() as directory:
                 out = Path(directory) / "probe.xlsm"
-                result = subprocess.run([worker, "--build-vba-package", str(out)], input=json.dumps(group),
+                result = subprocess.run([worker, worker_flag(group, "build"), str(out)], input=json.dumps(group),
                                         text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 return reader.read_package(out.read_bytes())
@@ -1487,8 +1554,8 @@ class BrokerTests(unittest.TestCase):
         self.addCleanup(stop)
         isolated = next(slot for slot in broker.slots if slot.isolation)
         with closing(self.connect(state)) as conn, patch.object(isolated.proc, "run", wraps=isolated.proc.run) as run:
-            first = conn.submit_groups([vba_group()])
-            second = conn.submit_groups([vba_group(calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])])
+            first = conn.submit_groups([template_vba_group()])
+            second = conn.submit_groups([template_vba_group(calls=[{"procedure": "Module1.Probe", "args": [number(TWO)]}])])
             for pending, bits, calls in ((first, ONE, [{"return": number(ONE)}]),
                                          (second, TWO, [{"err": {"number": 5, "description": "Fake VBA error"}}])):
                 letters, values = pending.raw(10)
@@ -1506,9 +1573,9 @@ class BrokerTests(unittest.TestCase):
             self.assertFalse(broker.pending_checks)
             for options in ({"order": "serial"}, {"priority": "sweep"}, {"echo": True}):
                 with self.subTest(options=options), self.assertRaisesRegex(client.ServiceError, "refused:.*VBA"):
-                    conn.submit_groups([vba_group()], **options).raw(10)
+                    conn.submit_groups([template_vba_group()], **options).raw(10)
             with self.assertRaisesRegex(client.ServiceError, "refused:.*VBA"):
-                conn.submit_groups([vba_group(), {"f": "ABS", "k": "n", "n": 1, "v": [ONE], "o": 1}]).raw(10)
+                conn.submit_groups([template_vba_group(), {"f": "ABS", "k": "n", "n": 1, "v": [ONE], "o": 1}]).raw(10)
             self.assertEqual(run.call_count, 2)
 
     def test_vba_refuses_a_missing_isolation_worker_or_admission_policy(self):
@@ -1523,7 +1590,7 @@ class BrokerTests(unittest.TestCase):
                 try:
                     with closing(self.connect(state)) as conn:
                         with self.assertRaisesRegex(client.ServiceError, f"refused:.*{detail}"):
-                            conn.submit_groups([vba_group()]).raw(10)
+                            conn.submit_groups([template_vba_group()]).raw(10)
                         self.assertEqual(conn.submit_groups([{"f": "ABS", "k": "n", "n": 1, "v": [ONE]}]).raw(10),
                                          (["n"], [ONE]))
                 finally:
@@ -1533,7 +1600,7 @@ class BrokerTests(unittest.TestCase):
         broker, state, stop = start_broker(workers=3, extra={"admission": "policy:admission"})
         self.addCleanup(stop)
         with closing(self.connect(state)) as conn:
-            group = vba_group(calls=[{"procedure": "Probes.Probe", "args": [number("402a000000000000")]}])
+            group = template_vba_group(calls=[{"procedure": "Module1.Probe", "args": [number("402a000000000000")]}])
             letters, answers = conn.submit_groups([group]).raw(10)
             self.assertEqual(letters, ["x"])
             self.assertEqual(answers[0]["reason"], "excel-deadline")

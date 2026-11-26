@@ -323,7 +323,7 @@ class Connection:
         return pending
 
     def vba_case(self, case, *, timeout=60, rid=None):
-        """Ask one authored VBA case; the Windows worker builds the .xlsm from its checked modules. Return a one-row reply.
+        """Ask one authored VBA case; the Windows worker builds the .xlsm from the pinned template it checked. Return a one-row reply.
 
         The Windows worker requires approval of the exact prepared case. Numbers in
         arguments and in the reply use the usual Touchstone binary64 hex encoding.
@@ -347,7 +347,8 @@ class Connection:
                 "id": pending.rid, "ok": False, "error": "incomplete or reordered VBA case answer",
             })
         env = self.envs.get(reply["env_id"], {}).get("env", {})
-        sources = json.dumps(sent["modules"], sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+        sources = json.dumps({"template": sent["template"], "params": sent["params"]}, sort_keys=True,
+                             ensure_ascii=True, separators=(",", ":"))
         reply.update(
             engine=env.get("engine"), cpu=env.get("cpu"), lane=self.lane,
             source_sha256=hashlib.sha256(sources.encode("ascii")).hexdigest(),

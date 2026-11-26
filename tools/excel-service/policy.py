@@ -448,10 +448,16 @@ class Admission:
                 or set(group) - {"f", "k", "n", "v", "o", "i"}):
             raise ValueError("a VBA group contains one VBA case")
         case = values[0]
-        if isinstance(case, dict) and "template" in case:
-            if vba_wire_length(group) > VBA_FRAME_BUDGET:
-                raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
-            case = expand_vba_template(case)        # a reviewed template and typed parameters
+        # Only a reviewed catalogue template with typed parameters reaches Excel; free module source is refused.
+        if not isinstance(case, dict) or not isinstance(case.get("template"), str) or "params" not in case:
+            raise ValueError("a VBA case names a reviewed template with typed params; VBA source is not accepted")
+        if vba_wire_length(group) > VBA_FRAME_BUDGET:
+            raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
+        self.check_expanded_vba_case(group, expand_vba_template(case))
+
+    def check_expanded_vba_case(self, group, case):
+        """The checks every expanded case passes (modules, layout, calls, readback). Internal: the wire reaches it only
+        through a template expansion; grammar tests call it directly with the modules they mutate."""
         # No workbook travels with the case: the worker builds the package from the modules it checked.
         if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "calls", "readback", "event_log"}:
             raise ValueError("invalid VBA case fields")

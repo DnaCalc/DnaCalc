@@ -34,7 +34,7 @@ static class VbaPolicy
         Equals(group.GetValueOrDefault("f"), "_VBA")
         || group.GetValueOrDefault("k") is string tokens && tokens.Split(',').Contains("V");
 
-    public static Dictionary<string, object> CheckGroup(object value)
+    static (Dictionary<string, object> group, Dictionary<string, object> probe) Shape(object value)
     {
         if (value is not Dictionary<string, object> group
             || !Equals(group.GetValueOrDefault("f"), "_VBA") || !Equals(group.GetValueOrDefault("k"), "V")
@@ -43,12 +43,36 @@ static class VbaPolicy
             || group.Keys.Any(k => k is not ("f" or "k" or "n" or "v" or "o" or "i"))
             || values[0] is not Dictionary<string, object> probe)
             throw new RefusedVbaException("a VBA group contains one VBA case");
-        if (probe.ContainsKey("template"))
-        {
-            if (Json.Write(group).Length > FrameBudget)
-                throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
-            probe = VbaTemplates.Expand(probe);          // a reviewed template and typed parameters
-        }
+        return (group, probe);
+    }
+
+    /// <summary>Offline test seam (--check-vba-expanded, --build-vba-expanded): checks a case that carries modules, so the grammar
+    /// can be exercised with mutated sources. The Excel route (CheckGroup) never calls it and refuses such a case.</summary>
+    public static Dictionary<string, object> CheckExpandedGroup(object value)
+    {
+        var (group, probe) = Shape(value);
+        return CheckExpanded(group, probe);
+    }
+
+    public static Dictionary<string, object> CheckGroup(object value)
+    {
+        var (group, probe) = Shape(value);
+        // Only a reviewed catalogue template with typed parameters reaches Excel; free module source is refused (dc-45ndr).
+        if (!probe.ContainsKey("params") || probe.GetValueOrDefault("template") is not string template)
+            throw new RefusedVbaException("a VBA case names a reviewed template with typed params; VBA source is not accepted");
+        if (Json.Write(group).Length > FrameBudget)
+            throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
+        var expanded = CheckExpanded(group, VbaTemplates.Expand(probe));
+        // The approval digest binds the template, its typed parameters and the pinned module hashes as well as the expansion.
+        expanded["template"] = template;
+        expanded["params"] = probe["params"];
+        expanded["pins"] = VbaTemplates.Pins(template);
+        return expanded;
+    }
+
+    /// <summary>The checks every expanded case passes. The wire reaches it only through a template expansion.</summary>
+    internal static Dictionary<string, object> CheckExpanded(Dictionary<string, object> group, Dictionary<string, object> probe)
+    {
         // No workbook travels with the case: the worker builds the package from the modules it checked.
         if (probe.Count != 6 || !new[] { "sheets", "names", "modules", "calls", "readback", "event_log" }.All(probe.ContainsKey))
             throw new RefusedVbaException("invalid VBA case fields");

@@ -2,12 +2,12 @@
 import unittest
 from unittest.mock import patch
 
-from test_touchstone import ONE, TWO, number, start_broker, vba_group
+from test_touchstone import ONE, TWO, number, start_broker, template_vba_group
 
 from touchstone import client, protocol
 
 
-CASE = vba_group()["v"][0]
+CASE = template_vba_group()["v"][0]
 
 
 class VbaClientTests(unittest.TestCase):
@@ -29,7 +29,7 @@ class VbaClientTests(unittest.TestCase):
     def test_vba_case_returns_ordered_calls_cells_and_events(self):
         conn = self.connect()
         reply = conn.vba_case(CASE, timeout=10)
-        error_case = dict(CASE, calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])
+        error_case = dict(CASE, calls=[{"procedure": "Module1.Probe", "args": [number(TWO)]}])
         error_reply = conn.vba_case(error_case, timeout=10)
         self.assertEqual(len(reply["source_sha256"]), 64)
         self.assertEqual(reply["source_sha256"], error_reply["source_sha256"])
@@ -45,16 +45,15 @@ class VbaClientTests(unittest.TestCase):
 
     def test_vba_case_preserves_the_service_refusal_code(self):
         conn = self.connect()
-        case = dict(CASE, modules=[dict(CASE["modules"][0],
-                                        source="Public Function Probe()\nShell \"calc\"\nEnd Function\n")])
+        case = dict(CASE, params={**CASE["params"], "target_sheet": "Nowhere"})
         with self.assertRaises(client.ServiceError) as caught:
             conn.vba_case(case, timeout=10)
         self.assertEqual(caught.exception.response["code"], "refused")
-        self.assertIn("Shell", str(caught.exception))
+        self.assertIn("case sheet", str(caught.exception))
 
     def test_vba_deadline_keeps_the_worker_reason(self):
         conn = self.connect()
-        case = dict(CASE, calls=[{"procedure": "Probes.Probe", "args": [number("402a000000000000")]}])
+        case = dict(CASE, calls=[{"procedure": "Module1.Probe", "args": [number("402a000000000000")]}])
         with self.assertRaises(client.ServiceError) as caught:
             conn.vba_case(case, timeout=10)
         self.assertEqual(caught.exception.response.get("code"), "excel-deadline")

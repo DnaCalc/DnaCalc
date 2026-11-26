@@ -39,15 +39,16 @@ static class Program
 
     static int Main(string[] args)
     {
-        if (args.Length is 1 or 2 && args[0] is "--check-vba-policy" or "--build-vba-package")
+        if (args.Length is 1 or 2 && args[0] is "--check-vba-policy" or "--build-vba-package" or "--check-vba-expanded" or "--build-vba-expanded")
         {
             try
             {
                 var buffer = new char[65537];
                 int size = Console.In.ReadBlock(buffer, 0, buffer.Length);
                 if (size == buffer.Length) throw new RefusedVbaException("VBA policy input exceeds 64 KiB");
-                var probe = VbaPolicy.CheckGroup(Json.Parse(new string(buffer, 0, size)));
-                if (args[0] == "--build-vba-package")
+                var parsed = Json.Parse(new string(buffer, 0, size));
+                var probe = args[0].EndsWith("-expanded") ? VbaPolicy.CheckExpandedGroup(parsed) : VbaPolicy.CheckGroup(parsed);
+                if (args[0].StartsWith("--build-vba-"))
                 {
                     if (args.Length != 2) throw new RefusedVbaException("--build-vba-package needs one output path");
                     File.WriteAllBytes(args[1], VbaPackage.Build(probe));
