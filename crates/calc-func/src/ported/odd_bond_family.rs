@@ -594,6 +594,7 @@ pub fn oddlprice_kernel(
     frequency: f64,
     basis: Option<f64>,
 ) -> Result<f64, OddBondEvalError> {
+    let (raw_frequency, basis_argument) = (frequency, basis);
     validate_positive_inputs(&[
         settlement,
         maturity,
@@ -615,6 +616,13 @@ pub fn oddlprice_kernel(
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
 
+    // The coupon date on or before last_interest on maturity's schedule must exist (Excel 20625,
+    // dc-j9k.551, .552): COUPPCD(last_interest, maturity) is #NUM! when it falls before serial 1.
+    let before = crate::ported::coupon_family::couppcd_kernel(last_interest as f64, maturity as f64, raw_frequency, basis_argument)
+        .map_err(OddBondEvalError::Domain)?;
+    if before < 1.0 {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
     let months_per_coupon = 12 / frequency;
     let mut nc = 0i64;
     let mut cursor = last_interest;
@@ -826,6 +834,7 @@ pub fn oddlyield_kernel(
     frequency: f64,
     basis: Option<f64>,
 ) -> Result<f64, OddBondEvalError> {
+    let (raw_frequency, basis_argument) = (frequency, basis);
     validate_positive_inputs(&[
         settlement,
         maturity,
@@ -844,6 +853,13 @@ pub fn oddlyield_kernel(
     let frequency = parse_frequency(frequency)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     if !(last_interest < settlement && settlement < maturity) {
+        return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+    }
+    // The coupon date on or before last_interest on maturity's schedule must exist (Excel 20625,
+    // dc-j9k.551, .552): COUPPCD(last_interest, maturity) is #NUM! when it falls before serial 1.
+    let before = crate::ported::coupon_family::couppcd_kernel(last_interest as f64, maturity as f64, raw_frequency, basis_argument)
+        .map_err(OddBondEvalError::Domain)?;
+    if before < 1.0 {
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
     let months_per_coupon = 12 / frequency;
@@ -1321,6 +1337,51 @@ mod tests {
     }
 
     /// Live Excel 16.0.20625 (Touchstone, dc-shqi1): ODDLYIELD has no 64-coupon cap.
+    /// dc-j9k.551, .552 (Excel 20625, Touchstone 2026-11-26): ODDLYIELD is #NUM! when the coupon date on
+    /// or before last_interest, on maturity's schedule, falls before serial 1 (so last_interest in
+    /// 1900 needs maturity's month and day not after its own). Excel answered every case below.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn oddlyield_needs_a_valid_coupon_date_before_last_interest() {
+        // ODDLPRICE shares the rule (Touchstone: same window, rate 5% yield 5%).
+        let price = |maturity: f64| oddlprice_kernel(150.0, maturity, 100.0, 0.05, 0.05, 100.0, 1.0, Some(0.0));
+        assert_eq!(price(20189.0), Err(OddBondEvalError::Domain(WorksheetErrorCode::Num)));
+        assert!(price(20188.0).is_ok());
+        let num = Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
+        let at = |settlement: f64, maturity: f64, last: f64, frequency: f64| {
+            oddlyield_kernel(settlement, maturity, last, 0.05, 95.0, 100.0, frequency, Some(0.0))
+        };
+        // last_interest 1900-04-09, settlement 1900-05-29, annual coupons.
+        assert_eq!(at(150.0, 20300.0, 100.0, 1.0), num);
+        assert_eq!(at(150.0, 20189.0, 100.0, 1.0), num);
+        assert_eq!(at(150.0, 20089.0, 100.0, 1.0), num);
+        assert!(at(150.0, 20188.0, 100.0, 1.0).is_ok());
+        assert!(at(150.0, 20090.0, 100.0, 1.0).is_ok());
+        // last_interest 1900-01-02 and 1900-01-28, maturity 2009-07-06 (+ days), semiannual.
+        assert_eq!(at(500.0, 40000.0, 2.0, 2.0), num);
+        assert!(at(500.0, 40000.0, 28.0, 2.0).is_ok());
+        // The fuzz representatives: .552 (last_interest 59, annual, no basis) and .551 (last_interest 2).
+        assert_eq!(
+            oddlyield_kernel(2431359.0, 2592600.0, 59.0, 0.0375, 1.0, f64::from_bits(0x4122c3a626bcf70a), 1.0, None),
+            num
+        );
+        assert_eq!(
+            oddlyield_kernel(
+                253227.0,
+                2188136.0,
+                2.0,
+                f64::from_bits(0x1000000000000000),
+                f64::from_bits(0x4116631a48d69e67),
+                f64::from_bits(0x412873289438c19e),
+                1.0,
+                Some(2.0)
+            ),
+            num
+        );
+        // A 1913 last_interest has valid earlier dates whatever the maturity.
+        assert!(at(5051.0, 25300.0, 5000.0, 1.0).is_ok());
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddlyield_computes_past_64_coupons() {
