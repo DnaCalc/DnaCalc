@@ -10542,6 +10542,43 @@ fn dc_y7tqj__worksheet_visible_false_moves_active_sheet() {
     assert_eq!(sel_sheet, added_name, "Selection must move off the hidden sheet");
 }
 
+/// dc-971p.74 (Excel ww22): Worksheet.Move across a hidden sheet leaves the hidden sheet hidden and makes the moved
+/// sheet the active one, whichever sheet was active before.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_74__worksheet_move_across_a_hidden_sheet_activates_the_moved_sheet() {
+    let (host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let item = |n: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(n)]).unwrap());
+    let a = item(1);
+    let hidden = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(a.clone())]).unwrap());
+    let c = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(hidden.clone())]).unwrap());
+    let (a_name, h_name, c_name) = (text(&model, &a, "Name"), text(&model, &hidden, "Name"), text(&model, &c, "Name"));
+    assert_eq!(sheet_names(&host), [a_name.clone(), h_name.clone(), c_name.clone()]);
+    invoke_kind(&model, &hidden, "Visible", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    let active_name = || text(&model, &obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap()), "Name");
+    invoke_kind(&model, &a, "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &c, "Move", InvokeKind::Method, vec![AutoValue::Object(a.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), [c_name.clone(), a_name.clone(), h_name.clone()]);
+    assert_eq!(active_name(), c_name, "the moved sheet is active (A was active before)");
+    assert!(matches!(invoke_kind(&model, &hidden, "Visible", InvokeKind::Get, vec![]).unwrap(), AutoValue::I4(0)));
+    // Move A after C with C active: A becomes active.
+    invoke_kind(&model, &a, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(c.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), [c_name.clone(), a_name.clone(), h_name.clone()]);
+    invoke_kind(&model, &c, "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &a, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(h_to_last(&model, &sheets))]).unwrap();
+    assert_eq!(active_name(), a_name, "the moved sheet is active (C was active before)");
+}
+
+fn h_to_last(model: &WorkbookAutomation, sheets: &ObjectRef) -> ObjectRef {
+    let count = match invoke(model, sheets, "Count", vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{other:?}"),
+    };
+    obj(invoke(model, sheets, "Item", vec![AutoValue::I4(count)]).unwrap())
+}
+
 /// dc-y7tqj (rw12 finding 17g): AdvancedFilter xlFilterCopy copies numeric/date/bool/formula-like
 /// text cells without E11 refusal, refuses stale cells below CopyToRange, refuses cross-workbook
 /// ranges, and refuses unknown criteria headers instead of dropping all rows.

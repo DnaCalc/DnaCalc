@@ -346,6 +346,10 @@ impl WorkbookAutomation {
                 return self.copy_to_new_book(session, &[sheet], true, call);
             }
             Self::move_one(session, sheet, before, after, call)?;
+            // Excel ww22: the moved sheet becomes the active one (a hidden one cannot be).
+            if Self::visible_sheet(session, sheet) {
+                self.activate_in_session(session, sheet, "Worksheet", "Move")?;
+            }
             self.context_changed(session);
             Ok(AutoValue::Empty)
         })
