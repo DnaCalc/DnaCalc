@@ -442,6 +442,27 @@ fn countif_numeric_criterion_rejects_non_numeric_labels() {
     ));
 }
 
+/// Excel 16.0.20625 (dc-j9k.526): the serials of day zero and of days past February in early 1900
+/// count from the month start in the 1900 calendar that has a 29 February: EDATE(0,2) is 60, not 59.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn early_1900_day_zero_serials_match_excel() {
+    let e = host();
+    for (serial, months, excel) in [
+        (0.0, 1.0, 31.0), (0.0, 2.0, 60.0), (0.0, 3.0, 91.0), (0.0, 12.0, 366.0),
+        (1.0, 2.0, 61.0), (2.0, 2.0, 62.0), (1.0, 1.0, 32.0), (30.0, 1.0, 59.0),
+        (0.0, 24.0, 731.0), (60.0, 0.0, 59.0), (60.0, 1.0, 89.0), (60.0, 3.0, 150.0), (29.0, 1.0, 59.0),
+    ] {
+        exact(c(&e, "EDATE", vec![n(serial), n(months)]), excel);
+    }
+    for (y, m, d, excel) in [
+        (1900.0, 3.0, 0.0, 60.0), (1900.0, 1.0, 60.0, 60.0), (1900.0, 4.0, 0.0, 91.0),
+        (1900.0, 2.0, 30.0, 61.0), (1900.0, 2.0, 28.0, 59.0), (1900.0, 3.0, 1.0, 61.0),
+    ] {
+        exact(c(&e, "DATE", vec![n(y), n(m), n(d)]), excel);
+    }
+}
+
 /// Q3, Excel 16.0.20527: these return-type classes always give #NUM!, and the
 /// captured serial and return-type bits locate the observed conversion boundaries.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
