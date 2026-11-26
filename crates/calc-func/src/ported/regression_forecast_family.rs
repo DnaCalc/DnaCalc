@@ -287,6 +287,17 @@ fn shape_first_inputs(
         }
         x.value.rows = x.value.values.len();
         x.value.cols = 1;
+    } else if input == RegressionInput::Coefficients && let Some(x) = &mut known_x_raw {
+        // The y vector fixes the observation axis. Normalize row-oriented
+        // predictors to one observation per row for the fit.
+        if y.rows == 1 && y.cols > 1 {
+            if x.value.cols != y.cols {
+                return Err(WorksheetErrorCode::Ref);
+            }
+            x.value = x.value.transpose();
+        } else if y.rows > 1 && x.value.rows != y.rows {
+            return Err(WorksheetErrorCode::Ref);
+        }
     }
     let shape = match (y.rows, y.cols) {
         (1, 1) => VectorShape::Scalar,

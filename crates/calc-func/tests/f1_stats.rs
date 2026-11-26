@@ -741,6 +741,29 @@ fn linest_and_logest_held_errors_follow_shape() {
     }
 }
 
+/// Excel 20625 uses known_y's orientation to find the observations in known_x.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_known_x_follows_known_y_orientation() {
+    let y_col = col(&[2.0, 4.0, 6.0]);
+    let y_row = arr(vec![vec![2.0, 4.0, 6.0]]);
+    let x_row = arr(vec![vec![1.0, 2.0, 3.0]]);
+    let x_col = col(&[1.0, 2.0, 3.0]);
+    let x_two_cols = arr(vec![vec![1.0, 1.0], vec![2.0, 4.0], vec![3.0, 9.0]]);
+    error(call("LINEST", vec![y_col, x_row, b(false), b(true)]), Ref);
+    error(call("LINEST", vec![y_row.clone(), x_col]), Ref);
+    error(call("LINEST", vec![y_row.clone(), x_two_cols]), Ref);
+    let x_square = arr(vec![vec![1.0, 1.0, 6.0], vec![2.0, 4.0, 5.0], vec![3.0, 9.0, 5.0]]);
+    for (name, slope) in [
+        ("LINEST", 0x3fd5_5555_5555_5555),
+        ("LOGEST", 0x3ff1_f59a_c3c7_d6c0),
+    ] {
+        let (rows, cols, cells) = array(call(name, vec![y_row.clone(), x_square.clone()]));
+        assert_eq!((rows, cols), (1, 4));
+        assert_eq!(cells[0].to_bits(), slope);
+    }
+}
+
 /// Excel 20527 treats blank regression flags as false, not omitted defaults.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
