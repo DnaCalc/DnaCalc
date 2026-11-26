@@ -1,0 +1,8 @@
+{"id":"VBA.case1","ok":true,"value":{"vba":"match9 type=Error | match5=2 | countA=2 | transpose=9 | x=ok; wsfMatch=1004|Unable to get the Match property of the WorksheetFunction class; "}}
+{"id":"VBA.case2","ok":true,"value":{"vba":"add=94|Invalid use of Null; "}}
+{"id":"VBA.case3","ok":true,"value":{"vba":"color=16777215 pc=0 pci=-4142 | readPC=ok; putPCnofill=ok; pat=1 pc=255 col=16777215 | putPCsolid=ok; pat=1 pc=255 col=65280 | linGrad=ok; pat=4000 | autoPat=ok; pat=1 col=255 | gray50=ok; pat=-4125 pc=255 col=65280 ci=4 tint=0"}}
+{"id":"VBA.case4","ok":true,"value":{"vba":"style=450|Wrong number of arguments or invalid property assignment; bold=True fill=255 nf=0.00 ul=-4142 col=0 style=Normal | afterDirect style=Normal | save=ok; "}}
+{"id":"VBA.case5","ok":true,"value":{"vba":"sel=$D$4:$E$5 active=$D$4 | act2=ok; sel=$A$1:$B$2 active=$B$2 | sel=$A$1:$B$2 active=$B$2 | sel=$A$1:$B$2 active=$A$2"}}
+{"id":"VBA.case6","ok":true,"value":{"vba":"active=S2 selected=2 :S2,S3,putActive=ok;  | S2.A1=7 S3.A1=7 | after Selection.Value2: S2.A1=9 S3.A1=9 | S3.B2= S3.C1= | sel type=Range | after Replace:True count=1"}}
+{"id":"VBA.case7","ok":true,"value":{"vba":"sheet=Chart selType=Nothing sel=ok; activeCell: activeCell=91|Object variable or With block variable not set;  activeWindowType=1"}}
+{"id":"VBA.case8","ok":true,"value":{"vba":"shapeDelete=-2147024809|The item with the specified name wasn't found.; toolbarVisible=ok; cbCell=ok; dialogs=1531 dialogsCount=ok; toolbarsCount=ok; toolbars=13 cbStandardVisible=ok;  v=True"}}

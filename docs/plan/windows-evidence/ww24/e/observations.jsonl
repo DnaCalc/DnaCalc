@@ -1,0 +1,4 @@
+{"id":"reopen","ok":true,"value":{"filterMode":true,"afMode":false,"names":["Sheet1!_FilterDatabase==Sheet1!$A$1:$C$6","Sheet1!Criteria==Sheet1!$E$1:$E$2"],"hidden":[false,true,false,true,false,true]}}
+{"id":"showAll","ok":true,"value":{"hidden":[false,false,false,false,false,false],"filterMode":false}}
+{"id":"inplaceAgain","ok":false,"hresult":"0x800A03EC","description":"Extract range is not defined."}
+{"id":"unique-inplace","ok":false,"hresult":"0x800A03EC","description":"Unable to get the ShowAllData property of the Worksheet class"}

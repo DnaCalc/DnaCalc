@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.AdvancedFilter",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "InPlace.reopen",
+      "reading": "ww24",
+      "probe": "e/reopen",
+      "args": [
+        "AdvancedFilter xlFilterInPlace A1:C6 criteria E1:E2 (>=20), SaveAs xlsx, reopen"
+      ],
+      "expected_bits": "text:rows 2,4,6 hidden=true persist; FilterMode True, AutoFilterMode False; names Sheet1!_FilterDatabase (hidden, A1:C6) and Sheet1!Criteria; XML: row hidden=1, no autoFilter element, definedName _xlnm._FilterDatabase hidden and _xlnm.Criteria; ShowAllData unhides and clears FilterMode",
+      "calc_func": "text:dc-hduqd: needs a filter-in-place record"
+    },
+    {
+      "id": "Unique.subsetColumns",
+      "reading": "ww24",
+      "probe": "e/case2",
+      "args": [
+        "rows a,10,N / b,20,S / a,10,S / c,30,N / a,10,N; CopyTo header Item,Qty with Unique:=True; Item,Region; Item only"
+      ],
+      "expected_bits": "text:uniqueness over the copied columns only: Item,Qty -> a10,b20,c30; Item,Region -> aN,bS,aS,cN; Item -> a,b,c",
+      "calc_func": "text:dc-hduqd unmeasured"
+    },
+    {
+      "id": "CopyTo.blankHeader",
+      "reading": "ww24",
+      "probe": "e/case3",
+      "args": [
+        "CopyToRange G1:I1 with I1 Region and H1 blank; L1:M1 with L1 blank; P1:Q1 both Item"
+      ],
+      "expected_bits": "text:blank cell among several: 1004 The extract range has a missing or invalid field name; duplicate header Item,Item succeeds and copies the Item column twice; an unknown name also 1004",
+      "calc_func": "text:dc-hduqd unmeasured"
+    }
+  ]
+}

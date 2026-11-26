@@ -1,0 +1,2 @@
+{"id":"VBA.case2","ok":true,"value":{"vba":"add=94|Invalid use of Null; "}}
+{"id":"VBA.case4","ok":true,"value":{"vba":"style=450|Wrong number of arguments or invalid property assignment; stylesCount=47 cnt=ok; style2=9|Subscript out of range; bold=True fill=255 nf=0.00 ul=-4142 col=0 style=Normal | afterDirect style=Normal | save=ok; "}}

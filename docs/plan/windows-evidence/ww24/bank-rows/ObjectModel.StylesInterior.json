@@ -1,0 +1,89 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.StylesInterior",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Style.alignmentReads",
+      "reading": "ww24",
+      "probe": "c/case2",
+      "args": [
+        "Styles(Normal/Currency/Percent/Comma/Zed).HorizontalAlignment... on a new workbook"
+      ],
+      "expected_bits": "text:ha=1 va=-4107 IndentLevel Null Orientation -4128 wrap False shrink False Locked True FormulaHidden False; Value = name; Normal font Aptos Narrow 11; Currency nf _($* #,##0.00_);...; Percent 0%",
+      "calc_func": "text:dc-oxh8w.63: IndentLevel and Orientation unmeasured"
+    },
+    {
+      "id": "Hyperlink.style",
+      "reading": "ww24",
+      "probe": "c/case4",
+      "args": [
+        "new workbook Styles(\"Hyperlink\"); Range.Style=\"Hyperlink\""
+      ],
+      "expected_bits": "text:Hyperlink is not in a new workbook's Styles (Styles.Count 47; Item raises 9); Range.Style = \"Hyperlink\" raises 450",
+      "calc_func": "text:dc-oxh8w.33"
+    },
+    {
+      "id": "Interior.PatternColor",
+      "reading": "ww24",
+      "probe": "c/case3",
+      "args": [
+        "PatternColor read/put on a no-fill cell; xlPatternLinearGradient; xlPatternAutomatic; gray50"
+      ],
+      "expected_bits": "text:no-fill PatternColor read 0 ColorIndex -4142; put 255 accepted and Pattern reads 1 (solid), Color stays 16777215; xlPatternLinearGradient accepted, Pattern 4000; xlPatternAutomatic reads 1 and keeps the colour; gray50 Pattern -4125 PatternColor 255 Color 65280 ColorIndex 4",
+      "calc_func": "text:dc-oxh8w.33: refuses"
+    },
+    {
+      "id": "Select.groupWrites",
+      "reading": "ww24",
+      "probe": "c/case6",
+      "args": [
+        "S2 active, S3 selected with Replace:=False; ActiveCell.Value, Selection.Value2, then Worksheets(S2).Range(B2).Value"
+      ],
+      "expected_bits": "text:SelectedSheets 2; ActiveCell.Value and Selection.Value2 write on both sheets; direct Worksheets(\"S2\").Range edits only S2",
+      "calc_func": "text:dc-oxh8w.49"
+    },
+    {
+      "id": "Activate.multiCell",
+      "reading": "ww24",
+      "probe": "c/case5",
+      "args": [
+        "selection A1:B2; Range(D4:E5).Activate; Range(B2:C3).Activate; Range(A2:B3).Activate"
+      ],
+      "expected_bits": "text:outside the selection: selection D4:E5 active D4; first cell inside selection: selection stays A1:B2 with active cell moved to B2 (B2:C3) or A2 (A2:B3)",
+      "calc_func": "text:dc-oxh8w.49"
+    },
+    {
+      "id": "Application.Match",
+      "reading": "ww24",
+      "probe": "c/case1",
+      "args": [
+        "Application.Match(9,Array(3,5),0); WorksheetFunction.Match same"
+      ],
+      "expected_bits": "text:TypeName Error (no run-time error); Match(5,Array(3,5,7),0)=2; WorksheetFunction.Match raises 1004 Unable to get the Match property of the WorksheetFunction class",
+      "calc_func": "text:dc-711ye expectation"
+    },
+    {
+      "id": "UIObjects.errors",
+      "reading": "ww24",
+      "probe": "c/case8",
+      "args": [
+        "Shapes(\"nosuch\").Delete; Toolbars(\"Standard\").Visible=True; CommandBars(\"Cell\").Enabled=True"
+      ],
+      "expected_bits": "text:Shapes Delete -2147024809 The item with the specified name wasn't found; Toolbars Visible and CommandBars Enabled raise no error; Dialogs.Count 1531; Toolbars.Count 13",
+      "calc_func": "text:dc-711ye: assumed run-time errors"
+    }
+  ]
+}

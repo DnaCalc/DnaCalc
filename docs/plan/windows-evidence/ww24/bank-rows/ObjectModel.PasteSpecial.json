@@ -1,0 +1,139 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.PasteSpecial",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "xlPasteCommentsAndNotes",
+      "reading": "ww24",
+      "probe": "a/case1,15",
+      "args": [
+        "CLng(xlPasteCommentsAndNotes); PasteSpecial Paste:=21"
+      ],
+      "expected_bits": "text:constant not defined (reads 0); Paste:=21 raises 1004 PasteSpecial method of Range class failed",
+      "calc_func": "text:dc-2rjye: 21 from memory"
+    },
+    {
+      "id": "ColumnWidths.tile4",
+      "reading": "ww24",
+      "probe": "a/case14",
+      "args": [
+        "A1:B1 widths 20,5 B hidden, A outline 1; copy; PasteSpecial xlPasteColumnWidths onto D1:G1"
+      ],
+      "expected_bits": "text:D=20,E hidden w0,F=20,G hidden; outline level of D:G = 1; selection D1:G1",
+      "calc_func": "text:dc-2rjye: whole AxisFormat copied, mismatched counts rejected"
+    },
+    {
+      "id": "ColumnWidths.moreRows",
+      "reading": "ww24",
+      "probe": "a/case3",
+      "args": [
+        "same source; destination D1:D3"
+      ],
+      "expected_bits": "text:accepted; D=20, E hidden, outline 1; selection D1:E3 (extends to source width, rows repeated)",
+      "calc_func": "text:dc-2rjye: rejects mismatched row counts"
+    },
+    {
+      "id": "ColumnWidths.singleDest",
+      "reading": "ww24",
+      "probe": "a/case2",
+      "args": [
+        "same source; destination D1"
+      ],
+      "expected_bits": "text:D=20, E hidden (w 0), F,G untouched 8.43; selection D1:E1",
+      "calc_func": "text:dc-2rjye"
+    },
+    {
+      "id": "ColumnWidths.transposeOperation",
+      "reading": "ww24",
+      "probe": "a/case16",
+      "args": [
+        "A1:B2 widths 20,30; PasteSpecial xlPasteColumnWidths Transpose:=True onto E5; Operation:=xlAdd onto I5"
+      ],
+      "expected_bits": "text:no error; widths pasted untransposed (E=20,F=30) and no cell content, selection E5:F6; Operation ignored the same way",
+      "calc_func": "text:dc-oxh8w.43: refuses typed"
+    },
+    {
+      "id": "Paste13And14",
+      "reading": "ww24",
+      "probe": "a/case16",
+      "args": [
+        "PasteSpecial 13 and 14 after Copy A1:B2 (widths 20,30)"
+      ],
+      "expected_bits": "text:content x pasted, column widths NOT pasted (equal to All without widths)",
+      "calc_func": "text:dc-oxh8w.43: equal to All"
+    },
+    {
+      "id": "Paste14.mergingCF",
+      "reading": "ww24",
+      "probe": "a/case4",
+      "args": [
+        "dest A1:A3 CF >5; source C1:C3 CF >10; PasteSpecial 14 onto A1:A3"
+      ],
+      "expected_bits": "text:2 rules on A1:A3: [1] >10 priority 1, [2] >5 priority 2 (source first)",
+      "calc_func": "text:dc-2rjye: Count and order unmeasured"
+    },
+    {
+      "id": "Paste7.AllExceptBorders",
+      "reading": "ww24",
+      "probe": "a/case6",
+      "args": [
+        "source A1 nf 0.000 bold fill red right-aligned bottom border unlocked; dest C1 0% italic green centered top border locked"
+      ],
+      "expected_bits": "text:nf, font (italic lost), fill, alignment and Locked=False taken from source; dest top border kept; source bottom border not carried; text source keeps quote prefix",
+      "calc_func": "text:dc-oxh8w.43: refuses typed"
+    },
+    {
+      "id": "Paste11And12.keepDest",
+      "reading": "ww24",
+      "probe": "a/case6",
+      "args": [
+        "PasteSpecial 11 and 12 onto a formatted destination"
+      ],
+      "expected_bits": "text:number format 0.000 taken; fill, alignment and Locked of the destination kept",
+      "calc_func": "text:dc-oxh8w.43: refuses typed"
+    },
+    {
+      "id": "Paste.blankSourceBlankDest",
+      "reading": "ww24",
+      "probe": "a/case5",
+      "args": [
+        "blank source D1 onto blank E1 and number F1=9: Add, Subtract, Multiply, Divide"
+      ],
+      "expected_bits": "text:blank dest stays Empty for all four ops; number dest: Add 9, Subtract 9, Multiply 0, Divide #DIV/0!",
+      "calc_func": "text:dc-2rjye item 4"
+    },
+    {
+      "id": "PasteComments.blankSource",
+      "reading": "ww24",
+      "probe": "a/case7",
+      "args": [
+        "PasteSpecial xlPasteComments onto a cell with a note, source cell has no note"
+      ],
+      "expected_bits": "text:destination note removed (Comment is Nothing); with a source note the destination note text is replaced",
+      "calc_func": "text:dc-oxh8w.43: Excel may keep them"
+    },
+    {
+      "id": "PasteValidation.ownRule",
+      "reading": "ww24",
+      "probe": "a/case7",
+      "args": [
+        "PasteSpecial xlPasteValidation onto a cell with its own rule"
+      ],
+      "expected_bits": "text:rule replaced by the source rule (whole number, Formula1 1)",
+      "calc_func": "text:dc-oxh8w.43: we replace the rule"
+    }
+  ]
+}

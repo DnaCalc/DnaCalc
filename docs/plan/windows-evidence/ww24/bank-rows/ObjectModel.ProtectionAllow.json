@@ -1,0 +1,79 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.ProtectionAllow",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Allow.matrix",
+      "reading": "ww24",
+      "probe": "b/case1",
+      "args": [
+        "Protect with exactly one Allow* argument True, then macro ops on locked D and unlocked A cells"
+      ],
+      "expected_bits": "text:each Allow* permits only its own op: FormattingCells -> format locked and unlocked cells; FormattingColumns -> ColumnWidth; FormattingRows -> RowHeight; InsertingColumns -> Columns.Insert; InsertingRows -> Rows.Insert; InsertingHyperlinks -> Hyperlinks.Add; Sorting -> Sort of an unlocked range only (locked range 1004); everything else 1004. DeletingColumns/DeletingRows/Filtering/PivotTables alone permitted none of the tested ops (Delete of a column/row with locked cells in it fails 1004). Edit of an unlocked cell ok, of a locked cell 1004. Protection.Allow* getters read the argument back",
+      "calc_func": "text:dc-ml3k0: typed refusals"
+    },
+    {
+      "id": "AutoFilter.onProtected",
+      "reading": "ww24",
+      "probe": "b/case1,5",
+      "args": [
+        "Range.AutoFilter toggle with AllowFiltering True; AutoFilterMode=False and ShowAllData on a protected sheet with a filter set before Protect"
+      ],
+      "expected_bits": "text:Range.AutoFilter toggle 1004 even with AllowFiltering; AutoFilterMode=False 1004; ShowAllData 1004; FilterMode stays True",
+      "calc_func": "text:dc-5oumk: typed refusals"
+    },
+    {
+      "id": "UserInterfaceOnly",
+      "reading": "ww24",
+      "probe": "b/case2",
+      "args": [
+        "Protect, then Protect UserInterfaceOnly:=True (no password, then with password, fresh)"
+      ],
+      "expected_bits": "text:re-Protect accepted without prompt or error; ProtectionMode True; macro edits, formatting, Rows.Insert and Cut of locked cells then succeed",
+      "calc_func": "text:dc-ml3k0"
+    },
+    {
+      "id": "Cut.protected",
+      "reading": "ww24",
+      "probe": "b/case3",
+      "args": [
+        "Cut locked F1:F3 to A1; cut unlocked A2 to A8 (locked); paste over locked and unlocked"
+      ],
+      "expected_bits": "text:Cut raised 1004 in both; PasteSpecial over locked D3 1004; over unlocked A5 ok",
+      "calc_func": "text:dc-ml3k0"
+    },
+    {
+      "id": "ListObject.onProtected",
+      "reading": "ww24",
+      "probe": "b/case4",
+      "args": [
+        "ListObjects.Add over unlocked A1:B4 and locked D1:D6 on a protected sheet; Unlist; Delete"
+      ],
+      "expected_bits": "text:ListObjects.Add raises 3000 for both; Unlist ok (count 0); ListObject.Delete 1004 and the table and data stay",
+      "calc_func": "text:dc-5oumk"
+    },
+    {
+      "id": "Insert.onProtected",
+      "reading": "ww24",
+      "probe": "b/case5",
+      "args": [
+        "Range(A11).Insert xlShiftDown, Range(A12).Delete xlShiftUp on unlocked cells; PasteSpecial xlPasteColumnWidths to locked/unlocked cells"
+      ],
+      "expected_bits": "text:all 1004 on a protected sheet without Allow*",
+      "calc_func": "text:dc-5oumk"
+    }
+  ]
+}

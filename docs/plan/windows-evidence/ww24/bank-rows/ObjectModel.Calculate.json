@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Calculate",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Calculate.otherWorkbook",
+      "reading": "ww24",
+      "probe": "d/case3,4,5",
+      "args": [
+        "two open books each with =A1+1 and =RAND(), handlers SheetCalculate; Application.Calculate / CalculateFull / CalculateFullRebuild with the other book active, Automatic and Manual and CalculateBeforeSave"
+      ],
+      "expected_bits": "text:Application.Calculate, CalculateFull and CalculateFullRebuild all recalc BOTH open books (non-active B: dirty =A1+1 updated, RAND changed), each book raises WS.Calculate then WB.SheetCalculate once per call",
+      "calc_func": "text:dc-gw1be: refuses with another book open"
+    },
+    {
+      "id": "Close.BeforeSaveCancel",
+      "reading": "ww24",
+      "probe": "d/case2",
+      "args": [
+        "Book saved as xlsm, A1 edited, handlers BeforeClose and BeforeSave(Cancel=True); wb.Close True"
+      ],
+      "expected_bits": "text:BeforeClose then BeforeSave fire; BeforeSave Cancel=True cancels the close silently (no error); workbook stays open, Saved False; Close False then closes",
+      "calc_func": "text:dc-9spk9: 1004"
+    }
+  ]
+}

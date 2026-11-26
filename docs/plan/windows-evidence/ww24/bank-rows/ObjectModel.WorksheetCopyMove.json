@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.WorksheetCopyMove",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Copy.beforeOtherWorkbook",
+      "reading": "ww24",
+      "probe": "a/case8",
+      "args": [
+        "Sheet S1 of Book A; Copy Before:=Workbooks(B).Worksheets(T1)"
+      ],
+      "expected_bits": "text:copy lands in B as S1,T1; A keeps S1; the destination workbook is active, active sheet S1; Workbooks.Count +0 beyond the two",
+      "calc_func": "text:dc-fa8cx unmeasured"
+    },
+    {
+      "id": "Move.beforeOtherWorkbook",
+      "reading": "ww24",
+      "probe": "a/case9",
+      "args": [
+        "A: S1,S2; B: T1; A.S1.Move Before:=B.T1"
+      ],
+      "expected_bits": "text:B tabs S1,T1; A keeps S2; destination workbook active, active sheet S1",
+      "calc_func": "text:dc-fa8cx unmeasured"
+    },
+    {
+      "id": "GroupMove.anchorInsideGroup",
+      "reading": "ww24",
+      "probe": "a/case10,11",
+      "args": [
+        "S1..S4; Worksheets(Array(2,3)).Move Before:=Worksheets(2) and After:=Worksheets(3)"
+      ],
+      "expected_bits": "text:no error, tab order unchanged S1,S2,S3,S4",
+      "calc_func": "text:dc-fa8cx unmeasured"
+    },
+    {
+      "id": "GroupMove.arrayOrder",
+      "reading": "ww24",
+      "probe": "a/case12,13",
+      "args": [
+        "Worksheets(Array(3,2)).Move Before:=Worksheets(1); Worksheets(Array(4,2)).Move After:=Worksheets(1)"
+      ],
+      "expected_bits": "text:the group moves in tab order: S2,S3,S1,S4 and S1,S2,S4,S3",
+      "calc_func": "text:dc-fa8cx unmeasured"
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.PointsLabels",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T11:45:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24",
+      "source": "ww24 probes a-g observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Points.index",
+      "reading": "ww24",
+      "probe": "f/case1",
+      "args": [
+        "column chart 3 points: Series.Points(0/1/3/4/\"a\"/-1/omitted)"
+      ],
+      "expected_bits": "text:Count 3; 1 and 3 give Point (Name S1P2 for item 2); 0, 4, -1 raise 1004 Parameter not valid; text index 13 Type mismatch; Points() returns the collection; a blank source cell or an empty series keeps Count 3",
+      "calc_func": "text:dc-oxh8w.58 unmeasured"
+    },
+    {
+      "id": "Point.HasDataLabel",
+      "reading": "ww24",
+      "probe": "f/case2",
+      "args": [
+        "labels off: p1.HasDataLabel=True; then series labels on and p2 off"
+      ],
+      "expected_bits": "text:default False; DataLabel of a point without label raises -2147467259; p1 on gives HasDataLabel True for p1 only, series HasDataLabels stays False, DataLabels.Count 3; XML dLbl idx 0 showVal 1 with series showVal 0; series on + p2 off: p1 True, p2 False, p3 True, dLbl idx 1 delete 1, DataLabels(2) and Points(2).DataLabel raise parameter not valid",
+      "calc_func": "text:dc-oxh8w.58 unmeasured"
+    },
+    {
+      "id": "DataLabels.Font",
+      "reading": "ww24",
+      "probe": "f/case3",
+      "args": [
+        "series DataLabels.Font.Size 14 bold red; then point 2 size 9"
+      ],
+      "expected_bits": "text:default size 10 not bold colour 0; every label reads 14/True/255; p2 size 9 writes a dLbl idx 1 with its own txPr (sz 900 b 1 FF0000) while series stays 1400; txPr bodyPr wrap square insets 38100/19050 spAutoFit",
+      "calc_func": "text:dc-oxh8w.58 unmeasured"
+    },
+    {
+      "id": "DataLabel.NumberFormat",
+      "reading": "ww24",
+      "probe": "f/case4",
+      "args": [
+        "p2 NumberFormat 0.00, Linked True/False, General, Text, Left/Top"
+      ],
+      "expected_bits": "text:default General linked True; put 0.00 gives linked False and text 2.00; Linked=True restores General; General put sets linked False; Text=hello sets caption hello and survives source edit; Left/Top put 50.5/20.25 read back and save as c:layout manualLayout x,y fractions (-0.247, -0.283); XML numFmt General sourceLinked 0",
+      "calc_func": "text:dc-oxh8w.58 unmeasured"
+    },
+    {
+      "id": "ChartObject.Name",
+      "reading": "ww24",
+      "probe": "f/case5",
+      "args": [
+        "ChartObject.Name = XML metacharacters, a duplicate of a chart, of a shape; Chart.Name put on an embedded chart"
+      ],
+      "expected_bits": "text:all accepted (duplicates allowed, a chart then shares a name; metacharacters kept, chart.Name reads Sheet1 plus the name); Chart.Name put raises 7 Out of memory; lookup by the Chart.Name text fails -2147024809; saved cNvPr name Alpha id 2",
+      "calc_func": "text:dc-oxh8w.59 unmeasured"
+    },
+    {
+      "id": "ChartObject.geometry",
+      "reading": "ww24",
+      "probe": "f/case5,6",
+      "args": [
+        "Left 50.7 Top 33.3 Width 211.9 Height 123.4; placement and anchors"
+      ],
+      "expected_bits": "text:read back as singles 50.7000007629395,33.2999992370605,211.899993896484,123.400001525879; saved as twoCellAnchor col/row offsets in EMU, editAs absolute when Placement xlFreeFloating, none for xlMoveAndSize; xfrm in the graphicFrame a:off 0,0 a:ext 0,0",
+      "calc_func": "text:dc-oxh8w.59 unmeasured"
+    }
+  ]
+}

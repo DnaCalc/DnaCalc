@@ -1,0 +1,16 @@
+{"id":"VBA.case1","ok":true,"value":{"vba":"xlPasteCommentsAndNotes=0"}}
+{"id":"VBA.case2","ok":true,"value":{"vba":"D:w=20,h=False,o=1 E:w=0,h=True,o=1 F:w=8.43,h=False,o=1 G:w=8.43,h=False,o=1  sel=$D$1:$E$1"}}
+{"id":"VBA.case3","ok":true,"value":{"vba":"D:w=20,h=False,o=1 E:w=0,h=True,o=1 F:w=8.43,h=False,o=1 G:w=8.43,h=False,o=1  sel=$D$1:$E$3"}}
+{"id":"VBA.case4","ok":true,"value":{"vba":"before dest n=1 [1 type=1 f1==5 at=$A$1:$A$3 pri=1] src n=1 [1 type=1 f1==10 at=$C$1:$C$3 pri=2] | after dest n=2 [1 type=1 f1==10 at=$A$1:$A$3 pri=1] [2 type=1 f1==5 at=$A$1:$A$3 pri=2]"}}
+{"id":"VBA.case5","ok":true,"value":{"vba":"op1 blankdest=[|Empty] numdest=[9|Double] op2 blankdest=[|Empty] numdest=[9|Double] op3 blankdest=[|Empty] numdest=[0|Double] op4 blankdest=[|Empty] numdest=[#DIV/0!|Error] "}}
+{"id":"VBA.case6","ok":true,"value":{"vba":"7: nf=0.000 b=True i=False fill=255 al=-4152 top=1 bot=-4142 lock=False v=1234.5 | 11: nf=0.000 b=True fill=65280 al=-4108 lock=True | 12: nf=0.000 b=True fill=65280 al=-4108 lock=True v=1234.5 | 7text: qp=' v=abc nf=@"}}
+{"id":"VBA.case7","ok":true,"value":{"vba":"val onto own: type=1 f1=1 | notes onto note: srcnote | blank src onto note: none"}}
+{"id":"VBA.case8","ok":true,"value":{"vba":"copy: wb2 tabs=S1,T1, wb1 tabs=S1, activebook=Book1 activesheet=S1 count=2"}}
+{"id":"VBA.case9","ok":true,"value":{"vba":"A=Sheet3 B=Book1 move: B tabs=S1,T1, A tabs=S2, active=Book1/S1"}}
+{"id":"VBA.case10","ok":true,"value":{"vba":"tabs=S1,S2,S3,S4, active=S2"}}
+{"id":"VBA.case11","ok":true,"value":{"vba":"tabs=S1,S2,S3,S4, active=S2"}}
+{"id":"VBA.case12","ok":true,"value":{"vba":"tabs=S2,S3,S1,S4, active=S2"}}
+{"id":"VBA.case13","ok":true,"value":{"vba":"tabs=S1,S2,S4,S3, active=S2"}}
+{"id":"VBA.case14","ok":true,"value":{"vba":"D:w=20,h=False,o=1 E:w=0,h=True,o=1 F:w=20,h=False,o=1 G:w=0,h=True,o=1  sel=$D$1:$G$1"}}
+{"id":"VBA.case15","ok":true,"value":{"vba":"ERR 1004|PasteSpecial method of Range class failed"}}
+{"id":"VBA.case16","ok":true,"value":{"vba":"tr: E:w=20,h=False,o=1 F:w=30,h=False,o=1 G:w=8.43,h=False,o=1 e5=[] sel=$E$5:$F$6 | op: I:w=20,h=False,o=1 J:w=30,h=False,o=1 i5=[] | 13: L:w=8.43,h=False,o=1 M:w=8.43,h=False,o=1 l5=x | 14: O:w=8.43,h=False,o=1 P:w=8.43,h=False,o=1 o5=x"}}
