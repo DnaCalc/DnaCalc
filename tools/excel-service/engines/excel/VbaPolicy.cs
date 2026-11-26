@@ -72,6 +72,14 @@ static class VbaPolicy
         if (sourceChars > Limit("max_source_chars"))
             throw new RefusedVbaException("oversized VBA module source");
         var entryPoints = VbaGrammar.CheckModules(triples, sheets.Count);
+        foreach (var entry in entryPoints)
+        {
+            // A layout formula may call only worksheet functions; a probe function with such a name would answer
+            // it on an Excel build that lacks the function, with a parameter the taint check never saw.
+            var name = entry[(entry.LastIndexOf('.') + 1)..].ToUpperInvariant();
+            if (CatalogueFunctions.Contains(name) || BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
+                throw new RefusedVbaException("a VBA procedure name collides with a worksheet function: " + VbaGrammar.Escape(name));
+        }
         if (probe["calls"] is not List<object> calls || calls.Count < 1 || calls.Count > Limit("max_calls"))
             throw new RefusedVbaException("invalid VBA call count");
         foreach (var item in calls)
@@ -135,7 +143,7 @@ static class VbaPolicy
     {
         if (value is not Dictionary<string, object> cell || cell.GetValueOrDefault("type") is not string kind)
             throw new RefusedVbaException("range cells must be typed");
-        var mode = cell.GetValueOrDefault("mode") ?? "cell";
+        var mode = cell.TryGetValue("mode", out var given) ? given : "cell";
         bool ok = kind switch
         {
             "number" => cell.Count == 2 && cell.ContainsKey("bits"),
@@ -242,6 +250,8 @@ static class VbaPolicy
                 {
                     var kind = (string)fields["type"];
                     if (kind == "formula") CheckLayoutFormula((string)fields["formula"]);
+                    else if (kind == "boolean" && fields.GetValueOrDefault("value") is not bool)
+                        throw new RefusedVbaException("invalid VBA layout boolean");
                     else if (kind == "text" && !(fields.GetValueOrDefault("value") is string value && !value.Contains('\0')))
                         throw new RefusedVbaException("invalid VBA layout text");
                 }

@@ -240,6 +240,22 @@ VBA_BLOCKED_FUNCTIONS = {name.upper() for name in VBA_RULES["blocked_functions"]
 VBA_BLOCKED_PREFIXES = tuple(name.upper() for name in VBA_RULES["blocked_function_prefixes"].split())
 # A layout formula, read left to right: a quoted sheet name or a string literal (whichever starts first), then code.
 VBA_FORMULA_TOKEN = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+def vba_wire_length(value):
+    """The compact JSON length of a case as the worker measures it (Json.Write): every control or non-ASCII
+    character is a six-character \\u escape, so the two validators agree on the 40 KiB budget (rw16)."""
+    if isinstance(value, str):
+        return 2 + sum(2 if ch in '"\\' else 6 if ch < " " or ch > "~" else 1 for ch in value)
+    if isinstance(value, dict):
+        return 2 + max(len(value) - 1, 0) + sum(vba_wire_length(k) + 1 + vba_wire_length(v) for k, v in value.items())
+    if isinstance(value, list):
+        return 2 + max(len(value) - 1, 0) + sum(vba_wire_length(v) for v in value)
+    return len(json.dumps(value))
+
+
+def escape_name(name):
+    return name.encode("ascii", "backslashreplace").decode("ascii")
+
+
 VBA_FUNCTION_CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
@@ -433,7 +449,7 @@ class Admission:
         # No workbook travels with the case: the worker builds the package from the modules it checked.
         if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "calls", "readback", "event_log"}:
             raise ValueError("invalid VBA case fields")
-        if len(json.dumps(group, separators=(",", ":"), sort_keys=True)) > VBA_FRAME_BUDGET:
+        if vba_wire_length(group) > VBA_FRAME_BUDGET:
             raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
         modules = case["modules"]
         if not isinstance(modules, list) or not 1 <= len(modules) <= VBA_RULES["max_modules"]:
@@ -458,6 +474,12 @@ class Admission:
         if source_chars > VBA_RULES["max_source_chars"]:
             raise ValueError("oversized VBA module source")
         entry_points = check_modules(triples, len(sheets))
+        for entry in entry_points:
+            # A layout formula may call only worksheet functions; a probe function with such a name would answer
+            # it on an Excel build that lacks the function, with a parameter the taint check never saw.
+            name = function_name(entry.rpartition(".")[2].upper())
+            if name in self.names.arities or name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES):
+                raise ValueError(f"a VBA procedure name collides with a worksheet function: {escape_name(name)}")
         calls = case["calls"]
         if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
             raise ValueError("invalid VBA call count")
@@ -494,6 +516,8 @@ class Admission:
                     self._check_vba_layout_formula(cell["formula"])
                 elif cell["type"] == "text" and (not isinstance(cell.get("value"), str) or "\x00" in cell["value"]):
                     raise ValueError("invalid VBA layout text")
+                elif cell["type"] == "boolean" and type(cell.get("value")) is not bool:
+                    raise ValueError("invalid VBA layout boolean")
         for name, formula in case["names"].items():
             if not VBA_DEFINED_NAME.fullmatch(name) or name.lower().startswith("auto_"):
                 raise ValueError("invalid VBA defined name")
