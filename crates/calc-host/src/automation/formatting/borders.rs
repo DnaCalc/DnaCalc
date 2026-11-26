@@ -161,12 +161,20 @@ impl WorkbookAutomation {
                 handlers.on(interface, member, InvokeKind::Put, Self::put_border_property);
             }
         }
+        // ww23: Borders.Count is 6 for a cell and for a range alike.
+        handlers.on("Borders", "Count", InvokeKind::Get, Self::borders_count);
         handlers.on("Range", "BorderAround", InvokeKind::Method, Self::border_around);
     }
 
     fn range_borders(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         format_arity(call, 0)?;
         self.edge_object(target, "Borders", 0)
+    }
+
+    fn borders_count(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
+        format_arity(call, 0)?;
+        let _ = target;
+        Ok(AutoValue::I4(6))
     }
 
     fn borders_item(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
@@ -373,6 +381,8 @@ pub(super) fn edge_property(host: &HostState, edge: Option<&BorderEdge>, member:
             .map(|(v, _)| *v)
             .expect("every weight has a code")),
         "Color" => color_bgr(host, color, 0),
+        // ww23 (Excel 16.0.20625): an edge without a line reads ColorIndex xlNone, not automatic.
+        _ if line == EdgeLine::None => Ok(NO_LINE),
         _ => color_index(host, color),
     }
 }

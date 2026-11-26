@@ -110,11 +110,13 @@ pub(super) fn parse_interior_patch(call: &Call<'_>) -> Result<InteriorPatch, Aut
         "Color" => patch.color = Some(FillColor::Rgb(rgb_arg(call)?)),
         "PatternColor" => patch.pattern_color = Some(FillColor::Rgb(rgb_arg(call)?)),
         "Pattern" => match integral_format_arg(call)? {
-            4000 | 4001 | AUTOMATIC_COLOR => {
-                return Err(AutoError::not_modelled(
-                    "Interior.Pattern gradient and automatic values",
-                    OWNER,
-                ));
+            // ww23: xlAutomatic reads back xlSolid with the automatic (white) colour.
+            AUTOMATIC_COLOR => {
+                patch.pattern = Some("solid".into());
+                patch.color = Some(FillColor::Automatic);
+            }
+            4000 | 4001 => {
+                return Err(AutoError::not_modelled("Interior.Pattern gradient values", OWNER));
             }
             value => {
                 let name = PATTERNS.iter().find(|(v, _)| *v == value).ok_or_else(format_error)?.1;
@@ -185,5 +187,22 @@ pub(super) fn color_index(host: &HostState, color: Option<&StyleColor>) -> Resul
             }
         }
     }
-    Err(AutoError::not_modelled("ColorIndex for a color outside the workbook palette", OWNER))
+    // Outside the palette Excel reads the nearest entry (ww23: 0x123456 -> 52). One measured point: the metric is the
+    // squared RGB distance, the first of equally near entries.
+    let rgb = host.resolved_style_color(color).and_then(|rgb| u32::from_str_radix(rgb.strip_prefix('#')?, 16).ok());
+    let Some(rgb) = rgb else {
+        return Err(AutoError::not_modelled("ColorIndex for an unresolved style color", OWNER));
+    };
+    let channels = |v: u32| [(v >> 16) as i32 & 0xFF, (v >> 8) as i32 & 0xFF, v as i32 & 0xFF];
+    let want = channels(rgb);
+    (8..=63)
+        .filter_map(|index| {
+            let text = host.indexed_color(index)?;
+            let entry = u32::from_str_radix(text.strip_prefix('#')?, 16).ok()?;
+            let have = channels(entry);
+            Some((want.iter().zip(have).map(|(a, b)| (a - b) * (a - b)).sum::<i32>(), index))
+        })
+        .min()
+        .map(|(_, index)| index as i32 - 7)
+        .ok_or_else(|| AutoError::not_modelled("ColorIndex for a workbook without a palette", OWNER))
 }

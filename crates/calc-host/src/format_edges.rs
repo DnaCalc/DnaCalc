@@ -112,18 +112,25 @@ pub(crate) fn apply_edge(edge: &mut Option<BorderEdge>, change: &EdgeChange) -> 
     if change.line.is_some() || change.weight.is_some() {
         let line = change.line.or(current.map(|c| c.0)).unwrap_or(EdgeLine::Continuous);
         let candidates = [change.weight, current.and_then(|c| c.1), Some(natural_weight(line))];
-        let style = candidates
+        let found = candidates
             .into_iter()
             .flatten()
             .find_map(|w| compose(line, w))
-            .filter(|_| change.weight.is_none() || compose(line, change.weight.unwrap()).is_some())
-            .ok_or("Excel has no border with that line style and weight")?;
+            .filter(|_| change.weight.is_none() || compose(line, change.weight.unwrap()).is_some());
+        // ww23 (Excel 16.0.20625): a Weight set alone on an edge whose line style has no such weight makes the edge
+        // continuous at that weight. A line style and a weight set together that do not exist are refused.
+        let style = match found {
+            Some(style) => style,
+            None if change.line.is_none() => change.weight.and_then(|w| compose(EdgeLine::Continuous, w)).ok_or("Excel has no border with that line style and weight")?,
+            None => return Err("Excel has no border with that line style and weight".into()),
+        };
         let target = edge.get_or_insert_with(BorderEdge::default);
         target.style = Some(style.into());
-    } else if edge.is_none() {
+    } else if current.is_none() {
+        // A colour set on an edge without a line draws a thin one (the colour follows below).
         *edge = Some(BorderEdge {
             style: Some("thin".into()),
-            color: None,
+            color: edge.take().and_then(|e| e.color),
         });
     }
     if let Some(color) = &change.color {
