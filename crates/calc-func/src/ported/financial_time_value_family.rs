@@ -713,10 +713,21 @@ fn discounted_npv(
     defer_final_overflow: bool,
     zero_finance_divisor_at: Option<usize>,
 ) -> Result<f64, FinancialError> {
+    discounted_npv_of(base, cashflows.map(Some), defer_final_overflow, zero_finance_divisor_at)
+}
+
+/// [`discounted_npv`] over flows of which only the `Some` ones are divided (MIRR's positive stream
+/// skips the flows that are not positive, so an unusable divisor at one of them is not read).
+fn discounted_npv_of(
+    base: f64,
+    cashflows: impl Iterator<Item = Option<f64>>,
+    defer_final_overflow: bool,
+    zero_finance_divisor_at: Option<usize>,
+) -> Result<f64, FinancialError> {
     if base == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let discounted = discounted_cashflows(base, cashflows.map(Some))?;
+    let discounted = discounted_cashflows(base, cashflows)?;
     // MIRR uses the latest of the last overflowing term, the first sum overflow,
     // and the last negative cashflow with a zero finance divisor.
     if let Some(overflow_at) = discounted.overflow_at {
@@ -1105,10 +1116,10 @@ pub fn mirr(
 ) -> Result<f64, FinancialError> {
     validate_finite(&[finance_rate, reinvest_rate])?;
     validate_finite(cashflows)?;
-    if cashflows.len() < 2
-        || !cashflows.iter().any(|value| *value > 0.0)
-        || !cashflows.iter().any(|value| *value < 0.0)
-    {
+    // Excel 20625 (dc-j9k.499-.501): the sign conditions are not read ahead of the discounting.
+    // Without a negative flow the finance divisor is zero (#DIV/0!), without a positive one the
+    // ratio is zero and MIRR is -1, and an overflowing discount stays #NUM! whichever the signs.
+    if cashflows.len() < 2 {
         return Err(FinancialError::Div0);
     }
     // Native Excel 20527: positive NPV is evaluated before finance discounts.
@@ -1133,14 +1144,20 @@ pub fn mirr(
         || (zero_finance_divisor_at.is_some()
             && reinvest_rate == (-1.0_f64).next_down()
             && cashflows.len() <= 16);
-    let positive_npv = discounted_npv(
+    let positive_npv = discounted_npv_of(
         reinvest_base,
         cashflows
             .iter()
-            .map(|value| if *value > 0.0 { *value } else { 0.0 }),
+            .map(|value| if *value > 0.0 { Some(*value) } else { None }),
         defer_final_overflow,
         zero_finance_divisor_at,
     )?;
+    // The reinvestment compounding overflows after the positive stream and before the finance
+    // discounts (Excel 20625, MIRR with reinvestment rate -1e241, every sign pattern, dc-j9k.499).
+    let growth = crt_pow(reinvest_base, cashflows.len() as f64);
+    if growth.is_infinite() {
+        return Err(FinancialError::Num);
+    }
     let finance_base = excel_x87_add(1.0, finance_rate);
     let finance_discount = discounted_cashflows(
         finance_base,
@@ -1163,7 +1180,6 @@ pub fn mirr(
     if finance_pv == 0.0 {
         return Err(FinancialError::Div0);
     }
-    let growth = crt_pow(reinvest_base, cashflows.len() as f64);
     let grown_positive = if scaled_positive && !positive_npv.is_finite() {
         // The normalization overflows, but Excel retains the finite result
         // after compounding. Accumulate those positive terms at their final
