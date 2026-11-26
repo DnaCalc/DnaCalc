@@ -99,6 +99,28 @@ fn sequence_integer_dimensions_accumulate_in_spill_order() {
     assert_eq!(array(call("SEQUENCE", vec![n(1.0), n(1.0), n(1e308), n(1e308)])), (1, 1, vec![1e308]));
 }
 
+/// Excel 16.0.20625 (dc-j9k.524/.525): a scalar error in sort_index, sort_order or by_col propagates
+/// left to right before any invalid-value check (an out-of-range index, an invalid order).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sort_scalar_argument_errors_precede_value_checks() {
+    use calc_func::value::WorksheetErrorCode::Ref;
+    let input = arr(vec![vec![3.0], vec![1.0], vec![2.0]]);
+    error(call("SORT", vec![input.clone(), n(-4.0), e(Ref)]), Ref);
+    error(call("SORT", vec![input.clone(), n(-4.0), e(NA)]), NA);
+    error(call("SORT", vec![input.clone(), e(NA), e(Ref)]), NA);
+    error(call("SORT", vec![input.clone(), e(Ref), e(NA)]), Ref);
+    error(call("SORT", vec![input.clone(), e(Ref), n(-5.0)]), Ref);
+    error(call("SORT", vec![input.clone(), n(9.0), e(NA)]), NA);
+    error(call("SORT", vec![input.clone(), n(1.0), n(5.0), e(NA)]), NA);
+    error(call("SORT", vec![input.clone(), n(-4.0), n(1.0), e(NA)]), NA);
+    error(call("SORT", vec![input.clone(), n(-4.0), e(Ref), e(NA)]), Ref);
+    error(call("SORT", vec![input.clone(), n(1.0), e(Ref), e(NA)]), Ref);
+    error(call("SORT", vec![input.clone(), n(1.0), n(-9.0), e(NA)]), NA);
+    error(call("SORT", vec![input.clone(), n(9.0), n(2.0)]), Value);
+    error(call("SORT", vec![input, n(-4.0), n(-9.0)]), Value);
+}
+
 /// Excel 16.0.20527 distinguishes blank optional cells from omitted SORT
 /// arguments and propagates a scalar source error before an invalid index.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -465,6 +465,11 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
     {
         scalar_error(value)?;
     }
+    // Excel 16.0.20625 (dc-j9k.524/.525): a scalar error in sort_index, sort_order or by_col
+    // propagates left to right before any invalid-value check.
+    for argument in args.iter().skip(1).take(3) {
+        scalar_error(argument)?;
+    }
     let by_col = opt_flag(site, &args, 3, false)?;
     let ArrayShape { rows, cols } = array.shape();
     let (len, width) = if by_col { (cols, rows) } else { (rows, cols) };
