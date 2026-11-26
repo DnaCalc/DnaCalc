@@ -67,8 +67,9 @@ impl WorkbookAutomation {
     }
 
     /// A Before or After argument: a worksheet or a chart sheet's Chart.
-    fn sheet_or_chart_argument(meta: &Snapshot, arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
+    fn sheet_or_chart_argument(&self, meta: &Snapshot, arg: &AutoValue, what: &str) -> Result<Option<SheetId>, AutoError> {
         match arg {
+            AutoValue::Object(ObjectRef { key: ObjectKey::Worksheet { .. }, .. }) => self.local_sheet_argument(arg, what),
             AutoValue::Object(ObjectRef {
                 key: ObjectKey::Report { sheet, item: ReportItem::Chart(_), .. },
                 ..
@@ -111,8 +112,8 @@ impl WorkbookAutomation {
         let reply = self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;
-            let before = Self::sheet_or_chart_argument(&meta, call.arg(0), "Sheets.Add Before as other than a worksheet")?;
-            let after = Self::sheet_or_chart_argument(&meta, call.arg(1), "Sheets.Add After as other than a worksheet")?;
+            let before = self.sheet_or_chart_argument(&meta, call.arg(0), "Sheets.Add Before as other than a worksheet")?;
+            let after = self.sheet_or_chart_argument(&meta, call.arg(1), "Sheets.Add After as other than a worksheet")?;
             if before.is_some() && after.is_some() {
                 return Err(AutoError::excel(1004, "Application-defined or object-defined error"));
             }

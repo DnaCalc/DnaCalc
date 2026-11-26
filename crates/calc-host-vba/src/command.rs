@@ -496,6 +496,29 @@ Public Function CopyBeforeForeign() As String
  Set other = Workbooks.Add
  ThisWorkbook.Worksheets(1).Copy Before:=other.Worksheets(1)
 End Function
+Public Function SheetsAddBeforeForeign() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ ThisWorkbook.Sheets.Add Before:=other.Worksheets(1)
+End Function
+Public Function UnionThisThenForeign() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ Dim r As Range
+ Set r = Union(ThisWorkbook.Worksheets(1).Range("A1"), other.Worksheets(1).Range("A1"))
+End Function
+Public Function UnionForeignThenThis() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ Dim r As Range
+ Set r = Union(other.Worksheets(1).Range("A1"), ThisWorkbook.Worksheets(1).Range("A1"))
+End Function
+Public Function RangeForeignThenThis() As String
+ Dim other As Workbook
+ Set other = Workbooks.Add
+ Dim r As Range
+ Set r = Range(other.Worksheets(1).Range("A1"), ThisWorkbook.Worksheets(1).Range("B2"))
+End Function
 Public Function MoveBeforeInGroup() As String
  Dim src As Workbook
  Set src = Workbooks.Add
@@ -800,6 +823,14 @@ End Function
         for name in ["CopyBeforeForeign", "MoveBeforeInGroup"] {
             let r = run(&mut session, &owner, &[AutoValue::text(&format!("Other.xlsm!{name}"))]);
             assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "{name}: {r:?}");
+        }
+        // dc-mkdhw: a Sheets.Add anchored on another workbook's sheet is refused likewise, not aliased to a local SheetId.
+        let r = run(&mut session, &owner, &[AutoValue::text("Other.xlsm!SheetsAddBeforeForeign")]);
+        assert!(matches!(&r, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-fa8cx"), "Sheets.Add: {r:?}");
+        // dc-mkdhw: ranges of two workbooks never make one range, whichever comes first (Application.Range and Union).
+        for name in ["UnionThisThenForeign", "UnionForeignThenThis", "RangeForeignThenThis"] {
+            let r = run(&mut session, &owner, &[AutoValue::text(&format!("Other.xlsm!{name}"))]);
+            assert!(matches!(&r, Err(AutoError::Excel { number: 1004, .. })), "{name}: {r:?}");
         }
         // The added workbook is open by name and can be run (it has no procedures).
         let none = run(&mut session, &owner, &[AutoValue::text("Book1!Anything")]);

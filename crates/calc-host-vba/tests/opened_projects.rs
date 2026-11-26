@@ -3213,6 +3213,48 @@ fn dc_9spk9__close_saving_raises_after_save_after_the_file_is_written() {
     assert_eq!(output, "1004|after:False");
 }
 
+/// dc-mkdhw (rw13 finding 10): `Application.EnableEvents = False` in the caller suppresses the `Workbook_Open`
+/// of a workbook it opens (Excel's switch is application-wide), and the opened book starts with events off.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_mkdhw__enable_events_false_suppresses_workbook_open_of_an_opened_book() {
+    use std::rc::Rc;
+
+    const OPEN_BOOK: &str = "Private Sub Workbook_Open()\n ThisWorkbook.Worksheets(1).Range(\"D1\").Value = \"opened\"\nEnd Sub\n";
+    let target_bytes = vba_project::replace_sources(
+        LOCAL,
+        &[("Module1", "Option Explicit\n"), ("PrivateModule", "Option Private Module\n"), ("Sheet1", ""), ("ThisWorkbook", OPEN_BOOK)],
+    );
+    let mut caller_session = opened(LOCAL, "CallerBook.xlsm");
+    let caller = calc_host_vba::prepare(
+        caller_session.host(),
+        "CallerBook.xlsm",
+        &[calc_host_vba::ModuleSource {
+            name: "Module1".into(),
+            target: calc_host_vba::ModuleTarget::Standard,
+            source: "Public Function OpenIt() As String\n Application.EnableEvents = False\n Dim b As Workbook\n Set b = Workbooks.Open(\"Target.xlsm\")\n Application.EnableEvents = True\n OpenIt = CStr(b.Worksheets(1).Range(\"D1\").Value) & \"|\" & CStr(Application.EnableEvents)\nEnd Function\n".into(),
+        }],
+        1_000_000,
+        Some(calc_vba::Backend::Interpreter),
+    )
+    .unwrap();
+    let payload = Rc::new(target_bytes);
+    calc_host_vba::install_application(calc_host_vba::ApplicationOptions {
+        max_steps: 1_000_000,
+        backend: Some(calc_vba::Backend::Interpreter),
+        loader: Some(Rc::new(move |path: &str| if path == "Target.xlsm" { Ok((*payload).clone()) } else { Err("missing".into()) })),
+        saver: None,
+        grant: Some(grant()),
+    });
+    let record = caller.run_procedure(&mut caller_session, "Module1.OpenIt", &[]);
+    calc_host::automation::set_book_factory(None);
+    let output = match record.outcome {
+        calc_host_vba::Outcome::Success(calc_host_vba::ProcedureResult::Text(text)) => text,
+        other => panic!("unexpected outcome: {other:?}"),
+    };
+    assert_eq!(output, "|True");
+}
+
 /// The controls a UserForm's designer storage names are members of the form: its own code and
 /// the code of any module that shows it refer to them (`TextBox1.Text`, `UserForm1.lstInfo`)
 /// (dc-1jia7). A form whose designer storage cannot be read declares none, so code that names a

@@ -32,7 +32,7 @@ const OWNER: &str = "dc-oxh8w";
 type Reply = Result<AutoValue, AutoError>;
 mod application;
 mod books;
-pub use books::{BookFactory, BookRunner, BookTarget, set_book_factory, set_book_read_only};
+pub use books::{BookFactory, BookRunner, BookTarget, opener_events_enabled, set_book_factory, set_book_read_only};
 
 mod cells;
 mod clipboard;
@@ -1360,6 +1360,10 @@ impl WorkbookAutomation {
                 else {
                     return Err(geometry::type_mismatch());
                 };
+                if !self.owns_range(held) {
+                    // A range of another workbook: no union (as Application.Range's two ranges).
+                    return Err(AutoError::excel(1004, ""));
+                }
                 ranges.push(self.resolve(&mut access, held)?);
             }
             self.acquire(&mut access, &geometry::union(&ranges)?, RangeAxis::Cells)
