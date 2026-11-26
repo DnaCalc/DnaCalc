@@ -414,6 +414,37 @@ class AdmissionTests(unittest.TestCase):
         for name, line in refused:
             source = f"Public Function Probe(ByVal x As Long) As Long\n{line}\nEnd Function\n"
             yield source, name
+        # rw14: a name declared in another procedure must not admit an omitted global or builtin.
+        smuggled = {
+            "ExecuteExcel4Macro": 'Probe = ExecuteExcel4Macro("CALL(""x"")")', "Evaluate": 'Probe = Evaluate("WEBSERVICE(1)")',
+            "Run": 'Run "Other"', "Workbooks": 'Workbooks.Add', "RmDir": 'RmDir "fixture"',
+            "ChDrive": 'ChDrive "C"', "SetAttr": 'SetAttr "a", 1', "GetAttr": 'Probe = GetAttr("a")',
+            "FileLen": 'Probe = FileLen("a")', "Reset": 'Reset', "AppActivate": 'AppActivate "a"',
+            "Chr": 'Probe = Chr(65)', "ChrW": 'Probe = ChrW(65)', "OnTime": 'Application.OnTime 1, "a"',
+            "FreeFile": 'Probe = FreeFile', "Quit": 'Application.Quit', "Save": 'ThisWorkbook.Save',
+            "Windows": 'Windows(1).Activate', "SavePicture": 'SavePicture a, "b"',
+        }
+        for name, line in smuggled.items():
+            yield (f"Private Sub Unused({name})\nEnd Sub\n"
+                   f"Public Function Probe(ByVal x As Long) As Long\n{line}\nEnd Function\n"), name
+            yield (f"Public Function Probe(ByVal x As Long) As Long\nDim {name} As Long\n{line}\nEnd Function\n"), name
+            yield f"Public Function Probe(ByVal x As Long) As Long\n{line}\nEnd Function\n", name
+        yield 'Public Function Probe(ByVal x As Long) As Long\nName "a" As "b"\nEnd Function\n', "Name"
+        yield ('Public Function Probe(ByVal x As Long) As Long\nDim Name As String\n'
+               'Name "a" As "b"\nEnd Function\n'), "Name"
+        yield 'Private Sub Unused(# )\nEnd Sub\nPublic Function Probe(ByVal x As Long) As Long\nProbe = #\nEnd Function\n', "#"
+        yield 'Public Function Probe(ByVal x As Long) As Long\nDim #\nProbe = #\nEnd Function\n', "#"
+        yield ('Private Sub Other()\nDim local1 As Long\nEnd Sub\n'
+               'Public Function Probe(ByVal x As Long) As Long\nProbe = local1\nEnd Function\n'), "local1"
+
+    def test_vba_accepts_multiple_declarations_module_variables_and_tab_continuations(self):
+        for source in (
+            "Public Function Probe(ByVal x As Long) As Long\nDim a As Long, b As Long\na = 1: b = 2\nProbe = a + b\nEnd Function\n",
+            "Private shared As Long\nPublic Function Probe(ByVal x As Long) As Long\nshared = x\nProbe = shared\nEnd Function\n",
+            "Public Function Probe(ByVal x As Long) As Long\nProbe = x + \t_\n 1\nEnd Function\n",
+        ):
+            with self.subTest(source=source):
+                self.admission.check(vba_group(source))
 
     def test_vba_refuses_named_constructs(self):
         for source, name in self.refused_vba_sources():

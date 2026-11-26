@@ -237,6 +237,7 @@ VBA_WORDS = set(VBA_RULES["words"].split()) | set(VBA_RULES["objects"].split())
 VBA_MEMBERS = set(VBA_RULES["members"].split())
 VBA_DECLARES = set(VBA_RULES["declares"].split())
 VBA_REFUSED = set(VBA_RULES["refused"].split())
+VBA_UNDECLARABLE = set(VBA_RULES["undeclarable"].split())
 VBA_CLASSES = {f'"{name.lower()}"' for name in VBA_RULES["classes"]}
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
@@ -257,23 +258,47 @@ def _probe_tokens(source):
 def _check_probe_source(source, modules):
     tokens = _probe_tokens(source)
     folded = [t.lower() for t in tokens]
-    declared = {t for previous, t in zip(folded, folded[1:]) if previous in VBA_DECLARES}
     procedures = {t for i, (previous, t) in enumerate(zip(folded, folded[1:]))
                   if previous in ("sub", "function") and (not i or folded[i-1] not in ("private", "end"))
                   and VBA_IDENTIFIER.fullmatch(t)}
     # Name the forbidden construct even when other tokens in the statement are out of scope.
     for i, word in enumerate(folded):
         if word in VBA_REFUSED:
-            name = "Workbooks.Open" if word == "open" and folded[max(0, i-2):i] == ["workbooks", "."] else tokens[i]
+            name = "Workbooks.Open" if word == "workbooks" and folded[i+1:i+3] == [".", "open"] else tokens[i]
             raise ValueError(f"VBA construct refused: {name}")
         if word == "createobject":
             if (i + 3 >= len(folded) or folded[i+1] != "("
                     or folded[i+2] not in VBA_CLASSES or folded[i+3] != ")"
                     or i > 0 and folded[i-1] == "."):
                 raise ValueError("VBA construct refused: CreateObject requires one listed literal class")
-        if (word in ("sub", "function") and i + 2 < len(folded)
-                and VBA_IDENTIFIER.fullmatch(folded[i+1]) and folded[i+2] == "("):
-            declared.update(_probe_parameters(folded, i + 3))
+    # A declared name is visible only in its procedure (module-level names and procedure names in the
+    # whole module), and must be a VBA identifier that is not a keyword, a global or a refused name.
+    module_names, scopes, scope_of = set(), [], []
+    current = None
+    for i, word in enumerate(folded):
+        previous = folded[i-1] if i else "\n"
+        if word in ("sub", "function") and previous not in ("end", "exit") and i + 1 < len(folded):
+            name = _declared_name(tokens, i + 1)
+            module_names.add(name.lower())
+            current = {name.lower()}
+            scopes.append(current)
+            if i + 2 < len(folded) and folded[i+2] == "(":
+                for parameter in _probe_parameters(folded, i + 3):
+                    current.add(_declared_name(tokens, folded.index(parameter, i + 3)).lower())
+        elif word in ("sub", "function") and previous == "end":
+            scope_of.append(current)
+            current = None
+            continue
+        else:
+            names = None
+            if word in ("dim", "const") or word in ("private", "public") and i + 1 < len(folded) and (
+                    folded[i+1] not in ("sub", "function", "const", "declare", "dim")):
+                names = _declaration_names(tokens, folded, i + 1)
+            elif word in ("private", "public"):
+                pass
+            if names:
+                (current if current is not None else module_names).update(names)
+        scope_of.append(current)
     for i, token in enumerate(tokens):
         word = folded[i]
         if token.startswith('"') and len(token) > 1 or token[0] in "0123456789" or word.startswith("&h"):
@@ -281,10 +306,38 @@ def _check_probe_source(source, modules):
         if token in {".", ":", "=", "<", ">", "+", "-", "*", "/", "\\", "^", "&", "(", ")", ",", "\n"}:
             continue
         allowed = (VBA_MEMBERS if i and folded[i-1] == "." else
-                   VBA_WORDS | VBA_DECLARES | declared | modules | {"createobject", "me"})
+                   VBA_WORDS | VBA_DECLARES | module_names | (scope_of[i] or set()) | modules | {"createobject", "me"})
         if word not in allowed:
             raise ValueError(f"VBA construct refused: {token}")
     return procedures
+
+
+def _declared_name(tokens, at):
+    name = tokens[at]
+    word = name.lower()
+    if (not VBA_IDENTIFIER.fullmatch(name) or word in VBA_REFUSED or word in VBA_UNDECLARABLE
+            or word in VBA_WORDS or word in VBA_DECLARES):
+        raise ValueError(f"VBA construct refused: {name}")
+    return name
+
+
+def _declaration_names(tokens, folded, start):
+    """The variable names after Dim, Const, Private or Public: `a As Long, b = 2, c(3)`."""
+    names, depth, expect_name = set(), 0, True
+    for i in range(start, len(tokens)):
+        token = tokens[i]
+        if token in ("\n", ":") and depth == 0:
+            break
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth -= 1
+        elif depth == 0 and token == ",":
+            expect_name = True
+        elif depth == 0 and expect_name:
+            names.add(_declared_name(tokens, i).lower())
+            expect_name = False
+    return names
 
 
 def _probe_parameters(tokens, start):

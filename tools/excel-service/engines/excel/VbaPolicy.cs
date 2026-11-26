@@ -17,6 +17,7 @@ static class VbaPolicy
         { "createobject", "me" };
     static readonly HashSet<string> Members = Words("members");
     static readonly HashSet<string> Refused = Words("refused");
+    static readonly HashSet<string> Undeclarable = Words("undeclarable");
     static readonly HashSet<string> Classes = ((List<object>)Rules["classes"])
         .Select(c => "\"" + ((string)c).ToLowerInvariant() + "\"").ToHashSet();
     static readonly HashSet<string> Punctuation = new()
@@ -120,32 +121,53 @@ static class VbaPolicy
             .Where(t => t[0] is not ('\'' or ' ' or '\t'))
             .Select(t => t == "\r\n" ? "\n" : t).ToArray();
         var folded = tokens.Select(t => t.ToLowerInvariant()).ToArray();
-        var declared = new HashSet<string>();
         var procedures = new HashSet<string>();
+        for (int i = 0; i + 1 < folded.Length; i++)
+            if (folded[i] is "sub" or "function" && Identifier.IsMatch(tokens[i + 1])
+                && (i == 0 || folded[i - 1] is not ("private" or "end")))
+                procedures.Add(folded[i + 1]);
         for (int i = 0; i < folded.Length; i++)
         {
             var word = folded[i];
             if (Refused.Contains(word))
             {
-                var name = word == "open" && i >= 2 && folded[i - 2] == "workbooks" && folded[i - 1] == "."
+                var name = word == "workbooks" && i + 2 < folded.Length && folded[i + 1] == "." && folded[i + 2] == "open"
                     ? "Workbooks.Open" : tokens[i];
                 throw new RefusedVbaException("VBA construct refused: " + name);
             }
             if (word == "createobject" && (i + 3 >= folded.Length || folded[i + 1] != "("
                 || !Classes.Contains(folded[i + 2]) || folded[i + 3] != ")" || i > 0 && folded[i - 1] == "."))
                 throw new RefusedVbaException("VBA construct refused: CreateObject requires one listed literal class");
-            if (i + 1 < folded.Length && Declares.Contains(word))
+        }
+        // A declared name is visible only in its procedure (module-level names and procedure names in the
+        // whole module), and must be a VBA identifier that is not a keyword, a global or a refused name.
+        var moduleDeclared = new HashSet<string>();
+        var scopeOf = new HashSet<string>[tokens.Length];
+        HashSet<string> current = null;
+        for (int i = 0; i < folded.Length; i++)
+        {
+            var word = folded[i];
+            var previous = i > 0 ? folded[i - 1] : "\n";
+            if (word is "sub" or "function" && previous is not ("end" or "exit") && i + 1 < folded.Length)
             {
-                var name = folded[i + 1];
-                declared.Add(name);
-                if (word is "sub" or "function" && Identifier.IsMatch(name))
-                {
-                    if (i == 0 || folded[i - 1] is not ("private" or "end"))
-                        procedures.Add(name);
-                    if (i + 2 < folded.Length && folded[i + 2] == "(")
-                        declared.UnionWith(Parameters(folded, i + 3));
-                }
+                var name = DeclaredName(tokens, i + 1);
+                moduleDeclared.Add(name.ToLowerInvariant());
+                current = new HashSet<string> { name.ToLowerInvariant() };
+                if (i + 2 < folded.Length && folded[i + 2] == "(")
+                    foreach (var parameter in Parameters(folded, i + 3))
+                        current.Add(DeclaredName(tokens, Array.IndexOf(folded, parameter, i + 3)).ToLowerInvariant());
             }
+            else if (word is "sub" or "function" && previous == "end")
+            {
+                scopeOf[i] = current;
+                current = null;
+                continue;
+            }
+            else if (word is "dim" or "const"
+                || word is "private" or "public" && i + 1 < folded.Length
+                    && folded[i + 1] is not ("sub" or "function" or "const" or "declare" or "dim"))
+                (current ?? moduleDeclared).UnionWith(DeclarationNames(tokens, i + 1));
+            scopeOf[i] = current;
         }
         for (int i = 0; i < tokens.Length; i++)
         {
@@ -155,11 +177,41 @@ static class VbaPolicy
                 || word.StartsWith("&h", StringComparison.Ordinal) || Punctuation.Contains(token))
                 continue;
             bool allowed = i > 0 && folded[i - 1] == "." ? Members.Contains(word)
-                : AllowedWords.Contains(word) || declared.Contains(word) || moduleNames.Contains(word);
+                : AllowedWords.Contains(word) || moduleDeclared.Contains(word)
+                  || scopeOf[i] != null && scopeOf[i].Contains(word) || moduleNames.Contains(word);
             if (!allowed)
                 throw new RefusedVbaException("VBA construct refused: " + token);
         }
         return procedures;
+    }
+
+    static string DeclaredName(string[] tokens, int at)
+    {
+        var name = tokens[at];
+        var word = name.ToLowerInvariant();
+        if (!Identifier.IsMatch(name) || Refused.Contains(word) || Undeclarable.Contains(word)
+            || AllowedWords.Contains(word))
+            throw new RefusedVbaException("VBA construct refused: " + name);
+        return name;
+    }
+
+    static IEnumerable<string> DeclarationNames(string[] tokens, int start)
+    {
+        int depth = 0;
+        bool expectName = true;
+        for (int i = start; i < tokens.Length; i++)
+        {
+            var token = tokens[i];
+            if (token is "\n" or ":" && depth == 0) yield break;
+            if (token == "(") depth++;
+            else if (token == ")") depth--;
+            else if (depth == 0 && token == ",") expectName = true;
+            else if (depth == 0 && expectName)
+            {
+                yield return DeclaredName(tokens, i).ToLowerInvariant();
+                expectName = false;
+            }
+        }
     }
 
     static IEnumerable<string> Parameters(string[] tokens, int start)
