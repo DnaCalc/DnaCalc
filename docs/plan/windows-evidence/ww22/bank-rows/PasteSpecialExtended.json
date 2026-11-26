@@ -1,0 +1,103 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.PasteSpecial",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:17:56.6008486Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "more",
+      "source": "more/observations.jsonl"
+    },
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:20:00.4729094Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "paste-calc",
+      "source": "paste-calc/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Widths.single-source",
+      "reading": "more",
+      "args": [
+        "8",
+        "A1:A2, A width=20, destination E1:H1 width=12"
+      ],
+      "expected_bits": "text:{\"cells\":[{\"address\":\"$E$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$F$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0}],\"columns\":[{\"column\":\"A\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"B\",\"hidden\":false,\"outline\":1.0,\"unhidden\":30.0},{\"column\":\"E\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"F\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"G\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"H\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0}],\"error\":null,\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Widths.skip-blanks",
+      "reading": "more",
+      "args": [
+        "8",
+        "A1:B2 with B2=5; A:B width 20/30, E:H width 12; SkipBlanks=True"
+      ],
+      "expected_bits": "text:{\"cells\":[{\"address\":\"$E$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$F$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0}],\"columns\":[{\"column\":\"A\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"B\",\"hidden\":false,\"outline\":1.0,\"unhidden\":30.0},{\"column\":\"E\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"F\",\"hidden\":false,\"outline\":1.0,\"unhidden\":30.0},{\"column\":\"G\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"H\",\"hidden\":false,\"outline\":1.0,\"unhidden\":30.0}],\"error\":null,\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Widths.outline",
+      "reading": "more",
+      "args": [
+        "8",
+        "A1:B2 with B2=5; A:B width 20/30, grouped at level 2, B hidden, destination E1:H1 width=12"
+      ],
+      "expected_bits": "text:{\"cells\":[{\"address\":\"$E$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$F$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"7\",\"text\":\"7\",\"value\":7.0}],\"columns\":[{\"column\":\"A\",\"hidden\":false,\"outline\":2.0,\"unhidden\":20.0},{\"column\":\"B\",\"hidden\":true,\"outline\":2.0,\"unhidden\":30.0},{\"column\":\"E\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"F\",\"hidden\":true,\"outline\":1.0,\"unhidden\":8.43},{\"column\":\"G\",\"hidden\":false,\"outline\":1.0,\"unhidden\":20.0},{\"column\":\"H\",\"hidden\":true,\"outline\":1.0,\"unhidden\":8.43}],\"error\":null,\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-2rjye\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Paste.Operation.FormulaText.2",
+      "reading": "paste-calc",
+      "args": [
+        "-4104",
+        "2",
+        "A1:A4=source,2,2,0; E1:E4=7,=2+3,original,9; A1:A4 bold and 0.000; calculate sheet after paste"
+      ],
+      "expected_bits": "text:{\"bold\":true,\"cells\":[{\"address\":\"$E$1\",\"format\":\"0.000\",\"formula\":\"7\",\"text\":\"7.000\",\"value\":7.0},{\"address\":\"$E$2\",\"format\":\"0.000\",\"formula\":\"=(2+3)+2\",\"text\":\"7.000\",\"value\":7.0},{\"address\":\"$E$3\",\"format\":\"0.000\",\"formula\":\"original\",\"text\":\"original\",\"value\":\"original\"},{\"address\":\"$E$4\",\"format\":\"0.000\",\"formula\":\"9\",\"text\":\"9.000\",\"value\":9.0}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.43\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Paste.Operation.FormulaText.3",
+      "reading": "paste-calc",
+      "args": [
+        "-4104",
+        "3",
+        "A1:A4=source,2,2,0; E1:E4=7,=2+3,original,9; A1:A4 bold and 0.000; calculate sheet after paste"
+      ],
+      "expected_bits": "text:{\"bold\":true,\"cells\":[{\"address\":\"$E$1\",\"format\":\"0.000\",\"formula\":\"7\",\"text\":\"7.000\",\"value\":7.0},{\"address\":\"$E$2\",\"format\":\"0.000\",\"formula\":\"=(2+3)-2\",\"text\":\"3.000\",\"value\":3.0},{\"address\":\"$E$3\",\"format\":\"0.000\",\"formula\":\"original\",\"text\":\"original\",\"value\":\"original\"},{\"address\":\"$E$4\",\"format\":\"0.000\",\"formula\":\"9\",\"text\":\"9.000\",\"value\":9.0}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.43\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Paste.Operation.FormulaText.4",
+      "reading": "paste-calc",
+      "args": [
+        "-4104",
+        "4",
+        "A1:A4=source,2,2,0; E1:E4=7,=2+3,original,9; A1:A4 bold and 0.000; calculate sheet after paste"
+      ],
+      "expected_bits": "text:{\"bold\":true,\"cells\":[{\"address\":\"$E$1\",\"format\":\"0.000\",\"formula\":\"7\",\"text\":\"7.000\",\"value\":7.0},{\"address\":\"$E$2\",\"format\":\"0.000\",\"formula\":\"=(2+3)*2\",\"text\":\"10.000\",\"value\":10.0},{\"address\":\"$E$3\",\"format\":\"0.000\",\"formula\":\"original\",\"text\":\"original\",\"value\":\"original\"},{\"address\":\"$E$4\",\"format\":\"0.000\",\"formula\":\"0\",\"text\":\"0.000\",\"value\":0.0}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.43\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Paste.Operation.FormulaText.5",
+      "reading": "paste-calc",
+      "args": [
+        "-4104",
+        "5",
+        "A1:A4=source,2,2,0; E1:E4=7,=2+3,original,9; A1:A4 bold and 0.000; calculate sheet after paste"
+      ],
+      "expected_bits": "text:{\"bold\":true,\"cells\":[{\"address\":\"$E$1\",\"format\":\"0.000\",\"formula\":\"7\",\"text\":\"7.000\",\"value\":7.0},{\"address\":\"$E$2\",\"format\":\"0.000\",\"formula\":\"=(2+3)/2\",\"text\":\"2.500\",\"value\":2.5},{\"address\":\"$E$3\",\"format\":\"0.000\",\"formula\":\"original\",\"text\":\"original\",\"value\":\"original\"},{\"address\":\"$E$4\",\"format\":\"0.000\",\"formula\":\"#DIV/0!\",\"text\":\"#DIV/0!\",\"value\":-2146826281}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-oxh8w.43\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

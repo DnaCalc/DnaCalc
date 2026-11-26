@@ -1,0 +1,115 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Vba.WorksheetRemoval",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:10:43.2541513Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "authored",
+      "source": "authored/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Authored.dc-2g5fn-delete",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-delete.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(\"Transfer\").Delete\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"2|2\"",
+      "calc_func": "text:{\"description\":\"the edit was refused: the document refused the edit: Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p); nothing changed\",\"kind\":\"runtime-error\",\"number\":1004,\"source\":\"VBAProject\"}"
+    },
+    {
+      "id": "Authored.dc-2g5fn-delete-codename-reference",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-delete-codename-reference.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(\"Transfer\").Delete\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\nPublic Function ReferToSheet() As Variant\n    ReferToSheet = Sheet2.SheetMarker()\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"2|2\"",
+      "calc_func": "text:{\"description\":\"the edit was refused: the document refused the edit: Renaming or deleting sheets with layout, table, rule, chart or other package references is not modelled (dc-971p); nothing changed\",\"kind\":\"runtime-error\",\"number\":1004,\"source\":\"VBAProject\"}"
+    },
+    {
+      "id": "Authored.dc-2g5fn-move",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-move.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(\"Transfer\").Move\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"2|1\"",
+      "calc_func": "text:{\"kind\":\"refused\",\"member\":\"Move of sheets out of a macro-enabled workbook\",\"owner\":\"dc-2g5fn\",\"reason\":\"DNA Calc does not model Move of sheets out of a macro-enabled workbook yet (dc-2g5fn)\"}"
+    },
+    {
+      "id": "Authored.dc-2g5fn-move-codename-reference",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-move-codename-reference.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(\"Transfer\").Move\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\nPublic Function ReferToSheet() As Variant\n    ReferToSheet = Sheet2.SheetMarker()\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"2|1\"",
+      "calc_func": "text:{\"kind\":\"refused\",\"member\":\"Move of sheets out of a macro-enabled workbook\",\"owner\":\"dc-2g5fn\",\"reason\":\"DNA Calc does not model Move of sheets out of a macro-enabled workbook yet (dc-2g5fn)\"}"
+    },
+    {
+      "id": "Authored.dc-2g5fn-move-group",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-move-group.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(Array(\"Transfer\", \"Extra\")).Move\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"1|2\"",
+      "calc_func": "text:{\"kind\":\"refused\",\"member\":\"Move of sheets out of a macro-enabled workbook\",\"owner\":\"dc-2g5fn\",\"reason\":\"DNA Calc does not model Move of sheets out of a macro-enabled workbook yet (dc-2g5fn)\"}"
+    },
+    {
+      "id": "Authored.dc-2g5fn-move-group-codename-reference",
+      "reading": "authored",
+      "args": [
+        "dc-2g5fn-move-group-codename-reference.xlsm",
+        "[{\"name\":\"Keep\",\"cells\":{}},{\"name\":\"Transfer\",\"cells\":{}},{\"name\":\"Extra\",\"cells\":{}}]",
+        "Module1\nOption Explicit\nPublic Function Probe() As Variant\n    ThisWorkbook.Worksheets(Array(\"Transfer\", \"Extra\")).Move\n    Probe = CStr(ThisWorkbook.Worksheets.Count) & \"|\" & CStr(ActiveWorkbook.Worksheets.Count)\nEnd Function\nPublic Function SourceOnly() As Variant\n    SourceOnly = \"standard module\"\nEnd Function\nPublic Function ReferToSheet() As Variant\n    ReferToSheet = Sheet2.SheetMarker()\nEnd Function\n",
+        "ThisWorkbook\nOption Explicit\n",
+        "Sheet1\nOption Explicit\n",
+        "Sheet2\nOption Explicit\nPublic Function SheetMarker() As Variant\n    SheetMarker = \"transferred code\"\nEnd Function\n",
+        "Sheet3\nOption Explicit\n",
+        "Module1.Probe"
+      ],
+      "expected_bits": "text:\"1|2\"",
+      "calc_func": "text:{\"kind\":\"refused\",\"member\":\"Move of sheets out of a macro-enabled workbook\",\"owner\":\"dc-2g5fn\",\"reason\":\"DNA Calc does not model Move of sheets out of a macro-enabled workbook yet (dc-2g5fn)\"}"
+    }
+  ]
+}

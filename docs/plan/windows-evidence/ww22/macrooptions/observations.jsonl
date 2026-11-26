@@ -1,0 +1,12 @@
+{"id":"MacroOptions.unqualified","ok":true,"value":{"error":null,"name":"SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.qualified","ok":true,"value":{"error":null,"name":"'First.xlsm'!SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.missing","ok":true,"value":{"error":{"message":"Unable to get the MacroOptions property of the Application class","hr":"0x800A03EC"},"name":"NoSuchProcedure","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.description","ok":true,"value":{"error":null,"name":"'First.xlsm'!SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.category","ok":true,"value":{"error":null,"name":"'First.xlsm'!SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.empty-description","ok":true,"value":{"error":null,"name":"'First.xlsm'!SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"MacroOptions.empty-arguments","ok":true,"value":{"error":null,"name":"'First.xlsm'!SampleFn","result":null,"active":"Second.xlsm"}}
+{"id":"VBIDE.Component.laneoptions","ok":true,"value":{"count":3,"name":"LaneOptions","lines":"Public Function SampleFn(ByVal arg As Double) As Double\r\nSampleFn = arg\r\nEnd Function","type":1,"declarations":0}}
+{"id":"VBIDE.Component.CaseClass","ok":true,"value":{"count":0,"name":"CaseClass","lines":null,"type":2,"declarations":0}}
+{"id":"VBIDE.Component.absent","ok":false,"hresult":"0x80131508","description":"Subscript out of range"}
+{"id":"VBIDE.Component.1","ok":true,"value":{"count":0,"name":"ThisWorkbook","lines":null,"type":100,"declarations":0}}
+{"id":"VBIDE.Component.0","ok":false,"hresult":"0x80131508","description":"Subscript out of range"}

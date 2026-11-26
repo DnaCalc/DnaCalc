@@ -1,0 +1,61 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.MultiBookCalculation",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:08:58.5680513Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "calculate",
+      "source": "calculate/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "MultiBook.Calculate",
+      "reading": "calculate",
+      "args": [
+        "Calculate",
+        "manual",
+        "both workbooks B1=A1*2, C1=A1+10",
+        "clean active book A1=2",
+        "dirty nonactive book A1=3",
+        "Workbook.SheetCalculate increments F1"
+      ],
+      "expected_bits": "text:{\"active\":\"Sheet3\",\"activeEvents\":null,\"activeValue\":4.0,\"before\":{\"active\":4.0,\"nonActive\":4.0},\"first\":\"Sheet2\",\"nonActive\":6.0,\"nonActiveEvents\":1.0,\"second\":\"Sheet3\"}",
+      "calc_func": "text:{\"owner\":\"dc-gw1be\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "MultiBook.CalculateFull",
+      "reading": "calculate",
+      "args": [
+        "CalculateFull",
+        "manual",
+        "both workbooks B1=A1*2, C1=A1+10",
+        "clean active book A1=2",
+        "dirty nonactive book A1=4",
+        "Workbook.SheetCalculate increments F1"
+      ],
+      "expected_bits": "text:{\"active\":\"Sheet3\",\"activeEvents\":1.0,\"activeValue\":4.0,\"before\":{\"active\":4.0,\"nonActive\":6.0},\"first\":\"Sheet2\",\"nonActive\":8.0,\"nonActiveEvents\":1.0,\"second\":\"Sheet3\"}",
+      "calc_func": "text:{\"owner\":\"dc-gw1be\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "MultiBook.CalculateFullRebuild",
+      "reading": "calculate",
+      "args": [
+        "CalculateFullRebuild",
+        "manual",
+        "both workbooks B1=A1*2, C1=A1+10",
+        "clean active book A1=2",
+        "dirty nonactive book A1=5",
+        "Workbook.SheetCalculate increments F1"
+      ],
+      "expected_bits": "text:{\"active\":\"Sheet3\",\"activeEvents\":1.0,\"activeValue\":4.0,\"before\":{\"active\":4.0,\"nonActive\":8.0},\"first\":\"Sheet2\",\"nonActive\":10.0,\"nonActiveEvents\":1.0,\"second\":\"Sheet3\"}",
+      "calc_func": "text:{\"owner\":\"dc-gw1be\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

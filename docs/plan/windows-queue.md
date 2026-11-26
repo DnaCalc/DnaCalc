@@ -22,6 +22,18 @@ the same path on dna-koderbot. The coordinator's copies were under `tk2/windows-
 Original lists supply fixture paths and command arguments where a row refers to them.
 Use owned sessions and authored fixtures for live Excel. Compare retained corpus captures offline.
 Record the Excel build, CPU, exact input words and result selection for function probes.
+
+### ww22 private Excel measurements, 2026-11-26
+
+Excel 16.0.20625.20108 captured cross-workbook sheet operations, authored VBA project removal,
+protected sheet edits, PasteSpecial, AdvancedFilter, chart label and frame edits, and multi-book
+calculation. The [ww22 evidence](windows-evidence/ww22/README.md) includes probes, Excel replies,
+saved project fixtures, WitnessSets and the coordinator's bead comment text. Product work remains
+with the beads listed there.
+
+The live Touchstone broker reported a stalled isolated queue. The attempted SEQUENCE layouts and
+both exact gamma CDF requests timed out at the client. Spill transport remains with
+dc-fuzz-spill-compare-g1ol0 and the unread gamma input with dc-j9k.5.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
 ### ww16 Windows replay, 2026-11-24

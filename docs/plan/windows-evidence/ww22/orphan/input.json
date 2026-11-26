@@ -1,0 +1,6 @@
+{
+  "source": "delete-before.xlsm",
+  "removed": "xl/worksheets/sheet2.xml",
+  "excel_sha256": "a63f4d1fcd82c4270b5a9d393ccdc3d52e557838d88538c15c3afc52cc243d5a",
+  "input_sha256": "1ebb0c263bd6daa604f22752f3cae63a0f5fe700da37680f4fab79d87a851459"
+}

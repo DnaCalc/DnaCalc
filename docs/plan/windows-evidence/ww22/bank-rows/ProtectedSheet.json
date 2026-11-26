@@ -1,0 +1,211 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.ProtectedSheet",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:05:03.4377535Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "protect",
+      "source": "protect/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Protected.default.table-unlocked",
+      "reading": "protect",
+      "args": [
+        "default",
+        "table-unlocked",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A0BB8\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.table-locked",
+      "reading": "protect",
+      "args": [
+        "default",
+        "table-locked",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A0BB8\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.unlist",
+      "reading": "protect",
+      "args": [
+        "default",
+        "unlist",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":null,\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.delete-table",
+      "reading": "protect",
+      "args": [
+        "default",
+        "delete-table",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":1}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.filter-off",
+      "reading": "protect",
+      "args": [
+        "default",
+        "filter-off",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":true,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to set the AutoFilterMode property of the Worksheet class\"},\"filter\":true,\"returned\":null,\"row2hidden\":true,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.show-all",
+      "reading": "protect",
+      "args": [
+        "default",
+        "show-all",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":true,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the ShowAllData property of the Worksheet class\"},\"filter\":true,\"returned\":null,\"row2hidden\":true,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.insert",
+      "reading": "protect",
+      "args": [
+        "default",
+        "insert",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the Insert property of the Range class\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.default.delete",
+      "reading": "protect",
+      "args": [
+        "default",
+        "delete",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the Delete property of the Range class\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.table-unlocked",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "table-unlocked",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A0BB8\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.table-locked",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "table-locked",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A0BB8\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.unlist",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "unlist",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":null,\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.delete-table",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "delete-table",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Table features aren't available because the sheet is protected.\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":1}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.filter-off",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "filter-off",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":null,\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.show-all",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "show-all",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":true,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the ShowAllData property of the Worksheet class\"},\"filter\":true,\"returned\":null,\"row2hidden\":true,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.insert",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "insert",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the Insert property of the Range class\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "Protected.allow.delete",
+      "reading": "protect",
+      "args": [
+        "allow",
+        "delete",
+        "A1=Name; B1=Qty; A2:A4=item; B2:B4=5,15,25; D11 unlocked; D12=99 locked",
+        "Table or active filter pre-created where applicable"
+      ],
+      "expected_bits": "text:{\"A1\":\"Name\",\"D11\":null,\"D12\":99.0,\"D13\":null,\"Dwidth\":8.43,\"autofilter\":false,\"error\":{\"hresult\":\"0x800A03EC\",\"message\":\"Unable to get the Delete property of the Range class\"},\"filter\":false,\"returned\":null,\"row2hidden\":false,\"tables\":0}",
+      "calc_func": "text:{\"owner\":\"dc-5oumk\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}

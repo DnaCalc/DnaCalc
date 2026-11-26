@@ -1,0 +1,45 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.AdvancedFilter",
+  "selection": "scalar",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T06:13:43.0775705Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww22",
+      "id": "extra",
+      "source": "extra/observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "AdvancedFilter.Stale.computed.blank",
+      "reading": "extra",
+      "args": [
+        "xlFilterCopy",
+        "Item,Qty; a,5; b,15; c,25",
+        "Other,=B2>20",
+        "G1:blank",
+        "G2:G6=old,G8=isolated,H2=near,G1:H8 format 0.000"
+      ],
+      "expected_bits": "text:{\"cells\":[{\"address\":\"$G$1\",\"format\":\"General\",\"formula\":\"Item\",\"text\":\"Item\",\"value\":\"Item\"},{\"address\":\"$H$1\",\"format\":\"General\",\"formula\":\"Qty\",\"text\":\"Qty\",\"value\":\"Qty\"},{\"address\":\"$G$2\",\"format\":\"General\",\"formula\":\"c\",\"text\":\"c\",\"value\":\"c\"},{\"address\":\"$H$2\",\"format\":\"General\",\"formula\":\"25\",\"text\":\"25\",\"value\":25.0},{\"address\":\"$G$3\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$3\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$4\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$4\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$5\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$5\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$6\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$6\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$7\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$7\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$8\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$8\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-bto1m\",\"type\":\"not_modelled\"}"
+    },
+    {
+      "id": "AdvancedFilter.Stale.computed.known",
+      "reading": "extra",
+      "args": [
+        "xlFilterCopy",
+        "Item,Qty; a,5; b,15; c,25",
+        "Other,=B2>20",
+        "G1:known",
+        "G2:G6=old,G8=isolated,H2=near,G1:H8 format 0.000"
+      ],
+      "expected_bits": "text:{\"cells\":[{\"address\":\"$G$1\",\"format\":\"0.000\",\"formula\":\"Item\",\"text\":\"Item\",\"value\":\"Item\"},{\"address\":\"$H$1\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$2\",\"format\":\"General\",\"formula\":\"c\",\"text\":\"c\",\"value\":\"c\"},{\"address\":\"$H$2\",\"format\":\"0.000\",\"formula\":\"near\",\"text\":\"near\",\"value\":\"near\"},{\"address\":\"$G$3\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$3\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$4\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$4\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$5\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$5\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$6\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$6\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$7\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$7\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$G$8\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null},{\"address\":\"$H$8\",\"format\":\"0.000\",\"formula\":\"\",\"text\":\"\",\"value\":null}],\"returned\":true}",
+      "calc_func": "text:{\"owner\":\"dc-bto1m\",\"type\":\"not_modelled\"}"
+    }
+  ]
+}
