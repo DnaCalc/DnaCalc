@@ -1101,53 +1101,69 @@ pub(crate) fn delimited(
 
 // --- TEXTSPLIT (array_text_split_family.rs) -----------------------------------------------------
 
-/// The parts of `text` between any of `delimiters`.
-pub(crate) fn split(
+/// TEXTSPLIT's rows of cells: one left-to-right scan of `text`. At each position the column
+/// delimiters are tried before the row delimiters (first listed match), so a delimiter in both sets
+/// splits columns and a row delimiter inside a longer column delimiter is never reached (Excel
+/// 20527, Touchstone 2026-11-26, dc-j9k.548 and .549). With `ignore_empty` an empty cell is dropped
+/// and an empty row is dropped; a non-empty row of only delimiters still has one empty cell.
+pub(crate) fn split_grid(
     text: &ExcelText,
-    delimiters: &[ExcelText],
+    columns: Option<&[ExcelText]>,
+    rows_by: Option<&[ExcelText]>,
     ignore_empty: bool,
     case_insensitive: bool,
-) -> Vec<ExcelText> {
+) -> Vec<Vec<ExcelText>> {
     let units = text.utf16_code_units();
-    if delimiters.is_empty() {
-        return vec![text.clone()];
-    }
-    if delimiters.iter().any(|d| d.utf16_code_units().is_empty()) {
-        if units.is_empty() {
-            return if ignore_empty {
-                Vec::new()
-            } else {
-                vec![ExcelText::from_utf16_code_units(Vec::new())]
-            };
-        }
-        return units
-            .iter()
-            .map(|unit| ExcelText::from_utf16_code_units(vec![*unit]))
-            .collect();
-    }
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let mut at = start;
-    while at < units.len() {
-        let found = delimiters.iter().find_map(|delimiter| {
+    let empty = || ExcelText::from_utf16_code_units(Vec::new());
+    let columns = columns.unwrap_or(&[]);
+    let rows_by = rows_by.unwrap_or(&[]);
+    let mut out: Vec<Vec<ExcelText>> = Vec::new();
+    let mut cells: Vec<ExcelText> = Vec::new();
+    let mut row_start = 0usize;
+    let mut cell_start = 0usize;
+    let mut at = 0usize;
+    let find = |delimiters: &[ExcelText], at: usize| {
+        delimiters.iter().find_map(|delimiter| {
             let needle = delimiter.utf16_code_units();
-            (at + needle.len() <= units.len()
-                && units_match(&units[at..at + needle.len()], needle, case_insensitive))
-            .then_some(needle.len())
-        });
-        match found {
-            Some(length) => {
-                if at > start || !ignore_empty {
-                    out.push(ExcelText::from_utf16_code_units(units[start..at].to_vec()));
-                }
-                start = at + length;
-                at = start;
+            (at + needle.len() <= units.len() && units_match(&units[at..at + needle.len()], needle, case_insensitive))
+                .then_some(needle.len())
+        })
+    };
+    let end_row = |out: &mut Vec<Vec<ExcelText>>, cells: &mut Vec<ExcelText>, row_start: usize, at: usize| {
+        if at > row_start || !ignore_empty {
+            if cells.is_empty() {
+                cells.push(empty());
             }
-            None => at += 1,
+            out.push(std::mem::take(cells));
+        } else {
+            cells.clear();
+        }
+    };
+    while at < units.len() {
+        if let Some(length) = find(columns, at) {
+            if at > cell_start || !ignore_empty {
+                cells.push(ExcelText::from_utf16_code_units(units[cell_start..at].to_vec()));
+            }
+            at += length;
+            cell_start = at;
+        } else if let Some(length) = find(rows_by, at) {
+            if at > cell_start || !ignore_empty {
+                cells.push(ExcelText::from_utf16_code_units(units[cell_start..at].to_vec()));
+            }
+            end_row(&mut out, &mut cells, row_start, at);
+            at += length;
+            row_start = at;
+            cell_start = at;
+        } else {
+            at += 1;
         }
     }
-    if start < units.len() || !ignore_empty {
-        out.push(ExcelText::from_utf16_code_units(units[start..].to_vec()));
+    if cell_start < units.len() || !ignore_empty {
+        cells.push(ExcelText::from_utf16_code_units(units[cell_start..].to_vec()));
+    }
+    end_row(&mut out, &mut cells, row_start, units.len());
+    if out.is_empty() {
+        out.push(vec![empty()]);
     }
     out
 }
@@ -1247,10 +1263,10 @@ mod tests {
             Delimited::BadInstance
         );
         assert_eq!(
-            split(&t("a,b,,c"), &[t(",")], true, false),
-            vec![t("a"), t("b"), t("c")]
+            split_grid(&t("a,b,,c"), Some(&[t(",")]), None, true, false),
+            vec![vec![t("a"), t("b"), t("c")]]
         );
-        assert_eq!(split(&t("a,b,,c"), &[t(",")], false, false).len(), 4);
+        assert_eq!(split_grid(&t("a,b,,c"), Some(&[t(",")]), None, false, false)[0].len(), 4);
         assert_eq!(
             numbervalue(&t("2.500,27"), Some(','), Some('.')),
             Ok(2500.27)

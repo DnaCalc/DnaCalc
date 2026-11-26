@@ -555,7 +555,9 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         return fail(WorksheetErrorCode::Value);
     }
     let ignore_empty = logical_flag(site, a, 3)?;
-    let case_insensitive = logical_flag(site, a, 4)?;
+    // match_mode truncates and must then be 0 or 1 (Excel 20527, dc-j9k.546, .547: 2, -1, 3, 255, 1e10
+    // and 1e100 are #VALUE!; 0.5, -0.9999 and 1.9 are accepted). ignore_empty takes any number.
+    let case_insensitive = binary_flag(site, a, 4, false)?;
     if columns.iter().chain(rows_by.iter()).flatten().any(|d| d.len_utf16_code_units() == 0) {
         return fail(WorksheetErrorCode::Value);
     }
@@ -570,24 +572,10 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     if text.len_utf16_code_units() == 0 {
         return fail(WorksheetErrorCode::Value);
     }
-    let mut row_texts = match &rows_by {
-        Some(d) => k::split(&text, d, ignore_empty, case_insensitive),
-        None => vec![text.clone()],
-    };
-    if row_texts.is_empty() {
-        row_texts.push(ExcelText::from_utf16_code_units(Vec::new()));
-    }
-    let mut rows: Vec<Vec<CalcValue>> = Vec::new();
-    for row in row_texts {
-        let mut cells = match &columns {
-            Some(d) => k::split(&row, d, ignore_empty, case_insensitive),
-            None => vec![row],
-        };
-        if cells.is_empty() {
-            cells.push(ExcelText::from_utf16_code_units(Vec::new()));
-        }
-        rows.push(cells.into_iter().map(CalcValue::text).collect());
-    }
+    let mut rows: Vec<Vec<CalcValue>> = k::split_grid(&text, columns.as_deref(), rows_by.as_deref(), ignore_empty, case_insensitive)
+        .into_iter()
+        .map(|row| row.into_iter().map(CalcValue::text).collect())
+        .collect();
     let width = rows.iter().map(Vec::len).max().unwrap_or(1);
     for row in &mut rows {
         while row.len() < width {
