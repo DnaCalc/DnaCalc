@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Borders",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Borders.weightOnly",
+      "reading": "ww23",
+      "probe": "d/Border.weightOnly",
+      "args": [
+        "cell with no border; Borders(xlEdgeLeft).Weight=xlThick alone; Color=red alone"
+      ],
+      "expected_bits": "text:both create a continuous line (LineStyle 1); Weight thick 4; colour-only keeps weight 2",
+      "calc_func": "text:dc-oxh8w.33"
+    },
+    {
+      "id": "Borders.neighbourEdge",
+      "reading": "ww23",
+      "probe": "d/Border.neighbour",
+      "args": [
+        "B2:C3 bottom edge continuous"
+      ],
+      "expected_bits": "text:B4:C4 top edge reads 1; B2 bottom -4142; cell B3 bottom 1",
+      "calc_func": "text:dc-oxh8w.33"
+    },
+    {
+      "id": "Borders.Count",
+      "reading": "ww23",
+      "probe": "d/Border.Count",
+      "args": [
+        "Range(\"B2:C3\").Borders.Count"
+      ],
+      "expected_bits": "text:6 (also for one cell)",
+      "calc_func": "text:dc-oxh8w.33: not implemented"
+    }
+  ]
+}

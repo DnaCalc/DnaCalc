@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "RangeFind",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Find.singleCell.searchesWholeSheet",
+      "reading": "ww23",
+      "probe": "a/Find.singlecell",
+      "args": [
+        "A1:C3 grid; Range(\"A1\").Find(\"apple\") with saved xlWhole; Range(\"A1\").Find(\"pie\")"
+      ],
+      "expected_bits": "text:hit $B$3 / miss-case hit $B$1: a single-cell range searches the whole sheet, wrapping from that cell",
+      "calc_func": "text:dc-oxh8w.15: searches only that cell"
+    },
+    {
+      "id": "Find.After.outsideRange",
+      "reading": "ww23",
+      "probe": "b/VBA.case1",
+      "args": [
+        "Range(\"A1:C3\").Find(\"apple\", After:=Range(\"E5\"))"
+      ],
+      "expected_bits": "text:run-time error 13 Type mismatch",
+      "calc_func": "text:dc-oxh8w.15: 1004 Application-defined"
+    },
+    {
+      "id": "Find.After.multiCell",
+      "reading": "ww23",
+      "probe": "b/VBA.case2",
+      "args": [
+        "Range(\"A1:C3\").Find(\"apple\", After:=Range(\"A1:B2\"))"
+      ],
+      "expected_bits": "text:run-time error 13 Type mismatch",
+      "calc_func": "text:dc-oxh8w.15: 1004"
+    },
+    {
+      "id": "Find.WhatEmptyVariant",
+      "reading": "ww23",
+      "probe": "b/VBA.case3",
+      "args": [
+        "Range(\"A1:C3\").Find(Empty variant)"
+      ],
+      "expected_bits": "text:Nothing, no error",
+      "calc_func": "text:dc-oxh8w.15: 1004"
+    }
+  ]
+}

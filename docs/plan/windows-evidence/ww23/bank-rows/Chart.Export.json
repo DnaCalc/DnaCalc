@@ -1,0 +1,29 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.Export",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Export.png.size",
+      "reading": "ww23",
+      "probe": "c/Export.PNG",
+      "args": [
+        "ChartObjects.Add(10,10,300,200); Export png"
+      ],
+      "expected_bits": "text:returns True; 401x267 pixels (we 400x267); GIF/JPG/BMP return True; empty path STG_E_PATHNOTFOUND 0x80030003",
+      "calc_func": "text:dc-oxh8w.22: 400x267, BMP False, empty 1004"
+    }
+  ]
+}

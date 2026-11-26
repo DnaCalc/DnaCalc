@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.Sheets",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Worksheets.Add.chartType",
+      "reading": "ww23",
+      "probe": "b/VBA.case7",
+      "args": [
+        "Worksheets.Add(Type:=xlChart); Sheets.Add(Type:=xlChart)"
+      ],
+      "expected_bits": "text:Worksheets.Add 1004; Sheets.Add creates Chart1 as first tab",
+      "calc_func": "text:dc-oxh8w.23"
+    },
+    {
+      "id": "Chart.Location.defaultFrame",
+      "reading": "ww23",
+      "probe": "c/VBA.chart11",
+      "args": [
+        "Charts.Add then Location(xlLocationAsObject,\"Sheet1\")"
+      ],
+      "expected_bits": "text:chart sheet deleted; ChartObject \"Chart 1\" at 362.25,165.75 size 360x216; chart.Name \"Sheet1 Chart 1\"",
+      "calc_func": "text:dc-oxh8w.48: 0,0 at 360x216"
+    },
+    {
+      "id": "Chart.Name.embeddedPut",
+      "reading": "ww23",
+      "probe": "c/VBA.chart14",
+      "args": [
+        "embedded Chart.Name = \"x\""
+      ],
+      "expected_bits": "text:error 7 Out of memory; read \"Sheet1 Chart 1\"",
+      "calc_func": "text:dc-oxh8w.48: \"Sheet1 x\""
+    },
+    {
+      "id": "Counts.chartAndDialog",
+      "reading": "ww23",
+      "probe": "c/VBA.chart1",
+      "args": [
+        "Data sheet, Chart1 chart sheet, Dialog1"
+      ],
+      "expected_bits": "text:Worksheets 1, Charts 1, Sheets 3; TypeName Chart, DialogSheet",
+      "calc_func": "text:dc-oxh8w.23"
+    }
+  ]
+}

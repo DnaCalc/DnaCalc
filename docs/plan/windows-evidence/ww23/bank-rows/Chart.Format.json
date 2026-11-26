@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.Format",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Series.Interior.Color.auto",
+      "reading": "ww23",
+      "probe": "c/Series.Interior.Color.auto",
+      "args": [
+        "automatic first column series"
+      ],
+      "expected_bits": "text:8544277 (0x826415, accent1 156082), ColorIndex -4105; not 4472C4/12874308",
+      "calc_func": "text:dc-oxh8w.19: 12874308"
+    },
+    {
+      "id": "Interior.Color.putOutOfRange",
+      "reading": "ww23",
+      "probe": "c/ChartArea.Interior.Color.put-1",
+      "args": [
+        "Series/ChartArea/PlotArea Interior.Color = -1, 16777216"
+      ],
+      "expected_bits": "text:-1 accepted (ChartArea/PlotArea read 16777215; series unchanged 8544277); 16777216 accepted and reads 0",
+      "calc_func": "text:dc-oxh8w.19/.31: 1004"
+    },
+    {
+      "id": "ChartArea.Border.default",
+      "reading": "ww23",
+      "probe": "c/ChartArea.Border",
+      "args": [
+        "default column chart"
+      ],
+      "expected_bits": "text:ChartArea.Border color 9013641 weight 2 LineStyle -4105; PlotArea color -2; series border -2; xlDouble(-4119) and xlSlantDashDot(13) raise 0x800A03EC; Dash, Dot, DashDot, DashDotDot accepted",
+      "calc_func": "text:dc-oxh8w.61/.67"
+    }
+  ]
+}

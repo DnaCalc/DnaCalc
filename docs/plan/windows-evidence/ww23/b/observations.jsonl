@@ -1,0 +1,24 @@
+{"id":"VBA.case5","ok":true,"value":{"active":"Sheet2","vba":"Nothing"}}
+{"id":"VBA.case1","ok":true,"value":{"active":"Sheet3","vba":" ERR 13|Type mismatch"}}
+{"id":"VBA.case2","ok":true,"value":{"active":"Sheet4","vba":" ERR 13|Type mismatch"}}
+{"id":"VBA.case3","ok":true,"value":{"active":"Sheet5","vba":"Nothing"}}
+{"id":"VBA.case4","ok":true,"value":{"active":"Sheet6","vba":"Nothing"}}
+{"id":"VBA.case6","ok":true,"value":{"active":"Sheet7","vba":"OK Chart Chart1 Chart1,Sheet1,"}}
+{"id":"VBA.case7","ok":true,"value":{"active":"Sheet8","vba":" ERR 1004|Method 'Add' of object 'Sheets' failed"}}
+{"id":"VBA.case8","ok":true,"value":{"active":"Sheet9","vba":"OK Sheet3 Sheet3,Sheet2,Sheet1,"}}
+{"id":"VBA.case10","ok":true,"value":{"active":"Sheet10","vba":"OK Sheet1!Local|Worksheet|Sheet1|1"}}
+{"id":"VBA.case11","ok":true,"value":{"active":"Sheet11","vba":"Names 3: Alpha;'My Sheet'!Local;Zed;"}}
+{"id":"VBA.case12","ok":true,"value":{"active":"Sheet12","vba":" ERR 1004|Application-defined or object-defined error"}}
+{"id":"VBA.case13","ok":true,"value":{"active":"Sheet13","vba":"OK Sheet1!Local"}}
+{"id":"VBA.case14","ok":true,"value":{"active":"Sheet14","vba":"OK Sheet1!Local|=1"}}
+{"id":"VBA.case20","ok":true,"value":{"active":"Sheet15","vba":"Sheet1 (2)|idx 2|Sheet1,Sheet1 (2),|cw 30|f =A1*2|merge True"}}
+{"id":"VBA.case21","ok":true,"value":{"active":"Sheet16","vba":"Sheet1 (2)|Sheet1,Sheet1 (2),"}}
+{"id":"VBA.case22","ok":true,"value":{"active":"Sheet17","vba":"ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (2)|31|ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (3)|31"}}
+{"id":"VBA.case23","ok":true,"value":{"active":"Sheet18","vba":"A (2)|A (3)|A,A (2),A (3),Sheet1,"}}
+{"id":"VBA.case24","ok":true,"value":{"active":"Sheet19","vba":"A (2)|1|A (2),A,Sheet1,||A (3)|2|A (2),A (3),A,Sheet1,"}}
+{"id":"VBA.case25","ok":true,"value":{"active":"Sheet20","vba":"Book1|A,|2"}}
+{"id":"VBA.case26","ok":true,"value":{"active":"Sheet21","vba":"Book2|Q,P,"}}
+{"id":"VBA.case27","ok":true,"value":{"active":"Sheet22","vba":"Q,P,Sheet1,Q (2),P (2),"}}
+{"id":"VBA.case28","ok":true,"value":{"active":"Sheet23","vba":"Q (2),P (2),Q,P,Sheet1,"}}
+{"id":"VBA.case30","ok":true,"value":{"active":"Sheet24","vba":"Sheet1 (2)|=SERIES(,,'Sheet1 (2)'!$A$1:$A$5,1)|src =SERIES(,,Sheet1!$A$1:$A$5,1)"}}
+{"id":"VBA.case31","ok":true,"value":{"active":"Sheet25","vba":"Sheet1 (2)|names 1|lo 1|cm 1|hl 1|sh 2|sp 1|nm 'Sheet1 (2)'!Loc=='Sheet1 (2)'!$A$1|loname T1__3 $A$1:$B$3"}}

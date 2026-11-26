@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.PasteSpecial",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "PasteSpecial.skipBlanksAll",
+      "reading": "ww23",
+      "probe": "e/VBA.e35",
+      "args": [
+        "source B1 blank with red fill, A1=3; paste All SkipBlanks onto D1:E1"
+      ],
+      "expected_bits": "text:E1 keeps its own (no) fill",
+      "calc_func": "text:dc-oxh8w.43: unmeasured"
+    },
+    {
+      "id": "Worksheet.PasteSpecial.afterRangeCopy",
+      "reading": "ww23",
+      "probe": "e/VBA.e37",
+      "args": [
+        "Range.Copy then ws.PasteSpecial Format:=\"Text\""
+      ],
+      "expected_bits": "text:1004 PasteSpecial method of Worksheet class failed",
+      "calc_func": "text:dc-jtl4m: pastes cells at the selection"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Styles",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Styles.Count.new",
+      "reading": "ww23",
+      "probe": "d/Styles.Count.new",
+      "args": [
+        "new workbook"
+      ],
+      "expected_bits": "text:Count 47; Add(\"X\") count 48 holds Normal format; duplicate Add 0x800A03EC; Styles(\"nope\") 0x8002000B; Delete of Normal 0x800A03EC; Delete of in-use style resets cell to Normal",
+      "calc_func": "text:dc-orxz0/.63: counts the file"
+    }
+  ]
+}

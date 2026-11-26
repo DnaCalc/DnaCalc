@@ -1,0 +1,90 @@
+{"id":"Merge.B2C3","ok":true,"value":{"mcB2C3":true,"c2fill":-4142,"b3":null,"c2":null,"mc":null,"b2":1.0,"c3border":-4142,"c3":null}}
+{"id":"Merge.single","ok":true,"value":{"mc":false}}
+{"id":"MergeArea.addr","ok":false,"hresult":"0x80131501","description":"You cannot call a method on a null-valued expression."}
+{"id":"MergeArea.multiArea","ok":false,"hresult":"0x80131501","description":"You cannot call a method on a null-valued expression."}
+{"id":"MergeArea.multiArea.MergeCells","ok":true,"value":null}
+{"id":"Merge.overlap","ok":true,"value":{"c3area":"$B$2:$D$4","b2area":"$B$2:$D$4","b2":true,"d4area":"$B$2:$D$4"}}
+{"id":"MergeCells.text","ok":false,"hresult":"0x800A03EC","description":"Unable to set the MergeCells property of the Range class"}
+{"id":"MergeCells.one","ok":true,"value":{"area":"$G$1:$H$2","mc":true}}
+{"id":"MergeCells.zero.unmerge","ok":true,"value":{"mc":false}}
+{"id":"Merge.spill","ok":true,"value":"ok"}
+{"id":"Merge.array","ok":false,"hresult":"0x800A03EC","description":"You can't change part of an array."}
+{"id":"Merge.table","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"Merge.tableOverlap","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"Border.neighbour","ok":true,"value":{"c3bottom":1,"rangeEdge":1,"b3bottom":1,"b4top":1,"b2bottom":-4142}}
+{"id":"Border.weightOnly","ok":true,"value":{"w":4,"ls":1}}
+{"id":"Border.colorOnly","ok":true,"value":{"c":255.0,"w":2,"ls":1}}
+{"id":"Border.combo.ls-4115.w1","ok":true,"value":{"w":1,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4115.w4","ok":true,"value":{"w":4,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4118.w-4138","ok":true,"value":{"w":-4138,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4118.w4","ok":true,"value":{"w":4,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4119.w2","ok":true,"value":{"w":2,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4119.w-4138","ok":true,"value":{"w":-4138,"ls":1,"err":null}}
+{"id":"Border.combo.ls-4119.w1","ok":true,"value":{"w":1,"ls":1,"err":null}}
+{"id":"Border.combo.ls13.w2","ok":true,"value":{"w":2,"ls":1,"err":null}}
+{"id":"Border.combo.ls13.w-4138","ok":true,"value":{"w":-4138,"ls":13,"err":null}}
+{"id":"Border.combo.ls4.w2","ok":true,"value":{"w":2,"ls":4,"err":null}}
+{"id":"Border.combo.ls5.w2","ok":true,"value":{"w":2,"ls":5,"err":null}}
+{"id":"Border.noLine.weight","ok":true,"value":{"c":0.0,"w":2,"ls":-4142,"ci":-4142}}
+{"id":"Border.Count","ok":true,"value":{"cell":6,"count":6}}
+{"id":"Border.range.weight.mixed","ok":true,"value":{"c":0.0,"w":null,"ls":null}}
+{"id":"Interior.nofill","ok":true,"value":{"color":16777215.0,"ci":-4142,"pattern":-4142,"pc":0,"pci":-4142}}
+{"id":"Interior.solid","ok":true,"value":{"color":255.0,"ci":3,"pattern":1,"pc":0,"pci":-4105}}
+{"id":"Interior.rgb.nearest","ok":true,"value":{"ci":52,"color":1193046.0}}
+{"id":"Interior.patternAutomatic","ok":true,"value":{"p":1,"color":16777215.0}}
+{"id":"Interior.gradient","ok":true,"value":{"p":4000}}
+{"id":"Interior.pattern.set","ok":true,"value":{"pc":255,"p":-4125}}
+{"id":"Style.hyperlink","ok":false,"hresult":"0x8002000E","description":"Cannot find an overload for \"Style\" and the argument count: \"1\""}
+{"id":"FC.cellValue.activeD10","ok":true,"value":{"type":1,"count":1,"f1":"=3","pri":1,"applies":"$B$2:$B$6","op":5}}
+{"id":"FC.expression.activeD10","ok":true,"value":{"type":2,"f1":"=B2>B3","pri":2}}
+{"id":"FC.expression.Operator","ok":true,"value":null}
+{"id":"FC.cellValue.Formula2","ok":true,"value":null}
+{"id":"FC.interior.beforeSet","ok":true,"value":{"ci":null,"c":0.0}}
+{"id":"FC.Item.countPlus1","ok":false,"hresult":"0x8002000B","description":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"id":"FC.Item.0","ok":false,"hresult":"0x8002000B","description":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"id":"FC.Add.99","ok":false,"hresult":"0x80070057","description":"Value does not fall within the expected range."}
+{"id":"FC.Add.noOperator","ok":false,"hresult":"0x8002000F","description":"Parameter not optional. (0x8002000F (DISP_E_PARAMNOTOPTIONAL))"}
+{"id":"FC.Add.noOperatorFormula","ok":false,"hresult":"0x8002000F","description":"Parameter not optional. (0x8002000F (DISP_E_PARAMNOTOPTIONAL))"}
+{"id":"FC.Add.between.noF2","ok":false,"hresult":"0x8002000F","description":"Parameter not optional. (0x8002000F (DISP_E_PARAMNOTOPTIONAL))"}
+{"id":"FC.Count.otherRange","ok":true,"value":{"d1":0,"all":2,"b2":2}}
+{"id":"FC.font.bold.false","ok":true,"value":{"b":false}}
+{"id":"FC.priority.new","ok":true,"value":{"pri":3,"count":3}}
+{"id":"FC.priority.put0","ok":false,"hresult":"0x80070057","description":"Value does not fall within the expected range."}
+{"id":"FC.priority.put4","ok":true,"value":{"pri":4}}
+{"id":"FC.priority.put-1","ok":false,"hresult":"0x80070057","description":"Value does not fall within the expected range."}
+{"id":"FC.priority.put99","ok":true,"value":{"pri":99}}
+{"id":"FC.AppliesTo","ok":true,"value":"$B$2:$B$6"}
+{"id":"FC.ModifyAppliesTo.otherSheet","ok":true,"value":"ok"}
+{"id":"FC.Delete.part","ok":true,"value":{"applies":"$A$1:$A$2","count":3}}
+{"id":"FC.top10","ok":true,"value":{"tb":1,"type":5,"rank":10}}
+{"id":"Styles.Count.new","ok":true,"value":47}
+{"id":"Style.Normal","ok":true,"value":{"fh":false,"val":"Normal","ind":null,"o":-4128,"h":1,"shrink":false,"wrap":false,"nf":"General","locked":true,"v":-4107}}
+{"id":"Style.Currency","ok":true,"value":{"builtin":true,"h":1,"nf":"_-R* #,##0.00_-;-R* #,##0.00_-;_-R* \"-\"??_-;_-@_-"}}
+{"id":"Styles.Add.X","ok":true,"value":{"h":1,"bold":false,"fill":16777215.0,"value":"X","locked":true,"count":48,"fh":false,"nf":"General","v":-4107}}
+{"id":"Styles.Add.dup","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Styles class"}
+{"id":"Styles.Add.empty","ok":true,"value":{}}
+{"id":"Styles.nope","ok":false,"hresult":"0x8002000B","description":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"id":"Style.Delete.inUse","ok":true,"value":[true,{"style":"Normal"}]}
+{"id":"Style.Delete.Normal","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Delete property of the Style class"}
+{"id":"Window.basic","ok":true,"value":{"caption":"Sheet7","grid":true,"zoom":100.0,"scrollCol":1.0,"split":[0,0],"state":-4143,"num":1.0,"visible":true,"type":1,"frozen":false,"scrollRow":1.0}}
+{"id":"Window.Windows.2","ok":false,"hresult":"0x8002000B","description":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"id":"Window.Windows.name","ok":false,"hresult":"0x8002000B","description":"Invalid index. (0x8002000B (DISP_E_BADINDEX))"}
+{"id":"Window.Zoom9","ok":false,"hresult":"0x800A03EC","description":"Unable to set the Zoom property of the Window class"}
+{"id":"Window.Zoom401","ok":false,"hresult":"0x800A03EC","description":"Unable to set the Zoom property of the Window class"}
+{"id":"Window.Zoom10","ok":true,"value":10.0}
+{"id":"Window.Zoom400","ok":true,"value":400.0}
+{"id":"Window.ScrollRow0","ok":false,"hresult":"0x800A03EC","description":"Unable to set the ScrollRow property of the Window class"}
+{"id":"Window.ScrollRow1048577","ok":false,"hresult":"0x800A03EC","description":"Unable to set the ScrollRow property of the Window class"}
+{"id":"Window.ScrollColumn0","ok":false,"hresult":"0x800A03EC","description":"Unable to set the ScrollColumn property of the Window class"}
+{"id":"Window.ScrollColumn16385","ok":false,"hresult":"0x800A03EC","description":"Unable to set the ScrollColumn property of the Window class"}
+{"id":"Window.Freeze.A1","ok":true,"value":[true,{"sc":11.0,"f":true,"sr":18.0}]}
+{"id":"Window.Freeze.C3","ok":true,"value":[true,{"sc":2.0,"f":true,"sr":2.0}]}
+{"id":"Window.Freeze.scrolled","ok":true,"value":[true,{"sc":2.0,"f":true,"sr":3.0,"scrollRow":8.0}]}
+{"id":"Window.Split","ok":true,"value":[true,{"f":false,"sc":2.0,"split":true,"sr":2.0}]}
+{"id":"Window.Caption.empty","ok":true,"value":""}
+{"id":"Window.Caption.number","ok":true,"value":"5"}
+{"id":"Window.Caption.empty2","ok":true,"value":""}
+{"id":"Window.Caption.set","ok":true,"value":{"c":"abc"}}
+{"id":"Window.Caption.reset","ok":true,"value":""}
+{"id":"Window.WindowState","ok":true,"value":-4143}
+{"id":"Window.chartsheet","ok":true,"value":{"ac":"err You cannot call a method on a null-valued expression.","sel":true,"selType":"err"}}

@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Window",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Window.rangeErrors",
+      "reading": "ww23",
+      "probe": "d/Window.Zoom9",
+      "args": [
+        "Zoom 9/401, ScrollRow 0/1048577, ScrollColumn 0/16385; Windows(2), Windows(\"nosuch\")"
+      ],
+      "expected_bits": "text:Zoom 9 and 401 and the scroll values 0x800A03EC; 10 and 400 accepted; Windows(2) and Windows(\"nosuch\") 0x8002000B",
+      "calc_func": "text:dc-oxh8w.67: 1004"
+    },
+    {
+      "id": "Window.Caption.put",
+      "reading": "ww23",
+      "probe": "d/Window.Caption.number",
+      "args": [
+        "Caption = \"\", 5, Missing, null"
+      ],
+      "expected_bits": "text:\"\" gives \"\"; 5 gives \"5\"; Missing and null give \"\"",
+      "calc_func": "text:dc-p3rg9"
+    },
+    {
+      "id": "Window.FreezePanes.cursor",
+      "reading": "ww23",
+      "probe": "d/Window.Freeze.C3",
+      "args": [
+        "FreezePanes with ActiveCell C3 and ScrollRow 1; C8 with ScrollRow 5"
+      ],
+      "expected_bits": "text:C3: SplitRow 2 SplitColumn 2; C8 scrolled to 5: SplitRow 3 SplitColumn 2",
+      "calc_func": "text:dc-oxh8w.67"
+    }
+  ]
+}

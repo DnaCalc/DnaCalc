@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Merge",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Merge.overlap.union",
+      "reading": "ww23",
+      "probe": "d/Merge.overlap",
+      "args": [
+        "B2:C3 merged then Range(\"C3:D4\").Merge"
+      ],
+      "expected_bits": "text:one merge B2:D4 (the union), MergeCells true",
+      "calc_func": "text:dc-oc78o: old one dropped"
+    },
+    {
+      "id": "Merge.spillCells",
+      "reading": "ww23",
+      "probe": "d/Merge.spill",
+      "args": [
+        "J1 =SEQUENCE(3); Range(\"J1:K2\").Merge"
+      ],
+      "expected_bits": "text:succeeds, no error",
+      "calc_func": "text:dc-oc78o: 1004"
+    },
+    {
+      "id": "MergeArea.multiArea",
+      "reading": "ww23",
+      "probe": "d/MergeArea.multiArea.MergeCells",
+      "args": [
+        "Range(\"B2:C3,E5:F6\").MergeCells / MergeArea"
+      ],
+      "expected_bits": "text:MergeCells Null; MergeArea returns Nothing-like (no address)",
+      "calc_func": "text:dc-oc78o: refused"
+    }
+  ]
+}

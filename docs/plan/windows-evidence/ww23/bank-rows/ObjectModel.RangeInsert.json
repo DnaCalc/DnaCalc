@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.RangeInsert",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Insert.CopyOrigin1.formatSource",
+      "reading": "ww23",
+      "probe": "a/Insert.Row.CopyOrigin1",
+      "args": [
+        "E40 fill 3, E41 fill 5; Rows(41).Insert(xlShiftDown, CopyOrigin:=1)"
+      ],
+      "expected_bits": "text:new E41 takes the fill of the old row 41 (now row 42), index 5; not the row two below",
+      "calc_func": "text:dc-oxh8w.28: old E42"
+    },
+    {
+      "id": "Insert.CopyOrigin1.cell",
+      "reading": "ww23",
+      "probe": "a/Insert.CopyOrigin1",
+      "args": [
+        "E40 fill 3, E42 fill 5, E41 blank; E41.Insert(xlShiftDown, 1)"
+      ],
+      "expected_bits": "text:E41 no fill, E42 no fill, E43 fill 5",
+      "calc_func": "text:dc-oxh8w.28: old E42"
+    }
+  ]
+}

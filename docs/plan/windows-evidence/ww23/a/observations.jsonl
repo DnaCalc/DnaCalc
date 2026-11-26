@@ -1,0 +1,30 @@
+{"id":"Add.noargs","ok":true,"value":{"tabs":["Sheet2","Sheet1"],"idx":1,"name":"Sheet2","active":"Sheet2"}}
+{"id":"Add.delete-then-add","ok":true,"value":{"name":"Sheet3","tabs":["Sheet3","Sheet2"]}}
+{"id":"Add.type-chart","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Add.count2","ok":true,"value":{"tabs":["Sheet5","Sheet4","Sheet3","Sheet2"],"name":"Sheet5","active":"Sheet5"}}
+{"id":"Add.count3","ok":true,"value":{"tabs":["Sheet8","Sheet7","Sheet6","Sheet5","Sheet4","Sheet3","Sheet2"],"sel":1,"name":"Sheet8","active":"Sheet8"}}
+{"id":"Delete.onlySheet","ok":false,"hresult":"0x800A03EC","description":"A workbook must contain at least one visible worksheet. \n\nTo hide, delete, or move the selected sheet(s), you must first insert a new sheet or unhide a sheet that is already hidden."}
+{"id":"Delete.onlyVisible","ok":true,"value":"prep"}
+{"id":"Delete.lastVisible","ok":false,"hresult":"0x800A03EC","description":"A workbook must contain at least one visible worksheet. \n\nTo hide, delete, or move the selected sheet(s), you must first insert a new sheet or unhide a sheet that is already hidden."}
+{"id":"Insert.ret","ok":true,"value":{"ret":true,"d":1.0,"a":null}}
+{"id":"Insert.wide.shiftdefault","ok":true,"value":{"a7":1.0,"a3":null,"a2":1.0}}
+{"id":"Insert.tall.shiftdefault","ok":true,"value":{"b1":1.0,"f1":1.0,"a1":null,"a6":null}}
+{"id":"Delete.ret","ok":true,"value":{"ret":true,"b4":null,"b2":1.0,"d2":1.0}}
+{"id":"Delete.wide.default","ok":true,"value":{"a5":null,"a4":1.0,"a1":1.0}}
+{"id":"Delete.tall.default","ok":true,"value":{"b1":1.0,"a4":1.0,"a1":1.0,"e1":null}}
+{"id":"Insert.CopyOrigin1","ok":true,"value":{"e43":5,"e42":-4142,"e41":-4142}}
+{"id":"Insert.CopyOrigin0","ok":true,"value":{"e41":3,"e42":5}}
+{"id":"Insert.Row.CopyOrigin1","ok":true,"value":{"e41":5,"e42":5}}
+{"id":"Find.apple.default","ok":true,"value":"$A$2"}
+{"id":"Find.apple.xlpart.xlvalues","ok":true,"value":"$A$2"}
+{"id":"Find.afterOutside","ok":false,"hresult":"0x80020005","description":"Type mismatch. (0x80020005 (DISP_E_TYPEMISMATCH))"}
+{"id":"Find.afterMulti","ok":false,"hresult":"0x80020005","description":"Type mismatch. (0x80020005 (DISP_E_TYPEMISMATCH))"}
+{"id":"Find.whatOmitted","ok":false,"hresult":"0x8002000E","description":"Cannot find an overload for \"Find\" and the argument count: \"0\""}
+{"id":"Find.star.emptytext","ok":true,"value":"$A$2"}
+{"id":"Find.star.emptytext.formulas","ok":true,"value":"$A$2"}
+{"id":"Find.date.text","ok":true,"value":{"b":"Nothing","c":"$E$2","d":"$E$2","a":"$E$1"}}
+{"id":"Find.saved.settings","ok":true,"value":{"whole":"$B$3","matchcase":"$A$1","afterMatchCase":"$B$3","omitted":"$B$3"}}
+{"id":"FindNext.beforeFind","ok":true,"value":"Nothing"}
+{"id":"FindPrevious.afterFirst","ok":true,"value":"$B$3"}
+{"id":"Find.singlecell","ok":true,"value":{"hit":"$B$3","miss":"$B$1"}}
+{"id":"Find.spill","ok":true,"value":{"a":"$A$2","b":"$A$3"}}

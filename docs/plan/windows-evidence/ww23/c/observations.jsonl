@@ -1,0 +1,83 @@
+{"id":"Charts.Add.noSelection","ok":true,"value":{"idx":1,"series":1,"name":"Chart1","tabs":["Chart1","Sheet1"],"count":1,"active":"Chart1"}}
+{"id":"Charts.Add.second","ok":true,"value":{"name":"Chart2","tabs":["Chart2","Chart1","Sheet1"],"idx":1}}
+{"id":"Charts.Add.count3","ok":true,"value":{"name":"Chart5","tabs":["Chart5","Chart4","Chart3","Chart2","Chart1","Sheet1"],"active":"Chart5"}}
+{"id":"Charts.Add.withSelection","ok":true,"value":{"name":"Chart6","type":51,"series":1,"idx":6}}
+{"id":"Sheets.Add.chart.count0","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Sheets.Add.chart.count256","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Sheets.Add.chart.count-1","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Sheets.Add.chart.BeforeAfter","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Charts.Add.BeforeAfter","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"Sheets.Add.dialog","ok":true,"value":{"name":"Dialog1"}}
+{"id":"Counts","ok":true,"value":{"sheets":8,"tabs":["Chart5","Chart4","Chart3","Chart2","Chart1","Dialog1","Chart6","Sheet1"],"worksheets":1,"dialogs":1,"charts":6}}
+{"id":"VBA.chart1","ok":true,"value":{"vba":"ws 1 ch 1 sh 3 tn Chart/Chart/DialogSheet"}}
+{"id":"VBA.chart2","ok":true,"value":{"vba":" ERR -2147352565|The specified dimension is not valid for the current chart type."}}
+{"id":"VBA.chart3","ok":true,"value":{"vba":" ERR -2147352565|The specified dimension is not valid for the current chart type."}}
+{"id":"VBA.chart10","ok":true,"value":{"vba":"co.Name=Chart 1|chart.Name=Sheet1 Chart 1"}}
+{"id":"VBA.chart11","ok":true,"value":{"vba":"cs.Name=Chart1|after location: charts 0 tabs 1 co=1|co 362.25,165.75,360,216 name Chart 1 chart.Name Sheet1 Chart 1"}}
+{"id":"VBA.chart12","ok":true,"value":{"vba":" ERR 1004|The specified dimension is not valid for the current chart type."}}
+{"id":"VBA.chart13","ok":true,"value":{"vba":"newsheet name Chart1 tabs 2 cos 0"}}
+{"id":"VBA.chart14","ok":true,"value":{"vba":" ERR 7|Out of memory"}}
+{"id":"VBA.chart15","ok":true,"value":{"vba":"cs name x"}}
+{"id":"Axes.cat.MinimumScale","ok":true,"value":null}
+{"id":"Axes.cat.MaximumScale","ok":true,"value":null}
+{"id":"Axes.val.scale.auto","ok":true,"value":{"auto":true,"max":3.5,"minauto":true,"min":0.0}}
+{"id":"Axes.val.HasTitle.default","ok":true,"value":{"has":false}}
+{"id":"Axes.val.AxisTitle.noTitle","ok":true,"value":null}
+{"id":"Axes.val.HasTitle.true","ok":true,"value":{"cap":"Axis Title","text":"Axis Title"}}
+{"id":"TickLabels.NumberFormat","ok":true,"value":{"cat":"General","linked":true,"nf":"General"}}
+{"id":"TickLabels.NumberFormat.putGeneral","ok":true,"value":{"linked":false,"nf":"General"}}
+{"id":"TickLabels.NumberFormatLinked.false","ok":true,"value":{"linked":false,"nf":"General"}}
+{"id":"TickLabels.NumberFormat.empty","ok":true,"value":{"linked":false,"nf":"General"}}
+{"id":"TickLabels.NumberFormat.invalid","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"Pie.Axes1","ok":true,"value":null}
+{"id":"Pie.Axes2","ok":true,"value":null}
+{"id":"Pie.HasAxis","ok":true,"value":{"h1":false}}
+{"id":"Series.Interior.Color.auto","ok":true,"value":{"color":8544277,"ci":-4105,"rgb":8544277}}
+{"id":"Series.Interior.Color.put-1","ok":true,"value":{"color":8544277}}
+{"id":"Series.Interior.Color.put16777216","ok":true,"value":{"color":0}}
+{"id":"Series.Interior.Color.put1.5","ok":false,"hresult":"0x80004002","description":"Unable to cast object of type 'System.Double' to type 'System.Int32'."}
+{"id":"ChartArea.Interior.Color","ok":true,"value":{"paci":-4105,"pa":16777215,"paRGB":16777215,"caRGB":16777215,"caci":-4105,"ca":16777215}}
+{"id":"ChartArea.Interior.Color.put-1","ok":true,"value":16777215}
+{"id":"PlotArea.Interior.Color.put-1","ok":true,"value":16777215}
+{"id":"ChartArea.Interior.Color.put16777216","ok":true,"value":0}
+{"id":"PlotArea.Interior.Color.put16777216","ok":true,"value":0}
+{"id":"ChartArea.Interior.Color.put1.5","ok":false,"hresult":"0x80004002","description":"Unable to cast object of type 'System.Double' to type 'System.Int32'."}
+{"id":"PlotArea.Interior.Color.put1.5","ok":false,"hresult":"0x80004002","description":"Unable to cast object of type 'System.Double' to type 'System.Int32'."}
+{"id":"ChartArea.Border","ok":true,"value":{"c":9013641,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"PlotArea.Border","ok":true,"value":{"c":-2,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"Series.Border.type51","ok":true,"value":{"c":-2,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"Series.Border.type57","ok":true,"value":{"c":-2,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"Series.Border.type4","ok":true,"value":{"c":8544277,"ci":-4105,"w":4,"ls":-4105}}
+{"id":"Series.Border.type1","ok":true,"value":{"c":-2,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"Series.Border.type76","ok":true,"value":{"c":-2,"ci":-4105,"w":2,"ls":-4105}}
+{"id":"ChartArea.Border.LineStyle-4119","ok":false,"hresult":"0x800A03EC","description":"Unable to set the LineStyle property of the Border class"}
+{"id":"ChartArea.Border.LineStyle13","ok":false,"hresult":"0x800A03EC","description":"Unable to set the LineStyle property of the Border class"}
+{"id":"ChartArea.Border.LineStyle-4115","ok":true,"value":{"ls":-4115}}
+{"id":"ChartArea.Border.LineStyle-4118","ok":true,"value":{"ls":-4118}}
+{"id":"ChartArea.Border.LineStyle4","ok":true,"value":{"ls":4}}
+{"id":"ChartArea.Border.LineStyle5","ok":true,"value":{"ls":5}}
+{"id":"ChartArea.Border.LineStyle1","ok":true,"value":{"ls":1}}
+{"id":"ChartArea.Border.LineStyle-4142","ok":true,"value":{"ls":-4142}}
+{"id":"ChartArea.Border.Weight1","ok":true,"value":{"w":1}}
+{"id":"ChartArea.Border.Weight2","ok":true,"value":{"w":2}}
+{"id":"ChartArea.Border.Weight-4138","ok":true,"value":{"w":-4138}}
+{"id":"ChartArea.Border.Weight4","ok":true,"value":{"w":4}}
+{"id":"DataLabels.type51","ok":true,"value":{"pos":2,"has":true}}
+{"id":"DataLabels.type52","ok":true,"value":{"pos":-4108,"has":true}}
+{"id":"DataLabels.type4","ok":true,"value":{"pos":-4152,"has":true}}
+{"id":"DataLabels.type65","ok":true,"value":{"pos":-4152,"has":true}}
+{"id":"DataLabels.type5","ok":true,"value":{"pos":5,"has":true}}
+{"id":"DataLabels.type1","ok":true,"value":{"pos":-4108,"has":true}}
+{"id":"DataLabels.type-4120","ok":true,"value":{"pos":-4108,"has":true}}
+{"id":"DataLabels.Index0","ok":true,"value":""}
+{"id":"DataLabels.IndexPast","ok":false,"hresult":"0x80070057","description":"Parameter not valid"}
+{"id":"DataLabel.Delete.ShowValue","ok":true,"value":[null,false]}
+{"id":"ApplyDataLabels6","ok":true,"value":null}
+{"id":"HasDataLabels.false","ok":true,"value":{"has":false}}
+{"id":"Export.PNG","ok":true,"value":{"ret":true,"len":3026,"size":[401,267]}}
+{"id":"Export.GIF","ok":true,"value":{"ret":true,"len":3035,"size":null}}
+{"id":"Export.JPG","ok":true,"value":{"ret":true,"len":14963,"size":null}}
+{"id":"Export.BMP","ok":true,"value":{"ret":true,"len":321522,"size":null}}
+{"id":"Export.noFilter","ok":true,"value":{"ret":true,"exists":true}}
+{"id":"Export.emptyPath","ok":false,"hresult":"0x80030003","description":"The path  could not be found. (0x80030003 (STG_E_PATHNOTFOUND))"}
+{"id":"Export.CO.size","ok":true,"value":{"h":200.0,"w":300.0}}

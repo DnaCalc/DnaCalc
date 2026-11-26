@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Autofilter",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Sort.loneCell",
+      "reading": "ww23",
+      "probe": "e/VBA.e21",
+      "args": [
+        "only H9=5 on the sheet; H9.Sort Key1:=H9"
+      ],
+      "expected_bits": "text:no error",
+      "calc_func": "text:dc-jtl4m: 1004"
+    },
+    {
+      "id": "Sort.oneCell.header",
+      "reading": "ww23",
+      "probe": "e/VBA.e20",
+      "args": [
+        "A1:B5 name/qty header; Range(\"B3\").Sort Key1:=B2, xlDescending"
+      ],
+      "expected_bits": "text:current region sorted, header row kept: name,d,c,b,a",
+      "calc_func": "text:dc-jtl4m: Header default xlNo"
+    }
+  ]
+}

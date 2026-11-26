@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Names",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Names.Item.localByShortName",
+      "reading": "ww23",
+      "probe": "b/VBA.case13",
+      "args": [
+        "Names.Add \"Sheet1!Local\",\"=1\"; Names.Item(\"Local\") with Sheet1 active"
+      ],
+      "expected_bits": "text:returns the name Sheet1!Local",
+      "calc_func": "text:dc-oxh8w.28: 1004"
+    },
+    {
+      "id": "Name.Parent.sheetLocal",
+      "reading": "ww23",
+      "probe": "b/VBA.case10",
+      "args": [
+        "Names.Add \"Sheet1!Local\",\"=1\"; TypeName(n.Parent)"
+      ],
+      "expected_bits": "text:Worksheet (Sheet1); Names.Count 1",
+      "calc_func": "text:dc-oxh8w.28: Workbook"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.DataLabels",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "DataLabels.Position.default",
+      "reading": "ww23",
+      "probe": "c/DataLabels.type51",
+      "args": [
+        "HasDataLabels=True"
+      ],
+      "expected_bits": "text:clustered column 2; stacked column -4108; line -4152; line markers -4152; pie 5; area(1) -4108; doughnut -4120 gives -4108",
+      "calc_func": "text:dc-oxh8w.29: area and doughnut 1004"
+    },
+    {
+      "id": "DataLabels.index",
+      "reading": "ww23",
+      "probe": "c/DataLabels.Index0",
+      "args": [
+        "DataLabels(0) and DataLabels(9) on 3 points; Delete then ShowValue; ApplyDataLabels(6)"
+      ],
+      "expected_bits": "text:Index 0 returns the collection text (empty); index 9 0x80070057; ShowValue after Delete reads False; ApplyDataLabels(6) no error",
+      "calc_func": "text:dc-oxh8w.31: 1004"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "Chart.Axes",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Axes.cat.MinimumScale",
+      "reading": "ww23",
+      "probe": "c/Axes.cat.MinimumScale",
+      "args": [
+        "column chart Axes(xlCategory).MinimumScale; pie Axes(1)"
+      ],
+      "expected_bits": "text:no error: returns Null/Empty; pie Axes(1) returns Nothing, HasAxis false",
+      "calc_func": "text:dc-oxh8w.11: 1004 text"
+    },
+    {
+      "id": "Axes.val.scale.auto",
+      "reading": "ww23",
+      "probe": "c/Axes.val.scale.auto",
+      "args": [
+        "data 1,2,3 column; Axes(xlValue) MaximumScale/MinimumScale"
+      ],
+      "expected_bits": "text:max 3.5 min 0, both auto",
+      "calc_func": "text:dc-oxh8w.13: refused"
+    },
+    {
+      "id": "AxisTitle.noTitle",
+      "reading": "ww23",
+      "probe": "c/Axes.val.AxisTitle.noTitle",
+      "args": [
+        "Axes(xlValue).AxisTitle.Text without title; HasTitle=True"
+      ],
+      "expected_bits": "text:no error reading (Null); after HasTitle=True text \"Axis Title\"",
+      "calc_func": "text:dc-oxh8w.12: -2147024809"
+    },
+    {
+      "id": "TickLabels.NumberFormat",
+      "reading": "ww23",
+      "probe": "c/TickLabels.NumberFormat",
+      "args": [
+        "default; put \"General\"; Linked=False; \"\"; \"[[bad\""
+      ],
+      "expected_bits": "text:default General linked True; put General gives linked False; empty accepted (General, unlinked); \"[[bad\" error 0x800A03EC",
+      "calc_func": "text:dc-oxh8w.31"
+    }
+  ]
+}

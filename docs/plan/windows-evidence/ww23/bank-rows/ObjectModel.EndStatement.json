@@ -1,0 +1,29 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.EndStatement",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "End.resetsModuleVariables",
+      "reading": "ww23",
+      "probe": "e/VBA.End.second",
+      "args": [
+        "module v=5; End; then read v; End inside a called procedure"
+      ],
+      "expected_bits": "text:End raises 0x800A9C68 to Run; v reads 0 afterwards; module Static1 7 reads 0 after End in a called procedure",
+      "calc_func": "text:dc-gp951"
+    }
+  ]
+}

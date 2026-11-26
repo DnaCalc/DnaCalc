@@ -1,0 +1,29 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.Interior",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Interior.noFill.reads",
+      "reading": "ww23",
+      "probe": "d/Interior.nofill",
+      "args": [
+        "no fill cell"
+      ],
+      "expected_bits": "text:Color 16777215, ColorIndex -4142, Pattern -4142, PatternColor 0; solid red: ColorIndex 3; RGB 0x123456 reads ColorIndex 52",
+      "calc_func": "text:dc-oxh8w.33"
+    }
+  ]
+}

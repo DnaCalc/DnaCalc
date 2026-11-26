@@ -1,0 +1,39 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.WorksheetCopy",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Copy.namesAndObjects",
+      "reading": "ww23",
+      "probe": "b/VBA.case31",
+      "args": [
+        "Sheet1 with local name Loc, table T1, note, hyperlink, shape, sparkline; Copy After"
+      ],
+      "expected_bits": "text:copy \"Sheet1 (2)\" keeps local name retargeted 'Sheet1 (2)'!$A$1, table renamed T1__3, 1 comment, 1 hyperlink, 2 shapes, 1 sparkline group",
+      "calc_func": "text:dc-oxh8w.36: typed refusals"
+    },
+    {
+      "id": "Copy.longNameBase",
+      "reading": "ww23",
+      "probe": "b/VBA.case22",
+      "args": [
+        "sheet \"ABCDEFGHIJKLMNOPQRSTUVWXYZ12345\" (31 chars); Copy twice"
+      ],
+      "expected_bits": "text:\"ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (2)\" then \"...Z1 (3)\": base cut to 27 characters, 31 total",
+      "calc_func": "text:dc-oxh8w.36: unmeasured"
+    }
+  ]
+}

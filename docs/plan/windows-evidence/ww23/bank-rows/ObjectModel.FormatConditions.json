@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.FormatConditions",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T09:08:16.2947456Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww23",
+      "id": "ww23",
+      "source": "ww23 probes a-e observations.jsonl"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "FC.Item.badIndex",
+      "reading": "ww23",
+      "probe": "d/FC.Item.countPlus1",
+      "args": [
+        "Item(Count+1), Item(0)"
+      ],
+      "expected_bits": "text:DISP_E_BADINDEX 0x8002000B (not 1004)",
+      "calc_func": "text:dc-tqcvu: 1004"
+    },
+    {
+      "id": "FC.Add.invalid",
+      "reading": "ww23",
+      "probe": "d/FC.Add.99",
+      "args": [
+        "Add(99); Add(xlCellValue) without operator; xlBetween without Formula2"
+      ],
+      "expected_bits": "text:Add(99): 0x80070057; the others DISP_E_PARAMNOTOPTIONAL 0x8002000F",
+      "calc_func": "text:dc-tqcvu: 1004"
+    },
+    {
+      "id": "FC.Priority.put",
+      "reading": "ww23",
+      "probe": "d/FC.priority.put99",
+      "args": [
+        "Priority = 0, -1, 4, 99 on a 3-rule sheet"
+      ],
+      "expected_bits": "text:0 and -1: 0x80070057; 4 and 99 accepted and read back as written",
+      "calc_func": "text:dc-oxh8w.62: refuse outside 1..Count"
+    },
+    {
+      "id": "FC.formulaReads",
+      "reading": "ww23",
+      "probe": "d/FC.cellValue.activeD10",
+      "args": [
+        "Add(xlCellValue,xlGreater,\"=3\") and Add(xlExpression,,\"=B2>B3\") on B2:B6 with ActiveCell D10"
+      ],
+      "expected_bits": "text:Formula1 \"=3\" and \"=B2>B3\" as written; Operator of expression rule null; Priority of new rule = Count; Range(\"D1\").FormatConditions.Count 0; AddTop10 Rank 10 TopBottom 1",
+      "calc_func": "text:dc-tqcvu"
+    }
+  ]
+}
