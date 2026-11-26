@@ -45,10 +45,25 @@ evaluator evidence.
 | CORREL last bits (313 at 1 ulp, 84 at 2-16 ulp, 41 within 15 digits), 4 workbooks | 438 | dc-wli1 |
 | Statistical functions 1-16 ulp (BETA.DIST, F.DIST*, T.*, CHISQ.INV, NORM*.INV, LOGNORM.INV, HYPGEOM.DIST, NEGBINOM.DIST, CONFIDENCE.NORM, IRR, SUBTOTAL) | about 25 | dc-bc1o |
 | Error semantics: infix + (6), TIMEVALUE (2), REPT (6) | 14 | dc-4oy5 |
-| Capture failure at stage reopen | 2,604 | dc-ljie |
+| Automatic reopen changed a RAND value or a dependent value | 2,604 | dc-ljie |
 | Comparison over 600 s (one workbook) | 516 | dc-n2st |
 | Refusals owned by existing beads: FORECAST.ETS.CONFINT 44 and FORECAST.ETS 22 (dc-j9k), TEXT 25 (dc-uar), COUNTIFS 4, FORMULATEXT 4, defined name not compiling 4 (dc-10y) | 103 | existing |
 | Capture throughput and refusals | n/a | dc-53r6, dc-qjnu |
+
+### Reopen changes in the two reported workbooks
+
+Inspection of the 289 archived capture records identified the two workbooks by SHA-256 prefix.
+Both recorded automatic file calculation mode. All 2,604 failures showed different numeric
+readings immediately after the rebuild and after reopening. Following same-sheet A1 references
+and ranges from the RAND cells reached every changed formula.
+
+| Workbook SHA-256 prefix | Formula cells | Changed RAND cells | Changed RAND dependents |
+|---|---:|---:|---:|
+| `03b6634eef54` | 2,007 | 936 | 586 |
+| `2a17cbc3c252` | 1,946 | 936 | 146 |
+
+The comparison above retains these as capture failures. The readings are samples from two
+calculation passes, so these transitions supply no deterministic Excel answer.
 
 ## Saved versus live, in Excel itself
 
