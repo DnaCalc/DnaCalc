@@ -13,6 +13,7 @@
   "objects": "application activecell activesheet activeworkbook areas cells chart chartobjects charts columns count end group index item offset parent range resize rows selection sheets thisworkbook usedrange workbook worksheet worksheets",
   "members": "activate activecell activesheet activeworkbook add address areas calculate cells chart chartobjects charts charttype clear clearcontents column columns count countlarge description end exists haslegend hastitle hidden index item keys left name number numberformat offset orientation raise range remove removeall resize row rows select selectedsheets selection seriescollection sheets text top value value2 worksheet worksheets",
   "refused": "executeexcel4macro evaluate run workbooks windows ontime onkey ddeinitiate ddeexecute ddepoke dderequest ddeterminate rmdir chdrive setattr getattr filelen filedatetime reset freefile appactivate attribute save quit chr chrw loadpicture savepicture lock unlock print write put get seek close input line declare ptrsafe shell getobject open kill mkdir filecopy dir chdir sendkeys environ vbproject vbcomponents vbe xmlhttp serverxmlhttp winhttprequest webservice querytables connections followhyperlink hyperlink msgbox inputbox callbyname saveas savecopyas getsetting savesetting deletesetting",
+  "blocked_functions": "webservice image rtd call register register.id hyperlink exec evaluate filterxml stockhistory translate detectlanguage py copilot",
   "undeclarable": "name createobject me",
   "classes": ["Scripting.Dictionary", "VBScript.RegExp"]
 }

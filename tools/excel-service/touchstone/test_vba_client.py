@@ -1,16 +1,19 @@
 """The VBA client through the socket broker and its stand-in worker."""
+import base64
 import hashlib
 import unittest
 from unittest.mock import patch
 
 from test_touchstone import ONE, TWO, number, start_broker, vba_group
 
+import vba_fixtures
 from touchstone import client, protocol
 
 
 CASE = {key: value for key, value in vba_group()["v"][0].items() if key != "workbook"}
-# The stand-in never opens the package. CalcDoc's tests exercise real package generation.
-FAKE_WORKBOOK = b"PK\x03\x04"
+# The stand-in never opens the package, but the admission policy checks it against the case's modules, so
+# this is the committed CalcDoc build (vba_fixtures.py).
+FAKE_WORKBOOK = base64.b64decode(vba_fixtures.workbook(CASE))
 
 
 class VbaClientTests(unittest.TestCase):

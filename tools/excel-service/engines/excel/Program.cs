@@ -394,7 +394,7 @@ static class Program
             if (serial) result["order"] = "serial";
             Interlocked.Exchange(ref DeadlineTicks, 0);
             var fpWatch = Stopwatch.StartNew();
-            bool quick = Batches % 20 != 0;
+            bool quick = vbaCase == null && Batches % 20 != 0;     // a VBA case always gets the full fingerprint
             var after = X.Fingerprint(quick);
             var expected = quick ? X.QuickBaseline() : X.Baseline;
             timing["fingerprint_ms"] = Math.Round(fpWatch.Elapsed.TotalMilliseconds, 3);
@@ -412,6 +412,7 @@ static class Program
             timing["gc_pause_ms"] = Math.Round(GC.GetTotalPauseDuration().TotalMilliseconds - gcBefore, 3);
             result["timing"] = timing;
             Send('R', Json.Write(result));
+            if (VbaDirty) { VbaDirty = false; Recycle("VBA cleanup failed"); }
         }
         catch (Exception e) when (e is RefusedFormulaException or RefusedVbaException)
         {
@@ -428,7 +429,9 @@ static class Program
             result["detail"] = e.GetType().Name + ": " + e.Message + (WatchdogFired ? " (deadline)" : "") + " [" + Stage + "]";
             result["deadline"] = WatchdogFired;
             Send('R', Json.Write(result));
+            LastVerified = 0;      // the broker's immediate retry must read the fingerprint before it runs
             if (dead) { X.Process?.Dispose(); X = null; StartExcel(true); }
+            else if (vbaCase != null || VbaDirty) { VbaDirty = false; Recycle("VBA case failed"); }
             else
             {
                 // Not dead but failed: clear the scratch sheet; if that fails the instance is recycled.
@@ -847,22 +850,22 @@ static class Program
         }
         finally
         {
-            try
+            // Every step runs even when an earlier one fails, so the first failure is never masked and the
+            // case folder is removed; a step that fails marks the instance dirty and it is recycled.
+            void Step(Action action)
             {
-                app.EnableEvents = false;
-                if (book != null) book.Close(false);
+                try { action(); }
+                catch { VbaDirty = true; }
             }
-            finally
-            {
-                try { app.EnableEvents = events; }
-                finally
-                {
-                    File.Delete(path);
-                    Directory.Delete(directory);
-                }
-            }
+            Step(() => app.EnableEvents = false);
+            Step(() => { if (book != null) book.Close(false); });
+            Step(() => app.EnableEvents = events);
+            Step(() => Directory.Delete(directory, true));
         }
     }
+
+    // Set when a VBA case could not restore Excel's state or remove its folder; the batch recycles Excel.
+    static bool VbaDirty;
 
     static List<object> VbaBatchAnswer(string type, Dictionary<string, object> value)
     {

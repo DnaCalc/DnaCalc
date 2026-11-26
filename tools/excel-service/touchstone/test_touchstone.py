@@ -23,10 +23,12 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
+import base64  # noqa: E402
 import batcher  # noqa: E402
 import peers  # noqa: E402
 import protocol  # noqa: E402
 import v1  # noqa: E402
+import vba_fixtures  # noqa: E402
 
 ROOT = HERE.parents[2]
 
@@ -40,18 +42,36 @@ TWO = "4000000000000000"
 IMPLICIT_VBA_PARAMETERS = "Function Probe(x, y)\n    Probe = x + y\nEnd Function\n"
 
 
+DEFAULT_VBA_SOURCE = ('Option Explicit\r\nPublic Function Probe(ByVal x As Long) As Long\r\n'
+                      '    Dim result As Long\r\n'
+                      '    result = x + 1 \' Shell is only a comment\r\n'
+                      '    ThisWorkbook.Worksheets("Data").Range("A1").Value2 = "He said ""Open"""\r\n'
+                      '    Probe = result\r\nEnd Function\r\n')
+DICTIONARY_VBA_SOURCE = ('Public Function Probe(ByVal x As Long) As Long\n'
+                         '    Dim items As Object\n'
+                         '    Set items = CreateObject("Scripting.Dictionary")\n'
+                         '    Probe = items.Count + x\nEnd Function\n')
+MULTI_DECLARATION_VBA_SOURCE = ("Public Function Probe(ByVal x As Long) As Long\nDim a As Long, b As Long\n"
+                                "a = 1: b = 2\nProbe = a + b\nEnd Function\n")
+MODULE_VARIABLE_VBA_SOURCE = ("Private shared As Long\nPublic Function Probe(ByVal x As Long) As Long\n"
+                              "shared = x\nProbe = shared\nEnd Function\n")
+TAB_CONTINUATION_VBA_SOURCE = "Public Function Probe(ByVal x As Long) As Long\nProbe = x + \t_\n 1\nEnd Function\n"
+# Sources whose workbook is a committed CalcDoc build (vba-workbooks.json; regenerate with vba_fixtures.py).
+ACCEPTED_VBA_SOURCES = [DEFAULT_VBA_SOURCE, IMPLICIT_VBA_PARAMETERS, DICTIONARY_VBA_SOURCE,
+                        MULTI_DECLARATION_VBA_SOURCE, MODULE_VARIABLE_VBA_SOURCE, TAB_CONTINUATION_VBA_SOURCE]
+
+
 def vba_group(source=None, **changes):
     if source is None:
-        source = ('Option Explicit\r\nPublic Function Probe(ByVal x As Long) As Long\r\n'
-                  '    Dim result As Long\r\n'
-                  '    result = x + 1 \' Shell is only a comment\r\n'
-                  '    ThisWorkbook.Worksheets("Data").Range("A1").Value2 = "He said ""Open"""\r\n'
-                  '    Probe = result\r\nEnd Function\r\n')
+        source = DEFAULT_VBA_SOURCE
     case = {"sheets": [{"name": "Data", "cells": {"A1": number(ONE)}}], "names": {},
             "modules": [{"name": "Probes", "kind": "standard", "source": source}],
             "workbook": "UEsDBA==", "calls": [{"procedure": "Probes.Probe", "args": [number(ONE)]}],
             "readback": ["Data!A1"], "event_log": ["Data!B1"]}
-    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [dict(case, **changes)]}
+    case.update(changes)
+    if "workbook" not in changes:
+        case["workbook"] = vba_fixtures.workbook(case) or case["workbook"]
+    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [case]}
 
 
 class ProtocolTests(unittest.TestCase):
@@ -388,10 +408,7 @@ class AdmissionTests(unittest.TestCase):
     def test_vba_allows_a_workbook_probe_and_a_listed_literal_object(self):
         self.admission.check(vba_group())
         self.admission.check(vba_group(IMPLICIT_VBA_PARAMETERS))
-        self.admission.check(vba_group('Public Function Probe(ByVal x As Long) As Long\n'
-                                           '    Dim items As Object\n'
-                                           '    Set items = CreateObject("Scripting.Dictionary")\n'
-                                           '    Probe = items.Count + x\nEnd Function\n'))
+        self.admission.check(vba_group(DICTIONARY_VBA_SOURCE))
 
     def refused_vba_sources(self):
         refused = [
@@ -430,6 +447,9 @@ class AdmissionTests(unittest.TestCase):
             yield (f"Public Function Probe(ByVal x As Long) As Long\nDim {name} As Long\n{line}\nEnd Function\n"), name
             yield f"Public Function Probe(ByVal x As Long) As Long\n{line}\nEnd Function\n", name
         yield 'Public Function Probe(ByVal x As Long) As Long\nName "a" As "b"\nEnd Function\n', "Name"
+        yield 'Attribute VB_Name = "x"\nPublic Function Probe(ByVal x As Long) As Long\nEnd Function\n', "Attribute"
+        yield '#If True Then\nPublic Function Probe(ByVal x As Long) As Long\nEnd Function\n#End If\n', "#"
+        yield 'Public Function Probe(ByVal x As Long) As Long\n\u0405hell "calc"\nEnd Function\n', "\u0405"
         yield ('Public Function Probe(ByVal x As Long) As Long\nDim Name As String\n'
                'Name "a" As "b"\nEnd Function\n'), "Name"
         yield 'Private Sub Unused(# )\nEnd Sub\nPublic Function Probe(ByVal x As Long) As Long\nProbe = #\nEnd Function\n', "#"
@@ -437,12 +457,106 @@ class AdmissionTests(unittest.TestCase):
         yield ('Private Sub Other()\nDim local1 As Long\nEnd Sub\n'
                'Public Function Probe(ByVal x As Long) As Long\nProbe = local1\nEnd Function\n'), "local1"
 
+    @staticmethod
+    def repackaged(change):
+        """The default VBA workbook with `change(parts)` applied to its package parts."""
+        import io
+        import zipfile
+        original = zipfile.ZipFile(io.BytesIO(base64.b64decode(vba_group()["v"][0]["workbook"])))
+        parts = {info.filename: original.read(info.filename) for info in original.infolist()}
+        change(parts)
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, body in parts.items():
+                archive.writestr(name, body)
+        return base64.b64encode(out.getvalue()).decode("ascii")
+
+    def refused_vba_workbooks(self):
+        """rw14 finding 3 and 4: the workbook must be what CalcDoc builds from the case; layouts stay plain."""
+        def add(name, body=b"<x/>"):
+            return lambda parts: parts.__setitem__(name, body)
+
+        def edit(name, old, new):
+            return lambda parts: parts.__setitem__(name, parts[name].replace(old, new))
+
+        def tamper_bin(old, new):
+            return edit("xl/vbaProject.bin", old, new)
+
+        def tamper_source(parts):
+            # Source literals are stored with a flag byte every eight bytes: change one that sits whole.
+            body = parts["xl/vbaProject.bin"]
+            for fragment in (b"Exp", b"lic", b"Fun", b"cti", b"Pro", b"bes", b"nct"):
+                if fragment in body:
+                    parts["xl/vbaProject.bin"] = body.replace(fragment, b"Zzz", 1)
+                    return
+            raise AssertionError("no module text to tamper with")
+
+        cases = [
+            ("unexpected package parts", self.repackaged(add("xl/externalLinks/externalLink1.xml"))),
+            ("unexpected package parts", self.repackaged(add("xl/macrosheets/sheet1.xml"))),
+            ("unexpected package parts", self.repackaged(add("xl/vbaProjectSignature.bin"))),
+            ("unexpected package parts", self.repackaged(add("xl/embeddings/oleObject1.bin"))),
+            ("unexpected workbook", self.repackaged(edit("xl/workbook.xml", b"<calcPr", b"<definedNames/><calcPr"))),
+            ("unexpected workbook", self.repackaged(edit("xl/workbook.xml", b"<sheets>", b"<externalReferences/><sheets>"))),
+            ("empty sheet", self.repackaged(edit("xl/worksheets/sheet1.xml", b"<sheetData/>",
+                                                 b'<sheetData><row r="1"><c r="A1"><f>WEBSERVICE("x")</f></c></row></sheetData>'))),
+            ("workbook relationship", self.repackaged(edit(
+                "xl/_rels/workbook.xml.rels", b'Target="styles.xml"', b'Target="styles.xml" TargetMode="External"'))),
+            ("workbook relationship", self.repackaged(edit(
+                "xl/_rels/workbook.xml.rels", b'/styles"', b'/externalLink"'))),
+            ("content type", self.repackaged(edit(
+                "[Content_Types].xml", b"sheet.macroEnabled.main+xml", b"sheet.macroEnabled.main+xml\" Extra=\"1"))),
+            ("compound file", self.repackaged(add("xl/vbaProject.bin", b"x" * 4096))),
+            ("authored", self.repackaged(tamper_source)),
+            ("authored", self.repackaged(tamper_bin(b"VBAProject", b"VBAProjecU"))),
+        ]
+        for message, workbook in cases:
+            yield message, vba_group(workbook=workbook)
+        # A genuine package for a different case: other source, other sheet count.
+        yield "authored source", vba_group(MULTI_DECLARATION_VBA_SOURCE, workbook=vba_group()["v"][0]["workbook"])
+        yield "unexpected package parts", vba_group(
+            sheets=[{"name": "Data", "cells": {}}, {"name": "More", "cells": {}}], readback=["Data!A1"],
+            workbook=vba_group()["v"][0]["workbook"])
+        layouts = [
+            ("function", {"Data": {"A2": {"type": "formula", "formula": '=WEBSERVICE("http://x")'}}}, {}),
+            ("function", {"Data": {"A2": {"type": "formula", "formula": '=IMAGE("http://x")'}}}, {}),
+            ("function", {"Data": {"A2": {"type": "formula", "formula": '=Unknown(1)'}}}, {}),
+            ("function", {"Data": {"A2": {"type": "formula", "formula": '=_xlfn.RTD("a","b","c")'}}}, {}),
+            ("external", {"Data": {"A2": {"type": "formula", "formula": "=[Book.xlsx]Sheet1!A1"}}}, {}),
+            ("external", {"Data": {"A2": {"type": "formula", "formula": "='C:\\x\\[b.xlsx]S'!A1"}}}, {}),
+            ("function", {"Data": {"A2": {"type": "number", "bits": ONE}}}, {"n": "=EXEC(\"calc\")"}),
+            ("external", {"Data": {"A2": {"type": "number", "bits": ONE}}}, {"n": "=[Book.xlsx]Sheet1!A1"}),
+        ]
+        for message, cells, names in layouts:
+            yield message, vba_group(sheets=[{"name": "Data", "cells": cells["Data"]}], names=names)
+
+    def test_vba_refuses_a_workbook_that_is_not_the_cases_build_and_unsafe_layout_formulas(self):
+        for message, group in self.refused_vba_workbooks():
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                self.admission.check(group)
+        self.admission.check(vba_group(sheets=[{"name": "Data", "cells": {
+            "A2": {"type": "formula", "formula": '=SUM(A1,1)&"[x]"'}}}]))
+
+    def test_sheet_layouts_bound_hidden_rows_and_columns(self):
+        case = lambda **hidden: protocol.sheet_case([{"name": "Data", "cells": {"B2": number(ONE)}, **hidden}],
+                                                    [{"at": "Data!F6", "formula": "=B2"}])
+        for hidden in ({"hidden_rows": "x"}, {"hidden_rows": [0]}, {"hidden_rows": [1048577]},
+                       {"hidden_columns": [16385]}, {"hidden_columns": [True]}, {"hidden_rows": list(range(1, 2000))}):
+            [group] = protocol.rows_to_groups(protocol.CASE_FUNCTION, [[case(**hidden)]])
+            with self.subTest(hidden=hidden), self.assertRaisesRegex(ValueError, "hidden"):
+                self.admission.check(group)
+        [group] = protocol.rows_to_groups(protocol.CASE_FUNCTION, [[case(hidden_rows=[3], hidden_columns=[2])]])
+        self.admission.check(group)
+
+    def test_vba_refuses_a_case_larger_than_one_submit_frame(self):
+        big = {"type": "text", "value": "x" * 1000}
+        calls = [{"procedure": "Probes.Probe", "args": [big] * 16} for _ in range(8)]
+        with self.assertRaisesRegex(ValueError, "frame budget"):
+            self.admission.check(vba_group(calls=calls))
+        protocol.submit_frames("0" * 32, [vba_group()])      # an admitted case always fits
+
     def test_vba_accepts_multiple_declarations_module_variables_and_tab_continuations(self):
-        for source in (
-            "Public Function Probe(ByVal x As Long) As Long\nDim a As Long, b As Long\na = 1: b = 2\nProbe = a + b\nEnd Function\n",
-            "Private shared As Long\nPublic Function Probe(ByVal x As Long) As Long\nshared = x\nProbe = shared\nEnd Function\n",
-            "Public Function Probe(ByVal x As Long) As Long\nProbe = x + \t_\n 1\nEnd Function\n",
-        ):
+        for source in (MULTI_DECLARATION_VBA_SOURCE, MODULE_VARIABLE_VBA_SOURCE, TAB_CONTINUATION_VBA_SOURCE):
             with self.subTest(source=source):
                 self.admission.check(vba_group(source))
 
@@ -481,6 +595,16 @@ class AdmissionTests(unittest.TestCase):
                     self.assertIn(refused.lower(), result.stderr.lower())
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_refuses_the_same_workbooks_and_layouts(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+        for message, group in self.refused_vba_workbooks():
+            with self.subTest(message=message):
+                result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(group),
+                                        text=True, capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertRegex(result.stderr.lower(), message.lower())
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_accepts_only_the_exact_approved_case(self):
         worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
         with tempfile.TemporaryDirectory() as directory:
@@ -497,7 +621,10 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual(check(group).returncode, 0)
             reordered = json.loads(json.dumps(group, sort_keys=True))
             self.assertEqual(check(reordered).returncode, 0)
-            for changed in (vba_group(workbook="UEsDBAE="), vba_group(readback=["Data!A2"]),
+            rezipped = self.repackaged(lambda parts: None)     # the same parts in other package bytes
+            self.assertNotEqual(rezipped, group["v"][0]["workbook"])
+            for changed in (vba_group(workbook=rezipped),
+                            vba_group(readback=["Data!A2"]),
                             vba_group(calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])):
                 self.assertIn("unapproved", check(changed).stderr)
 

@@ -335,7 +335,7 @@ class Connection:
         answer, = reply["rows"]
         if answer["type"] != "vba_case":
             code = answer["reason"] if is_crashed(answer) else answer["type"]
-            detail = answer.get("detail") or "worker returned no VBA case answer"
+            detail = answer.get("detail") or answer.get("reason") or "worker returned no VBA case answer"
             raise ServiceError({
                 "id": pending.rid, "ok": False, "code": code, "error": f"{code}: {detail}",
                 "row": answer,

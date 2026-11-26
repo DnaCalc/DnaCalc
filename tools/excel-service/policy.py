@@ -8,6 +8,7 @@ import re
 import time
 
 from client import from_bits
+from vba_package import verify_vba_workbook
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_CALLS = 20000
@@ -230,6 +231,7 @@ MAX_CASE_PROBES = 256
 CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
+VBA_FRAME_BUDGET = 40 * 1024     # touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
 VBA_RULES = json.loads(Path(__file__).with_name("vba-probe-policy.json").read_text(encoding="ascii"))
 VBA_IDENTIFIER = re.compile(VBA_RULES["identifier"])
 VBA_LEX = re.compile(VBA_RULES["lex"])
@@ -238,6 +240,9 @@ VBA_MEMBERS = set(VBA_RULES["members"].split())
 VBA_DECLARES = set(VBA_RULES["declares"].split())
 VBA_REFUSED = set(VBA_RULES["refused"].split())
 VBA_UNDECLARABLE = set(VBA_RULES["undeclarable"].split())
+VBA_BLOCKED_FUNCTIONS = {name.upper() for name in VBA_RULES["blocked_functions"].split()}
+VBA_STRING_LITERAL = re.compile(r'"(?:[^"]|"")*"')
+VBA_FUNCTION_CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
 VBA_CLASSES = {f'"{name.lower()}"' for name in VBA_RULES["classes"]}
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
@@ -417,6 +422,11 @@ class Admission:
         for sheet in sheets:
             if not isinstance(sheet.get("name"), str) or not isinstance(sheet.get("cells", {}), dict):
                 raise ValueError("a sheet has a name and cells")
+            for field, limit in (("hidden_rows", 1048576), ("hidden_columns", 16384)):
+                hidden = sheet.get(field, [])
+                if (not isinstance(hidden, list) or len(hidden) > 1000
+                        or any(type(n) is not int or not 1 <= n <= limit for n in hidden)):
+                    raise ValueError(f"{field} are at most 1000 positions inside the worksheet")
             for cell in sheet.get("cells", {}).values():
                 if not isinstance(cell, dict) or cell.get("type") not in CASE_CELL_TYPES:
                     raise ValueError("unsupported layout cell")
@@ -514,6 +524,8 @@ class Admission:
         case = values[0]
         if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "workbook", "calls", "readback", "event_log"}:
             raise ValueError("invalid VBA case fields")
+        if len(json.dumps(group, separators=(",", ":"), sort_keys=True)) > VBA_FRAME_BUDGET:
+            raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
         modules = case["modules"]
         if not isinstance(modules, list) or not 1 <= len(modules) <= VBA_RULES["max_modules"]:
             raise ValueError("invalid VBA module count")
@@ -541,10 +553,10 @@ class Admission:
         if not isinstance(workbook, str) or not 1 <= len(workbook) <= VBA_RULES["max_workbook_chars"]:
             raise ValueError("invalid or oversized VBA workbook")
         try:
-            valid_workbook = base64.b64decode(workbook, validate=True).startswith(b"PK\x03\x04")
+            package = base64.b64decode(workbook, validate=True)
         except (binascii.Error, ValueError):
-            valid_workbook = False
-        if not valid_workbook:
+            package = b""
+        if not package.startswith(b"PK\x03\x04"):
             raise ValueError("invalid VBA workbook encoding")
         calls = case["calls"]
         if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
@@ -575,6 +587,13 @@ class Admission:
             self._check_case_layout(sheets, case["names"])
         except (AttributeError, KeyError, TypeError) as error:
             raise ValueError("invalid VBA worksheet layout") from error
+        verify_vba_workbook(package, case)
+        for sheet in sheets:
+            for cell in sheet.get("cells", {}).values():
+                if cell["type"] == "formula":
+                    self._check_vba_layout_formula(cell["formula"])
+        for formula in case["names"].values():
+            self._check_vba_layout_formula(formula)
         for field in ("readback", "event_log"):
             addresses = case[field]
             if not isinstance(addresses, list) or len(addresses) > VBA_RULES["max_reads"]:
@@ -583,6 +602,16 @@ class Admission:
                 sheet, bang, cell = place.rpartition("!") if isinstance(place, str) else ("", "", "")
                 if not bang or sheet.lower() not in sheet_names or not _vba_address(cell):
                     raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
+
+    def _check_vba_layout_formula(self, formula):
+        """A layout formula runs under CalculateFull: catalogue functions only, none that reach out."""
+        body = VBA_STRING_LITERAL.sub('""', formula)
+        if "[" in body or "\\" in body:
+            raise ValueError("VBA layout formulas refuse external references")
+        for call in VBA_FUNCTION_CALL.findall(body):
+            name = function_name(call.upper())
+            if name in VBA_BLOCKED_FUNCTIONS or name not in self.names.arities:
+                raise ValueError(f"VBA layout formulas refuse the function {call}")
 
     @classmethod
     def _range_cell(cls, cell):

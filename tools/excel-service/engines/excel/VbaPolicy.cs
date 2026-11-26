@@ -81,8 +81,128 @@ static class VbaPolicy
                 throw new RefusedVbaException("VBA call must name a public standard-module procedure in the case");
             if (call.GetValueOrDefault("args") is not List<object> args || args.Count > Limit("max_args"))
                 throw new RefusedVbaException("invalid VBA argument count");
+            foreach (var arg in args) CheckRangeCell(arg);
         }
+        CheckLayout(probe);
         return probe;
+    }
+
+    static readonly string[] Errors = { "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A" };
+    static readonly Regex Address = new(@"\A\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}\z", RegexOptions.CultureInvariant);
+    static readonly Regex StringLiteral = new("\"(?:[^\"]|\"\")*\"", RegexOptions.CultureInvariant);
+    static readonly Regex FunctionCall = new(@"([A-Za-z_][A-Za-z0-9_.]*)\s*\(", RegexOptions.CultureInvariant);
+    static readonly HashSet<string> BlockedFunctions = Words("blocked_functions").Select(w => w.ToUpperInvariant()).ToHashSet();
+    static readonly HashSet<string> CatalogueFunctions = ReadCatalogue();
+
+    static HashSet<string> ReadCatalogue()
+    {
+        using var resource = typeof(VbaPolicy).Assembly.GetManifestResourceStream("admission-families.tsv");
+        using var reader = new StreamReader(resource);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        while (reader.ReadLine() is string line) names.Add(line.Split('\t')[1]);
+        return names;
+    }
+
+    static bool IsAddress(object value)
+    {
+        if (value is not string address || !Address.IsMatch(address)) return false;
+        address = address.Replace("$", "");
+        int i = 0;
+        long column = 0;
+        while (char.IsAsciiLetter(address[i])) column = column * 26 + char.ToUpperInvariant(address[i++]) - 'A' + 1;
+        return column <= 16384 && long.Parse(address[i..]) <= 1048576;
+    }
+
+    static void CheckFinite(object bits)
+    {
+        if (bits is not string hex || hex.Length != 16 || hex.StartsWith("7ff") || hex.StartsWith("fff")
+            || !hex.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            throw new RefusedVbaException("number must be finite binary64 hex, passed through a cell");
+    }
+
+    static bool HasOnly(Dictionary<string, object> cell, params string[] keys) => cell.Keys.All(keys.Contains);
+
+    static void CheckRangeCell(object value)
+    {
+        if (value is not Dictionary<string, object> cell || cell.GetValueOrDefault("type") is not string kind)
+            throw new RefusedVbaException("range cells must be typed");
+        var mode = cell.GetValueOrDefault("mode") ?? "cell";
+        bool ok = kind switch
+        {
+            "number" => cell.Count == 2 && cell.ContainsKey("bits"),
+            "text" => HasOnly(cell, "type", "value", "mode") && Equals(mode, "cell")
+                      && cell.GetValueOrDefault("value") is string text && text.Length <= 1024 && !text.Contains('\0'),
+            "boolean" => HasOnly(cell, "type", "value", "mode") && Equals(mode, "cell") && cell.GetValueOrDefault("value") is bool,
+            "error" => cell.Count == 2 && cell.GetValueOrDefault("code") is string code && Errors.Contains(code),
+            "blank" => cell.Count == 1,
+            _ => false,
+        };
+        if (!ok) throw new RefusedVbaException("invalid range cell");
+        if (kind == "number") CheckFinite(cell["bits"]);
+    }
+
+    static void CheckLayoutFormula(string formula)
+    {
+        var body = StringLiteral.Replace(formula, "\"\"");
+        if (body.Contains('[') || body.Contains('\\'))
+            throw new RefusedVbaException("VBA layout formulas refuse external references");
+        foreach (Match call in FunctionCall.Matches(body))
+        {
+            var name = call.Groups[1].Value.ToUpperInvariant();
+            foreach (var prefix in new[] { "_XLFN.", "_XLWS." })
+                if (name.StartsWith(prefix, StringComparison.Ordinal)) { name = name[prefix.Length..]; break; }
+            if (BlockedFunctions.Contains(name) || !CatalogueFunctions.Contains(name))
+                throw new RefusedVbaException("VBA layout formulas refuse the function " + call.Groups[1].Value);
+        }
+    }
+
+    static void CheckLayout(Dictionary<string, object> probe)
+    {
+        if (probe.GetValueOrDefault("names") is not Dictionary<string, object> names
+            || names.Values.Any(f => f is not string text || text.Length > 8192))
+            throw new RefusedVbaException("invalid VBA worksheet layout");
+        foreach (string formula in names.Values) CheckLayoutFormula(formula);
+        if (probe.GetValueOrDefault("sheets") is not List<object> sheets || sheets.Count < 1 || sheets.Count > 16)
+            throw new RefusedVbaException("invalid VBA sheet count");
+        var sheetNames = new HashSet<string>();
+        int cells = 0;
+        foreach (var item in sheets)
+        {
+            if (item is not Dictionary<string, object> sheet || sheet.GetValueOrDefault("name") is not string name
+                || name.Length < 1 || name.Length > 31 || !sheetNames.Add(name.ToLowerInvariant())
+                || (sheet.TryGetValue("cells", out var raw) ? raw as Dictionary<string, object> : new()) is not { } layout
+                || !layout.Keys.All(IsAddress))
+                throw new RefusedVbaException("invalid or duplicate VBA layout sheet");
+            foreach (var cell in layout.Values)
+            {
+                if (cell is not Dictionary<string, object> fields || fields.GetValueOrDefault("type") is not string kind
+                    || kind is not ("number" or "text" or "boolean" or "error" or "formula"))
+                    throw new RefusedVbaException("unsupported layout cell");
+                if (kind == "formula")
+                {
+                    if (fields.GetValueOrDefault("formula") is not string formula || formula.Length > 8192)
+                        throw new RefusedVbaException("a formula cell needs formula text");
+                    CheckLayoutFormula(formula);
+                }
+                if (kind == "number") CheckFinite(fields.GetValueOrDefault("bits"));
+                if (kind == "error" && !(fields.GetValueOrDefault("code") is string code && Errors.Contains(code)))
+                    throw new RefusedVbaException("unsupported error cell");
+            }
+            cells += layout.Count;
+        }
+        if (cells > 10000) throw new RefusedVbaException("a sheet case has at most 10000 cells");
+        foreach (var field in new[] { "readback", "event_log" })
+        {
+            if (probe.GetValueOrDefault(field) is not List<object> places || places.Count > Limit("max_reads"))
+                throw new RefusedVbaException($"invalid VBA {field} count");
+            foreach (var place in places)
+            {
+                var text = place as string ?? "";
+                int bang = text.LastIndexOf('!');
+                if (bang < 0 || !sheetNames.Contains(text[..bang].ToLowerInvariant()) || !IsAddress(text[(bang + 1)..]))
+                    throw new RefusedVbaException($"VBA {field} must name a case sheet and one A1 cell");
+            }
+        }
     }
 
     // Includes both the bytes Excel opens and what the worker will do with them.
@@ -107,6 +227,7 @@ static class VbaPolicy
         catch (FormatException) { throw new RefusedVbaException("invalid VBA workbook encoding"); }
         if (!bytes.AsSpan().StartsWith("PK\u0003\u0004"u8))
             throw new RefusedVbaException("invalid VBA workbook encoding");
+        VbaPackage.Verify(bytes, probe);
         if (approvals != null && !File.Exists(Path.Combine(approvals, CaseDigest(probe) + ".approved")))
             throw new RefusedVbaException("unapproved VBA case: the source, workbook and inputs require a local approval");
         return bytes;
