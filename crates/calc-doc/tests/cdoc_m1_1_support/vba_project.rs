@@ -81,7 +81,7 @@ fn replace_project(
                 .collect();
             attributes + text
         };
-        bytes.extend(calc_doc::compress_vba_stream(text.as_bytes()));
+        bytes.extend(calc_doc::compress_vba_stream(text.as_bytes()).expect("compressible"));
         compound
             .create_stream(&path)
             .unwrap()

@@ -50,6 +50,9 @@ pub enum VbaWriteError {
     NoSheets,
     /// The source project exceeds a size limit.
     Limit(&'static str),
+    /// A stream's final chunk is shorter than 4096 bytes and does not compress below one chunk, which
+    /// MS-OVBA cannot store without padding it with NULs. Add or remove a comment line in the source.
+    Incompressible,
 }
 
 impl fmt::Display for VbaWriteError {
@@ -65,6 +68,9 @@ impl fmt::Display for VbaWriteError {
             Self::SheetName(name) => write!(f, "invalid or duplicate worksheet name {name:?}"),
             Self::NoSheets => f.write_str("a macro-enabled workbook needs at least one sheet"),
             Self::Limit(limit) => write!(f, "VBA project exceeds {limit} limit"),
+            Self::Incompressible => f.write_str(
+                "a VBA stream's final chunk does not compress to fit MS-OVBA; change the source length",
+            ),
         }
     }
 }
@@ -97,14 +103,12 @@ pub fn write_vba_project(modules: &[SourceModule<'_>]) -> Result<Vec<u8>, VbaWri
         if bytes > MAX_PROJECT_BYTES {
             return Err(VbaWriteError::Limit("project bytes"));
         }
-        streams.push((
-            module.name.to_owned(),
-            Node::Stream(compress_vba_stream(&source)),
-        ));
+        let packed = compress_vba_stream(&source).ok_or(VbaWriteError::Incompressible)?;
+        streams.push((module.name.to_owned(), Node::Stream(packed)));
     }
     streams.push((
         "dir".to_owned(),
-        Node::Stream(compress_vba_stream(&directory(modules))),
+        Node::Stream(compress_vba_stream(&directory(modules)).ok_or(VbaWriteError::Incompressible)?),
     ));
     cfb_write::write(vec![
         (
@@ -386,24 +390,76 @@ fn project_property(data: &[u8]) -> String {
     result
 }
 
-/// Encode an MS-OVBA compressed container with literal tokens and raw 4096-byte chunks.
-/// A final raw chunk is zero-padded as specified by MS-OVBA 2.4.1.3.10.
-pub fn compress_vba_stream(input: &[u8]) -> Vec<u8> {
+/// Encode an MS-OVBA compressed container (MS-OVBA 2.4.1.3): copy tokens for repeated text, literal
+/// tokens otherwise, and a raw chunk (2.4.1.3.10) only for an incompressible full 4096-byte chunk.
+/// Returns `None` for an incompressible final chunk shorter than 4096 bytes: the format has no way to
+/// store it, since a raw chunk always decompresses to 4096 bytes.
+pub fn compress_vba_stream(input: &[u8]) -> Option<Vec<u8>> {
     let mut output = vec![1];
     for chunk in input.chunks(4096) {
-        let encoded_size = chunk.len() + chunk.len().div_ceil(8);
-        if encoded_size > 4096 {
+        let packed = compress_chunk(chunk);
+        if packed.len() <= 4096 {
+            let header = 0xb000u16 | (packed.len() as u16 - 1);
+            output.extend_from_slice(&header.to_le_bytes());
+            output.extend_from_slice(&packed);
+        } else if chunk.len() == 4096 {
             output.extend_from_slice(&0x3fffu16.to_le_bytes());
             output.extend_from_slice(chunk);
-            output.resize(output.len() + 4096 - chunk.len(), 0);
         } else {
-            let header = 0xb000u16 | (encoded_size as u16 - 1);
-            output.extend_from_slice(&header.to_le_bytes());
-            for literals in chunk.chunks(8) {
-                output.push(0);
-                output.extend_from_slice(literals);
-            }
+            return None;
         }
     }
-    output
+    Some(output)
+}
+
+fn compress_chunk(chunk: &[u8]) -> Vec<u8> {
+    use std::collections::HashMap;
+    const CANDIDATES: usize = 128;
+    let mut seen: HashMap<[u8; 3], Vec<usize>> = HashMap::new();
+    let mut insert = |seen: &mut HashMap<[u8; 3], Vec<usize>>, at: usize| {
+        if at + 3 <= chunk.len() {
+            seen.entry([chunk[at], chunk[at + 1], chunk[at + 2]]).or_default().push(at);
+        }
+    };
+    let (mut out, mut at) = (Vec::new(), 0);
+    while at < chunk.len() {
+        let flags_at = out.len();
+        out.push(0u8);
+        let mut flags = 0u8;
+        for bit in 0..8 {
+            if at >= chunk.len() {
+                break;
+            }
+            let bits = (usize::BITS - at.saturating_sub(1).leading_zeros()).max(4);
+            let longest = (0xffffusize >> bits) + 3;
+            let mut best = (0usize, 0usize);
+            if at + 3 <= chunk.len() {
+                if let Some(candidates) = seen.get(&[chunk[at], chunk[at + 1], chunk[at + 2]]) {
+                    for &from in candidates.iter().rev().take(CANDIDATES) {
+                        let length = (0..longest.min(chunk.len() - at))
+                            .take_while(|&k| chunk[from + k] == chunk[at + k])
+                            .count();
+                        if length > best.1 {
+                            best = (at - from, length);
+                        }
+                    }
+                }
+            }
+            if best.1 >= 3 {
+                let token = (((best.0 - 1) as u16) << (16 - bits)) | (best.1 as u16 - 3);
+                out.extend_from_slice(&token.to_le_bytes());
+                flags |= 1 << bit;
+                for covered in at..at + best.1 {
+                    insert(&mut seen, covered);
+                }
+                at += best.1;
+            } else {
+                out.push(chunk[at]);
+                insert(&mut seen, at);
+                at += 1;
+            }
+        }
+        out[flags_at] = flags;
+    }
+    out
 }

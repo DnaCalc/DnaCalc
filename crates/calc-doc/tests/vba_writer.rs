@@ -154,3 +154,71 @@ fn write_windows_probe() {
     .unwrap();
     std::fs::write(path, package).unwrap();
 }
+
+/// MS-OVBA 2.4.1.3.1, written independently of the writer.
+fn decompress(data: &[u8]) -> Vec<u8> {
+    assert_eq!(data[0], 1);
+    let (mut out, mut at) = (Vec::new(), 1);
+    while at < data.len() {
+        let header = u16::from_le_bytes([data[at], data[at + 1]]) as usize;
+        let end = at + (header & 0xfff) + 3;
+        assert_eq!(header >> 12 & 7, 3);
+        if header & 0x8000 == 0 {
+            out.extend_from_slice(&data[at + 2..end]);
+        } else {
+            let (start, mut pos) = (out.len(), at + 2);
+            while pos < end {
+                let flags = data[pos];
+                pos += 1;
+                for bit in 0..8 {
+                    if pos >= end {
+                        break;
+                    }
+                    if flags >> bit & 1 == 0 {
+                        out.push(data[pos]);
+                        pos += 1;
+                        continue;
+                    }
+                    let token = u16::from_le_bytes([data[pos], data[pos + 1]]) as usize;
+                    pos += 2;
+                    let distance = out.len() - start;
+                    let bits = (usize::BITS - (distance - 1).leading_zeros()).max(4) as usize;
+                    let length = (token & (0xffff >> bits)) + 3;
+                    let offset = (token >> (16 - bits)) + 1;
+                    for _ in 0..length {
+                        out.push(out[out.len() - offset]);
+                    }
+                }
+            }
+        }
+        at = end;
+    }
+    out
+}
+
+/// rw14 finding 6: a final chunk of 3642..=4095 bytes was zero-padded to 4096 bytes, so the module
+/// source read back with trailing NULs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn compressed_streams_decompress_to_exactly_their_input() {
+    let mut state = 0x2545_f491u32;
+    let mut random = |length: usize| -> Vec<u8> {
+        (0..length)
+            .map(|_| {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                b'a' + (state >> 24) as u8 % 26
+            })
+            .collect()
+    };
+    for length in [
+        0usize, 1, 7, 8, 9, 3600, 3641, 3642, 3700, 3900, 4000, 4050, 4095, 4096, 4097, 8192, 8200, 12000,
+    ] {
+        for input in [random(length), vec![b'x'; length], random(length / 2).repeat(2)] {
+            let Some(packed) = calc_doc::compress_vba_stream(&input) else {
+                assert!(input.len() % 4096 != 0 && length > 3600, "length {length}");
+                continue;
+            };
+            assert_eq!(decompress(&packed), input, "length {length}");
+        }
+    }
+}
