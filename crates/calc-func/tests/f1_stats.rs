@@ -1803,6 +1803,20 @@ fn ets_scalar_history_shape_precedes_its_value() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.415 and dc-j9k.416: option coercion precedes unequal numeric vectors.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn ets_coerces_scalar_options_before_unequal_vector_lengths() {
+    let values = col(&[10.0, 12.0]);
+    let timeline = col(&[1.0, 2.0, 3.0, 4.0]);
+    error(call("FORECAST.ETS.STAT", vec![values.clone(), timeline.clone(), n(-0.5), n(-4.0), e(Div0)]), Div0);
+    error(call("FORECAST.ETS.STAT", vec![timeline.clone(), values.clone(), n(8.0), t("FALSE")]), Value);
+    error(call("FORECAST.ETS.STAT", vec![values.clone(), timeline.clone(), n(-0.5), n(-4.0)]), NA);
+    error(call("FORECAST.ETS.SEASONALITY", vec![values.clone(), timeline.clone(), e(Div0)]), Div0);
+    error(call("FORECAST.ETS", vec![n(9.0), values.clone(), timeline.clone(), n(0.0), e(Div0)]), Div0);
+    error(call("FORECAST.ETS.CONFINT", vec![n(9.0), values, timeline, n(0.95), n(0.0), n(1.0), e(Ref)]), Ref);
+}
+
 /// Excel 20527 serial controls: numeric options preserve an earlier worksheet error
 /// before the unequal history shape, while numeric options alone leave #N/A.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
