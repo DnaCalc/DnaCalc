@@ -1,0 +1,329 @@
+//! `--facts`: writes the descriptor of a library from a recorded type-library fact file instead of
+//! a registered library, so it works where the library is not installed (any platform). The
+//! MSForms (FM20) descriptor is written this way from OxForms' `fm20_typelib_facts.v1.json`, a
+//! capture of the real `FM20.DLL` type library (schema `oxforms.fm20_typelib_facts`, W010).
+//!
+//! ```text
+//! com-descriptor --facts <facts.json> --out <descriptor.json> [--constants-out <table.rs>]
+//! ```
+//!
+//! Every coclass and dispinterface of the root library is written, with its members; enumerations
+//! become the constants table (name, value), since the descriptor holds interfaces only. Output is
+//! deterministic: types in library order, members in their recorded order.
+
+use serde_json::{Map, Value, json};
+use std::collections::BTreeSet;
+
+const BASE_METHODS: [&str; 7] = [
+    "QueryInterface",
+    "AddRef",
+    "Release",
+    "GetTypeInfoCount",
+    "GetTypeInfo",
+    "GetIDsOfNames",
+    "Invoke",
+];
+
+pub fn run(argv: &[String]) -> i32 {
+    match execute(argv) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("com-descriptor --facts: {e}");
+            1
+        }
+    }
+}
+
+fn execute(argv: &[String]) -> Result<(), String> {
+    let (mut facts, mut out, mut constants) = (None, None, None);
+    let mut it = argv.iter();
+    while let Some(a) = it.next() {
+        let mut value = || it.next().cloned().ok_or_else(|| format!("{a} needs a value"));
+        match a.as_str() {
+            "--facts" => facts = Some(value()?),
+            "--out" => out = Some(value()?),
+            "--constants-out" => constants = Some(value()?),
+            other => return Err(format!("unknown argument {other}")),
+        }
+    }
+    let facts = facts.ok_or("--facts <file> is required")?;
+    let out = out.ok_or("--out <file> is required")?;
+    let text = std::fs::read_to_string(&facts).map_err(|e| format!("{facts}: {e}"))?;
+    let root: Value = serde_json::from_str(&text).map_err(|e| format!("{facts}: {e}"))?;
+    let (descriptor, table) = convert(&root)?;
+    let mut json = serde_json::to_string_pretty(&descriptor).map_err(|e| e.to_string())?;
+    json.push('\n');
+    std::fs::write(&out, json).map_err(|e| format!("{out}: {e}"))?;
+    if let Some(path) = constants {
+        std::fs::write(&path, table).map_err(|e| format!("{path}: {e}"))?;
+    }
+    Ok(())
+}
+
+fn text<'a>(v: &'a Value, key: &str) -> &'a str {
+    v.get(key).and_then(Value::as_str).unwrap_or("")
+}
+
+fn names(v: &Value) -> Vec<&str> {
+    v.get("names")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// The descriptor JSON and the Rust constants table of the root library in `root`.
+pub fn convert(root: &Value) -> Result<(Value, String), String> {
+    let key = text(root, "root_library_key");
+    let library = root["libraries"]
+        .as_array()
+        .and_then(|l| l.iter().find(|l| text(l, "key") == key))
+        .ok_or("the root library is missing")?;
+    let attrs = &library["attributes"];
+    let lib_name = text(&library["documentation"], "name").to_owned();
+    let mut types = Vec::new();
+    let mut constants: Vec<(String, String, i64)> = Vec::new();
+    let mut enums: Vec<String> = Vec::new();
+    for ty in library["types"].as_array().ok_or("types is missing")? {
+        if text(ty, "view") != "primary" {
+            continue;
+        }
+        let kind = text(&ty["attributes"], "typekind_name");
+        let name = text(&ty["documentation"], "name");
+        match kind {
+            "TKIND_ENUM" => {
+                enums.push(name.to_owned());
+                for var in ty["variables"].as_array().into_iter().flatten() {
+                    let value = &var["union_value"]["value"];
+                    let n = value["value"]
+                        .as_i64()
+                        .ok_or_else(|| format!("{name}: an enumeration member has no integer value"))?;
+                    let member = names(var).first().copied().unwrap_or("").to_owned();
+                    constants.push((name.to_owned(), member, n));
+                }
+            }
+            "TKIND_COCLASS" => types.push(coclass(ty)),
+            "TKIND_DISPATCH" | "TKIND_INTERFACE" => types.push(dispatch(&lib_name, ty)),
+            _ => {}
+        }
+    }
+    let major = attrs["major_version"].as_u64().unwrap_or(1);
+    let minor = attrs["minor_version"].as_u64().unwrap_or(0);
+    let source = &library["source"];
+    let descriptor = json!({
+        "library": {
+            "name": lib_name,
+            "guid": text(attrs, "guid"),
+            "version": format!("{major}.{minor}"),
+            "lcid": attrs["lcid"].as_u64().unwrap_or(0),
+            "source_file": text(source, "file_name"),
+            "file_version": text(source, "file_version"),
+        },
+        "types": types,
+    });
+    let mut seen = BTreeSet::new();
+    let mut table = String::from(
+        "// Generated by `com-descriptor --facts` from OxForms fm20_typelib_facts.v1.json; do not edit.\n\
+         // MSForms (FM20.DLL) enumeration constants: (member name, value).\n\
+         pub(crate) const MSFORMS_ENUM_CONSTANTS: &[(&str, i64)] = &[\n",
+    );
+    let mut current = "";
+    for (enumeration, member, value) in &constants {
+        if seen.insert(member.clone()) {
+            if current != enumeration {
+                table.push_str(&format!("    // {enumeration}\n"));
+                current = enumeration;
+            }
+            table.push_str(&format!("    ({member:?}, {value}),\n"));
+        }
+    }
+    table.push_str("];\n\n// The enumeration type names (`Dim a As fmAction` holds a Long).\n");
+    table.push_str("pub(crate) const MSFORMS_ENUM_NAMES: &[&str] = &[\n");
+    for name in enums {
+        table.push_str(&format!("    {name:?},\n"));
+    }
+    table.push_str("];\n");
+    Ok((descriptor, table))
+}
+
+fn coclass(ty: &Value) -> Value {
+    let interfaces: Vec<Value> = ty["implemented_types"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|i| {
+            let roles: Vec<&str> = i["roles"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect();
+            json!({
+                "name": text(&i["target"], "name"),
+                "default": roles.contains(&"default"),
+                "source": roles.contains(&"source"),
+            })
+        })
+        .collect();
+    let can_create = names(&ty["attributes"]["type_flags"]).contains(&"TYPEFLAG_FCANCREATE");
+    json!({
+        "name": text(&ty["documentation"], "name"),
+        "kind": "coclass",
+        "guid": text(&ty["attributes"], "guid"),
+        "dual": false,
+        "flags": if can_create { json!(["cancreate"]) } else { json!([]) },
+        "base": null,
+        "vtable_slots": null,
+        "dispatch_only": false,
+        "coclass_interfaces": interfaces,
+        "members": [],
+    })
+}
+
+fn dispatch(lib: &str, ty: &Value) -> Value {
+    let mut members: Vec<Value> = Vec::new();
+    for f in ty["functions"].as_array().into_iter().flatten() {
+        let fnames = names(f);
+        let name = fnames.first().copied().unwrap_or("");
+        let restricted = names(&f["function_flags"]).contains(&"FUNCFLAG_FRESTRICTED");
+        if restricted && BASE_METHODS.contains(&name) {
+            continue;
+        }
+        let hidden = names(&f["function_flags"]).contains(&"FUNCFLAG_FHIDDEN");
+        let invoke = match text(f, "invoke_kind_name") {
+            "INVOKE_FUNC" => "method",
+            "INVOKE_PROPERTYGET" => "get",
+            "INVOKE_PROPERTYPUT" => "put",
+            "INVOKE_PROPERTYPUTREF" => "putref",
+            _ => "unknown",
+        };
+        let params: Vec<Value> = f["parameters"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| {
+                let mut o = Map::new();
+                let reported = text(p, "name_state").starts_with("reported");
+                o.insert(
+                    "name".into(),
+                    if reported { json!(text(p, "name")) } else { Value::Null },
+                );
+                o.insert("type".into(), json!(type_string(lib, &p["type"])));
+                o.insert("flags".into(), json!(param_flags(p)));
+                Value::Object(o)
+            })
+            .collect();
+        let mut m = Map::new();
+        m.insert("name".into(), json!(name));
+        m.insert("dispid".into(), f["memid"].clone());
+        m.insert("invoke".into(), json!(invoke));
+        m.insert("slot".into(), Value::Null);
+        m.insert("hidden".into(), json!(hidden));
+        m.insert("restricted".into(), json!(restricted));
+        m.insert("params".into(), json!(params));
+        m.insert("return".into(), json!(type_string(lib, &f["return"]["type"])));
+        let optional = f["optional_parameter_count"].as_i64().unwrap_or(0);
+        if optional > 0 {
+            m.insert("optional_count".into(), json!(optional));
+        }
+        members.push(Value::Object(m));
+    }
+    // A dispinterface variable (`Font.Name`) reads and writes like a property.
+    for v in ty["variables"].as_array().into_iter().flatten() {
+        if text(v, "variable_kind_name") != "VAR_DISPATCH" {
+            continue;
+        }
+        let name = names(v).first().copied().unwrap_or("");
+        let value_type = type_string(lib, &v["element"]["type"]);
+        let hidden = names(&v["variable_flags"]).contains(&"VARFLAG_FHIDDEN");
+        for (invoke, params, ret) in [
+            ("get", Vec::new(), value_type.clone()),
+            (
+                "put",
+                vec![json!({"name": "rhs", "type": value_type, "flags": ["in"]})],
+                "VOID".to_owned(),
+            ),
+        ] {
+            members.push(json!({
+                "name": name, "dispid": v["memid"], "invoke": invoke, "slot": null,
+                "hidden": hidden, "restricted": false, "params": params, "return": ret,
+            }));
+        }
+    }
+    json!({
+        "name": text(&ty["documentation"], "name"),
+        "kind": "dispatch",
+        "guid": text(&ty["attributes"], "guid"),
+        "dual": false,
+        "flags": ["dispatchable"],
+        "base": "IDispatch",
+        "vtable_slots": 7,
+        "dispatch_only": true,
+        "members": members,
+    })
+}
+
+fn param_flags(p: &Value) -> Vec<&'static str> {
+    let flags = names(&p["parameter_flags"]);
+    [
+        ("PARAMFLAG_FIN", "in"),
+        ("PARAMFLAG_FOUT", "out"),
+        ("PARAMFLAG_FLCID", "lcid"),
+        ("PARAMFLAG_FRETVAL", "retval"),
+        ("PARAMFLAG_FOPT", "optional"),
+        ("PARAMFLAG_FHASDEFAULT", "hasdefault"),
+    ]
+    .iter()
+    .filter(|(long, _)| flags.contains(long))
+    .map(|(_, short)| *short)
+    .collect()
+}
+
+/// The type text of `com-descriptor`'s Windows reader (`type_string`), from a recorded type.
+fn type_string(lib: &str, t: &Value) -> String {
+    match text(t, "kind") {
+        "pointer" => format!("{}*", type_string(lib, &t["target"])),
+        "userdefined" => {
+            let target = &t["target"];
+            let name = text(target, "name");
+            let foreign = text(target, "library_key").starts_with("{00020430");
+            let qualified = if foreign { format!("stdole.{name}") } else { name.to_owned() };
+            match text(target, "typekind_name") {
+                "TKIND_ENUM" => format!("enum:{name}[I4]"),
+                "TKIND_ALIAS" => format!("alias:{name}[I4]"),
+                "TKIND_RECORD" | "TKIND_UNION" => format!("record:{qualified}"),
+                _ => qualified,
+            }
+        }
+        _ => match t["vt"].as_u64().unwrap_or(0) {
+            0 => "EMPTY",
+            1 => "NULL",
+            2 => "I2",
+            3 => "I4",
+            4 => "R4",
+            5 => "R8",
+            6 => "CY",
+            7 => "DATE",
+            8 => "BSTR",
+            9 => "IDispatch*",
+            10 => "ERROR",
+            11 => "BOOL",
+            12 => "VARIANT",
+            13 => "IUnknown*",
+            14 => "DECIMAL",
+            16 => "I1",
+            17 => "UI1",
+            18 => "UI2",
+            19 => "UI4",
+            20 => "I8",
+            21 => "UI8",
+            22 => "INT",
+            23 => "UINT",
+            24 => "VOID",
+            25 => "HRESULT",
+            30 => "LPSTR",
+            31 => "LPWSTR",
+            other => return format!("VT_{other}"),
+        }
+        .to_owned(),
+    }
+}

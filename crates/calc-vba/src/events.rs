@@ -78,6 +78,9 @@ pub struct ProjectReferences {
     pub(crate) com: bool,
     /// References unavailable to this compiler, named if compilation needs one.
     unavailable: Vec<String>,
+    /// Whether the project lists the MSForms library, which DNA Calc's descriptor supplies on
+    /// every platform (dc-1jia7).
+    pub(crate) msforms: bool,
 }
 impl ProjectReferences {
     pub fn none() -> Self {
@@ -96,6 +99,7 @@ impl ProjectReferences {
                     .iter()
                     .map(|reference| reference.name().to_owned())
                     .collect(),
+                msforms: project.lists_msforms(),
                 ..Self::none()
             });
         }
@@ -110,6 +114,7 @@ impl ProjectReferences {
                         crate::office::VBA_LIBRARY
                             | crate::office::EXCEL_LIBRARY
                             | crate::office::OFFICE_LIBRARY
+                            | crate::office::MSFORMS_LIBRARY
                     )
                 )
             })
@@ -120,6 +125,7 @@ impl ProjectReferences {
             libraries,
             com: !project.com_references().is_empty(),
             unavailable: Vec::new(),
+            msforms: project.lists_msforms(),
         })
     }
 }
@@ -131,7 +137,13 @@ impl ProjectReferences {
     pub fn of_source_libraries(libraries: &[(String, Option<String>)]) -> Self {
         let mut out = Self::none();
         for (name, guid) in libraries {
-            if name.eq_ignore_ascii_case("Scripting") {
+            if name.eq_ignore_ascii_case("MSForms")
+                || guid
+                    .as_deref()
+                    .is_some_and(|g| g.to_ascii_uppercase().contains(crate::office::MSFORMS_LIBRARY))
+            {
+                out.msforms = true;
+            } else if name.eq_ignore_ascii_case("Scripting") {
                 out.compiler.push(calcvba_symbol::manifest::ProjectReference::TypeLibrary {
                     name: name.clone(),
                     guid: guid.clone(),

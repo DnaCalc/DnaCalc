@@ -153,6 +153,7 @@ impl WithReferences<'_> {
     fn is_own_library(request: &TypeLibResolveRequest) -> bool {
         if request.reference_name.eq_ignore_ascii_case("Excel")
             || request.reference_name.eq_ignore_ascii_case("Office")
+            || request.reference_name.eq_ignore_ascii_case("MSForms")
             || request
                 .reference_name
                 .eq_ignore_ascii_case("DnaCalcObjects")
@@ -163,6 +164,7 @@ impl WithReferences<'_> {
             let upper = hint.to_ascii_uppercase();
             upper.contains(crate::office::EXCEL_LIBRARY)
                 || upper.contains(crate::office::OFFICE_LIBRARY)
+                || upper.contains(crate::office::MSFORMS_LIBRARY)
         })
     }
 
@@ -230,6 +232,14 @@ impl DescriptorTypeLibResolver {
             })
         {
             return Some("Office");
+        }
+        if request.reference_name.eq_ignore_ascii_case("MSForms")
+            || request.libid_hint.as_deref().is_some_and(|h| {
+                h.to_ascii_uppercase()
+                    .contains(crate::office::MSFORMS_LIBRARY)
+            })
+        {
+            return Some("MSForms");
         }
         None
     }
@@ -335,6 +345,8 @@ impl DescriptorTypeLibResolver {
             EXCEL_CONSTANT_ONLY_ENUMS
         } else if library.eq_ignore_ascii_case("Office") {
             OFFICE_CONSTANT_ONLY_ENUMS
+        } else if library.eq_ignore_ascii_case("MSForms") {
+            crate::msforms_constants::MSFORMS_ENUM_NAMES
         } else {
             &[]
         };
@@ -412,6 +424,8 @@ impl DescriptorTypeLibResolver {
             return Some(TypeLibMetadataBlob {
                 constants: if is_excel {
                     excel_constants()
+                } else if library.eq_ignore_ascii_case("MSForms") {
+                    msforms_constants()
                 } else {
                     office_constants()
                 },
@@ -473,10 +487,7 @@ impl DescriptorTypeLibResolver {
             });
         }
 
-        let id = descriptor.id(requested)?;
-        if !descriptor.library(id).name.eq_ignore_ascii_case(library) {
-            return None;
-        }
+        let id = descriptor.id_in(library, requested)?;
         let requested_ty = descriptor.ty(id);
         let iface_id = descriptor.default_interface(id);
         let mut members = Vec::new();
@@ -533,10 +544,7 @@ impl TypeLibResolver for DescriptorTypeLibResolver {
                     return Some(bytes_to_com_iid(global_iid_bytes()));
                 }
                 let descriptor = Descriptor::get();
-                let id = descriptor.id(requested)?;
-                if !descriptor.library(id).name.eq_ignore_ascii_case(library) {
-                    return None;
-                }
+                let id = descriptor.id_in(library, requested)?;
                 let iface = descriptor.default_interface(id);
                 Guid::parse(&descriptor.ty(iface).guid).map(guid_to_com_iid)
             }
@@ -1448,6 +1456,17 @@ fn excel_constants() -> Vec<TypeLibConstantMetadata> {
         .chain(EXCEL_ENUM_CONSTANTS_DOCUMENTED.iter())
         .map(|&(name, value)| TypeLibConstantMetadata {
             owner: "Excel".into(),
+            name: name.into(),
+            value: ComDefaultValue::Int(value),
+        })
+        .collect()
+}
+
+fn msforms_constants() -> Vec<TypeLibConstantMetadata> {
+    crate::msforms_constants::MSFORMS_ENUM_CONSTANTS
+        .iter()
+        .map(|&(name, value)| TypeLibConstantMetadata {
+            owner: "MSForms".into(),
             name: name.into(),
             value: ComDefaultValue::Int(value),
         })

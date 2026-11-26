@@ -50,6 +50,7 @@ fn guarded_compile_audit(
         libraries,
         com: true,
         unavailable: vec![],
+        msforms: false,
     };
     let loaded = load_file_project_with(
         &[module(
@@ -685,5 +686,36 @@ fn event_target_count_uses_long_and_preserves_documented_overflow() {
             project.functions().call("Probe", &[]).unwrap().as_number(),
             Some(6.0)
         );
+    }
+}
+
+// The MSForms library (FM20): a project that lists it compiles against its types and `fm`
+// constants on every platform, from the descriptor written from the recorded FM20 type library
+// (dc-1jia7). Before this, a file that listed MSForms was refused at compile.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_project_that_lists_msforms_compiles_against_its_types_and_constants() {
+    let references = ProjectReferences::of_source_libraries(&[(
+        "MSForms".into(),
+        Some("{0D452EE1-E08F-101A-852E-02608C4D0BB4}".into()),
+    )]);
+    for backend in backends() {
+        let loaded = load_file_project_with(
+            &[module(
+                "Api",
+                ModuleKind::Standard,
+                "Option Explicit\nPublic Function Paste() As Long\n Dim box As MSForms.TextBox\n Paste = fmActionPaste\nEnd Function\n\
+                 Public Function Wide() As Long\n Wide = fmPictureSizeModeStretch + fmMousePointerCross\nEnd Function\n\
+                 Public Sub Touch(box As MSForms.TextBox, lst As MSForms.ListBox)\n box.Text = \"a\"\n box.Font.Bold = True\n lst.AddItem \"b\"\n lst.ListIndex = 0\nEnd Sub\n",
+            )],
+            &references,
+            1000,
+            Some(backend),
+            DocumentEvents::Workbook,
+        )
+        .unwrap_or_else(|e| panic!("{backend:?}: {e}"));
+        let functions = loaded.functions();
+        assert_eq!(functions.call("Paste", &[]).unwrap().as_number(), Some(2.0), "{backend:?}");
+        assert_eq!(functions.call("Wide", &[]).unwrap().as_number(), Some(3.0), "{backend:?}");
     }
 }
