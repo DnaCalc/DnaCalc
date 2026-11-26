@@ -10280,6 +10280,57 @@ fn dc_6q9t4__protect_allow_arguments_and_user_interface_only_are_refused_typed()
     assert!(!flag("ProtectionMode"));
 }
 
+/// dc-ml3k0 (ww22 allow/observations.jsonl, Excel 16.0.20625.20108): Protect again with the same Password re-protects
+/// (UserInterfaceOnly becomes True), a wrong Password is 1004 and changes nothing, an omitted one opens the Unprotect
+/// Sheet prompt (typed refusal).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_ml3k0__protect_again_checks_the_password() {
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    let protect = |args: Vec<AutoValue>| invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, args);
+    let mode = || matches!(invoke(&model, &sheet, "ProtectionMode", vec![]).unwrap(), AutoValue::Bool(true));
+    protect(vec![AutoValue::text("abc")]).unwrap();
+    let ui = |password: AutoValue| vec![password, AutoValue::Bool(true), AutoValue::Bool(true), AutoValue::Bool(true), AutoValue::Bool(true)];
+    let r = protect(ui(AutoValue::text("wrong")));
+    assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.starts_with("The password you supplied is not correct")), "{r:?}");
+    assert!(!mode(), "a wrong password changed the protection");
+    let r = protect(ui(AutoValue::Missing));
+    assert!(matches!(r, Err(AutoError::NotModelled { owner: "dc-9b7zd", .. })), "{r:?}");
+    assert!(!mode());
+    protect(ui(AutoValue::text("abc"))).unwrap();
+    assert!(mode(), "the same password did not re-protect with UserInterfaceOnly");
+    let put = invoke_kind(&model, &range(&model, "A1"), "Value", InvokeKind::Put, vec![AutoValue::R8(3.0)]);
+    assert!(put.is_ok(), "a locked cell under UserInterfaceOnly: {put:?}");
+}
+
+/// Native-only: waits for the Windows descriptor regeneration (the `Protection` interface; RUN-ON-WINDOWS.txt, dc-ml3k0).
+/// Each Allow* flag set alone reads back True through `Worksheet.Protection` and the others False (ww22 allow/).
+#[test]
+#[ignore = "Protection is not in the descriptor until it is regenerated on Windows"]
+fn dc_ml3k0__allow_flags_read_back_through_protection() {
+    let names = [
+        "AllowFormattingCells", "AllowFormattingColumns", "AllowFormattingRows", "AllowInsertingColumns", "AllowInsertingRows",
+        "AllowInsertingHyperlinks", "AllowDeletingColumns", "AllowDeletingRows", "AllowSorting", "AllowFiltering",
+        "AllowUsingPivotTables",
+    ];
+    let (_host, model, _) = blank_report();
+    let sheets = worksheets(&model);
+    let sheet = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    for (index, set) in names.iter().enumerate() {
+        let mut args = vec![AutoValue::text("abc"), AutoValue::Missing, AutoValue::Missing, AutoValue::Missing, AutoValue::Missing];
+        args.extend((0..11).map(|i| if i == index { AutoValue::Bool(true) } else { AutoValue::Missing }));
+        invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, args).unwrap();
+        let protection = obj(invoke(&model, &sheet, "Protection", vec![]).unwrap());
+        for name in names {
+            let on = matches!(invoke(&model, &protection, name, vec![]).unwrap(), AutoValue::Bool(true));
+            assert_eq!(on, name == *set, "{set} set alone, reading {name}");
+        }
+        invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![AutoValue::text("abc")]).unwrap();
+    }
+}
+
 /// dc-p7gpy (rw12 Finding 19): typed refusals must cite OPEN owning beads, never closed ones.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -93,3 +93,5 @@ Dialogs
 Dialog
 Toolbars
 Toolbar
+# Worksheet.Protection and its Allow* members (dc-ml3k0); the JSON is regenerated on Windows (RUN-ON-WINDOWS item of lane cl1).
+Protection
