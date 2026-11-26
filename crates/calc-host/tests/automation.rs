@@ -8428,8 +8428,11 @@ fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
     invoke_kind(&model, &sub(&first, "C3"), "Activate", InvokeKind::Method, vec![]).unwrap();
     assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$C$3");
     assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$2:$C$3");
-    let outside = invoke_kind(&model, &sub(&first, "F9"), "Activate", InvokeKind::Method, vec![]);
-    assert!(matches!(outside, Err(AutoError::NotModelled { .. })), "{outside:?}");
+    // ww20 (Excel 16.0.20625): a cell outside the selection replaces it.
+    invoke_kind(&model, &sub(&first, "F9"), "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$F$9");
+    assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), "$F$9");
+    select(&sub(&first, "B2:C3")).unwrap();
     // Select(Replace:=False) would group sheets: typed refusal, no change.
     let group = invoke_kind(&model, &added, "Select", InvokeKind::Method, vec![AutoValue::Bool(false)]);
     assert!(matches!(group, Err(AutoError::NotModelled { .. })), "{group:?}");
@@ -8455,6 +8458,58 @@ fn dc_oxh8w_46__select_activate_and_goto_move_the_selection() {
     assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$B$7");
     let unknown = goto_text("NoSuchName");
     assert!(unknown.is_err(), "{unknown:?}");
+}
+
+/// dc-oxh8w.49 (ww22, Excel 16.0.20625): Range.Activate of a multi-cell range inside the selection keeps the selection
+/// and makes the range's first cell active; Application.CutCopyMode = True, 1, 2, 1.0 or 2.0 clears a marked copy and
+/// stays False from False.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__multi_cell_activate_and_cut_copy_mode_assignments() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheet = obj(invoke(&model, &worksheets(&model), "Item", vec![AutoValue::I4(1)]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &sheet, "Range", vec![AutoValue::text(a)]).unwrap());
+    let address = |o: &ObjectRef| text(&model, o, "Address");
+    invoke_kind(&model, &sub("A1:B2"), "Select", InvokeKind::Method, vec![]).unwrap();
+    for (target, active) in [("B2:D5", "$B$2"), ("A1:B1", "$A$1")] {
+        let done = invoke_kind(&model, &sub(target), "Activate", InvokeKind::Method, vec![]);
+        assert!(done.is_ok(), "{target}: {done:?}");
+        assert_eq!(address(&obj(invoke(&model, &app, "Selection", vec![]).unwrap())), "$A$1:$B$2", "{target}");
+        assert_eq!(address(&obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap())), active, "{target}");
+    }
+    let mode = || invoke(&model, &app, "CutCopyMode", vec![]).unwrap();
+    for value in [AutoValue::Bool(true), AutoValue::I4(1), AutoValue::I4(2), AutoValue::R8(1.0), AutoValue::R8(2.0)] {
+        invoke_kind(&model, &sub("A1:B2"), "Copy", InvokeKind::Method, vec![]).unwrap();
+        assert!(matches!(mode(), AutoValue::I4(1)), "{:?}", mode());
+        let put = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![value.clone()]);
+        assert!(put.is_ok(), "{value:?}: {put:?}");
+        assert!(matches!(mode(), AutoValue::Bool(false)), "{value:?}: {:?}", mode());
+        invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![value.clone()]).unwrap();
+        assert!(matches!(mode(), AutoValue::Bool(false)), "inactive start {value:?}");
+    }
+}
+
+/// dc-oxh8w.49 (ww21, Excel 16.0.20625): hiding the active (ungrouped) middle sheet activates the following sheet.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__hiding_the_active_middle_sheet_activates_the_next() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    for _ in 0..2 {
+        invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap();
+    }
+    let item = |i: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(i)]).unwrap());
+    let active = || {
+        let s = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+        text(&model, &s, "Name")
+    };
+    let (middle, last) = (text(&model, &item(2), "Name"), text(&model, &item(3), "Name"));
+    invoke_kind(&model, &item(2), "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(active(), middle);
+    invoke_kind(&model, &item(2), "Visible", InvokeKind::Put, vec![AutoValue::I4(0)]).unwrap();
+    assert_eq!(active(), last);
 }
 
 /// dc-oxh8w.46: Worksheet.Rows/Columns and Application.Rows/Columns are the whole sheet's rows and columns.
@@ -11078,22 +11133,18 @@ fn dc_y7tqj_cut_copy_activate_inches_and_goto_edges() {
             .unwrap_or_else(|e| panic!("CutCopyMode = {clear_val:?} must clear: {e:?}"));
         assert!(matches!(invoke(&model, &app, "CutCopyMode", vec![]).unwrap(), AutoValue::Bool(false)));
     }
-    invoke_kind(&model, &range(&model, "A1"), "Copy", InvokeKind::Method, vec![]).unwrap();
+    // ww22 (Excel 16.0.20625): True / 1 / 2 clear the marked copy as well (the refusal here was a guess).
     for val in [AutoValue::Bool(true), AutoValue::I4(1), AutoValue::I4(2)] {
-        let res = invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![val.clone()]);
-        assert!(
-            matches!(&res, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.49"),
-            "CutCopyMode = {val:?} must refuse typed citing dc-oxh8w.49, got {res:?}"
-        );
+        invoke_kind(&model, &range(&model, "A1"), "Copy", InvokeKind::Method, vec![]).unwrap();
+        invoke_kind(&model, &app, "CutCopyMode", InvokeKind::Put, vec![val.clone()]).unwrap();
+        assert!(matches!(invoke(&model, &app, "CutCopyMode", vec![]).unwrap(), AutoValue::Bool(false)), "{val:?}");
     }
 
-    // 24e: Range.Activate with multi-cell range overlapping selection refuses typed (not silently keeping A1:B2).
+    // 24e: Range.Activate of B2:D5 with A1:B2 selected keeps the selection and makes B2 active (ww22).
     invoke_kind(&model, &range(&model, "A1:B2"), "Select", InvokeKind::Method, vec![]).unwrap();
-    let partial = invoke_kind(&model, &range(&model, "B2:D5"), "Activate", InvokeKind::Method, vec![]);
-    assert!(
-        matches!(&partial, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w.49"),
-        "multi-cell Range.Activate must refuse typed citing dc-oxh8w.49, got {partial:?}"
-    );
+    invoke_kind(&model, &range(&model, "B2:D5"), "Activate", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Address"), "$A$1:$B$2");
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap()), "Address"), "$B$2");
 
     // 24f: InchesToPoints rejects "NaN", "inf", "-inf" with DISP_E_TYPEMISMATCH.
     for bad in ["NaN", "inf", "-inf", "Infinity"] {

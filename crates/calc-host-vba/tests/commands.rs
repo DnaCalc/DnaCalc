@@ -478,6 +478,63 @@ fn dc_711ye__application_answers_worksheet_function_names() {
     }
 }
 
+const EXCEL_ANSWERS: &str = "\
+Public Sub Probe()
+ Dim x As Variant
+ Dim a() As Long
+ x = Application.Match(9, Array(3, 5), 0)
+ Range(\"A1\").Value2 = TypeName(x) & \"|\" & CStr(x)
+ On Error Resume Next
+ Range(\"A2\").Value2 = CStr(Application.WorksheetFunction.Match(9, Array(3, 5), 0))
+ Range(\"A3\").Value2 = CStr(Err.Number) & \"|\" & Err.Description
+ On Error GoTo 0
+ ReDim a(1 To 2) As Long
+ a(1) = 7
+ ReDim Preserve a(1 To 3) As Long
+ Range(\"A4\").Value2 = CStr(a(1)) & \"|\" & CStr(UBound(a))
+End Sub
+";
+
+/// dc-711ye (ww22, Excel 16.0.20625): Application.Match that misses returns Error 2042; WorksheetFunction.Match that
+/// misses raises 1004 "Unable to get the Match property of the WorksheetFunction class"; `ReDim a(..) As Long` on an
+/// existing array compiles and keeps the values (Preserve).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_711ye__excel_answers_for_a_missed_match_and_redim_as() {
+    for backend in backends() {
+        let (mut session, owner) = project_with(EXCEL_ANSWERS, calc_macro_security::VbaPolicy::Guarded, backend);
+        let run = owner.run_procedure(&mut session, "Module1.Probe", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {run:?}");
+        let text = |row| match cell(&session, row, 1) {
+            Some(calc_host::CellInput::Text(t)) => t.text().to_string_lossy(),
+            other => format!("{other:?}"),
+        };
+        assert_eq!(text(1), "Error|Error 2042", "{backend:?}");
+        assert_eq!(text(3), "1004|Unable to get the Match property of the WorksheetFunction class", "{backend:?}");
+        assert_eq!(text(4), "7|3", "{backend:?}");
+    }
+}
+
+/// dc-711ye (ww22): `Dim Name As Integer` / `Dim Error As Integer` style locals compile and run (Excel returned 42); `Me`
+/// in a standard module is a compile error ("Invalid use of Me keyword"), not a run-time failure.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_711ye__name_local_compiles_and_me_in_a_standard_module_does_not() {
+    for backend in backends() {
+        let module = "Public Sub Probe()\n Dim Name As Integer\n Name = 42\n Range(\"A1\").Value2 = Name\nEnd Sub\n";
+        let (mut session, owner) = project_with(module, calc_macro_security::VbaPolicy::Guarded, backend);
+        let run = owner.run_procedure(&mut session, "Module1.Probe", &[]);
+        assert_eq!(run.outcome, Outcome::Success(ProcedureResult::Empty), "{backend:?} {run:?}");
+        assert!(matches!(cell(&session, 1, 1), Some(calc_host::CellInput::Number(n)) if n.get() == 42.0), "{backend:?}");
+        let me = "Public Sub Probe()\n Dim x As Object\n Set x = Me\nEnd Sub\n";
+        let policy = calc_macro_security::VbaPolicy::Guarded;
+        match try_project_sources(me, "", policy, backend) {
+            Err(e) => assert!(e.to_string().contains("Me"), "{backend:?}: {e}"),
+            Ok(_) => panic!("{backend:?}: Me in a standard module compiled"),
+        }
+    }
+}
+
 /// (name, in a worksheet module, statement).
 const HOST_MEMBERS: [(&str, bool, &str); 3] = [
     ("Cb", false, "Application.CommandBars(\"Cell\").Enabled = True"),

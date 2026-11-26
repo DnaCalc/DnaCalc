@@ -420,8 +420,8 @@ impl WorkbookAutomation {
         })
     }
 
-    /// Assigning False/0/0.0/Empty cancels Cut or Copy mode and empties the clipboard's marked
-    /// range; assigning True/xlCopy/xlCut is uncaptured from Excel and refuses typed (dc-oxh8w.49).
+    /// Assigning False/0/0.0/Empty, True, xlCopy or xlCut cancels Cut or Copy mode and empties the clipboard's marked
+    /// range (ww22).
     fn put_cut_copy_mode(&self, _: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_write(|_| {
             if call.args.len() != 1 {
@@ -435,24 +435,10 @@ impl WorkbookAutomation {
                 | AutoValue::Currency(0) => *self.clipboard.borrow_mut() = None,
                 AutoValue::R4(v) if *v == 0.0 => *self.clipboard.borrow_mut() = None,
                 AutoValue::R8(v) if *v == 0.0 => *self.clipboard.borrow_mut() = None,
-                AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => {
-                    return Err(AutoError::not_modelled(
-                        "Application.CutCopyMode = True/xlCopy/xlCut",
-                        "dc-oxh8w.49",
-                    ));
-                }
-                AutoValue::R4(v) if *v == 1.0 || *v == 2.0 => {
-                    return Err(AutoError::not_modelled(
-                        "Application.CutCopyMode = True/xlCopy/xlCut",
-                        "dc-oxh8w.49",
-                    ));
-                }
-                AutoValue::R8(v) if *v == 1.0 || *v == 2.0 => {
-                    return Err(AutoError::not_modelled(
-                        "Application.CutCopyMode = True/xlCopy/xlCut",
-                        "dc-oxh8w.49",
-                    ));
-                }
+                // ww22 (Excel 16.0.20625): True, 1, 2 (also as Double) clear a marked copy or cut and stay off from off.
+                AutoValue::I2(1 | 2) | AutoValue::I4(1 | 2) | AutoValue::Bool(true) => *self.clipboard.borrow_mut() = None,
+                AutoValue::R4(v) if *v == 1.0 || *v == 2.0 => *self.clipboard.borrow_mut() = None,
+                AutoValue::R8(v) if *v == 1.0 || *v == 2.0 => *self.clipboard.borrow_mut() = None,
                 _ => return Err(excel_error()),
             }
             Ok(AutoValue::Empty)
