@@ -9199,8 +9199,7 @@ fn dc_oxh8w_53__calculate_before_save_and_precision_as_displayed_puts() {
 
 /// dc-oxh8w.71: Range.AdvancedFilter xlFilterCopy copies the header and the records that meet the criteria range
 /// (the database-function criteria: a row of conditions per alternative, text matches a prefix, operators), to the
-/// CopyToRange; Unique drops repeated records; bad Action or a missing CopyToRange is 1004; in-place and
-/// multi-column CopyToRange are typed refusals.
+/// CopyToRange; Unique drops repeated records; bad Action or a missing CopyToRange is 1004; in-place is a typed refusal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_oxh8w_71__advanced_filter_copies_matching_records() {
@@ -10580,7 +10579,7 @@ fn h_to_last(model: &WorkbookAutomation, sheets: &ObjectRef) -> ObjectRef {
 }
 
 /// dc-y7tqj (rw12 finding 17g): AdvancedFilter xlFilterCopy copies numeric/date/bool/formula-like
-/// text cells without E11 refusal, refuses stale cells below CopyToRange, refuses cross-workbook
+/// text cells without E11 refusal, clears stale cells below CopyToRange, refuses cross-workbook
 /// ranges, and refuses unknown criteria headers instead of dropping all rows.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -10631,13 +10630,11 @@ fn dc_y7tqj__advanced_filter_copy_edge_cases() {
         "unknown criteria header must refuse typed citing dc-hduqd, got {unknown:?}"
     );
 
-    // 3) Stale cells below CopyToRange must refuse typed citing dc-hduqd rather than leaving them behind.
+    // 3) Excel ww22: a single-cell CopyTo clears stale cells below the extract, even isolated ones.
     set_text(10, 5, "stale");
-    let stale = run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, "E1"))]);
-    assert!(
-        matches!(&stale, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-hduqd"),
-        "stale cells below CopyToRange must refuse typed citing dc-hduqd, got {stale:?}"
-    );
+    run(vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, "E1"))]).unwrap();
+    assert_eq!(cell_text_of(&model, "E10"), "", "the stale cell below the extract is cleared");
+    assert_eq!(cell_text_of(&model, "E3"), "TRUE");
 
     // 4) Foreign-workbook CopyToRange or CriteriaRange must refuse typed citing dc-hduqd.
     let (_other_host, other_model) = setup();
@@ -10647,6 +10644,52 @@ fn dc_y7tqj__advanced_filter_copy_edge_cases() {
         matches!(&foreign, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-hduqd"),
         "foreign workbook CopyToRange must refuse typed citing dc-hduqd, got {foreign:?}"
     );
+}
+
+/// dc-hduqd (Excel ww21, ww22): the header cells of CopyToRange choose and order the copied columns, an output header
+/// the list lacks is 1004, a formula list copies its values, and a one-cell CopyTo naming a list header copies that column.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hduqd__advanced_filter_copy_chooses_columns_and_copies_formula_values() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(&host, (1, 1), &[&["Item", "Qty", "Total"], &["a", "5", "=B2*2"], &["b", "30", "=B3*2"], &["c", "25", "=B4*2"]]);
+    fill(&host, (1, 6), &[&["Qty"], &[">20"]]);
+    let run = |dest: &str| {
+        invoke_kind(
+            &model,
+            &range(&model, "A1:C4"),
+            "AdvancedFilter",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Object(range(&model, "F1:F2")), AutoValue::Object(range(&model, dest))],
+        )
+    };
+    let put = |address: &str, text: &str| {
+        invoke_kind(&model, &range(&model, address), "Value", InvokeKind::Put, vec![AutoValue::text(text)]).unwrap();
+    };
+    // Formula values are copied.
+    assert!(matches!(run("A8"), Ok(AutoValue::Bool(true))));
+    assert_eq!(cell_text_of(&model, "C9"), "60");
+    // Requested order, two columns.
+    put("A12", "Total");
+    put("B12", "Item");
+    assert!(matches!(run("A12:B12"), Ok(AutoValue::Bool(true))));
+    assert_eq!(cell_text_of(&model, "A12"), "Total");
+    assert_eq!(cell_text_of(&model, "A13"), "60");
+    assert_eq!(cell_text_of(&model, "B13"), "b");
+    assert_eq!(cell_text_of(&model, "A14"), "50");
+    assert_eq!(cell_text_of(&model, "B14"), "c");
+    assert_eq!(cell_text_of(&model, "C12"), "", "only the requested columns are written");
+    // A one-cell CopyTo holding a list header copies that column alone.
+    put("H1", "Item");
+    assert!(matches!(run("H1"), Ok(AutoValue::Bool(true))));
+    assert_eq!(cell_text_of(&model, "H2"), "b");
+    assert_eq!(cell_text_of(&model, "I1"), "");
+    // An output header the list lacks, or a one-cell label that is not a header, is 1004.
+    put("A20", "Nope");
+    assert!(matches!(run("A20:B20"), Err(AutoError::Excel { number: 1004, .. })));
+    assert!(matches!(run("A20"), Err(AutoError::Excel { number: 1004, .. })));
 }
 
 /// dc-y7tqj (rw12 finding 22a): Application.MultiThreadedCalculation puts must enforce UDF
