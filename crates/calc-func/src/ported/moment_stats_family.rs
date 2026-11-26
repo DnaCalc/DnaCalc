@@ -71,29 +71,15 @@ pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 3 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let n = values.len();
-    let avg = mean(values);
-    let mut sumsq = 0.0;
-    let mut deltas = Vec::with_capacity(n);
-    for value in values {
-        let delta = *value - avg;
-        sumsq += delta * delta;
-        deltas.push(delta);
-    }
-    let variance = sumsq / n as f64;
-    if !variance.is_normal() {
-        return Err(WorksheetErrorCode::Div0);
-    }
-
-    let pop_std = variance.sqrt();
-    let standardized_sum = deltas
-        .iter()
-        .map(|delta| {
-            let z = *delta / pop_std;
-            z * z * z
-        })
-        .sum::<f64>();
-    Ok(standardized_sum / n as f64)
+    // The same stored x87 stages as SKEW, with the population divisor n (dc-j9k.520).
+    let (avg, sumsq) = stored_moments(values);
+    let n = values.len() as f64;
+    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n)?);
+    let cubes = values.iter().fold(0.0, |sum, &value| {
+        let z = div(sub(value, avg), deviation);
+        add(sum, mul(mul(z, z), z))
+    });
+    Ok(div(cubes, n))
 }
 
 pub(crate) fn steyx_kernel(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {

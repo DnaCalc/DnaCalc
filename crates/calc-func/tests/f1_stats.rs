@@ -8133,3 +8133,24 @@ fn f_dist_tiny_x_ratio_overflow_and_subnormal_argument() {
     exact(f("F.DIST", 2.3e-308, 1.0, 3.0, Some(true)), 0.0);
     exact(f("F.DIST.RT", 1e-307, 1.0, 1.0, None), 1.0);
 }
+
+/// dc-j9k.520 (Excel 20625): SKEW.P takes SKEW's stored x87 stages with the population divisor. Four
+/// range arguments of mixed magnitude, the fuzz representative, ended one ulp low in plain f64.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn skew_p_stores_every_stage_like_skew() {
+    let v = |bits: u64| f64::from_bits(bits);
+    let range = |rows: Vec<Vec<f64>>| arr(rows);
+    exact(
+        call(
+            "SKEW.P",
+            vec![
+                range(vec![vec![v(0xc0189ae766bd2376), v(0xc0e22b5e3d3b7a0c), v(0x40dc124de1f5abc0)]]),
+                range(vec![vec![v(0x3f23756a3566ec57)], vec![v(0xbf15536ff536e47b)], vec![v(0xc0057111aa501a0f)]]),
+                range(vec![vec![v(0x3f3c7d7cf5adee2c), v(0xc0d41794df78c9a6)], vec![v(0x40880a2c3d2139a0), v(0x405ca4f2c59039e1)]]),
+                range(vec![vec![v(0xbf0d4c7adb931cf0)], vec![v(0xc029962b25dba29a)], vec![v(0x403997460e1d68e5)]]),
+            ],
+        ),
+        v(0xbfe15796826e4e3f),
+    );
+}
