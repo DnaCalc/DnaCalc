@@ -818,6 +818,26 @@ fn rank_coerces_number_before_validating_order() {
     }
 }
 
+/// Excel 20625 reports #DIV/0! when the variance overflows or is subnormal.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn standardized_moments_require_a_normal_variance() {
+    for function in ["SKEW", "SKEW.P", "KURT"] {
+        for values in [
+            vec![n(1.0), n(2.0), n(3.0), n(1e155)],
+            vec![n(1e-161), n(-1e-161), n(0.0), n(0.0)],
+            vec![arr(vec![vec![f64::MAX, f64::MAX, 0.0, 0.0]])],
+        ] {
+            error(call(function, values), Div0);
+        }
+    }
+    let x = f64::MIN_POSITIVE.sqrt() * 1.23;
+    let values = vec![n(x), n(-x), n(0.0), n(0.0)];
+    exact(call("SKEW", values.clone()), 0.0);
+    error(call("SKEW.P", values.clone()), Div0);
+    exact(call("KURT", values), f64::from_bits(0x3ff7_ffff_ffff_ffe8));
+}
+
 /// Excel 20527 direct and cell-range sample-count and error-precedence controls.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

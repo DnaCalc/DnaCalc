@@ -1228,12 +1228,15 @@ pub fn pduration(
     if periodic_rate <= 0.0 || present_value <= 0.0 || future_value <= 0.0 {
         return Err(FinancialError::Num);
     }
-    // Live Excel 16.0 b20326 Value2: PDURATION is the split worksheet-LN
-    // graph (LN(fv)-LN(pv))/LN(1+rate), not LN(fv/pv)/LN(1+rate).
-    // 80/80 exact on a fresh mixed grid; the fused-ratio LN form is 20/80.
+    // Excel stores 1 + rate from x87 precision before taking its logarithm.
+    // A positive rate can still round the base to one (dc-j9k.396).
+    let base = excel_x87_add(1.0, periodic_rate);
+    if base == 1.0 {
+        return Err(FinancialError::Div0);
+    }
+    // Excel 16.0.20326 matched the split worksheet-LN graph on 80/80 inputs.
     use crate::ported::excel_numeric::excel_log;
-    let result =
-        (excel_log(future_value) - excel_log(present_value)) / excel_log(1.0 + periodic_rate);
+    let result = (excel_log(future_value) - excel_log(present_value)) / excel_log(base);
     if result.is_finite() {
         Ok(result)
     } else {

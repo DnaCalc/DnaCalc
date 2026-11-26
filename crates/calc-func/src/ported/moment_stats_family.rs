@@ -20,19 +20,27 @@ fn stored_moments(values: &[f64]) -> (f64, f64) {
     (avg, sumsq)
 }
 
+// Excel 20625 treats an overflowed or subnormal variance like zero in the
+// standardized moments. Check the stored quotient before taking its square root.
+fn moment_variance(sumsq: f64, divisor: f64) -> Result<f64, WorksheetErrorCode> {
+    let variance = div(sumsq, divisor);
+    if variance.is_normal() {
+        Ok(variance)
+    } else {
+        Err(WorksheetErrorCode::Div0)
+    }
+}
+
 pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 4 {
         return Err(WorksheetErrorCode::Div0);
     }
     let (avg, sumsq) = stored_moments(values);
-    if sumsq == 0.0 {
-        return Err(WorksheetErrorCode::Div0);
-    }
     let n = values.len() as f64;
     // Every operation is stored from the x87: the two-pass sum of squares, its square root, each
     // z, the square of z squared, the running sum, and the coefficient before the product. All
     // 4,508 bank rows; the division after the product holds 3,212.
-    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(div(sumsq, n - 1.0));
+    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0)?);
     let fourths = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         let square = mul(z, z);
@@ -48,11 +56,8 @@ pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Div0);
     }
     let (avg, sumsq) = stored_moments(values);
-    if sumsq == 0.0 {
-        return Err(WorksheetErrorCode::Div0);
-    }
     let n = values.len() as f64;
-    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(div(sumsq, n - 1.0));
+    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0)?);
     let cubes = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         add(sum, mul(mul(z, z), z))
@@ -75,11 +80,12 @@ pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         sumsq += delta * delta;
         deltas.push(delta);
     }
-    if sumsq == 0.0 {
+    let variance = sumsq / n as f64;
+    if !variance.is_normal() {
         return Err(WorksheetErrorCode::Div0);
     }
 
-    let pop_std = (sumsq / n as f64).sqrt();
+    let pop_std = variance.sqrt();
     let standardized_sum = deltas
         .iter()
         .map(|delta| {
