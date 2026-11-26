@@ -346,7 +346,7 @@ impl ParsedComplex {
     /// `EXP(|x| + LN(cos(y)/2))` and `EXP(|x| + LN(sin(y)/2))` without `abs()`, so
     /// non-positive `cos(y)` or `sin(y)` produces `NaN` (`#NUM!`).
     fn large_off_axis_hyperbolic(self) -> Option<(f64, f64)> {
-        if self.im != 0.0 && (self.re > 709.0 || self.re < -708.0) {
+        if self.exceeds_off_axis_hyperbolic_limit() {
             let (sin_im, cos_im) = complex_circular_parts(self.im);
             let ax = self.re.abs();
             let log_pos = |t: f64| {
@@ -361,6 +361,9 @@ impl ParsedComplex {
             return Some((re_mag, im_mag));
         }
         None
+    }
+    fn exceeds_off_axis_hyperbolic_limit(self) -> bool {
+        self.im != 0.0 && (self.re > 709.0 || self.re < -708.0)
     }
     pub(crate) fn sinh(self) -> Self {
         if let Some((re_mag, im_mag)) = self.large_off_axis_hyperbolic() {
@@ -456,12 +459,23 @@ impl ParsedComplex {
         denominator(self).reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
-        // The reciprocal of IMCOSH (dc-iuwct.13), on the real axis 1 / COSH.
+        if self.exceeds_off_axis_hyperbolic_limit() {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
         self.cosh().reciprocal()
     }
     pub(crate) fn csch(self) -> Result<Self, WorksheetErrorCode> {
-        // The reciprocal of IMSINH (dc-iuwct.8).
-        self.sinh().reciprocal()
+        if self.exceeds_off_axis_hyperbolic_limit() {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
+        let mut denominator = self.sinh();
+        // Excel reverses the off-axis signs once the doubled real part leaves
+        // its exponential interval (dc-j9k.398, Excel 16.0.20625).
+        if self.im != 0.0 && (self.re > 354.5 || self.re < -354.0) {
+            denominator.re = -denominator.re;
+            denominator.im = -denominator.im;
+        }
+        denominator.reciprocal()
     }
     pub(crate) fn power(self, exponent: f64) -> Result<Self, WorksheetErrorCode> {
         if self.re == 0.0 && self.im == 0.0 {
