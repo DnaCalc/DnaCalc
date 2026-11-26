@@ -589,6 +589,11 @@ fn prediction_input_from_optional(
 /// The collinearity test's bound on a column's remaining over its initial sum of squares (5 above).
 const COLLINEAR_REMAINDER: f64 = 1.0 / (1u64 << 41) as f64;
 
+/// Excel 20625 substitutes zero for overflow at these stored regression intermediates.
+fn regression_intermediate(value: f64) -> f64 {
+    if value.is_infinite() { 0.0 } else { value }
+}
+
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
@@ -740,11 +745,13 @@ fn least_squares(
         // arithmetic, including each dot-product term and vector update.
         v[0] = excel_numeric::excel_x87_sub(x0, alpha);
         let vv = excel_numeric::excel_x87_add(rest, excel_numeric::excel_x87_mul(v[0], v[0]));
+        // Excel 20625 replaces an overflowing dot-product term, running sum,
+        // or doubled sum with zero before continuing the reflector.
         let reflect = |a: &mut [f64]| {
             let t = v.iter().zip(a[j..].iter()).fold(0.0, |sum, (vi, ai)| {
-                excel_numeric::excel_x87_add(sum, excel_numeric::excel_x87_mul(*vi, *ai))
+                regression_intermediate(add(sum, regression_intermediate(mul(*vi, *ai))))
             });
-            let f = excel_numeric::excel_x87_div(excel_numeric::excel_x87_mul(2.0, t), vv);
+            let f = div(regression_intermediate(mul(2.0, t)), vv);
             for (ai, vi) in a[j..].iter_mut().zip(v.iter()) {
                 *ai = excel_numeric::excel_x87_sub(*ai, excel_numeric::excel_x87_mul(f, *vi));
             }
@@ -761,11 +768,13 @@ fn least_squares(
     for j in (0..rank).rev() {
         let d = ((j + 1)..rank)
             .rev()
-            .fold(0.0, |sum, k| add(sum, mul(matrix[k].1[j], solution[k])));
+            .fold(0.0, |sum, k| {
+                add(sum, regression_intermediate(mul(matrix[k].1[j], solution[k])))
+            });
         solution[j] = if diagonal[j] == 0.0 {
             0.0
         } else {
-            div(sub(target[j], d), diagonal[j])
+            regression_intermediate(div(sub(target[j], d), diagonal[j]))
         };
     }
     let mut coefficients = vec![0.0; columns.len()];
@@ -778,7 +787,7 @@ fn least_squares(
         coefficients
             .iter()
             .zip(means.iter())
-            .fold(y_mean, |a, (b, m)| sub(a, mul(*b, *m)))
+            .fold(y_mean, |a, (b, m)| sub(a, regression_intermediate(mul(*b, *m))))
     } else {
         0.0
     };
@@ -1024,7 +1033,11 @@ fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> Ca
     // R41 coordinate predictors leave the response tail unchanged, exposing
     // the residual square and accumulation without an approximate QR factor.
     // Both SSresid and SStotal use forward RN53(RN64) products and additions.
-    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| add(sum, mul(*v, *v)));
+    let squares = |values: &[f64]| {
+        values.iter().fold(0.0, |sum, v| {
+            regression_intermediate(add(sum, regression_intermediate(mul(*v, *v))))
+        })
+    };
     let ss_resid = squares(&fit.qty[p..]);
     let ss_total = squares(&fit.y);
     let ss_reg = sub(ss_total, ss_resid);

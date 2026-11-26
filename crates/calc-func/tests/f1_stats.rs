@@ -764,6 +764,61 @@ fn linest_known_x_follows_known_y_orientation() {
     }
 }
 
+/// Excel 20625 substitutes zero for overflowing stages of the regression reflector dot product.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_and_trend_survive_reflector_dot_product_overflow() {
+    let original = [
+        0xc202_a05f_2000_0000,
+        0xbf50_624d_d2f1_a9fc,
+        0xbd71_9799_812d_ea11,
+        0x2b2b_ff2e_e48e_0530,
+        0x7fef_ffff_ffff_ffff,
+    ]
+    .map(f64::from_bits);
+    let cases = [
+        (original, [0xffa2_fc6a_c456_f475, 0x7fd3_eb74_d66d_6878]),
+        ([0.0, 0.0, 0.0, 0.0, 0.25 * f64::MAX], [0xff86_600e_7291_2f12, 0x7fb5_30d2_37c3_3e74]),
+        ([0.0, 0.0, 0.99 * f64::MAX, 0.0, 0.0], [0xffa6_26c6_9f80_5f3f, 0x7fd4_fa92_acf7_0d30]),
+    ];
+    for (y, expected) in cases {
+        let (rows, cols, cells) = array(call("LINEST", vec![col(&y)]));
+        assert_eq!((rows, cols), (1, 2));
+        assert_eq!(cells.iter().map(|n| n.to_bits()).collect::<Vec<_>>(), expected);
+    }
+    let (rows, cols, cells) = array(call(
+        "LINEST",
+        vec![
+            col(&[0.0, 0.0, -0.9375 * f64::MAX, 0.0]),
+            arr(vec![vec![1.0, 1.0], vec![2.0, 4.0], vec![3.0, 9.0], vec![4.0, 16.0]]),
+        ],
+    ));
+    assert_eq!((rows, cols), (1, 3));
+    assert_eq!(
+        cells.iter().map(|n| n.to_bits()).collect::<Vec<_>>(),
+        [0x7f8c_2ca7_610c_de1c, 0, 0xffd5_9a77_3abf_040e],
+    );
+    let (rows, cols, cells) = array(call("TREND", vec![col(&[0.0, 0.0, 0.0, 0.0, f64::MAX])]));
+    assert_eq!((rows, cols), (5, 1));
+    assert_eq!(cells[0].to_bits(), 0x7fd1_8be7_7de2_89e9);
+    assert_eq!(cells[4].to_bits(), 0x7fc0_1b64_376e_1f5e);
+}
+
+/// Excel 20625 also resets overflow while accumulating regression sums of squares.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn linest_statistics_reset_overflowing_squares() {
+    let result = call(
+        "LINEST",
+        vec![col(&[0.625 * f64::MAX, 0.0, 0.0, 0.0]), col(&[1.0, 2.0, 3.0, 4.0]), b(false), b(true)],
+    )
+    .unwrap();
+    let statistics = result.as_array().unwrap();
+    for (row, column, expected) in [(2, 0, 1.0), (2, 1, 0.0), (4, 0, 0.0), (4, 1, 0.0)] {
+        assert_eq!(statistics.get(row, column).unwrap().as_number(), Some(expected));
+    }
+}
+
 /// Excel 20527 treats blank regression flags as false, not omitted defaults.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
