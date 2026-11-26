@@ -290,7 +290,17 @@ impl WorkbookAutomation {
     fn combine_plan(host: &crate::HostState, plan: &mut crate::PastePlan, combine: Combine) -> Result<(), AutoError> {
         use crate::{CellEdit, CellInput, ProjectedValue, ProjectionRequest};
         if combine.skip_blanks {
-            plan.edits_mut().retain(|edit| !matches!(edit, CellEdit::Clear { .. }));
+            // ww23 VBA.e35: a blank source cell is skipped whole, its format as well as its (empty) contents.
+            let blanks: Vec<_> = plan
+                .edits_mut()
+                .iter()
+                .filter_map(|edit| if let CellEdit::Clear { area } = edit { Some(*area) } else { None })
+                .collect();
+            plan.edits_mut().retain(|edit| match edit {
+                CellEdit::Clear { .. } => false,
+                CellEdit::SetFormat { at, .. } => !blanks.iter().any(|area| area.contains(*at)),
+                _ => true,
+            });
         }
         let Some(operation) = combine.operation else {
             return Ok(());

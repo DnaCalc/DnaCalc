@@ -8222,6 +8222,92 @@ fn dc_oxh8w_43__worksheets_of_an_array_is_a_group() {
     assert!(matches!(both, Err(AutoError::Excel { number: 1004, .. })), "{both:?}");
 }
 
+/// dc-oxh8w.43 (ww23 b/observations.jsonl VBA.case22-28, Excel 16.0.20625.20108): a copy of "A" is "A (2)", a copy of that
+/// "A (3)"; a copy Before the sheet lands before it and activates; a long name is cut so " (2)" still fits in 31
+/// characters; a group copy keeps tab order and lands as a block After the last or Before the first sheet.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__sheet_copy_names_and_group_placement() {
+    let new_session = || {
+        setup_session(
+            HostSession::open(
+                Arc::new(MemorySource::new(blank_package())),
+                &OpenPolicy::default(),
+                HostOptions { calc_mode: Some(CalcMode::Automatic), ..Default::default() },
+            )
+            .unwrap(),
+        )
+    };
+    let add = |model: &WorkbookAutomation, name: &str| {
+        let sheets = worksheets(model);
+        let sheet = obj(invoke_kind(model, &sheets, "Add", InvokeKind::Method, vec![]).unwrap());
+        invoke_kind(model, &sheet, "Name", InvokeKind::Put, vec![AutoValue::text(name)]).unwrap();
+        sheet
+    };
+    let copy = |model: &WorkbookAutomation, sheet: &ObjectRef, args: Vec<AutoValue>| {
+        invoke_kind(model, sheet, "Copy", InvokeKind::Method, args).unwrap();
+    };
+    let active = |model: &WorkbookAutomation| {
+        let sheet = obj(invoke(model, &model.application(), "ActiveSheet", vec![]).unwrap());
+        (
+            invoke(model, &sheet, "Name", vec![]).unwrap().as_text().unwrap().to_string(),
+            int(invoke(model, &sheet, "Index", vec![]).unwrap()),
+        )
+    };
+    let after_self = |model: &WorkbookAutomation, sheet: &ObjectRef| vec![AutoValue::Missing, AutoValue::Object(sheet.clone())];
+    // case 23: A -> A (2) -> A (3)
+    let (host, model) = new_session();
+    let a = add(&model, "A");
+    copy(&model, &a, after_self(&model, &a));
+    assert_eq!(active(&model).0, "A (2)");
+    let second = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    copy(&model, &second, after_self(&model, &second));
+    assert_eq!(active(&model).0, "A (3)");
+    assert_eq!(sheet_names(&host).join(","), "A,A (2),A (3),Sheet1");
+    // case 24: Before
+    let (host, model) = new_session();
+    let a = add(&model, "A");
+    copy(&model, &a, vec![AutoValue::Object(a.clone())]);
+    assert_eq!((active(&model).0, active(&model).1), ("A (2)".to_string(), 1));
+    assert_eq!(sheet_names(&host).join(","), "A (2),A,Sheet1");
+    copy(&model, &a, vec![AutoValue::Object(a.clone())]);
+    assert_eq!((active(&model).0, active(&model).1), ("A (3)".to_string(), 2));
+    assert_eq!(sheet_names(&host).join(","), "A (2),A (3),A,Sheet1");
+    // case 22: a 31-character name
+    let (_host, model) = new_session();
+    let long = add(&model, "ABCDEFGHIJKLMNOPQRSTUVWXYZ12345");
+    copy(&model, &long, after_self(&model, &long));
+    assert_eq!(active(&model).0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (2)");
+    let second = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    copy(&model, &second, after_self(&model, &second));
+    assert_eq!(active(&model).0, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (3)");
+    // cases 27 and 28: group copies
+    for (before_first, expected) in [(false, "Q,P,Sheet1,Q (2),P (2)"), (true, "Q (2),P (2),Q,P,Sheet1")] {
+        let (host, model) = new_session();
+        add(&model, "P");
+        add(&model, "Q");
+        let sheets = worksheets(&model);
+        let group = obj(
+            invoke(
+                &model,
+                &sheets,
+                "Item",
+                vec![AutoValue::Array(Box::new(calc_object_model::AutoArray {
+                    rows: 1,
+                    columns: 2,
+                    lower: (1, 1),
+                    values: vec![AutoValue::text("P"), AutoValue::text("Q")],
+                }))],
+            )
+            .unwrap(),
+        );
+        let anchor = |i: i32| AutoValue::Object(obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(i)]).unwrap()));
+        let args = if before_first { vec![anchor(1)] } else { vec![AutoValue::Missing, anchor(3)] };
+        invoke_kind(&model, &group, "Copy", InvokeKind::Method, args).unwrap();
+        assert_eq!(sheet_names(&host).join(","), expected, "before_first = {before_first}");
+    }
+}
+
 /// dc-fa8cx (ww22 Excel 16.0.20625): a group moved Before or After one of its own sheets changes nothing and
 /// activates its first sheet in tab order; Array(3,2) moved Before sheet 1 keeps tab order (2,3,1,4), active 2.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -9576,6 +9662,59 @@ fn dc_oxh8w_43__paste_special_number_format_mixes() {
     assert_eq!(shown("E1"), "1.50");
     assert!(matches!(bold("E1"), AutoValue::Bool(true)));
     assert_eq!(i4(&model, &interior(&model, "E1"), "Color"), 255);
+}
+
+/// dc-oxh8w.43 (ww23 e/observations.jsonl VBA.e33-e36, Excel 16.0.20625.20108): PasteSpecial All with Operation Add keeps
+/// the source fill and adds the values; All with SkipBlanks leaves a blank source cell's format out; Transpose with
+/// SkipBlanks transposes; Divide by a zero source is #DIV/0! while the other cell divides.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_special_all_with_operation_and_skip_blanks() {
+    let new_session = || {
+        setup_session(HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap())
+    };
+    let call = |model: &WorkbookAutomation, address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(model, &range(model, address), name, InvokeKind::Method, args)
+    };
+    let put = |model: &WorkbookAutomation, address: &str, member: &str, value: AutoValue| {
+        invoke_kind(model, &range(model, address), member, InvokeKind::Put, vec![value]).unwrap()
+    };
+    let shown = |model: &WorkbookAutomation, address: &str| text(model, &range(model, address), "Text");
+    let all = AutoValue::I4(-4104);
+    // e34: all+add
+    let (_h, model) = new_session();
+    put(&model, "A1", "Value", AutoValue::R8(3.0));
+    put(&model, "B1", "Value", AutoValue::R8(4.0));
+    invoke_kind(&model, &interior(&model, "A1"), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    put(&model, "D1:E1", "Value", AutoValue::R8(10.0));
+    call(&model, "A1:B1", "Copy", vec![]).unwrap();
+    call(&model, "D1:E1", "PasteSpecial", vec![all.clone(), AutoValue::I4(2)]).unwrap();
+    assert_eq!((shown(&model, "D1"), shown(&model, "E1")), ("13".into(), "14".into()));
+    assert_eq!(i4(&model, &interior(&model, "D1"), "Color"), 255, "all+add keeps the source fill");
+    // e35: skipblanks all
+    let (_h, model) = new_session();
+    put(&model, "A1", "Value", AutoValue::R8(3.0));
+    invoke_kind(&model, &interior(&model, "B1"), "Color", InvokeKind::Put, vec![AutoValue::I4(255)]).unwrap();
+    call(&model, "A1:B1", "Copy", vec![]).unwrap();
+    call(&model, "D1:E1", "PasteSpecial", vec![all.clone(), AutoValue::Missing, AutoValue::Bool(true)]).unwrap();
+    assert_eq!(i4(&model, &interior(&model, "E1"), "Color"), 16_777_215, "skip blanks leaves the blank source's fill out");
+    // e36: transpose with skipblanks
+    let (_h, model) = new_session();
+    for (address, value) in [("A1", 1.0), ("B1", 2.0), ("A2", 3.0), ("B2", 4.0)] {
+        put(&model, address, "Value", AutoValue::R8(value));
+    }
+    call(&model, "A1:B2", "Copy", vec![]).unwrap();
+    call(&model, "D1", "PasteSpecial", vec![all.clone(), AutoValue::Missing, AutoValue::Bool(true), AutoValue::Bool(true)]).unwrap();
+    let got: String = ["D1", "E1", "D2", "E2"].iter().map(|a| shown(&model, a)).collect();
+    assert_eq!(got, "1324");
+    // e33: divide by zero
+    let (_h, model) = new_session();
+    put(&model, "A1:A2", "Value", AutoValue::R8(1.0));
+    put(&model, "D1", "Value", AutoValue::R8(0.0));
+    put(&model, "D2", "Value", AutoValue::R8(4.0));
+    call(&model, "D1:D2", "Copy", vec![]).unwrap();
+    call(&model, "A1:A2", "PasteSpecial", vec![all, AutoValue::I4(5)]).unwrap();
+    assert_eq!((shown(&model, "A1"), shown(&model, "A2")), ("#DIV/0!".into(), "0.25".into()));
 }
 
 /// dc-oxh8w.43: `PasteSpecial` xlPasteValidation (6) pastes only the validation rules and xlPasteComments (-4144) only the
