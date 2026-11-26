@@ -2195,6 +2195,25 @@ fn sumproduct_single_blank_reference_and_error_order() {
     exact(call("SUMPRODUCT", vec![array]), 0.0);
 }
 
+/// Excel 16.0.20625 admits every argument before returning errors held inside a factor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn sumproduct_admission_precedes_held_errors() {
+    use calc_func::value::{CalcArray, CalcValue};
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(1.0), e(NA)]);
+    let range = sheet.area(1, 1, 2, 1);
+    let blank = sheet.area(1, 2, 1, 2);
+    let array = CalcValue::array(CalcArray::from_rows(vec![vec![n(1.0)], vec![e(NA)]]).unwrap());
+    for held in [range, array] {
+        error(call_on(&mut sheet, "SUMPRODUCT", vec![held.clone(), blank.clone()]), Value);
+        error(call_on(&mut sheet, "SUMPRODUCT", vec![held.clone(), e(Div0)]), Div0);
+        error(call_on(&mut sheet, "SUMPRODUCT", vec![held, arr(vec![vec![1.0, 2.0]])]), NA);
+    }
+    let single_error = sheet.area(2, 1, 2, 1);
+    error(call_on(&mut sheet, "SUMPRODUCT", vec![single_error, blank]), NA);
+}
+
 /// Excel 20527 coerces the selector before sample errors and rejects negative fractions.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

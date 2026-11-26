@@ -463,9 +463,10 @@ fn blanks(
 
 /// SUMPRODUCT: its arguments, all of one shape, multiplied entry by entry and the products added
 /// from 0, in row-major order. An entry that is not a number is 0, and an error entry is the
-/// result. A scalar argument is a 1-by-1 array; an omitted one is #VALUE!. Arguments of different
-/// shapes are #VALUE!, decided after every argument is read, so an error in any argument comes
-/// first. A reference of several areas is #VALUE! (dc-bd5: SUMPRODUCT((A1,A7))).
+/// result after every argument is admitted. Scalar errors, single-cell reference errors and
+/// blank arguments fail admission.
+/// A scalar argument is a 1-by-1 array. Arguments of different shapes are #VALUE! after held
+/// errors are checked. A reference of several areas is #VALUE! (dc-bd5: SUMPRODUCT((A1,A7))).
 ///
 /// An entry whose factors are all 0 has the product +0, which adds nothing to the total (a zero
 /// total's sign aside, which the published +0 removes), so only the entries where some argument
@@ -484,6 +485,7 @@ struct Factor {
     rows: u64,
     columns: u64,
     numbers: Vec<(u64, f64)>,
+    held_error: Option<WorksheetErrorCode>,
 }
 
 fn products(
@@ -494,6 +496,9 @@ fn products(
     let mut factors = Vec::with_capacity(arguments.len());
     for (index, argument) in arguments.iter().enumerate() {
         factors.push(factor(site, index, argument, services)?);
+    }
+    if let Some(code) = factors.iter().find_map(|factor| factor.held_error) {
+        return Err(Exit::Error(code));
     }
     let shape = (factors[0].rows, factors[0].columns);
     if factors.iter().any(|f| (f.rows, f.columns) != shape) {
@@ -541,8 +546,9 @@ fn factor(
             let (first, columns) = (area.first(), u64::from(area.column_count()));
             let cells = reader(site, services, index)?;
             let mut numbers: Vec<(u64, f64)> = Vec::new();
-            let mut single_blank = area.row_count() == 1 && area.column_count() == 1;
-            read_reference(site, cells, reference, index, &mut |_, key, value| {
+            let single_cell = area.row_count() == 1 && area.column_count() == 1;
+            let mut single_blank = single_cell;
+            let read = read_reference(site, cells, reference, index, &mut |_, key, value| {
                 if !matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                     single_blank = false;
                 }
@@ -560,7 +566,12 @@ fn factor(
                 }
                 numbers.push((offset, n));
                 Ok(())
-            })?;
+            });
+            let held_error = match read {
+                Ok(()) => None,
+                Err(Exit::Error(code)) if !single_cell => Some(code),
+                Err(exit) => return Err(exit),
+            };
             // Excel 16.0.20527: a single empty referenced cell is #VALUE!,
             // while empty entries in a multi-cell reference contribute zero.
             if single_blank {
@@ -570,17 +581,25 @@ fn factor(
                 rows: u64::from(area.row_count()),
                 columns,
                 numbers,
+                held_error,
             })
         }
         CoreRef::Array(array) => {
             let mut numbers = Vec::new();
+            let mut held_error = None;
             for (offset, element) in array.iter_row_major().enumerate() {
                 // An array an element holds (dc-h9u) is no number.
                 if element.as_array().is_some() && element.callable_value().is_none() {
                     continue;
                 }
-                if let Some(n) = entry(element)? {
-                    numbers.push((offset as u64, n));
+                match entry(element) {
+                    Ok(Some(n)) => numbers.push((offset as u64, n)),
+                    Ok(None) => {}
+                    Err(Exit::Error(code)) => {
+                        held_error = Some(code);
+                        break;
+                    }
+                    Err(exit) => return Err(exit),
                 }
             }
             let shape = array.shape();
@@ -588,6 +607,7 @@ fn factor(
                 rows: shape.rows as u64,
                 columns: shape.cols as u64,
                 numbers,
+                held_error,
             })
         }
         CoreRef::Empty | CoreRef::Missing => Err(Exit::Error(WorksheetErrorCode::Value)),
@@ -596,6 +616,7 @@ fn factor(
                 rows: 1,
                 columns: 1,
                 numbers: entry(argument)?.map(|n| (0, n)).into_iter().collect(),
+                held_error: None,
             })
         }
     }
