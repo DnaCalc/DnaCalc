@@ -7370,7 +7370,8 @@ fn dc_oxh8w_33_border_edges_read_defaults_and_refuse_bad_indexes() {
     assert_eq!(i4(&model, &edge, "LineStyle"), -4142);
     assert_eq!(i4(&model, &edge, "Weight"), 2);
     assert_eq!(i4(&model, &edge, "Color"), 0);
-    assert_eq!(i4(&model, &edge, "ColorIndex"), -4105);
+    // ww23 (Excel 16.0.20625): an edge without a line reads ColorIndex xlNone.
+    assert_eq!(i4(&model, &edge, "ColorIndex"), -4142);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -7425,6 +7426,64 @@ fn dc_oxh8w_33_border_line_style_and_weight_combine() {
     put_font(&model, &edge, "Weight", AutoValue::I4(4)).unwrap();
     assert_eq!(i4(&model, &edge, "LineStyle"), 1);
     assert_eq!(i4(&model, &edge, "Weight"), 4);
+}
+
+/// ww23 (Excel 16.0.20625.20108): a Weight set on an edge whose line style has no such weight makes the edge
+/// continuous; dash-dot, dash-dot-dot and slant-dash-dot keep their style at their own weights; Borders.Count is 6.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33__weight_on_a_dashed_edge_and_borders_count() {
+    let (_, model, _) = blank_report();
+    // (LineStyle, Weight) -> (LineStyle, Weight) read back.
+    let cases = [
+        (-4115, 1, 1, 1),
+        (-4115, 4, 1, 4),
+        (-4118, -4138, 1, -4138),
+        (-4118, 4, 1, 4),
+        (-4119, 2, 1, 2),
+        (-4119, -4138, 1, -4138),
+        (-4119, 1, 1, 1),
+        (13, 2, 1, 2),
+        (13, -4138, 13, -4138),
+        (4, 2, 4, 2),
+        (5, 2, 5, 2),
+    ];
+    for (n, (line, weight, want_line, want_weight)) in cases.into_iter().enumerate() {
+        let edge = border(&model, &format!("H{}", n + 2), 7);
+        put_font(&model, &edge, "LineStyle", AutoValue::I4(line)).unwrap();
+        put_font(&model, &edge, "Weight", AutoValue::I4(weight)).unwrap();
+        assert_eq!(i4(&model, &edge, "LineStyle"), want_line, "ls {line} w {weight}");
+        assert_eq!(i4(&model, &edge, "Weight"), want_weight, "ls {line} w {weight}");
+    }
+    // Colour alone on an edge with no line draws a continuous line at weight 2 (thin).
+    let edge = border(&model, "F4", 7);
+    put_font(&model, &edge, "Color", AutoValue::I4(255)).unwrap();
+    assert_eq!(i4(&model, &edge, "LineStyle"), 1);
+    assert_eq!(i4(&model, &edge, "Weight"), 2);
+    assert_eq!(i4(&model, &edge, "Color"), 255);
+    for address in ["B2:C3", "B2"] {
+        let all = obj(invoke(&model, &range(&model, address), "Borders", vec![]).unwrap());
+        assert_eq!(i4(&model, &all, "Count"), 6, "{address}");
+    }
+}
+
+/// ww23 (Excel 16.0.20625.20108): an RGB colour outside the palette reads the nearest ColorIndex (0x123456 -> 52);
+/// Pattern xlAutomatic (-4105) reads xlSolid (1); solid red reads ColorIndex 3.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_33__interior_nearest_palette_and_automatic_pattern() {
+    let (_, model, _) = blank_report();
+    let red = interior(&model, "B3");
+    put_font(&model, &red, "Color", AutoValue::I4(255)).unwrap();
+    assert_eq!(i4(&model, &red, "ColorIndex"), 3);
+    let odd = interior(&model, "B4");
+    put_font(&model, &odd, "Color", AutoValue::I4(0x123456)).unwrap();
+    assert_eq!(i4(&model, &odd, "Color"), 0x123456);
+    assert_eq!(i4(&model, &odd, "ColorIndex"), 52);
+    let auto = interior(&model, "B5");
+    put_font(&model, &auto, "Pattern", AutoValue::I4(-4105)).unwrap();
+    assert_eq!(i4(&model, &auto, "Pattern"), 1);
+    assert_eq!(i4(&model, &auto, "Color"), 16_777_215);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
