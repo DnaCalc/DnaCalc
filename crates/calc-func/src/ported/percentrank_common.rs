@@ -35,21 +35,24 @@ pub fn percentrank(
         return Err(WorksheetErrorCode::Div0);
     }
 
-    let base =
-        match values.binary_search_by(|v| v.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Equal)) {
-            Ok(idx) => exact_rank(idx, values.len(), mode),
-            Err(upper) => {
-                if upper == 0 || upper >= values.len() {
-                    return Err(WorksheetErrorCode::NA);
-                }
-                let lower = upper - 1;
-                let lower_x = values[lower];
-                let upper_x = values[upper];
-                let lower_rank = exact_rank(lower, values.len(), mode);
-                let upper_rank = exact_rank(upper, values.len(), mode);
-                lower_rank + (x - lower_x) * (upper_rank - lower_rank) / (upper_x - lower_x)
-            }
-        };
+    // Excel 16.0 b20625 (dc-j9k.589): exact hits on duplicate values take the first occurrence
+    // (count of strictly smaller elements), while interpolation between distinct neighbors takes
+    // the last occurrence of the lower neighbor and the first occurrence of the upper neighbor.
+    let pos = values.partition_point(|&v| v < x);
+    let base = if pos < values.len() && values[pos] == x {
+        exact_rank(pos, values.len(), mode)
+    } else {
+        if pos == 0 || pos >= values.len() {
+            return Err(WorksheetErrorCode::NA);
+        }
+        let lower = pos - 1;
+        let upper = pos;
+        let lower_x = values[lower];
+        let upper_x = values[upper];
+        let lower_rank = exact_rank(lower, values.len(), mode);
+        let upper_rank = exact_rank(upper, values.len(), mode);
+        lower_rank + (x - lower_x) * (upper_rank - lower_rank) / (upper_x - lower_x)
+    };
     publish_truncated(base, significance)
 }
 
@@ -129,5 +132,58 @@ mod tests {
             percentrank(&mut values, 3.5, 3, PercentRankMode::Inclusive),
             Ok(0.687)
         );
+    }
+
+    /// Excel 16.0 b20625 (Touchstone, dc-j9k.589): exact hits on duplicate values take the first
+    /// occurrence (count strictly less than x), while interpolation between distinct values uses
+    /// the last occurrence of the lower neighbor and the first occurrence of the upper neighbor.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_589_percentrank_duplicates_exact_and_interpolated() {
+        let mut v = vec![1.0, 2.0, 2.0, 3.0, 3.0];
+        // dc-j9k.589 rep: binary_search_by landed on index 2 (0.5) instead of index 1 (0.25).
+        assert_eq!(
+            percentrank(&mut v.clone(), 2.0, 3, PercentRankMode::Inclusive).unwrap().to_bits(),
+            0x3fd0_0000_0000_0000
+        );
+        assert_eq!(
+            percentrank(&mut v.clone(), 3.0, 3, PercentRankMode::Inclusive).unwrap().to_bits(),
+            0x3fe8_0000_0000_0000
+        );
+        assert_eq!(
+            percentrank(&mut v.clone(), 2.5, 3, PercentRankMode::Inclusive).unwrap().to_bits(),
+            0x3fe4_0000_0000_0000
+        );
+        assert_eq!(
+            percentrank(&mut v.clone(), 2.0, 3, PercentRankMode::Exclusive).unwrap().to_bits(),
+            0x3fd5_4fdf_3b64_5a1d
+        );
+        assert_eq!(
+            percentrank(&mut v.clone(), 3.0, 3, PercentRankMode::Exclusive).unwrap().to_bits(),
+            0x3fe5_4fdf_3b64_5a1d
+        );
+        assert_eq!(
+            percentrank(&mut v.clone(), 2.5, 3, PercentRankMode::Exclusive).unwrap().to_bits(),
+            0x3fe2_a7ef_9db2_2d0e
+        );
+        let mut all2 = vec![2.0, 2.0, 2.0, 2.0];
+        assert_eq!(
+            percentrank(&mut all2.clone(), 2.0, 3, PercentRankMode::Inclusive).unwrap().to_bits(),
+            0x0000_0000_0000_0000
+        );
+        assert_eq!(
+            percentrank(&mut all2, 2.0, 3, PercentRankMode::Exclusive).unwrap().to_bits(),
+            0x3fc9_9999_9999_999a
+        );
+        let mut v3 = vec![1.0, 2.0, 2.0, 2.0, 5.0];
+        assert_eq!(
+            percentrank(&mut v3.clone(), 3.0, 10, PercentRankMode::Inclusive).unwrap().to_bits(),
+            0x3fea_aaaa_aaa6_15db
+        );
+        assert_eq!(
+            percentrank(&mut v3, 3.0, 10, PercentRankMode::Exclusive).unwrap().to_bits(),
+            0x3fe7_1c71_c719_63e7
+        );
+        let _ = &mut v;
     }
 }
