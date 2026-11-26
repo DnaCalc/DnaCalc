@@ -443,10 +443,17 @@ impl ParsedComplex {
         ))
     }
     pub(crate) fn sec(self) -> Result<Self, WorksheetErrorCode> {
-        self.cos().reciprocal()
+        self.circular_reciprocal(Self::cos)
     }
     pub(crate) fn csc(self) -> Result<Self, WorksheetErrorCode> {
-        self.sin().reciprocal()
+        self.circular_reciprocal(Self::sin)
+    }
+    fn circular_reciprocal(self, denominator: fn(Self) -> Self) -> Result<Self, WorksheetErrorCode> {
+        // Excel applies the imaginary limit before evaluating the real angle (dc-j9k.397).
+        if self.im > 709.0 || self.im < -708.0 {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
+        denominator(self).reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
         // The reciprocal of IMCOSH (dc-iuwct.13), on the real axis 1 / COSH.
