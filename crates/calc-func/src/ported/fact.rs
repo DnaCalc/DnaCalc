@@ -1,6 +1,9 @@
-use crate::ported::factorial_common::trunc_nonnegative;
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::value::WorksheetErrorCode;
+
+/// Live Excel 16.0 b20625 adds this exact constant (2^-22 + 2^-33) before truncating
+/// non-negative FACT arguments, verified across all 170 integer boundaries n=2..=171.
+const EXCEL_FACT_NEAR_INT_EPS: f64 = f64::from_bits(0x3e90020000000000);
 
 fn fact_reverse_product(n: i64) -> f64 {
     // Live Excel 16.0 b20326: FACT(n) is the reverse native product
@@ -17,13 +20,17 @@ fn fact_reverse_product(n: i64) -> f64 {
 }
 
 pub fn fact_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
-    // Excel checks the original sign before truncation: FACT(-0.1) is #NUM!,
-    // while FACTDOUBLE deliberately has a different negative-domain rule.
-    // Bound the product before converting to an integer, including huge inputs.
-    if !n.is_finite() || n >= 171.0 {
+    // Excel checks the original sign before snapping/truncation: FACT(-0.1) and
+    // FACT(-eps) are #NUM!, while FACTDOUBLE has a different negative-domain rule
+    // and does not apply this near-integer snap.
+    if !n.is_finite() || n < 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    let truncated = trunc_nonnegative(n)?;
+    let adjusted = n + EXCEL_FACT_NEAR_INT_EPS;
+    if adjusted >= 171.0 {
+        return Err(WorksheetErrorCode::Num);
+    }
+    let truncated = adjusted.trunc() as i64;
     ExcelRealPolicy::FINITE.publish(n, fact_reverse_product(truncated))
 }
 
@@ -74,5 +81,75 @@ mod tests {
         assert_eq!(fact_kernel(25.0).unwrap().to_bits(), 0x4529a940c33f6120);
         assert_eq!(fact_kernel(100.0).unwrap().to_bits(), 0x60bb30964ec395de);
         assert_eq!(fact_kernel(170.0).unwrap().to_bits(), 0x7fa4ab786441863d);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_568_fact_snaps_within_excel_eps_below_171_to_num() {
+        // Live Excel 16.0 b20625 (Touchstone ng6): FACT snaps inputs within
+        // 0x3e90020000000000 (2^-22 + 2^-33) below an integer up to that integer.
+        // At n=171 this produces #NUM! down to 0x40655fffff7ff000 inclusive,
+        // and 170! at 1 ULP below (0x40655fffff7fefff).
+        assert_eq!(
+            fact_kernel(f64::from_bits(0x40655ffffffffc73)),
+            Err(WorksheetErrorCode::Num)
+        );
+        assert_eq!(
+            fact_kernel(f64::from_bits(0x40655ffffffffffe)),
+            Err(WorksheetErrorCode::Num)
+        );
+        assert_eq!(
+            fact_kernel(f64::from_bits(0x40655fffff7ff000)),
+            Err(WorksheetErrorCode::Num)
+        );
+        assert_eq!(
+            fact_kernel(f64::from_bits(0x40655fffff7fefff))
+                .unwrap()
+                .to_bits(),
+            0x7fa4ab786441863d
+        );
+        // Negative values within eps below 0 still return #NUM! before snap.
+        assert_eq!(
+            fact_kernel(f64::from_bits(0xbe90020000000000)),
+            Err(WorksheetErrorCode::Num)
+        );
+        assert_eq!(
+            fact_kernel(f64::from_bits(0xbc9cd2b297d889bc)),
+            Err(WorksheetErrorCode::Num)
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_569_fact_snaps_near_integers_across_all_boundaries() {
+        // Live Excel 16.0 b20625 (Touchstone ng6): verified all 170 integer
+        // boundaries n=2..=171 transition at exactly n - 0x3e90020000000000.
+        assert_eq!(
+            fact_kernel(f64::from_bits(0x405cbffffffffffe))
+                .unwrap()
+                .to_bits(),
+            0x6710ce83f7f82d2c
+        );
+        let eps = f64::from_bits(0x3e90020000000000);
+        for n in 2..=170_i64 {
+            let boundary_bits = (n as f64 - eps).to_bits();
+            let exact = fact_kernel(n as f64).unwrap().to_bits();
+            let prev = fact_kernel((n - 1) as f64).unwrap().to_bits();
+            assert_eq!(
+                fact_kernel(f64::from_bits(boundary_bits))
+                    .unwrap()
+                    .to_bits(),
+                exact,
+                "n={n} at boundary 0x{boundary_bits:016x}"
+            );
+            assert_eq!(
+                fact_kernel(f64::from_bits(boundary_bits - 1))
+                    .unwrap()
+                    .to_bits(),
+                prev,
+                "n={n} at 1 ULP below boundary 0x{:016x}",
+                boundary_bits - 1
+            );
+        }
     }
 }
