@@ -916,6 +916,21 @@ fn rank_coerces_number_before_validating_order() {
     }
 }
 
+/// Excel 20625 uses ascending order for nonzero numeric selectors, including fractions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn rank_fractional_order_is_nonzero() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(-1.0), n(10.0), n(0.5), n(-100.0)]);
+    let values = sheet.area(1, 1, 4, 1);
+    for name in ["RANK", "RANK.EQ", "RANK.AVG"] {
+        for order in [f64::from_bits(0x8010_0000_0000_0003), f64::MIN_POSITIVE, -0.5, 0.5] {
+            exact(call_on(&mut sheet, name, vec![n(-1.0), values.clone(), n(order)]), 2.0);
+        }
+        exact(call_on(&mut sheet, name, vec![n(-1.0), values.clone(), n(0.0)]), 3.0);
+    }
+}
+
 /// Excel 20625 reports #DIV/0! when the variance overflows or is subnormal.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

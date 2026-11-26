@@ -144,7 +144,7 @@ fn rank(
     } else if let CoreRef::Text(text) = a[2].core_ref() {
         crate::coerce::spelled_logical(text).ok_or(Exit::Error(WorksheetErrorCode::Value))?
     } else {
-        num(site, a, 2)?.trunc() != 0.0
+        num(site, a, 2)? != 0.0
     };
     let order = if ascending {
         RankOrder::Ascending
