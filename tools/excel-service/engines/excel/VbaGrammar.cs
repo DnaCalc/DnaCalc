@@ -16,6 +16,7 @@ static class VbaGrammar
     static readonly string[] LexGroups = { "ws", "comment", "str", "hex", "num", "id", "cont", "op" };
     static readonly Regex Identifier = new(@"\A" + Rules["identifier"] + @"\z", RegexOptions.CultureInvariant);
     static readonly Regex ModuleName = new(@"\A" + Rules["module_name"] + @"\z", RegexOptions.CultureInvariant);
+    static readonly Regex SheetDocumentName = new(@"\ASheet[1-9][0-9]{0,1}\z", RegexOptions.CultureInvariant);
     static readonly Regex SheetCodeName = new(@"\Asheet[1-9][0-9]{0,1}\z", RegexOptions.CultureInvariant);
     static HashSet<string> Set(string key) => ((string)Rules[key]).Split(' ').ToHashSet();
     static readonly HashSet<string> Keywords = Set("keywords"), ValueTypes = Set("value_types"), NumericTypes = Set("numeric_types"),
@@ -73,10 +74,16 @@ static class VbaGrammar
     {
         public readonly string Tag, Key;
         public readonly List<Node> Items;
-        public Node(string tag, string key = null, List<Node> items = null) { Tag = tag; Key = key; Items = items; }
+        public readonly List<string> Ops;
+        public Node(string tag, string key = null, List<Node> items = null, List<string> ops = null)
+        { Tag = tag; Key = key; Items = items; Ops = ops; }
     }
 
-    static readonly Node Safe = new("safe"), Unsafe = new("unsafe");
+    // Taint classes of a value (dc-5qqoz): Text is a string that cannot start with = + - or @; Number is a number or
+    // boolean (it may be negative, so its text may start with -); NumText is a string made from a number; Bad is
+    // anything else. A cell write takes Text or Number; a concatenation's leading operand must be Text.
+    const int Text = 0, Number = 1, NumText = 2, Bad = 3;
+    static readonly Node Safe = new("safe"), Num = new("num"), Unsafe = new("unsafe");
 
     sealed class Last
     {
@@ -152,6 +159,7 @@ static class VbaGrammar
         public readonly List<(string key, Node node)> Flows = new();
         public readonly List<(Node node, string line)> Writes = new();
         public readonly HashSet<string> Numeric = new();
+        public readonly HashSet<string> Params = new();
 
         public Case(List<(string, string, string)> modules)
         {
@@ -170,30 +178,48 @@ static class VbaGrammar
         {
             foreach (var (name, kind, source) in Modules) Scan(name.ToLowerInvariant(), kind, source);
             foreach (var proc in Procs.Values.ToList()) new Body(this, proc).Run();
-            var tainted = new HashSet<string>();
+            var classes = new Dictionary<string, int>();
+            foreach (var key in Params.Concat(Numeric)) classes[key] = Number;
             bool changed = true;
             while (changed)
             {
                 changed = false;
                 foreach (var (key, node) in Flows)
-                    if (!tainted.Contains(key) && !Numeric.Contains(key) && !IsSafe(node, tainted))
+                {
+                    int old = classes.GetValueOrDefault(key, Text);
+                    int next = Math.Max(old, Classify(node, classes));
+                    if (Numeric.Contains(key)) next = Number;
+                    if (next != old)
                     {
-                        tainted.Add(key);
+                        classes[key] = next;
                         changed = true;
                     }
+                }
             }
             foreach (var (node, line) in Writes)
-                if (!IsSafe(node, tainted)) throw Refuse("a cell value that is not plainly data", line);
+                if (Classify(node, classes) > Number) throw Refuse("a cell value that is not plainly data", line);
             return Procs.Values.Where(p => p.Public && Kinds[p.Module] == "standard").Select(p => p.Key).ToHashSet();
         }
 
-        public bool IsSafe(Node node, HashSet<string> tainted) => node.Tag switch
+        public int Classify(Node node, Dictionary<string, int> classes)
         {
-            "safe" => true,
-            "unsafe" => false,
-            "var" => !tainted.Contains(node.Key),
-            _ => node.Items.All(n => IsSafe(n, tainted)),
-        };
+            switch (node.Tag)
+            {
+                case "safe": return Text;
+                case "num": return Number;
+                case "unsafe": return Bad;
+                case "var": return classes.GetValueOrDefault(node.Key, Text);
+            }
+            var found = node.Items.Select(n => Classify(n, classes)).ToList();
+            if (found.Contains(Bad)) return Bad;
+            if (node.Tag == "join") return found.Count == 0 ? Text : found.Max();   // Array(...): elements written one by one
+            if (node.Tag == "str") return found[0] == Text ? Text : NumText;        // Left, CStr, LCase, UCase
+            var ops = node.Ops;                                                      // "cat": operands and the operators between
+            if (ops.Any(op => op is not ("+" or "&"))) return ops.Contains("&") ? Bad : Number;
+            if (ops.Contains("&"))
+                return found[0] != Text || ops.Contains("+") && found.Any(c => c != Text) ? Bad : Text;
+            return found.Contains(NumText) ? NumText : found.Contains(Number) ? Number : Text;
+        }
 
         void Scan(string module, string kind, string source)
         {
@@ -370,6 +396,7 @@ static class VbaGrammar
                 var kind = ObjectTypes.GetValueOrDefault(ptype, "val");
                 Scope[pname] = new Var(Prefix + pname, kind == "pending" ? "val" : kind, NumericTypes.Contains(ptype), param: true);
                 if (NumericTypes.Contains(ptype)) c.Numeric.Add(Prefix + pname);
+                c.Params.Add(Prefix + pname);
             }
             if (proc.IsFunction) Scope[proc.Name] = new Var(Prefix + proc.Name);
         }
@@ -702,15 +729,14 @@ static class VbaGrammar
                 }
                 var (kind, node, _) = Chain(false);
                 if (kind != "val") throw Fail();
-                nodes.Add(negated ? Safe : node);
+                nodes.Add(negated ? Num : node);
                 var op = Binary();
                 if (op == null) break;
                 Take();
                 ops.Add(op);
             }
             if (nodes.Count == 1) return nodes[0];
-            if (!ops.Contains("+") && !ops.Contains("&")) return Safe;
-            return new Node("all", items: nodes);
+            return new Node("cat", items: nodes, ops: ops);
         }
 
         List<Node> Arguments(int low, int high)
@@ -736,7 +762,8 @@ static class VbaGrammar
         {
             var token = Take();
             var word = token.Low;
-            if (token.Kind is "num" or "hex") return ("val", Safe, null);
+            if (token.Kind == "num") return ("val", Safe, null);
+            if (token.Kind == "hex") return ("val", Num, null);        // &H8000 is -32768
             if (token.Kind == "str") return ("val", Case.Literal(token), null);
             if (token.Text == "(")
             {
@@ -745,11 +772,18 @@ static class VbaGrammar
                 return ("val", inner, null);
             }
             if (token.Kind != "id") throw Fail(token);
-            if (word is "true" or "false" or "empty" or "null" or "nothing" || Constants.Contains(word)) return ("val", Safe, null);
+            if (word is "true" or "false" or "empty" or "null" or "nothing" || Constants.Contains(word))
+                return ("val", word.StartsWith("xl", StringComparison.Ordinal) ? Num : Safe, null);
             if (Builtins.TryGetValue(word, out var builtin))
             {
                 var args = Arguments(builtin.low, builtin.high);
-                return ("val", builtin.safety == "always" ? Safe : builtin.safety == "never" ? Unsafe : new Node("all", items: args), null);
+                return ("val", builtin.safety switch
+                {
+                    "num" => Num,
+                    "text" => Safe,
+                    "never" => Unsafe,
+                    _ => new Node(word == "array" ? "join" : "str", items: args),
+                }, null);
             }
             string kind;
             if (word == "thisworkbook") kind = "wb";
@@ -819,7 +853,7 @@ static class VbaGrammar
                 if (ObjectKinds.Contains(ret)) { kind = ret; continue; }
                 if (Peek().Text == ".") throw Fail();
                 var last = flags.Contains('c') && Peek().Text != "=" ? CallLast : new Last { Type = "member", Member = name.Low, Owner = kind };
-                return ("val", ret is "num" or "bool" ? Safe : Unsafe, last);
+                return ("val", ret is "num" or "bool" ? Num : Unsafe, last);
             }
             if (statement) throw Fail(token);
             return (kind, Safe, null);
@@ -871,7 +905,7 @@ static class VbaGrammar
             var low = name.ToLowerInvariant();
             bool valid = kind == "standard"
                 ? ModuleName.IsMatch(name) && !Reserved.Contains(low) && !SheetCodeName.IsMatch(low) && low != "thisworkbook"
-                : low == "thisworkbook" || SheetCodeName.IsMatch(low) && int.Parse(low[5..]) >= 1 && int.Parse(low[5..]) <= sheetCount;
+                : name == "ThisWorkbook" || SheetDocumentName.IsMatch(name) && int.Parse(name[5..]) >= 1 && int.Parse(name[5..]) <= sheetCount;
             if (!valid || !seen.Add(low) || kind is not ("standard" or "document"))
                 throw new RefusedVbaException("invalid or duplicate VBA module name or kind: " + Escape(name));
         }

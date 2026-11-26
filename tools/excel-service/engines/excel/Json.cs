@@ -30,6 +30,7 @@ static class Json
                 var key = Str(s, ref i);
                 Ws(s, ref i);
                 i++; // :
+                if (d.ContainsKey(key)) throw new FormatException("duplicate JSON key: " + key);
                 d[key] = Value(s, ref i);
                 Ws(s, ref i);
                 if (s[i] == ',') { i++; continue; }
