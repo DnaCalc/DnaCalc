@@ -28,16 +28,21 @@ pub fn us_30_360(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
     let (ey, em, mut ed) = ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
         .ok_or(WorksheetErrorCode::Value)?;
 
-    // Excel's 1900 calendar has a Feb 29 (serial 60), so in 1900 the 29th is the month end.
-    let feb_end = |y: i64, m: i64| if y == 1900 { 29 } else { days_in_month(y, m) };
+    // The month end of February is the real calendar's: 1900 was no leap year, so 28 February
+    // 1900 is the last day and the nonexistent 29th (serial 60) is an ordinary day (Excel 20625,
+    // INTRATE over serials 59..63, dc-j9k.489).
+    let feb_end = |y: i64, m: i64| days_in_month(y, m);
     let start_last_feb = sm == 2 && sd == feb_end(sy, sm);
     let end_last_feb = em == 2 && ed == feb_end(ey, em);
 
+    // A start day moved to 30 because it ends February does not clamp an end day of 31 (Excel
+    // 20625: 2001-02-28 to 2001-03-31 counts 31 days, 2000-02-29 to 2000-03-31 too, dc-j9k.489).
+    let raw_sd = sd;
     if sd == 31 || start_last_feb {
         sd = 30;
     }
     if ed == 31 {
-        if sd < 30 {
+        if raw_sd < 30 {
             let (ny, nm) = if em == 12 { (ey + 1, 1) } else { (ey, em + 1) };
             return Ok((ny - sy) as f64 * 360.0 + (nm - sm) as f64 * 30.0 + (1 - sd) as f64);
         }

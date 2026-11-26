@@ -24,15 +24,6 @@ use crate::value::{CalcValue, WorksheetErrorCode};
 
 use calc_catalogue::ported::bonds::{CODE, ENTRIES as DECLARATIONS};
 
-/// The optional basis at `index`: `None` when the call does not reach it.
-fn basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Option<f64>> {
-    if index < a.len() {
-        num(site, a, index).map(Some)
-    } else {
-        Ok(None)
-    }
-}
-
 /// An optional argument at `index`, or `default` when it is omitted.
 fn or(site: &Site<'_>, a: &[CalcValue], index: usize, default: f64) -> Step<f64> {
     if given(a, index) {

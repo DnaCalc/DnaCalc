@@ -4547,3 +4547,31 @@ fn security_family_date_zero_and_admission_order() {
         error(dated(name, vec![n(44000.0), n(44100.0), t(), n(0.0)]), Value);
     }
 }
+
+/// dc-j9k.489 (Excel 20625): the US 30/360 day count of the security family takes 28 February
+/// 1900 as the last day of February (the nonexistent 29th is an ordinary day).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn security_family_us_30_360_treats_feb_1900_as_28_days() {
+    for (s, e, bits) in [
+        (59.0, 60.0, 0xc00c_cccc_cccc_cccdu64),
+        (59.0, 61.0, 0x400c_cccc_cccc_cccd),
+        (60.0, 61.0, 0x3ffc_cccc_cccc_cccd),
+        (60.0, 62.0, 0x3ff3_3333_3333_3333),
+        (59.0, 63.0, 0x3ff3_3333_3333_3333),
+        (60.0, 91.0, 0x3fbc_cccc_cccc_cccd),
+        (59.0, 91.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36585.0, 36616.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36950.0, 36981.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36584.0, 36616.0, 0x3fbb_ed61_bed6_1bed),
+    ] {
+        exact(
+            dated("INTRATE", vec![n(s), n(e), n(100.0), n(101.0), n(0.0)]),
+            f64::from_bits(bits),
+        );
+    }
+    exact(
+        dated("INTRATE", vec![n(59.0), n(61.0), n(0.1), n(10.0)]),
+        35640.0,
+    );
+}
