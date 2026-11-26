@@ -7,27 +7,43 @@ fn mean(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
 
-/// The stored mean and the stored two-pass sum of squared deviations.
-fn stored_moments(values: &[f64]) -> (f64, f64) {
-    let avg = div(
-        values.iter().fold(0.0, |sum, &value| add(sum, value)),
-        values.len() as f64,
-    );
+/// The stored mean, the stored two-pass sum of squared deviations, and whether any
+/// arithmetic step overflowed.
+///
+/// Live Excel 16.0 b20625 (dc-j9k.576..580, 30/30 across SKEW, SKEW.P, KURT):
+/// when an intermediate addition, subtraction, or squaring overflows during Pass 1
+/// or Pass 2, Excel substitutes 0.0 and latches overflow, continuing the loop.
+/// After dividing by the variance divisor, a zero or subnormal variance returns
+/// `#DIV/0!` ahead of the latched overflow; otherwise the latched overflow returns
+/// `#NUM!`.
+fn stored_moments(values: &[f64]) -> (f64, f64, bool) {
+    let mut overflowed = false;
+    let mut latch = |v: f64| -> f64 {
+        if v.is_finite() {
+            v
+        } else {
+            overflowed = true;
+            0.0
+        }
+    };
+    let sum = values.iter().fold(0.0, |sum, &value| latch(add(sum, value)));
+    let avg = div(sum, values.len() as f64);
     let sumsq = values.iter().fold(0.0, |sum, &value| {
-        let delta = sub(value, avg);
-        add(sum, mul(delta, delta))
+        let delta = latch(sub(value, avg));
+        let sq = latch(mul(delta, delta));
+        latch(add(sum, sq))
     });
-    (avg, sumsq)
+    (avg, sumsq, overflowed)
 }
 
-// Excel 20625 treats an overflowed or subnormal variance like zero in the
-// standardized moments. Check the stored quotient before taking its square root.
-fn moment_variance(sumsq: f64, divisor: f64) -> Result<f64, WorksheetErrorCode> {
+fn moment_variance(sumsq: f64, divisor: f64, overflowed: bool) -> Result<f64, WorksheetErrorCode> {
     let variance = div(sumsq, divisor);
-    if variance.is_normal() {
-        Ok(variance)
-    } else {
+    if !variance.is_normal() {
         Err(WorksheetErrorCode::Div0)
+    } else if overflowed {
+        Err(WorksheetErrorCode::Num)
+    } else {
+        Ok(variance)
     }
 }
 
@@ -35,12 +51,13 @@ pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 4 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let (avg, sumsq) = stored_moments(values);
+    let (avg, sumsq, overflowed) = stored_moments(values);
     let n = values.len() as f64;
     // Every operation is stored from the x87: the two-pass sum of squares, its square root, each
     // z, the square of z squared, the running sum, and the coefficient before the product. All
     // 4,508 bank rows; the division after the product holds 3,212.
-    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0)?);
+    let deviation =
+        crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0, overflowed)?);
     let fourths = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         let square = mul(z, z);
@@ -48,23 +65,34 @@ pub(crate) fn kurt_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     });
     let coefficient = div(mul(n, n + 1.0), mul(mul(n - 1.0, n - 2.0), n - 3.0));
     let offset = div(mul(3.0, mul(n - 1.0, n - 1.0)), mul(n - 2.0, n - 3.0));
-    Ok(sub(mul(coefficient, fourths), offset))
+    let result = sub(mul(coefficient, fourths), offset);
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 
 pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.len() < 3 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let (avg, sumsq) = stored_moments(values);
+    let (avg, sumsq, overflowed) = stored_moments(values);
     let n = values.len() as f64;
-    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0)?);
+    let deviation =
+        crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n - 1.0, overflowed)?);
     let cubes = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         add(sum, mul(mul(z, z), z))
     });
     // F1 (dc-8dq): the factor n/((n-1)(n-2)) first, then times the sum, as Excel's SKEW gives
     // SKEW(1,2,3,5) (the catalogue oracle's capture); n*sum/((n-1)(n-2)) is one ulp above it.
-    Ok(mul(div(n, mul(n - 1.0, n - 2.0)), cubes))
+    let result = mul(div(n, mul(n - 1.0, n - 2.0)), cubes);
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 
 pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
@@ -72,14 +100,20 @@ pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Div0);
     }
     // The same stored x87 stages as SKEW, with the population divisor n (dc-j9k.520).
-    let (avg, sumsq) = stored_moments(values);
+    let (avg, sumsq, overflowed) = stored_moments(values);
     let n = values.len() as f64;
-    let deviation = crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n)?);
+    let deviation =
+        crate::ported::excel_numeric::excel_sqrt_staged(moment_variance(sumsq, n, overflowed)?);
     let cubes = values.iter().fold(0.0, |sum, &value| {
         let z = div(sub(value, avg), deviation);
         add(sum, mul(mul(z, z), z))
     });
-    Ok(div(cubes, n))
+    let result = div(cubes, n);
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(WorksheetErrorCode::Num)
+    }
 }
 
 pub(crate) fn steyx_kernel(pairs: &[(f64, f64)]) -> Result<f64, WorksheetErrorCode> {
@@ -150,4 +184,53 @@ pub(crate) fn trimmean_kernel(values: &mut [f64], percent: f64) -> Result<f64, W
         }
     }
     Ok(total / (values.len() - 2 * each_side) as f64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_576_580_moment_overflow_reports_num_when_remaining_variance_is_normal() {
+        // Live Excel 16.0 b20625 (Touchstone ng6, 30/30 across SKEW, SKEW.P, KURT):
+        // Pass 1/Pass 2 overflows substitute 0.0 and latch overflow; if the final
+        // variance is subnormal/zero Excel returns #DIV/0!, otherwise #NUM!.
+        for (vals, expected) in [
+            (vec![1e308, 1e308, 1.0, 1.0], Err(WorksheetErrorCode::Num)),
+            (vec![1e308, 1e308, 0.0, 0.0], Err(WorksheetErrorCode::Div0)),
+            (vec![1e308, 1e308, 1e-154, -1e-154], Err(WorksheetErrorCode::Div0)),
+            (vec![1e308, 1e308, 2.2e-154, -2.2e-154], Err(WorksheetErrorCode::Num)),
+            (vec![1e154, -1e154, 0.0, 3e-154], Err(WorksheetErrorCode::Div0)),
+            (vec![1e154, -1e154, 0.0, 1e-153], Err(WorksheetErrorCode::Num)),
+            (vec![1e154, -1e154, 1e153, 1e153], Err(WorksheetErrorCode::Num)),
+            (vec![0.0, 1.0, 1e154, -1e154], Err(WorksheetErrorCode::Div0)),
+            (vec![1e154, -1e154, 0.0, 1.0], Err(WorksheetErrorCode::Num)),
+            (vec![-1e308, 1e308, 1e308, 1e308], Err(WorksheetErrorCode::Div0)),
+        ] {
+            assert_eq!(skew_kernel(&vals), expected, "SKEW({vals:?})");
+            assert_eq!(skew_p_kernel(&vals), expected, "SKEW.P({vals:?})");
+            assert_eq!(kurt_kernel(&vals), expected, "KURT({vals:?})");
+        }
+        // Exact divisor boundary: 8e-308 / 3 is normal (#NUM! for SKEW/KURT) while
+        // 8e-308 / 4 is subnormal (#DIV/0! for SKEW.P) in live Excel 16.0 b20625.
+        let split = [1e308, 1e308, 2e-154, -2e-154];
+        assert_eq!(skew_kernel(&split), Err(WorksheetErrorCode::Num));
+        assert_eq!(kurt_kernel(&split), Err(WorksheetErrorCode::Num));
+        assert_eq!(skew_p_kernel(&split), Err(WorksheetErrorCode::Div0));
+        // Representative from dc-j9k.577 (arity=3):
+        let rep_577 = [
+            f64::from_bits(0xffefffffffffffff),
+            f64::from_bits(0x3f50624dd2f1a9fc),
+            f64::from_bits(0x2b2bff2ee48e0530),
+            f64::from_bits(0x0000000000000000),
+            f64::from_bits(0x54b249ad2594c37d),
+            f64::from_bits(0x7e37e43c88007689),
+            f64::from_bits(0xbff0000000000000),
+            f64::from_bits(0x3f1a36e2eb1c432d),
+            f64::from_bits(0xffefffffffffffff),
+            f64::from_bits(0x3f50624dd2f1a9fc),
+        ];
+        assert_eq!(skew_kernel(&rep_577), Err(WorksheetErrorCode::Num));
+    }
 }
