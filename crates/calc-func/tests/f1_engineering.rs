@@ -2568,3 +2568,21 @@ fn impower_squared_modulus_overflow_off_axis_and_negative_real() {
     text(call("IMPOWER", vec![t("1E+155i"), n(1.0)]), "6.1257422745431E+138+1E+155i");
     text(call("IMPOWER", vec![n(-1.3e154), n(1.0)]), "-1.3E+154+1.59269299138121E+138i");
 }
+
+/// Excel 20625 (Touchstone 2026-11-26, dc-j9k.556): CONVERT reads its arguments in order and a logical
+/// at any of them is #VALUE! (an error earlier in the list wins); a number as a unit is #N/A.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn convert_logical_arguments_are_value_in_argument_order() {
+    use calc_func::value::WorksheetErrorCode::{Div0, NA, Value};
+    error(call("CONVERT", vec![n(1.5), b(true), n(0.125)]), Value);
+    error(call("CONVERT", vec![n(1.0), b(true), t("m")]), Value);
+    error(call("CONVERT", vec![n(1.0), t("m"), b(true)]), Value);
+    error(call("CONVERT", vec![b(true), t("xyz"), t("m")]), Value);
+    error(call("CONVERT", vec![n(1.0), b(true), e(NA)]), Value);
+    error(call("CONVERT", vec![n(1.0), e(NA), b(true)]), NA);
+    error(call("CONVERT", vec![e(Div0), b(true), t("m")]), Div0);
+    error(call("CONVERT", vec![n(1.0), b(true), t("xyz")]), Value);
+    error(call("CONVERT", vec![n(1.0), n(5.0), t("m")]), NA);
+    error(call("CONVERT", vec![n(1.0), t("m"), n(5.0)]), NA);
+}

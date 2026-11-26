@@ -384,6 +384,14 @@ ported_shared_family! {
         out(s, k::gestep_fn::gestep_kernel(x, step))
     }
     72 convert |s, a, sv| {
+        // Arguments are read in order: an error or a logical stops at its own position (Excel 20625,
+        // dc-j9k.556: `CONVERT(1,TRUE,#N/A)` #VALUE!, `CONVERT(1,#N/A,TRUE)` #N/A).
+        for value in &a[..3] {
+            if let Some(code) = value.as_error() {
+                return fail(code);
+            }
+            super::kit::reject_logical(value)?;
+        }
         let x = num(s, a, 0)?;
         let from = text(s, a, 1)?;
         let to = text(s, a, 2)?;
