@@ -1201,6 +1201,29 @@ fn time_value_of_money() {
     );
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pduration_rounded_growth_base_controls_division_by_zero() {
+    // Excel 16.0.20625 Value2, dc-j9k.396: the addition first rounds
+    // at extended precision, then stores a binary64 growth base.
+    for rate in [0x3c60000000000000, 0x3ca0020000000000] {
+        let rate = n(f64::from_bits(rate));
+        for future_value in [0.125, 5.0] {
+            error(
+                call("PDURATION", vec![rate.clone(), n(5.0), n(future_value)]),
+                Div0,
+            );
+        }
+    }
+    exact(
+        call(
+            "PDURATION",
+            vec![n(f64::from_bits(0x3ca0020000000001)), n(5.0), n(0.125)],
+        ),
+        f64::from_bits(0xc34d82d33b32720d),
+    );
+}
+
 /// Original R31 scalar Excel16.0.20527 replies and exact operand readbacks:
 /// DnaCalc-Research/evidence/round31, annuity reciprocal-domain studies.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
