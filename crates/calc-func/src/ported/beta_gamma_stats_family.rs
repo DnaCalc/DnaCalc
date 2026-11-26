@@ -511,15 +511,15 @@ pub fn gamma_dist_kernel(
         // `poisson_mass(alpha, 0.0)` -> #NUM!), subnormal `poisson_mass` flushes to 0.0 before
         // scaling, and subnormal final `pdf` flushes to 0.0.
         use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
-        let y = flush_subnormal(excel_x87_div(x, beta));
-        // Excel 16.0.20527.20196 (dc-ymjf.2.154, 1-ULP bisected at 0x7fc45f306dc9c883):
-        // Loader-branch GAMMA.DIST/GAMMADIST PDF returns `#DIV/0!` whenever `2 * pi * alpha`
-        // overflows binary64 (preceding deviance overflow).
-        if alpha > 1.1 && y > 1.1 && !excel_x87_mul(2.0 * std::f64::consts::PI, alpha).is_finite() {
-            return Err(WorksheetErrorCode::Div0);
+        // Excel 20625 reports #NUM! for overflow of alpha/x before the mass's #DIV/0!
+        // normalizer error (dc-j9k.459).
+        let scale = excel_x87_div(alpha, x);
+        if !scale.is_finite() {
+            return Err(WorksheetErrorCode::Num);
         }
-        let r = crate::ported::discrete_dist::poisson_mass(alpha, y);
-        let pdf = excel_x87_mul(r, excel_x87_div(alpha, x));
+        let y = flush_subnormal(excel_x87_div(x, beta));
+        let r = crate::ported::discrete_dist::poisson_mass_checked(alpha, y)?;
+        let pdf = excel_x87_mul(r, scale);
         return if pdf.is_finite() {
             Ok(flush_subnormal(pdf))
         } else {

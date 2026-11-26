@@ -208,6 +208,11 @@ fn binom_normalizer(x: f64, n: f64) -> [f64; 4] {
     ]
 }
 
+/// Numeric callers represent an invalid mass as NaN.
+pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
+    poisson_mass_checked(x, lambda).unwrap_or(f64::NAN)
+}
+
 /// The Poisson mass at `x` for `lambda > 0`, with `x` not necessarily whole: it is also GAMMA.DIST's
 /// prefactor `y^a exp(-y) / Gamma(a + 1)`, in the cumulative's arms and in the density, which is the
 /// mass times the stored `a/y`. At `a = 2` the error of GAMMA.DIST jumps at `y = 1.1` (5,000 live
@@ -223,28 +228,30 @@ fn binom_normalizer(x: f64, n: f64) -> [f64; 4] {
 /// - Otherwise: Loader's saddle point `exp(-stirling_error(x) - deviance(x, lambda)) / sqrt(2 pi x)`,
 ///   with the exponent and the exponential each stored: the answers sit on the exponent's binary64
 ///   grid once the normalizer is removed, from `lambda` near 4 to 1000 and `x` up to 100.
-pub(crate) fn poisson_mass(x: f64, lambda: f64) -> f64 {
+pub(crate) fn poisson_mass_checked(x: f64, lambda: f64) -> R {
     if x == 0.0 {
-        return excel_exp(-lambda);
+        return Ok(excel_exp(-lambda));
     }
     let raw = if x <= 1.1 || lambda <= 1.1 {
         let t = excel_x87_mul(x, excel_log(lambda));
         excel_exp_compensated(t, &[lambda, gammaln_excel(x + 1.0)])
     } else {
-        // Excel 16.0.20527.20196 (dc-ymjf.2.154, 1-ULP bisected): Loader-branch overflow of
-        // `2 * pi * x` (at `0x7fc45f306dc9c883`) or `deviance` (`x * ln(x / lambda)` > DBL_MAX,
-        // so `exponent == -Inf`) returns NaN -> `#NUM!` rather than `0.0`.
+        // The gamma density and cumulative routes both expose overflow of `2*pi*x`
+        // as #DIV/0! ahead of deviance overflow (Excel 20625, dc-j9k.459).
         let two_pi_x = excel_x87_mul(2.0 * core::f64::consts::PI, x);
+        if !two_pi_x.is_finite() {
+            return Err(WorksheetErrorCode::Div0);
+        }
         let exponent = excel_x87_sub(-stirling_error(x), deviance(x, lambda));
-        if !two_pi_x.is_finite() || !exponent.is_finite() {
-            return f64::NAN;
+        if !exponent.is_finite() {
+            return Err(NUM);
         }
         excel_x87_div(excel_exp(exponent), two_pi_x.sqrt())
     };
     // Excel 16.0.20527.20196 (dc-ymjf.2.141, frozen Touchstone controls SHA-256 05399aac /
     // 50fe12bf): nonzero-count Poisson mass flushes subnormal results to 0.0 before callers
     // scale by `alpha / x` (GAMMA.DIST PDF) or multiply the `gratio_series` sum (GAMMA.DIST CDF).
-    if raw.is_subnormal() { 0.0 } else { raw }
+    Ok(if raw.is_subnormal() { 0.0 } else { raw })
 }
 
 /// A finite result, with a subnormal one flushed to zero as Excel computes (EXPON.DIST(745,1,FALSE)

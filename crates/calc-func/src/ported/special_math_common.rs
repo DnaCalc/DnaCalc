@@ -501,9 +501,8 @@ fn gratio_gamma_nswc(a: f64) -> f64 {
     gam
 }
 
-/// Excel's incomplete-gamma-ratio kernel returning `(P(a,x), Q(a,x))` or the exact worksheet
-/// error code (`#DIV/0!` on `go200` `excel_exp(gammaln_excel(a))` binary64 overflow for subnormal
-/// `a <= 0x0003_ffff_ffff_ffda`, `#NUM!` on invalid/non-finite inputs; dc-ymjf.2.156).
+/// Excel's incomplete-gamma-ratio kernel returning `(P(a,x), Q(a,x))` or a worksheet error.
+/// `#DIV/0!` follows overflow of the fractional gamma or Poisson normalizer.
 pub(crate) fn gratio_checked(a: f64, x: f64) -> Result<(f64, f64), WorksheetErrorCode> {
     if a < 0.0 || x < 0.0 || (a == 0.0 && x == 0.0) {
         return Err(WorksheetErrorCode::Num);
@@ -511,7 +510,7 @@ pub(crate) fn gratio_checked(a: f64, x: f64) -> Result<(f64, f64), WorksheetErro
     if a == 0.0 || x == 0.0 {
         return Ok(if x <= a { (0.0, 1.0) } else { (1.0, 0.0) });
     }
-    use crate::ported::discrete_dist::poisson_mass;
+    use crate::ported::discrete_dist::{poisson_mass, poisson_mass_checked};
     if a == 1.0 {
         // Excel dispatches a == 1 to the exponential CDF (W109: proven by the
         // a = 1+2^-20 contradiction probe; emulator race a=1 slice 179/205
@@ -638,7 +637,7 @@ pub(crate) fn gratio_checked(a: f64, x: f64) -> Result<(f64, f64), WorksheetErro
     if l > 0.7 && l < 1.3 {
         return Ok(gratio_temme(a, x));
     }
-    let pm = poisson_mass(a, x);
+    let pm = poisson_mass_checked(a, x)?;
     if !pm.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }

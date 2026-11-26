@@ -7805,6 +7805,39 @@ fn dc_ymjf_2_154_poisson_and_gamma_extreme_count_overflows() {
     }
 }
 
+/// Touchstone Excel 16.0.20625 (dc-j9k.459) distinguishes overflow of the Poisson
+/// normalizer in the gamma CDF from overflow in the deviance or the lower fraction.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_cdf_reports_poisson_normalizer_overflow() {
+    let lower_shape = f64::from_bits(0x7fc4_5f30_6dc9_c882);
+    let overflowing_shape = f64::from_bits(0x7fc4_5f30_6dc9_c883);
+    let loader_start = f64::from_bits(1.1_f64.to_bits() + 1);
+    for name in ["GAMMA.DIST", "GAMMADIST"] {
+        let cdf = |x, a, beta| call(name, vec![n(x), n(a), n(beta), f1_support::b(true)]);
+        error(cdf(loader_start, lower_shape, 1.0), Num);
+        error(cdf(1.1, overflowing_shape, 1.0), Num);
+        error(cdf(loader_start, overflowing_shape, 1.0), Div0);
+        exact(cdf(overflowing_shape, overflowing_shape, 1.0), 0.5);
+        let large_shape = f64::from_bits(0x7fdd_65f0_937d_a3fa);
+        error(cdf(0.1, large_shape, 1e-7), Div0);
+    }
+}
+
+/// Touchstone Excel 16.0.20625 (dc-j9k.459): the density gives #NUM! for an overflowing alpha/x.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn gamma_density_reports_overflow_of_the_scale_before_the_normalizer() {
+    let shape = f64::from_bits(0x7fc4_5f30_6dc9_c883);
+    let overflowing_x = f64::from_bits(0x3fc4_5f30_6dc9_c883);
+    let finite_x = f64::from_bits(0x3fc4_5f30_6dc9_c885);
+    for name in ["GAMMA.DIST", "GAMMADIST"] {
+        let pdf = |x| call(name, vec![n(x), n(shape), n(1e-7), f1_support::b(false)]);
+        error(pdf(overflowing_x), Num);
+        error(pdf(finite_x), Div0);
+    }
+}
+
 /// Excel 16.0.20527.20196 (dc-ymjf.2.148, frozen Touchstone proofs SHA-256 f0cc1863, c85660b2,
 /// 99593b34, 5309b8c6): five-point strictly monotone histories route through automatic seasonality
 /// (period 0 vs period 2) without refusal, and both nonseasonal and seasonal forecast publication
