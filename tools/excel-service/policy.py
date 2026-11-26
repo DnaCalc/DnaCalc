@@ -8,6 +8,7 @@ import re
 import time
 
 from client import from_bits
+from vba_templates import expand as expand_vba_template
 from vba_grammar import check_modules, RULES as VBA_RULES, escape as vba_escape
 
 MAX_BYTES = 16 * 1024 * 1024
@@ -244,7 +245,8 @@ def vba_wire_length(value):
     """The compact JSON length of a case as the worker measures it (Json.Write): every control or non-ASCII
     character is a six-character \\u escape, so the two validators agree on the 40 KiB budget (rw16)."""
     if isinstance(value, str):
-        return 2 + sum(2 if ch in '"\\' else 6 if ch < " " or ch > "~" else 1 for ch in value)
+        # a character above U+FFFF is a surrogate pair: two six-character escapes (rw17 parity with Json.Quote)
+        return 2 + sum(2 if ch in '"\\' else 12 if ch > "\uffff" else 6 if ch < " " or ch > "~" else 1 for ch in value)
     if isinstance(value, dict):
         return 2 + max(len(value) - 1, 0) + sum(vba_wire_length(k) + 1 + vba_wire_length(v) for k, v in value.items())
     if isinstance(value, list):
@@ -446,6 +448,10 @@ class Admission:
                 or set(group) - {"f", "k", "n", "v", "o", "i"}):
             raise ValueError("a VBA group contains one VBA case")
         case = values[0]
+        if isinstance(case, dict) and "template" in case:
+            if vba_wire_length(group) > VBA_FRAME_BUDGET:
+                raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
+            case = expand_vba_template(case)        # a reviewed template and typed parameters
         # No workbook travels with the case: the worker builds the package from the modules it checked.
         if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "calls", "readback", "event_log"}:
             raise ValueError("invalid VBA case fields")
@@ -473,13 +479,15 @@ class Admission:
             triples.append((name, kind, source))
         if source_chars > VBA_RULES["max_source_chars"]:
             raise ValueError("oversized VBA module source")
-        entry_points = check_modules(triples, len(sheets))
-        for entry in entry_points:
-            # A layout formula may call only worksheet functions; a probe function with such a name would answer
-            # it on an Excel build that lacks the function, with a parameter the taint check never saw.
-            name = function_name(entry.rpartition(".")[2].upper())
-            if name in self.names.arities or name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES):
-                raise ValueError(f"a VBA procedure name collides with a worksheet function: {escape_name(name)}")
+        entry_points, procedures = check_modules(triples, len(sheets))
+        for entry in procedures:
+            # A layout formula may call only worksheet functions; a probe function with such a name (Public or
+            # Private, alone or after its module name) would answer it on an Excel build that lacks the function,
+            # with a parameter the taint check never saw.
+            for part in (entry.rpartition(".")[2], entry):
+                name = function_name(part.upper())
+                if name in self.names.arities or name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES):
+                    raise ValueError(f"a VBA procedure name collides with a worksheet function: {escape_name(name)}")
         calls = case["calls"]
         if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
             raise ValueError("invalid VBA call count")
@@ -493,6 +501,9 @@ class Admission:
                 raise ValueError("invalid VBA argument count")
             for arg in args:
                 self._range_cell(arg)
+                # the worker counts UTF-16 units (rw17 parity)
+                if arg.get("type") == "text" and len(arg.get("value", "").encode("utf-16-le")) // 2 > 1024:
+                    raise ValueError("invalid range text")
                 # Case text reaches cells through the probe's own writes: it must be data, never a formula.
                 if arg.get("type") == "text" and arg.get("value", "")[:1] in tuple(VBA_FORMULA_START):
                     raise ValueError("VBA text arguments must not start with = + - or @")

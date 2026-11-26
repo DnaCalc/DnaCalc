@@ -178,11 +178,15 @@ def sheet_case(sheets, probes, names=None):
 
 
 def vba_case(case):
-    """One authored VBA case. No workbook travels with it: the worker builds the package from the modules."""
-    required = {"sheets", "modules", "calls"}
+    """One authored VBA case: sheets, calls and either a reviewed probe template with typed parameters
+    ("template", "params"; see vba-probes/catalogue.json) or, until the template route is reviewed, modules.
+    No workbook travels with it: the worker builds the package from the pinned template or the modules."""
+    source = {"template", "params"} if isinstance(case, dict) and "template" in case else {"modules"}
+    required = {"sheets", "calls"} | source
     defaults = {"names": {}, "readback": [], "event_log": []}
     if not isinstance(case, dict) or not required <= case.keys() <= required.union(defaults):
-        raise ValueError("VBA case needs sheets, modules and calls, with optional names, readback and event_log")
+        raise ValueError("VBA case needs sheets, calls and a template with params (or modules), "
+                         "with optional names, readback and event_log")
     return {"type": "vba_case", "value": {
         **defaults, **case,
     }}

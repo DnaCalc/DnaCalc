@@ -1,0 +1,13 @@
+{
+  "limits": {"text": 255, "long_min": -2147483648, "long_max": 2147483647},
+  "templates": {
+    "smoke": {
+      "modules": [
+        {"name": "Module1", "kind": "standard", "file": "smoke-module1.bas", "sha256": "17f3df2ac5159b494095b2d47d64254171922f4e4ba85b9da8667f13d930480c"},
+        {"name": "Sheet1", "kind": "document", "file": "smoke-sheet1.bas", "sha256": "b5e67c7eda0e77df264d99857e7040d7bc4caf3c2cabf7e064816b7445c34de6"}
+      ],
+      "params": {"target_sheet": "sheet", "target_cell": "address", "message": "text", "event_sheet": "sheet", "event_cell": "address"},
+      "entry_points": ["Module1.Probe", "Module1.ErrProbe"]
+    }
+  }
+}

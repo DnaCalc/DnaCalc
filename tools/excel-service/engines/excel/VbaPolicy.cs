@@ -43,6 +43,12 @@ static class VbaPolicy
             || group.Keys.Any(k => k is not ("f" or "k" or "n" or "v" or "o" or "i"))
             || values[0] is not Dictionary<string, object> probe)
             throw new RefusedVbaException("a VBA group contains one VBA case");
+        if (probe.ContainsKey("template"))
+        {
+            if (Json.Write(group).Length > FrameBudget)
+                throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
+            probe = VbaTemplates.Expand(probe);          // a reviewed template and typed parameters
+        }
         // No workbook travels with the case: the worker builds the package from the modules it checked.
         if (probe.Count != 6 || !new[] { "sheets", "names", "modules", "calls", "readback", "event_log" }.All(probe.ContainsKey))
             throw new RefusedVbaException("invalid VBA case fields");
@@ -71,14 +77,18 @@ static class VbaPolicy
         }
         if (sourceChars > Limit("max_source_chars"))
             throw new RefusedVbaException("oversized VBA module source");
-        var entryPoints = VbaGrammar.CheckModules(triples, sheets.Count);
-        foreach (var entry in entryPoints)
+        var (entryPoints, procedures) = VbaGrammar.CheckModules(triples, sheets.Count);
+        foreach (var entry in procedures)
         {
-            // A layout formula may call only worksheet functions; a probe function with such a name would answer
-            // it on an Excel build that lacks the function, with a parameter the taint check never saw.
-            var name = entry[(entry.LastIndexOf('.') + 1)..].ToUpperInvariant();
-            if (CatalogueFunctions.Contains(name) || BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
-                throw new RefusedVbaException("a VBA procedure name collides with a worksheet function: " + VbaGrammar.Escape(name));
+            // A layout formula may call only worksheet functions; a probe function with such a name (Public or
+            // Private, alone or after its module name) would answer it on an Excel build that lacks the function,
+            // with a parameter the taint check never saw.
+            foreach (var part in new[] { entry[(entry.LastIndexOf('.') + 1)..], entry })
+            {
+                var name = part.ToUpperInvariant();
+                if (CatalogueFunctions.Contains(name) || BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
+                    throw new RefusedVbaException("a VBA procedure name collides with a worksheet function: " + VbaGrammar.Escape(name));
+            }
         }
         if (probe["calls"] is not List<object> calls || calls.Count < 1 || calls.Count > Limit("max_calls"))
             throw new RefusedVbaException("invalid VBA call count");
