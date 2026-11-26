@@ -5,7 +5,7 @@
 
 mod f1_support;
 
-use calc_func::value::WorksheetErrorCode::{Calc, NA, Num, Value};
+use calc_func::value::WorksheetErrorCode::{Calc, NA, Name, Num, Value};
 use f1_support::*;
 
 /// Excel 20527 floors positive fractional dimensions and advances each result by one addition.
@@ -97,6 +97,29 @@ fn sequence_integer_dimensions_accumulate_in_spill_order() {
     assert_eq!(cells[1].to_bits(), 1);
     assert_eq!(cells[2].to_bits(), 0x800f_ffff_ffff_ffff);
     assert_eq!(array(call("SEQUENCE", vec![n(1.0), n(1.0), n(1e308), n(1e308)])), (1, 1, vec![1e308]));
+}
+
+/// Excel 16.0.20625 (dc-j9k.534-.537): CHOOSEROWS/CHOOSECOLS truncate their selectors toward zero,
+/// read every selector (an error or text is the result, left to right) before checking any range.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn choose_selectors_truncate_and_errors_precede_range_checks() {
+    use calc_func::value::WorksheetErrorCode::{Div0, Ref};
+    let input = arr(vec![vec![1.0, 11.0], vec![2.0, 12.0], vec![3.0, 13.0]]);
+    assert_eq!(array(call("CHOOSEROWS", vec![input.clone(), n(1.9), n(2.0), n(2.0)])), (3, 2, vec![1.0, 11.0, 2.0, 12.0, 2.0, 12.0]));
+    assert_eq!(array(call("CHOOSEROWS", vec![input.clone(), n(2.9999999999)])), (1, 2, vec![2.0, 12.0]));
+    assert_eq!(array(call("CHOOSEROWS", vec![input.clone(), n(-1.9), n(3.99)])), (2, 2, vec![3.0, 13.0, 3.0, 13.0]));
+    assert_eq!(array(call("CHOOSECOLS", vec![input.clone(), n(1.5)])), (3, 1, vec![1.0, 2.0, 3.0]));
+    error(call("CHOOSEROWS", vec![input.clone(), n(0.5)]), Value);
+    error(call("CHOOSEROWS", vec![input.clone(), n(-0.9999999)]), Value);
+    error(call("CHOOSEROWS", vec![input.clone(), n(9.0), e(Name)]), Name);
+    error(call("CHOOSEROWS", vec![input.clone(), n(0.0), e(Name)]), Name);
+    error(call("CHOOSEROWS", vec![input.clone(), n(9.0), n(1.0), e(Div0)]), Div0);
+    error(call("CHOOSECOLS", vec![input.clone(), n(9.0), e(Ref)]), Ref);
+    error(call("CHOOSEROWS", vec![input.clone(), t("x"), e(Name)]), Value);
+    error(call("CHOOSEROWS", vec![input.clone(), n(9.0), t("x")]), Value);
+    error(call("CHOOSEROWS", vec![input.clone(), e(NA), e(Name)]), NA);
+    error(call("CHOOSEROWS", vec![input, n(9.0), n(1.0)]), Value);
 }
 
 /// Excel 16.0.20625 (dc-j9k.524/.525): a scalar error in sort_index, sort_order or by_col propagates

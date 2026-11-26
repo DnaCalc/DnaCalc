@@ -303,15 +303,31 @@ fn compare_cell_values(lhs: &CalcValue, rhs: &CalcValue) -> Ordering {
     }
 }
 
+/// CHOOSEROWS/CHOOSECOLS selectors: every selector is read first (truncated toward zero; an error
+/// or text in any one is the result, left to right), then each is checked against the length
+/// (Excel 16.0.20625, dc-j9k.534-.537: `CHOOSEROWS(a, 126, #NAME?)` is #NAME?, `CHOOSEROWS(a, 1.9)`
+/// is row 1).
+fn resolve_selectors(
+    selectors: &[CalcValue],
+    len: usize,
+) -> Result<Vec<usize>, DynamicArrayReshapeEvalError> {
+    let mut indices = Vec::with_capacity(selectors.len());
+    for selector in selectors {
+        let raw = coerce_prepared_to_number(selector)
+            .map_err(DynamicArrayReshapeEvalError::Preparation)?;
+        if !raw.is_finite() {
+            return Err(DynamicArrayReshapeEvalError::InvalidCount);
+        }
+        indices.push(raw.trunc() as isize);
+    }
+    indices.into_iter().map(|index| resolve_selector(index, len)).collect()
+}
+
 pub fn eval_choosecols_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let cols: Vec<usize> = args[1..]
-        .iter()
-        .map(parse_integer)
-        .map(|result| result.and_then(|idx| resolve_selector(idx, array.shape().cols)))
-        .collect::<Result<_, _>>()?;
+    let cols = resolve_selectors(&args[1..], array.shape().cols)?;
 
     let mut cells = Vec::with_capacity(array.shape().rows * cols.len());
     for row in 0..array.shape().rows {
@@ -326,11 +342,7 @@ pub fn eval_chooserows_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
-    let rows: Vec<usize> = args[1..]
-        .iter()
-        .map(parse_integer)
-        .map(|result| result.and_then(|idx| resolve_selector(idx, array.shape().rows)))
-        .collect::<Result<_, _>>()?;
+    let rows = resolve_selectors(&args[1..], array.shape().rows)?;
 
     let mut cells = Vec::with_capacity(rows.len() * array.shape().cols);
     for row in &rows {

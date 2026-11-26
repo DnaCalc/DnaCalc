@@ -7,7 +7,7 @@
 use super::kit::{fail, given, num, opt_flag, out_matrix};
 use crate::call::EvalServices;
 use crate::kernel::{Site, Step};
-use crate::value::WorksheetErrorCode;
+use crate::value::{CoreRef, WorksheetErrorCode};
 
 use calc_catalogue::ported::random::{CODE, ENTRIES as DECLARATIONS};
 
@@ -37,8 +37,16 @@ ported_shared_family! {
     2 randbetween |s, a, sv| {
         // Excel rounds bottom up and top down to integers; only a raw bottom above the raw top is
         // #NUM!, and a top that floors below the rounded bottom collapses to it (dc-j9k.185).
-        let bottom = num(s, a, 0)?;
-        let top = num(s, a, 1)?;
+        // Excel 16.0.20625 (dc-j9k.538): top is read before bottom, and a logical in either slot
+        // is #VALUE!.
+        let read = |index: usize| -> Step<f64> {
+            if matches!(a[index].core_ref(), CoreRef::Logical(_)) {
+                return fail(WorksheetErrorCode::Value);
+            }
+            num(s, a, index)
+        };
+        let top = read(1)?;
+        let bottom = read(0)?;
         if bottom > top {
             return fail(WorksheetErrorCode::Num);
         }

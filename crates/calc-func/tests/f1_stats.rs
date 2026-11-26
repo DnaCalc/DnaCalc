@@ -8153,6 +8153,27 @@ fn randbetween_collapses_an_empty_integer_range_to_its_low_end() {
     }
 }
 
+/// Excel 16.0.20625 (dc-j9k.538): RANDBETWEEN takes no logical in either slot (#VALUE!, whatever the other
+/// slot's range), and reads top before bottom: an error or non-number in top is the result first.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn randbetween_logicals_are_value_and_top_is_read_first() {
+    let run = |x: CalcValue, y: CalcValue| call_random(&mut Fixed(vec![0.5]), "RANDBETWEEN", vec![x, y]);
+    error(run(b(false), n(-0.05)), Value);
+    error(run(b(false), n(5.0)), Value);
+    error(run(b(true), n(0.0)), Value);
+    error(run(n(0.0), b(true)), Value);
+    error(run(n(1.0), b(false)), Value);
+    error(run(b(true), b(true)), Value);
+    error(run(b(true), e(NA)), NA);
+    error(run(e(NA), b(true)), Value);
+    error(run(t("x"), e(Ref)), Ref);
+    error(run(e(NA), e(Ref)), Ref);
+    error(run(e(NA), t("x")), Value);
+    error(run(e(NA), n(-1.0)), NA);
+    error(run(n(0.0), n(-0.05)), Num);
+}
+
 /// Excel 20527 (dc-j9k.240-243): CHITEST pairs cells in row-major order whatever the shapes, as long
 /// as the cell counts agree; the degrees of freedom come from the actual range; a zero expected
 /// value is #DIV/0! but a negative one only counts in the statistic; text and blank pairs are skipped.
