@@ -15917,6 +15917,7 @@ fn dc_971p_43_2__stored_range_selection_is_read_kept_and_saved() {
             revision: book.host().revision().get(),
             active_sheet: Some(s),
             sheets: [(s, view)].into(),
+            protections: Default::default(),
         })),
         ..Default::default()
     };
@@ -15935,6 +15936,7 @@ fn dc_971p_43_2__stored_range_selection_is_read_kept_and_saved() {
             revision: book.host().revision().get(),
             active_sheet: Some(s),
             sheets: [(s, view)].into(),
+            protections: Default::default(),
         })),
         ..Default::default()
     };
@@ -16048,6 +16050,7 @@ fn dc_971p_16__save_window_is_pinned_without_an_undo_entry_and_preserves_other_v
             revision: book.host().revision().get(),
             active_sheet: Some(second),
             sheets: [(sheet, v), (second, v2)].into(),
+            protections: Default::default(),
         })),
         ..Default::default()
     };
@@ -16113,6 +16116,7 @@ fn dc_971p_16__empty_view_elements_and_frozen_split_state_survive_window_save() 
                 revision: book.host().revision().get(),
                 active_sheet: Some(sheet),
                 sheets: [(sheet, state)].into(),
+                protections: Default::default(),
             })),
             ..Default::default()
         };
@@ -16172,6 +16176,7 @@ fn excel_offset_freeze_and_inactive_selection_survive_save() {
             revision: book.host().revision().get(),
             active_sheet: Some(frozen_sheet),
             sheets: [(frozen_sheet, frozen_view), (other_sheet, other_view)].into(),
+            protections: Default::default(),
         })),
         ..Default::default()
     };
@@ -26639,6 +26644,7 @@ fn dc_971p_65__printing_view_and_partial_pivot_breaks_round_trip() {
             revision: book.host().revision().get(),
             active_sheet: Some(sheet),
             sheets: [(sheet, view)].into(),
+            protections: Default::default(),
         })),
         ..SavePolicy::default()
     };

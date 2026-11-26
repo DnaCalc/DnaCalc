@@ -206,6 +206,8 @@ pub struct HostState {
     pub(crate) application: Option<calc_fml::ApplicationFacts>,
     /// Worksheet window view overrides changed by automation (dc-p3rg9).
     pub(crate) sheet_view_overrides: std::collections::BTreeMap<SheetId, SheetViewOverride>,
+    /// Sheet protection a macro set (`Some`) or removed (`None`), saved as `sheetProtection` (dc-9b7zd).
+    pub(crate) sheet_protection_saves: std::collections::BTreeMap<SheetId, Option<crate::automation::ProtectionSave>>,
 }
 
 pub(crate) fn next_command_scope() -> u64 {
@@ -399,6 +401,7 @@ impl HostState {
             file: None,
             application: None,
             sheet_view_overrides: std::collections::BTreeMap::new(),
+            sheet_protection_saves: std::collections::BTreeMap::new(),
         };
         // The package's date system, the options' locale profile, and no clock until one is set:
         // NOW, TODAY and a date read without a year are refused.

@@ -76,7 +76,7 @@ fn node(
         }
     }
 }
-fn rank(parent: &str, name: &str) -> usize {
+pub(super) fn rank(parent: &str, name: &str) -> usize {
     let order: &[&str] = match parent {
         "worksheet" => &[
             "sheetPr",

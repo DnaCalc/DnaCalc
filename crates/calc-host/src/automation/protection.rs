@@ -7,6 +7,8 @@ use super::cells::{XL_SHIFT_DOWN, XL_SHIFT_UP};
 use crate::value::{MAX_COLUMNS, MAX_ROWS};
 
 const OWNER: &str = "dc-9b7zd";
+/// Stands for a numeric Unprotect argument: a text no password check accepts (a NUL is not typed into a password box).
+const NUMBER_NEVER_MATCHES: &str = "\u{0}number";
 /// Allow* arguments, and UserInterfaceOnly on a protected sheet (open).
 const ALLOW_OWNER: &str = "dc-ml3k0";
 
@@ -24,7 +26,48 @@ pub(super) struct SheetProtect {
     allow: [bool; 11],
 }
 
+/// What a macro's `Protect` leaves to save: the flags, and the password the `sheetProtection` hash is made from.
+#[derive(Clone, Debug)]
+pub(crate) struct ProtectionSave {
+    password: Option<String>,
+    contents: bool,
+    objects: bool,
+    scenarios: bool,
+    allow: [bool; 11],
+}
+
+impl ProtectionSave {
+    /// The `sheetProtection` to write for the sheet named `sheet`: the SHA-512 hash, spun 100,000 times (what Excel
+    /// writes), over a salt made from the sheet name and password (Excel's is random; any salt verifies).
+    pub(crate) fn to_save(&self, sheet: &str) -> calc_doc::SheetProtectionSave {
+        use sha2::{Digest, Sha512};
+        let mut file = calc_doc::FileProtection { objects: self.objects, scenarios: self.scenarios, allow: self.allow, ..Default::default() };
+        if let Some(password) = &self.password {
+            let mut seed = Sha512::new();
+            seed.update(b"dnacalc sheetProtection salt");
+            seed.update(sheet.as_bytes());
+            seed.update(password.as_bytes());
+            let salt = seed.finalize()[..16].to_vec();
+            file.algorithm = "SHA-512".to_owned();
+            file.spin_count = 100_000;
+            file.hash = base64_encode(&sha512_password_hash(&salt, password, file.spin_count));
+            file.salt = base64_encode(&salt);
+        }
+        calc_doc::SheetProtectionSave { contents: self.contents, file }
+    }
+}
+
 impl SheetProtect {
+    fn to_saved(&self) -> ProtectionSave {
+        ProtectionSave {
+            password: self.password.clone(),
+            contents: self.contents,
+            objects: self.drawing_objects,
+            scenarios: self.scenarios,
+            allow: self.allow,
+        }
+    }
+
     /// Whether a password guards the protection.
     fn has_password(&self) -> bool {
         self.password.is_some() || self.file_hash.is_some()
@@ -307,9 +350,9 @@ impl WorkbookAutomation {
             // ww21 Protect.numericPassword: an integer is accepted as its decimal text.
             AutoValue::I2(n) => Some(n.to_string()),
             AutoValue::I4(n) => Some(n.to_string()),
-            AutoValue::R4(_) | AutoValue::R8(_) => {
-                return Err(AutoError::not_modelled("Worksheet.Protect with a floating-point Password", OWNER));
-            }
+            // ww24 g/case5: a double is the text Excel shows for it (1.5 needs "1.5").
+            AutoValue::R8(n) => Some(Self::number_password(*n)?),
+            AutoValue::R4(n) => Some(Self::number_password(f64::from(*n))?),
             _ => return Err(geometry::type_mismatch()),
         };
         let flag = |index: usize, default: bool| match call.arg(index) {
@@ -338,6 +381,7 @@ impl WorkbookAutomation {
             match self.sheet_protection(session.host(), sheet) {
                 None => {
                     self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
+                    session.host.sheet_protection_saves.insert(sheet, Some(protect.to_saved()));
                 }
                 // ww22 Protect.Again: the same Password protects again with the new arguments (UserInterfaceOnly
                 // becomes True), a wrong one is 1004 and changes nothing, an omitted one opens the Unprotect Sheet
@@ -351,6 +395,7 @@ impl WorkbookAutomation {
                         return Err(wrong_password());
                     }
                     self.sheet_protect.borrow_mut().insert(sheet, Some(protect.clone()));
+                    session.host.sheet_protection_saves.insert(sheet, Some(protect.to_saved()));
                 }
                 // Protecting a sheet that is already protected without a password leaves its protection as it is.
                 Some(held) if protect.user_interface_only && !held.user_interface_only => {
@@ -365,6 +410,15 @@ impl WorkbookAutomation {
         })
     }
 
+    /// The text a numeric `Password` stands for: plain decimal for the magnitudes Excel prints without an exponent.
+    fn number_password(n: f64) -> Result<String, AutoError> {
+        if n.is_finite() && (n == 0.0 || (1e-5..1e15).contains(&n.abs())) {
+            Ok(format!("{n}"))
+        } else {
+            Err(AutoError::not_modelled("Worksheet.Protect with a Password number Excel prints in exponent form", OWNER))
+        }
+    }
+
     fn worksheet_unprotect(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let sheet = Self::worksheet_sheet(target)?;
         if call.args.len() > 1 {
@@ -373,6 +427,8 @@ impl WorkbookAutomation {
         let given = match call.arg(0) {
             AutoValue::Missing | AutoValue::Empty => None,
             AutoValue::Text(t) => Some(t.to_string_lossy()),
+            // ww24 g/case4-5: a number is never the password, even when its text is (1004).
+            AutoValue::I2(_) | AutoValue::I4(_) | AutoValue::R4(_) | AutoValue::R8(_) => Some(NUMBER_NEVER_MATCHES.to_owned()),
             _ => return Err(geometry::type_mismatch()),
         };
         self.with_write(|session| {
@@ -389,6 +445,7 @@ impl WorkbookAutomation {
                 return Err(wrong_password());
             }
             self.sheet_protect.borrow_mut().insert(sheet, None);
+            session.host.sheet_protection_saves.insert(sheet, None);
             Ok(AutoValue::Empty)
         })
     }

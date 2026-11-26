@@ -32,6 +32,7 @@ mod merges;
 mod outline;
 pub(crate) mod page_setup;
 mod panes;
+mod protection;
 mod parts;
 mod reader;
 pub(crate) mod review;
@@ -346,6 +347,19 @@ pub struct SaveViews {
     pub active_sheet: Option<calc_doc_model::value::SheetId>,
     /// Saved view settings by sheet identity.
     pub sheets: BTreeMap<calc_doc_model::value::SheetId, crate::SheetView>,
+    /// Sheet protection a macro set, by sheet: `Some` writes that `sheetProtection`, `None` removes the sheet's own
+    /// (a macro unprotected it). A sheet absent here keeps the protection its source holds.
+    pub protections: BTreeMap<calc_doc_model::value::SheetId, Option<SheetProtectionSave>>,
+}
+
+/// A `sheetProtection` element to write (ECMA-376 18.3.1.85): what `Worksheet.Protect` set.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SheetProtectionSave {
+    /// Cells are protected (`sheet`).
+    pub contents: bool,
+    /// The password hash (`algorithmName`, `hashValue`, `saltValue`, `spinCount`), the drawing-object and scenario flags
+    /// and the allowed commands, as a loaded file holds them. Written as given: no hash when `hash` is empty.
+    pub file: crate::FileProtection,
 }
 
 /// Why [`prepare_save`] refused a snapshot. A refusal is decided before any byte is written: no
