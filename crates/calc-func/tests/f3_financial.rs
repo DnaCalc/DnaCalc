@@ -3401,6 +3401,24 @@ fn odd_last_bonds_require_an_in_calendar_ending_coupon() {
     }
 }
 
+/// Excel 20625 keeps the clamped day of an annual coupon after February.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_last_annual_coupons_keep_a_clamped_february_day() {
+    for (function, value, expected) in [
+        ("ODDLPRICE", 0.25, 0x4057_4311_dffb_06af),
+        ("ODDLYIELD", 100.0, 0x3fbc_6d5b_f60e_e9a1),
+    ] {
+        exact(
+            dated(
+                function,
+                vec![n(43891.0), n(44074.0), n(43524.0), n(0.125), n(value), n(100.0), n(1.0), n(2.0)],
+            ),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Cell and direct logical controls agree. Out-of-calendar numeric dates
 /// precede later errors; zero dates defer to later scalar readers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

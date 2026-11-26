@@ -111,7 +111,9 @@ fn add_months_clamped(serial: i64, months: i64) -> Option<i64> {
         return None;
     }
     let target_month = month_index.rem_euclid(12) + 1;
-    let source_is_month_end = day == days_in_month(year, month);
+    // Annual coupons carry the current day into the next year. Once a leap
+    // day has been clamped to February 28 it stays there (Excel 20625).
+    let source_is_month_end = months != 12 && day == days_in_month(year, month);
     let target_day = if source_is_month_end {
         days_in_month(target_year, target_month)
     } else {
