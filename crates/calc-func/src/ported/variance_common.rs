@@ -59,14 +59,23 @@ pub fn variance_from_values(
     let cancellation = div(div(square_total, count), squares) > 0.99;
     let small_variance = mul(variance, 1000.0) <= mean.abs();
     if !variance.is_finite() || cancellation || small_variance {
-        let centered = values.iter().fold(0.0, |q, &x| {
-            let delta = sub(x, mean);
-            add(q, mul(delta, delta))
-        });
-        Ok(div(centered, denom))
+        Ok(centered_variance_from_mean(values, mean, denom, std::convert::identity))
     } else {
         Ok(variance)
     }
+}
+
+pub(super) fn centered_variance_from_mean(
+    values: &[f64],
+    mean: f64,
+    divisor: f64,
+    publish_square: fn(f64) -> f64,
+) -> f64 {
+    let centered = values.iter().fold(0.0, |sum, &value| {
+        let delta = sub(value, mean);
+        add(sum, publish_square(mul(delta, delta)))
+    });
+    div(centered, divisor)
 }
 
 pub fn stdev_from_values(

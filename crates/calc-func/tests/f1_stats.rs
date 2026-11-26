@@ -2138,6 +2138,29 @@ fn z_test_standardization_overflow_returns_the_midpoint() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.409: omitted ZTEST sigma uses centered deviations.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn z_test_omitted_sigma_uses_centered_sample_variance() {
+    let cases: &[(&[u64], u64, u64)] = &[
+        (&[0x3fab_9ced_ccf2_972e, 0xbf22_64d0_54ae_4d67, 0x3f2d_44e8_7113_5994], 0xbfe0_0000_0000_0000, 0x1a10_07b1_e562_39e0),
+        (&[0xc126_f6c6_891d_cd16, 0x401d_6a3a_5281_cb8c, 0x3ef0_63f6_833a_204a], 0x3fd3_ed41_ba91_34af, 0x3fea_ec45_0212_7c4c),
+        (&[0x4069_88e1_258d_9e58, 0x4081_c1f5_3031_8f40], 0x4059_5000_0000_0000, 0x3fae_0878_dc8b_2107),
+    ];
+    for (sample, x, expected) in cases {
+        let sample = arr(sample.iter().map(|&bits| vec![f64::from_bits(bits)]).collect());
+        for name in ["ZTEST", "Z.TEST"] {
+            exact(call(name, vec![sample.clone(), n(f64::from_bits(*x))]), f64::from_bits(*expected));
+        }
+    }
+    for name in ["ZTEST", "Z.TEST"] {
+        for sample in [vec![vec![1.0; 3]], vec![vec![0.0, 2e-154]]] {
+            error(call(name, vec![arr(sample), n(0.0)]), Div0);
+        }
+        exact(call(name, vec![arr(vec![vec![0.0, 0.0, 0.0, 2e-154]]), n(0.0)]), 0.5);
+    }
+}
+
 /// Excel 16.0.20527: a single blank cell differs from an array element or
 /// a blank within a multi-cell range, and argument errors keep their order.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

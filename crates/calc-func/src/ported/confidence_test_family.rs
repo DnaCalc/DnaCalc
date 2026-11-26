@@ -1,5 +1,7 @@
 use crate::ported::chi_f_t_family::t_inv_2t_kernel;
-use crate::ported::variance_common::{VarianceDivisor, stdev_from_values};
+use crate::ported::excel_numeric::excel_sqrt_staged;
+use crate::ported::real_policy::excel_underflow_to_zero;
+use crate::ported::variance_common::centered_variance_from_mean;
 use crate::value::WorksheetErrorCode;
 
 pub fn confidence_t_kernel(
@@ -19,7 +21,7 @@ pub fn confidence_t_kernel(
     }
     // Excel 20527: scale first, then multiply the quantile (512/512
     // controls; multiplying the quantile first matched 330/512).
-    use crate::ported::excel_numeric::{excel_sqrt_staged, excel_x87_div, excel_x87_mul};
+    use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
     let scale = excel_x87_div(standard_dev, excel_sqrt_staged(n));
     Ok(excel_x87_mul(scale, t_inv_2t_kernel(alpha, n - 1.0)?))
 }
@@ -39,20 +41,33 @@ pub fn z_test_kernel(
     if values.len() == 1 {
         return Err(WorksheetErrorCode::Div0);
     }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let count = values.len() as f64;
+    let mean = values.iter().sum::<f64>() / count;
     let sigma = match sigma {
         Some(value) => value,
-        None => stdev_from_values(values, VarianceDivisor::Sample)?,
+        None => {
+            // Excel centers the sample first and flushes each subnormal square (dc-j9k.409).
+            let variance = centered_variance_from_mean(
+                values,
+                mean,
+                count - 1.0,
+                excel_underflow_to_zero,
+            );
+            if variance == 0.0 {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            if variance.is_subnormal() {
+                return Ok(0.5);
+            }
+            excel_sqrt_staged(variance)
+        }
     };
     if sigma <= 0.0 || !sigma.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    // Live Excel 16.0 b20326: Z.TEST(array,x) with omitted sigma is
-    // NORMSDIST((x-AVERAGE)/(STDEV.S/SQRT(n))), not 1-NORMSDIST((mean-x)/se)
-    // and not STDEV.P. The two NORMSDIST complements are not bit-identical.
-    // F1 (dc-8dq): (x - mean) * sqrt(n) / sigma, as Excel's Z.TEST gives Z.TEST({1,5,3},2) (the
-    // catalogue oracle's capture); dividing by sigma/sqrt(n) is one ulp away there.
-    let z = (x - mean) * (values.len() as f64).sqrt() / sigma;
+    // Excel stores the scaled difference before dividing by sigma and uses the
+    // lower normal CDF of the resulting statistic (catalogue Z.TEST({1,5,3},2)).
+    let z = (x - mean) * count.sqrt() / sigma;
     // Excel returns the midpoint when standardization overflows with a valid mean (dc-j9k.407).
     if mean.is_finite() && z.is_infinite() {
         return Ok(0.5);
