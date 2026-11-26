@@ -5,8 +5,7 @@
 //! names list columns, each row below it is one alternative, a record matching when it meets every condition of
 //! any row. A record is judged by calling DCOUNTA over the header and that record, through the same catalogue
 //! call a worksheet function takes, so there is one criterion evaluator. `xlFilterInPlace` (hiding rows with no
-//! AutoFilter) and a `CopyToRange` of several cells (a chosen set of columns) are typed refusals owned by
-//! dc-hduqd.
+//! AutoFilter) is a typed refusal owned by dc-hduqd; the header cells of `CopyToRange` choose the copied columns.
 use super::*;
 
 const XL_FILTER_IN_PLACE: i64 = 1;
@@ -82,27 +81,12 @@ impl WorkbookAutomation {
                 return Err(error_1004());
             }
             let destination = destination.areas()[0];
-            if destination.cell_count() != 1 {
-                return Err(AutoError::not_modelled("Range.AdvancedFilter CopyToRange of several cells", REMAINDER));
-            }
             if list_area.row_count() < 1 {
                 return Err(error_1004());
             }
             let rows = list_area.row_count();
             let columns = list_area.column_count();
             let host = session.host();
-            // Copying formulas is not modelled: a record holding one refuses before anything is written.
-            for row in list_area.first().row()..=list_area.last().row() {
-                for column in list_area.first().column()..=list_area.last().column() {
-                    let key = CellKey::new(list_area.sheet(), row, column).map_err(|_| error_1004())?;
-                    if matches!(host.model().cell(key), Some(calc_doc_model::CellInput::Formula(_))) {
-                        return Err(AutoError::not_modelled(
-                            "Range.AdvancedFilter over a list holding formulas",
-                            REMAINDER,
-                        ));
-                    }
-                }
-            }
             let cells = |area: GridArea| -> Result<Vec<CalcValue>, AutoError> {
                 let value = read_session(session, area, false)?;
                 Ok(match value.as_array() {
@@ -112,6 +96,47 @@ impl WorkbookAutomation {
             };
             let all = cells(list_area)?;
             let header: Vec<CalcValue> = all[..columns as usize].to_vec();
+            let header_label = |v: &CalcValue| -> Option<String> {
+                match v.core_ref() {
+                    CoreRef::Text(t) => Some(t.to_string_lossy()),
+                    CoreRef::Number(n) => Some(n.to_string()),
+                    CoreRef::Logical(true) => Some("TRUE".into()),
+                    CoreRef::Logical(false) => Some("FALSE".into()),
+                    _ => None,
+                }
+            };
+            // The header cells of CopyToRange choose and order the copied columns (Excel ww21, ww22); a lone blank
+            // cell takes every column. A label the list lacks is 1004.
+            let label_row = GridArea::new(
+                destination.first(),
+                CellKey::new(destination.sheet(), destination.first().row(), destination.last().column())
+                    .map_err(|_| error_1004())?,
+            )
+            .map_err(|_| error_1004())?;
+            let labels = cells(label_row)?;
+            let selected: Vec<usize> = if labels.len() == 1 && matches!(labels[0].core_ref(), CoreRef::Empty | CoreRef::Missing) {
+                (0..columns as usize).collect()
+            } else {
+                labels
+                    .iter()
+                    .map(|label| {
+                        let Some(wanted) = header_label(label) else {
+                            return Err(AutoError::not_modelled(
+                                "Range.AdvancedFilter CopyToRange with a blank header among several cells",
+                                REMAINDER,
+                            ));
+                        };
+                        header
+                            .iter()
+                            .position(|h| header_label(h).is_some_and(|name| calc_value::workbook_names_equal(&name, &wanted)))
+                            .ok_or_else(error_1004)
+                    })
+                    .collect::<Result<_, _>>()?
+            };
+            let subset = selected.iter().copied().ne(0..columns as usize);
+            if unique && subset {
+                return Err(AutoError::not_modelled("Range.AdvancedFilter Unique over chosen columns", REMAINDER));
+            }
             let mut kept: Vec<usize> = Vec::new();
             let environment = host.entry_environment();
             let numeric = host.recalc_context().numeric;
@@ -125,15 +150,6 @@ impl WorkbookAutomation {
                 let crit_cells = cells(crit_area)?;
                 let crit_cols = crit_area.column_count() as usize;
                 let crit_rows = crit_area.row_count() as usize;
-                let header_label = |v: &CalcValue| -> Option<String> {
-                    match v.core_ref() {
-                        CoreRef::Text(t) => Some(t.to_string_lossy()),
-                        CoreRef::Number(n) => Some(n.to_string()),
-                        CoreRef::Logical(true) => Some("TRUE".into()),
-                        CoreRef::Logical(false) => Some("FALSE".into()),
-                        _ => None,
-                    }
-                };
                 let list_headers: Vec<Option<String>> = header.iter().map(header_label).collect();
                 for c in 0..crit_cols {
                     let has_condition = (1..crit_rows)
@@ -206,8 +222,9 @@ impl WorkbookAutomation {
                 kept.retain(|record| seen.insert(key(*record)));
             }
             let out_rows = kept.len() as u32 + 1;
+            let out_columns = selected.len() as u32;
             let end_row = destination.first().row() + out_rows - 1;
-            let end_column = destination.first().column() + columns - 1;
+            let end_column = destination.first().column() + out_columns - 1;
             if end_row > calc_value::MAX_ROWS || end_column > calc_value::MAX_COLUMNS {
                 return Err(error_1004());
             }
@@ -217,19 +234,18 @@ impl WorkbookAutomation {
             )
             .map_err(|_| error_1004())?;
             self.guard_area(session, output)?;
+            // Excel ww22: the extract clears whatever stands below it in its columns.
+            let mut below_edit = None;
             if end_row < calc_value::MAX_ROWS {
                 let below = GridArea::new(
                     CellKey::new(destination.sheet(), end_row + 1, destination.first().column())
                         .map_err(|_| error_1004())?,
-                    CellKey::new(destination.sheet(), calc_value::MAX_ROWS, end_column)
-                        .map_err(|_| error_1004())?,
+                    CellKey::new(destination.sheet(), calc_value::MAX_ROWS, end_column).map_err(|_| error_1004())?,
                 )
                 .map_err(|_| error_1004())?;
                 if host.model().cells(below).is_some_and(|mut cells| cells.next().is_some()) {
-                    return Err(AutoError::not_modelled(
-                        "Range.AdvancedFilter xlFilterCopy clearing existing cells below CopyToRange",
-                        REMAINDER,
-                    ));
+                    self.guard_area(session, below)?;
+                    below_edit = Some(crate::CellEdit::Clear { area: below });
                 }
             }
             let cell_edit = |at: CellKey, value: &CalcValue| -> Result<crate::CellEdit, AutoError> {
@@ -257,13 +273,15 @@ impl WorkbookAutomation {
             let sheet = destination.sheet();
             let first_row = destination.first().row();
             let first_col = destination.first().column();
-            let mut edits = Vec::with_capacity((out_rows * columns) as usize);
-            for (c, value) in header.iter().enumerate() {
+            let mut edits = Vec::with_capacity((out_rows * out_columns) as usize + 1);
+            edits.extend(below_edit);
+            for (c, source) in selected.iter().enumerate() {
                 let at = CellKey::new(sheet, first_row, first_col + c as u32).map_err(|_| error_1004())?;
-                edits.push(cell_edit(at, value)?);
+                edits.push(cell_edit(at, &header[*source])?);
             }
             for (r, record) in kept.iter().enumerate() {
-                for (c, value) in all[record * columns as usize..(record + 1) * columns as usize].iter().enumerate() {
+                for (c, source) in selected.iter().enumerate() {
+                    let value = &all[record * columns as usize + source];
                     let at =
                         CellKey::new(sheet, first_row + 1 + r as u32, first_col + c as u32).map_err(|_| error_1004())?;
                     edits.push(cell_edit(at, value)?);

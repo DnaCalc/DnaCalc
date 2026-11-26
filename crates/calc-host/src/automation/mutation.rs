@@ -478,38 +478,46 @@ impl WorkbookAutomation {
         }
         Ok(SkinIntent::Edit { edits })
     }
-    /// Excel's `Application.Calculate` family acts on every open workbook; which cells it calculates in the others
-    /// is not recorded (dc-gw1be), so with another workbook open the call refuses instead of calculating one.
-    fn refuse_with_other_books(&self, call: &Call<'_>) -> Result<(), AutoError> {
+    /// `Application.Calculate`, `CalculateFull` and `CalculateFullRebuild` act on every open workbook (Excel
+    /// 16.0.20625, ww22: with the active workbook clean and another dirty, Calculate refreshed the dirty one and raised
+    /// its SheetCalculate only; the Full forms raised it in both). The caller's workbook first, then the others.
+    fn calculate_all(&self, kind: AppCalculate, call: &Call<'_>) -> Reply {
         no_args(call)?;
-        if self.open_books().is_ok_and(|books| books.len() > 1) {
-            return Err(AutoError::not_modelled("Application.Calculate with several workbooks open", "dc-gw1be"));
+        self.calculate_here(kind)?;
+        for runner in self.other_runners()? {
+            runner.calculate(kind)?;
         }
-        Ok(())
+        Ok(AutoValue::Empty)
     }
-    fn calculate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.refuse_with_other_books(call)?;
-        self.mutate(target, call, |_, _| {
-            no_args(call)?;
-            Ok(SkinIntent::Recalculate)
+    /// This workbook's share of an `Application.Calculate*` call.
+    pub fn calculate_here(&self, kind: AppCalculate) -> Result<(), AutoError> {
+        self.with_write(|session| {
+            let intent = match kind {
+                AppCalculate::Dirty => SkinIntent::Recalculate,
+                AppCalculate::Full => SkinIntent::Calculate {
+                    scope: crate::CalcScope::Workbook,
+                    selection: crate::EvalSelection::ForceAll,
+                },
+                AppCalculate::Rebuild => SkinIntent::Rebuild,
+            };
+            let receipt = session.dispatch_from(CommandIngress::Automation, intent);
+            if let Some(error) = receipt.error {
+                return Err(AutoError::not_modelled(format!("Application.Calculate: {error}"), OWNER));
+            }
+            Self::settle_as(session, receipt.recalc, "Application.Calculate")?;
+            self.context_changed(session);
+            Ok(AutoValue::Empty)
         })
+        .map(|_| ())
     }
-    fn calculate_full(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.refuse_with_other_books(call)?;
-        self.mutate(target, call, |_, _| {
-            no_args(call)?;
-            Ok(SkinIntent::Calculate {
-                scope: crate::CalcScope::Workbook,
-                selection: crate::EvalSelection::ForceAll,
-            })
-        })
+    fn calculate(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.calculate_all(AppCalculate::Dirty, call)
     }
-    fn calculate_rebuild(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.refuse_with_other_books(call)?;
-        self.mutate(target, call, |_, _| {
-            no_args(call)?;
-            Ok(SkinIntent::Rebuild)
-        })
+    fn calculate_full(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.calculate_all(AppCalculate::Full, call)
+    }
+    fn calculate_rebuild(&self, _target: &ObjectRef, call: &Call<'_>) -> Reply {
+        self.calculate_all(AppCalculate::Rebuild, call)
     }
     fn calculate_sheet(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.mutate(target, call, |_, _| {
