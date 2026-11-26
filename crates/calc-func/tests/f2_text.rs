@@ -94,6 +94,45 @@ fn textsplit_empty_delimiters_and_error_order() {
     error(call_on(&mut sheet, "TEXTSPLIT", vec![t("abc"), delimiter]), Value);
 }
 
+/// Excel 20527 (standing fuzz sweep, dc-j9k.548, .549; Touchstone probes 2026-11-26): TEXTSPLIT scans
+/// the text left to right once; at a position the column delimiters are tried before the row
+/// delimiters, so a delimiter in both sets splits columns, and a row delimiter inside a longer
+/// column delimiter is never reached.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textsplit_column_delimiter_wins_over_row_delimiter() {
+    let shape_and_cells = |args: Vec<calc_func::value::CalcValue>| {
+        let value = call("TEXTSPLIT", args).unwrap();
+        let array = value.as_array().expect("an array").clone();
+        let shape = array.shape();
+        let cells: Vec<String> = array.iter_row_major().map(|c| c.as_text().unwrap().to_string_lossy()).collect();
+        (shape.rows, shape.cols, cells)
+    };
+    let owned = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(shape_and_cells(vec![t("a,b;c"), t(","), t(",")]), (1, 2, owned(&["a", "b;c"])));
+    assert_eq!(shape_and_cells(vec![t("1abc2"), t("ab"), t("b")]), (1, 2, owned(&["1", "c2"])));
+    assert_eq!(shape_and_cells(vec![t("1abc2"), t("b"), t("ab")]), (2, 1, owned(&["1", "c2"])));
+    assert_eq!(shape_and_cells(vec![t("1abc2"), t("ab"), t("abc")]), (1, 2, owned(&["1", "c2"])));
+    assert_eq!(shape_and_cells(vec![t("1abc2"), t("abc"), t("ab")]), (1, 2, owned(&["1", "2"])));
+    assert_eq!(shape_and_cells(vec![t("1AB2"), t("ab"), t("AB")]), (2, 1, owned(&["1", "2"])));
+}
+
+/// Excel 20527 (standing fuzz sweep, dc-j9k.546, .547; Touchstone 2026-11-26): TEXTSPLIT match_mode
+/// truncates toward zero and must then be 0 or 1 (2, 3, -1 and 1e100 are #VALUE!; 0.5, -0.99, 1.999
+/// are fine); ignore_empty takes any finite number.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textsplit_match_mode_is_zero_or_one_after_truncation() {
+    let with = |mode: f64| call("TEXTSPLIT", vec![t("a=1;b=2,3"), t(","), t(";"), n(0.0), n(mode)]);
+    for bad in [2.0, 3.0, -1.0, 1e100] {
+        error(with(bad), Value);
+    }
+    for good in [0.0, 0.5, -0.5, -0.99, 1.0, 1.999] {
+        assert!(with(good).unwrap().as_array().is_some(), "{good}");
+    }
+    call("TEXTSPLIT", vec![t("a=1;b=2,3"), t(","), t(";"), n(1e100), n(0.0)]).unwrap();
+}
+
 /// Excel 20527 TEXTJOIN option controls and independent typed holdouts.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
