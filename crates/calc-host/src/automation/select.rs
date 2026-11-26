@@ -117,7 +117,7 @@ impl WorkbookAutomation {
 
     /// Range.Activate: the range's first cell becomes the active cell. Inside the current selection the selection
     /// stays (ww22: B2:D5 with A1:B2 selected makes B2 active, selection kept); a single cell outside it replaces the
-    /// selection (ww20: F9). A multi-cell range whose first cell is outside is not captured from Excel (dc-oxh8w.49).
+    /// selection (ww20: F9); a multi-cell range whose first cell is outside is selected whole (ww24: D4:E5 over A1:B2).
     fn range_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let held = Self::held_of(target)?;
@@ -140,10 +140,9 @@ impl WorkbookAutomation {
             });
             let selection = if inside {
                 Selection { active: Some(cell), areas: current.areas }
-            } else if area.cell_count() == 1 {
-                Selection { active: Some(cell), areas: vec![GridArea::cell(cell)] }
             } else {
-                return Err(AutoError::not_modelled("Range.Activate of a multi-cell range outside the current selection", OWNER));
+                // ww20: a single cell outside replaces the selection; ww24: a multi-cell range outside is selected whole.
+                Selection { active: Some(cell), areas: vec![*area] }
             };
             Self::select_intent(session, selection, "Range", "Activate")?;
             self.context_changed(session);

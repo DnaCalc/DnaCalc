@@ -8605,6 +8605,38 @@ fn dc_oxh8w_49__multi_cell_activate_and_cut_copy_mode_assignments() {
     }
 }
 
+/// dc-oxh8w.49 (ww24 c/ case5, Excel 16.0.20625.20108): Range.Activate of a multi-cell range whose first cell lies outside
+/// the selection selects that whole range and makes its first cell active (D4:E5 over A1:B2 -> $D$4:$E$5, active $D$4).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__multi_cell_activate_outside_the_selection_selects_the_range() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheet = obj(invoke(&model, &worksheets(&model), "Item", vec![AutoValue::I4(1)]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &sheet, "Range", vec![AutoValue::text(a)]).unwrap());
+    invoke_kind(&model, &sub("A1:B2"), "Select", InvokeKind::Method, vec![]).unwrap();
+    let done = invoke_kind(&model, &sub("D4:E5"), "Activate", InvokeKind::Method, vec![]);
+    assert!(done.is_ok(), "{done:?}");
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Address"), "$D$4:$E$5");
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap()), "Address"), "$D$4");
+}
+
+/// dc-oxh8w.49 (ww24 c/ case7, Excel 16.0.20625.20108): with a chart sheet active, Selection is Nothing and ActiveCell
+/// raises error 91 (Object variable or With block variable not set).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__chart_sheet_active_has_no_selection_and_no_active_cell() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let charts = obj(invoke(&model, &book, "Charts", vec![]).unwrap());
+    invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![]).unwrap();
+    let selection = invoke(&model, &app, "Selection", vec![]);
+    assert!(matches!(selection, Ok(AutoValue::Empty)), "{selection:?}");
+    let active_cell = invoke(&model, &app, "ActiveCell", vec![]);
+    assert!(matches!(active_cell, Err(AutoError::Excel { number: 91, .. })), "{active_cell:?}");
+}
+
 /// dc-oxh8w.49 (ww21, Excel 16.0.20625): hiding the active (ungrouped) middle sheet activates the following sheet.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

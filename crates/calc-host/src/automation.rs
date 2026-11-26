@@ -1037,6 +1037,12 @@ impl WorkbookAutomation {
     fn own_selection(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
+            // ww24 c/ case7: a chart sheet is active, so nothing is selected (Nothing).
+            if let Access::Session(session, _) = access
+                && Self::session_active_sheet(session).is_some_and(|sheet| meta.chart_sheets.contains(&sheet))
+            {
+                return Ok(AutoValue::Empty);
+            }
             if let Access::Session(session, _) = access
                 && !session.selection().areas.is_empty()
             {
@@ -1056,6 +1062,12 @@ impl WorkbookAutomation {
     fn own_active_cell(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         self.with_target(target, |access, meta| {
             no_args(call)?;
+            // ww24 c/ case7: with a chart sheet active there is no active cell (91).
+            if let Access::Session(session, _) = access
+                && Self::session_active_sheet(session).is_some_and(|sheet| meta.chart_sheets.contains(&sheet))
+            {
+                return Err(AutoError::excel(91, "Object variable or With block variable not set"));
+            }
             self.active_cell_range(access, meta, "_Application.ActiveCell without a user view")
         })
     }
