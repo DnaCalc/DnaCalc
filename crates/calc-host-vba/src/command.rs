@@ -931,6 +931,80 @@ End Function
         }
     }
 
+    /// dc-gw1be (ww24, Excel 16.0.20625): Application.Calculate, CalculateFull and CalculateFullRebuild recalculate every
+    /// open workbook (a volatile RAND cell changes in the non-active one) and each workbook raises Worksheet_Calculate
+    /// then Workbook_SheetCalculate once per call. Asserted here for the non-caller workbook.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_gw1be_calculate_raises_the_calculate_events_once_in_every_open_workbook() {
+        const STATE: &str = "Public Log As String\nPublic Function GetLog() As String\n GetLog = Log\n Log = \"\"\nEnd Function\n";
+        let handlers = |tag: &str| -> (String, String) {
+            (
+                format!("Private Sub Worksheet_Calculate()\n Module1.Log = Module1.Log & \"{tag}.WS;\"\nEnd Sub\n"),
+                format!(
+                    "Private Sub Workbook_SheetCalculate(ByVal Sh As Object)\n Module1.Log = Module1.Log & \"{tag}.WB;\"\nEnd Sub\n"
+                ),
+            )
+        };
+        let bytes = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
+        let mut session =
+            HostSession::open(Arc::new(MemorySource::new(bytes.to_vec()).named("MainBook.xlsm")), &OpenPolicy::default(), HostOptions::default())
+                .unwrap();
+        let sheet = session.host().sheets()[0].id();
+        let (ws, wb) = handlers("M");
+        let main_source = format!(
+            "{STATE}Public Function Setup() As String\n With ThisWorkbook.Worksheets(1)\n .Range(\"H1\").Value = 1\n .Range(\"H2\").Formula = \"=RAND()\"\n End With\n \
+             With Workbooks(\"ActiveBook.xlsx\").Worksheets(1)\n .Range(\"H1\").Value = 1\n .Range(\"H2\").Formula = \"=RAND()\"\n End With\n Setup = \"\"\nEnd Function\n\
+             Public Function Go(kind As Long) As String\n Dim a As Variant, b As Variant\n a = Workbooks(\"ActiveBook.xlsx\").Worksheets(1).Range(\"H2\").Value\n \
+             Application.Run \"ActiveBook.xlsx!GetLog\"\n GetLog\n \
+             If kind = 0 Then\n Application.Calculate\n ElseIf kind = 1 Then\n Application.CalculateFull\n Else\n Application.CalculateFullRebuild\n End If\n \
+             b = Workbooks(\"ActiveBook.xlsx\").Worksheets(1).Range(\"H2\").Value\n \
+             Go = GetLog & \"|\" & Application.Run(\"ActiveBook.xlsx!GetLog\") & \"|\" & (a <> b)\nEnd Function\n"
+        );
+        let owner = crate::prepare(
+            session.host(),
+            "MainBook.xlsm",
+            &[
+                crate::ModuleSource { name: "Module1".into(), target: crate::ModuleTarget::Standard, source: main_source },
+                crate::ModuleSource { name: "Sheet1".into(), target: crate::ModuleTarget::Worksheet(sheet), source: ws },
+                crate::ModuleSource { name: "ThisWorkbook".into(), target: crate::ModuleTarget::Workbook, source: wb },
+            ],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        owner.clone().install(&mut session);
+        let mut other_session = HostSession::open(
+            Arc::new(MemorySource::new(calc_doc::blank_package()).named("ActiveBook.xlsx")),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let other_sheet = other_session.host().sheets()[0].id();
+        let (ws, wb) = handlers("O");
+        let other_book = crate::prepare(
+            other_session.host(),
+            "ActiveBook.xlsx",
+            &[
+                crate::ModuleSource { name: "Module1".into(), target: crate::ModuleTarget::Standard, source: STATE.into() },
+                crate::ModuleSource { name: "Sheet1".into(), target: crate::ModuleTarget::Worksheet(other_sheet), source: ws },
+                crate::ModuleSource { name: "ThisWorkbook".into(), target: crate::ModuleTarget::Workbook, source: wb },
+            ],
+            1_000_000,
+            Some(calc_vba::Backend::Interpreter),
+        )
+        .unwrap();
+        other_book.clone().install(&mut other_session);
+        other_book.adopt(other_session, false);
+        run(&mut session, &owner, &[AutoValue::text("Setup")]).unwrap();
+        for kind in 0..3 {
+            let got = text(run(&mut session, &owner, &[AutoValue::text("Go"), AutoValue::I4(kind)]));
+            // The caller's own handlers fail while its macro runs (VBA error 5, dc-hsa5.12 re-entry): dc-5fkqv owns that half.
+            let (_, rest) = got.split_once('|').unwrap();
+            assert_eq!(rest, "O.WS;O.WB;|True", "kind {kind}: the other book raises Worksheet_Calculate then Workbook_SheetCalculate once; its RAND changed");
+        }
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dc_zd4cx_unqualified_application_members_target_active_workbook() {
