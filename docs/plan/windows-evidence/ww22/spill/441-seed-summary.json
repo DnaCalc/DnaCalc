@@ -1,0 +1,67 @@
+{
+  "seed": 14889038551757258152,
+  "product_prediction_commit": "867d09083f",
+  "counts": {
+    "exact": 835,
+    "blocked": 369,
+    "scalar_anchor": 6
+  },
+  "stages": [
+    {
+      "stage": "round-00-predictions",
+      "asked": 128,
+      "response_id": "984d58f4dbdb4f95b69c0762bd7b3628",
+      "counts": {
+        "exact": 128
+      },
+      "excel_file_version": "16.0.20625.20108",
+      "elapsed": 2.047
+    },
+    {
+      "stage": "round-01-predictions",
+      "asked": 107,
+      "response_id": "7ae1bccbc9da43399455d98a8f84bb69",
+      "counts": {
+        "exact": 103,
+        "blocked": 3,
+        "scalar_anchor": 1
+      },
+      "excel_file_version": "16.0.20625.20108",
+      "elapsed": 1.969
+    },
+    {
+      "stage": "round-01-boundary-predictions",
+      "asked": 350,
+      "response_id": "565df631f2b545a28c8ba4391cb2cdbc",
+      "counts": {
+        "blocked": 171,
+        "exact": 176,
+        "scalar_anchor": 3
+      },
+      "excel_file_version": "16.0.20625.20108",
+      "elapsed": 8.907
+    },
+    {
+      "stage": "round-02-boundary-predictions",
+      "asked": 316,
+      "response_id": "f87c50f27b6749eeb977b9e8eaa4232c",
+      "counts": {
+        "exact": 316
+      },
+      "excel_file_version": "16.0.20625.20108",
+      "elapsed": 10.25
+    },
+    {
+      "stage": "fractal-coarse-03-bracket-predictions",
+      "asked": 309,
+      "response_id": "6d703df5a2224dd28e17b03708b80abd",
+      "counts": {
+        "blocked": 195,
+        "exact": 112,
+        "scalar_anchor": 2
+      },
+      "excel_file_version": "16.0.20625.20108",
+      "elapsed": 0.875
+    }
+  ]
+}

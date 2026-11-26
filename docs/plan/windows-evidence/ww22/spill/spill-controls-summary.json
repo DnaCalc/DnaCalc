@@ -1,0 +1,1325 @@
+{
+  "isolated": [
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r00-000066",
+      "args": [
+        [
+          [
+            "0xc04a5dabe72002b0"
+          ],
+          [
+            "0x406c2f7887f8d39c"
+          ],
+          [
+            "0xc07add76472c73bb"
+          ],
+          [
+            "0x407dabbaf9116794"
+          ],
+          [
+            "0x406cbb8de2185ae0"
+          ]
+        ],
+        "0x4000000000000000"
+      ],
+      "prior": "other_difference",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "4e1a7fc5a52a47748a332dacf66dc31e",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        2,
+        3
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 2,
+        "cols": 3,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c04a5dabe72002b0"
+            },
+            {
+              "type": "number",
+              "bits": "c07add76472c73bb"
+            },
+            {
+              "type": "number",
+              "bits": "406cbb8de2185ae0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "406c2f7887f8d39c"
+            },
+            {
+              "type": "number",
+              "bits": "407dabbaf9116794"
+            },
+            {
+              "type": "error",
+              "code": "#N/A"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000187",
+      "args": [
+        [
+          [
+            "0xc08a996f0e42a0e0"
+          ],
+          [
+            "0x4087801911ba22de"
+          ]
+        ],
+        "0x4056400000000000"
+      ],
+      "prior": "blocked",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "e7b6d4f4da7e4ad88cc29c5b944de49b",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        2,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 2,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c08a996f0e42a0e0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4087801911ba22de"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000197",
+      "args": [
+        {
+          "range": [
+            [
+              "0x3ff0000000000000"
+            ],
+            [
+              null
+            ],
+            [
+              "a"
+            ],
+            [
+              {
+                "error": "Div0"
+              }
+            ]
+          ]
+        },
+        "0x3ff0000000000000"
+      ],
+      "prior": "other_difference",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "2ba1038ab26044ff8fff737c922c9480",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        1,
+        4
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 1,
+        "cols": 4,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            },
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            },
+            {
+              "type": "text",
+              "value": "a"
+            },
+            {
+              "type": "error",
+              "code": "#DIV/0!"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000200",
+      "args": [
+        [
+          [
+            "0xc059c52aed992ba8"
+          ],
+          [
+            "0xc07d3f8e0467751e"
+          ]
+        ],
+        "0x4000000000000000"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "2fd480f84460471eb83628f58cfe6591",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        2,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 2,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c059c52aed992ba8"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c07d3f8e0467751e"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000226",
+      "args": [
+        {
+          "range": [
+            [
+              "0x3ff0000000000000"
+            ],
+            [
+              null
+            ],
+            [
+              "a"
+            ],
+            [
+              {
+                "error": "Div0"
+              }
+            ]
+          ]
+        },
+        "0x4018000000000000"
+      ],
+      "prior": "other_difference",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "b77e2cacd44f4aecb12527205aa6d2ae",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        4,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 4,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "0000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "text",
+              "value": "a"
+            }
+          ],
+          [
+            {
+              "type": "error",
+              "code": "#DIV/0!"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000236",
+      "args": [
+        [
+          [
+            "0xc0821e8198d6cdde"
+          ],
+          [
+            "0xc07929d32086be2e"
+          ],
+          [
+            "0x406b35263af54388"
+          ],
+          [
+            "0x408b355191805940"
+          ],
+          [
+            "0x4088ff8b6e0c0072"
+          ],
+          [
+            "0x4088ee898066975a"
+          ]
+        ],
+        "0x4038000000000000"
+      ],
+      "prior": "blocked",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "e004af3d52d34a208d71dc4662be06c3",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        6,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 6,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c0821e8198d6cdde"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c07929d32086be2e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "406b35263af54388"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408b355191805940"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ff8b6e0c0072"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ee898066975a"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000327",
+      "args": [
+        [
+          [
+            "0xc0765a156a3748c4"
+          ],
+          [
+            "0x4086ab0cb2fabcba"
+          ],
+          [
+            "0x4080c32b7f3f05e1"
+          ],
+          [
+            "0x4065352181f62978"
+          ],
+          [
+            "0x4083cf7e51d5020a"
+          ],
+          [
+            "0x408bc56ec45283cc"
+          ]
+        ],
+        "0x40714ffffffffffc"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "248b5b7018bd42febe2172bd47ce9dce",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        6,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 6,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c0765a156a3748c4"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4086ab0cb2fabcba"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4080c32b7f3f05e1"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4065352181f62978"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4083cf7e51d5020a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408bc56ec45283cc"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000527",
+      "args": [
+        [
+          [
+            "0xc0821e8198d6cdd6"
+          ],
+          [
+            "0xc07929d32086be2e"
+          ],
+          [
+            "0x406b35263af54388"
+          ],
+          [
+            "0x408b355191805940"
+          ],
+          [
+            "0x4088ff8b6e0c0072"
+          ],
+          [
+            "0x4088ee898066975a"
+          ]
+        ],
+        "0x4018000000000002"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "f1ecc2f8e1bf4c33ac3fa61c701b15cf",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        6,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 6,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c0821e8198d6cdd6"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c07929d32086be2e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "406b35263af54388"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408b355191805940"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ff8b6e0c0072"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ee898066975a"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-r01-000585",
+      "args": [
+        [
+          [
+            "0xc0821e8198d6ca05"
+          ],
+          [
+            "0xc07929d32086be2e"
+          ],
+          [
+            "0x406b35263af54388"
+          ],
+          [
+            "0x408b355191805940"
+          ],
+          [
+            "0x4088ff8b6e0c0072"
+          ],
+          [
+            "0x4088ee898066975a"
+          ]
+        ],
+        "0x4018000000000008"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "a500014f16474bf3a75c3a9c5ee0f8cc",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        6,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 6,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c0821e8198d6ca05"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c07929d32086be2e"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "406b35263af54388"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408b355191805940"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ff8b6e0c0072"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4088ee898066975a"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-fc03-000902",
+      "args": [
+        [
+          [
+            "0xc05bcb73be811280"
+          ],
+          [
+            "0x4089fc89a0370220"
+          ],
+          [
+            "0x4084f2160194785a"
+          ],
+          [
+            "0x408eec8302ad4a7c"
+          ]
+        ],
+        "0x4065a10000000000",
+        "0x406b9fe000000000"
+      ],
+      "prior": "blocked",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "07025c4ef27b47ffa13904e66320942f",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        4,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 4,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c05bcb73be811280"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4089fc89a0370220"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4084f2160194785a"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408eec8302ad4a7c"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-fc03-001065",
+      "args": [
+        [
+          [
+            "0x405bcb73be811280"
+          ],
+          [
+            "0x4089fc89a0370220"
+          ],
+          [
+            "0x4060000000000000"
+          ],
+          [
+            "0x408eec8302ad4a7c"
+          ]
+        ],
+        "0x4065a10000000000",
+        "0x406b9fe000000000"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "6811b3f3c64f45aca9ea7f5767dd92d9",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        4,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 4,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "405bcb73be811280"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4089fc89a0370220"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4060000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408eec8302ad4a7c"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "WRAPCOLS",
+      "case": "fuzz-WRAPCOLS-fc03-001100",
+      "args": [
+        [
+          [
+            "0x405bcb73be811280"
+          ],
+          [
+            "0x4089fc89a0370220"
+          ],
+          [
+            "0x40ba2e9b81f99670"
+          ],
+          [
+            "0x408eec8302ad4a7c"
+          ]
+        ],
+        "0x4065a10000000000",
+        "0x406b9fe000000000"
+      ],
+      "prior": "scalar_anchor",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "ae5d8bde850e4c7583a1905454e02918",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        4,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 4,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "405bcb73be811280"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4089fc89a0370220"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40ba2e9b81f99670"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408eec8302ad4a7c"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r00-000064",
+      "args": [
+        "0x4000000000000000"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "2ad0aeec654340009fbc85c6c1bdacd5",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        2,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 2,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r00-000014",
+      "args": [
+        "0x40b0d885ae82f60a"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "unread",
+      "matched": false,
+      "response_id": "88faafe9e8114bf5b6134c0fd59526c8",
+      "env_id": "ee9b4903d114",
+      "reason": "spill-larger-than-the-bound",
+      "exact_reply": {
+        "type": "unread",
+        "reason": "spill-larger-than-the-bound",
+        "read_back": []
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r00-000065",
+      "args": [
+        "0x4022000000000000",
+        "0x3ff0000000000000"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "ddb3cde5c5ba41ceb5f589df548a159e",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        9,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 9,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "3ff0000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4000000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4008000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4010000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4014000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4018000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "401c000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4020000000000000"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4022000000000000"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r01-000151",
+      "args": [
+        "0x4028000000000000",
+        "0x3ff0000000000000",
+        "0x40718619ba7885fc"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "d38f4a55df0d4ee9bf80a9df8d90e6fa",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        12,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 12,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "40718619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40719619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071a619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071b619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071c619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071d619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071e619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4071f619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40720619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40721619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40722619ba7885fc"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40723619ba7885fc"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r00-000101",
+      "args": [
+        "0x4024000000000000",
+        "0x3ff0000000000000",
+        "0xc08cd7b0407d9932"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "ed09e9ec255d47f3b2a182c119604161",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        10,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 10,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "c08cd7b0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08ccfb0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08cc7b0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08cbfb0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08cb7b0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08cafb0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08ca7b0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08c9fb0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08c97b0407d9932"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "c08c8fb0407d9932"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "function": "SEQUENCE",
+      "case": "fuzz-SEQUENCE-r00-000099",
+      "args": [
+        "0x4024000000000000",
+        "0x3ff0000000000000",
+        "0x4071052b0a050e1c",
+        "0x4081805b4cfdf5a2"
+      ],
+      "prior": "archived_cluster",
+      "result_type": "array",
+      "matched": true,
+      "response_id": "6e81e0ad78c04499874f61593ac7b99c",
+      "env_id": "ee9b4903d114",
+      "shape": [
+        10,
+        1
+      ],
+      "exact_reply": {
+        "type": "array",
+        "rows": 10,
+        "cols": 1,
+        "values": [
+          [
+            {
+              "type": "number",
+              "bits": "4071052b0a050e1c"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "408a02f0d2007cb0"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "4095c1a60f7f3929"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "409e81d3b5fe33fa"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40a3a100ae3e9766"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40a80117817e14ce"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40ac612e54bd9236"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40b060a293fe87cf"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40b290adfd9e4683"
+            }
+          ],
+          [
+            {
+              "type": "number",
+              "bits": "40b4c0b9673e0537"
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "layouts": [
+    {
+      "layout": "spread",
+      "response_id": "77ff5f00fb0244c7ae9e2ea00ca334d4",
+      "rows": [
+        {
+          "at": "Layout!A1",
+          "formula": "=SEQUENCE(Z1,AA1,AB1)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A21",
+          "formula": "=SEQUENCE(Z2,AA2,AB2,AC2)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A41",
+          "formula": "=SEQUENCE(Z3,AA3,AB3)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A61",
+          "formula": "=SEQUENCE(Z4,AA4,AB4)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A81",
+          "formula": "=SEQUENCE(Z5,AA5)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A101",
+          "formula": "=SEQUENCE(Z6)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A121",
+          "formula": "=SEQUENCE(Z7,AA7,AB7)",
+          "matched": true,
+          "spill": false,
+          "reply_type": "number",
+          "error": null
+        },
+        {
+          "at": "Layout!A141",
+          "formula": "=SEQUENCE(Z8,AA8,AB8,AC8)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        }
+      ]
+    },
+    {
+      "layout": "adjacent",
+      "response_id": "6adf37302bb74804b96875c7bf41f931",
+      "rows": [
+        {
+          "at": "Layout!A1",
+          "formula": "=SEQUENCE(Z1,AA1,AB1)",
+          "matched": false,
+          "spill": false,
+          "reply_type": "error",
+          "error": "#SPILL!"
+        },
+        {
+          "at": "Layout!A2",
+          "formula": "=SEQUENCE(Z2,AA2,AB2,AC2)",
+          "matched": false,
+          "spill": false,
+          "reply_type": "error",
+          "error": "#SPILL!"
+        },
+        {
+          "at": "Layout!A3",
+          "formula": "=SEQUENCE(Z3,AA3,AB3)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        },
+        {
+          "at": "Layout!A4",
+          "formula": "=SEQUENCE(Z4,AA4,AB4)",
+          "matched": false,
+          "spill": false,
+          "reply_type": "error",
+          "error": "#SPILL!"
+        },
+        {
+          "at": "Layout!A5",
+          "formula": "=SEQUENCE(Z5,AA5)",
+          "matched": false,
+          "spill": false,
+          "reply_type": "error",
+          "error": "#SPILL!"
+        },
+        {
+          "at": "Layout!A6",
+          "formula": "=SEQUENCE(Z6)",
+          "matched": false,
+          "spill": false,
+          "reply_type": "error",
+          "error": "#SPILL!"
+        },
+        {
+          "at": "Layout!A7",
+          "formula": "=SEQUENCE(Z7,AA7,AB7)",
+          "matched": true,
+          "spill": false,
+          "reply_type": "number",
+          "error": null
+        },
+        {
+          "at": "Layout!A8",
+          "formula": "=SEQUENCE(Z8,AA8,AB8,AC8)",
+          "matched": true,
+          "spill": true,
+          "reply_type": "array",
+          "error": null
+        }
+      ]
+    }
+  ]
+}

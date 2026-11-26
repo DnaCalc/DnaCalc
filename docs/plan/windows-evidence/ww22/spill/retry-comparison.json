@@ -1,0 +1,421 @@
+{
+  "451-batch": {
+    "asked": 1,
+    "reply_id": "23e56be321084813aa638c3b1b946c49",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 0,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          10,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-batch": {
+    "asked": 8,
+    "reply_id": "7d9d32622a9d49dcb70afcc422bc22cc",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "scalar_anchor": 3,
+      "blocked": 2,
+      "exact": 3
+    },
+    "rows": [
+      {
+        "index": 0,
+        "class_": "scalar_anchor",
+        "returned_type": "number",
+        "shape": null
+      },
+      {
+        "index": 1,
+        "class_": "scalar_anchor",
+        "returned_type": "number",
+        "shape": null
+      },
+      {
+        "index": 2,
+        "class_": "blocked",
+        "returned_type": "error",
+        "shape": null
+      },
+      {
+        "index": 3,
+        "class_": "blocked",
+        "returned_type": "error",
+        "shape": null
+      },
+      {
+        "index": 4,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      {
+        "index": 5,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          12,
+          1
+        ]
+      },
+      {
+        "index": 6,
+        "class_": "exact",
+        "returned_type": "number",
+        "shape": null
+      },
+      {
+        "index": 7,
+        "class_": "scalar_anchor",
+        "returned_type": "number",
+        "shape": null
+      }
+    ]
+  },
+  "450-shapes-isolated-0": {
+    "asked": 1,
+    "reply_id": "d5a052a9dd174ae2885097a2bf0eff3f",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 0,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          12,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-1": {
+    "asked": 1,
+    "reply_id": "0fa4e4475ae14f139bbd010e72dca2e0",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 1,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          12,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-2": {
+    "asked": 1,
+    "reply_id": "1d530e976a79466097fb94ced11f8326",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 2,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          1,
+          12
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-3": {
+    "asked": 1,
+    "reply_id": "72a4d210e20b4c39a2e39bd89a8b024a",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 3,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          3,
+          4
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-4": {
+    "asked": 1,
+    "reply_id": "f105bfb9b32c4ef2abf4a15cea1c3d03",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 4,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          2,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-5": {
+    "asked": 1,
+    "reply_id": "37697fb89dff48d09068210ec80ae6e9",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 5,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          12,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-6": {
+    "asked": 1,
+    "reply_id": "3ea6aa6c677e442e8aa0cc073cd88f1c",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 6,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  "450-shapes-isolated-7": {
+    "asked": 1,
+    "reply_id": "c66ab52665cf4c5085cc70ff81cb5982",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 7,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          12,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-batch": {
+    "asked": 5,
+    "reply_id": "776bd96304924d23ad2829fbb3cb5a13",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 5
+    },
+    "rows": [
+      {
+        "index": 0,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          4,
+          1
+        ]
+      },
+      {
+        "index": 1,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      },
+      {
+        "index": 2,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          2,
+          1
+        ]
+      },
+      {
+        "index": 3,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      },
+      {
+        "index": 4,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-isolated-0": {
+    "asked": 1,
+    "reply_id": "d94e7b7498554c60aac558bd50f19616",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 0,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          4,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-isolated-1": {
+    "asked": 1,
+    "reply_id": "726d076dacfe439883dd7125e88bcbcf",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 1,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-isolated-2": {
+    "asked": 1,
+    "reply_id": "7034157f2cf542ce9b344361475e4d98",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 2,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          2,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-isolated-3": {
+    "asked": 1,
+    "reply_id": "6702bd04cc5542f3b460b1aad83c58fe",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 3,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      }
+    ]
+  },
+  "441-sweep-reps-isolated-4": {
+    "asked": 1,
+    "reply_id": "c238abc3d4074f9fac28a0146df1e22b",
+    "workbook_pid": null,
+    "excel_file_version": "16.0.20625.20108",
+    "env_id": "ee9b4903d114",
+    "counts": {
+      "exact": 1
+    },
+    "rows": [
+      {
+        "index": 4,
+        "class_": "exact",
+        "returned_type": "array",
+        "shape": [
+          7,
+          1
+        ]
+      }
+    ]
+  }
+}

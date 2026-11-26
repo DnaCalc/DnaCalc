@@ -31,8 +31,10 @@ calculation. The [ww22 evidence](windows-evidence/ww22/README.md) includes probe
 saved project fixtures, WitnessSets and the coordinator's bead comment text. Product work remains
 with the beads listed there.
 
-The live Touchstone broker reported a stalled isolated queue. The attempted SEQUENCE layouts and
-both exact gamma CDF requests timed out at the client. Spill transport remains with
+After the stalled Touchstone queue cleared, the SEQUENCE shapes matched 8/8 in isolation and
+3/8 in a batch. The recorded WRAPCOLS seed matched 835/1,210 in bulk, with 369 blocked spills and
+six scalar anchor reads. Twelve isolated WRAPCOLS follow-ups matched. Both gamma CDF aliases
+reached the Excel service deadline on the exact remaining input. Spill transport remains with
 dc-fuzz-spill-compare-g1ol0 and the unread gamma input with dc-j9k.5.
 Keep row-level Excel discrepancies as WitnessSet JSON and keep frozen predictions separate.
 
