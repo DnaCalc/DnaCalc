@@ -258,3 +258,36 @@ fn fuzz_cluster_representatives_calculate_as_pinned() {
         failures.join("\n")
     );
 }
+
+/// Excel 16.0.20625 (dc-j9k.594): IMPOWER is #NUM! once either part's ratio to the other overflows
+/// (1e-300-1e9i, 1e300+1e-9i), for every exponent; 1e-300+1e8i (ratio 1e308) still computes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_is_num_when_the_part_ratio_overflows() {
+    for z in ["1e-300-1e9i", "1e-300+1e9i", "1e300+1e-9i", "1e300-1e-9i", "1e-200+1e110i"] {
+        for n in ["0x3ff0000000000000", "0xc0657a3d70a3d70a", "0x3fe0000000000000"] {
+            let args = [serde_json::json!(z), serde_json::json!(n)];
+            assert_eq!(witness_call::calculate("IMPOWER", &args, None, None, true), "error:Num", "{z} {n}");
+        }
+    }
+    let args = [serde_json::json!("1e-300+1e8i"), serde_json::json!("0x4000000000000000")];
+    assert_eq!(
+        witness_call::calculate("IMPOWER", &args, None, None, true),
+        "text:-10000000000000000+1.22514845490862i"
+    );
+}
+
+/// Excel 16.0.20625 (dc-j9k.595): off the axes IMPOWER takes POWER's magnitude, the circular
+/// argument reduction and IMARGUMENT's angle; 602 of 602 random rows matched, 276 before.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_off_axis_matches_excel() {
+    for (z, n, expected) in [
+        ("1-i", "0x40731997550d0444", "text:3.07512769180747E+45-9.4502853831412E+45i"),
+        ("1+i", "0x4000000000000000", "text:1.22514845490862E-16+2i"),
+        ("-0.25+0.0001i", "0x4043000000000000", "text:1.3233401165453E-23-2.01163179471153E-25i"),
+    ] {
+        let args = [serde_json::json!(z), serde_json::json!(n)];
+        assert_eq!(witness_call::calculate("IMPOWER", &args, None, None, true), expected, "{z} {n}");
+    }
+}

@@ -538,33 +538,34 @@ impl ParsedComplex {
             return Ok(Self::new(0.0, 0.0, None));
         }
         let on_axis = self.im == 0.0 || self.re == 0.0;
+        // Off the axes either part's ratio to the other overflowing is #NUM! for every exponent
+        // (Excel 20625, dc-j9k.594: 1e-300-1e9i, 1e300+1e-9i; 1e-300+1e8i still computes).
+        if !on_axis && ((self.im / self.re).is_infinite() || (self.re / self.im).is_infinite()) {
+            return Err(WorksheetErrorCode::Num);
+        }
         // Excel forms the squared modulus of every operand but a positive real and a pure
         // imaginary one: beyond the binary64 range it is #NUM! (Excel 20625, dc-j9k.490).
         let squares_modulus = !(self.re == 0.0 || (self.im == 0.0 && self.re > 0.0));
         if squares_modulus && (self.re * self.re + self.im * self.im).is_infinite() {
             return Err(WorksheetErrorCode::Num);
         }
-        let scale = if on_axis {
-            crate::ported::power_fn::power_kernel(self.abs(), exponent)
-                .map_err(|_| WorksheetErrorCode::Num)?
-        } else {
-            crt_pow(self.abs(), exponent)
-        };
+        // Off the axes too the magnitude is POWER's kernel (112 of 112 general-complex rows at
+        // |n| up to 313.6, Excel 20625, dc-j9k.595; crt_pow matched 70).
+        let scale = crate::ported::power_fn::power_kernel(self.abs(), exponent)
+            .map_err(|_| WorksheetErrorCode::Num)?;
         // A fully underflowed magnitude is published before validating the angle.
         if scale == 0.0 {
             return Ok(Self::new(0.0, 0.0, None));
         }
-        let angle = crt_atan2(self.im, self.re) * exponent;
+        // The angle is IMARGUMENT's (`atan` of the part ratio with the quadrant offset), not
+        // atan2: 602 of 602 random off-axis rows (Excel 20625, dc-j9k.595; atan2 matched 515).
+        let angle = self.argument()? * exponent;
         // Excel 20527 rejects complex-power angles above 2^27 - 1 in magnitude.
         if angle.abs() > 134_217_727.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        let (sine, cosine) = if on_axis {
-            // Excel uses its circular argument reduction on both axes.
-            complex_circular_parts(angle)
-        } else {
-            (crt_sin(angle), crt_cos(angle))
-        };
+        // Excel's circular argument reduction on and off the axes (dc-j9k.595).
+        let (sine, cosine) = complex_circular_parts(angle);
         Ok(Self::new(
             scale * cosine,
             scale * sine,
