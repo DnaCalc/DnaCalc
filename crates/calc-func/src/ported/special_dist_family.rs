@@ -88,21 +88,20 @@ pub fn erfc_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     if !x.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    // Recorded ERFC/ERFC.PRECISE tail readings publish +0 below the normal range.
-    let value = if x > 0.0 && x <= 0.5 {
-        crate::ported::excel_numeric::excel_x87_sub(1.0, erf_approx(x))
-    } else if x > 0.5 {
-        crate::ported::normal_dist_common::erfc_upper(x)
-    } else if x < -0.5 {
-        // R30 public complement pairs. The exponent controls distinguish the PC64
-        // subtraction from strict binary64. The positive upper body still owns F.
-        crate::ported::excel_numeric::excel_x87_sub(
-            2.0,
-            crate::ported::normal_dist_common::erfc_upper(-x),
-        )
+    use crate::ported::excel_numeric::excel_x87_sub;
+    let magnitude = x.abs();
+    let positive = if magnitude <= 0.5 {
+        excel_x87_sub(1.0, erf_approx(magnitude))
     } else {
-        libm::erfc(x)
+        crate::ported::normal_dist_common::erfc_upper(magnitude)
     };
+    // Excel reflects the stored positive result on both branches (dc-j9k.406).
+    let value = if x.is_sign_negative() {
+        excel_x87_sub(2.0, positive)
+    } else {
+        positive
+    };
+    // Recorded ERFC/ERFC.PRECISE tail readings publish +0 below the normal range.
     Ok(if value.is_subnormal() { 0.0 } else { value })
 }
 
