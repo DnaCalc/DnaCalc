@@ -11565,3 +11565,140 @@ fn dc_5oumk__table_filter_and_insert_on_a_protected_sheet() {
         assert_eq!(int(invoke(&model, &tables, "Count", vec![]).unwrap()), 0, "{tag} the table stayed");
     }
 }
+
+/// dc-oxh8w.43 (ww23/ww24, Excel 16.0.20625): a Top10 filter with count 0 or 501 raises 1004; count 500 is accepted.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__auto_filter_top10_count_must_be_1_to_500() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(&host, (1, 1), &[&["name", "qty"], &["a", "5"], &["b", "15"], &["c", "25"], &["d", "35"]]);
+    let top = |count: i32| {
+        invoke_kind(
+            &model,
+            &range(&model, "A1:B5"),
+            "AutoFilter",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::I4(count), AutoValue::I4(3)],
+        )
+    };
+    for count in [0, 501] {
+        assert!(matches!(top(count), Err(AutoError::Excel { number: 1004, .. })), "count {count}");
+    }
+    top(500).unwrap();
+}
+
+/// dc-oxh8w.43 (ww24): xlPasteComments from a source with no note deletes the destination's note.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_comments_from_a_note_less_source_deletes_the_destination_note() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(include_bytes!("fixtures/d2/structural-base.xlsx").to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let sheet_id =
+        host.session.borrow().host().sheets().iter().find(|s| s.name().text().to_string_lossy() == "S").expect("sheet S").id();
+    let notes_at = |row: u32, column: u32| {
+        let session = host.session.borrow();
+        let key = CellKey::new(sheet_id, row, column).unwrap();
+        session.host().model().definitions().review_notes(sheet_id).iter().filter(|n| n.at == key).count()
+    };
+    assert_eq!(notes_at(2, 1), 1, "the fixture has a note on S!A2");
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, &format!("S!{address}")), name, InvokeKind::Method, args)
+    };
+    call("L40", "Copy", vec![]).unwrap();
+    call("A2", "PasteSpecial", vec![AutoValue::I4(-4144)]).unwrap();
+    assert_eq!(notes_at(2, 1), 0, "the note-less source removes the destination's note");
+}
+
+/// dc-oxh8w.43 (ww24): xlPasteValidation onto a cell that has its own rule replaces that rule.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__paste_validation_replaces_the_destinations_own_rule() {
+    let (host, model) = setup_session(
+        HostSession::open(
+            Arc::new(MemorySource::new(include_bytes!("fixtures/dc_6yw/data-validation.xlsx").to_vec())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap(),
+    );
+    let kind_at = |row: u32, column: u32| host.session.borrow().host().validation(at(&host, row, column)).map(|r| format!("{:?}", r.kind));
+    let ruled: Vec<(u32, u32, String)> = (1..=40u32)
+        .flat_map(|r| (1..=8u32).map(move |c| (r, c)))
+        .filter_map(|(r, c)| kind_at(r, c).map(|k| (r, c, k)))
+        .collect();
+    let (a, b) = ruled
+        .iter()
+        .find_map(|a| ruled.iter().find(|b| b.2 != a.2).map(|b| (a, b)))
+        .expect("two rules of different kinds");
+    let sheet = host.session.borrow().host().sheets()[0].name().text().to_string_lossy();
+    let name = |(r, c, _): &(u32, u32, String)| format!("'{sheet}'!{}{r}", (b'A' + *c as u8 - 1) as char);
+    invoke_kind(&model, &range(&model, &name(a)), "Copy", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &range(&model, &name(b)), "PasteSpecial", InvokeKind::Method, vec![AutoValue::I4(6)]).unwrap();
+    assert_eq!(kind_at(b.0, b.1), Some(a.2.clone()), "the destination's own rule {} was replaced by {}", b.2, a.2);
+}
+
+/// dc-oxh8w.43 (ww24, Excel 16.0.20625): `Worksheets.Add(, , Count)` takes 1..255 sheets; 0, -1 and 256 raise 1004. The new
+/// sheet is named from a counter that deleting a sheet does not rewind (delete Sheet1, Add -> Sheet3 after Sheet2).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__worksheets_add_count_and_name_counter() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let sheets = worksheets(&model);
+    let add = |args: Vec<AutoValue>| invoke_kind(&model, &sheets, "Add", InvokeKind::Method, args);
+    for count in [0, -1, 256] {
+        let r = add(vec![AutoValue::Missing, AutoValue::Missing, AutoValue::I4(count)]);
+        assert!(matches!(r, Err(AutoError::Excel { number: 1004, .. })), "count {count}: {r:?}");
+    }
+    assert_eq!(sheet_names(&host).join(","), "Sheet1", "a refused Add changes nothing");
+    add(vec![]).unwrap();
+    assert_eq!(sheet_names(&host).join(","), "Sheet2,Sheet1");
+    let first = obj(invoke(&model, &sheets, "Item", vec![AutoValue::text("Sheet1")]).unwrap());
+    invoke_kind(&model, &first, "Delete", InvokeKind::Method, vec![]).unwrap();
+    add(vec![]).unwrap();
+    assert_eq!(sheet_names(&host).join(","), "Sheet3,Sheet2");
+}
+
+/// dc-oxh8w.43 (ww24, Excel 16.0.20625): `Worksheet.Copy` copies the sheet's notes (a source with one note gave a copy with
+/// Comments.Count 1).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_43__worksheet_copy_copies_notes() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let source = host.session.borrow().host().sheets()[0].id();
+    let receipt = {
+        let mut session = host.session.borrow_mut();
+        let revision = session.host().revision().get();
+        session.dispatch(calc_host::SkinIntent::Command(calc_host::WorkbookCommand::ReviewAction {
+            at: CellKey::new(source, 1, 1).unwrap(),
+            revision,
+            action: calc_host::ReviewAction::Create {
+                parent: None,
+                threaded: false,
+                author: "A".into(),
+                text: "hi".into(),
+                timestamp: String::new(),
+            },
+        }))
+    };
+    assert!(receipt.error.is_none(), "{receipt:?}");
+    let counts = |sheet| host.session.borrow().host().model().definitions().review_notes(sheet).len();
+    assert_eq!(counts(source), 1);
+    let sheets = worksheets(&model);
+    let s = obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(1)]).unwrap());
+    invoke_kind(&model, &s, "Copy", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(s.clone())]).unwrap();
+    let copy = host.session.borrow().host().sheets()[1].id();
+    assert_eq!(counts(copy), 1, "the copy carries the note");
+    assert_eq!(counts(source), 1, "the source keeps its own");
+}

@@ -214,8 +214,9 @@ impl WorkbookAutomation {
         if !defs.sparklines(source).is_empty() {
             return refuse("sparklines");
         }
-        if !defs.review_notes(source).is_empty() || !defs.review_links(source).is_empty() {
-            return refuse("notes or hyperlinks");
+        // Notes follow through the paste planner (copy_metadata::append_notes); hyperlinks do not (dc-oxh8w.43).
+        if !defs.review_links(source).is_empty() {
+            return refuse("hyperlinks");
         }
         if defs.tables().iter().any(|t| t.sheet == source) || defs.auto_filter(source).is_some_and(|f| f.unsupported) {
             return refuse("tables or an AutoFilter the host does not model");

@@ -136,7 +136,7 @@ impl AutoFilter {
                                 .is_ok_and(|n| n.is_finite() && n > 0. && n <= 100.)
                         } else {
                             value.parse::<f64>().is_ok_and(|n| {
-                                n.is_finite() && n.fract() == 0. && (1.0..=255.0).contains(&n)
+                                n.is_finite() && n.fract() == 0. && (1.0..=500.0).contains(&n)
                             })
                         }
                     }
