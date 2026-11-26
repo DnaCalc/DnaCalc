@@ -116,7 +116,8 @@ impl WorkbookAutomation {
     }
 
     /// Range.Activate: the range's first cell becomes the active cell. Inside the current selection the selection
-    /// stays; a cell outside it is not captured from Excel yet (dc-oxh8w.49).
+    /// stays (ww22: B2:D5 with A1:B2 selected makes B2 active, selection kept); a single cell outside it replaces the
+    /// selection (ww20: F9). A multi-cell range whose first cell is outside is not captured from Excel (dc-oxh8w.49).
     fn range_activate(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let held = Self::held_of(target)?;
@@ -125,11 +126,8 @@ impl WorkbookAutomation {
             self.validate(target, &meta)?;
             let range = self.resolve(&mut Access::Session(session, false), &held)?;
             let [area] = range.areas() else {
-                return Err(AutoError::not_modelled("Range.Activate on a multi-cell range", OWNER));
+                return Err(AutoError::not_modelled("Range.Activate on a multi-area range", OWNER));
             };
-            if area.cell_count() != 1 {
-                return Err(AutoError::not_modelled("Range.Activate on a multi-cell range", OWNER));
-            }
             let cell = area.first();
             if Self::session_active_sheet(session) != Some(cell.sheet()) {
                 return Err(Self::failed("Range", "Activate"));
@@ -140,10 +138,14 @@ impl WorkbookAutomation {
                     && (a.first().row()..=a.last().row()).contains(&cell.row())
                     && (a.first().column()..=a.last().column()).contains(&cell.column())
             });
-            if !inside {
-                return Err(AutoError::not_modelled("Range.Activate outside the current selection", OWNER));
-            }
-            Self::select_intent(session, Selection { active: Some(cell), areas: current.areas }, "Range", "Activate")?;
+            let selection = if inside {
+                Selection { active: Some(cell), areas: current.areas }
+            } else if area.cell_count() == 1 {
+                Selection { active: Some(cell), areas: vec![GridArea::cell(cell)] }
+            } else {
+                return Err(AutoError::not_modelled("Range.Activate of a multi-cell range outside the current selection", OWNER));
+            };
+            Self::select_intent(session, selection, "Range", "Activate")?;
             self.context_changed(session);
             Ok(AutoValue::Bool(true))
         })
