@@ -673,6 +673,26 @@ fn weibull_reports_intermediate_arithmetic_errors() {
     }
 }
 
+/// Excel 20625 rejects the signed 32-bit sentinel before endpoint shortcuts.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_range_bounds_the_truncated_trial_count() {
+    let sentinel = i32::MAX as f64;
+    let previous = f64::from_bits(sentinel.to_bits() - 1);
+    let evaluate = |trials, probability, upper| {
+        let mut args = vec![n(trials), n(probability), n(0.0)];
+        if upper {
+            args.push(n(1.0));
+        }
+        call("BINOM.DIST.RANGE", args)
+    };
+    for upper in [false, true] {
+        exact(evaluate(previous, 0.0, upper), 1.0);
+        error(evaluate(sentinel, 0.0, upper), Num);
+        error(evaluate(sentinel + 1.0, 0.5, upper), Num);
+    }
+}
+
 /// Excel 20527 validates the original count sign before truncating positive fractions.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

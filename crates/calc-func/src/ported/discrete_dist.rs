@@ -346,7 +346,7 @@ pub fn binom_dist_range_kernel(trials: f64, p: f64, number_s: f64, number_s2: Op
     let n = trials.trunc();
     let s = number_s.trunc();
     let s2 = number_s2.map_or(s, f64::trunc);
-    if n < 0.0 || !(0.0..=1.0).contains(&p) || s < 0.0 || s > n || s2 < s || s2 > n {
+    if !(0.0..i32::MAX as f64).contains(&n) || !(0.0..=1.0).contains(&p) || s < 0.0 || s > n || s2 < s || s2 > n {
         return Err(NUM);
     }
     let mass = |i: f64| {
