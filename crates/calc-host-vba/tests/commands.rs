@@ -590,3 +590,24 @@ fn dc_711ye__unmodelled_host_members_compile_and_refuse_when_run() {
 fn dc_711ye__dialogs_and_toolbars_compile_and_refuse_when_run() {
     host_members_compile_and_refuse_when_run(&HOST_MEMBERS_PENDING_DESCRIPTOR);
 }
+
+/// dc-711ye (ww24, Excel 16.0.20625): `Shapes("nosuch").Delete` in a worksheet module raises -2147024809 "The item with
+/// the specified name wasn't found."
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_711ye__shapes_of_a_missing_name_raises_the_item_not_found_error() {
+    for backend in backends() {
+        let ok = "Public Sub Go()\n Sheet1.Shp\nEnd Sub\n";
+        let sheet = "Public Sub Shp()\n Shapes(\"nosuch\").Delete\nEnd Sub\n";
+        let policy = calc_macro_security::VbaPolicy::Guarded;
+        let (mut session, owner) = try_project_sources(ok, sheet, policy, backend).expect("compiles");
+        let run = owner.run_procedure(&mut session, "Module1.Go", &[]);
+        match &run.outcome {
+            Outcome::RuntimeError { number, description, .. } => {
+                assert_eq!(*number, -2147024809, "{backend:?} {run:?}");
+                assert_eq!(description, "The item with the specified name wasn't found.", "{backend:?}");
+            }
+            other => panic!("{backend:?}: {other:?}"),
+        }
+    }
+}
