@@ -11280,6 +11280,41 @@ fn dc_2rjye__paste_special_column_widths_tile_and_carry_hidden() {
     assert_eq!(axis(22).outline_level(), 0);
 }
 
+/// dc-2rjye (ww24 a/case16): column widths ignore Operation (all five) and Transpose, pasting no content.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2rjye__paste_column_widths_ignores_operation_and_transpose() {
+    let (_host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let put = |address: &str, name: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Put, vec![value]).unwrap();
+    };
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let width = |address: &str| match invoke(&model, &range(&model, address), "ColumnWidth", vec![]).unwrap() {
+        AutoValue::R8(n) => n,
+        other => panic!("width {other:?}"),
+    };
+    put("A1", "Value", AutoValue::I4(7));
+    put("A1", "ColumnWidth", AutoValue::I4(20));
+    put("B1", "ColumnWidth", AutoValue::I4(30));
+    call("A1:B2", "Copy", vec![]).unwrap();
+    // xlPasteColumnWidths with Transpose:=True onto E5.
+    call("E5", "PasteSpecial", vec![AutoValue::I4(8), AutoValue::I4(-4142), AutoValue::Bool(false), AutoValue::Bool(true)])
+        .unwrap();
+    assert_eq!((width("E5"), width("F5")), (20.0, 30.0), "widths untransposed");
+    // Every Operation is ignored the same way.
+    for (n, op) in [2, 3, 4, 5].iter().enumerate() {
+        let col = ["H", "I", "J", "K"][n];
+        call(&format!("{col}5"), "PasteSpecial", vec![AutoValue::I4(8), AutoValue::I4(*op)]).unwrap();
+        assert_eq!(width(&format!("{col}5")), 20.0, "operation {op}");
+    }
+    let value = invoke(&model, &range(&model, "E5"), "Value2", vec![]).unwrap();
+    assert!(matches!(value, AutoValue::Empty), "no cell content: {value:?}");
+}
+
 /// dc-y7tqj (rw12 finding 24c): Worksheet.Names validates deleted sheet, Name.Parent returns the
 /// Worksheet for a sheet-scoped name (Workbook for global), and Sheet1.Names.Add("Sheet2!X", ...)
 /// refuses typed instead of escaping scope.

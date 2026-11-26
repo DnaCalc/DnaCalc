@@ -131,13 +131,8 @@ impl WorkbookAutomation {
         };
         let transpose = flag(3)?;
         if paste == XL_PASTE_COLUMN_WIDTHS {
-            // Excel ww21 ignores Transpose and Add when pasting column widths.
-            if !matches!(combine.operation, None | Some(XL_PASTE_OPERATION_ADD)) {
-                return Err(AutoError::not_modelled(
-                    "Range.PasteSpecial column widths with this Operation",
-                    "dc-2rjye",
-                ));
-            }
+            // Excel ww21/ww24: Transpose and every Operation are ignored when pasting column widths.
+            let combine = Combine { operation: None, ..combine };
             return self.paste_clip(target, call, mode, false, false, Combine { column_widths: true, ..combine });
         }
         self.paste_clip(target, call, mode, transpose, false, combine)
