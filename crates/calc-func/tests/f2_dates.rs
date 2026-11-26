@@ -1855,3 +1855,62 @@ fn database_requires_criteria_reference() {
     let criteria = arr_values(vec![vec![t("Key")], vec![n(1.0)]]);
     error(call_on(&mut sheet, "DSUM", vec![database, n(2.0), criteria]), Value);
 }
+
+/// Live Excel 16.0 b20625 (Touchstone ng6, dc-j9k.574 / dc-j9k.575): numeric database
+/// field indices snap within 0x3e90020000000000 (2^-22 + 2^-33) below an integer up to
+/// that integer across all database functions.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_574_575_database_field_index_snaps_within_excel_eps() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("A"), n(10.0), n(20.0)]);
+    sheet.column(1, 2, vec![t("B"), n(100.0), n(200.0)]);
+    sheet.column(5, 1, vec![t("A")]);
+    let db = sheet.area(1, 1, 3, 2);
+    let crit = sheet.area(5, 1, 6, 1);
+
+    // Below 1 - eps -> #VALUE!; at 1 - eps (and dc-j9k.574 rep 0x3fefffffffdfffff) -> col 1.
+    error(call_on(&mut sheet, "DSUM", vec![db.clone(), n(f64::from_bits(0x3fefffff7fefffff)), crit.clone()]), Value);
+    exact(call_on(&mut sheet, "DSUM", vec![db.clone(), n(f64::from_bits(0x3fefffff7ff00000)), crit.clone()]), 30.0);
+    exact(call_on(&mut sheet, "DVAR", vec![db.clone(), n(f64::from_bits(0x3fefffffffdfffff)), crit.clone()]), 50.0);
+
+    // Below 2 - eps -> col 1; at 2 - eps (and dc-j9k.575 rep 0x3fffffffffffffff) -> col 2.
+    exact(call_on(&mut sheet, "DSUM", vec![db.clone(), n(f64::from_bits(0x3fffffffbff7ffff)), crit.clone()]), 30.0);
+    exact(call_on(&mut sheet, "DSUM", vec![db.clone(), n(f64::from_bits(0x3fffffffbff80000)), crit.clone()]), 300.0);
+    exact(call_on(&mut sheet, "DVAR", vec![db.clone(), n(f64::from_bits(0x3fffffffffffffff)), crit.clone()]), 5000.0);
+
+    // At 3 - eps -> col 3 > 2 columns -> #VALUE!
+    exact(call_on(&mut sheet, "DSUM", vec![db.clone(), n(f64::from_bits(0x4007ffffdffbffff)), crit.clone()]), 300.0);
+    error(call_on(&mut sheet, "DSUM", vec![db, n(f64::from_bits(0x4007ffffdffc0000)), crit]), Value);
+
+    // Exact 1-column DVAR representatives from dc-j9k.574 and dc-j9k.575.
+    let mut sheet2 = Sheet::new();
+    sheet2.column(
+        1,
+        1,
+        vec![
+            n(f64::from_bits(0x0031fa182c40c60d)),
+            n(f64::from_bits(0x3e7ad7f29abcaf48)),
+        ],
+    );
+    sheet2.column(
+        5,
+        1,
+        vec![
+            n(f64::from_bits(0xffefffffffffffff)),
+            n(f64::from_bits(0x4024000000000000)),
+            n(f64::from_bits(0x7e37e43c8800759c)),
+            n(f64::from_bits(0x7e37e43c8800759c)),
+        ],
+    );
+    let db1 = sheet2.area(1, 1, 2, 1);
+    let crit1 = sheet2.area(5, 1, 8, 1);
+    error(
+        call_on(&mut sheet2, "DVAR", vec![db1.clone(), n(f64::from_bits(0x3fefffffffdfffff)), crit1.clone()]),
+        Div0,
+    );
+    error(
+        call_on(&mut sheet2, "DVAR", vec![db1, n(f64::from_bits(0x3fffffffffffffff)), crit1]),
+        Value,
+    );
+}
