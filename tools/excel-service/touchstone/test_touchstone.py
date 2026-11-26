@@ -590,6 +590,52 @@ class AdmissionTests(unittest.TestCase):
         for text in ("=1+1", "+1", "-1", "@SUM(1)"):
             yield "text arguments", vba_group(calls=[{"procedure": "Probes.Probe", "args": [{"type": "text", "value": text}]}])
 
+    def refused_rw16_cases(self):
+        """rw16 (dc-5qqoz): the two bypasses and the parity differentials, in one list for both validators."""
+        write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
+        probe = lambda line, sig="ByVal x As Long": f"Public Function Probe({sig}) As Long\n{line}\nProbe = 1\nEnd Function\n"
+        # 1: a probe function named like an admitted non-Excel worksheet function is callable from a layout formula.
+        for name in ("FLATTEN", "HAS", "HASANY", "HASALL", "flatten", "Has"):
+            hijack = f"Public Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
+            yield "collides", vba_group(hijack + probe(""),
+                                        sheets=[{"name": "Data", "cells": {
+                                            "A1": {"type": "formula", "formula": f'={name.upper()}("=WEBSERVICE(""http://x"")")'}}}])
+            yield "collides", vba_group(hijack + probe(""))
+        # 2: a number stringifies with a leading minus, which a cell takes as a formula.
+        for expression in ('Left(-1, 1) & "WEBSERVICE(""http://x"")"', '(-1) & "*WEBSERVICE(""http://x"")"',
+                           'xlUp & "x"', '(Not 0) & "x"', '&H8000 & "x"', '(1 - 2) & "x"', 'x & "x"',
+                           'CStr(-1) & "x"', 'CStr(x) & "x"', 'Abs(x) & "x"', 'Round(x) & "x"', 'Left(x, 1) & "x"',
+                           'UCase(CStr(-1)) & "x"', '-x & "x"', 'CLng(x) & "x"', 'Val("1") & "x"'):
+            yield "plainly data", vba_group(probe(write + expression))
+        # a Variant parameter takes a negative number argument from the case
+        yield "plainly data", vba_group(probe(write + 'v & "x"', "ByVal v"),
+                                        calls=[{"procedure": "Probes.Probe", "args": [number("bff0000000000000")]}])
+        # parity: the budget, a null mode, document-module casing, layout booleans
+        yield "frame budget", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "text", "value": "\n" * 7000}}}])
+        yield "range cell", vba_group(calls=[{"procedure": "Probes.Probe", "args": [{"type": "text", "value": "a", "mode": None}]}])
+        yield "range cell", vba_group(calls=[{"procedure": "Probes.Probe", "args": [{"type": "boolean", "value": True, "mode": None}]}])
+        for name in ("thisworkbook", "THISWORKBOOK", "sheet1", "SHEET1"):
+            yield "module name", vba_group(modules=[
+                {"name": "Probes", "kind": "standard", "source": DEFAULT_VBA_SOURCE},
+                {"name": name, "kind": "document", "source": "Option Explicit\n"}])
+        for value in ("yes", 1, None):
+            yield "layout boolean", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "boolean", "value": value}}}])
+        yield "layout boolean", vba_group(sheets=[{"name": "Data", "cells": {"A1": {"type": "boolean"}}}])
+
+    def test_vba_refuses_the_rw16_bypasses_and_parity_differentials(self):
+        for message, group in self.refused_rw16_cases():
+            with self.subTest(message=message, case=json.dumps(group["v"][0]["modules"])[:200]), \
+                    self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
+                self.admission.check(group)
+
+    def test_vba_accepts_what_the_rw16_rules_leave_alone(self):
+        write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
+        for line in (write + 'x', write + '-x', write + 'x + 1', write + '"a" & x', write + '"a" & CStr(-1)',
+                     write + 'CStr("a") & x', write + 'Len("a")', write + '"a" & xlUp'):
+            with self.subTest(line=line):
+                self.admission.check(vba_group(
+                    f"Public Function Probe(ByVal x As Long) As Long\n{line}\nProbe = 1\nEnd Function\n"))
+
     def test_vba_refuses_package_unsafe_layout_and_module_names(self):
         for message, group in self.refused_vba_cases():
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
@@ -663,7 +709,7 @@ class AdmissionTests(unittest.TestCase):
             with self.subTest(accepted=group["v"][0]["modules"][0]["source"][:40]):
                 result = run(group)
                 self.assertEqual(result.returncode, 0, result.stderr)
-        for message, group in self.refused_vba_cases():
+        for message, group in (*self.refused_vba_cases(), *self.refused_rw16_cases()):
             with self.subTest(message=message):
                 result = run(group)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
@@ -671,6 +717,15 @@ class AdmissionTests(unittest.TestCase):
         long = run(vba_group('Public Sub Probe()\n' + "'" + "x" * 20000))
         self.assertEqual(long.returncode, 1)
         self.assertIn("module source", long.stderr)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_refuses_a_duplicate_json_key(self):
+        text = json.dumps(vba_group())
+        duplicated = text.replace('"names": {}', '"names": {"Auto_Open": "=1"}, "names": {}')
+        self.assertNotEqual(text, duplicated)
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"], input=duplicated,
+                                text=True, capture_output=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_and_policy_agree_on_mutated_sources(self):

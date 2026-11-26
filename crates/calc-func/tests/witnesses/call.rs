@@ -614,8 +614,9 @@ mod tests {
     }
 
     /// dc-y7tqj (rw12 finding 16): witness database_field admission matches calc-fml:
-    /// blank optional fields stay Empty for DCOUNT/DCOUNTA, and literal formula errors (no cell
-    /// transport) propagate instead of turning into #VALUE!.
+    /// literal formula errors (no cell transport) propagate instead of turning into #VALUE!.
+    /// A blank field cell is #VALUE! for DCOUNT and DCOUNTA too (Excel 20625, dc-j9k.555 and .557:
+    /// only a field left out of the formula counts the records).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn database_field_matches_calc_fml_admission() {
@@ -626,17 +627,11 @@ mod tests {
         };
         let db = json!({"range": [["Name", "Value"], ["a", "0x4000000000000000"], ["b", "0x4008000000000000"]]});
         let crit = json!({"range": [["Name"], [null]]});
-        // Blank optional field held in a cell: DCOUNT and DCOUNTA count matching records (2.0);
-        // DPRODUCT requires a field and returns #VALUE!.
+        // Blank field held in a cell: #VALUE! for DCOUNT, DCOUNTA and DPRODUCT alike.
         let blank_args = [db.clone(), json!(null), crit.clone()];
-        assert_eq!(
-            calculate("DCOUNT", &blank_args, None, Some(&bulk), true),
-            "0x4000000000000000"
-        );
-        assert_eq!(
-            calculate("DCOUNTA", &blank_args, None, Some(&bulk), true),
-            "0x4000000000000000"
-        );
+        for name in ["DCOUNT", "DCOUNTA"] {
+            assert_eq!(calculate(name, &blank_args, None, Some(&bulk), true), "error:Value");
+        }
         assert_eq!(
             calculate("DPRODUCT", &blank_args, None, Some(&bulk), true),
             "error:Value"

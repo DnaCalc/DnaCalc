@@ -1741,6 +1741,45 @@ fn database_computed_criteria_formula_is_refused() {
     exact(literal_ok, 2.0);
 }
 
+/// Live Excel (16.0.20625, Touchstone 2026-11-26, dc-j9k.555 and .557): DCOUNT and DCOUNTA count the
+/// matching records only when the field is left out; a field that is a blank cell, "" or 0 is #VALUE!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dcount_field_left_out_counts_but_blank_field_is_value() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![n(-1.5), n(3.0), n(-7.0), n(9.0)]);
+    sheet.column(1, 3, vec![n(-1.5), n(3.0)]);
+    let db = sheet.area(1, 1, 4, 1);
+    let crit = sheet.area(1, 3, 2, 3);
+    for name in ["DCOUNT", "DCOUNTA"] {
+        exact(call_on(&mut sheet, name, vec![db.clone(), missing(), crit.clone()]), 1.0);
+        for field in [CalcValue::empty(), t(""), n(0.0)] {
+            error(call_on(&mut sheet, name, vec![db.clone(), field, crit.clone()]), Value);
+        }
+        exact(call_on(&mut sheet, name, vec![db.clone(), n(1.0), crit.clone()]), 1.0);
+    }
+}
+
+/// Live Excel (16.0.20625, Touchstone 2026-11-26): a numeric field is floored with the date
+/// arguments' tolerance. Two columns, the second text: 0.9999999 and 1.9999995 read column 1 (count 1),
+/// 1.9999999 and 2.9999996 column 2 (count 0), 0.9999996 is column 0 and 2.9999999 column 3 (#VALUE!).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_field_number_uses_the_date_floor_tolerance() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![t("h"), n(1.0), n(2.0)]);
+    sheet.column(1, 2, vec![t("k"), t("x"), t("y")]);
+    sheet.column(1, 4, vec![t("h"), n(1.0)]);
+    let db = sheet.area(1, 1, 3, 2);
+    let crit = sheet.area(1, 4, 2, 4);
+    for (field, count) in [(0.9999999, 1.0), (1.0, 1.0), (1.9999995, 1.0), (1.9999999, 0.0), (2.9999996, 0.0), (1.5, 1.0)] {
+        exact(call_on(&mut sheet, "DCOUNT", vec![db.clone(), n(field), crit.clone()]), count);
+    }
+    for field in [0.9999996, 0.9999989, 0.5, 2.9999999, 3.0] {
+        error(call_on(&mut sheet, "DCOUNT", vec![db.clone(), n(field), crit.clone()]), Value);
+    }
+}
+
 /// Excel 20527: A-plus-digit database criteria are text, not time or currency.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
