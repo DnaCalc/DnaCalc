@@ -2527,6 +2527,25 @@ fn complex_reads_the_suffix_before_the_coefficients() {
     error(call("COMPLEX", vec![e(Div0), n(1.0)]), Div0);
 }
 
+/// Excel 16.0 build 20625 (Touchstone, dc-j9k.586): COMPLEX does not trim whitespace on its
+/// suffix argument; only "", "i", "j" (or omitted/blank) are valid, and any whitespace suffix
+/// returns #VALUE! before formatting coefficients (which would otherwise overflow to #NUM!).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_j9k_586_complex_rejects_whitespace_suffixes() {
+    error(call("COMPLEX", vec![n(f64::MAX), n(10.0), t("\n")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t("\n")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t(" ")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t("\t")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t(" i")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t("i ")]), Value);
+    error(call("COMPLEX", vec![n(1.0), n(2.0), t("I")]), Value);
+    text(call("COMPLEX", vec![n(1.0), n(2.0), t("")]), "1+2i");
+    text(call("COMPLEX", vec![n(1.0), n(2.0), t("i")]), "1+2i");
+    text(call("COMPLEX", vec![n(1.0), n(2.0), t("j")]), "1+2j");
+    error(call("COMPLEX", vec![n(f64::MAX), n(10.0), t("i")]), Num);
+}
+
 /// Excel 16.0.20625 (Touchstone, dc-shqi1): IMLOG10 flushes subnormal imaginary parts after
 /// dividing by ln(10) and uses the real x87 LOG10_E route for pure-imaginary arguments.
 #[cfg_attr(not(target_arch = "wasm32"), test)]

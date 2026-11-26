@@ -246,7 +246,7 @@ ported_shared_family! {
         let suffix = match a.get(2).map(CalcValue::core_ref) {
             None | Some(CoreRef::Missing | CoreRef::Empty) => 'i',
             Some(CoreRef::Error(code)) => return fail(code),
-            Some(CoreRef::Text(_)) => match text(s, a, 2)?.trim() {
+            Some(CoreRef::Text(_)) => match text(s, a, 2)?.as_str() {
                 "" | "i" => 'i',
                 "j" => 'j',
                 _ => return fail(WorksheetErrorCode::Value),
