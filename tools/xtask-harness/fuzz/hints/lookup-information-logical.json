@@ -4035,6 +4035,255 @@
         }
       ],
       "notes": "Formats cell address text in A1 or R1C1 style with optional quoted sheet prefix."
+    },
+    "FORMULATEXT": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                0
+              ]
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ]
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "reference shape",
+          "how": "Compare singleton and rectangular references. The source formula cells must be authored by the caller.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:394"
+        }
+      ]
+    },
+    "GETPIVOTDATA": {
+      "args": [
+        {
+          "name": "data_field",
+          "kind": "text",
+          "specials": [
+            "Sales",
+            "Sum of Sales",
+            ""
+          ]
+        },
+        {
+          "name": "pivot_table",
+          "kind": "reference",
+          "specials": [
+            [
+              [
+                1
+              ]
+            ],
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ]
+          ]
+        },
+        {
+          "name": "field1",
+          "kind": "text",
+          "specials": [
+            "Region",
+            "Year",
+            ""
+          ]
+        },
+        {
+          "name": "item1",
+          "kind": "any",
+          "specials": [
+            "West",
+            2026,
+            true,
+            "#N/A"
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "pivot anchor",
+          "how": "Compare references inside and outside a pivot and valid or unknown field/item pairs when the workbook supplies a pivot.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:526"
+        }
+      ]
+    },
+    "INDIRECT": {
+      "args": [
+        {
+          "name": "ref_text",
+          "kind": "text",
+          "specials": [
+            "A1",
+            "$A$1:$B$2",
+            "R1C1",
+            "R[1]C[-1]",
+            "Sheet1!A1",
+            "XFD1048576",
+            "XFE1",
+            "",
+            "not a ref"
+          ]
+        },
+        {
+          "name": "a1",
+          "kind": "logical",
+          "specials": [
+            true,
+            false,
+            null,
+            0,
+            1,
+            "#N/A"
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "reference notation",
+          "how": "Use A1 and R1C1 spellings with both selector values and omitted selector.",
+          "source": "crates/calc-func/src/catalogue/reference_text.rs:38"
+        }
+      ]
+    },
+    "INFO": {
+      "args": [
+        {
+          "name": "type_text",
+          "kind": "text",
+          "specials": [
+            "directory",
+            "numfile",
+            "origin",
+            "osversion",
+            "recalc",
+            "release",
+            "system",
+            "RECALC",
+            "memavail",
+            "memused",
+            "totmem",
+            "unknown",
+            "",
+            " system "
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "host and obsolete keys",
+          "how": "Host facts depend on workbook and session state. Obsolete memory keys return #N/A.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:269"
+        }
+      ]
+    },
+    "SHEET": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            "Sheet1",
+            "MissingSheet",
+            2,
+            [
+              [
+                1,
+                2
+              ]
+            ],
+            "#REF!",
+            null
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "sheet identity",
+          "how": "Compare omitted argument, reference, sheet name, missing name, and scalar non-reference.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:338"
+        }
+      ]
+    },
+    "SHEETS": {
+      "args": [
+        {
+          "name": "reference",
+          "kind": "any",
+          "specials": [
+            null,
+            1,
+            "a",
+            [
+              [
+                1,
+                2
+              ]
+            ],
+            "#REF!"
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "distinct sheet count",
+          "how": "Omit for workbook count. Supply a single-sheet or 3-D reference for the count of distinct referenced sheets.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:370"
+        }
+      ]
+    },
+    "FIELDVALUE": {
+      "args": [
+        {
+          "name": "value",
+          "kind": "any",
+          "specials": [
+            0,
+            "Seattle",
+            true,
+            "#N/A",
+            null
+          ]
+        },
+        {
+          "name": "field_name",
+          "kind": "any",
+          "specials": [
+            "Population",
+            "",
+            1,
+            "#REF!",
+            null
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "ordinary values",
+          "how": "Exercise unlinked values and field-name error propagation. Linked data types require workbook context.",
+          "source": "crates/calc-func/src/catalogue/host_facts.rs:325"
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,100 @@
+{
+  "family": "euro-tools",
+  "version": 1,
+  "functions": {
+    "_EUROTOOL.EUROCONVERT": {
+      "args": [
+        {
+          "name": "number",
+          "kind": "number",
+          "specials": [
+            0,
+            1,
+            -1,
+            1.005,
+            1000,
+            1e+300,
+            "123.45"
+          ]
+        },
+        {
+          "name": "source",
+          "kind": "text",
+          "specials": [
+            "EUR",
+            "DEM",
+            "ITL",
+            "eur",
+            "USD",
+            " EUR ",
+            ""
+          ]
+        },
+        {
+          "name": "target",
+          "kind": "text",
+          "specials": [
+            "EUR",
+            "DEM",
+            "ITL",
+            "FRF",
+            "USD",
+            ""
+          ]
+        },
+        {
+          "name": "full_precision",
+          "kind": "logical",
+          "specials": [
+            false,
+            true,
+            0,
+            1,
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "name": "triangulation_precision",
+          "kind": "number",
+          "specials": [
+            2,
+            2.5,
+            3,
+            3.5,
+            4,
+            15,
+            32767,
+            32768
+          ],
+          "edges": [
+            {
+              "value": 2.5,
+              "why": "ties to even rounds down to an invalid 2",
+              "source": "crates/calc-func/src/catalogue/euro_tools.rs:229"
+            },
+            {
+              "value": 32768,
+              "why": "first integral precision outside signed 16-bit range",
+              "source": "crates/calc-func/src/catalogue/euro_tools.rs:241"
+            }
+          ]
+        }
+      ],
+      "regimes": [
+        {
+          "name": "conversion paths",
+          "how": "Compare same-unit, from-EUR, to-EUR, and cross-currency paths with output rounding and optional triangulation.",
+          "source": "crates/calc-func/src/catalogue/euro_tools.rs:251"
+        }
+      ],
+      "error_edges": [
+        {
+          "when": "triangulation_precision >= 32768",
+          "excel": "#NUM!",
+          "source": "crates/calc-func/src/catalogue/euro_tools.rs:241"
+        }
+      ]
+    }
+  }
+}
