@@ -15,6 +15,13 @@ fn zz_probe() {
         let args: Vec<_> = parts.next().unwrap().split(',').filter(|s| !s.is_empty()).map(|s| match s {
             "null" => missing(),
             s if s.starts_with("T:") => t(&s[2..]),
+            s if s.starts_with('M') => {
+                let (dims, body) = s[1..].split_once('=').unwrap();
+                let (r, c) = dims.split_once('x').unwrap();
+                let (r, c): (usize, usize) = (r.parse().unwrap(), c.parse().unwrap());
+                let vals: Vec<f64> = body.split(';').map(|h| f64::from_bits(u64::from_str_radix(h, 16).unwrap())).collect();
+                arr((0..r).map(|i| vals[i * c..(i + 1) * c].to_vec()).collect())
+            }
             "true" => b(true),
             "false" => b(false),
             h => n(f64::from_bits(u64::from_str_radix(h, 16).unwrap())),

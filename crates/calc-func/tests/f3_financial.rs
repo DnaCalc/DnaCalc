@@ -4671,3 +4671,28 @@ fn accrint_admission_order_and_issue_after_first_interest() {
     error(dated("ACCRINT", with(3, t())), Value);
     error(dated("ACCRINT", with(6, t())), Value);
 }
+
+/// dc-j9k.499-.501 (Excel 20625): MIRR does not read the sign conditions ahead of the discounting.
+/// A stream without a positive flow is -1, one without a negative flow is #DIV/0!, and a rate
+/// whose discount or compounding overflows is #NUM! whichever the signs.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn mirr_sign_conditions_follow_the_discounting() {
+    let flows = |values: &[f64]| col(values);
+    let mirr = |values: &[f64], finance: f64, reinvest: f64| call("MIRR", vec![flows(values), n(finance), n(reinvest)]);
+    // no positive flow: -1 (the fuzz representative of dc-j9k.501 and neighbours)
+    exact(
+        mirr(&[f64::from_bits(0xc013_052f_9e31_c516), f64::from_bits(0xc06e_19cb_58a4_2613)], f64::from_bits(0x4010_e7cd_2b55_f967), f64::from_bits(0x4014_9bb3_9554_5aa9)),
+        -1.0,
+    );
+    exact(mirr(&[-0.5, -100.0], 0.1, 0.1), -1.0);
+    exact(mirr(&[-1.0, -2.0, -3.0], 0.1, 1e100), -1.0);
+    // no negative flow: #DIV/0!
+    error(mirr(&[0.5, 100.0], 0.1, 0.1), Div0);
+    // an overflowing discount or compounding is #NUM! first (dc-j9k.499)
+    error(mirr(&[-0.5, -100.0], -1e241, -5e-8), Num);
+    error(mirr(&[0.5, 100.0], 1e241, 0.1), Num);
+    error(mirr(&[0.5, 100.0], 0.1, -1e241), Num);
+    error(mirr(&[-1.0, -2.0, -3.0], 0.1, -1e241), Num);
+    error(mirr(&[-0.5, -100.0], 0.1, -1e241), Num);
+}
