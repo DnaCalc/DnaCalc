@@ -359,6 +359,44 @@ fn complex_text_uses_directed_fifteen_x87_including_binade4_and_slivers() {
     }
 }
 
+/// Excel 16.0.20625 (dc-j9k.397) applies the imaginary limit before reducing the real angle.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn circular_complex_reciprocals_zero_past_imaginary_limit() {
+    for (function, positive, negative) in [
+        ("IMCSC", "-2.43356150124685E-308i", "6.61510600727682E-308i"),
+        ("IMSEC", "2.43356150124685E-308", "6.61510600727682E-308"),
+    ] {
+        for input in ["1e-5+2e5i", "0+709.000000000001i", "134217728-708.000000000001i"] {
+            text(call(function, vec![t(input)]), "0");
+        }
+        text(call(function, vec![t("0+709i")]), positive);
+        text(call(function, vec![t("0-708i")]), negative);
+        error(call(function, vec![t("134217728+709i")]), Num);
+    }
+}
+
+/// Excel 16.0.20625 (dc-j9k.398) retains the real axis and applies two off-axis limits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hyperbolic_complex_reciprocal_large_real_limits() {
+    for function in ["IMCSCH", "IMSECH"] {
+        for input in ["3e150+4e150i", "709.000000000001+1e-5i", "-708.000000000001-1i"] {
+            text(call(function, vec![t(input)]), "0");
+        }
+        text(call(function, vec![t("709.000000000001")]), "2.43356150124436E-308");
+        error(call(function, vec![t("709+134217728i")]), Num);
+    }
+    for (input, expected) in [
+        ("354.5+1i", "1.19199101546952E-154-1.85641601521147E-154i"),
+        ("354.500000000001+1i", "-1.1919910154683E-154+1.85641601520957E-154i"),
+        ("-354+1i", "-1.96526094168804E-154-3.06071257154752E-154i"),
+        ("-354.000000000001+1i", "1.96526094168603E-154+3.06071257154439E-154i"),
+    ] {
+        text(call("IMCSCH", vec![t(input)]), expected);
+    }
+}
+
 /// dc-ymjf.2.139, Excel 16.0.20527.20196 (Touchstone, 2026-11-22): complex hyperbolics
 /// (IMSINH, IMCOSH, IMCSCH, IMSECH) evaluate sinh/cosh via `em = EXP(-x)` and `1 / em`
 /// for `|x| < 20` (with Taylor series `x + x^3/6 + x^5/120` for `|x| <= 0.01` and
