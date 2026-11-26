@@ -1,503 +1,497 @@
 using System.IO.Compression;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml;
-using System.Xml.Linq;
 
 namespace Touchstone.Excel;
 
 /// <summary>
-/// Checks that a VBA case's workbook is exactly what CalcDoc builds from the case's sheets and modules
-/// (rw14 finding 3). Same checks as tools/excel-service/vba_package.py; keep both in step with
-/// crates/calc-doc/src/vba_write.rs.
+/// Builds the .xlsm for a VBA case from the modules and sheets the policy checked (dc-gqzuw). No uploaded
+/// package is ever read: the worker writes its own, so a parser differential on a caller's compound file or
+/// compressed stream cannot matter. Ported from crates/calc-doc/src/vba_write.rs, blank.rs and
+/// xls/cfb_write.rs; the tests compare its vbaProject.bin with CalcDoc's.
 /// </summary>
 static class VbaPackage
 {
-    const int MaxProject = 8 * 1024 * 1024, MaxPart = 64 * 1024;
-    const uint End = 0xFFFFFFFE, None = 0xFFFFFFFF;
     const string ProjectName = "VBAProject", ProjectId = "{CB4A6FD3-4DB2-4698-915C-D69261AB7550}";
-    const string Rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
-    const string XmlHead = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
-    const string SheetType = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+    const string Head = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
+    const string Spreadsheet = "application/vnd.openxmlformats-officedocument.spreadsheetml.";
+    const string RelBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
+    const int MaxProject = 8 * 1024 * 1024;
 
-    static readonly Dictionary<string, string> ContentTypes = new()
-    {
-        ["/xl/workbook.xml"] = "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
-        ["/xl/styles.xml"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
-        ["/xl/sharedStrings.xml"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
-        ["/xl/vbaProject.bin"] = "application/vnd.ms-office.vbaProject",
-    };
-    static readonly Dictionary<string, string> Defaults = new()
-    {
-        ["rels"] = "application/vnd.openxmlformats-package.relationships+xml",
-        ["xml"] = "application/xml",
-    };
-    // null: a worksheet part; otherwise the one allowed target.
-    static readonly Dictionary<string, string> RelationshipTypes = new()
-    {
-        [Rel + "worksheet"] = null, [Rel + "styles"] = "styles.xml", [Rel + "sharedStrings"] = "sharedStrings.xml",
-        ["http://schemas.microsoft.com/office/2006/relationships/vbaProject"] = "vbaProject.bin",
-    };
-    const string Styles = XmlHead
-        + "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"1\"><font>"
-        + "<sz val=\"11\"/><color auto=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font></fonts>"
-        + "<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/>"
-        + "</fill></fills><borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>"
-        + "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
-        + "<cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs>"
-        + "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>";
-    const string SharedStrings = XmlHead
-        + "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"/>";
+    sealed record Module(string Name, string Kind, string Source);   // Kind: Standard | Workbook | Worksheet
 
-    static string SheetXml(int index) => XmlHead
-        + "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
-        + $"<sheetPr codeName=\"Sheet{index}\"/><sheetData/></worksheet>";
-
-    static RefusedVbaException Refused(string detail) => new("invalid VBA workbook: " + detail);
-
-    public static void Verify(byte[] data, Dictionary<string, object> probe)
+    public static byte[] Build(Dictionary<string, object> probe)
     {
         var sheets = ((List<object>)probe["sheets"]).Select(s => (string)((Dictionary<string, object>)s)["name"]).ToList();
-        var modules = ProjectModules((List<object>)probe["modules"], sheets.Count);
-        var parts = ReadPackage(data, sheets.Count);
-        CheckParts(parts, sheets);
-        CheckProject(parts["xl/vbaProject.bin"], modules);
-    }
-
-    static Dictionary<string, byte[]> ReadPackage(byte[] data, int sheetCount)
-    {
-        ZipArchive archive;
-        try { archive = new ZipArchive(new MemoryStream(data), ZipArchiveMode.Read); }
-        catch (InvalidDataException) { throw Refused("not a package"); }
-        var expected = new List<string>
+        var modules = ((List<object>)probe["modules"]).Cast<Dictionary<string, object>>().Select(m =>
         {
-            "[Content_Types].xml", "_rels/.rels", "xl/workbook.xml", "xl/_rels/workbook.xml.rels",
-            "xl/styles.xml", "xl/sharedStrings.xml", "xl/vbaProject.bin",
-        };
-        for (int i = 1; i <= sheetCount; i++) expected.Add($"xl/worksheets/sheet{i}.xml");
-        if (!archive.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal)
-                .SequenceEqual(expected.Order(StringComparer.Ordinal)))
-            throw Refused("unexpected package parts");
-        var parts = new Dictionary<string, byte[]>();
-        foreach (var entry in archive.Entries)
-        {
-            long limit = entry.FullName == "xl/vbaProject.bin" ? MaxProject : MaxPart;
-            if (entry.Length > limit) throw Refused("oversized package part");
-            using var stream = entry.Open();
-            var buffer = new MemoryStream();
-            var chunk = new byte[8192];
-            int n;
-            while ((n = stream.Read(chunk, 0, chunk.Length)) > 0)
-            {
-                buffer.Write(chunk, 0, n);
-                if (buffer.Length > limit) throw Refused("oversized package part");
-            }
-            if (buffer.Length != entry.Length) throw Refused("package part size");
-            parts[entry.FullName] = buffer.ToArray();
-        }
-        return parts;
-    }
-
-    static XElement Xml(byte[] body, string what)
-    {
-        var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
-        try
-        {
-            using var reader = XmlReader.Create(new StringReader(new UTF8Encoding(false, true).GetString(body)), settings);
-            return XDocument.Load(reader).Root;
-        }
-        catch (Exception e) when (e is XmlException or DecoderFallbackException)
-        {
-            throw Refused(what + " is not plain XML");
-        }
-    }
-
-    static string Attr(XElement e, string name) => (string)e.Attribute(name);
-    static bool AttrsAre(XElement e, params string[] names) =>
-        e.Attributes().Select(a => a.Name.NamespaceName.Length == 0 ? a.Name.LocalName : a.Name.ToString())
-            .Order(StringComparer.Ordinal).SequenceEqual(names.Order(StringComparer.Ordinal));
-
-    static void CheckParts(Dictionary<string, byte[]> parts, List<string> sheets)
-    {
-        int count = sheets.Count;
-        if (!parts["xl/styles.xml"].AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(Styles))
-            || !parts["xl/sharedStrings.xml"].AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(SharedStrings)))
-            throw Refused("styles or shared strings differ from the blank workbook");
-        for (int i = 1; i <= count; i++)
-            if (!parts[$"xl/worksheets/sheet{i}.xml"].AsSpan().SequenceEqual(Encoding.UTF8.GetBytes(SheetXml(i))))
-                throw Refused("a worksheet is not an empty sheet");
-        var present = parts.Keys.Select(k => "/" + k).ToHashSet();
-        var seen = new HashSet<string>();
-        foreach (var element in Xml(parts["[Content_Types].xml"], "content types").Elements())
-        {
-            var name = element.Name.LocalName;
-            if (name == "Default" && AttrsAre(element, "Extension", "ContentType"))
-            {
-                if (!Defaults.TryGetValue(Attr(element, "Extension"), out var kind) || kind != Attr(element, "ContentType"))
-                    throw Refused("unexpected default content type");
-            }
-            else if (name == "Override" && AttrsAre(element, "PartName", "ContentType"))
-            {
-                var part = Attr(element, "PartName");
-                var wanted = ContentTypes.GetValueOrDefault(part)
-                    ?? (Regex.IsMatch(part, @"\A/xl/worksheets/sheet[1-9][0-9]*\.xml\z") ? SheetType : null);
-                if (Attr(element, "ContentType") != wanted || !present.Contains(part) || !seen.Add(part))
-                    throw Refused("unexpected content type override");
-            }
-            else throw Refused("unexpected content types entry");
-        }
-        present.ExceptWith(new[] { "/[Content_Types].xml", "/_rels/.rels", "/xl/_rels/workbook.xml.rels" });
-        if (!seen.SetEquals(present)) throw Refused("content types do not cover the package");
-        var rootRels = Xml(parts["_rels/.rels"], "relationships").Elements().ToList();
-        if (rootRels.Count != 1 || !AttrsAre(rootRels[0], "Id", "Type", "Target")
-            || Attr(rootRels[0], "Type") != Rel + "officeDocument" || Attr(rootRels[0], "Target") != "xl/workbook.xml")
-            throw Refused("unexpected package relationships");
-        var targets = new Dictionary<string, (string kind, string target)>();
-        foreach (var element in Xml(parts["xl/_rels/workbook.xml.rels"], "relationships").Elements())
-        {
-            var kind = Attr(element, "Type");
-            var target = Attr(element, "Target");
-            if (element.Name.LocalName != "Relationship" || !AttrsAre(element, "Id", "Type", "Target")
-                || kind == null || target == null || !RelationshipTypes.TryGetValue(kind, out var fixedTarget)
-                || fixedTarget != null && target != fixedTarget
-                || fixedTarget == null && !Regex.IsMatch(target, @"\Aworksheets/sheet[1-9][0-9]*\.xml\z")
-                || !parts.ContainsKey("xl/" + target) || !targets.TryAdd(Attr(element, "Id"), (kind, target)))
-                throw Refused("unexpected workbook relationship");
-        }
-        if (!targets.Values.Where(t => t.kind.EndsWith("/worksheet")).Select(t => t.target).Order(StringComparer.Ordinal)
-                .SequenceEqual(Enumerable.Range(1, count).Select(i => $"worksheets/sheet{i}.xml").Order(StringComparer.Ordinal)))
-            throw Refused("worksheet relationships do not match the sheets");
-        if (targets.Values.Count(t => t.kind.EndsWith("/vbaProject")) != 1)
-            throw Refused("one vbaProject relationship is required");
-        var workbook = Xml(parts["xl/workbook.xml"], "workbook");
-        var children = workbook.Elements().ToList();
-        if (workbook.Name.LocalName != "workbook" || !children.Select(e => e.Name.LocalName).SequenceEqual(new[] { "workbookPr", "sheets", "calcPr" })
-            || !AttrsAre(children[0], "codeName") || Attr(children[0], "codeName") != "ThisWorkbook"
-            || children[2].Attributes().Any(a => a.Name.LocalName != "calcId") || children[1].Elements().Count() != count)
-            throw Refused("unexpected workbook.xml");
-        XNamespace r = Rel.TrimEnd('/');
-        int index = 0;
-        foreach (var element in children[1].Elements())
-        {
-            index++;
-            var rid = (string)element.Attribute(r + "id");
-            var target = rid != null && targets.TryGetValue(rid, out var t) ? t.target : null;
-            if (element.Name.LocalName != "sheet" || !AttrsAre(element, "name", "sheetId", "{" + r.NamespaceName + "}id")
-                || Attr(element, "name") != sheets[index - 1] || Attr(element, "sheetId") != index.ToString()
-                || target != $"worksheets/sheet{index}.xml")
-                throw Refused("workbook sheets do not match the case");
-        }
-    }
-
-    // --- the project, rebuilt from the modules ----------------------------------------------------
-
-    record Module(string Name, string Kind, string Source);
-
-    static List<Module> ProjectModules(List<object> items, int sheetCount)
-    {
-        var modules = new List<Module>();
-        foreach (Dictionary<string, object> module in items)
-        {
-            var name = (string)module["name"];
-            modules.Add(new Module(name, (string)module["kind"] == "standard" ? "Standard"
-                : name == "ThisWorkbook" ? "Workbook" : "Worksheet", (string)module["source"]));
-        }
+            var name = (string)m["name"];
+            var kind = (string)m["kind"] == "standard" ? "Standard" : name == "ThisWorkbook" ? "Workbook" : "Worksheet";
+            return new Module(name, kind, (string)m["source"]);
+        }).ToList();
         var documents = new List<(string kind, string name)> { ("Workbook", "ThisWorkbook") };
-        for (int i = 1; i <= sheetCount; i++) documents.Add(("Worksheet", $"Sheet{i}"));
+        for (int i = 1; i <= sheets.Count; i++) documents.Add(("Worksheet", $"Sheet{i}"));
+        foreach (var m in modules.Where(m => m.Kind != "Standard"))
+            if (!documents.Contains((m.Kind, m.Name))) throw new RefusedVbaException("a document module does not name ThisWorkbook or a sheet code name");
         foreach (var (kind, name) in documents)
             if (!modules.Any(m => m.Kind == kind && m.Name == name)) modules.Add(new Module(name, kind, ""));
+        return Package(sheets, WriteProject(modules));
+    }
+
+    // --- the package ------------------------------------------------------------------------------------
+
+    static string Escaped(string text) => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
+
+    static byte[] Package(List<string> sheets, byte[] project)
+    {
+        var contentTypes = Head + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+            + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+            + "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+            + "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.ms-excel.sheet.macroEnabled.main+xml\"/>"
+            + $"<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"{Spreadsheet}worksheet+xml\"/>"
+            + $"<Override PartName=\"/xl/styles.xml\" ContentType=\"{Spreadsheet}styles+xml\"/>"
+            + $"<Override PartName=\"/xl/sharedStrings.xml\" ContentType=\"{Spreadsheet}sharedStrings+xml\"/>";
+        var relationships = Head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+            + $"<Relationship Id=\"rId1\" Type=\"{RelBase}worksheet\" Target=\"worksheets/sheet1.xml\"/>"
+            + $"<Relationship Id=\"rId2\" Type=\"{RelBase}styles\" Target=\"styles.xml\"/>"
+            + $"<Relationship Id=\"rId3\" Type=\"{RelBase}sharedStrings\" Target=\"sharedStrings.xml\"/>";
+        var sheetElements = "<sheets>";
+        var worksheets = new List<(string path, string xml)>();
+        for (int index = 0; index < sheets.Count; index++)
+        {
+            int id = index + 1, rel = index == 0 ? 1 : index + 4;
+            var path = $"worksheets/sheet{id}.xml";
+            sheetElements += $"<sheet name=\"{Escaped(sheets[index])}\" sheetId=\"{id}\" r:id=\"rId{rel}\"/>";
+            if (index > 0)
+            {
+                contentTypes += $"<Override PartName=\"/xl/{path}\" ContentType=\"{Spreadsheet}worksheet+xml\"/>";
+                relationships += $"<Relationship Id=\"rId{rel}\" Type=\"{RelBase}worksheet\" Target=\"{path}\"/>";
+            }
+            worksheets.Add(("xl/" + path, Head + "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+                + $"<sheetPr codeName=\"Sheet{id}\"/><sheetData/></worksheet>"));
+        }
+        sheetElements += "</sheets>";
+        contentTypes += "<Override PartName=\"/xl/vbaProject.bin\" ContentType=\"application/vnd.ms-office.vbaProject\"/></Types>";
+        relationships += "<Relationship Id=\"rId4\" Type=\"http://schemas.microsoft.com/office/2006/relationships/vbaProject\" Target=\"vbaProject.bin\"/></Relationships>";
+        var workbook = Head + "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"" + RelBase.TrimEnd('/') + "\">"
+            + "<workbookPr codeName=\"ThisWorkbook\"/>" + sheetElements + "<calcPr calcId=\"191029\"/></workbook>";
+        var packageRelationships = Head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+            + $"<Relationship Id=\"rId1\" Type=\"{RelBase}officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>";
+        var styles = Head + "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+            + "<fonts count=\"1\"><font><sz val=\"11\"/><color auto=\"1\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font></fonts>"
+            + "<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>"
+            + "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>"
+            + "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+            + "<cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs>"
+            + "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>";
+        var shared = Head + "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\"/>";
+        var parts = new List<(string name, byte[] body)>
+        {
+            ("[Content_Types].xml", Encoding.UTF8.GetBytes(contentTypes)),
+            ("_rels/.rels", Encoding.UTF8.GetBytes(packageRelationships)),
+            ("xl/workbook.xml", Encoding.UTF8.GetBytes(workbook)),
+            ("xl/_rels/workbook.xml.rels", Encoding.UTF8.GetBytes(relationships)),
+        };
+        parts.AddRange(worksheets.Select(w => (w.path, Encoding.UTF8.GetBytes(w.xml))));
+        parts.Add(("xl/styles.xml", Encoding.UTF8.GetBytes(styles)));
+        parts.Add(("xl/sharedStrings.xml", Encoding.UTF8.GetBytes(shared)));
+        parts.Add(("xl/vbaProject.bin", project));
+        using var memory = new MemoryStream();
+        using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, true))
+            foreach (var (name, body) in parts)
+            {
+                var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
+                entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                using var stream = entry.Open();
+                stream.Write(body);
+            }
+        return memory.ToArray();
+    }
+
+    // --- the VBA project (MS-OVBA) ------------------------------------------------------------------------
+
+    static byte[] WriteProject(List<Module> modules)
+    {
+        var streams = new List<(string name, Node node)> { ("_VBA_PROJECT", new Node(new byte[] { 0xCC, 0x61, 0xFF, 0xFF, 0, 1, 0 })) };
+        long bytes = 0;
         foreach (var module in modules)
-            if (module.Kind != "Standard" && !documents.Contains((module.Kind, module.Name)))
-                throw Refused("a document module does not name ThisWorkbook or a sheet code name");
-        return modules;
+        {
+            var source = EncodedSource(module);
+            bytes += source.Length;
+            if (bytes > MaxProject) throw new RefusedVbaException("the VBA project exceeds its size limit");
+            streams.Add((module.Name, new Node(Compress(source))));
+        }
+        streams.Add(("dir", new Node(Compress(DirStream(modules)))));
+        var project = CompoundFile.Write(new List<(string, Node)>
+        {
+            ("PROJECT", new Node(Encoding.ASCII.GetBytes(ProjectStream(modules)))),
+            ("PROJECTwm", new Node(NameMap(modules))),
+            ("VBA", new Node(streams)),
+        });
+        if (project == null || project.Length > MaxProject) throw new RefusedVbaException("the VBA project exceeds its size limit");
+        return project;
     }
 
     static byte[] EncodedSource(Module module)
     {
-        var normalized = module.Source.Replace("\r\n", "\n").Replace("\r", "\n");
-        var text = $"Attribute VB_Name = \"{module.Name}\"\r\n";
+        var normalized = module.Source.Replace("\r\n", "\n").Replace('\r', '\n');
+        var text = new StringBuilder($"Attribute VB_Name = \"{module.Name}\"\r\n");
         string baseId = module.Kind switch
         {
-            "Class" => "FCFB3D2A-A0FA-1068-A738-08002B3371B5",
             "Workbook" => "00020819-0000-0000-C000-000000000046",
             "Worksheet" => "00020820-0000-0000-C000-000000000046",
             _ => null,
         };
         if (baseId != null)
-        {
-            var flag = module.Kind == "Class" ? "False" : "True";
-            text += $"Attribute VB_Base = \"0{{{baseId}}}\"\r\nAttribute VB_GlobalNameSpace = False\r\n"
-                + $"Attribute VB_Creatable = False\r\nAttribute VB_PredeclaredId = {flag}\r\n"
-                + $"Attribute VB_Exposed = {flag}\r\nAttribute VB_TemplateDerived = False\r\n"
-                + $"Attribute VB_Customizable = {flag}\r\n";
-        }
-        try
-        {
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            return Encoding.GetEncoding(1252, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback)
-                .GetBytes(text + normalized.Replace("\n", "\r\n"));
-        }
-        catch (EncoderFallbackException) { throw Refused("module source is not Windows-1252"); }
+            text.Append($"Attribute VB_Base = \"0{{{baseId}}}\"\r\nAttribute VB_GlobalNameSpace = False\r\n"
+                + "Attribute VB_Creatable = False\r\nAttribute VB_PredeclaredId = True\r\nAttribute VB_Exposed = True\r\n"
+                + "Attribute VB_TemplateDerived = False\r\nAttribute VB_Customizable = True\r\n");
+        text.Append(normalized.Replace("\n", "\r\n"));
+        // The policy admits ASCII only, so Windows-1252 and ASCII agree.
+        if (text.ToString().Any(c => c > '~' || c == '\0')) throw new RefusedVbaException("module source is not ASCII");
+        return Encoding.ASCII.GetBytes(text.ToString());
     }
 
-    static void Record(List<byte> dir, int id, byte[] body = null)
+    static void Record(List<byte> dir, ushort id, params byte[] body)
     {
-        body ??= Array.Empty<byte>();
-        dir.AddRange(BitConverter.GetBytes((ushort)id));
+        dir.AddRange(BitConverter.GetBytes(id));
         dir.AddRange(BitConverter.GetBytes((uint)body.Length));
         dir.AddRange(body);
     }
 
-    static byte[] U32(uint v) => BitConverter.GetBytes(v);
-    static byte[] U16(ushort v) => BitConverter.GetBytes(v);
-    static byte[] Utf16(string s) => Encoding.Unicode.GetBytes(s);
-    static byte[] Ascii(string s) => Encoding.ASCII.GetBytes(s);
+    static byte[] Utf16(string text) => Encoding.Unicode.GetBytes(text);
 
-    static byte[] Directory(List<Module> modules)
+    static byte[] DirStream(List<Module> modules)
     {
         var d = new List<byte>();
-        Record(d, 0x01, U32(3)); Record(d, 0x4A, U32(6)); Record(d, 0x02, U32(0x0409)); Record(d, 0x14, U32(0x0409));
-        Record(d, 0x03, U16(1252)); Record(d, 0x04, Ascii(ProjectName));
-        foreach (var id in new[] { 0x05, 0x40, 0x06, 0x3D }) Record(d, id);
-        Record(d, 0x07, new byte[4]); Record(d, 0x08, new byte[4]); Record(d, 0x09, U32(1));
-        d.AddRange(U16(0));
-        Record(d, 0x0C); Record(d, 0x3C);
+        Record(d, 0x01, BitConverter.GetBytes(3u));
+        Record(d, 0x4A, BitConverter.GetBytes(6u));
+        Record(d, 0x02, BitConverter.GetBytes(0x0409u));
+        Record(d, 0x14, BitConverter.GetBytes(0x0409u));
+        Record(d, 0x03, BitConverter.GetBytes((ushort)1252));
+        Record(d, 0x04, Encoding.ASCII.GetBytes(ProjectName));
+        foreach (ushort id in new ushort[] { 0x05, 0x40, 0x06, 0x3D }) Record(d, id);
+        Record(d, 0x07, new byte[4]);
+        Record(d, 0x08, new byte[4]);
+        Record(d, 0x09, BitConverter.GetBytes(1u));
+        d.AddRange(BitConverter.GetBytes((ushort)0));
+        Record(d, 0x0C);
+        Record(d, 0x3C);
         foreach (var (name, libid) in new[]
         {
             ("stdole", @"*\G{00020430-0000-0000-C000-000000000046}#2.0#0#C:\Windows\System32\stdole2.tlb#OLE Automation"),
             ("Office", @"*\G{2DF8D04C-5BFA-101B-BDE5-00AA0044DE52}#2.0#0#C:\Program Files\Common Files\Microsoft Shared\OFFICE16\MSO.DLL#Microsoft Office 16.0 Object Library"),
         })
         {
-            Record(d, 0x16, Ascii(name)); Record(d, 0x3E, Utf16(name));
-            Record(d, 0x0D, U32((uint)libid.Length).Concat(Ascii(libid)).Concat(new byte[6]).ToArray());
+            Record(d, 0x16, Encoding.ASCII.GetBytes(name));
+            Record(d, 0x3E, Utf16(name));
+            var registered = BitConverter.GetBytes((uint)libid.Length).Concat(Encoding.ASCII.GetBytes(libid)).Concat(new byte[6]).ToArray();
+            Record(d, 0x0D, registered);
         }
-        Record(d, 0x0F, U16((ushort)modules.Count)); Record(d, 0x13, new byte[2]);
+        Record(d, 0x0F, BitConverter.GetBytes((ushort)modules.Count));
+        Record(d, 0x13, new byte[2]);
         foreach (var module in modules)
         {
-            Record(d, 0x19, Ascii(module.Name)); Record(d, 0x47, Utf16(module.Name));
-            Record(d, 0x1A, Ascii(module.Name)); Record(d, 0x32, Utf16(module.Name));
-            Record(d, 0x1C); Record(d, 0x48); Record(d, 0x31, new byte[4]); Record(d, 0x1E, new byte[4]);
-            Record(d, 0x2C, new byte[2]); Record(d, module.Kind == "Standard" ? 0x21 : 0x22); Record(d, 0x2B);
+            var name = Encoding.ASCII.GetBytes(module.Name);
+            var wide = Utf16(module.Name);
+            Record(d, 0x19, name);
+            Record(d, 0x47, wide);
+            Record(d, 0x1A, name);
+            Record(d, 0x32, wide);
+            Record(d, 0x1C);
+            Record(d, 0x48);
+            Record(d, 0x31, new byte[4]);
+            Record(d, 0x1E, new byte[4]);
+            Record(d, 0x2C, new byte[2]);
+            Record(d, module.Kind == "Standard" ? (ushort)0x21 : (ushort)0x22);
+            Record(d, 0x2B);
         }
         Record(d, 0x10);
         return d.ToArray();
     }
 
-    static string ProjectProperty(byte[] data)
-    {
-        byte key = unchecked((byte)Ascii(ProjectId).Sum(b => b));
-        byte previous = key, earlier = 2, unencoded = key;
-        var sb = new StringBuilder($"00{earlier:X2}{previous:X2}");
-        foreach (var b in U32((uint)data.Length).Concat(data))
-        {
-            byte encoded = (byte)(b ^ (byte)(earlier + unencoded));
-            sb.Append($"{encoded:X2}");
-            earlier = previous; previous = encoded; unencoded = b;
-        }
-        return sb.ToString();
-    }
-
-    static byte[] ProjectStream(List<Module> modules)
-    {
-        var sb = new StringBuilder($"ID=\"{ProjectId}\"\r\n");
-        foreach (var m in modules)
-            sb.Append(m.Kind switch { "Standard" => "Module=", "Class" => "Class=", _ => "Document=" })
-              .Append(m.Name).Append(m.Kind is "Standard" or "Class" ? "" : "/&H00000000").Append("\r\n");
-        sb.Append($"Name=\"{ProjectName}\"\r\nHelpContextID=\"0\"\r\nVersionCompatible32=\"393222000\"\r\n");
-        foreach (var (property, data) in new[] { ("CMG", new byte[4]), ("DPB", new byte[] { 0 }), ("GC", new byte[] { 0xFF }) })
-            sb.Append($"{property}=\"{ProjectProperty(data)}\"\r\n");
-        sb.Append("\r\n[Host Extender Info]\r\n&H00000001={3832D640-CF90-11CF-8E43-00A0C911005A};VBE;&H00000000\r\n");
-        return Ascii(sb.ToString());
-    }
-
     static byte[] NameMap(List<Module> modules)
     {
         var map = new List<byte>();
-        foreach (var m in modules) { map.AddRange(Ascii(m.Name)); map.Add(0); map.AddRange(Utf16(m.Name)); map.AddRange(new byte[2]); }
+        foreach (var module in modules)
+        {
+            map.AddRange(Encoding.ASCII.GetBytes(module.Name));
+            map.Add(0);
+            map.AddRange(Utf16(module.Name));
+            map.AddRange(new byte[2]);
+        }
         map.AddRange(new byte[2]);
         return map.ToArray();
     }
 
-    static void CheckProject(byte[] blob, List<Module> modules)
+    static string ProjectProperty(byte[] data)
     {
-        var streams = ReadCompoundFile(blob);
-        var plain = new Dictionary<string, byte[]>
+        byte key = 0;
+        foreach (var b in Encoding.ASCII.GetBytes(ProjectId)) key = unchecked((byte)(key + b));
+        byte previous = key, earlier = 2, unencoded = key;
+        var result = new StringBuilder("00").Append(earlier.ToString("X2")).Append(previous.ToString("X2"));
+        foreach (var value in BitConverter.GetBytes((uint)data.Length).Concat(data))
         {
-            ["PROJECT"] = ProjectStream(modules), ["PROJECTwm"] = NameMap(modules),
-            ["VBA/_VBA_PROJECT"] = new byte[] { 0xCC, 0x61, 0xFF, 0xFF, 0, 1, 0 },
-        };
-        var packed = new Dictionary<string, byte[]> { ["VBA/dir"] = Directory(modules) };
-        foreach (var m in modules) packed["VBA/" + m.Name] = EncodedSource(m);
-        if (!streams.Keys.ToHashSet().SetEquals(plain.Keys.Concat(packed.Keys)))
-            throw Refused("vbaProject.bin has unexpected or missing streams");
-        foreach (var (path, body) in plain)
-            if (!streams[path].AsSpan().SequenceEqual(body))
-                throw Refused($"vbaProject.bin stream {path} differs from the authored project");
-        foreach (var (path, body) in packed)
-            if (!Decompress(streams[path]).AsSpan().SequenceEqual(body))
-                throw Refused($"vbaProject.bin stream {path} differs from the authored source");
+            byte encoded = (byte)(value ^ unchecked((byte)(earlier + unencoded)));
+            result.Append(encoded.ToString("X2"));
+            earlier = previous;
+            previous = encoded;
+            unencoded = value;
+        }
+        return result.ToString();
     }
 
-    public static byte[] Decompress(byte[] data)
+    static string ProjectStream(List<Module> modules)
     {
-        if (data.Length == 0 || data[0] != 1) throw Refused("bad compressed container");
-        var output = new List<byte>();
-        int at = 1;
-        while (at < data.Length)
+        var text = new StringBuilder($"ID=\"{ProjectId}\"\r\n");
+        foreach (var module in modules)
+            text.Append(module.Kind == "Standard" ? $"Module={module.Name}\r\n" : $"Document={module.Name}/&H00000000\r\n");
+        text.Append($"Name=\"{ProjectName}\"\r\nHelpContextID=\"0\"\r\nVersionCompatible32=\"393222000\"\r\n");
+        foreach (var (property, data) in new[] { ("CMG", new byte[4]), ("DPB", new byte[] { 0 }), ("GC", new byte[] { 0xFF }) })
+            text.Append($"{property}=\"{ProjectProperty(data)}\"\r\n");
+        text.Append("\r\n[Host Extender Info]\r\n&H00000001={3832D640-CF90-11CF-8E43-00A0C911005A};VBE;&H00000000\r\n");
+        return text.ToString();
+    }
+
+    /// <summary>An MS-OVBA compressed container (2.4.1.3): copy tokens for repeats, literals otherwise, a raw chunk
+    /// only for an incompressible full 4096-byte chunk. An incompressible short final chunk cannot be stored.</summary>
+    public static byte[] Compress(byte[] input)
+    {
+        var output = new List<byte> { 1 };
+        for (int start = 0; start < input.Length; start += 4096)
         {
-            if (at + 2 > data.Length) throw Refused("truncated compressed chunk");
-            int header = data[at] | data[at + 1] << 8;
-            int end = at + (header & 0xFFF) + 3;
-            if ((header >> 12 & 7) != 3 || end > data.Length) throw Refused("bad compressed chunk");
-            if ((header & 0x8000) == 0)
+            var chunk = input.AsSpan(start, Math.Min(4096, input.Length - start)).ToArray();
+            var packed = CompressChunk(chunk);
+            if (packed.Count <= 4096)
             {
-                if (end - at != 4098) throw Refused("bad raw chunk");
-                for (int i = at + 2; i < end; i++) output.Add(data[i]);
+                ushort header = (ushort)(0xB000 | (packed.Count - 1));
+                output.AddRange(BitConverter.GetBytes(header));
+                output.AddRange(packed);
             }
-            else
+            else if (chunk.Length == 4096)
             {
-                int start = output.Count, pos = at + 2;
-                while (pos < end)
-                {
-                    int flags = data[pos++];
-                    for (int bit = 0; bit < 8 && pos < end; bit++)
-                    {
-                        if ((flags >> bit & 1) == 0) { output.Add(data[pos++]); continue; }
-                        if (pos + 2 > end) throw Refused("truncated copy token");
-                        int token = data[pos] | data[pos + 1] << 8;
-                        pos += 2;
-                        int distance = output.Count - start;
-                        int bits = distance == 0 ? 4 : Math.Max(32 - System.Numerics.BitOperations.LeadingZeroCount((uint)(distance - 1)), 4);
-                        int length = (token & (0xFFFF >> bits)) + 3;
-                        int offset = (token >> (16 - bits)) + 1;
-                        if (offset > distance) throw Refused("bad copy token");
-                        for (int i = 0; i < length; i++) output.Add(output[^offset]);
-                    }
-                }
+                output.AddRange(BitConverter.GetBytes((ushort)0x3FFF));
+                output.AddRange(chunk);
             }
-            at = end;
-            if (output.Count > MaxProject) throw Refused("oversized module stream");
+            else throw new RefusedVbaException("a module does not compress into one chunk; add or remove a comment line");
         }
         return output.ToArray();
     }
 
-    record Entry(string Name, byte Kind, uint Left, uint Right, uint Child, uint Start, ulong Size);
+    static List<byte> CompressChunk(byte[] chunk)
+    {
+        const int Candidates = 128;
+        var seen = new Dictionary<int, List<int>>();
+        void Insert(int at)
+        {
+            if (at + 3 > chunk.Length) return;
+            int key = chunk[at] << 16 | chunk[at + 1] << 8 | chunk[at + 2];
+            if (!seen.TryGetValue(key, out var list)) seen[key] = list = new();
+            list.Add(at);
+        }
+        var output = new List<byte>();
+        int pos = 0;
+        while (pos < chunk.Length)
+        {
+            int flagsAt = output.Count;
+            output.Add(0);
+            byte flags = 0;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                if (pos >= chunk.Length) break;
+                int bits = Math.Max(32 - System.Numerics.BitOperations.LeadingZeroCount((uint)Math.Max(pos - 1, 0)), 4);
+                int longest = (0xFFFF >> bits) + 3;
+                int bestDistance = 0, bestLength = 0;
+                if (pos + 3 <= chunk.Length
+                    && seen.TryGetValue(chunk[pos] << 16 | chunk[pos + 1] << 8 | chunk[pos + 2], out var candidates))
+                {
+                    for (int c = candidates.Count - 1; c >= Math.Max(0, candidates.Count - Candidates); c--)
+                    {
+                        int from = candidates[c], length = 0, limit = Math.Min(longest, chunk.Length - pos);
+                        while (length < limit && chunk[from + length] == chunk[pos + length]) length++;
+                        if (length > bestLength) { bestDistance = pos - from; bestLength = length; }
+                    }
+                }
+                if (bestLength >= 3)
+                {
+                    ushort token = (ushort)(((bestDistance - 1) << (16 - bits)) | (bestLength - 3));
+                    output.AddRange(BitConverter.GetBytes(token));
+                    flags |= (byte)(1 << bit);
+                    for (int covered = pos; covered < pos + bestLength; covered++) Insert(covered);
+                    pos += bestLength;
+                }
+                else
+                {
+                    output.Add(chunk[pos]);
+                    Insert(pos);
+                    pos++;
+                }
+            }
+            output[flagsAt] = flags;
+        }
+        return output;
+    }
 
-    static Dictionary<string, byte[]> ReadCompoundFile(byte[] blob)
+    // --- the compound file (MS-CFB, version 3), one FAT and no DIFAT sectors -------------------------------
+
+    sealed class Node
+    {
+        public readonly byte[] Data;
+        public readonly List<(string name, Node node)> Children;
+        public Node(byte[] data) { Data = data; }
+        public Node(List<(string, Node)> children) { Children = children; }
+    }
+
+    static class CompoundFile
     {
         const int Sector = 512;
-        if (blob.Length < 1536 || blob.Length > MaxProject
-            || !blob.AsSpan(0, 8).SequenceEqual(new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 }))
-            throw Refused("vbaProject.bin is not a compound file");
-        ushort U16At(int at) => BitConverter.ToUInt16(blob, at);
-        uint U32At(int at) => BitConverter.ToUInt32(blob, at);
-        if (U16At(26) != 3 || U16At(28) != 0xFFFE || U16At(30) != 9 || U16At(32) != 6)
-            throw Refused("unsupported compound file layout");
-        uint fatCount = U32At(44), dirStart = U32At(48), cutoff = U32At(56), miniStart = U32At(60),
-            miniCount = U32At(64), difatStart = U32At(68), difatCount = U32At(72);
-        int sectors = (blob.Length - Sector) / Sector;
-        ReadOnlySpan<byte> SectorBytes(uint index)
+        const uint End = 0xFFFFFFFE, FatMark = 0xFFFFFFFD, None = 0xFFFFFFFF;
+
+        sealed class Entry
         {
-            if (index >= sectors) throw Refused("sector out of range");
-            return blob.AsSpan(Sector + (int)index * Sector, Sector);
+            public string Name;
+            public byte Kind;
+            public uint Left = None, Right = None, Child = None, Start = End;
+            public bool Red;
+            public long Size;
+            public byte[] Data = System.Array.Empty<byte>();
         }
-        var difat = new List<uint>();
-        for (int i = 0; i < 109; i++) difat.Add(U32At(76 + 4 * i));
-        uint chainAt = difatStart;
-        var chainSeen = new HashSet<uint>();
-        for (uint i = 0; i < difatCount; i++)
+
+        static int Compare(string a, string b)
         {
-            if (!chainSeen.Add(chainAt) || chainAt >= sectors) throw Refused("bad DIFAT");
-            var entries = new uint[128];
-            var span = SectorBytes(chainAt);
-            for (int k = 0; k < 128; k++) entries[k] = BitConverter.ToUInt32(span.Slice(4 * k, 4));
-            difat.AddRange(entries.Take(127));
-            chainAt = entries[127];
+            var x = Encoding.Unicode.GetBytes(a.ToUpperInvariant()).Chunk(2).Select(p => p[0] | p[1] << 8).ToArray();
+            var y = Encoding.Unicode.GetBytes(b.ToUpperInvariant()).Chunk(2).Select(p => p[0] | p[1] << 8).ToArray();
+            if (x.Length != y.Length) return x.Length.CompareTo(y.Length);
+            for (int i = 0; i < x.Length; i++)
+                if (x[i] != y[i]) return x[i].CompareTo(y[i]);
+            return 0;
         }
-        var fat = new List<uint>();
-        foreach (var index in difat.Take((int)Math.Min(fatCount, (uint)difat.Count)))
+
+        static uint Add(List<Entry> entries, List<(string name, Node node)> children)
         {
-            var span = SectorBytes(index);
-            for (int k = 0; k < 128; k++) fat.Add(BitConverter.ToUInt32(span.Slice(4 * k, 4)));
-        }
-        List<uint> ChainOf(uint start, List<uint> table)
-        {
-            var result = new List<uint>();
-            var seen = new HashSet<uint>();
-            while (start != End)
+            if (children.Count == 0) return None;
+            children = children.OrderBy(c => c.name, Comparer<string>.Create(Compare)).ToList();
+            var ids = new List<uint>();
+            var storages = new List<(uint id, List<(string, Node)> kids)>();
+            foreach (var (name, node) in children)
             {
-                if (start >= table.Count || !seen.Add(start)) throw Refused("bad sector chain");
-                result.Add(start);
-                start = table[(int)start];
+                uint id = (uint)entries.Count;
+                ids.Add(id);
+                var entry = new Entry { Name = name };
+                if (node.Children != null) { storages.Add((id, node.Children)); entry.Kind = 1; }
+                else { entry.Kind = 2; entry.Data = node.Data; }
+                entries.Add(entry);
             }
-            return result;
-        }
-        byte[] ReadChain(uint start, long size)
-        {
-            var body = new List<byte>();
-            foreach (var index in ChainOf(start, fat)) body.AddRange(SectorBytes(index).ToArray());
-            if (body.Count < size) throw Refused("short stream");
-            return body.Take((int)size).ToArray();
-        }
-        var directory = ReadChain(dirStart, ChainOf(dirStart, fat).Count * Sector);
-        var table = new List<Entry>();
-        for (int at = 0; at + 128 <= directory.Length; at += 128)
-        {
-            int length = BitConverter.ToUInt16(directory, at + 64);
-            byte kind = directory[at + 66];
-            if (kind != 0 && (length < 2 || length > 64 || length % 2 != 0)) throw Refused("bad directory entry name");
-            string name;
-            try { name = kind == 0 ? "" : new UnicodeEncoding(false, false, true).GetString(directory, at, length - 2); }
-            catch (ArgumentException) { throw Refused("bad directory entry name"); }
-            table.Add(new Entry(name, kind, BitConverter.ToUInt32(directory, at + 68), BitConverter.ToUInt32(directory, at + 72),
-                BitConverter.ToUInt32(directory, at + 76), BitConverter.ToUInt32(directory, at + 116),
-                BitConverter.ToUInt64(directory, at + 120)));
-        }
-        if (table.Count == 0 || table[0].Kind != 5) throw Refused("no root entry");
-        var miniFat = new List<uint>();
-        if (miniCount != 0)
-        {
-            var body = ReadChain(miniStart, ChainOf(miniStart, fat).Count * Sector);
-            for (int k = 0; k + 4 <= body.Length; k += 4) miniFat.Add(BitConverter.ToUInt32(body, k));
-        }
-        var miniStream = table[0].Size != 0 ? ReadChain(table[0].Start, (long)table[0].Size) : Array.Empty<byte>();
-        byte[] StreamOf(Entry entry)
-        {
-            if (entry.Size >= cutoff) return ReadChain(entry.Start, (long)entry.Size);
-            var body = new List<byte>();
-            foreach (var index in ChainOf(entry.Start, miniFat))
+            int depthMax = 0;
+            while ((1 << depthMax) - 1 < ids.Count) depthMax++;
+            bool complete = (1 << depthMax) - 1 == ids.Count;
+            uint Build(List<uint> slice, int depth)
             {
-                if ((long)index * 64 + 64 > miniStream.Length) throw Refused("short mini stream");
-                body.AddRange(miniStream.AsSpan((int)index * 64, 64).ToArray());
+                if (slice.Count == 0) return None;
+                int mid = slice.Count / 2;
+                uint id = slice[mid];
+                uint left = Build(slice.GetRange(0, mid), depth + 1);
+                uint right = Build(slice.GetRange(mid + 1, slice.Count - mid - 1), depth + 1);
+                entries[(int)id].Left = left;
+                entries[(int)id].Right = right;
+                entries[(int)id].Red = !complete && depth + 1 == depthMax;
+                return id;
             }
-            if (body.Count < (long)entry.Size) throw Refused("short mini stream");
-            return body.Take((int)entry.Size).ToArray();
+            uint root = Build(ids, 0);
+            foreach (var (id, kids) in storages) entries[(int)id].Child = Add(entries, kids);
+            return root;
         }
-        var found = new Dictionary<string, byte[]>();
-        var visited = new HashSet<uint> { 0 };
-        void Walk(uint index, string prefix)
+
+        static int Ceil(int n, int d) => (n + d - 1) / d;
+
+        public static byte[] Write(List<(string, Node)> root)
         {
-            var stack = new Stack<uint>();
-            stack.Push(index);
-            while (stack.Count > 0)
+            var entries = new List<Entry> { new Entry { Name = "Root Entry", Kind = 5 } };
+            entries[0].Child = Add(entries, root);
+            var mini = new List<byte>();
+            var miniFat = new List<uint>();
+            foreach (var entry in entries.Where(e => e.Kind == 2))
             {
-                var at = stack.Pop();
-                if (at == None) continue;
-                if (at >= table.Count || !visited.Add(at)) throw Refused("bad directory tree");
-                var entry = table[(int)at];
-                var path = prefix + entry.Name;
-                if (entry.Kind == 2)
-                {
-                    if (!found.TryAdd(path, StreamOf(entry))) throw Refused("duplicate stream");
-                }
-                else if (entry.Kind == 1) Walk(entry.Child, path + "/");
-                else throw Refused("unexpected directory entry");
-                stack.Push(entry.Left);
-                stack.Push(entry.Right);
+                entry.Size = entry.Data.Length;
+                if (entry.Data.Length == 0 || entry.Data.Length >= 4096) continue;
+                entry.Start = (uint)miniFat.Count;
+                int units = Ceil(entry.Data.Length, 64);
+                for (int u = 0; u < units; u++) miniFat.Add(u + 1 == units ? End : (uint)miniFat.Count + 1);
+                mini.AddRange(entry.Data);
+                while (mini.Count < miniFat.Count * 64) mini.Add(0);
             }
+            entries[0].Size = mini.Count;
+            int directorySectors = Ceil(entries.Count * 128, Sector);
+            int miniFatSectors = Ceil(miniFat.Count * 4, Sector);
+            int miniSectors = Ceil(mini.Count, Sector);
+            var big = entries.Where(e => e.Kind == 2 && e.Data.Length >= 4096).ToList();
+            int bigSectors = big.Sum(e => Ceil(e.Data.Length, Sector));
+            int dataSectors = directorySectors + miniFatSectors + miniSectors + bigSectors;
+            int fatSectors = 1;
+            while (Ceil(dataSectors + fatSectors, 128) != fatSectors) fatSectors = Ceil(dataSectors + fatSectors, 128);
+            if (fatSectors > 109) throw new RefusedVbaException("the VBA project exceeds its size limit");
+            var fat = Enumerable.Repeat(None, fatSectors * 128).ToArray();
+            int next = 0;
+            for (int i = 0; i < fatSectors; i++) fat[next++] = FatMark;
+            uint Chain(int count)
+            {
+                if (count == 0) return End;
+                uint start = (uint)next;
+                for (int k = 0; k < count; k++) { fat[next] = k + 1 == count ? End : (uint)next + 1; next++; }
+                return start;
+            }
+            uint directoryStart = Chain(directorySectors), miniFatStart = Chain(miniFatSectors), miniStart = Chain(miniSectors);
+            foreach (var entry in big) entry.Start = Chain(Ceil(entry.Data.Length, Sector));
+            entries[0].Start = mini.Count == 0 ? End : miniStart;
+
+            var output = new List<byte>(new byte[Sector]);
+            void Put(int at, byte[] value) { for (int i = 0; i < value.Length; i++) output[at + i] = value[i]; }
+            Put(0, new byte[] { 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1 });
+            Put(0x18, BitConverter.GetBytes((ushort)0x3E));
+            Put(0x1A, BitConverter.GetBytes((ushort)3));
+            Put(0x1C, BitConverter.GetBytes((ushort)0xFFFE));
+            Put(0x1E, BitConverter.GetBytes((ushort)9));
+            Put(0x20, BitConverter.GetBytes((ushort)6));
+            Put(0x2C, BitConverter.GetBytes((uint)fatSectors));
+            Put(0x30, BitConverter.GetBytes(directoryStart));
+            Put(0x38, BitConverter.GetBytes(4096u));
+            Put(0x3C, BitConverter.GetBytes(miniFatStart));
+            Put(0x40, BitConverter.GetBytes((uint)miniFatSectors));
+            Put(0x44, BitConverter.GetBytes(End));
+            Put(0x48, BitConverter.GetBytes(0u));
+            for (int k = 0; k < 109; k++) Put(0x4C + 4 * k, BitConverter.GetBytes(k < fatSectors ? (uint)k : None));
+            foreach (var value in fat) output.AddRange(BitConverter.GetBytes(value));
+            var directory = new List<byte>();
+            foreach (var entry in entries)
+            {
+                var e = new byte[128];
+                var units = entry.Name.ToCharArray();
+                for (int k = 0; k < Math.Min(31, units.Length); k++) BitConverter.GetBytes(units[k]).CopyTo(e, 2 * k);
+                BitConverter.GetBytes((ushort)((Math.Min(31, units.Length) + 1) * 2)).CopyTo(e, 0x40);
+                e[0x42] = entry.Kind;
+                e[0x43] = (byte)(entry.Red ? 0 : 1);
+                BitConverter.GetBytes(entry.Left).CopyTo(e, 0x44);
+                BitConverter.GetBytes(entry.Right).CopyTo(e, 0x48);
+                BitConverter.GetBytes(entry.Child).CopyTo(e, 0x4C);
+                BitConverter.GetBytes(entry.Start).CopyTo(e, 0x74);
+                BitConverter.GetBytes(entry.Size).CopyTo(e, 0x78);
+                directory.AddRange(e);
+            }
+            while (directory.Count < directorySectors * Sector) directory.Add(0);
+            for (int k = entries.Count; k < directorySectors * 4; k++)
+                for (int b = 0x44; b < 0x50; b++) directory[k * 128 + b] = 0xFF;
+            output.AddRange(directory);
+            foreach (var value in miniFat) output.AddRange(BitConverter.GetBytes(value));
+            int through = Sector * (1 + fatSectors + directorySectors + miniFatSectors);
+            while (output.Count < through) output.Add(0xFF);
+            output.AddRange(mini);
+            through += miniSectors * Sector;
+            while (output.Count < through) output.Add(0);
+            foreach (var entry in big)
+            {
+                output.AddRange(entry.Data);
+                while (output.Count % Sector != 0) output.Add(0);
+            }
+            return output.ToArray();
         }
-        Walk(table[0].Child, "");
-        if (table.Count(e => e.Kind != 0) != visited.Count) throw Refused("unreachable directory entries");
-        return found;
     }
 }
