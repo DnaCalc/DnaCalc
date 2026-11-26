@@ -686,7 +686,9 @@ pub fn gratio(a: f64, x: f64) -> (f64, f64) {
 
 fn gratio_series(a: f64, x: f64, r_series: f64) -> (f64, f64) {
     // Forward Taylor series (Cephes-igam style): ans accumulates from 1.0, stop at
-    // c / ans <= 2^-53, stored x87 product r_series * ans before binary64 publication.
+    // c / ans <= f64::EPSILON (2^-52; bisected on live Excel 16.0 b20625 across
+    // 2.220434e-16 -> stop vs 2.220449e-16 -> continue, dc-j9k.570), stored x87
+    // product r_series * ans before binary64 publication.
     use crate::ported::excel_numeric::{excel_x87_add, excel_x87_div, excel_x87_mul};
     let mut rr = a;
     let mut c = 1.0_f64;
@@ -695,7 +697,7 @@ fn gratio_series(a: f64, x: f64, r_series: f64) -> (f64, f64) {
         rr += 1.0;
         c = excel_x87_mul(c, excel_x87_div(x, rr));
         ans = excel_x87_add(ans, c);
-        if excel_x87_div(c, ans) <= 1.110_223_024_625_156_5e-16 {
+        if excel_x87_div(c, ans) <= f64::EPSILON {
             break;
         }
     }
