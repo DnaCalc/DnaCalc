@@ -207,7 +207,7 @@ impl WorkbookAutomation {
                 range.areas()[0]
             };
             // The paste writes its destination, and a Cut also clears its source.
-            self.guard_area(session, to)?;
+            self.guard_area(session, Self::written_area(clip.snapshot.area(), to, transpose))?;
             if clip.cut {
                 self.guard_area(session, clip.snapshot.area())?;
             }

@@ -66,7 +66,7 @@ impl WorkbookAutomation {
             if to.area_count() != 1 {
                 return Err(AutoError::not_modelled("Range.Copy to several areas", OWNER));
             }
-            self.guard_locked(session, &to)?;
+            self.guard_area(session, Self::written_area(range.areas()[0], to.areas()[0], false))?;
             if cut {
                 self.guard_locked(session, &range)?;
             }
@@ -109,9 +109,10 @@ impl WorkbookAutomation {
             AutoValue::Missing | AutoValue::Empty => None,
             other => Some(geometry::integer(other)?),
         };
-        self.mutate_range(target, call, |_, range| {
+        self.mutate_range(target, call, |session, range| {
             let area = range.areas()[0];
             let sheet = area.sheet();
+            self.refuse_while_protected(session, sheet, if insert { "Range.Insert" } else { "Range.Delete" })?;
             let (first, last) = (area.first(), area.last());
             let whole_rows = first.column() == 1 && last.column() == MAX_COLUMNS;
             let whole_columns = first.row() == 1 && last.row() == MAX_ROWS;
