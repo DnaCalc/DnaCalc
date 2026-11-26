@@ -311,7 +311,7 @@ static class VbaPolicy
             {
                 var text = place as string ?? "";
                 int bang = text.LastIndexOf('!');
-                if (bang < 0 || !sheetNames.Contains(text[..bang].ToLowerInvariant()) || !IsAddress(text[(bang + 1)..]))
+                if (bang < 0 || !text[..bang].All(c => c < 128) || !sheetNames.Contains(text[..bang].ToLowerInvariant()) || !IsAddress(text[(bang + 1)..]))
                     throw new RefusedVbaException($"VBA {field} must name a case sheet and one A1 cell");
             }
         }

@@ -765,6 +765,55 @@ class AdmissionTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                     self.assertIn("layout", result.stderr.lower())
 
+    def rw18_parity_groups(self):
+        """dc-8w2us: (group, accepted) for the differentials the review found; both validators must agree."""
+        sheets = [{"name": "K", "cells": {"A1": number(ONE)}}, {"name": "Events", "cells": {}}]
+        params = {**self.template_group()["v"][0]["params"], "target_sheet": "K"}
+        yield "kelvin", self.template_group(sheets=sheets, params=params, readback=["\u212a!A1"]), False
+        yield "ascii", self.template_group(sheets=sheets, params=params, readback=["k!A1"]), True
+        yield "lone surrogate", self.template_group(calls=[{"procedure": "Module1.Probe", "args": [
+            {"type": "text", "value": "\ud800"}]}]), True
+
+    def test_vba_validators_agree_on_the_rw18_differentials(self):
+        for name, group, accepted in self.rw18_parity_groups():
+            with self.subTest(name=name):
+                if accepted:
+                    self.admission.check(group)
+                else:
+                    with self.assertRaises(ValueError):
+                        self.admission.check(group)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_agrees_on_the_rw18_differentials(self):
+        for name, group, accepted in self.rw18_parity_groups():
+            with self.subTest(name=name):
+                result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                        input=json.dumps(group), text=True, capture_output=True, timeout=30)
+                self.assertEqual(result.returncode, 0 if accepted else 1, result.stdout + result.stderr)
+
+    def rw18_string_taint_groups(self):
+        write = 'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = '
+        yield vba_group("Public Function Neg() As String\nNeg = -1\nEnd Function\n"
+                        f"Public Function Probe(ByVal x As Long) As Long\n{write}Neg()\nProbe = 1\nEnd Function\n")
+        yield vba_group(f"Public Function Probe(ByVal s As String) As Long\n{write}s\nProbe = 1\nEnd Function\n")
+
+    def test_vba_grammar_classifies_string_function_results_and_parameters_as_number_text(self):
+        for group in self.rw18_string_taint_groups():
+            with self.subTest(source=group["v"][0]["modules"][0]["source"][:60]), \
+                    self.assertRaisesRegex(ValueError, "(?i)plainly data"):
+                self.check_source(group)
+        self.check_source(vba_group('Public Function Neg() As String\nNeg = "abc"\nEnd Function\n'
+                                    'Public Function Probe(ByVal x As Long) As Long\n'
+                                    'ThisWorkbook.Worksheets("Data").Range("B1").Value2 = Neg()\nProbe = 1\nEnd Function\n'))
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_grammar_classifies_string_function_results_and_parameters_as_number_text(self):
+        for group in self.rw18_string_taint_groups():
+            result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-expanded"],
+                                    input=json.dumps(group), text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("plainly data", result.stderr.lower())
+
     def refused_template_cases(self):
         """dc-erfm3: the template route refuses anything the reviewed catalogue does not name."""
         params = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))["params"]

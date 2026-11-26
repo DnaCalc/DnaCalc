@@ -185,6 +185,7 @@ static class VbaGrammar
             foreach (var proc in Procs.Values.ToList()) new Body(this, proc).Run();
             var classes = new Dictionary<string, int>();
             foreach (var key in Params.Concat(Numeric)) classes[key] = Number;
+            foreach (var key in Params.Where(Strings.Contains)) classes[key] = NumText;     // a number argument becomes number text
             bool changed = true;
             while (changed)
             {
@@ -319,6 +320,7 @@ static class VbaGrammar
             {
                 if (!isFunction || pos + 1 >= tokens.Count || !ValueTypes.Contains(tokens[pos + 1].Low)) throw Refuse(tokens[pos].Text, text);
                 if (NumericTypes.Contains(tokens[pos + 1].Low)) Numeric.Add($"{module}.{name}.{name}");
+                else if (tokens[pos + 1].Low == "string") Strings.Add($"{module}.{name}.{name}");
                 pos += 2;
             }
             if (pos != tokens.Count) throw Refuse(tokens[pos].Text, text);
@@ -413,6 +415,7 @@ static class VbaGrammar
                 var kind = ObjectTypes.GetValueOrDefault(ptype, "val");
                 Scope[pname] = new Var(Prefix + pname, kind == "pending" ? "val" : kind, NumericTypes.Contains(ptype), param: true);
                 if (NumericTypes.Contains(ptype)) c.Numeric.Add(Prefix + pname);
+                if (ptype == "string") c.Strings.Add(Prefix + pname);
                 c.Params.Add(Prefix + pname);
             }
             if (proc.IsFunction) Scope[proc.Name] = new Var(Prefix + proc.Name);
