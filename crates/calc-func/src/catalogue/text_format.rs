@@ -576,6 +576,9 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         .into_iter()
         .map(|row| row.into_iter().map(CalcValue::text).collect())
         .collect();
+    if rows.is_empty() {
+        return fail(WorksheetErrorCode::Calc);
+    }
     let width = rows.iter().map(Vec::len).max().unwrap_or(1);
     for row in &mut rows {
         while row.len() < width {

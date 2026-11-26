@@ -1130,7 +1130,8 @@ pub(crate) fn split_grid(
         })
     };
     let end_row = |out: &mut Vec<Vec<ExcelText>>, cells: &mut Vec<ExcelText>, row_start: usize, at: usize| {
-        if at > row_start || !ignore_empty {
+        // With ignore_empty a row left with no cell is dropped (Excel 16.0.20625, dc-j9k.545).
+        if !cells.is_empty() || !ignore_empty {
             if cells.is_empty() {
                 cells.push(empty());
             }
@@ -1162,9 +1163,7 @@ pub(crate) fn split_grid(
         cells.push(ExcelText::from_utf16_code_units(units[cell_start..].to_vec()));
     }
     end_row(&mut out, &mut cells, row_start, units.len());
-    if out.is_empty() {
-        out.push(vec![empty()]);
-    }
+    // Nothing left after ignore_empty: the caller answers #CALC! (Excel 16.0.20625, dc-j9k.545).
     out
 }
 

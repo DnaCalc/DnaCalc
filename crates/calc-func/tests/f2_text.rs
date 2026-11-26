@@ -1801,3 +1801,29 @@ fn midb_start_stops_at_the_signed_32_bit_bound() {
     text(call("MID", vec![t("abcd"), n(2147483648.5), n(1.0)]), "");
     error(call("MID", vec![t("abcd"), n(2147483649.0), n(1.0)]), Value);
 }
+
+/// Excel 16.0.20625 (dc-j9k.540-545 representatives, asked again through Touchstone): match_mode that
+/// truncates outside 0 or 1 is #VALUE!, a column delimiter equal to the row delimiter splits columns
+/// only, and an ignore_empty split with nothing left is #CALC!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn textsplit_fuzz_representatives_540_to_545() {
+    let h = |bits: u64| n(f64::from_bits(bits));
+    error(call("TEXTSPLIT", vec![h(0xc010000000000000), h(0x8031fa182c40c60d), h(0x403e000000000000), h(0xc08f400000000000), h(0xc076800000000000), h(0)]), Value);
+    error(call("TEXTSPLIT", vec![h(0x406bf00000000000), h(0x4340000000000000), h(0x40615fffe0000000), h(0xbfeffffffffffffe), h(0xbff7ffffffff8000)]), Value);
+    error(call("TEXTSPLIT", vec![h(0xbfe8000000000000), h(0x3fe0000000000000), h(0xbfc0000000000000), missing(), h(0x405e000000000000)]), Value);
+    error(call("TEXTSPLIT", vec![t(".3Y/b"), t("21bcac,3"), t("\n"), h(0xc014000000000000), h(0xc000000000000000), t("-")]), Value);
+    let (rows, cols, _) = {
+        let v = call("TEXTSPLIT", vec![n(0.0), n(0.0), n(0.0)]).unwrap();
+        let a = v.as_array().unwrap();
+        (a.shape().rows, a.shape().cols, ())
+    };
+    assert_eq!((rows, cols), (1, 2));
+    // Nothing left after ignore_empty is #CALC! (Excel 16.0.20625: asked 5 layouts).
+    error(call("TEXTSPLIT", vec![t(";;"), t(","), t(";"), n(1.0)]), Calc);
+    error(call("TEXTSPLIT", vec![t(",;,"), t(","), t(";"), n(1.0)]), Calc);
+    error(call("TEXTSPLIT", vec![t("x"), t("x"), t("y"), n(1.0)]), Calc);
+    let kept = call("TEXTSPLIT", vec![t("a,;,b"), t(","), t(";"), n(1.0)]).unwrap();
+    assert_eq!((kept.as_array().unwrap().shape().rows, kept.as_array().unwrap().shape().cols), (2, 1));
+    error(call("TEXTSPLIT", vec![h(0), h(0), h(0xbffb2f31c3e0d72f), h(0x40773ef8a55fec49), h(0x3f11c8a749cd7b73), h(0xbfa63aa8e6feeb65)]), Calc);
+}
