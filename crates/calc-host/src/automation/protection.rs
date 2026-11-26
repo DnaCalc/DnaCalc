@@ -3,6 +3,8 @@
 //! profile; the file's own `sheetProtection` (a sheet that loaded protected) counts as contents-protected too.
 use super::*;
 use crate::HostState;
+use super::cells::{XL_SHIFT_DOWN, XL_SHIFT_UP};
+use crate::value::{MAX_COLUMNS, MAX_ROWS};
 
 const OWNER: &str = "dc-9b7zd";
 /// Allow* arguments, and UserInterfaceOnly on a protected sheet (open).
@@ -16,6 +18,18 @@ pub(super) struct SheetProtect {
     contents: bool,
     scenarios: bool,
     user_interface_only: bool,
+    /// The eleven Allow* arguments (Protect arguments 6 to 16), in argument order.
+    allow: [bool; 11],
+}
+
+/// Index into [`SheetProtect::allow`].
+#[derive(Clone, Copy)]
+pub(super) enum Allow {
+    InsertingColumns = 3,
+    InsertingRows = 4,
+    DeletingColumns = 6,
+    DeletingRows = 7,
+    Filtering = 9,
 }
 
 /// Whether the cells of style `style` are locked: the format's own flag, else its cell style's, else locked.
@@ -66,6 +80,7 @@ impl WorkbookAutomation {
             contents: true,
             scenarios: false,
             user_interface_only: false,
+            allow: [false; 11],
         })
     }
 
@@ -110,15 +125,87 @@ impl WorkbookAutomation {
             .unwrap_or(to)
     }
 
-    /// A write whose result on a sheet protected for contents Excel has not been asked about (`UserInterfaceOnly` set:
-    /// allowed): refused typed, owned by dc-5oumk.
-    pub(super) fn refuse_while_protected(&self, session: &HostSession, sheet: SheetId, what: &str) -> Result<(), AutoError> {
-        match self.sheet_protection(session.host(), sheet) {
-            Some(held) if held.contents && !held.user_interface_only => {
-                Err(AutoError::not_modelled(format!("{what} on a sheet protected for contents"), "dc-5oumk"))
+    /// The protection of `sheet` when it is protected for contents.
+    fn contents_protection(&self, session: &HostSession, sheet: SheetId) -> Option<SheetProtect> {
+        self.sheet_protection(session.host(), sheet).filter(|held| held.contents)
+    }
+
+    /// Table features on a sheet protected for contents (ww22 protect/): `ListObjects.Add` is error 3000 and
+    /// `ListObject.Delete` 1004, with `UserInterfaceOnly` too. `Unlist` is allowed.
+    pub(super) fn guard_table_features(&self, session: &HostSession, sheet: SheetId, number: i32) -> Result<(), AutoError> {
+        match self.contents_protection(session, sheet) {
+            Some(_) => Err(AutoError::excel(number, "Table features aren't available because the sheet is protected.")),
+            None => Ok(()),
+        }
+    }
+
+    /// `Worksheet.AutoFilterMode = False` on a sheet protected for contents: 1004 unless AllowFiltering (`UserInterfaceOnly`
+    /// does not admit it).
+    pub(super) fn guard_filter_mode(&self, session: &HostSession, sheet: SheetId) -> Result<(), AutoError> {
+        match self.contents_protection(session, sheet) {
+            Some(held) if !held.allow[Allow::Filtering as usize] => {
+                Err(AutoError::excel(1004, "Unable to set the AutoFilterMode property of the Worksheet class"))
             }
             _ => Ok(()),
         }
+    }
+
+    /// `Worksheet.ShowAllData` on a sheet protected for contents: 1004 unless `UserInterfaceOnly` (the Allow* flags do not
+    /// admit it).
+    pub(super) fn guard_show_all(&self, session: &HostSession, sheet: SheetId) -> Result<(), AutoError> {
+        match self.contents_protection(session, sheet) {
+            Some(held) if !held.user_interface_only => {
+                Err(AutoError::excel(1004, "Unable to get the ShowAllData property of the Worksheet class"))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// `Range.Insert` / `Range.Delete` on a sheet protected for contents (`UserInterfaceOnly` allows it). A cell shift is
+    /// 1004 when a cell it moves is locked (ww22: an unlocked D11 over a locked D12 refused). Whole rows or columns are
+    /// allowed by the matching Allow* flag for Insert, and for Delete when their cells are unlocked; the other cases
+    /// have no Excel answer yet (dc-ml3k0).
+    pub(super) fn guard_shift(
+        &self,
+        session: &HostSession,
+        area: GridArea,
+        insert: bool,
+        shift: Option<i64>,
+    ) -> Result<(), AutoError> {
+        let sheet = area.sheet();
+        let Some(held) = self.contents_protection(session, sheet) else { return Ok(()) };
+        if held.user_interface_only {
+            return Ok(());
+        }
+        let (first, last) = (area.first(), area.last());
+        let whole_columns = first.row() == 1 && last.row() == MAX_ROWS;
+        let whole_rows = first.column() == 1 && last.column() == MAX_COLUMNS;
+        let verb = if insert { "Insert" } else { "Delete" };
+        if whole_columns || whole_rows {
+            let flag = match (whole_columns, insert) {
+                (true, true) => Allow::InsertingColumns,
+                (false, true) => Allow::InsertingRows,
+                (true, false) => Allow::DeletingColumns,
+                (false, false) => Allow::DeletingRows,
+            };
+            if !held.allow[flag as usize] {
+                return Err(AutoError::not_modelled(format!("Range.{verb} of whole rows or columns on a protected sheet"), ALLOW_OWNER));
+            }
+            return if insert { Ok(()) } else { self.guard_area(session, area) };
+        }
+        let down = match shift {
+            Some(XL_SHIFT_DOWN | XL_SHIFT_UP) => true,
+            Some(_) => false,
+            None => area.column_count() >= area.row_count(),
+        };
+        let moved = if down {
+            CellKey::new(sheet, MAX_ROWS, last.column()).ok().and_then(|end| GridArea::new(first, end).ok())
+        } else {
+            CellKey::new(sheet, last.row(), MAX_COLUMNS).ok().and_then(|end| GridArea::new(first, end).ok())
+        };
+        let Some(moved) = moved else { return Ok(()) };
+        self.guard_area(session, moved)
+            .map_err(|_| AutoError::excel(1004, format!("Unable to get the {verb} property of the Range class")))
     }
 
     /// A macro's change to something the whole sheet holds (a conditional-format rule): refused with 1004 while the
@@ -157,13 +244,14 @@ impl WorkbookAutomation {
             contents: flag(2, true)?,
             scenarios: flag(3, true)?,
             user_interface_only: flag(4, false)?,
+            allow: {
+                let mut allow = [false; 11];
+                for (offset, slot) in allow.iter_mut().enumerate() {
+                    *slot = flag(5 + offset, false)?;
+                }
+                allow
+            },
         };
-        // The Allow* arguments say what a protected sheet still admits: not modelled, so not dropped silently.
-        for index in 5..16 {
-            if flag(index, false)? {
-                return Err(AutoError::not_modelled("Worksheet.Protect Allow* arguments", ALLOW_OWNER));
-            }
-        }
         self.with_write(|session| {
             let meta = self.metadata()?;
             self.validate(target, &meta)?;

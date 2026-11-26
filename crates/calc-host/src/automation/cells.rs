@@ -8,9 +8,9 @@ use calc_value::{MAX_COLUMNS, MAX_ROWS};
 /// The open bead that owns the structural remainders this file refuses.
 const OWNER: &str = "dc-oxh8w.43";
 
-const XL_SHIFT_DOWN: i64 = -4121;
+pub(super) const XL_SHIFT_DOWN: i64 = -4121;
 const XL_SHIFT_TO_RIGHT: i64 = -4161;
-const XL_SHIFT_UP: i64 = -4162;
+pub(super) const XL_SHIFT_UP: i64 = -4162;
 const XL_SHIFT_TO_LEFT: i64 = -4159;
 
 impl WorkbookAutomation {
@@ -112,7 +112,7 @@ impl WorkbookAutomation {
         self.mutate_range(target, call, |session, range| {
             let area = range.areas()[0];
             let sheet = area.sheet();
-            self.refuse_while_protected(session, sheet, if insert { "Range.Insert" } else { "Range.Delete" })?;
+            self.guard_shift(session, area, insert, shift)?;
             let (first, last) = (area.first(), area.last());
             let whole_rows = first.column() == 1 && last.column() == MAX_COLUMNS;
             let whole_columns = first.row() == 1 && last.row() == MAX_ROWS;

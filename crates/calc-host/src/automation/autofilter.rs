@@ -194,7 +194,7 @@ impl WorkbookAutomation {
         }
         let sheet = Self::worksheet_sheet(target)?;
         self.mutate_with_owner(target, call, OWNER, |session, _| {
-            self.refuse_while_protected(session, sheet, "Worksheet.AutoFilterMode = False")?;
+            self.guard_filter_mode(session, sheet)?;
             Ok(SkinIntent::Command(WorkbookCommand::AutoFilter {
                 sheet,
                 revision: session.host().revision().get(),
@@ -209,7 +209,7 @@ impl WorkbookAutomation {
         no_args(call)?;
         let sheet = Self::worksheet_sheet(target)?;
         self.mutate_with_owner(target, call, OWNER, |session, _| {
-            self.refuse_while_protected(session, sheet, "Worksheet.ShowAllData")?;
+            self.guard_show_all(session, sheet)?;
             let filtering = session
                 .host()
                 .model()
