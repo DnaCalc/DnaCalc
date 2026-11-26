@@ -3167,18 +3167,21 @@ mod tests {
                                     }),
                                 );
                             }
-                            b'S' => {
-                                saw_submit = true;
-                                let _ = std::fs::write(&active, "{corrupt-truncated");
-                            }
+                            b'S' => saw_submit = true,
                             _ => {}
                         }
-                    } else if saw_submit {
-                        if active.is_file() {
-                            let _ = std::fs::write(&active, "{corrupt-truncated");
-                        } else {
+                    }
+                    if saw_submit {
+                        // Sweep removes the file after taking the interruption snapshot.
+                        // Opening without create prevents recreating it after that cleanup.
+                        let Ok(mut file) = std::fs::OpenOptions::new()
+                            .write(true)
+                            .truncate(true)
+                            .open(&active)
+                        else {
                             break;
-                        }
+                        };
+                        let _ = file.write_all(b"{corrupt-truncated");
                     }
                 }
             }
