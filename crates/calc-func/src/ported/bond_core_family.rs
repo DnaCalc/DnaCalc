@@ -1122,16 +1122,20 @@ pub fn accrint_kernel(
     basis_: Option<f64>,
     calc_method: Option<bool>,
 ) -> Result<f64, BondCoreEvalError> {
-    let issue = dser(issue)?;
-    let first = dser(first_interest)?;
-    let settlement = dser(settlement)?;
+    let issue = dser_from_zero(issue)?;
+    let first = dser_from_zero(first_interest)?;
+    let settlement = dser_from_zero(settlement)?;
     let rate_ = rate(rate_)?;
+    // ACCRINT wants a rate above zero (Excel 20625, dc-j9k.495); PRICE and YIELD take a zero coupon.
+    if rate_ == 0.0 {
+        return Err(derr(WorksheetErrorCode::Num));
+    }
     let par = pos(par.unwrap_or(1000.0))?;
     let f = freq(frequency)?;
     let basis_ = basis(basis_.unwrap_or(0.0))?;
     // calc_method: TRUE = FromIssueToSettlement (Excel default), FALSE = FromFirstToSettlement.
     let from_issue = calc_method.unwrap_or(true);
-    if !(issue < first && issue < settlement) {
+    if !(issue < settlement) {
         return Err(derr(WorksheetErrorCode::Num));
     }
     // Identified against 145,620 live-Excel witnesses (W109 G6-02, agent-W; b39/b40/b42),
@@ -1239,6 +1243,7 @@ pub fn accrint_kernel(
                 let denom = if matches!(basis_, DayCountBasis::ActualActual)
                     && ov_start == issue
                     && issue > p_start
+                    && !is_last
                 {
                     act(p_start, p_end)
                 } else {
