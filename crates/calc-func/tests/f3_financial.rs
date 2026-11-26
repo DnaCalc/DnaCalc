@@ -1845,6 +1845,27 @@ fn depreciation() {
     );
 }
 
+/// Excel 20625 stores each requested-period VDB book update with the same x87
+/// subtraction used to advance to the start of the interval.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn vdb_stores_requested_book_updates() {
+    let inputs = [
+        0x41c4_5912_098b_2e92,
+        0x41a6_f655_ca7b_eb19,
+        0x40c2_05ae_165d_240f,
+        0x40a1_b3a2_5301_477c,
+        0x40bf_dc11_ef1c_a3e0,
+    ]
+    .map(f64::from_bits);
+    exact(call("VDB", inputs.into_iter().map(n).collect()), f64::from_bits(0x41aa_d7b3_9dea_adb3));
+    let [cost, salvage, life, start, _] = inputs;
+    exact(
+        call("VDB", vec![n(cost), n(salvage), n(life), n(start), n(start + 3571.5)]),
+        f64::from_bits(0x41aa_d730_911b_90b4),
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn amortisation_needs_the_date_system() {

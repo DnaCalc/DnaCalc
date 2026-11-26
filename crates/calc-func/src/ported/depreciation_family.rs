@@ -273,8 +273,8 @@ fn declining_interval_depreciation(
     switched_interval_depreciation(cost, salvage, life, start_period, end_period, factor)
 }
 
-// W111 frozen switched-VDB graph: separate advance/requested book stores,
-// absolute stored period cursor, and operation-specific numeric publication.
+// W111 frozen switched-VDB graph: absolute stored period cursor and
+// operation-specific numeric publication.
 // The bounded evidence is retained in VDB_SWITCHED_GRAPH_RESEARCH.md. Large
 // period progress remains a separate open lane; no iteration cap or invented
 // worksheet error is imposed here.
@@ -361,11 +361,9 @@ fn switched_interval_depreciation(
                 publish_depreciation(mul(amount, take))?
             };
             total = add(total, part);
-            book = if requested {
-                book - part
-            } else {
-                sub(book, part)
-            };
+            // Excel 20625 stores the book subtraction through x87 in both
+            // passes. A binary64 subtraction drifts over long intervals.
+            book = sub(book, part);
             remaining_life -= take;
             // Use the already stored remaining length: cursor+1 can round
             // below end even when this subtraction has rounded to exactly one.
