@@ -194,22 +194,6 @@ pub fn weibull_dist_kernel(
         return Err(WorksheetErrorCode::Num);
     }
 
-    if x == 0.0 {
-        if !cumulative {
-            let denominator = crate::ported::excel_numeric::excel_pow_chain(beta, alpha);
-            if !denominator.is_finite() {
-                return Err(WorksheetErrorCode::Num);
-            }
-            if denominator == 0.0 || denominator.is_subnormal() {
-                return Err(WorksheetErrorCode::Div0);
-            }
-            if !crate::ported::excel_numeric::excel_x87_div(alpha, denominator).is_finite() {
-                return Err(WorksheetErrorCode::Num);
-            }
-        }
-        return Ok(0.0);
-    }
-
     // W109 lane-1 identification (b24 + b27/b27b, all blocks bit-exact): the
     // WEIBULL body is a legacy x87 compilation unit — every op double-rounded
     // through a spilled double local, every pow the raw chain (no shortcuts).
@@ -220,30 +204,55 @@ pub fn weibull_dist_kernel(
     //         division-first association: `alpha / pow(beta, alpha) *
     //         pow(x, alpha-1) * exp(-pow(x/beta, alpha))` left-to-right)
     use crate::ported::excel_numeric::{
-        excel_exp, excel_expm1_internal, excel_pow_chain, excel_x87_div, excel_x87_mul,
+        excel_exp, excel_expm1_internal, excel_log, excel_pow_chain, excel_x87_div, excel_x87_mul,
     };
     // Excel flushes a subnormal x/beta, alpha/beta^alpha and pdf result to zero (dc-j9k.368; live, bit-exact cells).
     let ftz = |v: f64| if v.is_subnormal() { 0.0 } else { v };
-    let ratio = ftz(excel_x87_div(x, beta));
-    // The pdf reads beta^alpha first: zero is #DIV/0!, even where the exponent below would overflow (dc-j9k.366).
-    let pba = if cumulative {
+    let power_exponent = |base, exponent| excel_x87_mul(exponent, excel_log(base));
+    let denominator = if cumulative {
         0.0
     } else {
-        let pba = excel_pow_chain(beta, alpha);
-        if !pba.is_finite() {
+        let exponent = power_exponent(beta, alpha);
+        let value = excel_exp(exponent);
+        if !exponent.is_finite() || !value.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
-        if pba == 0.0 || pba.is_subnormal() {
-            return Err(WorksheetErrorCode::Div0);
-        }
-        pba
+        ftz(value)
     };
+
+    if x == 0.0 {
+        if !cumulative {
+            if denominator == 0.0 {
+                return Err(WorksheetErrorCode::Div0);
+            }
+            if !excel_x87_div(alpha, denominator).is_finite() {
+                return Err(WorksheetErrorCode::Num);
+            }
+        }
+        return Ok(0.0);
+    }
+
+    let ratio = ftz(excel_x87_div(x, beta));
+    let ratio_exponent = power_exponent(ratio, alpha);
+    if !cumulative && denominator == 0.0 {
+        // Excel gives #NUM! if a finite exponent overflows in exp at either
+        // density power site. An already overflowing exponent still leaves
+        // #DIV/0! when neither site has that exp overflow (dc-j9k.366/.521).
+        let exp_overflows = |exponent: f64| exponent.is_finite() && !excel_exp(exponent).is_finite();
+        let error = if exp_overflows(ratio_exponent) || exp_overflows(power_exponent(x, alpha - 1.0)) {
+            WorksheetErrorCode::Num
+        } else {
+            WorksheetErrorCode::Div0
+        };
+        return Err(error);
+    }
+
     // Excel 20527 (dc-j9k.255): a stored exponent product alpha * ln(ratio) that overflows is
     // #NUM!, not an exponential that underflows to zero.
-    if ratio > 0.0 && !excel_x87_mul(alpha, crate::ported::excel_numeric::excel_log(ratio)).is_finite() {
+    if ratio > 0.0 && !ratio_exponent.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    let power = excel_pow_chain(ratio, alpha);
+    let power = excel_exp(ratio_exponent);
     if !power.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
@@ -258,7 +267,7 @@ pub fn weibull_dist_kernel(
     } else {
         let px = excel_pow_chain(x, alpha - 1.0);
         let e = excel_exp(-power);
-        ftz(excel_x87_mul(excel_x87_mul(ftz(excel_x87_div(alpha, pba)), px), e))
+        ftz(excel_x87_mul(excel_x87_mul(ftz(excel_x87_div(alpha, denominator)), px), e))
     };
 
     if !value.is_finite() {

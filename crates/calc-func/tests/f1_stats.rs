@@ -673,6 +673,27 @@ fn weibull_reports_intermediate_arithmetic_errors() {
     }
 }
 
+/// Touchstone Excel 16.0.20625.20108, dc-j9k.521. A density power can overflow
+/// even when the denominator would round to zero.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn weibull_density_distinguishes_power_overflow_from_zero_denominator() {
+    let x = f64::from_bits(0x3fb9_5810_624d_d2f2);
+    let alpha = f64::from_bits(0x7fdc_c36f_3a33_b680);
+    for name in ["WEIBULL", "WEIBULL.DIST"] {
+        for (x, alpha, beta, expected) in [
+            (x, alpha, 0.1, Num),
+            (0.0, alpha, 0.1, Num),
+            (0.0, alpha, 0.5, Div0),
+            (0.2, 2048.0, 0.1, Num),
+            (2.0, 1.79e308, 0.5, Num),
+            (4.0, 1.79e308, 0.5, Div0),
+        ] {
+            error(call(name, vec![n(x), n(alpha), n(beta), b(false)]), expected);
+        }
+    }
+}
+
 /// Excel 20625 rejects the signed 32-bit sentinel before endpoint shortcuts.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
