@@ -459,23 +459,57 @@ impl ParsedComplex {
         denominator(self).reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
-        if self.exceeds_off_axis_hyperbolic_limit() {
-            return Ok(Self::new(0.0, 0.0, None));
-        }
-        self.cosh().reciprocal()
+        self.hyperbolic_reciprocal(false)
     }
     pub(crate) fn csch(self) -> Result<Self, WorksheetErrorCode> {
+        self.hyperbolic_reciprocal(true)
+    }
+    fn hyperbolic_reciprocal(self, cosecant: bool) -> Result<Self, WorksheetErrorCode> {
         if self.exceeds_off_axis_hyperbolic_limit() {
             return Ok(Self::new(0.0, 0.0, None));
         }
-        let mut denominator = self.sinh();
-        // Excel reverses the off-axis signs once the doubled real part leaves
-        // its exponential interval (dc-j9k.398, Excel 16.0.20625).
-        if self.im != 0.0 && (self.re > 354.5 || self.re < -354.0) {
-            denominator.re = -denominator.re;
-            denominator.im = -denominator.im;
+        let (sinh, cosh) = Self::hyperbolic_parts(self.re);
+        if self.im == 0.0 {
+            let real = if cosecant { sinh } else { cosh };
+            return Self::new(real, 0.0, None).reciprocal();
         }
-        denominator.reciprocal()
+        let (sin, cos) = complex_circular_parts(self.im);
+        let (real, imaginary, trig) = if cosecant {
+            (sinh * cos, cosh * sin, sin)
+        } else {
+            (cosh * cos, sinh * sin, cos)
+        };
+        if self.re > 354.5 || self.re < -354.0 {
+            // Beyond the doubled-real limit, use a scaled denominator.
+            // IMCSCH reverses both signs on this branch (dc-j9k.398).
+            let sign = if cosecant { -1.0 } else { 1.0 };
+            return Self::new(sign * real, sign * imaginary, None).reciprocal();
+        }
+        // Excel sums sinh(x)^2 and sin(y)^2 (cos(y)^2 for IMSECH),
+        // dropping each term below 2^-1024 before the sum (dc-j9k.399).
+        const MIN_SQUARE_FACTOR: f64 = 7.458340731200207e-155; // 2^-512
+        // Keep binary64 precision in the tiny squares using their extended exponent range.
+        let scale = if sinh.abs().max(trig.abs()) < 2.0 * MIN_SQUARE_FACTOR {
+            1.0 / MIN_SQUARE_FACTOR
+        } else {
+            1.0
+        };
+        let square = |value: f64| {
+            if value.abs() < MIN_SQUARE_FACTOR {
+                0.0
+            } else {
+                let value = value * scale;
+                value * value
+            }
+        };
+        let denominator = square(sinh) + square(trig);
+        if denominator == 0.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        Ok(Self::quotient(
+            (real * scale / denominator) * scale,
+            (-imaginary * scale / denominator) * scale,
+        ))
     }
     pub(crate) fn power(self, exponent: f64) -> Result<Self, WorksheetErrorCode> {
         if self.re == 0.0 && self.im == 0.0 {
