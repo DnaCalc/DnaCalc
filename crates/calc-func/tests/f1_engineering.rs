@@ -397,6 +397,18 @@ fn hyperbolic_complex_reciprocal_large_real_limits() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.399: the off-axis denominator uses separate squares.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hyperbolic_complex_reciprocal_separately_squares_factors() {
+    text(call("IMCSCH", vec![t("1+i")]), "0.303931001628426-0.621518017170429i");
+    text(call("IMSECH", vec![t("0.0001+1i")]), "1.85081566353496-0.000288247460169339i");
+    text(call("IMCSCH", vec![t("1e-154+1e-155i")]), "1E+154-1E+153i");
+    error(call("IMCSCH", vec![t("0+7.4583407312002e-155i")]), Num);
+    text(call("IMCSCH", vec![t("0+7.45834073120021e-155i")]), "-1.34078079299426E+154i");
+    text(call("IMCSCH", vec![t("0+7.458340883255e-155i")]), "-1.34078076565947E+154i");
+}
+
 /// dc-ymjf.2.139, Excel 16.0.20527.20196 (Touchstone, 2026-11-22): complex hyperbolics
 /// (IMSINH, IMCOSH, IMCSCH, IMSECH) evaluate sinh/cosh via `em = EXP(-x)` and `1 / em`
 /// for `|x| < 20` (with Taylor series `x + x^3/6 + x^5/120` for `|x| <= 0.01` and
