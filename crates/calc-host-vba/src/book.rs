@@ -4,7 +4,7 @@
 use super::{ModuleSource, ProjectGrant, WorkbookEvents};
 use calc_host::{
     HostOptions, HostSession, MemorySource, OpenPolicy,
-    automation::{BookFactory, BookRunner, set_book_factory},
+    automation::{AppCalculate, BookFactory, BookRunner, set_book_factory},
 };
 use calc_object_model::{AutoError, AutoValue, Call, ObjectModel, ObjectRef};
 use std::{
@@ -90,6 +90,9 @@ impl BookRunner for OwnedBook {
     fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
         self.lent(|| Err(calc_host::automation::busy()), || self.events.automation.keep_sheets(&names))
     }
+    fn calculate(&self, kind: AppCalculate) -> Result<(), AutoError> {
+        self.lent(|| Err(calc_host::automation::busy()), || self.events.automation.calculate_here(kind))
+    }
 }
 
 /// The running workbook has no session of its own to lend: it answers while its macro is running.
@@ -117,6 +120,9 @@ impl BookRunner for LentBook {
     }
     fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError> {
         self.events()?.automation.keep_sheets(&names)
+    }
+    fn calculate(&self, kind: AppCalculate) -> Result<(), AutoError> {
+        self.events()?.automation.calculate_here(kind)
     }
 }
 

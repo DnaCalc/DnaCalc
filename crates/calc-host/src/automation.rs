@@ -32,7 +32,7 @@ const OWNER: &str = "dc-oxh8w";
 type Reply = Result<AutoValue, AutoError>;
 mod application;
 mod books;
-pub use books::{BookFactory, BookRunner, BookTarget, opener_events_enabled, set_book_factory, set_book_read_only};
+pub use books::{AppCalculate, BookFactory, BookRunner, BookTarget, opener_events_enabled, set_book_factory, set_book_read_only};
 
 mod cells;
 mod clipboard;

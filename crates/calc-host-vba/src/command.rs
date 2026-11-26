@@ -875,6 +875,22 @@ Public Sub CalcFullActive()
  Workbooks("ActiveBook.xlsx").Activate
  Application.CalculateFull
 End Sub
+Public Function CalcStale(kind As Long) As String
+ Dim o As Workbook
+ Set o = Workbooks("ActiveBook.xlsx")
+ o.Worksheets(1).Range("A1").Value = 10 * kind + 2
+ o.Worksheets(1).Range("B1").Formula = "=A1*2"
+ o.Worksheets(1).Range("A1").Value = 10 * kind + 3
+ CalcStale = o.Worksheets(1).Range("B1").Value
+ If kind = 0 Then
+  Application.Calculate
+ ElseIf kind = 1 Then
+  Application.CalculateFull
+ Else
+  Application.CalculateFullRebuild
+ End If
+ CalcStale = CalcStale & "|" & o.Worksheets(1).Range("B1").Value
+End Function
 "#.into(),
             }],
             1_000_000,
@@ -884,7 +900,7 @@ End Sub
         let mut other_session = HostSession::open(
             Arc::new(MemorySource::new(calc_doc::blank_package()).named("ActiveBook.xlsx")),
             &OpenPolicy::default(),
-            HostOptions::default(),
+            HostOptions { calc_mode: Some(calc_host::CalcMode::Manual), ..Default::default() },
         )
         .unwrap();
         let other_book = crate::prepare(
@@ -899,9 +915,19 @@ End Sub
         other_book.adopt(other_session, false);
         let got = run(&mut session, &owner, &[AutoValue::text("GotoActive")]);
         assert_eq!(text(got), "ActiveBook.xlsx|$D$6|$B$2", "Goto selects in the active workbook, not the caller's");
+        // dc-gw1be (ww22 Excel): the Calculate family reaches the other open workbook, whose stale cell is refreshed.
+        for kind in ["0", "1", "2"] {
+            let got = run(&mut session, &owner, &[AutoValue::text("CalcStale"), AutoValue::I4(kind.parse().unwrap())]);
+            let got = text(got);
+            // Manual mode: the dirty cell is not yet calculated before the call, and is after it.
+            let (before, after) = got.split_once('|').unwrap();
+            let want = (2 * (10 * kind.parse::<i32>().unwrap() + 3)).to_string();
+            assert_ne!(before, want, "kind {kind}: {got}");
+            assert_eq!(after, want, "kind {kind}: {got}");
+        }
         for name in ["CalcActive", "CalcFullActive"] {
             let calc = run(&mut session, &owner, &[AutoValue::text(name)]);
-            assert!(matches!(&calc, Err(AutoError::NotModelled { owner: "dc-gw1be", .. })), "{name}: {calc:?}");
+            assert!(calc.is_ok(), "{name}: {calc:?}");
         }
     }
 

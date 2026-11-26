@@ -6,6 +6,17 @@
 use super::*;
 
 /// The application's way into one workbook that owns its session.
+/// Which `Application.Calculate*` call a workbook answers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppCalculate {
+    /// `Application.Calculate`: the dirty cells.
+    Dirty,
+    /// `Application.CalculateFull`.
+    Full,
+    /// `Application.CalculateFullRebuild`.
+    Rebuild,
+}
+
 pub trait BookRunner {
     /// `Application.Run` of `request` (an unqualified `Module.Name` or `Name`) in this workbook.
     fn run(&self, name: &str, request: &str, arguments: &[AutoValue]) -> Reply;
@@ -24,6 +35,8 @@ pub trait BookRunner {
     /// `Worksheet.Copy` into a new workbook: this workbook, made from a copy of another, keeps only
     /// the named sheets.
     fn keep_sheets(&self, names: Vec<String>) -> Result<(), AutoError>;
+    /// This workbook's share of an `Application.Calculate*` call made from another workbook.
+    fn calculate(&self, kind: AppCalculate) -> Result<(), AutoError>;
 }
 
 /// Makes new workbooks for `Workbooks.Add` and `Workbooks.Open`; the host installs one.
