@@ -766,11 +766,24 @@ pub fn gamma_inv_kernel(
     // Excel: p==0 returns the support lower bound (0); p==1 -> #NUM! (+inf);
     // p<0 or p>1 -> #NUM!. Verified vs live Excel 16.0 build 20026:
     // GAMMA.INV(0,3,2)=0, GAMMA.INV(1,3,2)=#NUM! (BUG-FUNC-039 / oxf-99zz).
-    if probability < 0.0 || probability >= 1.0 {
+    if probability < 0.0 || probability > 1.0 {
         return Err(WorksheetErrorCode::Num);
     }
     if probability == 0.0 {
         return Ok(0.0);
+    }
+    // Excel 16.0.20625 (dc-j9k.529): p = 1 is #NUM! except in the huge-alpha band below, where it
+    // takes the same #DIV/0! (the stored scale `beta * alpha` still finite) as p < 1.
+    if probability == 1.0 {
+        let in_band = alpha >= f64::from_bits(0x7fc4_5f30_6dc9_c883)
+            && alpha < f64::from_bits(0x7fdd_154b_28e7_6973);
+        return Err(
+            if in_band && crate::ported::excel_numeric::excel_x87_mul(beta, alpha).is_finite() {
+                WorksheetErrorCode::Div0
+            } else {
+                WorksheetErrorCode::Num
+            },
+        );
     }
     // Excel 16.0.20625.20108 (dc-ymjf.2.156, 1-ULP bisected at DBL_MIN -> DBL_MIN - 1ulp,
     // verified down to 2^-1074): subnormal `alpha` hits `#DIV/0!` on `/ alpha` in the
@@ -896,6 +909,27 @@ mod tests {
             let want = if num { WorksheetErrorCode::Num } else { WorksheetErrorCode::Div0 };
             assert_eq!(gamma_inv_kernel(0.5, alpha, beta), Err(want), "{alpha} {beta}");
         }
+    }
+
+    /// Excel 16.0.20625 (dc-j9k.529): p = 1 takes the same huge-alpha #DIV/0! band as p < 1
+    /// (the stored scale `beta * alpha` still finite) and is #NUM! elsewhere.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn gamma_inv_unit_probability_shares_the_huge_alpha_band() {
+        let a = |bits| f64::from_bits(bits);
+        let num = Err(WorksheetErrorCode::Num);
+        let div0 = Err(WorksheetErrorCode::Div0);
+        // The cluster's representative.
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fd6_3e0c_e1bf_d521), 0.5), div0);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fd6_3e0c_e1bf_d521), 1.0), div0);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fd6_3e0c_e1bf_d521), 1e300), num);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fc4_5f30_6dc9_c882), 1.0), num);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fc4_5f30_6dc9_c883), 1.0), div0);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fdd_154b_28e7_6972), 1.0), div0);
+        assert_eq!(gamma_inv_kernel(1.0, a(0x7fdd_154b_28e7_6973), 1.0), num);
+        assert_eq!(gamma_inv_kernel(1.0, 5.0, 1.0), num);
+        assert_eq!(gamma_inv_kernel(1.5, a(0x7fd6_3e0c_e1bf_d521), 0.5), num);
+        assert_eq!(gamma_inv_kernel(-0.5, a(0x7fd6_3e0c_e1bf_d521), 0.5), num);
     }
 
     // BUG-FUNC-039 item 3: GAMMA.INV p=0 and p=1 boundary cases.

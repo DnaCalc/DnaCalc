@@ -1687,7 +1687,9 @@ fn database_error_label_is_a_label_not_a_propagated_error() {
     exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#NAME?"), crit.clone()]), 1.0);
     exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("b"), crit.clone()]), 10.0);
     error(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#N/A"), crit.clone()]), Value);
-    exact(call_on(&mut sheet, "DGET", vec![db, t("b"), crit]), 10.0);
+    exact(call_on(&mut sheet, "DGET", vec![db.clone(), t("b"), crit.clone()]), 10.0);
+    // dc-j9k.532: a fractional negative field truncates to 0 and is out of range.
+    error(call_on(&mut sheet, "DSTDEV", vec![db, n(-0.99), crit]), Value);
 }
 
 /// dc-y7tqj (rw12 finding 16): a computed criterion cell (header naming no database field or blank)

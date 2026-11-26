@@ -1573,4 +1573,16 @@ mod tests {
             Ok(0x7fb4_5f30_6dc9_c883)
         );
     }
+
+    /// Excel 16.0.20625 (dc-j9k.529 sibling check): CHISQ.INV with a huge df is #NUM!, not the
+    /// GAMMA.INV #DIV/0! band, for p = 0.5 and p = 1.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn chisq_inv_huge_df_is_num() {
+        for p in [0.5, 1.0] {
+            for df in [1e307, 6e307, 1.2e308, 1.6e308] {
+                assert_eq!(chisq_inv_kernel(p, df), Err(WorksheetErrorCode::Num), "{p} {df}");
+            }
+        }
+    }
 }
