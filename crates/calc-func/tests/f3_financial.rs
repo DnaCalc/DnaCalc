@@ -3380,6 +3380,27 @@ fn pv_uses_the_growth_base_for_tiny_nonzero_rates() {
     );
 }
 
+/// Excel 20625 accepts the last in-calendar coupon and rejects a maturity
+/// whose surrounding coupon schedule needs a date in year 10000.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_last_bonds_require_an_in_calendar_ending_coupon() {
+    for (function, on_coupon, semiannual) in [
+        ("ODDLPRICE", 0x4057_8a7a_d0f2_7140, 0x4057_8873_31d6_fb02),
+        ("ODDLYIELD", 0x4040_63b8_7492_20bd, 0x4040_4bd1_6574_224f),
+    ] {
+        let at = |maturity, frequency| {
+            dated(
+                function,
+                vec![n(2958115.0), n(maturity), n(2957916.0), n(0.125), n(0.25), n(100.0), n(frequency)],
+            )
+        };
+        exact(at(2958281.0, 1.0), f64::from_bits(on_coupon));
+        error(at(2958282.0, 1.0), Num);
+        exact(at(2958282.0, 2.0), f64::from_bits(semiannual));
+    }
+}
+
 /// Cell and direct logical controls agree. Out-of-calendar numeric dates
 /// precede later errors; zero dates defer to later scalar readers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
