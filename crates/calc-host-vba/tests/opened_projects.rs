@@ -6,6 +6,8 @@ use std::sync::Arc;
 mod support;
 #[path = "../../calc-doc/tests/cdoc_m1_1_support/vba_project.rs"]
 mod vba_project;
+#[path = "support/form_stream.rs"]
+mod form_stream;
 
 const LOCAL: &[u8] = include_bytes!("../../calc-doc/tests/fixtures/vba_udf_names/local.xlsm");
 const STATE: &str = "Public Opens As Long\nPublic Changes As Long\nPublic Calcs As Long\nPublic Saves As Long\nPublic Function Probe() As String\n Probe = CStr(Opens) & \":\" & CStr(Changes) & \":\" & CStr(Calcs) & \":\" & CStr(Saves)\nEnd Function\n";
@@ -3209,4 +3211,44 @@ fn dc_9spk9__close_saving_raises_after_save_after_the_file_is_written() {
         other => panic!("unexpected outcome: {other:?}"),
     };
     assert_eq!(output, "1004|after:False");
+}
+
+/// The controls a UserForm's designer storage names are members of the form: its own code and
+/// the code of any module that shows it refer to them (`TextBox1.Text`, `UserForm1.lstInfo`)
+/// (dc-1jia7). A form whose designer storage cannot be read declares none, so code that names a
+/// control still fails to compile instead of guessing.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn designer_controls_are_members_of_the_form_and_of_the_code_that_shows_it() {
+    let original = include_bytes!(
+        "../../calc-engine/tests/fixtures/excel-calc-probes/P04/plain-settles-full-01.xlsm"
+    );
+    let form = "Option Explicit\r\nPrivate Sub CommandButton1_Click()\r\n TextBox1.Text = \"x\"\r\n lstInfo.AddItem \"y\"\r\nEnd Sub\r\nPublic Function Greeting() As String\r\n Greeting = Me.TextBox1.Text\r\nEnd Function\r\n";
+    let controls = form_stream::form_stream(
+        &[("TextBox1", true), ("lstInfo", true), ("CommandButton1", true)],
+        form_stream::Font::TextProps,
+    );
+    // Automatic events on: the document modules are attached to the project, which is where a form's
+    // members must survive too.
+    let prepare = |bytes: &[u8], backend| {
+        let session = opened(bytes, "designer.xlsm");
+        calc_host_vba::prepare_file_project_with_events(
+            &grant(),
+            session.host(),
+            "designer.xlsm",
+            100_000,
+            Some(backend),
+            true,
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+    };
+    let with = vba_project::replace_with_designer(original, "ProbeEvents", form, &controls);
+    // The same form with a designer storage that is not a form stream declares no controls.
+    let without = vba_project::replace_with_designer(original, "ProbeEvents", form, &[0, 0]);
+    for backend in backends() {
+        prepare(&with, backend).unwrap_or_else(|error| panic!("{backend:?}: form with controls: {error}"));
+        let refusal = prepare(&without, backend).expect_err("controls the storage does not name are undefined");
+        assert!(refusal.contains("TextBox1"), "{backend:?}: {refusal}");
+    }
 }

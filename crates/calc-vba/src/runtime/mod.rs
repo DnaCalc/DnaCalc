@@ -136,6 +136,7 @@ impl Module {
                 let host = match module.kind {
                     crate::events::ModuleKind::Standard => None,
                     crate::events::ModuleKind::Class => None,
+                    crate::events::ModuleKind::Form => Some("MSForms.UserForm"),
                     crate::events::ModuleKind::Worksheet => Some("Excel.Worksheet"),
                     crate::events::ModuleKind::Workbook => Some("Excel.Workbook"),
                 };
@@ -442,6 +443,12 @@ fn validate_project_modules(
             .ok_or_else(|| {
                 Error::UnsupportedSignature("document host type is unavailable (dc-hsa5.12)".into())
             })?;
+        // A form's handlers (`UserForm_Initialize`, `UserForm_QueryClose`) never run unless the
+        // form is shown, which refuses where `Show` is reached: they compile, and any other
+        // `UserForm_` name is an ordinary procedure (dc-1jia7).
+        if source.eq_ignore_ascii_case("MSForms.UserForm") {
+            continue;
+        }
         let prefix = format!("{}_", source.rsplit('.').next().expect("host type name"));
         for id in env
             .symbols

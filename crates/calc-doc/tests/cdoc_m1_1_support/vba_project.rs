@@ -7,7 +7,19 @@ use std::{
 };
 
 pub fn replace_sources(bytes: &[u8], sources: &[(&str, &str)]) -> Vec<u8> {
-    replace_project(bytes, sources, None)
+    replace_project(bytes, sources, None, &[])
+}
+
+/// The class module `module` made a UserForm (designer) with the code `source` and the designer
+/// stream `f` (its storage `/<module>/f`, as the VBE writes it).
+#[allow(dead_code)]
+pub fn replace_with_designer(bytes: &[u8], module: &str, source: &str, f: &[u8]) -> Vec<u8> {
+    replace_project(
+        bytes,
+        &[(module, source)],
+        Some((&format!("Class={module}"), &format!("BaseClass={module}"))),
+        &[(module, f)],
+    )
 }
 
 /// A fresh namespace-edit control with the exact supplied project binary. The
@@ -34,13 +46,14 @@ pub fn minimal_control(bytes: &[u8]) -> Vec<u8> {
 
 #[allow(dead_code)]
 pub fn replace_project_declaration(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
-    replace_project(bytes, &[], Some((from, to)))
+    replace_project(bytes, &[], Some((from, to)), &[])
 }
 
 fn replace_project(
     bytes: &[u8],
     sources: &[(&str, &str)],
     declaration: Option<(&str, &str)>,
+    designers: &[(&str, &[u8])],
 ) -> Vec<u8> {
     let source = Arc::new(calc_doc::MemorySource::new(bytes.to_vec()));
     let document = calc_doc::open(source, &Default::default()).unwrap();
@@ -100,6 +113,14 @@ fn replace_project(
             .create_stream("/PROJECT")
             .unwrap()
             .write_all(text.replace(from, to).as_bytes())
+            .unwrap();
+    }
+    for (module, f) in designers {
+        compound.create_storage(format!("/{module}")).unwrap();
+        compound
+            .create_stream(format!("/{module}/f"))
+            .unwrap()
+            .write_all(f)
             .unwrap();
     }
     let binary = compound.into_inner().into_inner();

@@ -27,6 +27,9 @@ pub enum CalculationCommand {
 pub enum ModuleKind {
     Standard,
     Class,
+    /// A UserForm (designer) module: a class whose default instance is named after it, hosted by
+    /// `MSForms.UserForm` (dc-1jia7).
+    Form,
     Worksheet,
     Workbook,
 }
@@ -108,15 +111,15 @@ impl ProjectReferences {
             .references()
             .iter()
             .filter(|reference| {
-                !matches!(
-                    reference.guid().as_deref(),
-                    Some(
-                        crate::office::VBA_LIBRARY
-                            | crate::office::EXCEL_LIBRARY
-                            | crate::office::OFFICE_LIBRARY
-                            | crate::office::MSFORMS_LIBRARY
+                !reference.is_msforms()
+                    && !matches!(
+                        reference.guid().as_deref(),
+                        Some(
+                            crate::office::VBA_LIBRARY
+                                | crate::office::EXCEL_LIBRARY
+                                | crate::office::OFFICE_LIBRARY
+                        )
                     )
-                )
             })
             .map(|reference| reference.name().to_owned())
             .collect();

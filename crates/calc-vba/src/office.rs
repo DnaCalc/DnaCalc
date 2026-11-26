@@ -58,6 +58,14 @@ impl OfficeReference {
             | Self::Control { name } => name,
         }
     }
+    /// Whether this is the MSForms library: the registered library by its GUID, or the control
+    /// reference the form designer adds under that name.
+    pub fn is_msforms(&self) -> bool {
+        match self {
+            Self::Control { name } => name.eq_ignore_ascii_case("MSForms"),
+            _ => self.guid().as_deref() == Some(MSFORMS_LIBRARY),
+        }
+    }
     /// The library's GUID, upper case without braces, for a registered type library.
     pub fn guid(&self) -> Option<String> {
         let Self::TypeLibrary { libid, .. } = self else {
@@ -215,6 +223,7 @@ impl OfficeProject {
                         "the reference to the VBA project {name} ({path}) is not modelled: one project is compiled at a time (dc-0f1k.4)"
                     ));
                 }
+                _ if reference.is_msforms() => {}
                 OfficeReference::TypeLibrary { .. }
                     if matches!(
                         reference.guid().as_deref(),
@@ -228,9 +237,7 @@ impl OfficeProject {
 
     /// Whether the project lists the MSForms library (by its GUID).
     pub fn lists_msforms(&self) -> bool {
-        self.references
-            .iter()
-            .any(|reference| reference.guid().as_deref() == Some(MSFORMS_LIBRARY))
+        self.references.iter().any(OfficeReference::is_msforms)
     }
 
     /// The references that need the platform's registered type libraries (all but VBA, Excel,
@@ -239,17 +246,34 @@ impl OfficeProject {
         self.references
             .iter()
             .filter(|reference| {
-                !matches!(
-                    reference.guid().as_deref(),
-                    Some(
-                        VBA_LIBRARY
-                            | EXCEL_LIBRARY
-                            | OFFICE_LIBRARY
-                            | STDOLE_LIBRARY
-                            | MSFORMS_LIBRARY
+                !reference.is_msforms()
+                    && !matches!(
+                        reference.guid().as_deref(),
+                        Some(VBA_LIBRARY | EXCEL_LIBRARY | OFFICE_LIBRARY | STDOLE_LIBRARY)
                     )
-                )
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The form designer adds MSForms as a control reference, not a registered library: both
+    // spellings are the MSForms library that DNA Calc supplies (dc-1jia7).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn msforms_is_recognised_as_a_control_reference_and_as_the_registered_library() {
+        assert!(OfficeReference::Control { name: "MSForms".into() }.is_msforms());
+        assert!(
+            OfficeReference::TypeLibrary {
+                name: "MSForms".into(),
+                libid: r"*\G{0D452EE1-E08F-101A-852E-02608C4D0BB4}#2.0#0#C:\Windows\System32\FM20.DLL#Microsoft Forms 2.0 Object Library".into(),
+            }
+            .is_msforms()
+        );
+        assert!(!OfficeReference::Control { name: "RefEdit".into() }.is_msforms());
+        assert!(!OfficeReference::Project { name: "MSForms".into(), path: "x.xlam".into() }.is_msforms());
     }
 }

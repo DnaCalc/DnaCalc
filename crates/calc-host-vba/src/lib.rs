@@ -15,6 +15,7 @@ use std::{
     rc::Rc,
 };
 
+mod forms;
 mod trust;
 pub use trust::{FileOrigin, GrantReason, MacroBlock, ProjectGrant};
 
@@ -108,6 +109,8 @@ impl AutomationHost for VbaAutomationHost {
 pub enum ModuleTarget {
     Standard,
     Class,
+    /// A UserForm (designer) module, hosted by `MSForms.UserForm` (dc-1jia7).
+    Form,
     Workbook,
     Worksheet(SheetId),
 }
@@ -210,17 +213,24 @@ pub fn prepare_file_project_with_events(
                     }
                 }
                 calc_vba::OfficeModuleKind::Designer => {
-                    // A UserForm (designer) module loads as a class (dc-oxh8w.73). Controls and
-                    // events of a form are not modelled; code that uses one fails to compile.
+                    // A UserForm (designer) module loads as a form class with a default
+                    // instance (dc-oxh8w.73, dc-1jia7). What a form does is not modelled.
                     if documents.contains_key(&calc_value::fold_workbook_name(&module.name)) {
                         return Err(FileProjectError::DocumentIdentity(module.name.clone()));
                     }
-                    ModuleTarget::Class
+                    ModuleTarget::Form
                 }
+            };
+            // A form's controls are members of its class: declared ahead of its code.
+            let source = if target == ModuleTarget::Form {
+                let controls = forms::controls_of(&part.bytes, &module.name, project.code_page());
+                forms::declare_controls(&module.source, &controls)
+            } else {
+                module.source.clone()
             };
             Ok(ModuleSource {
                 name: module.name.clone(),
-                source: module.source.clone(),
+                source,
                 target,
             })
         })
@@ -346,6 +356,7 @@ fn prepare_project(
             let kind = match module.target {
                 ModuleTarget::Standard => ModuleKind::Standard,
                 ModuleTarget::Class => ModuleKind::Class,
+                ModuleTarget::Form => ModuleKind::Form,
                 ModuleTarget::Workbook if !workbook => {
                     workbook = true;
                     ModuleKind::Workbook

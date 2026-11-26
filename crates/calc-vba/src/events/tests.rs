@@ -719,3 +719,41 @@ fn a_project_that_lists_msforms_compiles_against_its_types_and_constants() {
         assert_eq!(functions.call("Wide", &[]).unwrap().as_number(), Some(3.0), "{backend:?}");
     }
 }
+
+// A UserForm module compiles as a class with a default instance named after it, and answers the
+// members of MSForms.UserForm (Show, Hide, Caption) and the form events (dc-1jia7). Before, a
+// project with a form failed at compile on `UserForm1.Show` ("expected variable or procedure,
+// not module").
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_userform_module_compiles_with_its_default_instance_and_form_members() {
+    let references = ProjectReferences::of_source_libraries(&[(
+        "MSForms".into(),
+        Some("{0D452EE1-E08F-101A-852E-02608C4D0BB4}".into()),
+    )]);
+    for backend in backends() {
+        let loaded = load_file_project_with(
+            &[
+                module(
+                    "UserForm1",
+                    ModuleKind::Form,
+                    "Option Explicit\nPrivate Sub UserForm_Initialize()\n Me.Caption = \"a\"\nEnd Sub\n\
+                     Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)\n Cancel = 1\nEnd Sub\n\
+                     Public Sub Fill()\n Me.Caption = \"b\"\n Me.Hide\nEnd Sub\n",
+                ),
+                module(
+                    "Api",
+                    ModuleKind::Standard,
+                    "Option Explicit\nPublic Function Open1() As Long\n UserForm1.Show\n UserForm1.Fill\n Unload UserForm1\n Open1 = 7\nEnd Function\n\
+                     Public Function Open2() As Long\n Dim f As UserForm1\n Set f = New UserForm1\n f.Show vbModeless\n Open2 = 8\nEnd Function\n",
+                ),
+            ],
+            &references,
+            1000,
+            Some(backend),
+            DocumentEvents::Workbook,
+        )
+        .unwrap_or_else(|e| panic!("{backend:?}: {e}"));
+        assert!(loaded.functions().contains("Open1"), "{backend:?}");
+    }
+}

@@ -502,7 +502,15 @@ impl DescriptorTypeLibResolver {
             let iid = Guid::parse(&descriptor.ty(iface_id).guid).map(guid_to_com_iid);
             members.extend(application_alias_metadata(descriptor, iid));
         }
-        let events = coclass_events(descriptor, requested_ty, self.events);
+        let mut events = coclass_events(descriptor, requested_ty, self.events);
+        if library.eq_ignore_ascii_case("MSForms") && requested_ty.name.eq_ignore_ascii_case("UserForm") {
+            let iid = Guid::parse(&descriptor.ty(iface_id).guid).map(guid_to_com_iid);
+            let source = descriptor
+                .id_in("MSForms", "FormEvents")
+                .map(|id| descriptor.ty(id).guid.clone());
+            members.extend(userform_vbe_members(iid));
+            events.extend(userform_vbe_events(source));
+        }
         let member_name_to_token = unique_name_tokens(&members);
         Some(TypeLibMetadataBlob {
             constants: vec![],
@@ -557,6 +565,69 @@ impl TypeLibResolver for DescriptorTypeLibResolver {
             library => self.resolve_descriptor_library(library, request),
         }
     }
+}
+
+/// First token of the members the VBE adds to a UserForm; FM20's type library does not declare
+/// them (OxForms FM20 facts, `FormEvents` "does not include Initialize, Activate, Deactivate,
+/// QueryClose, Resize, or Terminate in this FM20 capture"). Their names and signatures are those of
+/// the public documentation (`UserForm.Show`, `UserForm.Hide`, the `QueryClose` event: `Cancel As
+/// Integer, CloseMode As Integer`); what they do is not modelled and refuses where it is reached.
+pub(crate) const USERFORM_VBE_BASE: i32 = 0x4100_0000;
+
+fn userform_vbe_members(iid: Option<ComInterfaceIid>) -> Vec<TypeLibMemberMetadata> {
+    let member = |index: i32, name: &str, optional_variant: bool| TypeLibMemberMetadata {
+        name: name.into(),
+        token: USERFORM_VBE_BASE + index,
+        vtable_slot: None,
+        requires_argument: false,
+        invoke_kind: TypeLibMemberInvokeKind::Method,
+        parameter_names: if optional_variant { vec!["Modal".into()] } else { vec![] },
+        parameter_optional: if optional_variant { vec![true] } else { vec![] },
+        parameter_optional_defaults: if optional_variant {
+            vec![OptionalParamDefault::OptionalVariant]
+        } else {
+            vec![]
+        },
+        is_default_member: false,
+        parameter_types: if optional_variant { vec![TypeLibParamType::Variant] } else { vec![] },
+        parameter_wire_types: if optional_variant {
+            vec![TypeLibWireType::Automation(TypeLibParamType::Variant)]
+        } else {
+            vec![]
+        },
+        parameter_iids: if optional_variant { vec![None] } else { vec![] },
+        return_type: None,
+        return_wire_type: None,
+        callconv_is_stdcall: true,
+        is_dual: false,
+        interface_iid: iid,
+        source_typekind: Some(SourceTypeKind::Dispatch),
+        vtable_slot_bound: Some(7),
+    };
+    vec![member(0, "Show", true), member(1, "Hide", false)]
+}
+
+fn userform_vbe_events(source_guid: Option<String>) -> Vec<TypeLibEventMetadata> {
+    use TypeLibParamType as P;
+    let event = |index: i32, name: &str, parameters: Vec<P>| TypeLibEventMetadata {
+        name: name.into(),
+        token: USERFORM_VBE_BASE + 0x100 + index,
+        callback_arity: parameters.len() as u8,
+        parameter_iids: vec![None; parameters.len()],
+        parameter_types: parameters,
+        dispatch_path: TypeLibEventDispatchPath::Dispatch,
+        connection_point_iid: source_guid.clone(),
+        dispatch_member_id: Some(USERFORM_VBE_BASE + 0x100 + index),
+        coclass: Some("UserForm".into()),
+    };
+    vec![
+        event(0, "Initialize", vec![]),
+        event(1, "Terminate", vec![]),
+        event(2, "Activate", vec![]),
+        event(3, "Deactivate", vec![]),
+        event(4, "Resize", vec![]),
+        event(5, "QueryClose", vec![P::ByRefInteger, P::ByRefInteger]),
+    ]
 }
 
 /// First token of the worksheet-function names Excel's `Application` answers though its type
