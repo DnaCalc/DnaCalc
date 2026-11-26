@@ -7969,11 +7969,13 @@ fn dc_oxh8w_59__file_held_chart_frame_edits_name_their_owning_bead() {
         (&frame, "ChartObject", "Name", AutoValue::text("Sales")),
         (&frame, "ChartObject", "Left", AutoValue::R8(50.7)),
         (&frame, "ChartObject", "Top", AutoValue::R8(30.0)),
-        (&chart, "_Chart", "Name", AutoValue::text("Sales")),
     ] {
         let error = invoke_kind(&model, target, member, InvokeKind::Put, vec![value]).unwrap_err();
         assert_eq!(error, AutoError::not_modelled(format!("{interface}.{member}"), "dc-oxh8w.59"));
     }
+    // Excel raises error 7 for an embedded chart's Chart.Name whether the file holds it or not (ww22 VBA).
+    let r = invoke_kind(&model, &chart, "Name", InvokeKind::Put, vec![AutoValue::text("Sales")]);
+    assert!(matches!(&r, Err(AutoError::Excel { number: 7, .. })), "{r:?}");
     assert_eq!(host.session.borrow().host().revision(), revision);
 }
 
@@ -8026,23 +8028,50 @@ fn dc_3qsm0__moved_charts_save_their_edits_and_leave_no_dangling_rels() {
     assert_eq!(text_of(invoke(&model2, &title2, "Text", vec![]).unwrap()), "Moved title");
 }
 
-/// dc-oxh8w.48: `Chart.Name = ...` of an embedded chart names its ChartObject; `Chart.Name` then reads `<sheet> <name>`,
-/// as `ChartObject.Name` does.
+/// dc-oxh8w.59 (ww22 charts/observations.jsonl Frame.chartName, VBA: Excel 16.0.20625.20108): `Chart.Name = ...` of an
+/// embedded chart raises error 7 (Out of memory) and changes nothing; `ChartObject.Name` takes the name, including one
+/// another chart or a shape already has (ww22 Frame.duplicate-chart, Frame.duplicate-shape).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_oxh8w_48__chart_name_put_names_an_embedded_chart() {
+fn dc_oxh8w_59__embedded_chart_name_put_is_out_of_memory_and_chart_object_names_repeat() {
     let (host, model, sheet) = blank_report();
     fill(&host, (1, 1), &[&["Region", "Q1"], &["North", "10"]]);
     let objects = obj(invoke_kind(&model, &sheet, "ChartObjects", InvokeKind::Method, vec![]).unwrap());
-    let frame = obj(
-        invoke_kind(&model, &objects, "Add", InvokeKind::Method, vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(200.0), AutoValue::R8(100.0)])
-            .unwrap(),
-    );
+    let add = || {
+        obj(
+            invoke_kind(&model, &objects, "Add", InvokeKind::Method, vec![AutoValue::R8(0.0), AutoValue::R8(0.0), AutoValue::R8(200.0), AutoValue::R8(100.0)])
+                .unwrap(),
+        )
+    };
+    let frame = add();
     let chart = obj(invoke(&model, &frame, "Chart", vec![]).unwrap());
     assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 Chart 1");
-    invoke_kind(&model, &chart, "Name", InvokeKind::Put, vec![AutoValue::text("Takings")]).unwrap();
-    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 Takings");
-    assert_eq!(text_of(invoke(&model, &frame, "Name", vec![]).unwrap()), "Takings");
+    for name in ["Takings", "New & <First>"] {
+        let r = invoke_kind(&model, &chart, "Name", InvokeKind::Put, vec![AutoValue::text(name)]);
+        assert!(matches!(&r, Err(AutoError::Excel { number: 7, description }) if description == "Out of memory"), "{r:?}");
+    }
+    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 Chart 1");
+    assert_eq!(text_of(invoke(&model, &frame, "Name", vec![]).unwrap()), "Chart 1");
+    // ChartObject.Name: any text, repeats included.
+    invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text("New & <First>")]).unwrap();
+    assert_eq!(text_of(invoke(&model, &chart, "Name", vec![]).unwrap()), "Sheet1 New & <First>");
+    let second = add();
+    invoke_kind(&model, &second, "Name", InvokeKind::Put, vec![AutoValue::text("New & <First>")]).unwrap();
+    assert_eq!(text_of(invoke(&model, &second, "Name", vec![]).unwrap()), "New & <First>");
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let rectangle = obj(
+        invoke_kind(
+            &model,
+            &shapes,
+            "AddShape",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::R8(10.0), AutoValue::R8(240.0), AutoValue::R8(50.0), AutoValue::R8(40.0)],
+        )
+        .unwrap(),
+    );
+    invoke_kind(&model, &rectangle, "Name", InvokeKind::Put, vec![AutoValue::text("Other")]).unwrap();
+    invoke_kind(&model, &frame, "Name", InvokeKind::Put, vec![AutoValue::text("Other")]).unwrap();
+    assert_eq!(text_of(invoke(&model, &frame, "Name", vec![]).unwrap()), "Other");
 }
 
 /// dc-oxh8w.11: `HPageBreaks` and `VPageBreaks` list the automatic breaks of the one pagination route as well as the

@@ -2530,15 +2530,9 @@ pub(crate) fn prepare_frame(
         ));
     }
     if let Some(name) = name {
-        if name.is_empty()
-            || name.chars().count() > 255
-            || charts
-                .iter()
-                .enumerate()
-                .any(|(i, c)| i != index && c.name == name)
-            || host.shapes(sheet).iter().any(|s| s.name == name)
-        {
-            return Err(fail("Use a unique chart name of 1 to 255 characters"));
+        // Excel takes any text, one another chart or a shape already carries included (ww22 Frame.duplicate-*).
+        if name.is_empty() || name.chars().count() > 255 {
+            return Err(fail("Use a chart name of 1 to 255 characters"));
         }
         charts[index].name = name;
     }

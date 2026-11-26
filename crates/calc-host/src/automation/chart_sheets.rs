@@ -43,7 +43,7 @@ impl WorkbookAutomation {
         })
     }
 
-    /// `Chart.Name = ...` renames a chart sheet; an embedded chart's name is its ChartObject's.
+    /// `Chart.Name = ...` renames a chart sheet; an embedded chart's name is its ChartObject's and cannot be put here.
     fn chart_put_name(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         let name = call.args.last().ok_or_else(geometry::bad_count).and_then(|v| v.as_text().ok_or_else(geometry::type_mismatch))?;
         let (_, sheet, _) = Self::report_key(target)?;
@@ -53,8 +53,8 @@ impl WorkbookAutomation {
             !meta.chart_sheets.contains(&sheet)
         };
         if embedded {
-            // The ChartObject's name: `Chart.Name` then reads `<sheet> <name>`.
-            return self.chart_frame(target, call, Some(name), None);
+            // ww22 (VBA, Excel 16.0.20625.20108): an embedded chart's Chart.Name cannot be set: error 7.
+            return Err(AutoError::excel(7, "Out of memory"));
         }
         self.with_write(|session| {
             let progress = Self::sheet_command(session, Some(sheet), SheetChange::Rename { name: name.clone() })?;
