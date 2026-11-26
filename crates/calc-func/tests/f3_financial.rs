@@ -4598,3 +4598,55 @@ fn security_family_us_30_360_treats_feb_1900_as_28_days() {
         35640.0,
     );
 }
+
+/// dc-j9k.491-.496 (Excel 20625): ACCRINT takes issue 0, issue on or after the first interest
+/// date, rejects a zero rate, and orders its errors by argument: dates, then the numbers' types
+/// and the frequency range, then the basis type, then the rate, par and basis ranges.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn accrint_admission_order_and_issue_after_first_interest() {
+    let t = || calc_func::value::CalcValue::logical(true);
+    let acc = |a: [f64; 7], calc: bool| {
+        let mut v: Vec<_> = a.iter().map(|x| n(*x)).collect();
+        v.push(calc_func::value::CalcValue::logical(calc));
+        dated("ACCRINT", v)
+    };
+    exact(acc([43000.0, 43000.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), f64::from_bits(0x403b_8000_0000_0001));
+    exact(acc([43150.0, 43100.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), f64::from_bits(0x401c_5555_5555_5555));
+    // act/act: the stub of issue after first interest takes the canonical period, a stub that is
+    // not the last term takes its own period's actual length
+    exact(acc([42682.0, 42582.0, 42689.0, 0.05, 1000.0, 1.0, 1.0], true), f64::from_bits(0x3fee_99e1_395a_edd1));
+    exact(acc([42401.0, 42201.0, 42408.0, 0.0675, 100.0, 1.0, 1.0], true), f64::from_bits(0x3fc0_91e2_8adf_091e));
+    exact(acc([35173.0, 35168.0, 35180.0, 0.0675, 100.0, 1.0, 1.0], true), f64::from_bits(0x3fc0_864b_8a7d_e6d2));
+    exact(acc([39802.0, 39801.0, 40002.0, 0.05, 1000.0, 2.0, 1.0], true), f64::from_bits(0x403b_7550_e7f1_1e8b));
+    exact(acc([42915.0, 42715.0, 43315.0, 0.0675, 1000.0, 1.0, 1.0], true), f64::from_bits(0x4052_76a5_af2b_84f9));
+    // a zero rate, issue 0 against settlement 0, a negative date, are #NUM!
+    error(acc([43000.0, 43100.0, 43200.0, 0.0, 1000.0, 2.0, 0.0], true), Num);
+    error(acc([0.0, 1.0, 0.5, 0.05, 0.125, 1.0, 0.0], true), Num);
+    error(acc([-1.0, 43100.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), Num);
+    let base = || vec![n(43000.0), n(43100.0), n(43200.0), n(0.05), n(1000.0), n(2.0), n(0.0)];
+    let with = |index: usize, value: calc_func::value::CalcValue| {
+        let mut v = base();
+        v[index] = value;
+        v
+    };
+    // a logical date is #VALUE!, even after a negative later date; a negative date beats a logical later number
+    let mut v = with(0, t());
+    v[1] = n(-1.0);
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(0, n(-1.0));
+    v[5] = t();
+    error(dated("ACCRINT", v), Num);
+    // rate/par ranges follow the logical par/frequency/basis; frequency range precedes a logical basis
+    let mut v = with(3, n(-0.5));
+    v[4] = t();
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(3, n(-0.5));
+    v[6] = t();
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(5, n(3.0));
+    v[6] = t();
+    error(dated("ACCRINT", v), Num);
+    error(dated("ACCRINT", with(3, t())), Value);
+    error(dated("ACCRINT", with(6, t())), Value);
+}

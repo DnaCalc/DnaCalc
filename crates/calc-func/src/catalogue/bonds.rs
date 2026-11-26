@@ -251,10 +251,17 @@ ported_shared_family! {
         bond_out(s, bond::yielddisc_kernel(settlement, maturity, price, redemption, Some(basis)))
     }
     8 accrint_fn |s, a, sv| {
-        let (issue, first, settlement) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?, date_1900(s, a, 2, sv)?);
-        let par = or(s, a, 4, 1000.0)?;
+        // Excel 20625 admission order (pairs of defects asked of Excel, dc-j9k.491-.496): each
+        // date in turn (a logical is #VALUE!, a negative serial #NUM!), then the rate, par and
+        // frequency as numbers (a logical is #VALUE!), the frequency's range, the basis as a
+        // number, and only then the rate, par and basis ranges inside the kernel.
+        let (issue, first, settlement) = (bond_date(s, a, 0, sv)?, bond_date(s, a, 1, sv)?, bond_date(s, a, 2, sv)?);
+        let rate = num_without_logical(s, a, 3)?;
+        let par = if given(a, 4) { num_without_logical(s, a, 4)? } else { 1000.0 };
+        let frequency = bond_frequency(s, a, 5)?;
+        let basis = if given(a, 6) { num_without_logical(s, a, 6)? } else { 0.0 };
         let calc_method = if given(a, 7) { num(s, a, 7)?.trunc() != 0.0 } else { true };
-        bond_out(s, bond::accrint_kernel(issue, first, settlement, num(s, a, 3)?, Some(par), num(s, a, 5)?, Some(or(s, a, 6, 0.0)?), Some(calc_method)))
+        bond_out(s, bond::accrint_kernel(issue, first, settlement, rate, Some(par), frequency, Some(basis), Some(calc_method)))
     }
     // ACCRINTM takes 4 or 5 arguments (dc-mx3x, Excel 16.0.20527, 2026-11-07, Formula2 and Formula
     // alike): `=ACCRINTM(B1,B1,B1)` is refused and `=ACCRINTM(B1,B1,B1,B1)` enters.
