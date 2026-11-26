@@ -138,8 +138,11 @@ impl WorkbookAutomation {
         let password = match call.arg(0) {
             AutoValue::Missing | AutoValue::Empty => None,
             AutoValue::Text(t) => Some(t.to_string_lossy()).filter(|p| !p.is_empty()),
-            AutoValue::I2(_) | AutoValue::I4(_) | AutoValue::R4(_) | AutoValue::R8(_) => {
-                return Err(AutoError::not_modelled("Worksheet.Protect with a numeric Password", OWNER));
+            // ww21 Protect.numericPassword: an integer is accepted as its decimal text.
+            AutoValue::I2(n) => Some(n.to_string()),
+            AutoValue::I4(n) => Some(n.to_string()),
+            AutoValue::R4(_) | AutoValue::R8(_) => {
+                return Err(AutoError::not_modelled("Worksheet.Protect with a floating-point Password", OWNER));
             }
             _ => return Err(geometry::type_mismatch()),
         };
@@ -199,6 +202,10 @@ impl WorkbookAutomation {
             };
             if !self.sheet_protect.borrow().contains_key(&sheet) {
                 return Err(AutoError::not_modelled("Worksheet.Unprotect of a sheet the file protects", OWNER));
+            }
+            // ww21 Unprotect.omitted: Excel opens the Unprotect Sheet dialog.
+            if held.password.is_some() && call.arg(0).is_missing() {
+                return Err(AutoError::not_modelled("Worksheet.Unprotect password prompt", OWNER));
             }
             if held.password.is_some() && held.password != given {
                 return Err(wrong_password());
