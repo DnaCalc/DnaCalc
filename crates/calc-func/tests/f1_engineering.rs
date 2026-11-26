@@ -298,6 +298,23 @@ fn complex_tangent_and_cotangent_reduce_the_denominator_at_the_real_argument() {
     );
 }
 
+/// Touchstone Excel 16.0.20625 (dc-j9k.449): the real component is bounded at 2^27 - 1.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn complex_sine_and_cosine_bound_the_real_component() {
+    let boundary = 134_217_727.0_f64;
+    let next = f64::from_bits(boundary.to_bits() + 1);
+    for (function, bound_text) in [
+        ("IMSIN", "-0.955993328772671"),
+        ("IMCOS", "-0.293388403557722"),
+    ] {
+        text(call(function, vec![n(boundary)]), bound_text);
+        for input in [n(next), n(-next), t("134217727.5"), t("-134217727.5+i")] {
+            error(call(function, vec![input]), Num);
+        }
+    }
+}
+
 /// Excel 20527 distinguishes the stored leading product of the high J0 seed.
 /// dc-iuwct.6-.9, Excel 16.0.20527 (Touchstone, 2026-11-20): complex coefficients take fifteen
 /// digits through the nibble chain at every shift (decimal near-midpoints, where one rounded
