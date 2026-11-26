@@ -8623,6 +8623,38 @@ fn dc_oxh8w_49__multi_cell_activate_and_cut_copy_mode_assignments() {
     }
 }
 
+/// dc-oxh8w.49 (ww24 c/ case5, Excel 16.0.20625.20108): Range.Activate of a multi-cell range whose first cell lies outside
+/// the selection selects that whole range and makes its first cell active (D4:E5 over A1:B2 -> $D$4:$E$5, active $D$4).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__multi_cell_activate_outside_the_selection_selects_the_range() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let sheet = obj(invoke(&model, &worksheets(&model), "Item", vec![AutoValue::I4(1)]).unwrap());
+    let sub = |a: &str| obj(invoke(&model, &sheet, "Range", vec![AutoValue::text(a)]).unwrap());
+    invoke_kind(&model, &sub("A1:B2"), "Select", InvokeKind::Method, vec![]).unwrap();
+    let done = invoke_kind(&model, &sub("D4:E5"), "Activate", InvokeKind::Method, vec![]);
+    assert!(done.is_ok(), "{done:?}");
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "Selection", vec![]).unwrap()), "Address"), "$D$4:$E$5");
+    assert_eq!(text(&model, &obj(invoke(&model, &app, "ActiveCell", vec![]).unwrap()), "Address"), "$D$4");
+}
+
+/// dc-oxh8w.49 (ww24 c/ case7, Excel 16.0.20625.20108): with a chart sheet active, Selection is Nothing and ActiveCell
+/// raises error 91 (Object variable or With block variable not set).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_oxh8w_49__chart_sheet_active_has_no_selection_and_no_active_cell() {
+    let (_host, model) = setup();
+    let app = model.application();
+    let book = obj(invoke(&model, &app, "ActiveWorkbook", vec![]).unwrap());
+    let charts = obj(invoke(&model, &book, "Charts", vec![]).unwrap());
+    invoke_kind(&model, &charts, "Add", InvokeKind::Method, vec![]).unwrap();
+    let selection = invoke(&model, &app, "Selection", vec![]);
+    assert!(matches!(selection, Ok(AutoValue::Empty)), "{selection:?}");
+    let active_cell = invoke(&model, &app, "ActiveCell", vec![]);
+    assert!(matches!(active_cell, Err(AutoError::Excel { number: 91, .. })), "{active_cell:?}");
+}
+
 /// dc-oxh8w.49 (ww21, Excel 16.0.20625): hiding the active (ungrouped) middle sheet activates the following sheet.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -9532,8 +9564,9 @@ fn dc_oxh8w_71__advanced_filter_copies_matching_records() {
     let bad = |args: Vec<AutoValue>| matches!(run(args), Err(AutoError::Excel { number: 1004, .. }));
     assert!(bad(vec![AutoValue::I4(3)]));
     assert!(bad(vec![AutoValue::I4(2), AutoValue::Missing]));
+    // In place with no criteria keeps every record (ww24 e/: True; the rows are all shown).
     let inplace = run(vec![AutoValue::I4(1), AutoValue::Missing]);
-    assert!(matches!(inplace, Err(AutoError::NotModelled { .. })), "{inplace:?}");
+    assert!(matches!(inplace, Ok(AutoValue::Bool(true))), "{inplace:?}");
 }
 
 /// dc-oxh8w.43: Range.AutoFilter switches the filter on and off and sets one column's criterion through the
@@ -11189,6 +11222,115 @@ fn dc_hduqd__advanced_filter_copy_chooses_columns_and_copies_formula_values() {
     put("A20", "Nope");
     assert!(matches!(run("A20:B20"), Err(AutoError::Excel { number: 1004, .. })));
     assert!(matches!(run("A20"), Err(AutoError::Excel { number: 1004, .. })));
+}
+
+/// ww24 e/ (Excel 16.0.20625.20108): Unique compares only the columns CopyToRange's header cells name (Item,Qty -> 3
+/// records; Item,Region -> 4; Item -> 3); a blank cell among several header cells is 1004 "The extract range has a missing
+/// or invalid field name"; a header repeated copies that column twice.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hduqd__advanced_filter_unique_over_the_copied_columns_and_blank_headers() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(
+        &host,
+        (1, 1),
+        &[&["Item", "Qty", "Region"], &["a", "10", "N"], &["b", "20", "S"], &["a", "10", "S"], &["c", "30", "N"], &["a", "10", "N"]],
+    );
+    let put = |address: &str, text: &str| {
+        invoke_kind(&model, &range(&model, address), "Value", InvokeKind::Put, vec![AutoValue::text(text)]).unwrap();
+    };
+    let run = |dest: &str, unique: bool| {
+        invoke_kind(
+            &model,
+            &range(&model, "A1:C6"),
+            "AdvancedFilter",
+            InvokeKind::Method,
+            vec![AutoValue::I4(2), AutoValue::Missing, AutoValue::Object(range(&model, dest)), AutoValue::Bool(unique)],
+        )
+    };
+    let rows = |first: &str, last: &str| {
+        let (c, a, b) = (first.as_bytes()[0] as char, first[1..].parse::<u32>().unwrap(), last[1..].parse::<u32>().unwrap());
+        (a..=b).filter(|r| !cell_text_of(&model, &format!("{c}{r}")).is_empty()).count()
+    };
+    put("G1", "Item");
+    put("H1", "Qty");
+    assert!(matches!(run("G1:H1", true), Ok(AutoValue::Bool(true))));
+    assert_eq!(rows("G1", "G8"), 4, "Item,Qty: three records and the header");
+    put("J1", "Item");
+    put("K1", "Region");
+    assert!(matches!(run("J1:K1", true), Ok(AutoValue::Bool(true))));
+    assert_eq!(rows("J1", "J8"), 5, "Item,Region: four records and the header");
+    put("M1", "Item");
+    assert!(matches!(run("M1", true), Ok(AutoValue::Bool(true))));
+    assert_eq!(rows("M1", "M8"), 4, "Item: three records and the header");
+    // A blank cell among several header cells.
+    put("P1", "Item");
+    put("R1", "Region");
+    match run("P1:R1", false) {
+        Err(AutoError::Excel { number: 1004, description }) => {
+            assert_eq!(description, "The extract range has a missing or invalid field name")
+        }
+        other => panic!("a blank CopyTo header cell: {other:?}"),
+    }
+    // A repeated header copies the column twice.
+    put("T1", "Item");
+    put("U1", "Item");
+    assert!(matches!(run("T1:U1", false), Ok(AutoValue::Bool(true))));
+    assert_eq!(cell_text_of(&model, "T2"), "a");
+    assert_eq!(cell_text_of(&model, "U2"), "a");
+}
+
+/// ww24 e/ (Excel 16.0.20625.20108): `xlFilterInPlace` returns True and hides the rows that miss the criteria, the header
+/// row never; FilterMode is True and AutoFilterMode False; a second call filters from the full list again (">=10" hides
+/// nothing, then ">=20" hides the three "a" rows); ShowAllData unhides and clears FilterMode, and is then 1004. The hidden
+/// rows are saved as hidden rows.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_hduqd__advanced_filter_in_place_hides_rows_and_show_all_data_undoes_it() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    fill(
+        &host,
+        (1, 1),
+        &[&["Item", "Qty", "Region"], &["a", "10", "N"], &["b", "20", "S"], &["a", "10", "S"], &["c", "30", "N"], &["a", "10", "N"]],
+    );
+    fill(&host, (1, 5), &[&["Qty"], &[">=10"]]);
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let flag = |name: &str| matches!(invoke(&model, &sheet, name, vec![]).unwrap(), AutoValue::Bool(true));
+    // Range.Hidden is not modelled (dc-oxh8w), so the rows are read from the model.
+    let hidden = || -> Vec<bool> {
+        let session = host.session.borrow();
+        let sheet_id = session.host().sheets()[0].id();
+        (1..=6).map(|row| session.host().model().definitions().axis_layouts().get(sheet_id, calc_doc_model::Axis::Rows, row).hidden()).collect()
+    };
+    let filter = || {
+        invoke_kind(
+            &model,
+            &range(&model, "A1:C6"),
+            "AdvancedFilter",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::Object(range(&model, "E1:E2"))],
+        )
+    };
+    let first = filter();
+    assert!(matches!(first, Ok(AutoValue::Bool(true))), "{first:?}");
+    assert_eq!(hidden(), [false; 6]);
+    assert!(flag("FilterMode") && !flag("AutoFilterMode"));
+    invoke_kind(&model, &range(&model, "E2"), "Value", InvokeKind::Put, vec![AutoValue::text(">=20")]).unwrap();
+    assert!(matches!(filter(), Ok(AutoValue::Bool(true))));
+    assert_eq!(hidden(), [false, true, false, true, false, true]);
+    assert!(flag("FilterMode") && !flag("AutoFilterMode"));
+    // The hidden rows are saved.
+    let saved = saved_part(&mut host.session.borrow_mut(), "xl/worksheets/sheet");
+    assert_eq!(saved.matches("hidden=\"1\"").count(), 3, "{saved}");
+    invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]).unwrap();
+    assert_eq!(hidden(), [false; 6]);
+    assert!(!flag("FilterMode"));
+    let again = invoke_kind(&model, &sheet, "ShowAllData", InvokeKind::Method, vec![]);
+    assert!(matches!(again, Err(AutoError::Excel { number: 1004, .. })), "{again:?}");
 }
 
 /// dc-y7tqj (rw12 finding 22a): Application.MultiThreadedCalculation puts must enforce UDF

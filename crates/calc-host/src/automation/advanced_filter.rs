@@ -7,6 +7,7 @@
 //! call a worksheet function takes, so there is one criterion evaluator. `xlFilterInPlace` (hiding rows with no
 //! AutoFilter) is a typed refusal owned by dc-hduqd; the header cells of `CopyToRange` choose the copied columns.
 use super::*;
+use crate::{HostState, SkinIntent};
 
 const XL_FILTER_IN_PLACE: i64 = 1;
 const XL_FILTER_COPY: i64 = 2;
@@ -52,14 +53,15 @@ impl WorkbookAutomation {
         };
         let criteria = held_of(1)?;
         let copy_to = held_of(2)?;
-        if action == XL_FILTER_IN_PLACE {
-            return Err(AutoError::not_modelled("Range.AdvancedFilter xlFilterInPlace", REMAINDER));
+        // In place, a CopyToRange is not read (ww24 e/ gives no answer for one; Excel's own dialog disables it).
+        let copy_to = if action == XL_FILTER_IN_PLACE { None } else { Some(copy_to.ok_or_else(error_1004)?) };
+        if action == XL_FILTER_IN_PLACE && unique {
+            return Err(AutoError::not_modelled("Range.AdvancedFilter xlFilterInPlace with Unique (no Excel answer)", REMAINDER));
         }
-        let Some(copy_to) = copy_to else {
-            return Err(error_1004());
-        };
+        let in_place_rows: std::cell::RefCell<Option<(SheetId, usize, std::collections::BTreeSet<u32>)>> = Default::default();
         // The list is only read; the output block is what is written.
-        self.mutate(target, call, |session, list| {
+        let unchanged = std::cell::Cell::new(false);
+        let written = self.mutate(target, call, |session, list| {
             let list = list.ok_or_else(geometry::type_mismatch)?;
             if list.area_count() != 1 {
                 return Err(AutoError::not_modelled(format!("{} multi-area write", call.label()), "dc-1nbp.6"));
@@ -76,11 +78,16 @@ impl WorkbookAutomation {
                 }
                 None => None,
             };
-            let destination = self.resolve(&mut access, &copy_to)?;
-            if destination.area_count() != 1 {
-                return Err(error_1004());
-            }
-            let destination = destination.areas()[0];
+            let destination = match &copy_to {
+                Some(held) => {
+                    let resolved = self.resolve(&mut access, held)?;
+                    if resolved.area_count() != 1 {
+                        return Err(error_1004());
+                    }
+                    Some(resolved.areas()[0])
+                }
+                None => None,
+            };
             if list_area.row_count() < 1 {
                 return Err(error_1004());
             }
@@ -107,6 +114,9 @@ impl WorkbookAutomation {
             };
             // The header cells of CopyToRange choose and order the copied columns (Excel ww21, ww22); a lone blank
             // cell takes every column. A label the list lacks is 1004.
+            let selected: Vec<usize> = match destination {
+                None => (0..columns as usize).collect(),
+                Some(destination) => {
             let label_row = GridArea::new(
                 destination.first(),
                 CellKey::new(destination.sheet(), destination.first().row(), destination.last().column())
@@ -114,17 +124,15 @@ impl WorkbookAutomation {
             )
             .map_err(|_| error_1004())?;
             let labels = cells(label_row)?;
-            let selected: Vec<usize> = if labels.len() == 1 && matches!(labels[0].core_ref(), CoreRef::Empty | CoreRef::Missing) {
+            if labels.len() == 1 && matches!(labels[0].core_ref(), CoreRef::Empty | CoreRef::Missing) {
                 (0..columns as usize).collect()
             } else {
                 labels
                     .iter()
                     .map(|label| {
                         let Some(wanted) = header_label(label) else {
-                            return Err(AutoError::not_modelled(
-                                "Range.AdvancedFilter CopyToRange with a blank header among several cells",
-                                REMAINDER,
-                            ));
+                            // ww24 h: a blank cell among several CopyTo header cells.
+                            return Err(AutoError::excel(1004, "The extract range has a missing or invalid field name"));
                         };
                         header
                             .iter()
@@ -132,11 +140,9 @@ impl WorkbookAutomation {
                             .ok_or_else(error_1004)
                     })
                     .collect::<Result<_, _>>()?
-            };
-            let subset = selected.iter().copied().ne(0..columns as usize);
-            if unique && subset {
-                return Err(AutoError::not_modelled("Range.AdvancedFilter Unique over chosen columns", REMAINDER));
             }
+                }
+            };
             let mut kept: Vec<usize> = Vec::new();
             let environment = host.entry_environment();
             let numeric = host.recalc_context().numeric;
@@ -207,8 +213,10 @@ impl WorkbookAutomation {
             }
             if unique {
                 let key = |record: usize| -> Vec<String> {
-                    all[record * columns as usize..(record + 1) * columns as usize]
+                    // ww24: Unique compares only the copied columns.
+                    selected
                         .iter()
+                        .map(|&column| &all[record * columns as usize + column])
                         .map(|v| match v.core_ref() {
                             CoreRef::Text(t) => format!("t{}", t.to_string_lossy().to_lowercase()),
                             CoreRef::Number(n) => format!("n{}", n.to_bits()),
@@ -221,6 +229,9 @@ impl WorkbookAutomation {
                 let mut seen = std::collections::HashSet::new();
                 kept.retain(|record| seen.insert(key(*record)));
             }
+            let Some(destination) = destination else {
+                return self.in_place_edits(session, list_area, &kept, &in_place_rows, &unchanged);
+            };
             let out_rows = kept.len() as u32 + 1;
             let out_columns = selected.len() as u32;
             let end_row = destination.first().row() + out_rows - 1;
@@ -288,7 +299,75 @@ impl WorkbookAutomation {
                 }
             }
             Ok(crate::SkinIntent::Edit { edits })
-        })?;
+        });
+        // An in-place filter that changes no row (every record meets the criteria, none was hidden) has no command to run.
+        match written {
+            Err(_) if unchanged.get() => {}
+            other => {
+                other?;
+            }
+        }
+        if let Some(held) = in_place_rows.into_inner() {
+            self.in_place.borrow_mut().insert(held.0, (held.1, held.2));
+        }
         Ok(AutoValue::Bool(true))
+    }
+
+    /// `xlFilterInPlace`: hides the list's records that missed the criteria (never the header row) and shows the ones an
+    /// earlier in-place filter hid; the rows are remembered for FilterMode and ShowAllData (ww24 e/).
+    fn in_place_edits(
+        &self,
+        session: &HostSession,
+        list: GridArea,
+        kept: &[usize],
+        remember: &std::cell::RefCell<Option<(SheetId, usize, std::collections::BTreeSet<u32>)>>,
+        unchanged: &std::cell::Cell<bool>,
+    ) -> Result<SkinIntent, AutoError> {
+        let sheet = list.sheet();
+        self.guard_area(session, list)?;
+        let kept: std::collections::BTreeSet<usize> = kept.iter().copied().collect();
+        let first = list.first().row();
+        let hide: std::collections::BTreeSet<u32> =
+            (1..list.row_count() as usize).filter(|record| !kept.contains(record)).map(|record| first + record as u32).collect();
+        let earlier = self.in_place_rows(session.host(), sheet).unwrap_or_default();
+        let edits = Self::row_visibility_edits(session.host(), sheet, hide.iter().copied().collect(), &earlier);
+        *remember.borrow_mut() = Some((sheet, Self::axis_edit_count(session.host(), sheet), hide));
+        if edits.is_empty() {
+            unchanged.set(true);
+            return Err(error_1004());
+        }
+        Ok(SkinIntent::Edit { edits })
+    }
+
+    /// Edits that hide the rows in `hide` and show those of `earlier` not in it, leaving rows already so as they are.
+    pub(super) fn row_visibility_edits(
+        host: &HostState,
+        sheet: SheetId,
+        hide: Vec<u32>,
+        earlier: &std::collections::BTreeSet<u32>,
+    ) -> Vec<crate::CellEdit> {
+        let layouts = host.model().definitions().axis_layouts();
+        let mut edits = Vec::new();
+        let rows = hide.iter().map(|row| (*row, true)).chain(earlier.iter().filter(|r| !hide.contains(r)).map(|row| (*row, false)));
+        for (row, hidden) in rows {
+            let format = layouts.get(sheet, calc_doc_model::Axis::Rows, row);
+            if format.hidden() != hidden {
+                if let Some(edit) = crate::AxisFormatEdit::new(sheet, calc_doc_model::Axis::Rows, row, format.with_hidden(hidden)) {
+                    edits.push(crate::CellEdit::AxisFormat(edit));
+                }
+            }
+        }
+        edits
+    }
+
+    fn axis_edit_count(host: &HostState, sheet: SheetId) -> usize {
+        host.axis_edits.iter().filter(|edit| edit.sheet() == sheet).count()
+    }
+
+    /// The rows an in-place advanced filter hid on `sheet`, while no row has been inserted or deleted there since.
+    pub(super) fn in_place_rows(&self, host: &HostState, sheet: SheetId) -> Option<std::collections::BTreeSet<u32>> {
+        let held = self.in_place.borrow();
+        let (edits, rows) = held.get(&sheet)?;
+        (*edits == Self::axis_edit_count(host, sheet)).then(|| rows.clone())
     }
 }

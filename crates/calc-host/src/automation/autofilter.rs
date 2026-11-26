@@ -177,10 +177,14 @@ impl WorkbookAutomation {
     }
 
     fn worksheet_filter_mode(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
-        self.with_target(target, |_, meta| {
-            no_args(call)?;
-            let sheet = Self::worksheet_sheet(target)?;
-            Ok(AutoValue::Bool(meta.model.definitions().auto_filter(sheet).is_some_and(|f| !f.columns.is_empty())))
+        no_args(call)?;
+        let sheet = Self::worksheet_sheet(target)?;
+        self.with_write(|session| {
+            let meta = self.metadata()?;
+            self.validate(target, &meta)?;
+            let filtering = meta.model.definitions().auto_filter(sheet).is_some_and(|f| !f.columns.is_empty());
+            // An in-place AdvancedFilter is a filter too (ww24 e/: FilterMode True, AutoFilterMode False).
+            Ok(AutoValue::Bool(filtering || self.in_place_rows(session.host(), sheet).is_some()))
         })
     }
 
@@ -217,7 +221,11 @@ impl WorkbookAutomation {
                 .auto_filter(sheet)
                 .is_some_and(|f| !f.columns.is_empty());
             if !filtering {
-                return Err(error_1004());
+                // An in-place AdvancedFilter: show its rows again (ww24 e/).
+                let Some(rows) = self.in_place_rows(session.host(), sheet) else { return Err(error_1004()) };
+                let edits = Self::row_visibility_edits(session.host(), sheet, Vec::new(), &rows);
+                self.in_place.borrow_mut().remove(&sheet);
+                return Ok(SkinIntent::Edit { edits });
             }
             Ok(SkinIntent::Command(WorkbookCommand::AutoFilter {
                 sheet,
