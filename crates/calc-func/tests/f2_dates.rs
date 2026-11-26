@@ -1669,6 +1669,27 @@ fn database_computed_criteria_and_held_field() {
     }
 }
 
+/// Excel 16.0.20625 (dc-j9k.528): an error in the database's label row is not propagated; it is a
+/// label whose text is the error's spelling, so a field out of range is #VALUE! and "#NAME?" selects it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn database_error_label_is_a_label_not_a_propagated_error() {
+    let mut sheet = Sheet::new();
+    sheet.column(1, 1, vec![e(Name), n(1.0), n(2.0), n(3.0)]);
+    sheet.column(1, 2, vec![t("b"), n(10.0), n(20.0), n(30.0)]);
+    sheet.column(1, 3, vec![t("b"), n(10.0)]);
+    let db = sheet.area(1, 1, 4, 2);
+    let crit = sheet.area(1, 3, 2, 3);
+    error(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(5.0), crit.clone()]), Value);
+    error(call_on(&mut sheet, "DSUM", vec![db.clone(), n(3.0), crit.clone()]), Value);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(1.0), crit.clone()]), 1.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), n(2.0), crit.clone()]), 10.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#NAME?"), crit.clone()]), 1.0);
+    exact(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("b"), crit.clone()]), 10.0);
+    error(call_on(&mut sheet, "DAVERAGE", vec![db.clone(), t("#N/A"), crit.clone()]), Value);
+    exact(call_on(&mut sheet, "DGET", vec![db, t("b"), crit]), 10.0);
+}
+
 /// dc-y7tqj (rw12 finding 16): a computed criterion cell (header naming no database field or blank)
 /// holding a formula re-evaluates per record in Excel; refuse typed instead of collapsing to a
 /// fixed truth over all records. Literal computed criteria and formula field criteria still run.
