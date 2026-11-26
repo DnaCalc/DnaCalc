@@ -706,6 +706,7 @@ fn a_project_that_lists_msforms_compiles_against_its_types_and_constants() {
                 ModuleKind::Standard,
                 "Option Explicit\nPublic Function Paste() As Long\n Dim box As MSForms.TextBox\n Paste = fmActionPaste\nEnd Function\n\
                  Public Function Wide() As Long\n Wide = fmPictureSizeModeStretch + fmMousePointerCross\nEnd Function\n\
+                 Public Function Up() As Long\n Up = xlUp\nEnd Function\n\
                  Public Sub Touch(box As MSForms.TextBox, lst As MSForms.ListBox)\n box.Text = \"a\"\n box.Font.Bold = True\n lst.AddItem \"b\"\n lst.ListIndex = 0\nEnd Sub\n",
             )],
             &references,
@@ -717,6 +718,8 @@ fn a_project_that_lists_msforms_compiles_against_its_types_and_constants() {
         let functions = loaded.functions();
         assert_eq!(functions.call("Paste", &[]).unwrap().as_number(), Some(2.0), "{backend:?}");
         assert_eq!(functions.call("Wide", &[]).unwrap().as_number(), Some(3.0), "{backend:?}");
+        // The Excel library still resolves beside MSForms (the bead's xlUp question).
+        assert_eq!(functions.call("Up", &[]).unwrap().as_number(), Some(-4162.0), "{backend:?}");
     }
 }
 
