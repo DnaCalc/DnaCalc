@@ -1201,6 +1201,29 @@ fn time_value_of_money() {
     );
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn pduration_rounded_growth_base_controls_division_by_zero() {
+    // Excel 16.0.20625 Value2, dc-j9k.396: the addition first rounds
+    // at extended precision, then stores a binary64 growth base.
+    for rate in [0x3c60000000000000, 0x3ca0020000000000] {
+        let rate = n(f64::from_bits(rate));
+        for future_value in [0.125, 5.0] {
+            error(
+                call("PDURATION", vec![rate.clone(), n(5.0), n(future_value)]),
+                Div0,
+            );
+        }
+    }
+    exact(
+        call(
+            "PDURATION",
+            vec![n(f64::from_bits(0x3ca0020000000001)), n(5.0), n(0.125)],
+        ),
+        f64::from_bits(0xc34d82d33b32720d),
+    );
+}
+
 /// Original R31 scalar Excel16.0.20527 replies and exact operand readbacks:
 /// DnaCalc-Research/evidence/round31, annuity reciprocal-domain studies.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -3357,6 +3380,45 @@ fn pv_uses_the_growth_base_for_tiny_nonzero_rates() {
     );
 }
 
+/// Excel 20625 accepts the last in-calendar coupon and rejects a maturity
+/// whose surrounding coupon schedule needs a date in year 10000.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_last_bonds_require_an_in_calendar_ending_coupon() {
+    for (function, on_coupon, semiannual) in [
+        ("ODDLPRICE", 0x4057_8a7a_d0f2_7140, 0x4057_8873_31d6_fb02),
+        ("ODDLYIELD", 0x4040_63b8_7492_20bd, 0x4040_4bd1_6574_224f),
+    ] {
+        let at = |maturity, frequency| {
+            dated(
+                function,
+                vec![n(2958115.0), n(maturity), n(2957916.0), n(0.125), n(0.25), n(100.0), n(frequency)],
+            )
+        };
+        exact(at(2958281.0, 1.0), f64::from_bits(on_coupon));
+        error(at(2958282.0, 1.0), Num);
+        exact(at(2958282.0, 2.0), f64::from_bits(semiannual));
+    }
+}
+
+/// Excel 20625 keeps the clamped day of an annual coupon after February.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn odd_last_annual_coupons_keep_a_clamped_february_day() {
+    for (function, value, expected) in [
+        ("ODDLPRICE", 0.25, 0x4057_4311_dffb_06af),
+        ("ODDLYIELD", 100.0, 0x3fbc_6d5b_f60e_e9a1),
+    ] {
+        exact(
+            dated(
+                function,
+                vec![n(43891.0), n(44074.0), n(43524.0), n(0.125), n(value), n(100.0), n(1.0), n(2.0)],
+            ),
+            f64::from_bits(expected),
+        );
+    }
+}
+
 /// Cell and direct logical controls agree. Out-of-calendar numeric dates
 /// precede later errors; zero dates defer to later scalar readers.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -4509,3 +4571,121 @@ fn zero_bill_price_and_zero_tbilleq_denominator_match_excel() {
     error(dated("TBILLEQ", vec![n(40000.0), n(40100.0), n(3.7)]), Num);
 }
 
+
+/// dc-j9k.479-.482 (Excel 20625): DISC, INTRATE, RECEIVED and PRICEDISC read the basis first,
+/// then the dates (serial zero is valid, a negative one is #NUM!), then the logical scalars.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn security_family_date_zero_and_admission_order() {
+    let t = || calc_func::value::CalcValue::logical(true);
+    exact(
+        dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(1.0), n(3.0)]),
+        f64::from_bits(0x408f_6c13_bf1e_5338),
+    );
+    exact(
+        dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(1.0)]),
+        f64::from_bits(0x408f_6cb1_573d_7f49),
+    );
+    exact(
+        dated("INTRATE", vec![n(0.0), n(2.0), n(1000.0), n(1.0), n(3.0)]),
+        f64::from_bits(0xc066_ca28_f5c2_8f5c),
+    );
+    for (basis, bits) in [(0.0, 0x408f_4472_6904_b229u64), (1.0, 0x408f_4462_ce98_b3a6), (2.0, 0x408f_4472_6904_b229), (4.0, 0x408f_4472_6904_b229)] {
+        exact(
+            dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(0.1), n(basis)]),
+            f64::from_bits(bits),
+        );
+    }
+    for name in ["RECEIVED", "INTRATE", "DISC", "PRICEDISC"] {
+        // negative date beats a logical scalar and a bad basis
+        error(dated(name, vec![n(-1.0), n(44100.0), t(), n(0.05), n(0.0)]), Num);
+        error(dated(name, vec![n(-1.0), n(44100.0), n(100.0), n(0.05), n(7.0)]), Num);
+        // a logical scalar is #VALUE!, after the basis range and the dates
+        error(dated(name, vec![n(44000.0), n(44001.0), t(), n(0.9)]), Value);
+        error(dated(name, vec![n(44000.0), n(44001.0), n(5.0), t()]), Value);
+        error(dated(name, vec![n(44000.0), n(44100.0), t(), n(0.05), n(7.0)]), Num);
+        // a logical basis is #VALUE!, ahead of an inadmissible scalar
+        error(dated(name, vec![n(44000.0), n(44100.0), n(0.0), n(0.05), t()]), Value);
+        error(dated(name, vec![n(44000.0), n(44100.0), t(), n(0.0)]), Value);
+    }
+}
+
+/// dc-j9k.489 (Excel 20625): the US 30/360 day count of the security family takes 28 February
+/// 1900 as the last day of February (the nonexistent 29th is an ordinary day).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn security_family_us_30_360_treats_feb_1900_as_28_days() {
+    for (s, e, bits) in [
+        (59.0, 60.0, 0xc00c_cccc_cccc_cccdu64),
+        (59.0, 61.0, 0x400c_cccc_cccc_cccd),
+        (60.0, 61.0, 0x3ffc_cccc_cccc_cccd),
+        (60.0, 62.0, 0x3ff3_3333_3333_3333),
+        (59.0, 63.0, 0x3ff3_3333_3333_3333),
+        (60.0, 91.0, 0x3fbc_cccc_cccc_cccd),
+        (59.0, 91.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36585.0, 36616.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36950.0, 36981.0, 0x3fbd_baa1_dbaa_1dbb),
+        (36584.0, 36616.0, 0x3fbb_ed61_bed6_1bed),
+    ] {
+        exact(
+            dated("INTRATE", vec![n(s), n(e), n(100.0), n(101.0), n(0.0)]),
+            f64::from_bits(bits),
+        );
+    }
+    exact(
+        dated("INTRATE", vec![n(59.0), n(61.0), n(0.1), n(10.0)]),
+        35640.0,
+    );
+}
+
+/// dc-j9k.491-.496 (Excel 20625): ACCRINT takes issue 0, issue on or after the first interest
+/// date, rejects a zero rate, and orders its errors by argument: dates, then the numbers' types
+/// and the frequency range, then the basis type, then the rate, par and basis ranges.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn accrint_admission_order_and_issue_after_first_interest() {
+    let t = || calc_func::value::CalcValue::logical(true);
+    let acc = |a: [f64; 7], calc: bool| {
+        let mut v: Vec<_> = a.iter().map(|x| n(*x)).collect();
+        v.push(calc_func::value::CalcValue::logical(calc));
+        dated("ACCRINT", v)
+    };
+    exact(acc([43000.0, 43000.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), f64::from_bits(0x403b_8000_0000_0001));
+    exact(acc([43150.0, 43100.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), f64::from_bits(0x401c_5555_5555_5555));
+    // act/act: the stub of issue after first interest takes the canonical period, a stub that is
+    // not the last term takes its own period's actual length
+    exact(acc([42682.0, 42582.0, 42689.0, 0.05, 1000.0, 1.0, 1.0], true), f64::from_bits(0x3fee_99e1_395a_edd1));
+    exact(acc([42401.0, 42201.0, 42408.0, 0.0675, 100.0, 1.0, 1.0], true), f64::from_bits(0x3fc0_91e2_8adf_091e));
+    exact(acc([35173.0, 35168.0, 35180.0, 0.0675, 100.0, 1.0, 1.0], true), f64::from_bits(0x3fc0_864b_8a7d_e6d2));
+    exact(acc([39802.0, 39801.0, 40002.0, 0.05, 1000.0, 2.0, 1.0], true), f64::from_bits(0x403b_7550_e7f1_1e8b));
+    exact(acc([42915.0, 42715.0, 43315.0, 0.0675, 1000.0, 1.0, 1.0], true), f64::from_bits(0x4052_76a5_af2b_84f9));
+    // a zero rate, issue 0 against settlement 0, a negative date, are #NUM!
+    error(acc([43000.0, 43100.0, 43200.0, 0.0, 1000.0, 2.0, 0.0], true), Num);
+    error(acc([0.0, 1.0, 0.5, 0.05, 0.125, 1.0, 0.0], true), Num);
+    error(acc([-1.0, 43100.0, 43200.0, 0.05, 1000.0, 2.0, 0.0], true), Num);
+    let base = || vec![n(43000.0), n(43100.0), n(43200.0), n(0.05), n(1000.0), n(2.0), n(0.0)];
+    let with = |index: usize, value: calc_func::value::CalcValue| {
+        let mut v = base();
+        v[index] = value;
+        v
+    };
+    // a logical date is #VALUE!, even after a negative later date; a negative date beats a logical later number
+    let mut v = with(0, t());
+    v[1] = n(-1.0);
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(0, n(-1.0));
+    v[5] = t();
+    error(dated("ACCRINT", v), Num);
+    // rate/par ranges follow the logical par/frequency/basis; frequency range precedes a logical basis
+    let mut v = with(3, n(-0.5));
+    v[4] = t();
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(3, n(-0.5));
+    v[6] = t();
+    error(dated("ACCRINT", v), Value);
+    let mut v = with(5, n(3.0));
+    v[6] = t();
+    error(dated("ACCRINT", v), Num);
+    error(dated("ACCRINT", with(3, t())), Value);
+    error(dated("ACCRINT", with(6, t())), Value);
+}

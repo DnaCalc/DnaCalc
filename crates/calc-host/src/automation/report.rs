@@ -490,6 +490,7 @@ impl WorkbookAutomation {
         // at the top row of the source and move the data down.
         let mut insert_header = headers == XL_NO;
         self.read_host(target, |s, sheet, _| {
+            self.refuse_while_protected(s, sheet, "ListObjects.Add")?;
             if Self::tables_of(s, sheet)
                 .iter()
                 .any(|t| t.area.intersection(area).is_some())
@@ -587,6 +588,7 @@ impl WorkbookAutomation {
     fn table_unlist(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let part = Self::table_part(target)?;
+        self.read_host(target, |s, sheet, _| self.refuse_while_protected(s, sheet, "ListObject.Unlist"))?;
         self.command(call, |s| {
             Ok(WorkbookCommand::Table {
                 revision: s.host().revision().get(),
@@ -598,8 +600,10 @@ impl WorkbookAutomation {
     fn table_delete(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {
         no_args(call)?;
         let part = Self::table_part(target)?;
-        let area = self
-            .read_host(target, |s, sheet, _| Ok(Self::table_of(s, sheet, &part)?.area))?;
+        let area = self.read_host(target, |s, sheet, _| {
+            self.refuse_while_protected(s, sheet, "ListObject.Delete")?;
+            Ok(Self::table_of(s, sheet, &part)?.area)
+        })?;
         self.table_unlist(target, call)?;
         self.with_write(|session| {
             let receipt = session.dispatch_from(

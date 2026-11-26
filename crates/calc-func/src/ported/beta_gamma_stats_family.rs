@@ -255,7 +255,8 @@ fn beta_newton_lower(p: f64, a: f64, b: f64) -> Result<Option<f64>, WorksheetErr
         ) else {
             return Err(WorksheetErrorCode::Num);
         };
-        let df = excel_x87_sub(cdf, p);
+        // Touchstone (dc-ufazo): Excel treats a subnormal beta CDF residual as zero.
+        let df = flush_subnormal(excel_x87_sub(cdf, p));
         let err_df = df.abs();
         if err_df < best_err {
             best_err = err_df;

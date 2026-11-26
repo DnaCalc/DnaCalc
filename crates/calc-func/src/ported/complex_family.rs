@@ -346,7 +346,7 @@ impl ParsedComplex {
     /// `EXP(|x| + LN(cos(y)/2))` and `EXP(|x| + LN(sin(y)/2))` without `abs()`, so
     /// non-positive `cos(y)` or `sin(y)` produces `NaN` (`#NUM!`).
     fn large_off_axis_hyperbolic(self) -> Option<(f64, f64)> {
-        if self.im != 0.0 && (self.re > 709.0 || self.re < -708.0) {
+        if self.exceeds_off_axis_hyperbolic_limit() {
             let (sin_im, cos_im) = complex_circular_parts(self.im);
             let ax = self.re.abs();
             let log_pos = |t: f64| {
@@ -361,6 +361,9 @@ impl ParsedComplex {
             return Some((re_mag, im_mag));
         }
         None
+    }
+    fn exceeds_off_axis_hyperbolic_limit(self) -> bool {
+        self.im != 0.0 && (self.re > 709.0 || self.re < -708.0)
     }
     pub(crate) fn sinh(self) -> Self {
         if let Some((re_mag, im_mag)) = self.large_off_axis_hyperbolic() {
@@ -443,18 +446,70 @@ impl ParsedComplex {
         ))
     }
     pub(crate) fn sec(self) -> Result<Self, WorksheetErrorCode> {
-        self.cos().reciprocal()
+        self.circular_reciprocal(Self::cos)
     }
     pub(crate) fn csc(self) -> Result<Self, WorksheetErrorCode> {
-        self.sin().reciprocal()
+        self.circular_reciprocal(Self::sin)
+    }
+    fn circular_reciprocal(self, denominator: fn(Self) -> Self) -> Result<Self, WorksheetErrorCode> {
+        // Excel applies the imaginary limit before evaluating the real angle (dc-j9k.397).
+        if self.im > 709.0 || self.im < -708.0 {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
+        denominator(self).reciprocal()
     }
     pub(crate) fn sech(self) -> Result<Self, WorksheetErrorCode> {
-        // The reciprocal of IMCOSH (dc-iuwct.13), on the real axis 1 / COSH.
-        self.cosh().reciprocal()
+        self.hyperbolic_reciprocal(false)
     }
     pub(crate) fn csch(self) -> Result<Self, WorksheetErrorCode> {
-        // The reciprocal of IMSINH (dc-iuwct.8).
-        self.sinh().reciprocal()
+        self.hyperbolic_reciprocal(true)
+    }
+    fn hyperbolic_reciprocal(self, cosecant: bool) -> Result<Self, WorksheetErrorCode> {
+        if self.exceeds_off_axis_hyperbolic_limit() {
+            return Ok(Self::new(0.0, 0.0, None));
+        }
+        let (sinh, cosh) = Self::hyperbolic_parts(self.re);
+        if self.im == 0.0 {
+            let real = if cosecant { sinh } else { cosh };
+            return Self::new(real, 0.0, None).reciprocal();
+        }
+        let (sin, cos) = complex_circular_parts(self.im);
+        let (real, imaginary, trig) = if cosecant {
+            (sinh * cos, cosh * sin, sin)
+        } else {
+            (cosh * cos, sinh * sin, cos)
+        };
+        if self.re > 354.5 || self.re < -354.0 {
+            // Beyond the doubled-real limit, use a scaled denominator.
+            // IMCSCH reverses both signs on this branch (dc-j9k.398).
+            let sign = if cosecant { -1.0 } else { 1.0 };
+            return Self::new(sign * real, sign * imaginary, None).reciprocal();
+        }
+        // Excel sums sinh(x)^2 and sin(y)^2 (cos(y)^2 for IMSECH),
+        // dropping each term below 2^-1024 before the sum (dc-j9k.399).
+        const MIN_SQUARE_FACTOR: f64 = 7.458340731200207e-155; // 2^-512
+        // Keep binary64 precision in the tiny squares using their extended exponent range.
+        let scale = if sinh.abs().max(trig.abs()) < 2.0 * MIN_SQUARE_FACTOR {
+            1.0 / MIN_SQUARE_FACTOR
+        } else {
+            1.0
+        };
+        let square = |value: f64| {
+            if value.abs() < MIN_SQUARE_FACTOR {
+                0.0
+            } else {
+                let value = value * scale;
+                value * value
+            }
+        };
+        let denominator = square(sinh) + square(trig);
+        if denominator == 0.0 {
+            return Err(WorksheetErrorCode::Num);
+        }
+        Ok(Self::quotient(
+            (real * scale / denominator) * scale,
+            (-imaginary * scale / denominator) * scale,
+        ))
     }
     pub(crate) fn power(self, exponent: f64) -> Result<Self, WorksheetErrorCode> {
         if self.re == 0.0 && self.im == 0.0 {
@@ -467,6 +522,12 @@ impl ParsedComplex {
             return Ok(Self::new(0.0, 0.0, None));
         }
         let on_axis = self.im == 0.0 || self.re == 0.0;
+        // Excel forms the squared modulus of every operand but a positive real and a pure
+        // imaginary one: beyond the binary64 range it is #NUM! (Excel 20625, dc-j9k.490).
+        let squares_modulus = !(self.re == 0.0 || (self.im == 0.0 && self.re > 0.0));
+        if squares_modulus && (self.re * self.re + self.im * self.im).is_infinite() {
+            return Err(WorksheetErrorCode::Num);
+        }
         let scale = if on_axis {
             crate::ported::power_fn::power_kernel(self.abs(), exponent)
                 .map_err(|_| WorksheetErrorCode::Num)?

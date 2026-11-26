@@ -15,6 +15,27 @@ mod witness_call;
 use crate::x87_cpu;
 use calc_verdict::WitnessSet;
 
+/// Touchstone Excel 16.0.20625.20108, Ryzen 4800H, dc-ufazo.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn student_t_inverse_matches_excel_at_extreme_probabilities() {
+    for (p, df, expected) in [
+        ("0x01a56e1fc2f8f359", "0x4024000000000000", "0x464158966e99f7b0"),
+        ("0x01a56e1fc2f8f359", "0x4059000000000000", "0x40c30b0aa30d7e65"),
+        ("0x01a56e1fc2f8f359", "0x408f400000000000", "0x404b2bbf8478dd06"),
+        ("0x0031fa182c40c60d", "0x4059000000000000", "0x40c65facd9cf2fcc"),
+    ] {
+        let args = [serde_json::json!(p), serde_json::json!(df)];
+        for function in ["TINV", "T.INV.2T"] {
+            assert_eq!(
+                witness_call::calculate(function, &args, None, None, true),
+                expected,
+                "{function}({p}, {df})"
+            );
+        }
+    }
+}
+
 /// Excel 16.0.20527, ax2/f-density-masses-answers.jsonl row 63.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

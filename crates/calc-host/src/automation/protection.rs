@@ -93,6 +93,34 @@ impl WorkbookAutomation {
         self.guard_locked(session, &reference)
     }
 
+    /// The area a copy or paste of `source` writes when given the destination `to`: a one-cell destination grows to the
+    /// source's size (its height and width swapped when transposed), so its neighbours meet the protection too.
+    pub(super) fn written_area(source: GridArea, to: GridArea, transpose: bool) -> GridArea {
+        if to.cell_count() != 1 {
+            return to;
+        }
+        let (height, width) = if transpose {
+            (source.column_count(), source.row_count())
+        } else {
+            (source.row_count(), source.column_count())
+        };
+        CellKey::new(to.sheet(), to.first().row() + height - 1, to.first().column() + width - 1)
+            .ok()
+            .and_then(|last| GridArea::new(to.first(), last).ok())
+            .unwrap_or(to)
+    }
+
+    /// A write whose result on a sheet protected for contents Excel has not been asked about (`UserInterfaceOnly` set:
+    /// allowed): refused typed, owned by dc-5oumk.
+    pub(super) fn refuse_while_protected(&self, session: &HostSession, sheet: SheetId, what: &str) -> Result<(), AutoError> {
+        match self.sheet_protection(session.host(), sheet) {
+            Some(held) if held.contents && !held.user_interface_only => {
+                Err(AutoError::not_modelled(format!("{what} on a sheet protected for contents"), "dc-5oumk"))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// A macro's change to something the whole sheet holds (a conditional-format rule): refused with 1004 while the
     /// sheet is protected for contents, unless `UserInterfaceOnly` was set.
     pub(super) fn guard_sheet_contents(&self, session: &HostSession, sheet: SheetId) -> Result<(), AutoError> {

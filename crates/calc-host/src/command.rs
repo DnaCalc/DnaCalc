@@ -341,6 +341,13 @@ pub enum CommandError {
     /// The document refused the batch (calc-doc's [`calc_doc::prepare_edit`]): a sheet the
     /// workbook does not hold, or a formula a save could not write.
     Document(EditError),
+    /// Completing the command requires behaviour the host does not model yet.
+    NotModelled {
+        /// The operation the host cannot complete.
+        what: &'static str,
+        /// The open bead that owns the missing behaviour.
+        owner: &'static str,
+    },
     /// The layout cannot be saved without replacing unread metadata or a user name.
     LayoutSave(calc_doc::SaveRefusal),
     /// The engine refused the batch after the document prepared it.
@@ -368,6 +375,9 @@ impl fmt::Display for CommandError {
             ),
             CommandError::LayoutSave(error) => write!(f, "the layout cannot be saved: {error}"),
             CommandError::Document(error) => write!(f, "the document refused the edit: {error}"),
+            CommandError::NotModelled { what, owner } => {
+                write!(f, "{what} is not modelled ({owner})")
+            }
             CommandError::Engine(error) => write!(f, "the engine refused the edit: {error}"),
             CommandError::FormulaBudget {
                 formula_cells,
@@ -1029,6 +1039,12 @@ pub fn dispatch_slice(
             // refused is what the save cannot rewrite: extension-backed rules, unread charts, charts
             // authored since the load, and (for a removal) objects that live on the removed sheet.
             let is_remove = matches!(edit, calc_doc_model::SheetEdit::Remove { .. });
+            if is_remove && host.model.definitions().macro_enabled() {
+                return Err(CommandError::NotModelled {
+                    what: "Deleting a sheet from a macro-enabled workbook",
+                    owner: "dc-2g5fn",
+                });
+            }
             // A chart sheet holds no cell, so no chart series refers to it: renaming or removing one leaves the
             // charts a session authored as they are (dc-oxh8w.23).
             let on_chart_sheet = host
@@ -1053,8 +1069,7 @@ pub fn dispatch_slice(
                     calc_doc::conditional_rule(source).is_ok_and(|r| r.extension_id.is_some())
                 })
                 || (is_remove && (
-                    host.model.definitions().macro_enabled()
-                    || host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
+                    host.model.layout().blocks().iter().any(|b| b.anchor().is_some_and(|a| a.sheet() == *sheet))
                     || host.model.definitions().tables().iter().any(|t| t.sheet == *sheet)
                     || !host.model.definitions().charts(*sheet).is_empty()))
             {

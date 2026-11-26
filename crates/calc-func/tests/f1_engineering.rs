@@ -359,6 +359,56 @@ fn complex_text_uses_directed_fifteen_x87_including_binade4_and_slivers() {
     }
 }
 
+/// Excel 16.0.20625 (dc-j9k.397) applies the imaginary limit before reducing the real angle.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn circular_complex_reciprocals_zero_past_imaginary_limit() {
+    for (function, positive, negative) in [
+        ("IMCSC", "-2.43356150124685E-308i", "6.61510600727682E-308i"),
+        ("IMSEC", "2.43356150124685E-308", "6.61510600727682E-308"),
+    ] {
+        for input in ["1e-5+2e5i", "0+709.000000000001i", "134217728-708.000000000001i"] {
+            text(call(function, vec![t(input)]), "0");
+        }
+        text(call(function, vec![t("0+709i")]), positive);
+        text(call(function, vec![t("0-708i")]), negative);
+        error(call(function, vec![t("134217728+709i")]), Num);
+    }
+}
+
+/// Excel 16.0.20625 (dc-j9k.398) retains the real axis and applies two off-axis limits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hyperbolic_complex_reciprocal_large_real_limits() {
+    for function in ["IMCSCH", "IMSECH"] {
+        for input in ["3e150+4e150i", "709.000000000001+1e-5i", "-708.000000000001-1i"] {
+            text(call(function, vec![t(input)]), "0");
+        }
+        text(call(function, vec![t("709.000000000001")]), "2.43356150124436E-308");
+        error(call(function, vec![t("709+134217728i")]), Num);
+    }
+    for (input, expected) in [
+        ("354.5+1i", "1.19199101546952E-154-1.85641601521147E-154i"),
+        ("354.500000000001+1i", "-1.1919910154683E-154+1.85641601520957E-154i"),
+        ("-354+1i", "-1.96526094168804E-154-3.06071257154752E-154i"),
+        ("-354.000000000001+1i", "1.96526094168603E-154+3.06071257154439E-154i"),
+    ] {
+        text(call("IMCSCH", vec![t(input)]), expected);
+    }
+}
+
+/// Excel 16.0.20625, dc-j9k.399: the off-axis denominator uses separate squares.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn hyperbolic_complex_reciprocal_separately_squares_factors() {
+    text(call("IMCSCH", vec![t("1+i")]), "0.303931001628426-0.621518017170429i");
+    text(call("IMSECH", vec![t("0.0001+1i")]), "1.85081566353496-0.000288247460169339i");
+    text(call("IMCSCH", vec![t("1e-154+1e-155i")]), "1E+154-1E+153i");
+    error(call("IMCSCH", vec![t("0+7.4583407312002e-155i")]), Num);
+    text(call("IMCSCH", vec![t("0+7.45834073120021e-155i")]), "-1.34078079299426E+154i");
+    text(call("IMCSCH", vec![t("0+7.458340883255e-155i")]), "-1.34078076565947E+154i");
+}
+
 /// dc-ymjf.2.139, Excel 16.0.20527.20196 (Touchstone, 2026-11-22): complex hyperbolics
 /// (IMSINH, IMCOSH, IMCSCH, IMSECH) evaluate sinh/cosh via `em = EXP(-x)` and `1 / em`
 /// for `|x| < 20` (with Taylor series `x + x^3/6 + x^5/120` for `|x| <= 0.01` and
@@ -2455,4 +2505,23 @@ fn imexp_flushes_subnormal_real_exp_before_scaling_past_2_pow_27() {
     text(call("IMEXP", vec![t("-709-1e9i")]), "0");
     text(call("IMEXP", vec![t("-709+134217728i")]), "0");
     text(call("IMEXP", vec![t("-708+1e9i")]), "5.945965327834+5.945965327834i");
+}
+
+/// dc-j9k.490 (Excel 20625): IMPOWER forms the squared modulus of every operand except a positive
+/// real and a pure imaginary one, so a squared modulus beyond the binary64 range is #NUM!.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn impower_squared_modulus_overflow_off_axis_and_negative_real() {
+    use calc_func::value::WorksheetErrorCode::Num;
+    for power in [1.0, 0.5, -0.025] {
+        error(call("IMPOWER", vec![n(-1e155), n(power)]), Num);
+        error(call("IMPOWER", vec![t("-1E+155"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("1E+155+1i"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("1+1E+155i"), n(power)]), Num);
+        error(call("IMPOWER", vec![t("-1E+155-1E+155i"), n(power)]), Num);
+        // a positive real and a pure imaginary operand are formed without the square
+        text(call("IMPOWER", vec![t("1E+155"), n(1.0)]), "1E+155");
+    }
+    text(call("IMPOWER", vec![t("1E+155i"), n(1.0)]), "6.1257422745431E+138+1E+155i");
+    text(call("IMPOWER", vec![n(-1.3e154), n(1.0)]), "-1.3E+154+1.59269299138121E+138i");
 }

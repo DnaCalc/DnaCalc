@@ -548,6 +548,8 @@ impl EngineState {
                     Some(FormulaResult::FileCached(cache)) if !self.entered.contains(&node) => {
                         self.refused_file_caches.insert(node, cache.clone());
                     }
+                    // Refused again with no edit in between: the cache the first refusal kept stays (rw13 finding 1).
+                    Some(FormulaResult::NotModeled { .. }) if !self.entered.contains(&node) => {}
                     _ => {
                         self.refused_file_caches.remove(&node);
                     }
@@ -1189,6 +1191,9 @@ impl EngineState {
     /// cell keeps the value its file held, with its file provenance (dc-e6b0j).
     pub fn refused_file_cache(&self, at: CellKey) -> Option<&FileCached> {
         let node = self.node_at(at)?;
+        if self.entered.contains(&node) {
+            return None;
+        }
         match self.results.of(node)? {
             FormulaResult::NotModeled { .. } => self.refused_file_caches.get(&node),
             _ => None,

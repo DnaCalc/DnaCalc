@@ -1067,13 +1067,8 @@ impl Server {
                             calculate_before_save: Some(explicit),
                             ..
                         } => *explicit,
-                        Request::SaveWithContext { .. } => self.book.calculates_before_save(),
-                        _ => false,
+                        _ => self.book.calculates_before_save(),
                     };
-                    // The setting the skin sends is the workbook's CalculateBeforeSave: the file keeps it (calcOnSave).
-                    if let Request::SaveWithContext { calculate_before_save: Some(explicit), .. } = &request {
-                        self.book_mut().dispatch(SkinIntent::SetCalculateBeforeSave(*explicit));
-                    }
                     let views = match &request {
                         Request::SaveWithContext { views: Some(v), .. }
                         | Request::SaveAs { views: Some(v), .. } => {
@@ -1110,6 +1105,11 @@ impl Server {
                         format: calc_host::SaveFormat::Spreadsheet(format),
                         ..Default::default()
                     };
+                    // The setting the skin sends is the workbook's CalculateBeforeSave: the file keeps it (calcOnSave).
+                    // Put only once the save is certain to start (a rejected name or window changes nothing).
+                    if let Request::SaveWithContext { calculate_before_save: Some(explicit), .. } = &request {
+                        self.book_mut().dispatch(SkinIntent::SetCalculateBeforeSave(*explicit));
+                    }
                     let save = self.book.begin_ordinary_save_operation(
                         calculate_before_save,
                         &policy,
@@ -7625,7 +7625,13 @@ mod tile_tests {
                 .reply
                 .is_ok()
         );
-        assert!(server.execute_current(Request::Save, None).reply.is_ok());
+        // Not under test here: a Save without CalculateBeforeSave finishes at once in Manual mode.
+        assert!(
+            server
+                .execute_current(Request::SaveWithContext { calculate_before_save: Some(false), views: None }, None)
+                .reply
+                .is_ok()
+        );
         assert_eq!(server.book().host().revision().get(), revision);
         assert!(server.summary().manual);
         assert!(!server.summary().changed);
@@ -8855,6 +8861,55 @@ mod window_tests {
             );
             assert_eq!(cached, calculates, "{setting:?}");
         }
+    }
+    /// A plain Save and a Save As with no explicit setting both use the workbook's CalculateBeforeSave (true when the
+    /// file is silent) in Manual mode, and a rejected save leaves the setting alone (rw13 finding 4, dc-n9otb).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_n9otb__plain_save_and_save_as_calculate_before_save_in_manual_mode() {
+        let mut server = Server::new();
+        let s = server.book.host().sheets()[0].id();
+        server.book_mut().dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+        for (address, text) in [(1, "5"), (2, "=A1*2")] {
+            assert!(
+                server
+                    .book_mut()
+                    .dispatch(SkinIntent::EnterCell { at: CellKey::new(s, address, 1).unwrap(), text: text.into() })
+                    .accepted()
+            );
+        }
+        let answer = server.execute_current(
+            Request::SaveAs { name: "b.xlsx".into(), format: wire::FileFormat::Xlsx, views: None },
+            None,
+        );
+        let mut reply = answer.reply;
+        let mut bytes = answer.bytes;
+        for _ in 0..1000 {
+            if bytes.is_some() {
+                break;
+            }
+            let Ok(Reply::SavePending { token, .. }) = reply else { panic!("{reply:?}") };
+            server.advance_calculation();
+            let next = server.execute_current(Request::PollSave { token }, None);
+            reply = next.reply;
+            bytes = next.bytes;
+        }
+        let bytes = bytes.expect("the save finishes");
+        let mut reopened = Server::new();
+        assert!(reopened.execute_current(Request::Open { name: "b.xlsx".into() }, Some(bytes)).reply.is_ok());
+        let r = reopened.book().host().sheets()[0].id();
+        let shown = calc_host::project(
+            reopened.book().host(),
+            &calc_host::ProjectionRequest { cells: vec![CellKey::new(r, 2, 1).unwrap()] },
+        )
+        .unwrap();
+        assert!(
+            matches!(
+                shown.cells()[0].value(),
+                calc_host::ProjectedValue::FileCached(cache) if format!("{:?}", cache.value()).contains("10.0")
+            ),
+            "Save As in Manual mode with CalculateBeforeSave on did not recalculate"
+        );
     }
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
