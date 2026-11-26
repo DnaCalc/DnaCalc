@@ -259,6 +259,9 @@ def escape_name(name):
 
 
 VBA_FUNCTION_CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
+VBA_IDENTIFIER = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)(\s*[(!])?")
+# Functions that take a function argument (eta-reduced names, lambdas): a layout formula has no use for them (rw18).
+VBA_HIGHER_ORDER = {"MAP", "BYROW", "BYCOL", "REDUCE", "SCAN", "GROUPBY", "PIVOTBY", "LAMBDA"}
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
 
@@ -530,7 +533,7 @@ class Admission:
         for sheet in sheets:
             for cell in sheet.get("cells", {}).values():
                 if cell["type"] == "formula":
-                    self._check_vba_layout_formula(cell["formula"])
+                    self._check_vba_layout_formula(cell["formula"], procedures)
                 elif cell["type"] == "text" and (not isinstance(cell.get("value"), str) or "\x00" in cell["value"]):
                     raise ValueError("invalid VBA layout text")
                 elif cell["type"] == "boolean" and type(cell.get("value")) is not bool:
@@ -538,7 +541,7 @@ class Admission:
         for name, formula in case["names"].items():
             if not VBA_DEFINED_NAME.fullmatch(name) or name.lower().startswith("auto_"):
                 raise ValueError("invalid VBA defined name")
-            self._check_vba_layout_formula(formula)
+            self._check_vba_layout_formula(formula, procedures)
         for field in ("readback", "event_log"):
             addresses = case[field]
             if not isinstance(addresses, list) or len(addresses) > VBA_RULES["max_reads"]:
@@ -548,19 +551,25 @@ class Admission:
                 if not bang or sheet.lower() not in sheet_names or not _vba_address(cell):
                     raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
 
-    def _check_vba_layout_formula(self, formula):
-        """A layout formula runs under CalculateFull: catalogue functions only, none that reach out."""
+    def _check_vba_layout_formula(self, formula, procedures=()):
+        """A layout formula runs under CalculateFull: catalogue functions only, none that reach out. Every identifier is
+        checked, not only those followed by "(": a bare function name or probe procedure name passed to MAP, BYROW or
+        LET would be called by Excel (rw18)."""
         body = vba_layout_scan(formula)
         if any(ch in body for ch in "[]\\|"):
             raise ValueError("VBA layout formulas refuse external references")
-        for call in VBA_FUNCTION_CALL.findall(body):
+        procedure_names = {part.upper() for entry in procedures for part in (entry.rpartition(".")[2], entry)}
+        for match in VBA_IDENTIFIER.finditer(body):
+            call, follower = match.group(1), (match.group(2) or "").strip()
+            if follower == "!":
+                continue                                    # a sheet name
             name = call.upper()
             while name.startswith(("_XLFN.", "_XLWS.")):
                 name = name[6:]
             name = function_name(name)
-            if (name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES)
-                    or name not in self.names.arities):
-                raise ValueError(f"VBA layout formulas refuse the function {call}")
+            if (name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES) or name in VBA_HIGHER_ORDER
+                    or name in procedure_names or (follower == "(" and name not in self.names.arities)):
+                raise ValueError(f"VBA layout formulas refuse the function or name {escape_name(call)}")
 
     @classmethod
     def _range_cell(cls, cell):

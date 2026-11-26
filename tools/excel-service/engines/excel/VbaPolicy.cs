@@ -133,14 +133,16 @@ static class VbaPolicy
                     throw new RefusedVbaException("VBA text arguments must not start with = + - or @");
             }
         }
-        CheckLayout(probe, sheets);
+        CheckLayout(probe, sheets, procedures);
         return probe;
     }
 
     static readonly string[] Errors = { "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A" };
     static readonly Regex Address = new(@"\A\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}\z", RegexOptions.CultureInvariant);
     static readonly Regex FormulaToken = new("\\G(?:'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\")", RegexOptions.CultureInvariant);
-    static readonly Regex FunctionCall = new(@"([A-Za-z_][A-Za-z0-9_.]*)\s*\(", RegexOptions.CultureInvariant);
+    static readonly Regex Identifier = new(@"([A-Za-z_][A-Za-z0-9_.]*)(\s*[(!])?", RegexOptions.CultureInvariant);
+    // Functions that take a function argument (eta-reduced names, lambdas): a layout formula has no use for them (rw18).
+    static readonly HashSet<string> HigherOrder = new() { "MAP", "BYROW", "BYCOL", "REDUCE", "SCAN", "GROUPBY", "PIVOTBY", "LAMBDA" };
     static readonly HashSet<string> BlockedFunctions = Words("blocked_functions").Select(w => w.ToUpperInvariant()).ToHashSet();
     static readonly string[] BlockedPrefixes = Words("blocked_function_prefixes").Select(w => w.ToUpperInvariant()).ToArray();
     static readonly HashSet<string> CatalogueFunctions = ReadCatalogue();
@@ -224,22 +226,28 @@ static class VbaPolicy
         return code.ToString();
     }
 
-    static void CheckLayoutFormula(string formula)
+    // Every identifier is checked, not only those followed by "(": a bare function name or probe procedure name passed to
+    // MAP, BYROW or LET would be called by Excel (rw18).
+    static void CheckLayoutFormula(string formula, IEnumerable<string> procedures)
     {
         var body = LayoutScan(formula);
         if (body.IndexOfAny(new[] { '[', ']', '\\', '|' }) >= 0)
             throw new RefusedVbaException("VBA layout formulas refuse external references");
-        foreach (Match call in FunctionCall.Matches(body))
+        var procedureNames = procedures.SelectMany(e => new[] { e[(e.LastIndexOf('.') + 1)..], e }).Select(e => e.ToUpperInvariant()).ToHashSet();
+        foreach (Match match in Identifier.Matches(body))
         {
-            var name = call.Groups[1].Value.ToUpperInvariant();
+            var follower = match.Groups[2].Value.Trim();
+            if (follower == "!") continue;                  // a sheet name
+            var name = match.Groups[1].Value.ToUpperInvariant();
             while (name.StartsWith("_XLFN.", StringComparison.Ordinal) || name.StartsWith("_XLWS.", StringComparison.Ordinal)) name = name[6..];
             if (BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal))
-                || !CatalogueFunctions.Contains(name))
-                throw new RefusedVbaException("VBA layout formulas refuse the function " + call.Groups[1].Value);
+                || HigherOrder.Contains(name) || procedureNames.Contains(name)
+                || (follower == "(" && !CatalogueFunctions.Contains(name)))
+                throw new RefusedVbaException("VBA layout formulas refuse the function or name " + VbaGrammar.Escape(match.Groups[1].Value));
         }
     }
 
-    static void CheckLayout(Dictionary<string, object> probe, List<object> sheets)
+    static void CheckLayout(Dictionary<string, object> probe, List<object> sheets, IEnumerable<string> procedures)
     {
         var sheetNames = new HashSet<string>();
         foreach (var item in sheets)
@@ -283,7 +291,7 @@ static class VbaPolicy
                 foreach (Dictionary<string, object> fields in ((Dictionary<string, object>)rawCells).Values)
                 {
                     var kind = (string)fields["type"];
-                    if (kind == "formula") CheckLayoutFormula((string)fields["formula"]);
+                    if (kind == "formula") CheckLayoutFormula((string)fields["formula"], procedures);
                     else if (kind == "boolean" && fields.GetValueOrDefault("value") is not bool)
                         throw new RefusedVbaException("invalid VBA layout boolean");
                     else if (kind == "text" && !(fields.GetValueOrDefault("value") is string value && !value.Contains('\0')))
@@ -293,7 +301,7 @@ static class VbaPolicy
         {
             if (!DefinedName.IsMatch(key) || key.StartsWith("auto_", StringComparison.OrdinalIgnoreCase))
                 throw new RefusedVbaException("invalid VBA defined name");
-            CheckLayoutFormula((string)formula);
+            CheckLayoutFormula((string)formula, procedures);
         }
         foreach (var field in new[] { "readback", "event_log" })
         {

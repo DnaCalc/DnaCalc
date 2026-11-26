@@ -723,6 +723,48 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("names", result.stderr.lower())
 
+    def rw18_layout_group(self, formula, as_name=False):
+        """dc-kv1dh: a smoke template case whose layout (a cell, or a defined name) carries one formula."""
+        sheets = [{"name": "Data", "cells": {"A1": number(ONE)}}, {"name": "Events", "cells": {}}]
+        if as_name:
+            return self.template_group(sheets=sheets, names={"Fn": formula})
+        sheets[0]["cells"]["A2"] = {"type": "formula", "formula": formula}
+        return self.template_group(sheets=sheets)
+
+    RW18_BARE_IDENTIFIER_FORMULAS = (
+        '=MAP("http://example.invalid", WEBSERVICE)', '=MAP("directory", INFO)', '=MAP("filename", CELL)',
+        '=MAP("A1", INDIRECT)', '=BYROW(A1, WEBSERVICE)', '=LET(T, WEBSERVICE, T("http://example.invalid"))',
+        '=MAP("=1+1", Probe)', '=LET(T, Module1.Probe, T(1))', '=LET(T, cubevalue, T(1))', '=A1+WEBSERVICE',
+        '=MAP(A1, LAMBDA(x, x))', '=REDUCE(0, A1, SUM)', '=SCAN(0, A1, SUM)', '=BYCOL(A1, SUM)',
+        '=GROUPBY(A1, A1, SUM)', '=PIVOTBY(A1, A1, A1, SUM)', '=_xlfn.INFO',
+    )
+
+    def test_vba_layout_refuses_bare_blocked_functions_procedures_and_higher_order_helpers(self):
+        for formula in self.RW18_BARE_IDENTIFIER_FORMULAS:
+            for as_name in (False, True):
+                with self.subTest(formula=formula, as_name=as_name), self.assertRaisesRegex(ValueError, "(?i)layout"):
+                    self.admission.check(self.rw18_layout_group(formula, as_name))
+
+    def test_vba_layout_still_accepts_plain_bare_names(self):
+        for formula in ("=SUM(A1:A1)", "=LET(x, 1, x + 1)", "=Info!A1+1", "='Cell'!A1", "=TRUE", "=A1*2"):
+            with self.subTest(formula=formula):
+                group = self.rw18_layout_group(formula)
+                group["v"][0]["sheets"][1]["name"] = "Info" if "Info" in formula else "Cell" if "Cell" in formula else "Events"
+                group["v"][0]["params"]["event_sheet"] = group["v"][0]["sheets"][1]["name"]
+                group["v"][0]["event_log"] = [group["v"][0]["sheets"][1]["name"] + "!A1"]
+                self.admission.check(group)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_agrees_on_bare_identifiers_in_layout_formulas(self):
+        worker = os.environ["TOUCHSTONE_VBA_POLICY_WORKER"]
+        for formula in self.RW18_BARE_IDENTIFIER_FORMULAS:
+            for as_name in (False, True):
+                with self.subTest(formula=formula, as_name=as_name):
+                    result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(self.rw18_layout_group(formula, as_name)),
+                                            text=True, capture_output=True, timeout=30)
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertIn("layout", result.stderr.lower())
+
     def refused_template_cases(self):
         """dc-erfm3: the template route refuses anything the reviewed catalogue does not name."""
         params = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))["params"]
