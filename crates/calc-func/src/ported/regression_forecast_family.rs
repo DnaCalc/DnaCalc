@@ -974,38 +974,6 @@ fn row_array(values: &[f64]) -> CalcValue {
     )
 }
 
-fn trend_kernel(
-    known_y: &NumericVector,
-    known_x: &PreparedPredictorInput,
-    new_x: &PreparedPredictorInput,
-    use_const: bool,
-) -> Result<CalcValue, WorksheetErrorCode> {
-    let model = linear_model_from_data(known_y, known_x, use_const)?;
-    if new_x.predictors.cols != model.coefficients.len() {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    let predicted = (0..new_x.predictors.rows)
-        .map(|row_idx| linear_prediction(&model, new_x.predictors.row_values(row_idx)))
-        .collect::<Vec<_>>();
-    eval_value_from_output_shape(&predicted, new_x.output_shape)
-}
-
-fn growth_kernel(
-    known_y: &NumericVector,
-    known_x: &PreparedPredictorInput,
-    new_x: &PreparedPredictorInput,
-    use_const: bool,
-) -> Result<CalcValue, WorksheetErrorCode> {
-    let model = exponential_model_from_data(known_y, known_x, use_const)?;
-    if new_x.predictors.cols != model.coefficients.len() {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    let predicted = (0..new_x.predictors.rows)
-        .map(|row_idx| exponential_prediction(&model, new_x.predictors.row_values(row_idx)))
-        .collect::<Vec<_>>();
-    eval_value_from_output_shape(&predicted, new_x.output_shape)
-}
-
 /// The statistics of a fit to one observation with a constant: the first row `first` (the
 /// coefficients, then the constant), every standard error 0, R squared 1 and its standard error
 /// 0, F #NUM! with 0 degrees of freedom, and both sums of squares 0, the cells beyond the second
@@ -1271,34 +1239,48 @@ fn forecast_pair_kernel(
 }
 
 pub(crate) fn eval_trend_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    evaluate_forecast_series(args, trend_kernel)
+    evaluate_forecast_series(args, linear_model_from_data, linear_prediction)
 }
 
 pub(crate) fn eval_growth_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
-    evaluate_forecast_series(args, growth_kernel)
+    evaluate_forecast_series(args, exponential_model_from_data, exponential_prediction)
+}
+
+fn shape_first_matrix_forecast_new_x(
+    arg: &CalcValue,
+) -> Result<ShapeFirst<NumericMatrix>, WorksheetErrorCode> {
+    if matches!(arg.core_ref(), CoreRef::Error(_)) {
+        return Ok(ShapeFirst {
+            value: NumericMatrix {
+                rows: 1,
+                cols: 1,
+                values: vec![f64::NAN],
+            },
+            non_numeric: true,
+        });
+    }
+    shape_first_matrix(arg)
 }
 
 fn evaluate_forecast_series(
     args: &[CalcValue],
-    evaluate: fn(&NumericVector, &PreparedPredictorInput, &PreparedPredictorInput, bool)
-        -> Result<CalcValue, WorksheetErrorCode>,
+    fit: fn(&NumericVector, &PreparedPredictorInput, bool)
+        -> Result<LinearRegressionModel, WorksheetErrorCode>,
+    predict: fn(&LinearRegressionModel, &[f64]) -> f64,
 ) -> Result<CalcValue, WorksheetErrorCode> {
     let (known_y, known_x) = shape_first_inputs(args, RegressionInput::Forecast)?;
-    let new_x_raw = args
+    // Excel 16.0 b20625 (dc-j9k.582-.584): GROWTH and TREND validate `const` (turning error flags
+    // into `#VALUE!`) and fit the model (checking non-positive `known_y` -> `#NUM!` for GROWTH)
+    // before reading and shape-checking `new_x`.
+    let use_const = linest_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
+    let model = fit(&known_y, &known_x, use_const)?;
+    let new_x_shape_first = args
         .get(2)
         .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
-        .map(|arg| {
-            if matches!(known_y.shape, VectorShape::Matrix { .. }) {
-                let x = shape_first_matrix(arg).map_err(|_| WorksheetErrorCode::Value)?;
-                if x.non_numeric {
-                    return Err(WorksheetErrorCode::Value);
-                }
-                Ok(x.value)
-            } else {
-                collect_numeric_matrix_arg(arg)
-            }
-        })
+        .map(shape_first_matrix_forecast_new_x)
         .transpose()?;
+    let new_x_non_numeric = new_x_shape_first.as_ref().is_some_and(|x| x.non_numeric);
+    let new_x_raw = new_x_shape_first.map(|x| x.value);
     // One observation has no axis of its own. A column of predictors puts
     // observations in columns in new_x, just like a row-shaped known_y.
     let column_of_predictors = known_y.shape == VectorShape::Scalar
@@ -1307,8 +1289,16 @@ fn evaluate_forecast_series(
         });
     let row_oriented = matches!(known_y.shape, VectorShape::Row(_)) || column_of_predictors;
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x, row_oriented)?;
-    let use_const = bool_flag_from_eval_or_default(optional_arg_value(args.get(3))?, true)?;
-    evaluate(&known_y, &known_x, &new_x, use_const)
+    if new_x_non_numeric {
+        return Err(WorksheetErrorCode::Value);
+    }
+    if new_x.predictors.cols != model.coefficients.len() {
+        return Err(WorksheetErrorCode::Ref);
+    }
+    let predicted = (0..new_x.predictors.rows)
+        .map(|row_idx| predict(&model, new_x.predictors.row_values(row_idx)))
+        .collect::<Vec<_>>();
+    eval_value_from_output_shape(&predicted, new_x.output_shape)
 }
 
 pub(crate) fn eval_forecast_surface(args: &[CalcValue]) -> Result<CalcValue, WorksheetErrorCode> {
@@ -2509,5 +2499,98 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(expect_number(trend).to_bits(), 0xbff405455e383506, "cb12_h_0199 TREND");
+    }
+
+    /// Excel 16.0 b20625 (dc-j9k.582, .583, .584): GROWTH and TREND validate `const`
+    /// (treating errors in `const` as `#VALUE!`) and fit the model (for GROWTH, rejecting
+    /// non-positive `known_y` with `#NUM!`) before reading/checking `new_x`, and `new_x`
+    /// checks shape (`#REF!`) before non-numeric/error values (`#VALUE!`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn dc_j9k_582_583_584_growth_trend_validates_const_and_fit_before_new_x() {
+        let neg_y = col(&[-1.0, 2.0, 3.0]);
+        let pos_y = col(&[1.0, 2.0, 4.0]);
+        let kx_1 = col(&[1.0, 2.0, 3.0]);
+        let kx_2 = bits_matrix(&[
+            &[1.0f64.to_bits(), 2.0f64.to_bits()],
+            &[3.0f64.to_bits(), 4.0f64.to_bits()],
+            &[5.0f64.to_bits(), 6.0f64.to_bits()],
+        ]);
+        let bad_nx_3col = bits_matrix(&[&[1.0f64.to_bits(), 2.0f64.to_bits(), 3.0f64.to_bits()]]);
+
+        // dc-j9k.582: non-positive known_y returns #NUM! before new_x shape mismatch (#REF!).
+        assert_eq!(
+            eval_growth_surface(&[neg_y.clone(), kx_2.clone(), bad_nx_3col.clone()]),
+            Err(WorksheetErrorCode::Num),
+            "dc-j9k.582: GROWTH neg known_y before new_x shape"
+        );
+        // dc-j9k.584: non-positive known_y returns #NUM! before blank new_x (#VALUE!).
+        assert_eq!(
+            eval_growth_surface(&[neg_y.clone(), kx_1.clone(), CalcValue::empty()]),
+            Err(WorksheetErrorCode::Num),
+            "dc-j9k.584: GROWTH neg known_y before blank new_x"
+        );
+        // dc-j9k.583: non-positive known_y + blank new_x + blank const -> #NUM!.
+        assert_eq!(
+            eval_growth_surface(&[
+                neg_y.clone(),
+                kx_1.clone(),
+                CalcValue::empty(),
+                CalcValue::empty(),
+            ]),
+            Err(WorksheetErrorCode::Num),
+            "dc-j9k.583: GROWTH neg known_y before blank new_x with blank const"
+        );
+        // Invalid const (#VALUE! / error) takes precedence over non-positive known_y and new_x.
+        assert_eq!(
+            eval_growth_surface(&[
+                neg_y.clone(),
+                kx_2.clone(),
+                bad_nx_3col.clone(),
+                CalcValue::text(crate::value::ExcelText::from_interop_assignment("abc")),
+            ]),
+            Err(WorksheetErrorCode::Value),
+            "GROWTH bad text const before neg known_y and bad new_x"
+        );
+        assert_eq!(
+            eval_growth_surface(&[
+                neg_y.clone(),
+                kx_1.clone(),
+                CalcValue::empty(),
+                CalcValue::error(WorksheetErrorCode::Name),
+            ]),
+            Err(WorksheetErrorCode::Value),
+            "GROWTH error const -> #VALUE! before neg known_y and blank new_x"
+        );
+        // Positive known_y with 2-col known_x and 1x1 blank/text/error new_x -> #REF! (shape-first).
+        assert_eq!(
+            eval_growth_surface(&[pos_y.clone(), kx_2.clone(), CalcValue::empty()]),
+            Err(WorksheetErrorCode::Ref),
+            "GROWTH pos known_y 2-col with blank new_x -> #REF!"
+        );
+        assert_eq!(
+            eval_trend_surface(&[pos_y.clone(), kx_2.clone(), CalcValue::empty()]),
+            Err(WorksheetErrorCode::Ref),
+            "TREND pos known_y 2-col with blank new_x -> #REF!"
+        );
+        assert_eq!(
+            eval_trend_surface(&[
+                pos_y.clone(),
+                kx_1.clone(),
+                CalcValue::error(WorksheetErrorCode::Div0),
+                CalcValue::error(WorksheetErrorCode::Name),
+            ]),
+            Err(WorksheetErrorCode::Value),
+            "TREND error const -> #VALUE! before error new_x"
+        );
+        assert_eq!(
+            eval_trend_surface(&[
+                pos_y,
+                kx_2,
+                CalcValue::error(WorksheetErrorCode::Div0),
+            ]),
+            Err(WorksheetErrorCode::Ref),
+            "TREND 2-col with scalar error new_x -> #REF!"
+        );
     }
 }
