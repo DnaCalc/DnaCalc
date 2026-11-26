@@ -158,8 +158,8 @@ fn security_days_and_year(
     maturity: f64,
     basis: Option<f64>,
 ) -> Result<(f64, f64), DiscountBillYearfracEvalError> {
-    let settlement = parse_date_serial(settlement, 1)?;
-    let maturity = parse_date_serial(maturity, 1)?;
+    let settlement = parse_date_serial(settlement, 0)?;
+    let maturity = parse_date_serial(maturity, 0)?;
     let basis = parse_basis(basis.unwrap_or(0.0))?;
     if settlement >= maturity {
         return Err(DiscountBillYearfracEvalError::Domain(

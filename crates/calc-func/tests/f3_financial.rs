@@ -4509,3 +4509,41 @@ fn zero_bill_price_and_zero_tbilleq_denominator_match_excel() {
     error(dated("TBILLEQ", vec![n(40000.0), n(40100.0), n(3.7)]), Num);
 }
 
+
+/// dc-j9k.479-.482 (Excel 20625): DISC, INTRATE, RECEIVED and PRICEDISC read the basis first,
+/// then the dates (serial zero is valid, a negative one is #NUM!), then the logical scalars.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn security_family_date_zero_and_admission_order() {
+    let t = || calc_func::value::CalcValue::logical(true);
+    exact(
+        dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(1.0), n(3.0)]),
+        f64::from_bits(0x408f_6c13_bf1e_5338),
+    );
+    exact(
+        dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(1.0)]),
+        f64::from_bits(0x408f_6cb1_573d_7f49),
+    );
+    exact(
+        dated("INTRATE", vec![n(0.0), n(2.0), n(1000.0), n(1.0), n(3.0)]),
+        f64::from_bits(0xc066_ca28_f5c2_8f5c),
+    );
+    for (basis, bits) in [(0.0, 0x408f_4472_6904_b229u64), (1.0, 0x408f_4462_ce98_b3a6), (2.0, 0x408f_4472_6904_b229), (4.0, 0x408f_4472_6904_b229)] {
+        exact(
+            dated("RECEIVED", vec![n(0.0), n(2.0), n(1000.0), n(0.1), n(basis)]),
+            f64::from_bits(bits),
+        );
+    }
+    for name in ["RECEIVED", "INTRATE", "DISC", "PRICEDISC"] {
+        // negative date beats a logical scalar and a bad basis
+        error(dated(name, vec![n(-1.0), n(44100.0), t(), n(0.05), n(0.0)]), Num);
+        error(dated(name, vec![n(-1.0), n(44100.0), n(100.0), n(0.05), n(7.0)]), Num);
+        // a logical scalar is #VALUE!, after the basis range and the dates
+        error(dated(name, vec![n(44000.0), n(44001.0), t(), n(0.9)]), Value);
+        error(dated(name, vec![n(44000.0), n(44001.0), n(5.0), t()]), Value);
+        error(dated(name, vec![n(44000.0), n(44100.0), t(), n(0.05), n(7.0)]), Num);
+        // a logical basis is #VALUE!, ahead of an inadmissible scalar
+        error(dated(name, vec![n(44000.0), n(44100.0), n(0.0), n(0.05), t()]), Value);
+        error(dated(name, vec![n(44000.0), n(44100.0), t(), n(0.0)]), Value);
+    }
+}

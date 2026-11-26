@@ -69,6 +69,20 @@ fn validated_bond_basis(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<
     Ok(basis)
 }
 
+/// DISC, INTRATE, RECEIVED and PRICEDISC (Excel 20625, dc-j9k.479): the optional basis is read and
+/// range-checked first (a logical is #VALUE!, outside 0..=4 is #NUM!), then each date (a logical is
+/// #VALUE!, a negative or too large serial is #NUM!), then the two scalars, each in turn.
+fn security_arguments(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &EvalServices<'_>,
+) -> Step<(f64, f64, f64, f64, Option<f64>)> {
+    let basis = if given(a, 4) { Some(validated_bond_basis(site, a, 4)?) } else { None };
+    let (settlement, maturity) = (yield_date(site, a, 0, sv)?, yield_date(site, a, 1, sv)?);
+    let (third, fourth) = (required_num(site, a, 2)?, required_num(site, a, 3)?);
+    Ok((settlement, maturity, third, fourth, basis))
+}
+
 fn bond_date(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &EvalServices<'_>) -> Step<f64> {
     reject_logical(&a[index])?;
     checked_date_serial(date_1900(site, a, index, sv)?)
@@ -285,20 +299,20 @@ ported_shared_family! {
         date_out(s, sv, coupon::couppcd_kernel(settlement, maturity, frequency, b))
     }
     16 disc_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::disc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
+        let (settlement, maturity, x, y, basis) = security_arguments(s, a, sv)?;
+        bill_out(s, bill::disc_kernel(settlement, maturity, x, y, basis))
     }
     17 intrate_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::intrate_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
+        let (settlement, maturity, x, y, basis) = security_arguments(s, a, sv)?;
+        bill_out(s, bill::intrate_kernel(settlement, maturity, x, y, basis))
     }
     18 received_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::received_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
+        let (settlement, maturity, x, y, basis) = security_arguments(s, a, sv)?;
+        bill_out(s, bill::received_kernel(settlement, maturity, x, y, basis))
     }
     19 pricedisc_fn |s, a, sv| {
-        let (settlement, maturity) = (date_1900(s, a, 0, sv)?, date_1900(s, a, 1, sv)?);
-        bill_out(s, bill::pricedisc_kernel(settlement, maturity, num(s, a, 2)?, num(s, a, 3)?, basis(s, a, 4)?))
+        let (settlement, maturity, x, y, basis) = security_arguments(s, a, sv)?;
+        bill_out(s, bill::pricedisc_kernel(settlement, maturity, x, y, basis))
     }
     20 tbilleq_fn |s, a, sv| {
         let [settlement, maturity, rate] = bill_arguments(s, a, sv)?;
