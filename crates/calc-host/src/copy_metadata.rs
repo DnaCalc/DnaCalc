@@ -252,6 +252,7 @@ pub(crate) fn append(
     transpose: bool,
     edits: &mut Vec<CellEdit>,
 ) -> Result<(), CopyRefusal> {
+    let merging = mode == PasteMode::AllMergingConditionalFormats;
     let mode = mode.base();
     if matches!(mode, PasteMode::Values | PasteMode::Formulas)
         || (from == to && source.revision() == host.model().revision())
@@ -308,7 +309,8 @@ pub(crate) fn append(
                 next.push(original.clone());
                 continue;
             };
-            let remaining = trim(original.areas.clone(), from, to, cut);
+            // Merging keeps the destination rule where it overlaps the paste (Excel ww22).
+            let remaining = if merging && !cut { original.areas.clone() } else { trim(original.areas.clone(), from, to, cut) };
             let affected = remaining != original.areas;
             if !cut && !affected {
                 next.push(original.clone());
@@ -404,6 +406,10 @@ pub(crate) fn append(
         let mut rule = original.clone();
         rule.areas = target;
         rule.authored = true;
+        if merging {
+            // The translated source rule goes first (Excel ww22).
+            rule.priority = rule.priority.saturating_sub(1 << 20);
+        }
         let at = rule.origin().unwrap();
         let source_first = if cut {
             CellKey::new(

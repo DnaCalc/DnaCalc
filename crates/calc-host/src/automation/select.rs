@@ -71,7 +71,7 @@ impl WorkbookAutomation {
         }
     }
 
-    fn visible_sheet(session: &HostSession, sheet: SheetId) -> bool {
+    pub(super) fn visible_sheet(session: &HostSession, sheet: SheetId) -> bool {
         session
             .host()
             .model()
@@ -158,19 +158,31 @@ impl WorkbookAutomation {
             if !Self::visible_sheet(session, sheet) {
                 return Err(Self::failed(class, member));
             }
-            let selection = match session.remembered_selection(sheet) {
-                Some(kept) if Self::session_active_sheet(session) != Some(sheet) => kept.clone(),
-                _ if Self::session_active_sheet(session) == Some(sheet) => return Ok(AutoValue::Empty),
-                _ => {
-                    let a1 = CellKey::new(sheet, 1, 1).map_err(|_| Self::failed(class, member))?;
-                    Selection { active: Some(a1), areas: vec![GridArea::cell(a1)] }
-                }
-            };
-            Self::select_intent(session, selection, class, member)?;
-            self.context_changed(session);
+            self.activate_in_session(session, sheet, class, member)?;
             Ok(AutoValue::Empty)
         })
         .map(|_| ())
+    }
+
+    /// Makes the visible `sheet` active with the selection it last held (A1 when it never held one).
+    pub(super) fn activate_in_session(
+        &self,
+        session: &mut HostSession,
+        sheet: SheetId,
+        class: &str,
+        member: &str,
+    ) -> Result<(), AutoError> {
+        let selection = match session.remembered_selection(sheet) {
+            Some(kept) if Self::session_active_sheet(session) != Some(sheet) => kept.clone(),
+            _ if Self::session_active_sheet(session) == Some(sheet) => return Ok(()),
+            _ => {
+                let a1 = CellKey::new(sheet, 1, 1).map_err(|_| Self::failed(class, member))?;
+                Selection { active: Some(a1), areas: vec![GridArea::cell(a1)] }
+            }
+        };
+        Self::select_intent(session, selection, class, member)?;
+        self.context_changed(session);
+        Ok(())
     }
 
     /// Worksheet.Select(Replace): Replace False adds the sheet to a group, which is not modelled.

@@ -9417,13 +9417,11 @@ fn dc_oxh8w_43__paste_special_column_widths_and_source_theme() {
     assert_eq!(cell_text_of(&model, "I1"), "8");
     assert!(matches!(call("XFD1", "PasteSpecial", vec![AutoValue::I4(8)]), Err(AutoError::Excel { number: 1004, .. })));
     // xlPasteAllUsingSourceTheme (13) pastes everything within one workbook;
-    // xlPasteAllMergingConditionalFormats (14) refuses typed citing dc-2rjye until CF merge is captured.
+    // xlPasteAllMergingConditionalFormats (14) pastes everything (merging rules).
     call("A10", "PasteSpecial", vec![AutoValue::I4(13)]).unwrap();
     assert_eq!(cell_text_of(&model, "B11"), "4");
-    assert!(matches!(
-        call("A13", "PasteSpecial", vec![AutoValue::I4(14)]),
-        Err(AutoError::NotModelled { owner: "dc-2rjye", .. })
-    ));
+    call("A13", "PasteSpecial", vec![AutoValue::I4(14)]).unwrap();
+    assert_eq!(cell_text_of(&model, "B14"), "4");
 }
 
 /// dc-oxh8w.43: `PasteSpecial` xlPasteValuesAndNumberFormats (12), xlPasteFormulasAndNumberFormats (11) and
@@ -10482,20 +10480,11 @@ fn dc_y7tqj__paste_special_column_widths_and_comments_edges() {
         )
     };
     assert_eq!(after_e.size(), after_a.size(), "xlPasteColumnWidths must copy column A's stored width to E");
-    assert!(after_e.hidden(), "xlPasteColumnWidths must preserve destination column Hidden flag");
+    assert!(!after_e.hidden(), "xlPasteColumnWidths copies the source's hidden state (Excel ww22)");
     assert_eq!(after_e.outline_level(), 2, "xlPasteColumnWidths must preserve destination column outline_level");
-    // Multi-column tiling (2 source columns onto 4 destination columns) refuses typed citing dc-2rjye.
-    let tiled = call("E1:H1", "PasteSpecial", vec![AutoValue::I4(8)]);
-    assert!(
-        matches!(&tiled, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
-        "expected NotModelled(dc-2rjye) for multi-column ColumnWidths tiling, got {tiled:?}"
-    );
-    // Nonexistent XL_PASTE_COMMENTS_AND_NOTES = 21 must refuse typed citing dc-2rjye.
-    let fake_21 = call("E5", "PasteSpecial", vec![AutoValue::I4(21)]);
-    assert!(
-        matches!(&fake_21, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
-        "expected NotModelled(dc-2rjye) for fabricated Paste:=21, got {fake_21:?}"
-    );
+    // Paste:=21 is a 1004 in Excel (ww22).
+    let paste_21 = call("E5", "PasteSpecial", vec![AutoValue::I4(21)]);
+    assert!(matches!(&paste_21, Err(AutoError::Excel { number: 1004, .. })), "got {paste_21:?}");
     // Validation/Comments paste must not be blocked by an unread conditional formatting container.
     let base = include_bytes!("fixtures/d2/structural-base.xlsx");
     let archive = existing_wire_support::parse_zip(base);
@@ -10593,6 +10582,43 @@ fn dc_y7tqj__worksheet_visible_false_moves_active_sheet() {
         "Name",
     );
     assert_eq!(sel_sheet, added_name, "Selection must move off the hidden sheet");
+}
+
+/// dc-971p.74 (Excel ww22): Worksheet.Move across a hidden sheet leaves the hidden sheet hidden and makes the moved
+/// sheet the active one, whichever sheet was active before.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_971p_74__worksheet_move_across_a_hidden_sheet_activates_the_moved_sheet() {
+    let (host, model) = setup();
+    let app = model.application();
+    let sheets = worksheets(&model);
+    let item = |n: i32| obj(invoke(&model, &sheets, "Item", vec![AutoValue::I4(n)]).unwrap());
+    let a = item(1);
+    let hidden = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(a.clone())]).unwrap());
+    let c = obj(invoke_kind(&model, &sheets, "Add", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(hidden.clone())]).unwrap());
+    let (a_name, h_name, c_name) = (text(&model, &a, "Name"), text(&model, &hidden, "Name"), text(&model, &c, "Name"));
+    assert_eq!(sheet_names(&host), [a_name.clone(), h_name.clone(), c_name.clone()]);
+    invoke_kind(&model, &hidden, "Visible", InvokeKind::Put, vec![AutoValue::Bool(false)]).unwrap();
+    let active_name = || text(&model, &obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap()), "Name");
+    invoke_kind(&model, &a, "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &c, "Move", InvokeKind::Method, vec![AutoValue::Object(a.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), [c_name.clone(), a_name.clone(), h_name.clone()]);
+    assert_eq!(active_name(), c_name, "the moved sheet is active (A was active before)");
+    assert!(matches!(invoke_kind(&model, &hidden, "Visible", InvokeKind::Get, vec![]).unwrap(), AutoValue::I4(0)));
+    // Move A after C with C active: A becomes active.
+    invoke_kind(&model, &a, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(c.clone())]).unwrap();
+    assert_eq!(sheet_names(&host), [c_name.clone(), a_name.clone(), h_name.clone()]);
+    invoke_kind(&model, &c, "Activate", InvokeKind::Method, vec![]).unwrap();
+    invoke_kind(&model, &a, "Move", InvokeKind::Method, vec![AutoValue::Missing, AutoValue::Object(h_to_last(&model, &sheets))]).unwrap();
+    assert_eq!(active_name(), a_name, "the moved sheet is active (C was active before)");
+}
+
+fn h_to_last(model: &WorkbookAutomation, sheets: &ObjectRef) -> ObjectRef {
+    let count = match invoke(model, sheets, "Count", vec![]).unwrap() {
+        AutoValue::I4(n) => n,
+        other => panic!("{other:?}"),
+    };
+    obj(invoke(model, sheets, "Item", vec![AutoValue::I4(count)]).unwrap())
 }
 
 /// dc-y7tqj (rw12 finding 17g): AdvancedFilter xlFilterCopy copies numeric/date/bool/formula-like
@@ -10732,12 +10758,12 @@ fn dc_y7tqj_calculation_state_stays_pending_after_cancel() {
     assert!(matches!(state, AutoValue::I4(2)), "Application.CalculationState after cancel must be 2, got {state:?}");
 }
 
-/// dc-y7tqj (rw12 finding 24a/24b): xlPasteAllMergingConditionalFormats (14) refuses typed citing
-/// dc-2rjye instead of stripping destination CF, and PasteSpecial Operation blank-on-blank refuses
-/// typed citing dc-2rjye instead of writing 0/#DIV/0!.
+/// dc-2rjye (Excel ww22): xlPasteAllMergingConditionalFormats (14) keeps the destination rule that overlaps the paste
+/// and puts the translated source rule first; xlPasteAll trims the destination rule. Paste 21 is 1004. Blank on blank
+/// stays empty for every Operation, with SkipBlanks either way.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn dc_y7tqj_paste_special_merging_cf_and_blank_operation_refuse_typed() {
+fn dc_2rjye__paste_special_merges_conditional_formats_and_blank_on_blank_stays_empty() {
     let (host, model) = setup_session(
         HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
     );
@@ -10745,39 +10771,94 @@ fn dc_y7tqj_paste_special_merging_cf_and_blank_operation_refuse_typed() {
     let call = |address: &str, name: &str, args: Vec<AutoValue>| {
         invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
     };
-    // Add a conditional format on destination C1.
-    let fcs = obj(invoke(&model, &range(&model, "C1"), "FormatConditions", vec![]).unwrap());
-    invoke_kind(
-        &model,
-        &fcs,
-        "Add",
-        InvokeKind::Method,
-        vec![AutoValue::I4(1), AutoValue::I4(5), AutoValue::text("0")],
-    )
-    .unwrap();
+    let add_rule = |address: &str, operator: i32, formula: &str| {
+        let fcs = obj(invoke(&model, &range(&model, address), "FormatConditions", vec![]).unwrap());
+        invoke_kind(
+            &model,
+            &fcs,
+            "Add",
+            InvokeKind::Method,
+            vec![AutoValue::I4(1), AutoValue::I4(operator), AutoValue::text(formula)],
+        )
+        .unwrap();
+    };
+    add_rule("A1", 5, "1");
+    add_rule("C1", 5, "2");
     let sheet_id = host.session.borrow().host().sheets()[0].id();
-    assert_eq!(host.session.borrow().host().model().definitions().conditional_rules(sheet_id).len(), 1);
+    let rules = || host.session.borrow().host().model().definitions().conditional_rules(sheet_id).to_vec();
+    let at_c1 = CellKey::new(sheet_id, 1, 3).unwrap();
     call("A1", "Copy", vec![]).unwrap();
-    let merge_cf = call("C1", "PasteSpecial", vec![AutoValue::I4(14)]);
-    assert!(
-        matches!(&merge_cf, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
-        "xlPasteAllMergingConditionalFormats must refuse typed citing dc-2rjye, got {merge_cf:?}"
-    );
-    assert_eq!(
-        host.session.borrow().host().model().definitions().conditional_rules(sheet_id).len(),
-        1,
-        "refused PasteSpecial(14) must not strip destination conditional formatting"
-    );
-    // Blank source onto blank destination with Operation Add or Divide refuses typed citing dc-2rjye.
+    call("C1", "PasteSpecial", vec![AutoValue::I4(14)]).unwrap();
+    let merged = rules();
+    assert_eq!(merged.len(), 3, "the source's own rule, the destination rule and the pasted rule: {merged:?}");
+    let on_c1: Vec<_> = merged.iter().filter(|r| r.areas.iter().any(|a| a.contains(at_c1))).collect();
+    assert_eq!(on_c1.len(), 2, "{merged:?}");
+    assert!(on_c1[0].formulas == ["1"], "source rule first: {merged:?}");
+    assert!(on_c1[1].formulas == ["2"], "destination rule kept: {merged:?}");
+    // xlPasteAll replaces the destination's rule.
+    call("C1", "PasteSpecial", vec![AutoValue::I4(-4104)]).unwrap();
+    assert!(rules().iter().all(|r| r.formulas != ["2"]), "plain paste trims the destination rule: {:?}", rules());
+    // xlPasteCommentsAndNotes (21) is a 1004.
+    assert!(matches!(call("C1", "PasteSpecial", vec![AutoValue::I4(21)]), Err(AutoError::Excel { number: 1004, .. })));
+    // Blank source onto blank destination stays empty for every Operation, SkipBlanks both ways.
     call("D1", "Copy", vec![]).unwrap();
     for op in [2, 3, 4, 5] {
-        let res = call("E1", "PasteSpecial", vec![AutoValue::I4(-4163), AutoValue::I4(op)]);
-        assert!(
-            matches!(&res, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-2rjye"),
-            "blank-on-blank Operation {op} must refuse typed citing dc-2rjye, got {res:?}"
-        );
-        assert_eq!(cell_text_of(&model, "E1"), "", "blank destination must stay blank on op {op}");
+        for skip in [false, true] {
+            call("E1", "PasteSpecial", vec![AutoValue::I4(-4163), AutoValue::I4(op), AutoValue::Bool(skip)]).unwrap();
+            assert_eq!(cell_text_of(&model, "E1"), "", "blank on blank stays empty on op {op}, skip {skip}");
+        }
     }
+}
+
+/// dc-2rjye (Excel ww22): column widths tile whole copies of the source across the destination columns (a two-column
+/// source over three columns fills one pair; a single column fills every destination column), and the hidden state is
+/// copied.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2rjye__paste_special_column_widths_tile_and_carry_hidden() {
+    let (host, model) = setup_session(
+        HostSession::open(Arc::new(MemorySource::new(blank_package())), &OpenPolicy::default(), HostOptions::default()).unwrap(),
+    );
+    let put = |address: &str, name: &str, value: AutoValue| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Put, vec![value]).unwrap();
+    };
+    let call = |address: &str, name: &str, args: Vec<AutoValue>| {
+        invoke_kind(&model, &range(&model, address), name, InvokeKind::Method, args)
+    };
+    let width = |address: &str| match invoke(&model, &range(&model, address), "ColumnWidth", vec![]).unwrap() {
+        AutoValue::R8(n) => n,
+        other => panic!("width {other:?}"),
+    };
+    put("A1", "ColumnWidth", AutoValue::I4(20));
+    put("B1", "ColumnWidth", AutoValue::I4(30));
+    call("A1:B1", "Copy", vec![]).unwrap();
+    call("E1:H1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert_eq!((width("E1"), width("F1"), width("G1"), width("H1")), (20.0, 30.0, 20.0, 30.0), "two pairs");
+    call("J1:L1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert_eq!((width("J1"), width("K1")), (20.0, 30.0), "one pair across three columns");
+    assert_ne!(width("L1"), 20.0, "the third column is left alone");
+    call("A1", "Copy", vec![]).unwrap();
+    call("N1:P1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert_eq!((width("N1"), width("O1"), width("P1")), (20.0, 20.0, 20.0), "a single column tiles");
+    call("A1", "Copy", vec![]).unwrap();
+    call("R1", "PasteSpecial", vec![AutoValue::I4(8), AutoValue::I4(-4142), AutoValue::Bool(true)]).unwrap();
+    assert_eq!(width("R1"), 20.0, "SkipBlanks does not stop the widths");
+    // Hidden state is copied.
+    let sheet_id = host.session.borrow().host().sheets()[0].id();
+    let axis = |column: u32| {
+        host.session.borrow().host().model().definitions().axis_layouts().get(sheet_id, calc_doc_model::Axis::Columns, column)
+    };
+    let hidden = calc_doc_model::AxisFormat::new(Some(12.0), true, true).unwrap();
+    let edit = calc_doc_model::AxisFormatEdit::new(sheet_id, calc_doc_model::Axis::Columns, 20, hidden).unwrap();
+    assert!(host
+        .session
+        .borrow_mut()
+        .dispatch(SkinIntent::Edit { edits: vec![calc_host::CellEdit::AxisFormat(edit)] })
+        .accepted());
+    call("T1", "Copy", vec![]).unwrap();
+    call("V1", "PasteSpecial", vec![AutoValue::I4(8)]).unwrap();
+    assert!(axis(22).hidden(), "the hidden state is copied");
+    assert_eq!(axis(22).outline_level(), 0);
 }
 
 /// dc-y7tqj (rw12 finding 24c): Worksheet.Names validates deleted sheet, Name.Parent returns the
