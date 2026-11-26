@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 pub fn settings(book: &Workbook, sheet: wire::Sheet) -> Result<PageSetupState, String> {
     let host = book.host();
     if host.model().sheet_by_id(sheet.id()).is_none() {
-        return Err("Worksheet unavailable (dc-971p.56)".into());
+        return Err("Worksheet unavailable (dc-971p)".into());
     }
     Ok(PageSetupState {
         revision: host.revision().get(),
@@ -75,13 +75,13 @@ pub fn preview(
     // (an EMF or WMF without a bitmap inside), is refused rather than left off the page.
     let shown = host.shapes(sheet.id()).iter().filter(|s| !s.hidden && s.prints).count();
     if shapes.len() != shown {
-        return Err("A shape's geometry is preserved but not drawn; printing it is not modelled (dc-zjsg.2)".into());
+        return Err("A shape's geometry is preserved but not drawn; printing it is not modelled (dc-zjsg)".into());
     }
     fn placeholder(shape: &wire::DrawnShape) -> bool {
         shape.picture.as_ref().is_some_and(|p| p.placeholder.is_some()) || shape.children.iter().any(|c| placeholder(&c.shape))
     }
     if shapes.iter().any(placeholder) {
-        return Err("A picture's image (EMF or WMF) is preserved but not drawn; printing it is not modelled (dc-zjsg.3)".into());
+        return Err("A picture's image (EMF or WMF) is preserved but not drawn; printing it is not modelled (dc-zjsg)".into());
     }
     let entry = host
         .model()

@@ -25,7 +25,7 @@ pub trait ApplicationHost {
     fn record_refusal(&self, _error: &AutoError) {}
     /// Directory containing the application executable. Supplied by the native shell.
     fn path(&self) -> Result<String, AutoError> {
-        Err(AutoError::not_modelled("_Application.Path", "dc-1nbp.5"))
+        Err(AutoError::not_modelled("_Application.Path", "dc-oxh8w"))
     }
     /// The one worksheet of the values-only Book1 shell, when the host names it (the command-line
     /// workbook harness does; OneCalc names none). `None`: ActiveSheet is a typed refusal.
@@ -36,7 +36,7 @@ pub trait ApplicationHost {
     /// no file system refuses, naming the bead that owns it.
     fn write_file(&self, path: &str, bytes: &[u8]) -> Result<(), AutoError> {
         let _ = (path, bytes);
-        Err(AutoError::not_modelled("writing a file from a macro", "dc-oxh8w.37"))
+        Err(AutoError::not_modelled("writing a file from a macro", "dc-oxh8w"))
     }
 }
 

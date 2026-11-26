@@ -88,7 +88,7 @@ fn unmodelled_native_argument_conversion_cannot_be_hidden() {
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(
-        error.contains("NotModelled") && error.contains("dc-snz.20"),
+        error.contains("NotModelled") && error.contains("dc-snz.2"),
         "{error}"
     );
     assert!(output.stdout.is_empty());
@@ -177,7 +177,7 @@ fn boundary_probes_give_excel_answers() {
         assert!(!output.status.success(), "{formula}");
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(
-            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            error.contains("NotModelled") && error.contains("dc-snz.2"),
             "{formula}: {error}"
         );
     }
@@ -480,7 +480,7 @@ fn worker_state_mutations_remain_typed_refusals() {
         assert!(!output.status.success());
         let error = String::from_utf8_lossy(&output.stderr);
         assert!(
-            error.contains("NotModelled") && error.contains("dc-snz.18"),
+            error.contains("NotModelled") && error.contains("dc-snz.2"),
             "{callback}: {error}"
         );
     }
@@ -499,7 +499,7 @@ fn nested_read_mode_changes_remain_typed_refusals() {
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(
-        error.contains("dc-snz.18") && error.contains("NotModelled"),
+        error.contains("dc-snz.2") && error.contains("NotModelled"),
         "{error}"
     );
 }

@@ -82,7 +82,7 @@ pub enum TableChange {
     },
 }
 fn refusal(s: &str) -> String {
-    format!("{s} (dc-971p.41); nothing changed")
+    format!("{s} (dc-971p); nothing changed")
 }
 fn cell_text(host: &HostState, at: CellKey) -> Result<String, String> {
     use crate::{ProjectedValue, ProjectionRequest};

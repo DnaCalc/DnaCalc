@@ -1759,7 +1759,7 @@ impl<'a> WorkbookReader<'a> {
 pub(crate) fn iterative_range_denial() -> calc_fml::ReadDenial {
     calc_fml::ReadDenial {
         construct: "a dependency on an unresolved cyclic Manual range target",
-        owner: "dc-hsa5.11",
+        owner: "dc-y2o",
     }
 }
 

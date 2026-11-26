@@ -308,7 +308,7 @@ pub fn new_conditional_rule(
         "dataBar"=>format!("<dataBar minLength=\"0\" maxLength=\"100\"><cfvo type=\"min\"/><cfvo type=\"max\"/><color rgb=\"FF{color}\"/></dataBar>"),
         "colorScale"=>format!("<colorScale><cfvo type=\"min\"/><cfvo type=\"percentile\" val=\"50\"/><cfvo type=\"max\"/><color rgb=\"FFF2F4F8\"/><color rgb=\"FFCFDEEB\"/><color rgb=\"FF{color}\"/></colorScale>"),
         "iconSet"=>"<iconSet iconSet=\"3Arrows\"><cfvo type=\"percent\" val=\"0\"/><cfvo type=\"percent\" val=\"33\"/><cfvo type=\"percent\" val=\"67\"/></iconSet>".into(),
-        _=>return Err("This rule type cannot be authored yet (dc-971p.8)".into())
+        _=>return Err("This rule type cannot be authored yet (dc-971p)".into())
     };
     let source=format!("<worksheet xmlns=\"{MAIN_NAMESPACE}\"><conditionalFormatting xmlns=\"{MAIN_NAMESPACE}\" sqref=\"{}\"><cfRule type=\"{kind}\" priority=\"1\">{body}</cfRule></conditionalFormatting></worksheet>",sqref(&areas)).into_bytes();
     Ok(ConditionalRuleSource {
@@ -377,7 +377,7 @@ pub fn new_condition_rule(
         "duplicateValues" | "uniqueValues" if formulas.is_empty() => (kind, String::new()),
         _ => {
             return Err(
-                "Choose a supported rule and its required formulas or rank (dc-971p.40)".into(),
+                "Choose a supported rule and its required formulas or rank (dc-971p)".into(),
             );
         }
     };
@@ -416,7 +416,7 @@ pub(super) fn rewrite(
     {
         return Err(SaveRefusal::InvalidPart {
             part: xml.name().into(),
-            detail: "Conditional container extensions cannot be rewritten (dc-971p.8)".into(),
+            detail: "Conditional container extensions cannot be rewritten (dc-971p)".into(),
         });
     }
     let mut replacement = Vec::new();
@@ -432,7 +432,7 @@ pub(super) fn rewrite(
         {
             return Err(SaveRefusal::InvalidPart {
                 part: xml.name().into(),
-                detail: "Conditional container extensions cannot be rewritten (dc-971p.8)".into(),
+                detail: "Conditional container extensions cannot be rewritten (dc-971p)".into(),
             });
         }
         let mut reader = Reader::new(&part);

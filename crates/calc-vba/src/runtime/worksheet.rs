@@ -109,7 +109,7 @@ pub(super) fn private_entries(
         generated += entry.len();
         if generated > 1_048_576 {
             return Err(Error::UnsupportedSignature(
-                "private worksheet entries exceed the file-project source limit (dc-snz.15)".into(),
+                "private worksheet entries exceed the file-project source limit (dc-snz)".into(),
             ));
         }
         let module = manifest

@@ -792,7 +792,7 @@ pub(crate) fn permute_rows(
     if notes != host.model().definitions().review_notes(sheet) {
         host.loaded()
             .check_sorted_note_shapes(sheet, &notes)
-            .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p.38)"))?;
+            .map_err(|_| refusal("The original note boxes cannot follow this sort (dc-971p)"))?;
         edits.push(CellEdit::ReviewNotes { sheet, notes });
     }
     let mut links = Vec::new();
@@ -802,7 +802,7 @@ pub(crate) fn permute_rows(
         if let Some(intersection) = link.area.intersection(data) {
             fragments = fragments.saturating_add(intersection.row_count() as usize);
             if fragments > crate::COPY_LIMIT as usize {
-                return Err(refusal("Too many sorted hyperlink fragments (dc-971p.38)"));
+                return Err(refusal("Too many sorted hyperlink fragments (dc-971p)"));
             }
             for source in intersection.first().row()..=intersection.last().row() {
                 let row = *rows
@@ -823,13 +823,13 @@ pub(crate) fn permute_rows(
             links.push(next);
         }
         if links.len() > 10000 {
-            return Err(refusal("Too many sorted hyperlink records (dc-971p.38)"));
+            return Err(refusal("Too many sorted hyperlink records (dc-971p)"));
         }
     }
     if links != host.model().definitions().review_links(sheet) {
         host.loaded()
             .check_sorted_links(sheet, &links)
-            .map_err(|_| refusal("The original hyperlinks cannot follow this sort (dc-971p.38)"))?;
+            .map_err(|_| refusal("The original hyperlinks cannot follow this sort (dc-971p)"))?;
         edits.push(CellEdit::ReviewLinks { sheet, links });
     }
     permute_conditional_rows(host, data, rows, edits)?;
@@ -840,18 +840,18 @@ pub(crate) fn permute_rows(
         // a type=none record has no condition whose relative origin can be checked here.
         if original.kind == "none" {
             return Err(refusal(
-                "Sorting prompt-only validation records is unavailable (dc-971p.38)",
+                "Sorting prompt-only validation records is unavailable (dc-971p)",
             ));
         }
         if !calc_doc::validation_movement_supported(original) {
             return Err(refusal(
-                "Sorting unread validation source fields is unavailable (dc-971p.38)",
+                "Sorting unread validation source fields is unavailable (dc-971p)",
             ));
         }
         let original_areas = areas(original, sheet);
         let Some(origin) = original_areas.first().map(|a| a.first()) else {
             return Err(refusal(
-                "A validation rule has no complete range (dc-971p.38)",
+                "A validation rule has no complete range (dc-971p)",
             ));
         };
         let mut target = Vec::new();
@@ -861,7 +861,7 @@ pub(crate) fn permute_rows(
                 fragments = fragments.saturating_add(intersection.row_count() as usize);
                 if fragments > crate::COPY_LIMIT as usize {
                     return Err(refusal(
-                        "This sort would produce too many validation row fragments (dc-971p.38)",
+                        "This sort would produce too many validation row fragments (dc-971p)",
                     ));
                 }
                 for source in intersection.first().row()..=intersection.last().row() {
@@ -1034,7 +1034,7 @@ fn permute_conditional_rows(
     }
     if !conditional_sort_supported(host, data.sheet()) {
         return Err(refusal(
-            "Sorting unread or statistical conditional rules is unavailable (dc-971p.38)",
+            "Sorting unread or statistical conditional rules is unavailable (dc-971p)",
         ));
     }
     let mut ordered: Vec<_> = original.iter().collect();
@@ -1049,7 +1049,7 @@ fn permute_conditional_rows(
             fragments = fragments.saturating_add(pieces.len());
             if fragments > crate::COPY_LIMIT as usize {
                 return Err(refusal(
-                    "This sort would produce too many conditional-format fragments (dc-971p.38)",
+                    "This sort would produce too many conditional-format fragments (dc-971p)",
                 ));
             }
             outside.extend(pieces);
@@ -1064,7 +1064,7 @@ fn permute_conditional_rows(
                 fragments = fragments.saturating_add(intersection.row_count() as usize);
                 if fragments > crate::COPY_LIMIT as usize {
                     return Err(refusal(
-                        "This sort would produce too many conditional-format fragments (dc-971p.38)",
+                        "This sort would produce too many conditional-format fragments (dc-971p)",
                     ));
                 }
                 for source in intersection.first().row()..=intersection.last().row() {
@@ -1085,7 +1085,7 @@ fn permute_conditional_rows(
                     ));
                     if rules.len() + target.len() > 1024 {
                         return Err(refusal(
-                            "This sort would exceed 1,024 conditional rules (dc-971p.38)",
+                            "This sort would exceed 1,024 conditional rules (dc-971p)",
                         ));
                     }
                 }
@@ -1093,7 +1093,7 @@ fn permute_conditional_rows(
         }
         if fragments > crate::COPY_LIMIT as usize || rules.len() + target.len() > 1024 {
             return Err(refusal(
-                "This sort would exceed the conditional-format fragment limit (dc-971p.38)",
+                "This sort would exceed the conditional-format fragment limit (dc-971p)",
             ));
         }
         for (areas, copied) in target {
@@ -1109,13 +1109,13 @@ fn permute_conditional_rows(
                     .map(|f| f.text().to_string_lossy())
                     .ok_or_else(|| {
                         refusal(
-                            "A conditional-format reference would be lost by sorting (dc-971p.38)",
+                            "A conditional-format reference would be lost by sorting (dc-971p)",
                         )
                     })
             })?;
             if copied {
                 next = calc_doc::copied_conditional_source(&next).map_err(|_| {
-                    refusal("The conditional source cannot follow this sort (dc-971p.38)")
+                    refusal("The conditional source cannot follow this sort (dc-971p)")
                 })?;
             }
             next.authored = true;

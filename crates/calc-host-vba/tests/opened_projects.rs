@@ -1205,7 +1205,7 @@ fn original_recalculation_probe_project_is_admitted_without_source_removal() {
             failures
                 .failures
                 .iter()
-                .all(|f| f.reason.contains("dc-snz.15"))
+                .all(|f| f.reason.contains("dc-snz"))
         );
         // The probe project's Workbook_Sheet* handlers are admitted (dc-d7cgp); a second
         // preparation of the same project succeeds.
@@ -1349,7 +1349,7 @@ fn project_class_declarations_cannot_admit_conflicting_identities() {
         .err()
         .expect("invalid module identity must refuse before compilation");
         assert!(
-            error.to_string().contains("dc-snz.15"),
+            error.to_string().contains("dc-snz"),
             "{replacement}: {error}"
         );
     }
@@ -2050,7 +2050,7 @@ fn unsupported_private_entries_refuse_only_their_calls_without_running_a_prefix(
                     page.cells()[0].value()
                 );
             };
-            assert!(format!("{fault:?}").contains("dc-snz.15"), "{fault:?}");
+            assert!(format!("{fault:?}").contains("dc-snz"), "{fault:?}");
         }
     }
 }

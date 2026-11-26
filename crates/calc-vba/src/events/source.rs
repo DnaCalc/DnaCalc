@@ -354,7 +354,7 @@ impl EventSource {
         self.raise("BeforeClose", &mut args, None, max_steps, next_lease())?;
         match args[0] {
             api::Value::Boolean(cancel) => Ok(cancel),
-            _ => Err("invalid BeforeClose Cancel writeback (dc-oxh8w.27)".into()),
+            _ => Err("invalid BeforeClose Cancel writeback (dc-oxh8w.55)".into()),
         }
     }
 

@@ -424,7 +424,7 @@ pub(crate) fn variant_to_auto(value: &Variant) -> Result<AutoValue, AutoError> {
             if !text.byte_len().is_multiple_of(2) {
                 return Err(AutoError::not_modelled(
                     "odd BSTR byte length in Automation",
-                    "dc-piw0.5",
+                    "dc-piw0",
                 ));
             }
             AutoValue::Text(ExcelText::from_utf16_code_units(text.to_utf16_units()))
@@ -486,7 +486,7 @@ pub(crate) fn variant_to_auto(value: &Variant) -> Result<AutoValue, AutoError> {
         _ => {
             return Err(AutoError::not_modelled(
                 "unsupported VBA Variant carrier in Automation",
-                "dc-piw0.5",
+                "dc-piw0",
             ));
         }
     })
@@ -520,7 +520,7 @@ pub(crate) fn auto_to_variant(
         AutoValue::Foreign(_) => {
             return Err(AutoError::not_modelled(
                 "foreign Automation object in VBA",
-                "dc-piw0.5",
+                "dc-piw0",
             ));
         }
         AutoValue::Array(arr) => {
@@ -528,7 +528,7 @@ pub(crate) fn auto_to_variant(
             if rows == 0 || cols == 0 || rows.checked_mul(cols) != Some(arr.values.len()) {
                 return Err(AutoError::not_modelled(
                     "malformed Automation array result",
-                    "dc-piw0.5",
+                    "dc-piw0",
                 ));
             }
             // Convert AutoArray row-major to VBA column-major (first dimension fastest).
@@ -551,7 +551,7 @@ pub(crate) fn auto_to_variant(
                 ],
                 cells,
             )
-            .map_err(|_| AutoError::not_modelled("SafeArray allocation", "dc-piw0.5"))?;
+            .map_err(|_| AutoError::not_modelled("SafeArray allocation", "dc-piw0"))?;
             Variant::from_safearray(safe)
         }
     })

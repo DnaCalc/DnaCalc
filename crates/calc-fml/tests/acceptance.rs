@@ -2621,7 +2621,7 @@ fn cfml_m1_3__reuse_plan() {
         ("=1+", "syntax"),
         ("=Nope!A1", "reference"),
         // A catalogue that carries no defined names refuses one, naming L3, which owns them.
-        ("=TaxRate*2", "unsupported dc-10y"),
+        ("=TaxRate*2", "unsupported dc-b1l"),
         // An array constant whose rows differ in length is no array constant.
         ("=SUM({1,2;3})", "syntax"),
         ("=NOSUCH(1)", "unknown function"),

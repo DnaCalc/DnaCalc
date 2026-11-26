@@ -321,10 +321,10 @@ pub(crate) fn prepare_model_refresh(
     revision: u64,
 ) -> Result<Vec<crate::CellEdit>, String> {
     if revision != host.revision().get() {
-        return Err("The workbook changed before Refresh All (dc-8wp.18)".into());
+        return Err("The workbook changed before Refresh All (dc-8wp)".into());
     }
     let Some(data) = host.model.definitions().data_model() else {
-        return Err("The workbook has no data model (dc-8wp.18)".into());
+        return Err("The workbook has no data model (dc-8wp)".into());
     };
     if !data.other_connections.is_empty() {
         return Err(
@@ -334,7 +334,7 @@ pub(crate) fn prepare_model_refresh(
     let mut data = (**data).clone();
     data.snapshot = Some(
         model_snapshot(&host.model, Some(host))
-            .ok_or("The data model source is unavailable or has uncalculated values (dc-8wp.18)")?,
+            .ok_or("The data model source is unavailable or has uncalculated values (dc-8wp)")?,
     );
     let data = Arc::new(data);
     let pivots = host.model.definitions().pivots();

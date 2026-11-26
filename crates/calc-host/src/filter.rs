@@ -46,7 +46,7 @@ pub enum FilterChange {
     Reapply,
 }
 fn refusal(detail: impl std::fmt::Display) -> String {
-    format!("AutoFilter {detail} (dc-971p.37); nothing changed")
+    format!("AutoFilter {detail} (dc-971p); nothing changed")
 }
 fn quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
@@ -268,7 +268,7 @@ pub(crate) fn prepare_for(
         .sheet(sheet)
         .is_some_and(|s| s.geometry().outline_unsupported)
     {
-        return Err("AutoFilter visibility with this imported outline is not modelled (dc-971p.39); nothing changed".into());
+        return Err("AutoFilter visibility with this imported outline is not modelled (dc-971p); nothing changed".into());
     }
     // Removal is explicit; protected sheets still refuse before changing any authored state.
     if host

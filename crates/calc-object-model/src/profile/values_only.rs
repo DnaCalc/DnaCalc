@@ -332,7 +332,7 @@ impl<H: ApplicationHost> ValuesOnly<H> {
                     sheet: calc_value::SheetId::from_parts(0, 0),
                 },
             ))),
-            None => Err(AutoError::not_modelled(call.label(), "dc-svqh")),
+            None => Err(AutoError::not_modelled(call.label(), "dc-0f1k")),
         }
     }
     fn put_events(&self, _: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
@@ -365,7 +365,7 @@ impl<H: ApplicationHost> ObjectModel for ValuesOnly<H> {
     }
     fn invoke(&self, target: &ObjectRef, call: &Call<'_>) -> Result<AutoValue, AutoError> {
         self.policy.check(call)?;
-        self.handlers.dispatch(self, target, call, "dc-1nbp.5")
+        self.handlers.dispatch(self, target, call, "dc-oxh8w")
     }
     fn record_refusal(&self, error: &AutoError) {
         self.host.record_refusal(error);

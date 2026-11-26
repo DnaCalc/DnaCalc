@@ -71,7 +71,7 @@ impl ApplicationHost for VbaAutomationHost {
     fn run(&self, name: &str, arguments: &[AutoValue]) -> Result<AutoValue, AutoError> {
         match self.owner.borrow().upgrade() {
             Some(owner) => owner.application_run(name, arguments),
-            None => Err(AutoError::not_modelled("_Application.Run", "dc-piw0.5")),
+            None => Err(AutoError::not_modelled("_Application.Run", "dc-piw0")),
         }
     }
     fn events_enabled(&self) -> bool {
@@ -99,7 +99,7 @@ impl AutomationHost for VbaAutomationHost {
     ) -> Result<AutoValue, AutoError> {
         Err(AutoError::not_modelled(
             "Automation session outside a workbook event or worksheet invocation",
-            "dc-piw0.5",
+            "dc-piw0",
         ))
     }
 }
@@ -130,7 +130,7 @@ pub enum FileProjectError {
 }
 impl std::fmt::Display for FileProjectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "workbook VBA project (dc-snz.15): ")?;
+        write!(f, "workbook VBA project (dc-snz): ")?;
         match self {
             Self::Read(error) => error.fmt(f),
             Self::Project(error) => write!(f, "invalid VBA project: {error}"),
@@ -244,7 +244,7 @@ impl WorkbookEvents {
         if self.automatic_events {
             Ok(())
         } else {
-            Err("file project was admitted with automatic events disabled; prepare it again before event delivery (dc-snz.15)".into())
+            Err("file project was admitted with automatic events disabled; prepare it again before event delivery (dc-snz)".into())
         }
     }
     /// Publish the UDF registry and event owner only after the entire project is ready.

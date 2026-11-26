@@ -220,7 +220,7 @@ pub fn compile_error(error: &CompileError) -> String {
             span: at,
             gap: calc_fml::Gap::NumberLiteral,
         } => format!(
-            "number at {}: its Excel value is not modelled (bead dc-10y)",
+            "number at {}: its Excel value is not modelled (bead dc-b1l)",
             span(*at)
         ),
     }
@@ -232,19 +232,19 @@ pub fn bind_error(error: &BindError) -> String {
         BindError::OutsideGrid => "it lies outside the grid".to_owned(),
         BindError::UnknownSheet { name } => format!("there is no sheet named {name}"),
         BindError::ExternalWorkbook => {
-            "a reference to another workbook is not modelled (bead dc-10y)".to_owned()
+            "a reference to another workbook is not modelled (bead dc-b1l)".to_owned()
         }
         BindError::SheetSpan => {
-            "a run of sheets is not bound without the workbook's sheet order (bead dc-10y)"
+            "a run of sheets is not bound without the workbook's sheet order (bead dc-b1l)"
                 .to_owned()
         }
         BindError::UnknownTable { name } => format!("there is no table named {name}"),
         BindError::UnknownColumn { name } => format!("the table has no column named {name}"),
         BindError::TablesNotModelled => {
-            "a structured reference needs the workbook's tables (bead dc-10y)".to_owned()
+            "a structured reference needs the workbook's tables (bead dc-b1l)".to_owned()
         }
         BindError::StructuredReference => {
-            "this combination of table sections is not bound (bead dc-10y)".to_owned()
+            "this combination of table sections is not bound (bead dc-b1l)".to_owned()
         }
         BindError::QualifiedNonReference => {
             "a sheet qualifier stands before something that is not a reference".to_owned()
@@ -268,14 +268,14 @@ pub fn eval_fault(names: &(impl SheetNames + ?Sized), fault: &EvalFault) -> Stri
             error.covered
         ),
         EvalFault::AreaAsValue { area: at } => format!(
-            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (bead dc-10y)",
+            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (bead dc-b1l)",
             area(names, *at)
         ),
         EvalFault::NotModelled { construct, owner } => {
             format!("not modelled: {construct} (work package {owner})")
         }
         EvalFault::NearZeroFinalSum { result } => format!(
-            "near-zero sum: the final + or - gave {result}, a result Excel adjusts by a rule not modelled yet (bead dc-6qki)"
+            "near-zero sum: the final + or - gave {result}, a result Excel adjusts by a rule not modelled yet (bead dc-b1l)"
         ),
     }
 }

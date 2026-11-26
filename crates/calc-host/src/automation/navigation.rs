@@ -83,7 +83,7 @@ impl WorkbookAutomation {
     /// The Chart a chart sheet is (dc-oxh8w.23).
     pub(super) fn chart_of_sheet(meta: &Snapshot, sheet: SheetId) -> Reply {
         let part = meta.chart_parts.iter().find(|(id, _)| *id == sheet).map(|(_, part)| part.clone());
-        let part = part.ok_or_else(|| AutoError::not_modelled("a chart sheet without a chart", "dc-oxh8w.23"))?;
+        let part = part.ok_or_else(|| AutoError::not_modelled("a chart sheet without a chart", "dc-oxh8w.3"))?;
         Ok(super::report::report(meta.workbook, sheet, "Chart", ReportItem::Chart(part)))
     }
     fn worksheets(&self, target: &ObjectRef, call: &Call<'_>) -> Reply {

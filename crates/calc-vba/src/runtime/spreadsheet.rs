@@ -230,7 +230,7 @@ pub(crate) fn with_active_context<T>(
     if !CONTEXT.is_set() {
         return Err(AutoError::not_modelled(
             "spreadsheet call context is not available",
-            "dc-piw0.5",
+            "dc-piw0",
         ));
     }
     CONTEXT.with(|(context, refused, available)| {
@@ -246,7 +246,7 @@ pub(crate) fn with_active_context<T>(
             Err(ContextError::Vba(number, message)) => Err(AutoError::excel(number, message)),
             Err(ContextError::Refused(message)) => {
                 refused.borrow_mut().get_or_insert_with(|| message.clone());
-                Err(AutoError::not_modelled(message, "dc-piw0.5"))
+                Err(AutoError::not_modelled(message, "dc-piw0"))
             }
         }
     })

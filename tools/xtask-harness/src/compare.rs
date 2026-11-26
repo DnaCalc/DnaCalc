@@ -3094,7 +3094,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "INFO",
-                "exactness dc-uar",
+                "exactness dc-zmk",
                 "Evaluation:Function:NotImplemented"
             )
         );

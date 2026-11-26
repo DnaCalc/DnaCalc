@@ -50,7 +50,7 @@ fn value_error<T>() -> Outcome<T> {
     Err(Fail::Error(WorksheetErrorCode::Value))
 }
 fn refuse<T>(why: impl Into<String>) -> Outcome<T> {
-    Err(Fail::Refuse(format!("dc-gh22: {}", why.into())))
+    Err(Fail::Refuse(format!("dc-snz.2: {}", why.into())))
 }
 
 /// The ANSI code page conversion Excel applies: unmappable characters become `?`.
@@ -360,7 +360,7 @@ unsafe fn invoke(
         .iter()
         .map(|kind| native_type(*kind))
         .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| Fail::Refuse("dc-gh22: argument type is not modelled".into()))?;
+        .ok_or_else(|| Fail::Refuse("dc-snz.2: argument type is not modelled".into()))?;
     let result_type = match signature.result {
         XllType::Double => Type::f64(),
         XllType::Boolean | XllType::Short => Type::i16(),
@@ -407,7 +407,7 @@ unsafe fn invoke(
         XllType::Void => CalcValue::logical(true),
         XllType::InPlace(n) => {
             let at = pointer_slot(usize::from(n) - 1)
-                .ok_or_else(|| Fail::Refuse("dc-gh22: in-place return needs a pointer".into()))?;
+                .ok_or_else(|| Fail::Refuse("dc-snz.2: in-place return needs a pointer".into()))?;
             unsafe { read_pointer(signature.arguments[usize::from(n) - 1], at)? }
         }
         XllType::Oper12 | XllType::Oper12Reference => {
@@ -497,7 +497,7 @@ unsafe fn read_pointer(kind: XllType, at: usize) -> Outcome<CalcValue> {
             let count = rows
                 .checked_mul(cols)
                 .filter(|n| *n > 0 && *n <= 1_048_576)
-                .ok_or_else(|| Fail::Refuse("dc-gh22: oversized FP12 result".into()))?;
+                .ok_or_else(|| Fail::Refuse("dc-snz.2: oversized FP12 result".into()))?;
             let data = (0..count)
                 .map(|i| {
                     CalcValue::number(unsafe {
@@ -511,7 +511,7 @@ unsafe fn read_pointer(kind: XllType, at: usize) -> Outcome<CalcValue> {
                 .collect::<Vec<_>>();
             CalcValue::array(
                 calc_value::CalcArray::new(calc_value::ArrayShape { rows, cols }, data)
-                    .ok_or_else(|| Fail::Refuse("dc-gh22: invalid FP12 shape".into()))?,
+                    .ok_or_else(|| Fail::Refuse("dc-snz.2: invalid FP12 shape".into()))?,
             )
         }
         other => return refuse(format!("result type {other:?} is not modelled for CALL")),
@@ -654,7 +654,7 @@ pub(crate) unsafe fn dispatch(
     for value in &mut values {
         if let Some(reference) = value.as_reference().cloned() {
             let Some(context) = frame.context.as_mut() else {
-                callbacks::refuse_frame(frame, "dc-gh22: a reference argument needs a reader");
+                callbacks::refuse_frame(frame, "dc-snz.2: a reference argument needs a reader");
                 return FAILED;
             };
             match context.argument_values_of(&reference) {

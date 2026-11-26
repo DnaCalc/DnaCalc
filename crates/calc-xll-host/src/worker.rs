@@ -188,7 +188,7 @@ pub(crate) fn submit(
         )
     };
     if main_thread != unsafe { crate::native::GetCurrentThreadId() } {
-        return Err("dc-snz.18: invocation submitted outside owning main lane".into());
+        return Err("dc-snz.2: invocation submitted outside owning main lane".into());
     }
     let arguments = arguments.to_vec();
     // The owner keeps both native modules resident from enqueue through the
@@ -259,7 +259,7 @@ pub(crate) fn submit(
             let (result, diagnostics) = match run {
                 Ok(Ok(value)) => value,
                 Ok(Err(why)) => (Err(why), Vec::new()),
-                Err(_) => (Err("dc-snz.18: native worker panicked".into()), Vec::new()),
+                Err(_) => (Err("dc-snz.2: native worker panicked".into()), Vec::new()),
             };
             completion.physical_returned.store(true, Ordering::Release);
             let _ = sender.send(Request::Done(result, diagnostics));

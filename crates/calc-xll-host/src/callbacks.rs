@@ -117,7 +117,7 @@ pub(crate) fn with_workbook_context<T>(
     call: impl FnOnce(&mut dyn UserFunctionContext) -> Result<T, String>,
 ) -> Result<T, String> {
     try_with_workbook_context(state, call)?
-        .ok_or_else(|| "dc-0f1k.24: no admitted worksheet invocation".into())
+        .ok_or_else(|| "dc-snz.2: no admitted worksheet invocation".into())
 }
 
 /// Absence of a worksheet invocation permits the Automation command/event route. A foreign,
@@ -134,7 +134,7 @@ pub(crate) fn try_with_workbook_context<T>(
         // The native entry and guard keep this owning-thread frame alive.
         let frame = unsafe { &mut *pointer };
         if !Rc::ptr_eq(&frame.state, state) || frame.kind == FrameKind::FreeOnly || frame.uncalced {
-            return Err("dc-0f1k.24: workbook read outside the owning XLL invocation".into());
+            return Err("dc-snz.2: workbook read outside the owning XLL invocation".into());
         }
         let Some(context) = frame.context.as_deref_mut() else {
             return Ok(None);
@@ -325,12 +325,8 @@ fn refuse(frame: &mut Frame<'_>, why: &str) {
     if let Some(context) = &mut frame.context {
         context.refuse_by(
             "an XLL callback is not modelled",
-            if why.starts_with("dc-snz.18:") {
-                "dc-snz.18"
-            } else if why.starts_with("dc-snz.23:") {
+            if why.starts_with("dc-snz.23:") {
                 "dc-snz.23"
-            } else if why.starts_with("dc-gh22:") {
-                "dc-gh22"
             } else if why.starts_with("dc-6332.13:") {
                 "dc-6332.13"
             } else {
@@ -637,14 +633,14 @@ fn run(
         // Only `#` entries get here; Excel 16.0.20527 runs ECHO for them (x13: 0, FALSE).
         return Err((
             INVALID_FUNCTION,
-            "dc-snz.18: commands from a macro-equivalent worksheet function are not modelled"
+            "dc-snz.2: commands from a macro-equivalent worksheet function are not modelled"
                 .into(),
         ));
     }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == XL_EVENT_REGISTER {
         return Err((
             NOT_THREAD_SAFE,
-            "dc-snz.18: event registration from calculation workers is not modelled".into(),
+            "dc-snz.2: event registration from calculation workers is not modelled".into(),
         ));
     }
     if frame.signature.as_ref().is_some_and(|s| s.thread_safe) && function == XLF_RTD {
@@ -913,7 +909,7 @@ fn run(
             if registration.info.macro_type == 2 && frame.signature.is_some() {
                 return Err((
                     INVALID_FUNCTION,
-                    "dc-snz.18: worksheet functions cannot invoke registered commands".into(),
+                    "dc-snz.2: worksheet functions cannot invoke registered commands".into(),
                 ));
             }
             if frame.context.is_some()
@@ -921,7 +917,7 @@ fn run(
                     != registration.info.signature.macro_equivalent
             {
                 return Err((INVALID_FUNCTION,
-                    "dc-snz.18: nested registered calls that change cached-read mode are not modelled".into()));
+                    "dc-snz.2: nested registered calls that change cached-read mode are not modelled".into()));
             }
             let adapter = crate::native::XllFunction {
                 early: false,
@@ -1150,7 +1146,10 @@ fn coerce_mask(value: CalcValue, mask: u32) -> Result<(CalcValue, bool), Coerced
         }
         match coerce(value.clone(), target) {
             Ok(converted) => return Ok((converted, target == XL_INT)),
-            Err((_, why)) if why.starts_with("dc-snz.20:") => {
+            Err((_, why))
+                if why.starts_with("dc-snz.2: xlCoerce text parsing")
+                    || why.starts_with("dc-snz.2: worksheet callback") =>
+            {
                 return Err(Coerced::NotModelled(why));
             }
             Err(_) => continue,
@@ -1185,7 +1184,7 @@ pub(crate) fn coerce(value: CalcValue, kind: u32) -> Result<CalcValue, (i32, Str
                 now: None,
             };
             let number = calc_func::read_number_text(t.utf16_code_units(), &environment)
-                .map_err(|_| err("dc-snz.20: xlCoerce text parsing is not modelled"))?
+                .map_err(|_| err("dc-snz.2: xlCoerce text parsing is not modelled"))?
                 .ok_or_else(|| err("xlCoerce text is not a number"))?;
             coerce(CalcValue::number(number), kind)
         }
@@ -1230,14 +1229,14 @@ fn worksheet_value(name: &str, values: &[CalcValue]) -> Result<CalcValue, String
     }
     let target = calc_func::catalogue()
         .resolve_surface(calc_func::Notation::Call, name)
-        .map_err(|e| format!("dc-snz.20: worksheet callback {name}: {e:?}"))?;
+        .map_err(|e| format!("dc-snz.2: worksheet callback {name}: {e:?}"))?;
     calc_func::invoke(
         target,
         &mut Given(values),
         &mut calc_func::EvalServices::new(&calc_value::NumericMode::Fast),
         &mut calc_func::FunctionCallScratch::new(),
     )
-    .map_err(|e| format!("dc-snz.20: worksheet callback {name}: {e:?}"))
+    .map_err(|e| format!("dc-snz.2: worksheet callback {name}: {e:?}"))
 }
 
 /// The text of an optional `xlfRegister` argument: empty when the add-in left it out, passed

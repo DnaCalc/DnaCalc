@@ -311,7 +311,7 @@ impl WorkbookEvents {
                 _ => {
                     return Err(AutoError::not_modelled(
                         "_Application.Run with an object or array argument",
-                        "dc-80m0f",
+                        "dc-oxh8w",
                     ));
                 }
             });
@@ -328,7 +328,7 @@ impl WorkbookEvents {
             Ok(ProcedureResult::Text(t)) => Ok(AutoValue::Text(calc_value::ExcelText::from_utf16_code_units(t.encode_utf16().collect()))),
             Ok(ProcedureResult::Other(kind)) => Err(AutoError::not_modelled(
                 format!("_Application.Run returning a {kind} value"),
-                "dc-80m0f",
+                "dc-oxh8w",
             )),
             Err(ProcedureError::Runtime { number, description, .. }) => {
                 Err(AutoError::excel(number, description))
@@ -345,7 +345,7 @@ impl WorkbookEvents {
                 // CalcVBA's dynamic call is not reentrant (dc-80m0f).
                 Err(AutoError::not_modelled(
                     "_Application.Run of a project procedure from a running procedure",
-                    "dc-80m0f",
+                    "dc-oxh8w",
                 ))
             }
             Err(other) => Err(AutoError::excel(1004, format!("Application.Run: {other:?}"))),

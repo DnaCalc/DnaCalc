@@ -23,7 +23,7 @@ fn selected_catalog(inputs: &ModelRoot, id: NameId) -> Result<SelectedName<'_>, 
         .get(id)
         .ok_or(NotModeled::Evaluation(calc_fml::EvalFault::NotModelled {
             construct: "an explicit evaluation of a deleted name",
-            owner: "dc-971p.34",
+            owner: "dc-971p",
         }))?;
     Ok(SelectedName {
         base: SnapshotCatalog::new(inputs),

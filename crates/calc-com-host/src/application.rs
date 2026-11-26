@@ -45,8 +45,8 @@ impl ApplicationHost for ApplicationServices {
             AutoError::Excel {
                 number: 1004,
                 description,
-            } if description == "needs a workbook: open in DNA Calc" => "dc-svqh",
-            AutoError::Excel { number: 1004, .. } => "dc-1nbp.5",
+            } if description == "needs a workbook: open in DNA Calc" => "dc-0f1k",
+            AutoError::Excel { number: 1004, .. } => "dc-17spk",
             _ => return,
         };
         let _ = self.host.with_workbook_context(|context| {

@@ -154,14 +154,14 @@ fn unknown(span: TextSpan, spelling: String) -> CompileError {
 
 /// The work package that owns the refusals of the constructs this module lowers and does not
 /// model: L1 (dc-mzk) lowered them, and L3 (dc-m3u) took over its open refusals.
-const OWNER: &str = "dc-10y";
+const OWNER: &str = "dc-b1l";
 
 /// The work package that owns the defined names a catalogue does not model.
-const NAMES_OWNER: &str = "dc-10y";
+const NAMES_OWNER: &str = "dc-b1l";
 
 /// Work package L3, which owns tables, 3-D references, names with relative references and the
 /// calls of names no defined name holds.
-const L3: &str = "dc-10y";
+const L3: &str = "dc-b1l";
 
 /// How many defined names deep one name's formula may use another's while it is lowered.
 pub const MAX_NAME_NESTING: usize = 32;
@@ -2649,8 +2649,8 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unsupported_constructs_name_their_owner() {
-        assert_eq!(owner("=TaxRate*2"), "dc-10y");
-        assert_eq!(owner("=Sheet2!TaxRate"), "dc-10y");
+        assert_eq!(owner("=TaxRate*2"), "dc-b1l");
+        assert_eq!(owner("=Sheet2!TaxRate"), "dc-b1l");
         for compiles in [
             "=(A1):B2",
             "=SUM(A1 B2)",

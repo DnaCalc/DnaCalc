@@ -552,7 +552,7 @@ pub(super) fn rewrite(
                 .is_some_and(|f| f.gradient.is_some() || !f.other_children.is_empty())
         {
             return Err(error(
-                "Authoring this differential format is not modelled (dc-971p.37)".into(),
+                "Authoring this differential format is not modelled (dc-971p)".into(),
             ));
         }
     }
@@ -1130,7 +1130,7 @@ pub(super) fn sheet_plan(
     if cells > 2_000_000 {
         return Err(super::SaveRefusal::StyleExpansionNotModelled {
             cells,
-            owner: "dc-971p.6",
+            owner: "dc-971p",
         });
     }
     Ok(Some(plan))
@@ -1183,7 +1183,7 @@ mod sheet_style_tests {
             format: 1,
         });
         assert!(
-            matches!(sheet_plan(&xml(),s,&runs),Err(SaveRefusal::StyleExpansionNotModelled {cells,owner:"dc-971p.6"}) if cells>2_000_000)
+            matches!(sheet_plan(&xml(),s,&runs),Err(SaveRefusal::StyleExpansionNotModelled {cells,owner:"dc-971p"}) if cells>2_000_000)
         );
     }
 }

@@ -626,7 +626,7 @@ pub fn dispatch_slice(
     for edit in &axis_edits {
         if crate::review::has_sorted_imported_notes(host, edit.sheet()) {
             return Err(CommandError::Document(EditError::SheetOperation(
-                "Row or column edits with sorted notes are not modelled (dc-971p.38); save and reopen first; nothing changed"
+                "Row or column edits with sorted notes are not modelled (dc-971p); save and reopen first; nothing changed"
                     .into(),
             )));
         }
@@ -638,7 +638,7 @@ pub fn dispatch_slice(
             .is_some_and(|s| s.geometry().outline_unsupported)
         {
             return Err(CommandError::Document(EditError::SheetOperation(
-                "Structural edits of imported outline metadata are not modelled (dc-971p.39); nothing changed"
+                "Structural edits of imported outline metadata are not modelled (dc-971p); nothing changed"
                     .into(),
             )));
         }
@@ -649,7 +649,7 @@ pub fn dispatch_slice(
             .any(|g| g.summary < 1 || g.summary > edit.axis().size())
         {
             return Err(CommandError::Document(EditError::SheetOperation(
-                "This edit moves an outline summary outside the worksheet (dc-971p.39); nothing changed"
+                "This edit moves an outline summary outside the worksheet (dc-971p); nothing changed"
                     .into(),
             )));
         }
@@ -670,7 +670,7 @@ pub fn dispatch_slice(
                     g.first == first && g.last == last && g.level == group.level && g.collapsed
                 }) {
                     return Err(CommandError::Document(EditError::SheetOperation(
-                        "This edit merges or clips collapsed outline groups (dc-971p.39); expand them first; nothing changed"
+                        "This edit merges or clips collapsed outline groups (dc-971p); expand them first; nothing changed"
                             .into(),
                     )));
                 }
@@ -695,7 +695,7 @@ pub fn dispatch_slice(
                 })
         {
             return Err(CommandError::Document(EditError::SheetOperation(
-                "Row edits with independent manual hiding in an imported filter are not modelled (dc-971p.37); nothing changed"
+                "Row edits with independent manual hiding in an imported filter are not modelled (dc-971p); nothing changed"
                     .into(),
             )));
         }
@@ -706,13 +706,13 @@ pub fn dispatch_slice(
                 && edit.last() >= area.first().row()
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Remove AutoFilter before deleting its header (dc-971p.37); nothing changed"
+                    "Remove AutoFilter before deleting its header (dc-971p); nothing changed"
                         .into(),
                 )));
             }
             let next = calc_doc_model::moved_area(*edit, area).ok_or_else(|| {
                 CommandError::Document(EditError::SheetOperation(
-                    "Remove AutoFilter before deleting or moving its entire range outside the grid (dc-971p.37); nothing changed"
+                    "Remove AutoFilter before deleting or moving its entire range outside the grid (dc-971p); nothing changed"
                         .into(),
                 ))
             })?;
@@ -792,7 +792,7 @@ pub fn dispatch_slice(
         })
     {
         return Err(CommandError::Document(EditError::SheetOperation(
-            "Axis edits with unsupported imported table metadata are not modelled (dc-971p.41); nothing changed"
+            "Axis edits with unsupported imported table metadata are not modelled (dc-971p); nothing changed"
                 .into(),
         )));
     }
@@ -809,7 +809,7 @@ pub fn dispatch_slice(
                 })
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Row visibility with this imported table filter is not modelled (dc-971p.41); nothing changed"
+                    "Row visibility with this imported table filter is not modelled (dc-971p); nothing changed"
                         .into(),
                 )));
             }
@@ -880,7 +880,7 @@ pub fn dispatch_slice(
                     .is_some_and(|s| s.protected() || s.is_macro_sheet())
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Page setup needs an editable worksheet (dc-971p.56)".into(),
+                    "Page setup needs an editable worksheet (dc-971p)".into(),
                 )));
             }
             host.loaded
@@ -895,7 +895,7 @@ pub fn dispatch_slice(
                 .map_or(!new_chart_sheet, |s| s.protected() || s.is_macro_sheet())
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Chart editing requires an editable worksheet (dc-971p.49)".into(),
+                    "Chart editing requires an editable worksheet (dc-zjsg)".into(),
                 )));
             }
             let mut parts = std::collections::BTreeSet::new();
@@ -912,7 +912,7 @@ pub fn dispatch_slice(
             ) {
                 if !parts.insert(chart.part.as_str()) {
                     return Err(CommandError::Document(EditError::SheetOperation(
-                        "Chart frames need distinct part identities (dc-971p.49)".into(),
+                        "Chart frames need distinct part identities (dc-zjsg)".into(),
                     )));
                 }
             }
@@ -931,7 +931,7 @@ pub fn dispatch_slice(
                 .is_some_and(|s| s.protected() || s.is_macro_sheet())
             {
                 return Err(CommandError::Document(EditError::SheetOperation(
-                    "Hyperlinks require an editable worksheet (dc-971p.38)".into(),
+                    "Hyperlinks require an editable worksheet (dc-971p)".into(),
                 )));
             }
             host.loaded

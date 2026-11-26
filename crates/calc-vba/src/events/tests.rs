@@ -186,7 +186,7 @@ fn file_private_worksheet_entries_keep_defaults_byref_state_and_vba_visibility()
     assert!(project.functions().contains("Secret") && project.functions().contains("Api.Secret"));
     let refusal = project.functions().call("Secret", &[]).unwrap_err();
     assert!(
-        refusal.contains("private worksheet entry") && refusal.contains("dc-snz.15"),
+        refusal.contains("private worksheet entry") && refusal.contains("dc-snz"),
         "{refusal}"
     );
 }
@@ -249,7 +249,7 @@ fn unsupported_document_events_refuse_admission_and_inactive_source_stays_inacti
         .err()
         .unwrap();
     assert!(
-        refusal.contains("directory identity") && refusal.contains("dc-snz.15"),
+        refusal.contains("directory identity") && refusal.contains("dc-snz"),
         "{refusal}"
     );
 }

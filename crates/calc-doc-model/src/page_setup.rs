@@ -87,7 +87,7 @@ impl PageSetup {
             .iter()
             .any(|(s, fields)| *s == section && fields.contains(&name))
         {
-            return Err("Unknown page setup field (dc-971p.56)".into());
+            return Err("Unknown page setup field (dc-971p)".into());
         }
         if section == "pageMargins" {
             let fields = self.sections.entry(section.into()).or_default();
@@ -120,7 +120,7 @@ impl PageSetup {
                     .iter()
                     .any(|(s, names)| s == section && names.contains(&name.as_str()))
                 {
-                    return Err("Unknown page setup field (dc-971p.56)".into());
+                    return Err("Unknown page setup field (dc-971p)".into());
                 }
                 validate_attribute(section, name, value)?;
             }
@@ -130,14 +130,14 @@ impl PageSetup {
                 .iter()
                 .any(|k| !m.contains_key(*k))
         }) {
-            return Err("Page margins need all six dimensions (dc-971p.56)".into());
+            return Err("Page margins need all six dimensions (dc-971p)".into());
         }
         if self
             .headers
             .iter()
             .any(|(k, v)| !HEADER_FIELDS.contains(&k.as_str()) || v.utf16_code_units().len() > 255)
         {
-            return Err("A header or footer must use a supported field and at most 255 characters (dc-971p.56)".into());
+            return Err("A header or footer must use a supported field and at most 255 characters (dc-971p)".into());
         }
         for (breaks, size, opposite) in [
             (&self.row_breaks, 1_048_576, 16_384),
@@ -148,7 +148,7 @@ impl PageSetup {
                     .iter()
                     .any(|b| b.id >= size || b.min > b.max || b.max >= opposite)
             {
-                return Err("A page break is outside the worksheet or there are more than 1026 breaks (dc-971p.56)".into());
+                return Err("A page break is outside the worksheet or there are more than 1026 breaks (dc-971p)".into());
             }
         }
         Ok(())
@@ -182,6 +182,6 @@ fn validate_attribute(section: &str, name: &str, value: &str) -> Result<(), Stri
     if valid {
         Ok(())
     } else {
-        Err(format!("Invalid page setup {name}: {value} (dc-971p.56)"))
+        Err(format!("Invalid page setup {name}: {value} (dc-971p)"))
     }
 }

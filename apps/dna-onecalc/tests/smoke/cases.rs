@@ -700,7 +700,7 @@ pub(crate) const ONECALC_CASES: &[Case] = &[
     Case {
         name: "function status: a function this build does not hold names its owner",
         actions: &[Action::Formula("=CALL")],
-        checks: &[Check::Starts("help-status", "Not held; owned by dc-gh22")],
+        checks: &[Check::Starts("help-status", "Not held; owned by dc-snz.2")],
     },
     Case {
         name: "F9: the selected part is replaced by its value, selected, and the result follows",

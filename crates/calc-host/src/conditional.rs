@@ -157,7 +157,7 @@ impl ConditionalFormats {
                             | "uniqueValues"
                     )
                 {
-                    "Rule evaluation is unavailable (dc-971p.8)".to_owned()
+                    "Rule evaluation is unavailable (dc-971p)".to_owned()
                 } else {
                     let old = look.clone();
                     let before = self.refused.get();

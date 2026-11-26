@@ -33,7 +33,7 @@ use std::ops::ControlFlow;
 pub(crate) fn refusal(construct: &'static str) -> NotModeled {
     NotModeled::Evaluation(EvalFault::NotModelled {
         construct,
-        owner: "dc-10y",
+        owner: "dc-b1l",
     })
 }
 

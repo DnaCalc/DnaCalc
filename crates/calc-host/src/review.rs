@@ -68,7 +68,7 @@ pub(crate) fn prepare(
             timestamp,
         } => {
             if notes.len() >= 5000 {
-                return Err("This worksheet already has 5,000 review records (dc-971p.40)".into());
+                return Err("This worksheet already has 5,000 review records (dc-971p)".into());
             }
             let author = author.trim().to_owned();
             if author.is_empty() || author.encode_utf16().count() > 255 || text.trim().is_empty() {
@@ -202,7 +202,7 @@ pub(crate) fn prepare(
                 .filter(|n| n.at == at)
                 .ok_or("The note no longer belongs to this cell")?;
             if !note.editable {
-                return Err("This comment has annotations whose text offsets cannot be edited yet (dc-971p.40)".into());
+                return Err("This comment has annotations whose text offsets cannot be edited yet (dc-971p)".into());
             }
             note.replace_text(text);
         }
@@ -294,7 +294,7 @@ fn editable(host: &HostState, sheet: SheetId) -> Result<(), String> {
         })
     {
         return Err(
-            "Editing shared review parts is unavailable (dc-971p.40); nothing changed".into(),
+            "Editing shared review parts is unavailable (dc-971p); nothing changed".into(),
         );
     }
     Ok(())
@@ -400,7 +400,7 @@ pub(crate) fn validate(
 ) -> Result<(), String> {
     editable(host, sheet)?;
     if notes.len() > 10000 {
-        return Err("Review metadata exceeds 10,000 records (dc-971p.40)".into());
+        return Err("Review metadata exceeds 10,000 records (dc-971p)".into());
     }
     let previous: Vec<_> = host
         .model()
@@ -424,7 +424,7 @@ pub(crate) fn validate(
     if spatial(notes) != spatial(host.model().definitions().review_notes(sheet))
         && host.loaded().review_drawing_shared(sheet)
     {
-        return Err("Moving review markers in a shared drawing is unavailable (dc-971p.40)".into());
+        return Err("Moving review markers in a shared drawing is unavailable (dc-971p)".into());
     }
     let loaded_people = host.loaded().review_people();
     for (index, note) in notes.iter().enumerate() {
@@ -568,7 +568,7 @@ pub(crate) fn validate(
                 || ((!note.editable && !note.compatibility || note.annotated)
                     && (note.text != old.text || note.spans != old.spans))
             {
-                return Err("Review edits must retain source identities, authors and unsupported annotations (dc-971p.40)".into());
+                return Err("Review edits must retain source identities, authors and unsupported annotations (dc-971p)".into());
             }
         } else {
             if note.source_xml.is_none()

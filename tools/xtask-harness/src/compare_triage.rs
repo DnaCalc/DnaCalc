@@ -259,7 +259,7 @@ const CALC_ENGINE: &str = "no package named (calc-engine refused)";
 
 /// The owner CalcFml's documentation gives `CompileError::NumberLiteral`, which the variant does
 /// not carry.
-const NUMBER_LITERAL_OWNER: &str = "dc-10y";
+const NUMBER_LITERAL_OWNER: &str = "dc-b1l";
 
 /// The class, key and owner of the engine's typed refusal `refusal`, with `address` naming a cell
 /// for CalcFml's `MissingInput`.
@@ -1971,19 +1971,19 @@ mod tests {
                 }),
                 Class::FunctionMissing,
                 "_XLFN.XLOOKUP",
-                "exactness dc-uar",
+                "exactness dc-zmk",
             ),
             (
                 NotModeled::Compile(CompileError::NotModelled {
                     span,
                     gap: Gap::Construct {
                         construct: "a defined name",
-                        owner: "dc-10y",
+                        owner: "dc-b1l",
                     },
                 }),
                 Class::Formula,
-                "Compile:Unsupported:a defined name (dc-10y)",
-                "dc-10y",
+                "Compile:Unsupported:a defined name (dc-b1l)",
+                "dc-b1l",
             ),
             (
                 NotModeled::Compile(CompileError::NotModelled {
@@ -2053,7 +2053,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "NOT",
-                "exactness dc-uar",
+                "exactness dc-zmk",
                 "Evaluation:Function:NotImplemented (NOT, argument 1)"
             )
         );

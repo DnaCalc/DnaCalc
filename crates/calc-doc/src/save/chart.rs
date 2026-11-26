@@ -91,7 +91,7 @@ pub(crate) fn check_unique_chart_part(base: &ModelRoot, part: &str) -> Result<()
         return Err(SaveRefusal::ChartNotModelled {
             part: part.to_owned(),
             detail: "Editing chart parts shared by drawing frames is not modelled".into(),
-            owner: "dc-e5z5",
+            owner: "dc-zjsg",
         });
     }
     Ok(())
@@ -124,7 +124,7 @@ pub(crate) fn valid_anchor_change(before: &Chart, after: &Chart) -> Result<(), S
         return Err(SaveRefusal::ChartNotModelled {
             part: before.part.clone(),
             detail: "The chart frame must keep its anchor kind and fit the worksheet".into(),
-            owner: "dc-zjsg.14",
+            owner: "dc-zjsg",
         });
     }
     Ok(())
@@ -151,7 +151,7 @@ fn source_with_xml(
     let invalid = |detail: &str| SaveRefusal::ChartNotModelled {
         part: before.part.clone(),
         detail: detail.into(),
-        owner: "dc-e5z5",
+        owner: "dc-zjsg",
     };
     check_unique_chart_part(base, &before.part)?;
     let mut retained = after.clone();
@@ -174,7 +174,7 @@ fn source_with_xml(
     }
     if before.plots.len() != after.plots.len() {
         return Err(invalid(
-            "Adding or removing chart plots is not modelled (dc-971p.46)",
+            "Adding or removing chart plots is not modelled (dc-zjsg)",
         ));
     }
     if before.plots.len() != 1
@@ -186,13 +186,13 @@ fn source_with_xml(
         && !category_combination(&after.plots)
     {
         return Err(invalid(
-            "Choose up to three distinct vertical column, line or area plots with Normal or Stacked grouping (dc-971p.59)",
+            "Choose up to three distinct vertical column, line or area plots with Normal or Stacked grouping (dc-zjsg)",
         ));
     }
     let old_total = before.plots.iter().map(|p| p.series.len()).sum::<usize>();
     let new_total = after.plots.iter().map(|p| p.series.len()).sum::<usize>();
     if new_total > 255 && new_total > old_total {
-        return Err(invalid("A chart can have at most 255 series (dc-971p.46)"));
+        return Err(invalid("A chart can have at most 255 series (dc-zjsg)"));
     }
     for (old, new) in before.plots.iter().zip(&after.plots) {
         let mut retained = new.clone();
@@ -202,7 +202,7 @@ fn source_with_xml(
         retained.grouping = old.grouping.clone();
         if retained != *old || !valid_plot_type(old, new) {
             return Err(invalid(
-                "Changing these plot properties is not modelled (dc-971p.46)",
+                "Changing these plot properties is not modelled (dc-zjsg)",
             ));
         }
         if old.series == new.series {
@@ -210,7 +210,7 @@ fn source_with_xml(
         }
         if pie_kind(&old.kind) && new.series.len() > old.series.len() {
             return Err(invalid(
-                "Adding pie or doughnut series is not modelled (dc-971p.46)",
+                "Adding pie or doughnut series is not modelled (dc-zjsg)",
             ));
         }
         if !matches!(
@@ -218,13 +218,13 @@ fn source_with_xml(
             "barChart" | "lineChart" | "areaChart" | "pieChart" | "doughnutChart" | "scatterChart"
         ) {
             return Err(invalid(
-                "Editing this plot's series is not modelled (dc-971p.46)",
+                "Editing this plot's series is not modelled (dc-zjsg)",
             ));
         }
         let mut indices = std::collections::BTreeSet::new();
         if new.series.is_empty() || !new.series.iter().all(|s| indices.insert(s.index)) {
             return Err(invalid(
-                "Use 1 to 255 series with distinct indices (dc-971p.46)",
+                "Use 1 to 255 series with distinct indices (dc-zjsg)",
             ));
         }
         let existing = new
@@ -241,7 +241,7 @@ fn source_with_xml(
             .collect::<Vec<_>>();
         if existing != retained {
             return Err(invalid(
-                "Reordering chart series is not modelled (dc-971p.46)",
+                "Reordering chart series is not modelled (dc-zjsg)",
             ));
         }
         for series in &new.series {
@@ -257,7 +257,7 @@ fn source_with_xml(
                 keep.value_labels_source_linked = original.value_labels_source_linked;
                 if keep != *original {
                     return Err(invalid(
-                        "Changing series formatting is not modelled (dc-971p.46)",
+                        "Changing series formatting is not modelled (dc-zjsg)",
                     ));
                 }
             }
@@ -277,13 +277,13 @@ fn source_with_xml(
                     .as_ref()
                     .is_some_and(|s| s.len() != 6 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
             {
-                return Err(invalid("Use RGB series colours (dc-971p.58)"));
+                return Err(invalid("Use RGB series colours (dc-zjsg)"));
             }
         }
     }
     if before.axes.len() != after.axes.len() {
         return Err(invalid(
-            "Creating or removing chart axes is not modelled (dc-971p.46)",
+            "Creating or removing chart axes is not modelled (dc-zjsg)",
         ));
     }
     let swap = before
@@ -313,7 +313,7 @@ fn source_with_xml(
         });
         if new.position != expected {
             return Err(invalid(
-                "Only a type conversion can transpose chart axis positions (dc-971p.46)",
+                "Only a type conversion can transpose chart axis positions (dc-zjsg)",
             ));
         }
         let settings = old.log_base != new.log_base
@@ -332,7 +332,7 @@ fn source_with_xml(
         retained.number_format = old.number_format.clone();
         if retained != *old || (settings && old.kind != "valAx") {
             return Err(invalid(
-                "Only retained value-axis scale, bounds, units and direction can be edited (dc-971p.46)",
+                "Only retained value-axis scale, bounds, units and direction can be edited (dc-zjsg)",
             ));
         }
         if old == new {
@@ -366,7 +366,7 @@ fn source_with_xml(
         .flatten()
         {
             if text.parse::<f64>().ok().is_none_or(|n| !n.is_finite()) {
-                return Err(invalid("Use finite numeric axis settings (dc-971p.46)"));
+                return Err(invalid("Use finite numeric axis settings (dc-zjsg)"));
             }
         }
         if new
@@ -375,12 +375,12 @@ fn source_with_xml(
             .and_then(|s| s.parse::<f64>().ok())
             .is_some_and(|n| n <= 0.)
         {
-            return Err(invalid("The major unit must be positive (dc-971p.46)"));
+            return Err(invalid("The major unit must be positive (dc-zjsg)"));
         }
         if let (Some(min), Some(max)) = (&new.minimum, &new.maximum) {
             if min.parse::<f64>().unwrap() >= max.parse::<f64>().unwrap() {
                 return Err(invalid(
-                    "The axis maximum must exceed its minimum (dc-971p.46)",
+                    "The axis maximum must exceed its minimum (dc-zjsg)",
                 ));
             }
         }
@@ -553,7 +553,7 @@ fn field(
         match reader.expect()? {
             (XmlEvent::Start(e), child) if e.name.is(C, local) => {
                 if found {
-                    return Err(reader.invalid("A chart property has duplicate children (dc-e5z5)"));
+                    return Err(reader.invalid("A chart property has duplicate children (dc-zjsg)"));
                 }
                 found = true;
                 if let Some(title) = title {
@@ -617,7 +617,7 @@ fn chart(
         match reader.expect()? {
             (XmlEvent::Start(e), span) if e.name.is(C, "title") && title_changed => {
                 if title {
-                    return Err(reader.invalid("Duplicate chart titles (dc-e5z5)"));
+                    return Err(reader.invalid("Duplicate chart titles (dc-zjsg)"));
                 }
                 title = true;
                 if let Some(text) = &after.title {
@@ -638,7 +638,7 @@ fn chart(
             }
             (XmlEvent::Start(e), span) if e.name.is(C, "autoTitleDeleted") && title_changed => {
                 if auto {
-                    return Err(reader.invalid("Duplicate automatic title flags (dc-e5z5)"));
+                    return Err(reader.invalid("Duplicate automatic title flags (dc-zjsg)"));
                 }
                 auto = true;
                 auto_start = Some(span.0);
@@ -657,7 +657,7 @@ fn chart(
             }
             (XmlEvent::Start(e), span) if e.name.is(C, "legend") && legend_changed => {
                 if legend {
-                    return Err(reader.invalid("Duplicate chart legends (dc-e5z5)"));
+                    return Err(reader.invalid("Duplicate chart legends (dc-zjsg)"));
                 }
                 legend = true;
                 if let Some(position) = &after.legend {
@@ -687,7 +687,7 @@ fn chart(
             }
             (XmlEvent::Start(e), span) if e.name.is(C, "plotArea") => {
                 if plot.is_some() {
-                    return Err(reader.invalid("Duplicate chart plot areas (dc-e5z5)"));
+                    return Err(reader.invalid("Duplicate chart plot areas (dc-zjsg)"));
                 }
                 let end = plot_area(xml, reader, before, after, patches)?;
                 plot = Some((span.0, end));
@@ -699,7 +699,7 @@ fn chart(
             _ => {}
         }
     }
-    let plot = plot.ok_or_else(|| reader.invalid("A chart has no plot area (dc-e5z5)"))?;
+    let plot = plot.ok_or_else(|| reader.invalid("A chart has no plot area (dc-zjsg)"))?;
     if title_changed {
         let mut fresh = Vec::new();
         if !title {
@@ -763,7 +763,7 @@ pub(super) fn finish(
             return Err(SaveRefusal::ChartNotModelled {
                 part: "charts".into(),
                 detail: "Adding and removing charts is not modelled".into(),
-                owner: "dc-e5z5",
+                owner: "dc-zjsg",
             });
         }
         let pairs: Vec<(&Chart, &Chart)> = charts
@@ -814,19 +814,19 @@ fn literal_title(
         match reader.expect()? {
             (XmlEvent::Start(e), _) if parents.is_empty() && e.name.is(C, "strRef") => {
                 if linked {
-                    return Err(reader.invalid("Duplicate linked title records (dc-e5z5)"));
+                    return Err(reader.invalid("Duplicate linked title records (dc-zjsg)"));
                 }
                 linked = true;
                 reader.element_end()?;
             }
             (XmlEvent::Start(e), _) if parents.is_empty() && !e.name.is(C, "rich") => {
                 return Err(
-                    reader.invalid("This chart title has unsupported text records (dc-e5z5)")
+                    reader.invalid("This chart title has unsupported text records (dc-zjsg)")
                 );
             }
             (XmlEvent::Start(e), _) if e.name.is(A, "fld") || e.name.is(A, "br") => {
                 return Err(reader.invalid(
-                    "Editing a chart title with DrawingML fields or manual line breaks is not modelled (dc-e5z5)",
+                    "Editing a chart title with DrawingML fields or manual line breaks is not modelled (dc-zjsg)",
                 ));
             }
             (XmlEvent::Start(e), span) if e.name.is(A, "t") => {
@@ -836,7 +836,7 @@ fn literal_title(
                     || !parents[2].is(A, "r")
                 {
                     return Err(
-                        reader.invalid("This chart title has unsupported text placement (dc-e5z5)")
+                        reader.invalid("This chart title has unsupported text placement (dc-zjsg)")
                     );
                 }
                 let end = reader.element_end()?;
@@ -854,7 +854,7 @@ fn literal_title(
             (XmlEvent::Start(e), _) => {
                 if parents.is_empty() {
                     if rich {
-                        return Err(reader.invalid("Duplicate rich title records (dc-e5z5)"));
+                        return Err(reader.invalid("Duplicate rich title records (dc-zjsg)"));
                     }
                     rich = true;
                 }
@@ -862,7 +862,7 @@ fn literal_title(
                     paragraphs += 1;
                     if paragraphs > 1 {
                         return Err(reader.invalid(
-                            "Editing a title with multiple paragraphs is not modelled (dc-e5z5)",
+                            "Editing a title with multiple paragraphs is not modelled (dc-zjsg)",
                         ));
                     }
                 }
@@ -877,7 +877,7 @@ fn literal_title(
         }
     };
     if rich && linked {
-        return Err(reader.invalid("A chart title contains both literal and linked text (dc-e5z5)"));
+        return Err(reader.invalid("A chart title contains both literal and linked text (dc-zjsg)"));
     }
     Ok((end, rich && texts > 0))
 }
@@ -900,7 +900,7 @@ fn plot_area(
                 let old = before
                     .plots
                     .get(i)
-                    .ok_or_else(|| reader.invalid("Unexpected chart plot (dc-971p.46)"))?;
+                    .ok_or_else(|| reader.invalid("Unexpected chart plot (dc-zjsg)"))?;
                 let new = &after.plots[i];
                 i += 1;
                 if old == new {
@@ -917,7 +917,7 @@ fn plot_area(
                 let old = before
                     .axes
                     .get(a)
-                    .ok_or_else(|| reader.invalid("Unexpected chart axis (dc-971p.46)"))?;
+                    .ok_or_else(|| reader.invalid("Unexpected chart axis (dc-zjsg)"))?;
                 let new = &after.axes[a];
                 a += 1;
                 if old == new {
@@ -928,7 +928,7 @@ fn plot_area(
             }
             (XmlEvent::Start(e), span) if e.name.is(C, "spPr") => {
                 if area_seen {
-                    return Err(reader.invalid("The plot area has duplicate shape records (dc-oxh8w.31)"));
+                    return Err(reader.invalid("The plot area has duplicate shape records (dc-zjsg)"));
                 }
                 area_seen = true;
                 if before.plot_fill != after.plot_fill || before.plot_border != after.plot_border {
@@ -950,7 +950,7 @@ fn plot_area(
             }
             (XmlEvent::End(_), (close, end)) => {
                 if i != before.plots.len() || a != before.axes.len() {
-                    return Err(reader.invalid("Chart plot or axis count changed (dc-971p.46)"));
+                    return Err(reader.invalid("Chart plot or axis count changed (dc-zjsg)"));
                 }
                 if (before.plot_fill != after.plot_fill || before.plot_border != after.plot_border) && !area_seen {
                     let at = area_at.unwrap_or(close);
@@ -1000,7 +1000,7 @@ fn plot_series(
                 let old = before
                     .series
                     .get(i)
-                    .ok_or_else(|| reader.invalid("Unexpected chart series (dc-971p.46)"))?;
+                    .ok_or_else(|| reader.invalid("Unexpected chart series (dc-zjsg)"))?;
                 i += 1;
                 let end = if let Some((order, new)) = after
                     .series
@@ -1065,7 +1065,7 @@ fn plot_series(
                 } else if converted && e.name.namespace.as_deref() == Some(C) {
                     if !plot_child(&before.kind, &e.name.local) {
                         return Err(reader.invalid(
-                            "This plot has unsupported type-specific records (dc-971p.46)",
+                            "This plot has unsupported type-specific records (dc-zjsg)",
                         ));
                     }
                     if !plot_child(&after.kind, &e.name.local) {
@@ -1083,7 +1083,7 @@ fn plot_series(
         }
     };
     if i != before.series.len() {
-        return Err(reader.invalid("Chart series count changed (dc-971p.46)"));
+        return Err(reader.invalid("Chart series count changed (dc-zjsg)"));
     }
     let mut added = Vec::new();
     for (order, s) in after
@@ -1130,7 +1130,7 @@ fn plot_series(
     }
     if !added.is_empty() {
         let at = insert.ok_or_else(|| {
-            reader.invalid("This plot has no series insertion point (dc-971p.46)")
+            reader.invalid("This plot has no series insertion point (dc-zjsg)")
         })?;
         patches.push(((at, at), added));
     }
@@ -1162,14 +1162,14 @@ const LABEL_GROUP: [&str; 8] =
 
 fn valid_labels(labels: &calc_doc_model::ChartLabels) -> Result<(), &'static str> {
     if labels.position.as_deref().is_some_and(|p| !LABEL_POSITIONS.contains(&p)) {
-        return Err("The data label position is not supported (dc-oxh8w.18)");
+        return Err("The data label position is not supported (dc-zjsg)");
     }
     if labels
         .separator
         .as_deref()
         .is_some_and(|t| t.chars().any(|c| (c < ' ' && !matches!(c, '\t' | '\n' | '\r')) || matches!(c, '\u{fffe}' | '\u{ffff}')))
     {
-        return Err("The data label separator contains unsupported text (dc-oxh8w.18)");
+        return Err("The data label separator contains unsupported text (dc-zjsg)");
     }
     Ok(())
 }
@@ -1451,7 +1451,7 @@ fn series_source(
         let order_span = children
             .iter()
             .find(|(n, _)| n.is(C, "order"))
-            .ok_or_else(|| reader.invalid("The chart series has no order (dc-971p.46)"))?
+            .ok_or_else(|| reader.invalid("The chart series has no order (dc-zjsg)"))?
             .1;
         patches.push((
             order_span,
@@ -1459,13 +1459,13 @@ fn series_source(
         ));
     }
     if (before.fill != after.fill || before.line != after.line) && children.iter().filter(|(n, _)| n.is(C, "spPr")).count() > 1 {
-        return Err(reader.invalid("Duplicate series shape records (dc-971p.58)"));
+        return Err(reader.invalid("Duplicate series shape records (dc-zjsg)"));
     }
     // A new `c:dLbls` is pushed after a new `c:spPr` that lands at the same offset (schema order: spPr, then dLbls).
     let mut fresh_labels: Option<((usize, usize), Vec<u8>)> = None;
     if before.labels != after.labels {
         if children.iter().filter(|(n, _)| n.is(C, "dLbls")).count() > 1 {
-            return Err(reader.invalid("Duplicate series data labels (dc-oxh8w.18)"));
+            return Err(reader.invalid("Duplicate series data labels (dc-zjsg)"));
         }
         if !children.iter().any(|(n, _)| n.is(C, "dLbls")) {
             if let Some(labels) = after.labels.as_ref() {
@@ -1541,14 +1541,14 @@ fn series_source(
             .filter(|(n, _)| n.is(C, slot))
             .collect::<Vec<_>>();
         if found.len() > 1 {
-            return Err(reader.invalid("Duplicate chart series source fields (dc-971p.46)"));
+            return Err(reader.invalid("Duplicate chart series source fields (dc-zjsg)"));
         }
         let bytes = data_xml(slot, new.as_ref());
         if let Some((_, span)) = found.first() {
             patches.push((*span, bytes));
         } else if !bytes.is_empty() {
             if RawTag::parse(&xml.bytes()[span.0..span.1]).is_empty() {
-                return Err(reader.invalid("Empty chart series cannot be edited (dc-971p.46)"));
+                return Err(reader.invalid("Empty chart series cannot be edited (dc-zjsg)"));
             }
             let at = children
                 .iter()
@@ -1562,7 +1562,7 @@ fn series_source(
             if name.namespace.as_deref() == Some(C) {
                 if !series_child(kind, &name.local) {
                     return Err(reader.invalid(
-                        "This series has unsupported type-specific records (dc-971p.46)",
+                        "This series has unsupported type-specific records (dc-zjsg)",
                     ));
                 }
                 if !series_child(next_kind, &name.local) {
@@ -1633,7 +1633,7 @@ fn validate_series_orders(xml: &XmlPart, before: &Chart, after: &Chart) -> Resul
                     .enumerate()
                     .all(|(i, v)| v.as_slice() == [i as u32])
         }) {
-            return Err(reader.invalid("Adding or removing series with a retained custom order is not modelled (dc-971p.46)"));
+            return Err(reader.invalid("Adding or removing series with a retained custom order is not modelled (dc-zjsg)"));
         }
     }
     Ok(())
@@ -1660,7 +1660,7 @@ fn axis_settings(
             }
             (XmlEvent::Start(e), child) if e.name.is(C, "scaling") => {
                 if scale {
-                    return Err(reader.invalid("Duplicate axis scaling records (dc-971p.46)"));
+                    return Err(reader.invalid("Duplicate axis scaling records (dc-zjsg)"));
                 }
                 scale = true;
                 if before.log_base != after.log_base
@@ -1681,7 +1681,7 @@ fn axis_settings(
             }
             (XmlEvent::Start(e), child) if e.name.is(C, "majorUnit") => {
                 if unit {
-                    return Err(reader.invalid("Duplicate major units (dc-971p.46)"));
+                    return Err(reader.invalid("Duplicate major units (dc-zjsg)"));
                 }
                 unit = true;
                 let end = reader.element_end()?;
@@ -1708,7 +1708,7 @@ fn axis_settings(
             }
             (XmlEvent::Start(e), child) if e.name.is(C, "numFmt") => {
                 if fmt_seen {
-                    return Err(reader.invalid("Duplicate axis number formats (dc-oxh8w.12)"));
+                    return Err(reader.invalid("Duplicate axis number formats (dc-zjsg)"));
                 }
                 fmt_seen = true;
                 after_title.get_or_insert(child.0);
@@ -1746,7 +1746,7 @@ fn axis_settings(
             || before.reversed != after.reversed)
     {
         let at = scale_at.ok_or_else(|| {
-            reader.invalid("The axis has no identity before scaling (dc-971p.46)")
+            reader.invalid("The axis has no identity before scaling (dc-zjsg)")
         })?;
         patches.push(((at, at), fresh_scaling(after)));
     }
@@ -1904,7 +1904,7 @@ fn axis_scaling(
             .filter(|(_, (n, _))| n.is(C, name))
             .collect::<Vec<_>>();
         if matches.len() > 1 {
-            return Err(reader.invalid("Duplicate axis scaling fields (dc-971p.46)"));
+            return Err(reader.invalid("Duplicate axis scaling fields (dc-zjsg)"));
         }
         if let Some((i, (_, s))) = matches.first() {
             numeric_field(xml, opening[*i], s.1, name, value, patches);
@@ -2010,7 +2010,7 @@ fn valid_log_axis(axis: &calc_doc_model::ChartAxis) -> Result<(), &'static str> 
                 .ok()
                 .is_none_or(|n| !n.is_finite() || !(2. ..=1000.).contains(&n))
         {
-            return Err("Use a value axis and a logarithmic base from 2 to 1,000 (dc-971p.50)");
+            return Err("Use a value axis and a logarithmic base from 2 to 1,000 (dc-zjsg)");
         }
         if [&axis.minimum, &axis.maximum]
             .into_iter()
@@ -2021,7 +2021,7 @@ fn valid_log_axis(axis: &calc_doc_model::ChartAxis) -> Result<(), &'static str> 
                     .is_none_or(|n| !n.is_finite() || n <= 0.)
             })
         {
-            return Err("Logarithmic bounds must be positive finite numbers (dc-971p.50)");
+            return Err("Logarithmic bounds must be positive finite numbers (dc-zjsg)");
         }
     }
     Ok(())

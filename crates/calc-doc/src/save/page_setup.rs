@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 fn invalid(detail: impl Into<String>) -> SaveRefusal {
     SaveRefusal::InvalidPart {
-        part: "page setup (dc-971p.56)".into(),
+        part: "page setup (dc-971p)".into(),
         detail: detail.into(),
     }
 }

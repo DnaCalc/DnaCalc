@@ -2,7 +2,7 @@
 use super::*;
 use calc_value::GridArea;
 
-const OWNER: &str = "dc-oc78o";
+const OWNER: &str = "dc-oxh8w.39";
 
 fn cells(area: &GridArea) -> u64 {
     u64::from(area.last().row() - area.first().row() + 1)

@@ -1400,7 +1400,7 @@ fn busy_command_is_typed_and_outside_invocation_caller_is_ref_error() {
             vec![AutoValue::text("A1")]
         ),
         Err(AutoError::NotModelled {
-            owner: "dc-0f1k.24",
+            owner: "dc-oxh8w",
             ..
         })
     ));
@@ -2636,7 +2636,7 @@ fn dc_piw0__a_macro_builds_a_report_through_object_model_members() {
     assert!(matches!(
         refused,
         Err(AutoError::NotModelled {
-            owner: "dc-piw0.3",
+            owner: "dc-zjsg",
             ..
         })
     ));
@@ -5562,13 +5562,13 @@ mod xlc {
     fn commands_call_the_members_and_pass_refusals_through() {
         let (host, model) = setup();
         let text = AutoValue::text;
-        let unmodelled = |what| AutoError::not_modelled(what, "dc-1nbp.5");
+        let unmodelled = |what| AutoError::not_modelled(what, "dc-oxh8w");
         let metadata_shift = |member| {
             AutoError::not_modelled(
                 format!(
                     "Range.{member}: Shifting cells with merged, array, table, rule, chart, hidden or unloaded metadata is not modelled (dc-971p); nothing changed"
                 ),
-                "dc-0f1k.24",
+                "dc-oxh8w",
             )
         };
         let cases: Vec<(&str, Vec<AutoValue>, &[&str], Option<AutoError>)> = vec![
@@ -10184,6 +10184,55 @@ fn dc_p7gpy_refusals_cite_open_beads() {
     assert!(
         matches!(&calc_in_udf, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-1nbp.6"),
         "Application.Calculation without UserView.settings must cite dc-1nbp.6: {calc_in_udf:?}"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_p7gpy_remaining_host_and_automation_refusals_cite_open_beads() {
+    // 1. automation.rs busy() -> dc-oxh8w (was closed dc-0f1k.24)
+    let busy = calc_host::automation::busy();
+    assert!(
+        matches!(&busy, AutoError::NotModelled { owner, .. } if *owner == "dc-oxh8w"),
+        "automation::busy() must cite open dc-oxh8w: {busy:?}"
+    );
+
+    // 2. automation.rs fallback unmodelled member -> dc-oxh8w (was closed dc-1nbp.5)
+    let (_host, model, _) = blank_report();
+    let app = model.application();
+    let unknown = invoke(&model, &app, "Interactive", vec![]);
+    assert!(
+        matches!(&unknown, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-oxh8w"),
+        "unmodelled fallback member must cite open dc-oxh8w: {unknown:?}"
+    );
+
+    // 3. report.rs ListObjects.Add unsupported SourceType -> dc-piw0 (was closed dc-piw0.1)
+    let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
+    let lists = obj(invoke(&model, &sheet, "ListObjects", vec![]).unwrap());
+    let bad_list = invoke_kind(&model, &lists, "Add", InvokeKind::Method, vec![AutoValue::I4(0)]);
+    assert!(
+        matches!(&bad_list, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-piw0"),
+        "ListObjects.Add unsupported SourceType must cite open dc-piw0: {bad_list:?}"
+    );
+
+    // 4. report_draw.rs AddShape unsupported type -> dc-zjsg (was closed dc-piw0.3)
+    let shapes = obj(invoke(&model, &sheet, "Shapes", vec![]).unwrap());
+    let bad_shape = invoke_kind(
+        &model,
+        &shapes,
+        "AddShape",
+        InvokeKind::Method,
+        vec![
+            AutoValue::I4(999),
+            AutoValue::R8(0.0),
+            AutoValue::R8(0.0),
+            AutoValue::R8(50.0),
+            AutoValue::R8(50.0),
+        ],
+    );
+    assert!(
+        matches!(&bad_shape, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-zjsg"),
+        "Shapes.AddShape unsupported kind must cite open dc-zjsg: {bad_shape:?}"
     );
 }
 

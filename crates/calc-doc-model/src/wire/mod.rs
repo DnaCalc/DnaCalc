@@ -289,7 +289,7 @@ impl fmt::Display for EncodeError {
             ),
             EncodeError::PageSetup { operation } => write!(
                 f,
-                "page setup changes in operation {operation} are not modelled by wire version 1 (dc-971p.56)"
+                "page setup changes in operation {operation} are not modelled by wire version 1 (dc-971p)"
             ),
             EncodeError::Pivots { operation } => write!(
                 f,
@@ -297,7 +297,7 @@ impl fmt::Display for EncodeError {
             ),
             EncodeError::Charts { operation } => write!(
                 f,
-                "chart changes in operation {operation} are not modelled by this wire version (dc-e5z5)"
+                "chart changes in operation {operation} are not modelled by this wire version (dc-zjsg)"
             ),
             EncodeError::ReviewNotes { operation } => write!(
                 f,

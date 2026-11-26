@@ -889,7 +889,7 @@ pub(super) fn finish(
                     Some((r, c))
                 };
                 let Some(origin) = origin else {
-                    return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"The original box of a moved note was deleted by an axis edit (dc-971p.38)".into()});
+                    return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"The original box of a moved note was deleted by an axis edit (dc-971p)".into()});
                 };
                 if origin != (new.at.row(), new.at.column()) {
                     shape_moves.insert(origin, (new.at.row(), new.at.column()));
@@ -897,7 +897,7 @@ pub(super) fn finish(
             }
         }
         if !shape_moves.is_empty() && moves[index].is_some() {
-            return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"Note box permutations combined with row or column edits are not modelled (dc-971p.38); save and reopen between them".into()});
+            return Err(SaveRefusal::InvalidPart{part:sheet.part().name().into(),detail:"Note box permutations combined with row or column edits are not modelled (dc-971p); save and reopen between them".into()});
         }
         let previous_positions = previous_positions
             .into_iter()
@@ -1306,7 +1306,7 @@ fn move_note_shapes(
         if !destinations.insert(moves.get(&shape.at).copied().unwrap_or(shape.at)) {
             return Err(SaveRefusal::InvalidPart {
                 part: xml.name().into(),
-                detail: "Moving note boxes would duplicate a drawing position (dc-971p.38)".into(),
+                detail: "Moving note boxes would duplicate a drawing position (dc-971p)".into(),
             });
         }
     }
@@ -1335,7 +1335,7 @@ fn move_note_shapes(
                 return Err(SaveRefusal::InvalidPart {
                     part: xml.name().into(),
                     detail:
-                        "Moving the original note box outside the grid is unavailable (dc-971p.38)"
+                        "Moving the original note box outside the grid is unavailable (dc-971p)"
                             .into(),
                 });
             }
@@ -1360,7 +1360,7 @@ fn move_note_shapes(
         }
     }
     if moves.keys().any(|at| !found.contains(at)) {
-        return Err(SaveRefusal::InvalidPart{part:xml.name().into(),detail:"An original note box is unavailable; sorting cannot replace it with a default (dc-971p.38)".into()});
+        return Err(SaveRefusal::InvalidPart{part:xml.name().into(),detail:"An original note box is unavailable; sorting cannot replace it with a default (dc-971p)".into()});
     }
     // VML ClientData fields may appear in any source order. Splice consumes source bytes
     // monotonically, so order all replacements by byte position after validating every shape.
@@ -1388,7 +1388,7 @@ pub(crate) fn check_note_shapes(
     if positions.len() != originals.len() || positions != shapes.iter().map(|s| s.at).collect() {
         return Err(SaveRefusal::InvalidPart {
             part: xml.name().into(),
-            detail: "Original notes and their boxes do not have one complete identity (dc-971p.38)"
+            detail: "Original notes and their boxes do not have one complete identity (dc-971p)"
                 .into(),
         });
     }
@@ -1418,7 +1418,7 @@ pub(crate) fn sorted_links(
     use crate::load::manifest::tree;
     let invalid = || SaveRefusal::InvalidPart {
         part: original.name().into(),
-        detail: "The original hyperlink fields cannot follow sorting (dc-971p.38)".into(),
+        detail: "The original hyperlink fields cannot follow sorting (dc-971p)".into(),
     };
     let root = tree(original).map_err(|_| invalid())?;
     let containers = root

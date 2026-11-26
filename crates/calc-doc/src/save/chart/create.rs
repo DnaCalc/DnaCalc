@@ -18,7 +18,7 @@ fn invalid(part: &str, detail: &str) -> SaveRefusal {
     SaveRefusal::ChartNotModelled {
         part: part.into(),
         detail: detail.into(),
-        owner: "dc-971p.49",
+        owner: "dc-zjsg",
     }
 }
 
@@ -70,7 +70,7 @@ pub(crate) fn render(chart: &Chart) -> Result<Vec<u8>, SaveRefusal> {
     let combo = category_combination(&chart.plots);
     if chart.plots.len() != 1 && !combo {
         return Err(fail(
-            "Use one supported plot or up to three distinct vertical category plots (dc-971p.51)",
+            "Use one supported plot or up to three distinct vertical category plots (dc-zjsg)",
         ));
     }
     if chart.plots.iter().map(|p| p.series.len()).sum::<usize>() > 255 {

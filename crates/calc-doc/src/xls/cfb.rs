@@ -365,7 +365,7 @@ impl<'a> Compound<'a> {
             insert(&mut root, &relative, Node::Stream(data));
         }
         super::cfb_write::write(root).map(Some).ok_or_else(|| {
-            CfbError("the extracted compound storage exceeds the sector writer limit (dc-4j0e.1)".to_owned())
+            CfbError("the extracted compound storage exceeds the sector writer limit (dc-4j0e)".to_owned())
         })
     }
 

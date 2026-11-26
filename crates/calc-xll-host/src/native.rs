@@ -383,7 +383,7 @@ impl Module {
         if attempted.0.contains(&digest)
             || runtime.as_ref().is_some_and(|p| attempted.1.contains(p))
         {
-            return Err("dc-snz.18: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host".into());
+            return Err("dc-snz.2: reinitializing a packed Native AOT runtime already attempted in this process is not modelled; restart the host".into());
         }
         attempted.0.insert(digest);
         if let Some(path) = runtime {
@@ -1325,8 +1325,6 @@ impl fmt::Debug for XllFunction {
 pub(crate) fn refuse_native_error(context: &mut dyn UserFunctionContext, why: &str) {
     for (prefix, owner) in [
         ("dc-snz.2:", "dc-snz.2"),
-        ("dc-snz.18:", "dc-snz.18"),
-        ("dc-snz.20:", "dc-snz.20"),
         ("dc-snz.23:", "dc-snz.23"),
     ] {
         if why.starts_with(prefix) {

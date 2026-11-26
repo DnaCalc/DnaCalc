@@ -4,7 +4,7 @@ use crate::{AutoArray, AutoError, AutoValue, Call, Descriptor, Handler, Handlers
 use calc_func::{EvalServices, FunctionCallScratch, FunctionFault, Notation, PreparedArguments};
 use calc_value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
-const OWNER: &str = "dc-1nbp.5";
+const OWNER: &str = "dc-oxh8w";
 
 /// Register the WorksheetFunction members for a profile, with its call and Application handlers.
 pub fn register<C>(
