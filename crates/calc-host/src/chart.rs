@@ -2166,7 +2166,7 @@ pub(crate) fn prepare_create_empty(
 }
 
 /// Whether the file the workbook was opened from holds the chart part (on any sheet).
-fn file_held(host: &HostState, part: &str) -> bool {
+pub(crate) fn file_held(host: &HostState, part: &str) -> bool {
     host.loaded().model().definitions().all_charts().any(|(_, held)| held.iter().any(|c| c.part == part))
 }
 
@@ -2502,8 +2502,10 @@ fn assemble(
     Ok(vec![crate::CellEdit::Charts { sheet, charts }])
 }
 
-/// A chart this session made takes a name and a place on the sheet. A chart the file holds keeps
-/// its frame (the save writes only new frames).
+pub(crate) const FILE_HELD_FRAME_OWNER: &str = "dc-oxh8w.59";
+
+/// Sheet commands can name and place charts created in this session. File-held chart frame
+/// setters still need Excel readback of the drawing changes.
 pub(crate) fn prepare_frame(
     host: &HostState,
     sheet: SheetId,
@@ -2523,7 +2525,9 @@ pub(crate) fn prepare_frame(
         .position(|c| c.part == part)
         .ok_or_else(|| fail("The chart no longer exists"))?;
     if file_held(host, part) {
-        return Err(fail("A chart the file holds keeps its name and place"));
+        return Err(format!(
+            "A chart the file holds keeps its name and place ({FILE_HELD_FRAME_OWNER})"
+        ));
     }
     if let Some(name) = name {
         if name.is_empty()
