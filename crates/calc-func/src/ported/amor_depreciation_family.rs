@@ -200,6 +200,21 @@ fn high_rate_charge(value: f64) -> f64 {
     whole.text().parse().expect("a decimal depreciation charge")
 }
 
+// Excel 20527 uses the annual charge for period zero when the prorated
+// charge overflows. The coefficient transitions follow the rounded-up
+// duration, with the transition at four one binary64 step below 1/4.
+fn first_period_overflow_charge(cost: f64, salvage: f64, rate: f64) -> f64 {
+    let coefficient = if rate < 1.0 / 6.0 {
+        2.5
+    } else if rate < 0.25_f64.next_down() {
+        2.0
+    } else {
+        1.5
+    };
+    let charge = (cost * (rate * coefficient)).min(cost - salvage);
+    high_rate_charge(charge)
+}
+
 fn amordegrc_high_rate(
     cost: f64,
     salvage: f64,
@@ -321,13 +336,17 @@ pub fn amordegrc_kernel(
                 cost, salvage, normalized_period, adjusted_rate, first_charge, purchase == first,
             ));
         }
+        if normalized_period == 0 {
+            return Ok(first_period_overflow_charge(cost, salvage, rate));
+        }
     }
     let depreciation_rate = rate * coefficient;
-    // Excel 20527 caps the finite initial charge at the rounded depreciable
-    // amount. Its overflow path is different and is not yet identified.
+    // Excel 20527 caps the finite initial charge at the rounded depreciable amount.
     let first_depreciation = round_half_away_from_zero(cost * depreciation_rate * initial_fraction);
     let first_depreciation = if first_depreciation.is_finite() {
         first_depreciation.min(round_half_away_from_zero(cost - salvage))
+    } else if normalized_period == 0 {
+        return Ok(first_period_overflow_charge(cost, salvage, rate));
     } else {
         first_depreciation
     };

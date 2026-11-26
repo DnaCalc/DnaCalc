@@ -569,6 +569,31 @@ fn amordegrc_orders_errors_and_refuses_unrecorded_fractional_state() {
     }
 }
 
+/// Excel 20527 falls back to a capped annual charge when the first-period
+/// depreciation overflows. Adjacent rates straddle a coefficient boundary.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn amordegrc_first_period_overflow_uses_the_annual_charge() {
+    for (cost, salvage, rate, basis, expected) in [
+        (1e307, 5e306, 0.1, 0.0, 2.5e306),
+        (1e307, 5e306, 0.49, 0.0, 5e306),
+        (1.25e307, 0.0, 0.25_f64.next_down().next_down(), 0.0, 6.25e306),
+        (1.25e307, 0.0, 0.25_f64.next_down(), 0.0, 4.6875e306),
+        (1.25e307, 0.0, 0.25, 3.0, 4.6875e306),
+    ] {
+        exact(
+            dated(
+                "AMORDEGRC",
+                [cost, 1.0, 2958465.0, salvage, 0.0, rate, basis]
+                    .into_iter()
+                    .map(n)
+                    .collect(),
+            ),
+            expected,
+        );
+    }
+}
+
 /// Excel 20527's finite high-rate charge and its equal-date and unequal-date schedules.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
