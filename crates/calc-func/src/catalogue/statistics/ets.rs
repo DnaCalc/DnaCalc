@@ -1698,10 +1698,6 @@ pub(super) fn evaluate(
     }
     let y = vector(site, args, offset, sv)?;
     let t = vector(site, args, offset + 1, sv)?;
-    // Excel checks paired vector lengths before the scalar option domains.
-    if y.len() != t.len() {
-        return fail(WorksheetErrorCode::NA);
-    }
     let statistic = if output == Output::Statistic {
         num(site, args, 2)?
     } else {
@@ -1725,6 +1721,11 @@ pub(super) fn evaluate(
     let completion_at = option_start + usize::from(output != Output::Seasonality);
     let completion = opt(site, args, completion_at, 1.0)?;
     let aggregation = opt(site, args, completion_at + 1, 1.0)?;
+    // Excel coerces scalar options before comparing vector lengths. Numeric
+    // option domains are checked after the length comparison (dc-j9k.415).
+    if y.len() != t.len() {
+        return fail(WorksheetErrorCode::NA);
+    }
     if statistic.fract() != 0.0 || !(1.0..=8.0).contains(&statistic)
         || !(0.0..1.0).contains(&confidence)
         // Bisection locates the last admitted integer period at 8784; the
