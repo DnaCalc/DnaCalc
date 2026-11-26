@@ -15,14 +15,21 @@ fn roman_value(ch: char) -> Option<i64> {
 }
 
 pub fn arabic_kernel(text: &ExcelText) -> Result<f64, WorksheetErrorCode> {
-    let s = String::from_utf16_lossy(text.utf16_code_units()).to_uppercase();
-    if s.is_empty() {
-        return Ok(0.0);
+    let units = text.utf16_code_units();
+    if units.len() > 255 {
+        return Err(WorksheetErrorCode::Value);
     }
+    let text = String::from_utf16_lossy(units);
+    let trimmed = text.trim_matches([' ', '\t', '\r', '\n']);
+    let (sign, numerals) = match trimmed.strip_prefix('-') {
+        Some("") => return Err(WorksheetErrorCode::Num),
+        Some(numerals) => (-1, numerals),
+        None => (1, trimmed),
+    };
     let mut total = 0i64;
     let mut prev = 0i64;
-    for ch in s.chars().rev() {
-        let value = roman_value(ch).ok_or(WorksheetErrorCode::Value)?;
+    for ch in numerals.chars().rev() {
+        let value = roman_value(ch.to_ascii_uppercase()).ok_or(WorksheetErrorCode::Value)?;
         if value < prev {
             total -= value;
         } else {
@@ -30,7 +37,7 @@ pub fn arabic_kernel(text: &ExcelText) -> Result<f64, WorksheetErrorCode> {
             prev = value;
         }
     }
-    Ok(total as f64)
+    Ok((total * sign) as f64)
 }
 
 #[cfg(test)]

@@ -218,14 +218,13 @@ ported_shared_family! {
     }
     45 seriessum |s, a, sv| {
         let x = super::kit::num_without_logical(s, a, 0)?;
-        let n = super::kit::num_without_logical(s, a, 1)?;
+        let mut exponent = super::kit::num_without_logical(s, a, 1)?;
         let m = super::kit::num_without_logical(s, a, 2)?;
         let coefficients = grid(s, a, 3, sv)?;
         let mut sum = 0.0;
-        for (i, cell) in coefficients.cells.iter().enumerate() {
+        for cell in &coefficients.cells {
             reject_logical(cell)?;
             let c = s.number_argument(3, cell)?;
-            let exponent = n + (i as f64) * m;
             // SERIESSUM shares the integer power graph but discards a
             // fractional power of a negative base. It does not accept POWER's
             // odd-root extension. The power is stored (and tiny values flushed)
@@ -237,6 +236,8 @@ ported_shared_family! {
             };
             let power = if power.abs() < f64::MIN_POSITIVE { 0.0 } else { power };
             sum += k::excel_numeric::excel_x87_mul(c, power);
+            // Excel stores the PC64 addition before evaluating the next power (dc-j9k.468).
+            exponent = k::excel_numeric::excel_x87_add(exponent, m);
         }
         s.number(sum)
     }

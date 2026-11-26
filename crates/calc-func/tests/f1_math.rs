@@ -416,6 +416,21 @@ fn numeral_systems() {
     error(call("DECIMAL", vec![t("FF"), n(10.0)]), Num);
 }
 
+/// Excel 16.0.20625, dc-j9k.413: ARABIC validates the original length and trims worksheet whitespace.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn arabic_trims_boundary_whitespace_before_parsing() {
+    for (input, expected) in [("  \n", 0.0), ("\r\n", 0.0), ("\tIV\r", 4.0), (" -iV \n", -4.0)] {
+        exact(call("ARABIC", vec![t(input)]), expected);
+    }
+    error(call("ARABIC", vec![t(" - ")]), Num);
+    for input in ["I\nV", "- IV", "\u{000c}IV", "\u{00a0}IV", "ı"] {
+        error(call("ARABIC", vec![t(input)]), Value);
+    }
+    exact(call("ARABIC", vec![t(&"I".repeat(255))]), 255.0);
+    error(call("ARABIC", vec![t(&format!("{}\n", "I".repeat(255)))]), Value);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn series_and_paired_sums() {
@@ -456,6 +471,28 @@ fn series_and_paired_sums() {
     exact(call("SUMX2PY2", vec![x.clone(), y.clone()]), 18.0);
     exact(call("SUMXMY2", vec![x.clone(), y]), 2.0);
     error(call("SUMXMY2", vec![x, arr(vec![vec![1.0]])]), NA);
+}
+
+/// Touchstone Excel 16.0.20625 (dc-j9k.468): SERIESSUM stores each exponent after adding the step.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn seriessum_advances_the_stored_exponent() {
+    let coefficients = [
+        0xc08a_5314_daab_a989,
+        0x4081_3cfc_7f8b_f780,
+        0x407a_1365_7707_d9b8,
+    ]
+    .map(f64::from_bits);
+    exact(
+        call("SERIESSUM", vec![n(100_000.0), n(-30.0), n(0.005), col(&coefficients)]),
+        f64::from_bits(0x2145_7c70_dd1c_9158),
+    );
+
+    let just_above_half_ulp = f64::from_bits(0x3ca0_0000_0000_0001);
+    exact(
+        call("SERIESSUM", vec![n(1e100), n(1.0), n(just_above_half_ulp), col(&[0.0, 1.0])]),
+        1e100,
+    );
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
