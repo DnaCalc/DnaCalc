@@ -208,6 +208,9 @@ pub struct WorkbookAutomation {
     window_states: RefCell<HashMap<u64, i32>>,
     /// The protection a macro set on each sheet (`None`: it unprotected a sheet the file protects) (dc-oxh8w.68).
     sheet_protect: RefCell<HashMap<SheetId, Option<protection::SheetProtect>>>,
+    /// The rows an in-place `AdvancedFilter` hid, by sheet, with the sheet's row and column insertions and deletions
+    /// counted then (dc-hduqd): FilterMode and ShowAllData read it; a structural edit since drops it.
+    in_place: RefCell<HashMap<SheetId, (usize, std::collections::BTreeSet<u32>)>>,
     /// Stable handles for `ObjectKey::Style { index }`: each entry is `(xf_id, folded_name)` so
     /// deleting an earlier style neither shifts live handles nor aliases a deleted handle.
     style_handles: RefCell<Vec<(u32, String)>>,
@@ -365,6 +368,7 @@ impl WorkbookAutomation {
             window_captions: RefCell::new(HashMap::new()),
             window_states: RefCell::new(HashMap::new()),
             sheet_protect: RefCell::new(HashMap::new()),
+            in_place: RefCell::new(HashMap::new()),
             style_handles: RefCell::new(Vec::new()),
         }
     }
