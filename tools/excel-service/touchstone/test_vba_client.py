@@ -1,19 +1,13 @@
 """The VBA client through the socket broker and its stand-in worker."""
-import base64
-import hashlib
 import unittest
 from unittest.mock import patch
 
 from test_touchstone import ONE, TWO, number, start_broker, vba_group
 
-import vba_fixtures
 from touchstone import client, protocol
 
 
-CASE = {key: value for key, value in vba_group()["v"][0].items() if key != "workbook"}
-# The stand-in never opens the package, but the admission policy checks it against the case's modules, so
-# this is the committed CalcDoc build (vba_fixtures.py).
-FAKE_WORKBOOK = base64.b64decode(vba_fixtures.workbook(CASE))
+CASE = vba_group()["v"][0]
 
 
 class VbaClientTests(unittest.TestCase):
@@ -34,11 +28,9 @@ class VbaClientTests(unittest.TestCase):
 
     def test_vba_case_returns_ordered_calls_cells_and_events(self):
         conn = self.connect()
-        with patch.object(client, "_build_vba_workbook", return_value=FAKE_WORKBOOK):
-            reply = conn.vba_case(CASE, timeout=10)
-            error_case = dict(CASE, calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])
-            error_reply = conn.vba_case(error_case, timeout=10)
-        self.assertEqual(reply["workbook_sha256"], hashlib.sha256(FAKE_WORKBOOK).hexdigest())
+        reply = conn.vba_case(CASE, timeout=10)
+        error_case = dict(CASE, calls=[{"procedure": "Probes.Probe", "args": [number(TWO)]}])
+        error_reply = conn.vba_case(error_case, timeout=10)
         self.assertEqual(len(reply["source_sha256"]), 64)
         self.assertEqual(reply["source_sha256"], error_reply["source_sha256"])
         self.assertNotEqual(reply["request_sha256"], error_reply["request_sha256"])
@@ -55,18 +47,16 @@ class VbaClientTests(unittest.TestCase):
         conn = self.connect()
         case = dict(CASE, modules=[dict(CASE["modules"][0],
                                         source="Public Function Probe()\nShell \"calc\"\nEnd Function\n")])
-        with patch.object(client, "_build_vba_workbook", return_value=FAKE_WORKBOOK):
-            with self.assertRaises(client.ServiceError) as caught:
-                conn.vba_case(case, timeout=10)
+        with self.assertRaises(client.ServiceError) as caught:
+            conn.vba_case(case, timeout=10)
         self.assertEqual(caught.exception.response["code"], "refused")
         self.assertIn("Shell", str(caught.exception))
 
     def test_vba_deadline_keeps_the_worker_reason(self):
         conn = self.connect()
         case = dict(CASE, calls=[{"procedure": "Probes.Probe", "args": [number("402a000000000000")]}])
-        with patch.object(client, "_build_vba_workbook", return_value=FAKE_WORKBOOK):
-            with self.assertRaises(client.ServiceError) as caught:
-                conn.vba_case(case, timeout=10)
+        with self.assertRaises(client.ServiceError) as caught:
+            conn.vba_case(case, timeout=10)
         self.assertEqual(caught.exception.response.get("code"), "excel-deadline")
         self.assertIn("excel-deadline", str(caught.exception))
 

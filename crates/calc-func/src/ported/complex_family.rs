@@ -153,6 +153,18 @@ impl ParsedComplex {
     pub(crate) fn abs(self) -> f64 {
         crt_hypot(self.re, self.im)
     }
+    pub(crate) fn worksheet_abs(self) -> f64 {
+        // IMABS scales by the larger magnitude before squaring the ratio
+        // (dc-j9k.522, Touchstone Excel 16.0.20625.20108).
+        let re = self.re.abs();
+        let im = self.im.abs();
+        let large = re.max(im);
+        if large == 0.0 {
+            return 0.0;
+        }
+        let ratio = re.min(im) / large;
+        large * (1.0 + ratio * ratio).sqrt()
+    }
     pub(crate) fn argument(self) -> Result<f64, WorksheetErrorCode> {
         let re = normalize_zero(self.re);
         let im = normalize_zero(self.im);

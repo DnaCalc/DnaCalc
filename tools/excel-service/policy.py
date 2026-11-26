@@ -8,7 +8,7 @@ import re
 import time
 
 from client import from_bits
-from vba_package import verify_vba_workbook
+from vba_grammar import check_modules, RULES as VBA_RULES, escape as vba_escape
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_CALLS = 20000
@@ -232,135 +232,43 @@ CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
 VBA_FRAME_BUDGET = 40 * 1024     # touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
-VBA_RULES = json.loads(Path(__file__).with_name("vba-probe-policy.json").read_text(encoding="ascii"))
 VBA_IDENTIFIER = re.compile(VBA_RULES["identifier"])
-VBA_LEX = re.compile(VBA_RULES["lex"])
-VBA_WORDS = set(VBA_RULES["words"].split()) | set(VBA_RULES["objects"].split())
-VBA_MEMBERS = set(VBA_RULES["members"].split())
-VBA_DECLARES = set(VBA_RULES["declares"].split())
-VBA_REFUSED = set(VBA_RULES["refused"].split())
-VBA_UNDECLARABLE = set(VBA_RULES["undeclarable"].split())
+VBA_SHEET_NAME = re.compile(VBA_RULES["sheet_name"])
+VBA_DEFINED_NAME = re.compile(VBA_RULES["defined_name"])
+VBA_FORMULA_START = VBA_RULES["formula_chars"]
 VBA_BLOCKED_FUNCTIONS = {name.upper() for name in VBA_RULES["blocked_functions"].split()}
-VBA_STRING_LITERAL = re.compile(r'"(?:[^"]|"")*"')
+VBA_BLOCKED_PREFIXES = tuple(name.upper() for name in VBA_RULES["blocked_function_prefixes"].split())
+# A layout formula, read left to right: a quoted sheet name or a string literal (whichever starts first), then code.
+VBA_FORMULA_TOKEN = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
 VBA_FUNCTION_CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
-VBA_CLASSES = {f'"{name.lower()}"' for name in VBA_RULES["classes"]}
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
 
 
-def _probe_tokens(source):
-    if (not isinstance(source, str) or not 1 <= formula_chars(source) <= VBA_RULES["max_module_chars"]
-            or any(ch < " " and ch not in "\t\r\n" or ch == "\x7f"
-                   or "\ud800" <= ch <= "\udfff" or ord(ch) > 0xffff for ch in source)):
-        raise ValueError("invalid or oversized VBA module source")
-    tokens = []
-    for token in VBA_LEX.findall(source):
-        if token.startswith("'") or token[0] in " \t":
-            continue
-        tokens.append("\n" if token == "\r\n" else token)
-    return tokens
-
-
-def _check_probe_source(source, modules):
-    tokens = _probe_tokens(source)
-    folded = [t.lower() for t in tokens]
-    procedures = {t for i, (previous, t) in enumerate(zip(folded, folded[1:]))
-                  if previous in ("sub", "function") and (not i or folded[i-1] not in ("private", "end"))
-                  and VBA_IDENTIFIER.fullmatch(t)}
-    # Name the forbidden construct even when other tokens in the statement are out of scope.
-    for i, word in enumerate(folded):
-        if word in VBA_REFUSED:
-            name = "Workbooks.Open" if word == "workbooks" and folded[i+1:i+3] == [".", "open"] else tokens[i]
-            raise ValueError(f"VBA construct refused: {name}")
-        if word == "createobject":
-            if (i + 3 >= len(folded) or folded[i+1] != "("
-                    or folded[i+2] not in VBA_CLASSES or folded[i+3] != ")"
-                    or i > 0 and folded[i-1] == "."):
-                raise ValueError("VBA construct refused: CreateObject requires one listed literal class")
-    # A declared name is visible only in its procedure (module-level names and procedure names in the
-    # whole module), and must be a VBA identifier that is not a keyword, a global or a refused name.
-    module_names, scopes, scope_of = set(), [], []
-    current = None
-    for i, word in enumerate(folded):
-        previous = folded[i-1] if i else "\n"
-        if word in ("sub", "function") and previous not in ("end", "exit") and i + 1 < len(folded):
-            name = _declared_name(tokens, i + 1)
-            module_names.add(name.lower())
-            current = {name.lower()}
-            scopes.append(current)
-            if i + 2 < len(folded) and folded[i+2] == "(":
-                for parameter in _probe_parameters(folded, i + 3):
-                    current.add(_declared_name(tokens, folded.index(parameter, i + 3)).lower())
-        elif word in ("sub", "function") and previous == "end":
-            scope_of.append(current)
-            current = None
-            continue
-        else:
-            names = None
-            if word in ("dim", "const") or word in ("private", "public") and i + 1 < len(folded) and (
-                    folded[i+1] not in ("sub", "function", "const", "declare", "dim")):
-                names = _declaration_names(tokens, folded, i + 1)
-            elif word in ("private", "public"):
-                pass
-            if names:
-                (current if current is not None else module_names).update(names)
-        scope_of.append(current)
-    for i, token in enumerate(tokens):
-        word = folded[i]
-        if token.startswith('"') and len(token) > 1 or token[0] in "0123456789" or word.startswith("&h"):
-            continue
-        if token in {".", ":", "=", "<", ">", "+", "-", "*", "/", "\\", "^", "&", "(", ")", ",", "\n"}:
-            continue
-        allowed = (VBA_MEMBERS if i and folded[i-1] == "." else
-                   VBA_WORDS | VBA_DECLARES | module_names | (scope_of[i] or set()) | modules | {"createobject", "me"})
-        if word not in allowed:
-            raise ValueError(f"VBA construct refused: {token}")
-    return procedures
-
-
-def _declared_name(tokens, at):
-    name = tokens[at]
-    word = name.lower()
-    if (not VBA_IDENTIFIER.fullmatch(name) or word in VBA_REFUSED or word in VBA_UNDECLARABLE
-            or word in VBA_WORDS or word in VBA_DECLARES):
-        raise ValueError(f"VBA construct refused: {name}")
-    return name
-
-
-def _declaration_names(tokens, folded, start):
-    """The variable names after Dim, Const, Private or Public: `a As Long, b = 2, c(3)`."""
-    names, depth, expect_name = set(), 0, True
-    for i in range(start, len(tokens)):
-        token = tokens[i]
-        if token in ("\n", ":") and depth == 0:
+def vba_layout_scan(formula):
+    """The code of a layout formula with quoted sheet names and string literals set aside, or a ValueError."""
+    code, at = [], 0
+    while at < len(formula):
+        quote = min((i for i in (formula.find("'", at), formula.find('"', at)) if i >= 0), default=-1)
+        if quote < 0:
+            code.append(formula[at:])
             break
-        if token == "(":
-            depth += 1
-        elif token == ")":
-            depth -= 1
-        elif depth == 0 and token == ",":
-            expect_name = True
-        elif depth == 0 and expect_name:
-            names.add(_declared_name(tokens, i).lower())
-            expect_name = False
-    return names
-
-
-def _probe_parameters(tokens, start):
-    """Names in a procedure header, including parameters with implicit ByRef."""
-    depth, expect_name = 1, True
-    for token in tokens[start:]:
-        if token == "\n" or token == ")" and depth == 1:
-            return
-        if token == "(":
-            depth += 1
-        elif token == ")":
-            depth -= 1
-        elif depth == 1 and token == ",":
-            expect_name = True
-        elif depth == 1 and expect_name and token not in ("byval", "byref"):
-            if VBA_IDENTIFIER.fullmatch(token):
-                yield token
-            expect_name = False
+        code.append(formula[at:quote])
+        match = VBA_FORMULA_TOKEN.match(formula, quote)
+        if not match:
+            raise ValueError("VBA layout formulas refuse an unterminated quote")
+        if match.group()[0] == "'":
+            name = match.group()[1:-1]
+            if not VBA_SHEET_NAME.fullmatch(name):
+                raise ValueError("VBA layout formulas refuse a quoted name that is not a plain sheet name")
+            code.append("Q!")
+            at = match.end()
+            if formula[at:at + 1] != "!":
+                raise ValueError("VBA layout formulas refuse a quoted name that is not a sheet reference")
+            at += 1
+        else:
+            code.append('""')
+            at = match.end()
+    return "".join(code)
 
 
 def _vba_address(address):
@@ -522,42 +430,34 @@ class Admission:
                 or set(group) - {"f", "k", "n", "v", "o", "i"}):
             raise ValueError("a VBA group contains one VBA case")
         case = values[0]
-        if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "workbook", "calls", "readback", "event_log"}:
+        # No workbook travels with the case: the worker builds the package from the modules it checked.
+        if not isinstance(case, dict) or set(case) != {"sheets", "names", "modules", "calls", "readback", "event_log"}:
             raise ValueError("invalid VBA case fields")
         if len(json.dumps(group, separators=(",", ":"), sort_keys=True)) > VBA_FRAME_BUDGET:
             raise ValueError("a VBA case must fit one submit frame (the 40 KiB frame budget)")
         modules = case["modules"]
         if not isinstance(modules, list) or not 1 <= len(modules) <= VBA_RULES["max_modules"]:
             raise ValueError("invalid VBA module count")
-        by_name = {}
-        source_chars = 0
+        sheets = case["sheets"]
+        if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
+            raise ValueError("invalid VBA sheet count")
+        triples, source_chars = [], 0
         for module in modules:
             if not isinstance(module, dict) or set(module) != {"name", "kind", "source"}:
                 raise ValueError("invalid VBA module fields")
             name, kind, source = module["name"], module["kind"], module["source"]
-            if (not isinstance(name, str) or not VBA_IDENTIFIER.fullmatch(name)
-                    or kind not in ("standard", "document") or name.lower() in by_name):
+            if not isinstance(name, str) or kind not in ("standard", "document"):
                 raise ValueError("invalid or duplicate VBA module name or kind")
-            if not isinstance(source, str):
-                raise ValueError("invalid VBA module source")
+            if not isinstance(source, str) or not 1 <= formula_chars(source) <= VBA_RULES["max_module_chars"]:
+                raise ValueError("invalid or oversized VBA module source")
+            for ch in source:
+                if ch < " " and ch not in "\t\r\n" or ord(ch) > 0x7e:
+                    raise ValueError(f"VBA construct refused: {vba_escape(ch)} (a control or non-ASCII character)")
             source_chars += formula_chars(source)
-            by_name[name.lower()] = module
+            triples.append((name, kind, source))
         if source_chars > VBA_RULES["max_source_chars"]:
             raise ValueError("oversized VBA module source")
-        entry_points = set()
-        for name, module in by_name.items():
-            procedures = _check_probe_source(module["source"], by_name.keys())
-            if module["kind"] == "standard":
-                entry_points.update(f"{name}.{procedure}" for procedure in procedures)
-        workbook = case["workbook"]
-        if not isinstance(workbook, str) or not 1 <= len(workbook) <= VBA_RULES["max_workbook_chars"]:
-            raise ValueError("invalid or oversized VBA workbook")
-        try:
-            package = base64.b64decode(workbook, validate=True)
-        except (binascii.Error, ValueError):
-            package = b""
-        if not package.startswith(b"PK\x03\x04"):
-            raise ValueError("invalid VBA workbook encoding")
+        entry_points = check_modules(triples, len(sheets))
         calls = case["calls"]
         if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
             raise ValueError("invalid VBA call count")
@@ -571,14 +471,15 @@ class Admission:
                 raise ValueError("invalid VBA argument count")
             for arg in args:
                 self._range_cell(arg)
-        sheets = case["sheets"]
-        if not isinstance(sheets, list) or not 1 <= len(sheets) <= MAX_CASE_SHEETS:
-            raise ValueError("invalid VBA sheet count")
+                # Case text reaches cells through the probe's own writes: it must be data, never a formula.
+                if arg.get("type") == "text" and arg.get("value", "")[:1] in tuple(VBA_FORMULA_START):
+                    raise ValueError("VBA text arguments must not start with = + - or @")
         sheet_names = set()
         for sheet in sheets:
             if (not isinstance(sheet, dict) or not isinstance(sheet.get("name"), str)
-                    or not 1 <= len(sheet["name"]) <= 31 or sheet["name"].lower() in sheet_names
+                    or not VBA_SHEET_NAME.fullmatch(sheet["name"]) or sheet["name"].lower() in sheet_names
                     or not isinstance(sheet.get("cells", {}), dict)
+                    or set(sheet) - {"name", "cells", "hidden_rows", "hidden_columns"}
                     or not all(_vba_address(at) for at in sheet.get("cells", {}))):
                 raise ValueError("invalid or duplicate VBA layout sheet")
             sheet_names.add(sheet["name"].lower())
@@ -587,12 +488,15 @@ class Admission:
             self._check_case_layout(sheets, case["names"])
         except (AttributeError, KeyError, TypeError) as error:
             raise ValueError("invalid VBA worksheet layout") from error
-        verify_vba_workbook(package, case)
         for sheet in sheets:
             for cell in sheet.get("cells", {}).values():
                 if cell["type"] == "formula":
                     self._check_vba_layout_formula(cell["formula"])
-        for formula in case["names"].values():
+                elif cell["type"] == "text" and (not isinstance(cell.get("value"), str) or "\x00" in cell["value"]):
+                    raise ValueError("invalid VBA layout text")
+        for name, formula in case["names"].items():
+            if not VBA_DEFINED_NAME.fullmatch(name) or name.lower().startswith("auto_"):
+                raise ValueError("invalid VBA defined name")
             self._check_vba_layout_formula(formula)
         for field in ("readback", "event_log"):
             addresses = case[field]
@@ -605,12 +509,16 @@ class Admission:
 
     def _check_vba_layout_formula(self, formula):
         """A layout formula runs under CalculateFull: catalogue functions only, none that reach out."""
-        body = VBA_STRING_LITERAL.sub('""', formula)
-        if "[" in body or "\\" in body:
+        body = vba_layout_scan(formula)
+        if any(ch in body for ch in "[]\\|"):
             raise ValueError("VBA layout formulas refuse external references")
         for call in VBA_FUNCTION_CALL.findall(body):
-            name = function_name(call.upper())
-            if name in VBA_BLOCKED_FUNCTIONS or name not in self.names.arities:
+            name = call.upper()
+            while name.startswith(("_XLFN.", "_XLWS.")):
+                name = name[6:]
+            name = function_name(name)
+            if (name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES)
+                    or name not in self.names.arities):
                 raise ValueError(f"VBA layout formulas refuse the function {call}")
 
     @classmethod

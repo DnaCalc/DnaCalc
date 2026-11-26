@@ -9545,11 +9545,11 @@ fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
     assert!(protected_error(put(&range(&model, "A1"), "Locked", vec![AutoValue::Bool(false)])));
     assert!(matches!(invoke(&model, &range(&model, "A1"), "Value", vec![]).unwrap(), AutoValue::R8(n) if n == 1.0));
     put(&range(&model, "B2"), "Value", vec![AutoValue::R8(5.0)]).unwrap();
-    // A wrong or missing password is 1004 and the sheet stays protected.
-    for args in [vec![AutoValue::text("wrong")], vec![]] {
-        let r = method(&sheet, "Unprotect", args);
-        assert!(matches!(&r, Err(AutoError::Excel { number: 1004, description }) if description.contains("password you supplied is not correct")), "{r:?}");
-    }
+    // ww21 protection/observations.jsonl: wrong text raises 1004, omission opens a password dialog.
+    let wrong = method(&sheet, "Unprotect", vec![AutoValue::text("wrong")]);
+    assert!(matches!(&wrong, Err(AutoError::Excel { number: 1004, description }) if description.contains("password you supplied is not correct")), "{wrong:?}");
+    let omitted = method(&sheet, "Unprotect", vec![]);
+    assert!(matches!(&omitted, Err(AutoError::NotModelled { owner: "dc-9b7zd", .. })), "{omitted:?}");
     assert!(flag("ProtectContents"));
     method(&sheet, "Unprotect", vec![AutoValue::text("pw")]).unwrap();
     assert!(!flag("ProtectContents"));
@@ -9570,6 +9570,25 @@ fn dc_oxh8w_68__protect_unprotect_and_locked_cell_enforcement() {
     // Too many arguments are an argument-count error.
     let r = method(&sheet, "Protect", vec![AutoValue::Missing; 17]);
     assert!(matches!(r, Err(ref e) if !matches!(e, AutoError::NotModelled { .. })), "{r:?}");
+}
+
+/// ww21 protection/observations.jsonl, Excel 16.0.20625.20108: Protect accepts the integer 123
+/// as a password and Unprotect clears the protection when supplied the corresponding text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_9b7zd__protect_accepts_an_integer_password() {
+    let (_host, model, _) = blank_report();
+    let sheet = obj(invoke(&model, &model.application(), "ActiveSheet", vec![]).unwrap());
+    let protected = || invoke(&model, &sheet, "ProtectContents", vec![]).unwrap();
+    for password in [AutoValue::I2(123), AutoValue::I4(123)] {
+        invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![password]).unwrap();
+        assert!(matches!(protected(), AutoValue::Bool(true)));
+        let wrong = invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![AutoValue::text("124")]);
+        assert!(matches!(wrong, Err(AutoError::Excel { number: 1004, .. })), "{wrong:?}");
+        assert!(matches!(protected(), AutoValue::Bool(true)));
+        invoke_kind(&model, &sheet, "Unprotect", InvokeKind::Method, vec![AutoValue::text("123")]).unwrap();
+        assert!(matches!(protected(), AutoValue::Bool(false)));
+    }
 }
 
 /// dc-p3rg9: Window view state (Zoom, ScrollRow/ScrollColumn, DisplayGridlines/Headings/Formulas/Zeros/Outline)
@@ -10112,12 +10131,12 @@ fn dc_p7gpy_refusals_cite_open_beads() {
     let (_host, model, _) = blank_report();
     let app = model.application();
 
-    // 1. protection.rs: numeric Password -> dc-9b7zd (was closed dc-oxh8w.68)
+    // 1. protection.rs: fractional Password -> dc-9b7zd (was closed dc-oxh8w.68)
     let sheet = obj(invoke(&model, &app, "ActiveSheet", vec![]).unwrap());
-    let protect = invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::I4(1234)]);
+    let protect = invoke_kind(&model, &sheet, "Protect", InvokeKind::Method, vec![AutoValue::R8(123.5)]);
     assert!(
         matches!(&protect, Err(AutoError::NotModelled { owner, .. }) if *owner == "dc-9b7zd"),
-        "Protect numeric password must cite dc-9b7zd: {protect:?}"
+        "Protect fractional password must cite dc-9b7zd: {protect:?}"
     );
 
     // 2. chart_format.rs & chart_axes.rs: unstated Series.Border -> dc-yship (was closed dc-oxh8w.60);

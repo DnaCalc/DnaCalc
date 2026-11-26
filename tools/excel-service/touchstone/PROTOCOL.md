@@ -67,20 +67,33 @@ into a cell (a number, date, time, percentage or currency takes the number forma
 `"nf"`, the cell's NumberFormat after the entry (decoded as `number_format`). Send the cases of one layout together.
 
 A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
-`sheets` and `names` in the sheet-case layout shape, and the following fields.
+`sheets` and `names` in the sheet-case layout shape, and the following fields. No workbook travels with the case: the
+worker writes the source-only .xlsm itself from the checked `sheets` and `modules` (the sheet names, the `ThisWorkbook`
+and `Sheet<N>` document modules, one project stream per module), so no uploaded compound file or compressed stream is
+parsed. A case that carries a `workbook` field is refused.
 
 | Field | Value |
 | --- | --- |
 | `modules` | Ordered `{"name", "kind", "source"}` objects. A `standard` module contains callable procedures. A `document` module names `ThisWorkbook` or a sheet code name `Sheet1`, `Sheet2`, … in layout order. |
-| `workbook` | Base64 of the CalcDoc-built source-only .xlsm with the named sheets and bound document modules. |
 | `calls` | Ordered `{"procedure": "Module.Procedure", "args": [...]}` objects. Entries name public procedures in standard modules. Arguments are typed scalar numbers, text, booleans, blanks, or worksheet errors. |
 | `readback`, `event_log` | Ordered lists of `Sheet!A1` addresses. The probe's VBA writes event records to the requested cells. |
 
 The broker sends one case per batch to the designated isolation slot. Echo, serial mode, primers, add-ins, and sweep
-are unavailable on this route. The worker uses the shared source allowlist and requires a local approval for the exact
+are unavailable on this route. The worker checks probe source against one positive grammar (`vba-probe-policy.json`, read by
+`policy.py`/`vba_grammar.py` and by `VbaPolicy.cs`/`VbaGrammar.cs`): only the listed statement forms, expressions, built-in
+functions and member chains of `ThisWorkbook`, its sheets and ranges, `Scripting.Dictionary`, `VBScript.RegExp` and `Err` are
+accepted, and everything else is refused. A cell written through `.Value` or `.Value2` must be data: a number, a boolean, a
+string literal that does not start with `=`, `+`, `-` or `@`, a case argument (text arguments may not start with those
+characters either) or a concatenation of such; a value read from a cell, a dictionary or by a string function is never
+written back. There is no `Application`, `Workbooks`, `Sheets.Add`, `Worksheets.Add`, unqualified `Range`, `Evaluate`,
+`Run`, `Name ... As`, `Declare` or `CreateObject` outside the two classes. Standard module names match `[A-Z][A-Za-z0-9]{0,23}`
+and are not reserved words; document modules are `ThisWorkbook` or `Sheet<N>` for a sheet in the case, and may define only
+the listed `Worksheet_*` and `Workbook_*` event procedures. Sheet names match `[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}`. Layout formulas
+refuse `[`, `]`, `\\`, `|`, a quoted sheet name that is not a plain one, and the functions listed in `blocked_functions`
+(including `IMPORTCSV`, `IMPORTTEXT`, `INDIRECT`, `INFO`, `CELL` and `CUBE*`). The worker requires a local approval for the exact
 case before opening the workbook. On the worker host, pipe a reviewed authored case group as JSON into
 `excel-worker --check-vba-policy` to obtain its digest, then place an empty `<digest>.approved` file under
-`<state>/excel/vba-approved`. This approval covers workbook bytes, source, layout, calls, and readback addresses.
+`<state>/excel/vba-approved`. This approval covers source, layout, calls, and readback addresses.
 Reordering JSON object keys preserves the digest. A change to any case value requires a fresh approval.
 
 The worker opens the workbook read-only without updating links, applies the layout, calculates it, and enables events
@@ -93,7 +106,7 @@ report those exact values. A COM invocation failure uses the service's worker er
 
 #### Ask from Linux
 
-Save an authored case as `probe.json`. The client supplies the workbook bytes and defaults
+Save an authored case as `probe.json`. The client defaults
 `names`, `readback` and `event_log` to empty.
 
 ```json
@@ -117,7 +130,8 @@ cargo xtask vba-case prepare probe.json > probe.group.json
 cargo xtask vba-case capture probe.json --out ~/codex-runs/my-lane/vba-captures
 ```
 
-`cargo xtask vba-case build probe.json > probe.xlsm` outputs the workbook. A Python caller
+`cargo xtask vba-case build probe.json > probe.xlsm` outputs a CalcDoc workbook for local inspection; Touchstone does not
+use it. A Python caller
 can use `Connection.vba_case(case, timeout=60)` from `touchstone.client`. It returns a
 one-row reply with typed values and the Excel build, CPU, lane, and hashes. Refusals expose
 the service code in `ServiceError.response["code"]`. The source checks refuse external

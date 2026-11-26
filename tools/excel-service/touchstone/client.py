@@ -323,13 +323,12 @@ class Connection:
         return pending
 
     def vba_case(self, case, *, timeout=60, rid=None):
-        """Ask one authored VBA case using a locally built .xlsm. Return a one-row reply.
+        """Ask one authored VBA case; the Windows worker builds the .xlsm from its checked modules. Return a one-row reply.
 
         The Windows worker requires approval of the exact prepared case. Numbers in
         arguments and in the reply use the usual Touchstone binary64 hex encoding.
         """
-        workbook = _build_vba_workbook(case)
-        row = [protocol.vba_case(case, workbook)]
+        row = [protocol.vba_case(case)]
         pending = self.submit_rows(protocol.VBA_FUNCTION, [row], priority="interactive", rid=rid)
         reply = pending.result(timeout)
         answer, = reply["rows"]
@@ -352,7 +351,6 @@ class Connection:
         reply.update(
             engine=env.get("engine"), cpu=env.get("cpu"), lane=self.lane,
             source_sha256=hashlib.sha256(sources.encode("ascii")).hexdigest(),
-            workbook_sha256=hashlib.sha256(workbook).hexdigest(),
             request_sha256=hashlib.sha256(protocol.dumps(sent)).hexdigest(),
         )
         return reply
@@ -378,21 +376,6 @@ class Connection:
             self.sock.close()
         except OSError:
             pass
-
-
-def _build_vba_workbook(case):
-    """Use CalcDoc through the linked xtask harness. No workbook file is accepted from the caller."""
-    root = Path(__file__).resolve().parents[3]
-    harness = os.environ.get("DNACALC_XTASK_HARNESS")
-    command = [harness] if harness else ["cargo", "xtask"]
-    built = subprocess.run(
-        [*command, "vba-case", "build"], input=protocol.dumps(case), cwd=root,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
-    if built.returncode != 0:
-        detail = built.stderr.decode("utf-8", errors="replace").strip()
-        raise ValueError(f"CalcDoc could not build the VBA workbook: {detail}")
-    return built.stdout
 
 
 def _write_vba_capture(out, case, reply):
@@ -430,7 +413,7 @@ def _main():
     try:
         case = json.loads(args.case.read_text(encoding="utf-8"), object_pairs_hook=v1.unique_pairs)
         if args.mode == "prepare":
-            row = [protocol.vba_case(case, _build_vba_workbook(case))]
+            row = [protocol.vba_case(case)]
             group, = protocol.rows_to_groups(protocol.VBA_FUNCTION, [row])
             protocol.submit_frames("0" * 32, [group])  # check the same frame size the live client uses
             print(protocol.dumps(group).decode("ascii"))

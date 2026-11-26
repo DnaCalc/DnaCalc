@@ -39,7 +39,7 @@ static class Program
 
     static int Main(string[] args)
     {
-        if (args.Length is 1 or 2 && args[0] == "--check-vba-policy")
+        if (args.Length is 1 or 2 && args[0] is "--check-vba-policy" or "--build-vba-package")
         {
             try
             {
@@ -47,7 +47,13 @@ static class Program
                 int size = Console.In.ReadBlock(buffer, 0, buffer.Length);
                 if (size == buffer.Length) throw new RefusedVbaException("VBA policy input exceeds 64 KiB");
                 var probe = VbaPolicy.CheckGroup(Json.Parse(new string(buffer, 0, size)));
-                VbaPolicy.CheckWorkbook(probe, args.Length == 2 ? args[1] : null);
+                if (args[0] == "--build-vba-package")
+                {
+                    if (args.Length != 2) throw new RefusedVbaException("--build-vba-package needs one output path");
+                    File.WriteAllBytes(args[1], VbaPackage.Build(probe));
+                    return 0;
+                }
+                VbaPolicy.CheckApproval(probe, args.Length == 2 ? args[1] : null);
                 Console.WriteLine(VbaPolicy.CaseDigest(probe));
                 return 0;
             }
@@ -355,7 +361,7 @@ static class Program
         double gcBefore = GC.GetTotalPauseDuration().TotalMilliseconds;
         var result = new Dictionary<string, object> { ["id"] = id, ["env_id"] = X.EnvId, ["worker"] = Name, ["batch"] = ++Batches };
         Dictionary<string, object> vbaCase = null;
-        byte[] vbaWorkbook = null;
+        byte[] vbaWorkbook = null;       // built here from the checked modules; no caller's package is read
         try
         {
             var groupList = (List<object>)req["groups"];
@@ -366,7 +372,8 @@ static class Program
                 if (serial || echo || groupList.Count != 1)
                     throw new RefusedVbaException("VBA requires one case without echo or serial mode");
                 vbaCase = VbaPolicy.CheckGroup(groupList[0]);
-                vbaWorkbook = VbaPolicy.CheckWorkbook(vbaCase, Path.Combine(Root, "vba-approved"));
+                VbaPolicy.CheckApproval(vbaCase, Path.Combine(Root, "vba-approved"));
+                vbaWorkbook = VbaPackage.Build(vbaCase);
                 ValidateLayoutFormulaLengths(vbaCase);
             }
             // Drift before: recycle and report; the broker re-queues nothing it has not been told about.

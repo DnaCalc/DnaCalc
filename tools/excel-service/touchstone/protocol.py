@@ -177,14 +177,14 @@ def sheet_case(sheets, probes, names=None):
     return {"type": "sheet_case", "value": {"sheets": sheets, "names": names or {}, "probes": probes}}
 
 
-def vba_case(case, workbook):
-    """One authored VBA case and the CalcDoc-built workbook that carries its source."""
+def vba_case(case):
+    """One authored VBA case. No workbook travels with it: the worker builds the package from the modules."""
     required = {"sheets", "modules", "calls"}
     defaults = {"names": {}, "readback": [], "event_log": []}
     if not isinstance(case, dict) or not required <= case.keys() <= required.union(defaults):
         raise ValueError("VBA case needs sheets, modules and calls, with optional names, readback and event_log")
     return {"type": "vba_case", "value": {
-        **defaults, **case, "workbook": base64.b64encode(workbook).decode("ascii"),
+        **defaults, **case,
     }}
 
 
