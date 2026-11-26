@@ -5218,6 +5218,23 @@ fn erf_complements_keep_the_recorded_pc64_store() {
     }
 }
 
+/// Excel 16.0.20625, dc-j9k.406: ERFC reflects the stored positive result below one half.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn erfc_reflects_the_stored_small_positive_result() {
+    for function in ["ERFC", "ERFC.PRECISE"] {
+        for (input, expected) in [
+            (0xbed4_9262_eb48_0b2e, 0x3ff0_0005_cd9e_c3d4),
+            (0xbecd_3628_baeb_7013, 0x3ff0_0004_1ec6_5db6),
+            (0xbfdf_ffff_ffff_fffe, 0x3ff8_53f7_ae0c_76e9),
+            (0xbfe0_0000_0000_0000, 0x3ff8_53f7_ae0c_76e9),
+            (0xbfe0_0000_0000_0001, 0x3ff8_53f7_ae0c_76ea),
+        ] {
+            exact(call(function, vec![n(f64::from_bits(input))]), f64::from_bits(expected));
+        }
+    }
+}
+
 /// Recorded beta and FDIST rows, including the unit-tail logarithm and bounded
 /// coordinate separators measured on Excel build 20527 (dc-iuwct.41).
 #[cfg_attr(not(target_arch = "wasm32"), test)]
