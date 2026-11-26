@@ -258,7 +258,7 @@ ported_shared_family! {
         let text = format_complex_text(ParsedComplex::new(re, im, None), suffix).map_err(Exit::Error)?;
         Ok(text_value(&text))
     }
-    31 imabs |s, a, sv| { complex_number(s, a, |z| Ok(z.abs())) }
+    31 imabs |s, a, sv| { complex_number(s, a, |z| Ok(z.worksheet_abs())) }
     32 imaginary |s, a, sv| { complex_number(s, a, |z| Ok(z.im)) }
     33 imargument |s, a, sv| { complex_number(s, a, |z| z.argument()) }
     34 imreal |s, a, sv| { complex_number(s, a, |z| Ok(z.re)) }

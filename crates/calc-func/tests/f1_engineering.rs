@@ -34,6 +34,21 @@ fn complex_functions_distinguish_empty_text_from_blank() {
     error(call("IMPRODUCT", vec![n(1.0), t("")]), Num);
 }
 
+/// Touchstone Excel 16.0.20625.20108, dc-j9k.522.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn imabs_scales_by_the_larger_component() {
+    for (input, bits) in [
+        ("710+i", 0x4086_3001_7137_7ad9),
+        ("1+710i", 0x4086_3001_7137_7ad9),
+        ("710-1i", 0x4086_3001_7137_7ad9),
+        ("1+5i", 0x4014_6565_5f12_2ff7),
+        ("1e-308+1e-308i", 0),
+    ] {
+        exact(call("IMABS", vec![t(input)]), f64::from_bits(bits));
+    }
+}
+
 /// Excel 20527 uses circular argument reduction and rejects angles above 2^27 - 1.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
