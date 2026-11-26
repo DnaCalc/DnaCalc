@@ -1,0 +1,49 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.WorksheetAddCopy",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T13:55:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24h",
+      "source": "ww24 probe h observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Worksheets.Add.defaults",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "new workbook of one sheet; Add(); delete Sheet1 then Add(); Add(Before:=Item(1),,3)"
+      ],
+      "expected_bits": "text:Add() gives Sheet2 at index 1, active; counter keeps rising after a delete (Sheet3); Count 3 gave tabs Sheet6,Sheet5,Sheet4,Sheet3,Sheet2 with the first tab returned and active; Count 0, -1, 256 raise 1004; deleting the only visible sheet raises 1004 'A workbook must contain at least one visible worksheet'",
+      "calc_func": "text:dc-jtl4m: unmeasured"
+    },
+    {
+      "id": "Worksheet.Copy.names",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "Sheet1.Copy After:=Sheet1 twice; copy of copy; Before; 31-char name; no argument; Array copy; chart; local name/note/hyperlink/table"
+      ],
+      "expected_bits": "text:copies are Sheet1 (2) then Sheet1 (3) placed right after the source (tabs Sheet1,Sheet1 (3),Sheet1 (2)), the new copy active; copy of 'Sheet1 (2)' gives Sheet1 (4) (trailing (n) dropped); Before: lands before; 31-char ABCDEFGHIJKLMNOPQRSTUVWXYZ12345 copy is ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (2) (base cut to fit), then (3); no argument makes a new workbook with the one sheet; Array(Sheet1,Sheet2).Copy makes one new workbook of both; chart series copy reads ='Sheet1 (2)'!$A$1:$A$5; sheet-local name becomes 'Sheet1 (2)'!Loc, comment, hyperlink and table (Table13, renamed) all copied",
+      "calc_func": "text:dc-oxh8w.36: refuses local name, table, note, hyperlink typed"
+    },
+    {
+      "id": "Range.Insert.CopyOrigin",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "E40 red, E42 green, E41 blank; E41.Insert(xlDown) then CopyOrigin 1"
+      ],
+      "expected_bits": "text:Insert returns True; default takes the format of the cell above (red); CopyOrigin xlFormatFromRightOrBelow (1) leaves E41 white (format of the old E41 that moved to E42, the cell below the inserted area), E43 green",
+      "calc_func": "text:dc-oxh8w.28: old E42"
+    }
+  ]
+}

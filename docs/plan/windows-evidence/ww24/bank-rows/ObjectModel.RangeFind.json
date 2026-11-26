@@ -1,0 +1,59 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.RangeFind",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T13:55:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24h",
+      "source": "ww24 probe h observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "Find.singleCellSearchesSheet",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "Range(\"A1\").Find(\"apple\") on grid A1:C3 apple|pie|x/Apple pie|fig|12.5/banana|APPLE|=1+1"
+      ],
+      "expected_bits": "text:a single-cell range searches the whole sheet: hit A2 (not A1 only); Range(\"A1\").Find(\"pie\") hits B1",
+      "calc_func": "text:dc-oxh8w.15: searches only that cell"
+    },
+    {
+      "id": "Find.emptyStringFormula",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "Range(\"D1\").Find(\"*\",,xlValues) with D1 ==\"\"; sheet also holds text"
+      ],
+      "expected_bits": "text:single-cell range again searches the sheet (A2); empty-text-only case not separated",
+      "calc_func": "text:dc-oxh8w.15: Nothing"
+    },
+    {
+      "id": "Find.dateAndCurrencyText",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "D2=45000 yyyy-mm-dd, D3=3.5 $#,##0.00; Find in D2:D3 xlValues"
+      ],
+      "expected_bits": "text:Find(\"2023\") hits D2, Find(\"$3.50\") hits D3 (shown text), Find(\"45000\") Nothing",
+      "calc_func": "text:dc-oxh8w.15: matches Range.Text (agrees)"
+    },
+    {
+      "id": "Find.savedSettings",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "Find(\"fig\",,xlValues,xlWhole) then Find(\"pie\") then Find(\"apple\") with LookAt omitted; then Find with MatchCase True then Find(\"apple\")"
+      ],
+      "expected_bits": "text:omitted LookAt keeps xlWhole (pie hit B1, apple hit B3 = APPLE whole); after MatchCase:=True the next Find(\"apple\") hits A2 (case-insensitive part): MatchCase not saved, LookAt part restored by the call with LookAt:=xlPart",
+      "calc_func": "text:dc-oxh8w.15: unverified"
+    }
+  ]
+}

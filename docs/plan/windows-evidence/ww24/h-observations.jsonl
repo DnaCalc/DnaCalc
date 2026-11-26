@@ -1,0 +1,39 @@
+{"id":"af.noField_on","ok":true,"value":{"mode":true,"fm":false,"addr":"A1:B5"}}
+{"id":"af.noField_off","ok":true,"value":{"mode":false}}
+{"id":"af.and","ok":true,"value":{"fm":true,"hidden":"True,False,False,True"}}
+{"id":"af.showall","ok":true,"value":{"hidden":"False,False,False,False","fm":false,"mode":true}}
+{"id":"af.showall_none","ok":false,"hresult":"0x800A03EC","description":"Unable to get the ShowAllData property of the Worksheet class"}
+{"id":"af.mode_true","ok":false,"hresult":"0x800A03EC","description":"Unable to set the AutoFilterMode property of the Worksheet class"}
+{"id":"af.top10","ok":true,"value":{"hidden":"True,True,False,False"}}
+{"id":"af.values","ok":true,"value":{"hidden":"False,True,True,False"}}
+{"id":"af.field3","ok":false,"hresult":"0x800A03EC","description":"Unable to get the AutoFilter property of the Range class"}
+{"id":"af.op20","ok":false,"hresult":"0x800A03EC","description":"Unable to get the AutoFilter property of the Range class"}
+{"id":"af.top0","ok":false,"hresult":"0x800A03EC","description":"Unable to get the AutoFilter property of the Range class"}
+{"id":"af.top501","ok":false,"hresult":"0x800A03EC","description":"Unable to get the AutoFilter property of the Range class"}
+{"id":"af.top500","ok":true,"value":[true,"ok"]}
+{"id":"add.default","ok":true,"value":{"tabs":"Sheet2,Sheet1","name":"Sheet2","idx":1,"active":"Sheet2"}}
+{"id":"add.after_delete_counter","ok":true,"value":{"tabs":"Sheet3,Sheet2","name":"Sheet3"}}
+{"id":"add.count3","ok":true,"value":{"ret":"Sheet6","tabs":"Sheet6,Sheet5,Sheet4,Sheet3,Sheet2","active":"Sheet6"}}
+{"id":"add.count0","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"add.count-1","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"add.count256","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"add.chart","ok":false,"hresult":"0x800A03EC","description":"Unable to get the Add property of the Sheets class"}
+{"id":"del.only_visible","ok":false,"hresult":"0x800A03EC","description":"A workbook must contain at least one visible worksheet. \n\nTo hide, delete, or move the selected sheet(s), you must first insert a new sheet or unhide a sheet that is already hidden."}
+{"id":"names.local","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"names.item_local","ok":true,"value":"Sheet1!Local"}
+{"id":"names.unknown_sheet","ok":false,"hresult":"0x800A03EC","description":"0x800A03EC"}
+{"id":"ins.ret","ok":true,"value":true}
+{"id":"ins.default_fmt","ok":true,"value":255.0}
+{"id":"ins.copyorigin1","ok":true,"value":{"e42":16777215.0,"e43":65280.0,"e41":16777215.0}}
+{"id":"ins.shift_omitted_wide","ok":true,"value":"A1:C3"}
+{"id":"ins.shift_omitted_tall","ok":true,"value":"G1:H3"}
+{"id":"del.ret","ok":true,"value":true}
+{"id":"copy.names","ok":true,"value":{"idx":2,"tabs":"Sheet1,Sheet1 (3),Sheet1 (2)","active":"Sheet1 (3)"}}
+{"id":"copy.of_copy","ok":true,"value":{"tabs":"Sheet1,Sheet1 (4),Sheet1 (3),Sheet1 (2)"}}
+{"id":"copy.before","ok":true,"value":{"active":"Sheet1 (5)","tabs":"Sheet1 (5),Sheet1,Sheet1 (4),Sheet1 (3),Sheet1 (2)"}}
+{"id":"copy.long31","ok":true,"value":"ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (2)"}
+{"id":"copy.long31_again","ok":true,"value":"ABCDEFGHIJKLMNOPQRSTUVWXYZ1 (3)"}
+{"id":"copy.newbook","ok":true,"value":{"newbook":true,"tabs":"ABCDEFGHIJKLMNOPQRSTUVWXYZ12345","count":1}}
+{"id":"copy.chart_series","ok":true,"value":"=SERIES(,,'Sheet1 (2)'!$A$1:$A$5,1)"}
+{"id":"copy.array","ok":true,"value":{"newbook":true,"tabs":"Sheet1,Sheet2"}}
+{"id":"copy.local_name_table_note","ok":true,"value":{"comments":1,"tables":["Table13"],"name":"Sheet1 (2)","names":["'Sheet1 (2)'!Loc"],"links":1}}

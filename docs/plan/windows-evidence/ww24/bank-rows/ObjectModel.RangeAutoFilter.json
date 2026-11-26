@@ -1,0 +1,29 @@
+{
+  "format": "dnacalc-witness-set/1",
+  "function": "ObjectModel.RangeAutoFilter",
+  "selection": "text",
+  "readings": [
+    {
+      "excel_build": "16.0.20625.20108",
+      "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+      "timestamp_utc": "2026-11-26T13:55:00Z",
+      "platform": "Windows",
+      "bitness": "64",
+      "lane": "ww24",
+      "id": "ww24h",
+      "source": "ww24 probe h observations.jsonl (docs/plan/windows-evidence/ww24)"
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "AutoFilter.fieldOps",
+      "reading": "ww24h",
+      "probe": "h",
+      "args": [
+        "A1:B5 name|qty 5/15/25/35; AutoFilter() on A1 twice; Field2 >10 And <30; ShowAllData; Top10 2; FilterValues 5,35"
+      ],
+      "expected_bits": "text:no Field toggles on over A1:B5 (AutoFilterMode True, FilterMode False) then off; And hides rows 2 and 5 (FilterMode True); ShowAllData unhides, FilterMode False, AutoFilterMode True; Top10 count 2 hides rows 2,3; FilterValues 5,35 hides rows 3,4; ShowAllData with none raises 1004; AutoFilterMode=True raises 1004; Field 3, Operator 20, Top10 count 0 and 501 raise 1004, count 500 ok",
+      "calc_func": "text:dc-oxh8w.43: guesses, unmeasured"
+    }
+  ]
+}
