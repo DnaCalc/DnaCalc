@@ -1,0 +1,569 @@
+location	unit_type	summary	card_ids	note
+pro21/README.md §Intro ¶1	paragraph	The Pro 20 package is extended to **73 unique scenes**: **all 43 originals retained plus 30 additions**. There are **13 self-contained mo...	P21-0131	
+pro21/README.md §Intro ¶2	paragraph	The main addition is a computation notebook. Its visible written formula is followed immediately by its result, then the next formula and...	P21-0014,P21-0015	
+pro21/README.md §Quick start list (1-4)	list	1. Extract the entire ZIP into one folder. 2. Open **index.html** in a desktop browser. No server, installation or internet connection is...	P21-0011,P21-0014,P21-0019,P21-0033,P21-0013,P21-0012	
+pro21/README.md §Quick start ¶5	paragraph	Every scene has three to six callouts beside its 1440 × 900 product frame. Product navigation within an open document retains shared stat...	P21-0013,P21-0010	
+pro21/README.md §Computation notebook route table	table	NC01-NC07 computation notebook route table (7 rows)	P21-0014,P21-0022,P21-0024,P21-0026,P21-0027,P21-0030,P21-0031,P21-0015	
+pro21/README.md §Computation notebook route ¶2	paragraph	NC06 is an explicit alternate backing-layout scenario. It does not add an obstruction to the ordinary Sales notebook. Incomplete/unsuppor...	P21-0031,P21-0023	
+pro21/README.md §Other new scenes table	table	W01-W05, U01-U05, O01-O04, M03-M05, G01-G03, E01-E03 summary table (6 rows)	P21-0131,P21-0088,P21-0092,P21-0100,P21-0096,P21-0072,P21-0115,P21-0084	
+pro21/README.md §Files table	table	15 ZIP members inventory table	P21-0131	
+pro21/README.md §Workbook mapping ¶1	paragraph	Sales has a proposed visible **Analysis** sheet. Its raw spill is **A10:G…**; aggregates use separate lanes **J:K, M:N, Q:R and U:V**, so...	P21-0017,P21-0018,P21-0021,P21-0030	
+pro21/README.md §Workbook mapping ¶2 + table	table	Sales November 1-28 Pending/Paid/All totals table	P21-0016,P21-0120	
+pro21/README.md §Workbook mapping ¶3	paragraph	Paid descending regional rank is South, East, North, West; South exceeds East by exactly R25. GROUPBY and the one-month PIVOTBY use exact...	P21-0016,P21-0020,P21-0120	
+pro21/README.md §Workbook mapping ¶4	paragraph	The view declaration proposes namespace **urn:dnacalc:views:v1** and an optional custom-XML part. The actual free part name must be alloc...	P21-0093,P21-0125	
+pro21/README.md §State, Save and Print ¶1	paragraph	Save captures a local in-memory model/view snapshot. It does not write an XLSX/XLSM or save the complete review session. Export view sett...	P21-0095,P21-0125	
+pro21/README.md §State, Save and Print ¶2	paragraph	Print previews capture the current model and remain frozen until Refresh. Notebook requests A4 portrait and Model map requests A4 landsca...	P21-0097,P21-0098,P21-0099,P21-0079,P21-0129	
+pro21/README.md §Verification ¶1-4	paragraph	The original regression checks pass: **231 Work assertions**, **14 Classic scenario groups**, **11 Storyboard scenario groups**, and **35...	P21-0121,P21-0131,P21-0123,P21-0011	
+pro21/README.md §What remains unverified list (1-6)	list	- Native Browser access was unavailable and native browser launch was blocked. Validation used **jsdom and offline WeasyPrint proofs**, n...	P21-0124,P21-0125,P21-0126,P21-0119,P21-0127,P21-0128,P21-0129	
+pro21/README.md §What remains unverified ¶2	paragraph	The ticked Stock model reads one immutable previous-state snapshot per accepted demo tick. RTD, self-reference and a one-iteration settin...	P21-0068,P21-0069,P21-0070,P21-0071	
+pro21/README.md §What remains unverified ¶3	paragraph	**verification.html** preserves the original fixture/clock detail and lists every scene, correction and source. All mockup assets are inl...	P21-0011	
+pro21/verification.html §Read the computation.Keep the workbook. p#1	paragraph	The Pro 20 package is extended to 73 unique scenes: every original scene remains, with 30 additions. The main addition is a notebook whos...	P21-0131,P21-0014	
+pro21/verification.html §Read the computation.Keep the workbook. p#2	paragraph	This is a completed interactive design review package with explicit local fixtures. The proposed Excel cell/name mapping is concrete; nat...	P21-0125	
+pro21/verification.html §Open the package li#1	list	Extract the entire ZIP into one folder. Open index.html in a desktop browser. The mockups need no installation, server, network connectio...	P21-0011	
+pro21/verification.html §Open the package li#2	list	Start at NC01. Change Status between Pending and Paid, follow a named reference, show Backing cells, and switch Author / Read / Across. T...	P21-0014,P21-0015,P21-0022,P21-0026,P21-0030	
+pro21/verification.html §Open the package li#3	list	Use the review bar above the product frame. Select a scene, move Previous/Next, compare normal and exception variants, and inspect 200% z...	P21-0013,P21-0012	
+pro21/verification.html §Open the package p#4	paragraph	One document is one review session. Product navigation between scenes preserves the shared model, clock and implemented Undo flows. Openi...	P21-0010,P21-0031	
+pro21/verification.html §Open the package p#5	paragraph	Save is a demonstrated local snapshot. It captures the current fixture model and view declaration in memory. Export view settings can pro...	P21-0095,P21-0097,P21-0125	
+pro21/verification.html §Open the package p#6	paragraph	The ZIP has 15 members: 13 mockup HTML files, this report and README.md. Source and QA scripts used during construction are not separate ...	P21-0131,P21-0011	
+pro21/verification.html §Coverage of the round-three brief p#1	paragraph	All A and B items are represented by finished scenes. “Finished” here means implemented prototype interactions, normal/exception states, ...	P21-0132	
+pro21/verification.html §Coverage of the round-three brief table#2	table	Table (14 rows): Requirement | Scenes | Delivered behavior	P21-0132	
+pro21/verification.html §The computation lives in cells and names p#1	paragraph	Proposed file contract: Sales has a visible Analysis sheet. Computing blocks resolve to ordinary formula anchors or workbook defined name...	P21-0017,P21-0034	
+pro21/verification.html §The computation lives in cells and names p#2	paragraph	Analysis!B2:B6 hold region, status, first November day, last November day and held units. Initial values are All, Pending, 1, 28 and 40. ...	P21-0017	
+pro21/verification.html §The computation lives in cells and names table#3	table	Table (9 rows): Anchor | Workbook name | Name refers to | Role	P21-0018,P21-0017	
+pro21/verification.html §The actual written formulas p#1	paragraph	These are the current default source strings embedded in the prototype. Formula editing preserves accepted text as written. Supported ful...	P21-0035,P21-0022	
+pro21/verification.html §A chart has ordinary data sources p#1	paragraph	The chart output displays the ranked values from Analysis!U10#. The proposed native object is named SalesByRegion. It uses the workbook n...	P21-0021	
+pro21/verification.html §A chart has ordinary data sources table#2	table	Table (3 rows): Name | Refers to	P21-0021	
+pro21/verification.html §A chart has ordinary data sources p#3	paragraph	Prose, layout order, the selected presentation and bound-control declarations belong in the optional view part. Prose’s live values refer...	P21-0093,P21-0125	
+pro21/verification.html §Spill growth is a model event p#1	paragraph	NC06 begins with West + Pending: one row fits at A10:G10. Its alternate layout deliberately puts ="Review with Sam" at A16. Selecting All...	P21-0031	
+pro21/verification.html §Spill growth is a model event p#2	paragraph	Review relocation moves the note and its defined name to Y10, leaving FILTER unchanged. Cancel is inert; Undo restores A16 and the blocka...	P21-0032,P21-0025	
+pro21/verification.html §A function cell defines a workbook function p#1	paragraph	NC05 defines MarginPct as a workbook name whose reference is the LAMBDA below. It has a callable signature and a definition instead of a ...	P21-0030	
+pro21/verification.html §A function cell defines a workbook function table#2	table	Table (6 rows): Anchor | Formula | Workbook name	P21-0030	
+pro21/verification.html §A function cell defines a workbook function p#3	paragraph	At 1,000 units, price 120, cost 70 and fixed cost 32,000, the outputs are revenue 120,000, variable cost 70,000, gross margin 41.666…%, o...	P21-0030	
+pro21/verification.html §A function cell defines a workbook function p#4	paragraph	Same model, different presentation. Author, Read and Across switches leave the pure cell/name snapshot unchanged. NC01, NC02, NC03, NC04 ...	P21-0015,P21-0026,P21-0022	
+pro21/verification.html §A function cell defines a workbook function p#5	paragraph	Native equivalence is a design contract conditional on correct worksheet types/names, a version of Excel supporting the functions, and th...	P21-0125,P21-0020,P21-0130	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows p#1	paragraph	The reference checker independently reconstructs the accepted row specification in a loop from 1 to 25,000. It does not call the producti...	P21-0120,P21-0016,P21-0020	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows p#2	paragraph	Rows 1–125 are West/Paid at 994 each. SO10482 is the separate West/Pending 4,200 order dated 5 November. The remaining rows use the decla...	P21-0120,P21-0016,P21-0020	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows table#3	table	Table (4 rows): Status · All regions · days 1–28 | Rows | Amount	P21-0120,P21-0016,P21-0020	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows table#4	table	Table (5 rows): Region | Pending rows | Pending amount | Paid rows | Paid amount | All rows | All amount	P21-0120,P21-0016,P21-0020	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows p#5	paragraph	Paid descending rank is South, East, North, West. South exceeds East by exactly R25. PIVOTBY has one month column, 2026-11, and the same ...	P21-0120,P21-0016,P21-0020	
+pro21/verification.html §Exact aggregation of all 25,000 Sales rows p#6	paragraph	Live input stays separate from historical orders. Report!E2 begins at R119.35 and 40 units give R4,774.00. The next shared scripted obser...	P21-0027,P21-0028	
+pro21/verification.html §What was checked, and what remains open p#1	paragraph	Counts below deliberately retain their units: assertions, scenario groups and thumbnail targets are not added into one inflated total. Th...	P21-0121	
+pro21/verification.html §What was checked, and what remains open table#2	table	Table (16 rows): Suite | Result | Coverage	P21-0121	
+pro21/verification.html §What was checked, and what remains open p#3	paragraph	Evidence identifiers: check.js, check-work.js, check-classic.js, check-stories.js, check-analysis.js, check-compute.js, check-studio.js, ...	none	Internal build/QA script filename provenance list; no front-end product requirement.
+pro21/verification.html §What was checked, and what remains open p#4	paragraph	Native verification remains open. The connected Browser was unavailable and native browser launch was blocked in this environment. Valida...	P21-0124	
+pro21/verification.html §What was checked, and what remains open li#5	list	Excel and file persistence: no native XLSX/XLSM writer, actual Excel evaluation, custom-XML preservation or macro-project preservation wa...	P21-0125	
+pro21/verification.html §What was checked, and what remains open li#6	list	Macros and add-ins: no VBA, XLL, XLAM binary or arbitrary-code sandbox executed. Guarded scenes run finite declared JavaScript action pla...	P21-0126,P21-0119	
+pro21/verification.html §What was checked, and what remains open li#7	list	Recorded Excel comparison: Formula Explorer’s call-match counts and worst-ulp fields are clearly labelled sample archive records. They de...	P21-0127	
+pro21/verification.html §What was checked, and what remains open li#8	list	Scale: Inherited’s 40 sheets, 300,000 formula members, 6 hidden sheets, 90 directed relationships and 85,272 reference records come from ...	P21-0128	
+pro21/verification.html §What was checked, and what remains open li#9	list	Print and operating-system interfaces: the print DOM, captured values, page size/orientation hooks and full Loan schedule are checked. Na...	P21-0129	
+pro21/verification.html §What was checked, and what remains open li#10	list	General compatibility: the fixtures implement a bounded set of formulas and actions. They do not cover Excel’s full evaluator, object mod...	P21-0124	
+pro21/verification.html §What was checked, and what remains open p#11	paragraph	All mockup assets are inline. Strand font names use installed-font fallbacks and do not request downloads. Original SVG iconography is us...	P21-0011,P21-0003	
+pro21/verification.html §Corrections beyond the requested clock slips table#1	table	Table (10 rows): Area | Correction	P21-0123,P21-0027,P21-0028,P21-0033,P21-0052,P21-0097	
+pro21/verification.html §Package contents table#1	table	Table (14 rows): File | Contents | Entry points	P21-0131	
+pro21/verification.html §Package contents p#2	paragraph	The gallery contains 78 thumbnail targets for 73 unique scenes. Five original Explorer/Agent moments also appear in their specialist coll...	P21-0131	
+pro21/verification.html §Original interaction coverage retained table#1	table	Table (8 rows): Surface | Working demonstrations | State boundary	P21-0044,P21-0059,P21-0039,P21-0065,P21-0076,P21-0081,P21-0110	
+pro21/verification.html §Exact fixture checkpoints p#1	paragraph	Only Budget, Sales, Loan, Stock and Inherited supply workbook content. Formula Explorer also runs without a workbook. The checkpoints bel...	P21-0122	
+pro21/verification.html §Budget and review subsets p#1	paragraph	Monthly profit = 1,000 × (unit price − unit cost) − 32,000; annual operating profit is twelve times that result.	P21-0122,P21-0111,P21-0114	
+pro21/verification.html §Budget and review subsets table#2	table	Table (5 rows): Case | Price | Cost | Monthly profit | Annual profit | Scoped changes	P21-0122,P21-0111,P21-0114	
+pro21/verification.html §Budget and review subsets p#3	paragraph	Changed-value counts include only the named Monthly range. Input edits and dependencies outside that range are separate. Inputs are month...	P21-0122,P21-0111,P21-0114	
+pro21/verification.html §Loan table#1	table	Table (4 rows): Principal 1,000,000 · 360 months | Monthly payment | First interest | First principal | First closing balance | Total int...	P21-0122,P21-0076,P21-0077,P21-0079	
+pro21/verification.html §Loan p#2	paragraph	Loan!B6 = -PMT(B3/12,B4,B2). Inputs require principal > 0, annual rate 0–100%, and an integer term of 1–360 months. The local schedule us...	P21-0122,P21-0076,P21-0077,P21-0079	
+pro21/verification.html §Sales, Inherited and the add-in contract table#1	table	Table (6 rows): Fixture | Checkpoint | Interpretation	P21-0122,P21-0053,P21-0056,P21-0083,P21-0082	
+pro21/verification.html §Sales, Inherited and the add-in contract p#2	paragraph	DiscountFunctions.xll 1.0 is an illustrative provider name. No binary was attached or loaded. The HTML computes the declared test contrac...	P21-0126,P21-0029	
+pro21/verification.html §The ticked model’s explicit contract p#1	paragraph	Each accepted demo tick reads one immutable snapshot of the previous tick. The HTML advances the day counter, stock on hand and pipeline ...	P21-0068,P21-0069	
+pro21/verification.html §What the controls mean p#1	paragraph	One accepted tick is one logical day. Rate changes wall-clock speed; reorder changes subsequent transitions. Run, Pause and Step share on...	P21-0068,P21-0010	
+pro21/verification.html §What the controls mean p#2	paragraph	A tick boundary or 'Stock (ticked)'!B12<=0 pauses progression. Reset is explicit and returns to tick 0, stock 400 and an empty pipeline. ...	P21-0062,P21-0080	
+pro21/verification.html §What the controls mean table#3	table	Table (9 rows): Reorder point | Tick | Stock on hand | Arrival | Position before order | Order | Pipeline after order	P21-0068	
+pro21/verification.html §What the controls mean p#4	paragraph	At reorder 260, day/tick 2’s order arrives at day/tick 5. In the period-row sheet this is H15 → C18. At tick 2, the decision uses positio...	P21-0068	
+pro21/verification.html §Why the file alone may be insufficient p#1	paragraph	Microsoft documents RTD as a connection to a registered COM provider; its notification and data-retrieval methods are separate. [T1–T3] E...	P21-0069,P21-0071	
+pro21/verification.html §Why the file alone may be insufficient p#2	paragraph	Design inference: an RTD topic, a one-iteration setting and a self-reference pattern suggest a candidate clocked model, but they do not b...	P21-0069,P21-0071	
+pro21/verification.html §Why the file alone may be insufficient p#3	paragraph	The ticked reserve relationship is =0.5*(B8+B7), initialised at its fixed point 20. One iteration leaves it at 20. Its enclosure does not...	P21-0070	
+pro21/verification.html §Why the file alone may be insufficient p#4	paragraph	The ordinary period scene’s 100-iteration / 0.001 tolerance setting and the ticked scene’s one-iteration setting are alternative demonstr...	P21-0070	
+pro21/verification.html §Why the file alone may be insufficient p#5	paragraph	Delay, iteration and explanation remain distinct. The ordinary Stock schedule has a three-period delivery lag. The ticked fixture demonst...	P21-0064,P21-0058	
+pro21/verification.html §All 73 scenes table#1	table	Table (74 rows): ID | Scene | File | Coverage	P21-0131	
+pro21/verification.html §All 73 scenes p#2	paragraph	No scenes match that filter.	none	Empty-filter UI placeholder message inside verification.html scene filter.
+pro21/verification.html §Primary Microsoft documentation p#1	paragraph	Reviewed on 20 November 2026. These primary sources support the proposed formula mapping and execution boundaries. They do not certify na...	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#2	list	T1RTD functionRegistered COM provider, topic syntax and automatic-calculation updates.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#3	list	T2IRTDUpdateEvent.UpdateNotifyThe provider notifies Excel that data is available.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#4	list	T3IRtdServer.RefreshDataExcel requests the updated topic/value data.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#5	list	T4Change recalculation, iteration or precisionCalculation modes, iteration controls, setting scope and displayed versus stored precision.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#6	list	T5Application.MaxIterationsThe maximum-iteration property belongs to the Application object.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#7	list	T6RTD.ThrottleIntervalUpdate interval and its documented 2000 ms default.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#8	list	T7Calculation properties: calcPrOffice’s handling of iteration count and convergence threshold.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#9	list	T8Excel recalculationTriggers, dependency/calculation chains and asynchronous functions.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#10	list	T9Application.AfterCalculateCompletion after pending refresh and resulting calculation activity.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#11	list	T10FILTER functionArray/include contract and empty-array behavior.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#12	list	T11GROUPBY functionGrouping fields, values, reducer, headers, totals and sort order.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#13	list	T12PIVOTBY functionRow/column aggregation, explicit header/total arguments and distinction from PivotTables.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#14	list	T13LAMBDA functionWorkbook names, reusable functions and the uncalled-LAMBDA case.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#15	list	T14Dynamic arrays and spilled array behaviorTop-left source, spill range and obstruction behavior.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#16	list	T15LET functionNamed intermediate bindings within one formula.	P21-0130	
+pro21/verification.html §Primary Microsoft documentation li#17	list	T16Define and use namesWorkbook names as stable references to values, ranges and formulas.	P21-0130	
+pro21/verification.html §The actual written formulas code-block	paragraph	8 exact formulas: Analysis!A10 scopeOrders, J10 byRegion, M10 byMonth, Q10 rankedOrders, U10 chartData, J2 scopeTotal, Report!E2 latestPr...	P21-0035	
+pro21/verification.html §State transition used here code-block	paragraph	Tick 0: day=0, onHand=400, pipeline=[0,0,0]; arrived/served/OnHand/position/Order/P1..P3 equations	P21-0068	
+pro21/app.html A01	scene	Loan · batched input option — An author chooses to review all three inputs together before recalculating.	P21-0078	
+pro21/app.html A01 callout 1	callout	Batching is a named author choice; its reason stays beside the controls. It is not the default Loan interaction.	P21-0078	
+pro21/app.html A01 callout 2	callout	The unapplied 12% rate cannot relabel the applied 10.5% payment. Apply commits all valid inputs together; Discard restores their displaye...	P21-0078	
+pro21/app.html A01 callout 3	callout	Month 0 uses the workbook’s Stop validation. Escape cancels only the focused field draft; Undo reverses an applied input batch.	P21-0077,P21-0078	
+pro21/app.html A01 callout 4	callout	Switch to live inputs is explicit and discards unapplied drafts in this demonstration.	P21-0078	
+pro21/app.html A01 exception	scene_exception	A01 exception variant	P21-0077	
+pro21/app.html A02	scene	Stock · ticked operating panel — Jo runs, pauses and steps the clock-driven inventory model.	P21-0080,P21-0068,P21-0070,P21-0071	
+pro21/app.html A02 callout 1	callout	Run, Pause, Step, rate and reorder-point controls share the same scripted clock as the Model map and Inspector. Only observed ticks enter...	P21-0080,P21-0010	
+pro21/app.html A02 callout 2	callout	Each step uses the prior tick’s stock and on-order pipeline. The three stages are labelled as per-tick state, separate from the reserve c...	P21-0068,P21-0064	
+pro21/app.html A02 callout 3	callout	The ticked fixture declares MaxIterations=1 and starts reserve at its fixed point 20. This is not an independently solved 100-iteration g...	P21-0070	
+pro21/app.html A02 callout 4	callout	Reset returns to tick 0, stock 400 and an empty pipeline. The configured reset boundary pauses before another tick and requires an explic...	P21-0080	
+pro21/app.html A02 callout 5	callout	In the issue variant the evidence is insufficient to identify the cycle: the UI says Unknown and refuses to start the assumed clock contr...	P21-0071	
+pro21/app.html A02 exception	scene_exception	A02 exception variant	P21-0071	
+pro21/app.html A03	scene	Loan · invalid input — An invalid term stays a draft while the last valid repayment remains visible.	P21-0077,P21-0076	
+pro21/app.html A03 callout 1	callout	Live is the default: every valid input recalculates the same PMT/IPMT/PPMT fixture. The quiet mark is the only normal-state status indica...	P21-0076,P21-0005	
+pro21/app.html A03 callout 2	callout	Focus reveals “Model change” and the bound source cell before typing. Invalid drafts remain visible and leave the last valid result expli...	P21-0076,P21-0077	
+pro21/app.html A03 callout 3	callout	Undo reverses the input gesture. The balance chart is drawn from every active amortisation row; Open all months exposes the complete sche...	P21-0076	
+pro21/app.html A03 callout 4	callout	The issue variant enters an invalid term. Source, Compare, Print, keyboard input and Undo are working controls in this offline demonstrat...	P21-0077	
+pro21/app.html A03 exception	scene_exception	A03 exception variant	P21-0077	
+pro21/classic.html C01	scene	Classic · Alt key tips — Press Alt: every command gains a discoverable key.	P21-0044,P21-0011	
+pro21/classic.html C01 callout 1	callout	Alt reveals key tips over compact original command controls. The command bands borrow Excel’s access structure, not its artwork.	P21-0044,P21-0011	
+pro21/classic.html C01 callout 2	callout	The classic grid retains row/column coordinates, number formats and the complete twelve-month model.	P21-0044,P21-0007	
+pro21/classic.html C01 callout 3	callout	Command search remains available with Alt+Q; keyboard focus is visually distinct from the active cell.	P21-0044,P21-0006	
+pro21/classic.html C01 exception	scene_exception	C01 exception variant	P21-0044	
+pro21/classic.html C02	scene	Classic · pick a formula reference — Pick Inputs!B3 while editing Monthly!B8.	P21-0043	
+pro21/classic.html C02 callout 1	callout	The target is Monthly!B8 while the Inputs worksheet is visible for reference picking. Switching source sheets does not move the edit dest...	P21-0043	
+pro21/classic.html C02 callout 2	callout	Units B2 and price B3 have coloured, numbered reference outlines; the formula exposes their exact addresses.	P21-0043	
+pro21/classic.html C02 callout 3	callout	Click the price cell or use F4 to change its anchoring. A reference draft does not claim its result is already committed.	P21-0043,P21-0045	
+pro21/classic.html C02 exception	scene_exception	C02 exception variant	P21-0043	
+pro21/classic.html C03	scene	Classic · F4 anchors — F4 changes the anchor, not the value.	P21-0045	
+pro21/classic.html C03 callout 1	callout	The four buttons and F4 cycle relative, fully absolute, row-absolute and column-absolute references.	P21-0045	
+pro21/classic.html C03 callout 2	callout	The current reference value is always 120; anchoring changes future copy adjustment, not the source value.	P21-0045	
+pro21/classic.html C03 callout 3	callout	The reference panel names the original destination and the exact draft expression.	P21-0045	
+pro21/classic.html C03 exception	scene_exception	C03 exception variant	P21-0043	
+pro21/classic.html C04	scene	Classic · fill handle — Drag the fill handle and inspect the destination formula.	P21-0046	
+pro21/classic.html C04 callout 1	callout	Drag the small handle from B11 along row 11; its destination hatch and exact adjusted formula track the pointer.	P21-0046	
+pro21/classic.html C04 callout 2	callout	Releasing copies the source formula using normal relative-reference rules. The existing canonical profit run has the same values, so this...	P21-0046	
+pro21/classic.html C04 callout 3	callout	The visible Fill action is the click/keyboard alternative. Undo reverses the completed gesture as one action.	P21-0046	
+pro21/classic.html C04 exception	scene_exception	C04 exception variant	P21-0046	
+pro21/classic.html C05	scene	Classic · Ctrl+Enter — Enter 2% into three selected assumption cells.	P21-0047	
+pro21/classic.html C05 callout 1	callout	C6:C8 is a real multi-cell selection in Budget’s Stretch assumptions, separate from the active Base model.	P21-0047	
+pro21/classic.html C05 callout 2	callout	Ctrl+Enter writes 2% to all three selected cells and retains the range. The same operation has a visible button.	P21-0047	
+pro21/classic.html C05 callout 3	callout	One Undo restores the three prior zero-percent values; no agent or shell action receives this keystroke.	P21-0047	
+pro21/classic.html C05 exception	scene_exception	C05 exception variant	P21-0043	
+pro21/classic.html C06	scene	Classic · move a cell — Move the note; recover the blocked spill.	P21-0048	
+pro21/classic.html C06 callout 1	callout	Drag the selected note’s upper border from A21 to D21. A destination outline previews the ordinary move.	P21-0048	
+pro21/classic.html C06 callout 2	callout	The note currently blocks =TRANSPOSE(Monthly!B11:M11) at A20. Moving it clears the twelve-row spill without deleting content.	P21-0048	
+pro21/classic.html C06 callout 3	callout	Undo returns the note to A21 and restores the genuine #SPILL! state. The spill children cannot be edited independently.	P21-0048	
+pro21/classic.html C06 exception	scene_exception	C06 exception variant	P21-0048	
+pro21/classic.html C07	scene	Classic · command search — Find a command while keeping your place in a dense workbook.	P21-0049,P21-0007	
+pro21/classic.html C07 callout 1	callout	Inherited’s Archive is a dense, generated extension of the composite fixture; each monthly value is ROUND(base × month factor, 2). It is ...	P21-0049	
+pro21/classic.html C07 callout 2	callout	Negative expense values retain red parenthesised workbook formatting; the amber conditional format is independent of application attentio...	P21-0007	
+pro21/classic.html C07 callout 3	callout	Alt+Q opens command search. Type, use Up/Down and Enter, or select a result with the pointer; Escape returns to the same source.	P21-0049	
+pro21/classic.html C07 callout 4	callout	The issue variant retains missing Rates2024.xlsx and disabled LegacyClose separately from the selected local formula.	P21-0049	
+pro21/classic.html C07 exception	scene_exception	C07 exception variant	P21-0049	
+pro21/design-system.html D01	scene	Strand tokens and type — A compact working surface and a calm reading voice, with colour reserved for meaning.	P21-0001,P21-0002,P21-0003,P21-0004,P21-0009,P21-0005	
+pro21/design-system.html D01 callout 1	callout	The petrol chrome, teal structure and amber focus follow Strand. Text uses the darker ink variants; colour is paired with a label or shape.	P21-0001,P21-0002	
+pro21/design-system.html D01 callout 2	callout	Font stacks begin with Recursive, Recursive Mono and Source Serif4, followed by open/system fallbacks. Nothing is downloaded.	P21-0003	
+pro21/design-system.html D01 callout 3	callout	The shell is shared across all scenes: command bands, source address, formula bar, view picker, sheet tabs and a quiet steady mark.	P21-0009	
+pro21/design-system.html D01 callout 4	callout	Normal status is silent. Pending, stale, previous, error, missing-source and delayed-calculation states appear only when relevant.	P21-0005	
+pro21/design-system.html D01 exception	scene_exception	D01 exception variant	P21-0005	
+pro21/design-system.html D02	scene	Cells, focus and selection — Selection, editing, reference picking, hover and keyboard focus have distinct visible treatments.	P21-0006,P21-0007,P21-0012	
+pro21/design-system.html D02 callout 1	callout	The active cell has a dark outline and amber inner accent. Selection is a pale fill; hover is a separate neutral surface.	P21-0006	
+pro21/design-system.html D02 callout 2	callout	Point mode uses labelled reference colours and different line patterns. A person can identify references without relying on colour alone.	P21-0043	
+pro21/design-system.html D02 callout 3	callout	Workbook number formats are preserved, including red negatives and conditional formats. UI state does not overwrite them.	P21-0007	
+pro21/design-system.html D02 callout 4	callout	Focus is visible on buttons, fields and ports. The high-contrast and200% controls above apply to the same screen.	P21-0006,P21-0012	
+pro21/design-system.html D02 exception	scene_exception	D02 exception variant	P21-0006	
+pro21/design-system.html D03	scene	Changes, drawers and connections — The review surface says what changes before it commits, with source-bound ports and wires.	P21-0008,P21-0110,P21-0065,P21-0064	
+pro21/design-system.html D03 callout 1	callout	Model and presentation changes have distinct headings and concrete before/after content. Their appearance is otherwise consistent.	P21-0008	
+pro21/design-system.html D03 callout 2	callout	Agent proposals use reviewable units. A stale base is a conflict requiring a new preview; it is never silently applied.	P21-0110,P21-0114	
+pro21/design-system.html D03 callout 3	callout	A port exposes a real source and its current value. A wire represents a dependency; animated propagation is labelled “Dependency explanat...	P21-0065,P21-0058	
+pro21/design-system.html D03 callout 4	callout	An iteration enclosure and a period-labelled delay use different structures as well as labels.	P21-0064	
+pro21/design-system.html D03 exception	scene_exception	D03 exception variant	P21-0008	
+pro21/formula-explorer.html E01	scene	Explorer · function browser and live tree — Find a function, inspect its signature and follow a formula through current intermediate values.	P21-0084,P21-0082,P21-0026	
+pro21/formula-explorer.html E01 callout 1	callout	The stripped standalone build has no workbook, sheet tabs or caller; function availability is explicit. Search, family filters, arguments...	P21-0082,P21-0084	
+pro21/formula-explorer.html E01 callout 2	callout	Catalogue match counts are a labelled sample conformance archive, including the brief’s 4,252 / 4,311 and 63 ulp example. They are design...	P21-0084,P21-0127	
+pro21/formula-explorer.html E01 callout 3	callout	The LET tree is expression structure with evaluated values, not an execution trace. Expand or collapse its current bindings beneath the f...	P21-0026,P21-0084	
+pro21/formula-explorer.html E01 callout 4	callout	A refused function names its missing capability and keeps the formula. Unsupported edited expressions are refused by the local example ev...	P21-0082,P21-0084	
+pro21/formula-explorer.html E01 exception	scene_exception	E01 exception variant	P21-0082	
+pro21/formula-explorer.html E02	scene	Explorer · array formatting playground — Keep numeric values beside their formatted text while changing locale and rules.	P21-0085	
+pro21/formula-explorer.html E02 callout 1	callout	SEQUENCE generates every displayed number. Rows, start and step edit the example computation; formatting and locale edit only its present...	P21-0085	
+pro21/formula-explorer.html E02 callout 2	callout	The left table preserves numeric values. The right table applies a supported format and locale; conditional-format truth is calculated ag...	P21-0085	
+pro21/formula-explorer.html E02 callout 3	callout	The rule uses a hatch and text label as well as colour. Counted matches come from all displayed values.	P21-0085	
+pro21/formula-explorer.html E02 callout 4	callout	An unsupported format draft is explicit and does not replace the applied format. Undo restores the previous presentation settings.	P21-0085	
+pro21/formula-explorer.html E02 exception	scene_exception	E02 exception variant	P21-0085	
+pro21/formula-explorer.html E03	scene	Explorer · add-in library — Inspect loaded providers, function metadata and the precise limits of a workbook-free host.	P21-0086,P21-0087	
+pro21/formula-explorer.html E03 callout 1	callout	The .xll and .xlam are declared fixture providers in a demonstration session. This HTML does not load native binaries or execute real VBA.	P21-0086,P21-0126	
+pro21/formula-explorer.html E03 callout 2	callout	Context-free functions show exact arithmetic; caller-dependent functions and views-library macros name their missing workbook requirement.	P21-0086,P21-0082	
+pro21/formula-explorer.html E03 callout 3	callout	Provider identity, categories and argument descriptions stay attached to functions. Unloading a sample provider removes its ability to ru...	P21-0086	
+pro21/formula-explorer.html E03 callout 4	callout	Native XLL code is not represented as protected by the VBA Guarded policy. A real desktop provider must use the independently selected ex...	P21-0087	
+pro21/formula-explorer.html E03 exception	scene_exception	E03 exception variant	P21-0086	
+pro21/classic.html F01	scene	Classic · reference editing — Edit one formula without losing its source.	P21-0043,P21-0006	
+pro21/classic.html F01 callout 1	callout	Monthly!B8 is the actual edit destination. The displayed draft is deliberately distinct from its canonical =B2*B3 formula.	P21-0043	
+pro21/classic.html F01 callout 2	callout	Reference colours also use numbered tokens and different border patterns; colour is not the only identification.	P21-0043	
+pro21/classic.html F01 callout 3	callout	Editing has a caret, selection has an amber inset, keyboard focus has an outer stroke, and hover is a quieter border.	P21-0006	
+pro21/classic.html F01 callout 4	callout	F4 cycles the chosen reference anchor. Enter/Commit and Escape keep their separate commit/cancel meanings.	P21-0045,P21-0043	
+pro21/classic.html F01 exception	scene_exception	F01 exception variant	P21-0043	
+pro21/inspector.html F02	scene	Sales · explain a result — A complete contribution trace, with the source formula always one step away.	P21-0053,P21-0055,P21-0063	
+pro21/inspector.html F02 callout 1	callout	The normal screen shows the corrected Paid-only formula and R124,250. The issue variant includes the pending R4,200 order and exposes the...	P21-0053	
+pro21/inspector.html F02 callout 2	callout	Counts cover all 25,000 generated fixture orders. A row window never determines a total.	P21-0016	
+pro21/inspector.html F02 callout 3	callout	The graph is a dependency explanation. An optional recorded order is labelled DNA Calc’s calculation order; no recording is invented.	P21-0058	
+pro21/inspector.html F02 callout 4	callout	Reviewing a correction names its exact cell and formula. Apply and Undo operate on that formula.	P21-0055	
+pro21/inspector.html F02 exception	scene_exception	F02 exception variant	P21-0053	
+pro21/notebook.html F03	scene	Budget · the live write-up — A director’s narrative, bound inputs and the workbook’s own chart.	P21-0037,P21-0038,P21-0005	
+pro21/notebook.html F03 callout 1	callout	Price starts at R125: monthly revenue R125,000, profit R23,000, annual profit R276,000. The slider writes Inputs!B3 and all displayed ari...	P21-0037	
+pro21/notebook.html F03 callout 2	callout	The debtor dropdown writes Inputs!B12 and is explicitly unrelated to this operating-profit excerpt. The checkbox writes Summary!D2, a Boo...	P21-0037	
+pro21/notebook.html F03 callout 3	callout	The formula lens displays the three existing terms without rewriting the formula. An ordinary clean screen has no revision/status prose.	P21-0038,P21-0005	
+pro21/notebook.html F03 callout 4	callout	The issue variant shows the real blocked spill at Summary!A20. Other valid result cards remain visible.	P21-0037	
+pro21/notebook.html F03 exception	scene_exception	F03 exception variant	P21-0037	
+pro21/model-map.html F04	scene	Stock · the period model — A real delivery lag, an inspectable reserve cycle and live values on ports.	P21-0064,P21-0065,P21-0066	
+pro21/model-map.html F04 callout 1	callout	Click or keyboard-select a node to see its source. The Source toggle reveals compact formula labels; the adjacent grid button reveals bac...	P21-0065	
+pro21/model-map.html F04 callout 2	callout	The reorder slider writes the actual input. Its changed values follow the accepted Stock schedule; motion is explicitly a dependency expl...	P21-0065,P21-0058	
+pro21/model-map.html F04 callout 3	callout	The three-day delivery is labelled by periods. Reserve is a separate iteration enclosure, with no invented clock semantics.	P21-0064	
+pro21/model-map.html F04 callout 4	callout	A group opens into its members and breadcrumbs step back. The connections list supplies a keyboard-accessible alternative to thin wires.	P21-0066,P21-0065	
+pro21/model-map.html F04 exception	scene_exception	F04 exception variant	P21-0064	
+pro21/app.html F05	scene	Loan · live application — Change a valid assumption and the payment responds immediately.	P21-0076,P21-0005	
+pro21/app.html F05 callout 1	callout	Live is the default: every valid input recalculates the same PMT/IPMT/PPMT fixture. The quiet mark is the only normal-state status indica...	P21-0076,P21-0005	
+pro21/app.html F05 callout 2	callout	Focus reveals “Model change” and the bound source cell before typing. Invalid drafts remain visible and leave the last valid result expli...	P21-0076,P21-0077	
+pro21/app.html F05 callout 3	callout	Undo reverses the input gesture. The balance chart is drawn from every active amortisation row; Open all months exposes the complete sche...	P21-0076	
+pro21/app.html F05 callout 4	callout	The issue variant enters an invalid term. Source, Compare, Print, keyboard input and Undo are working controls in this offline demonstrat...	P21-0077	
+pro21/app.html F05 exception	scene_exception	F05 exception variant	P21-0077	
+pro21/formula-explorer.html F06	scene	Formula Explorer · docked trial — Ade tries 20% in Explorer while the source cell keeps its 10% formula.	P21-0081,P21-0083,P21-0086	
+pro21/formula-explorer.html F06 callout 1	callout	The docked tool has Summary!D14 as a real caller. At price 120 the source remains 108 while the 20% trial is 96; Apply performs one formu...	P21-0081	
+pro21/formula-explorer.html F06 callout 2	callout	Evaluate runs the entered fixture formula. Number formats and the context-free Cell Value < 100 rule affect display only; the numeric or ...	P21-0081	
+pro21/formula-explorer.html F06 callout 3	callout	Saved tests compare expected and observed values. #NUM! is the declared error for a numeric discount rate outside 0–1; a matching expecte...	P21-0083	
+pro21/formula-explorer.html F06 callout 4	callout	The named add-in is illustrative: these offline files evaluate its declared numeric contract in JavaScript. No native XLL is loaded, and ...	P21-0086	
+pro21/formula-explorer.html F06 callout 5	callout	Functions, arguments, formats, rule, test checkboxes and Evaluate are interactive. Ctrl+Enter evaluates, F6 cycles regions, and Ctrl+Z un...	P21-0081	
+pro21/formula-explorer.html F06 exception	scene_exception	F06 exception variant	P21-0086	
+pro21/formula-explorer.html F07	scene	Formula Explorer · standalone — Ade tests a formula, its display format and its expected results without a workbook.	P21-0082,P21-0083,P21-0086	
+pro21/formula-explorer.html F07 callout 1	callout	Standalone means no workbook, sheet, caller cell or hidden temporary workbook. Context-dependent functions are refused as a tool state, n...	P21-0082	
+pro21/formula-explorer.html F07 callout 2	callout	Evaluate runs the entered fixture formula. Number formats and the context-free Cell Value < 100 rule affect display only; the numeric or ...	P21-0081	
+pro21/formula-explorer.html F07 callout 3	callout	Saved tests compare expected and observed values. #NUM! is the declared error for a numeric discount rate outside 0–1; a matching expecte...	P21-0083	
+pro21/formula-explorer.html F07 callout 4	callout	The named add-in is illustrative: these offline files evaluate its declared numeric contract in JavaScript. No native XLL is loaded, and ...	P21-0086	
+pro21/formula-explorer.html F07 callout 5	callout	Functions, arguments, formats, rule, test checkboxes and Evaluate are interactive. Ctrl+Enter evaluates, F6 cycles regions, and Ctrl+Z un...	P21-0081	
+pro21/formula-explorer.html F07 exception	scene_exception	F07 exception variant	P21-0086	
+pro21/customise.html G01	scene	Guarded App macro writes one input — A declared action gets one scoped trust decision and an attributable Undo unit.	P21-0116,P21-0115	
+pro21/customise.html G01 callout 1	callout	Loan.xlsm is an illustrative macro-enabled variant. AppActions.StressRate VBA is shown as source text; the button executes only the decla...	P21-0116,P21-0126	
+pro21/customise.html G01 callout 2	callout	Security levels are exactly Off, Guarded and Unguarded. Guarded reviews the workbook-write capability for this run; a theme or App declar...	P21-0115	
+pro21/customise.html G01 callout 3	callout	Setting the annual rate to 12% recalculates the existing Loan fixture. A single captured workbook Undo restores the prior rate and depend...	P21-0116	
+pro21/customise.html G01 callout 4	callout	Off and the protected-cell issue variant refuse before any write. Unguarded does not create a missing VBA runtime or external-host capabi...	P21-0115	
+pro21/customise.html G01 callout 5	callout	This demonstrates a trust and review interface, not actual VBA execution, host sandbox enforcement or general side-effect capture.	P21-0119	
+pro21/customise.html G01 exception	scene_exception	G01 exception variant	P21-0115	
+pro21/customise.html G02	scene	Macro switches view and selects a block — A presentation request keeps workbook identity, source values and selection together.	P21-0117	
+pro21/customise.html G02 callout 1	callout	The illustrative views-library macro requests Classic and selects Loan!B2:B6. Its API spelling is a proposed interface, not an existing E...	P21-0117	
+pro21/customise.html G02 callout 2	callout	After the run a real source grid appears with the same shared Loan values, including any prior 12% StressRate change. B2:B6 remains visib...	P21-0117,P21-0010	
+pro21/customise.html G02 callout 3	callout	View and selection changes are announced and recorded as navigation; they do not consume a workbook Undo unit or alter calculation mode.	P21-0117	
+pro21/customise.html G02 callout 4	callout	If the optional views library is unavailable, the issue variant uses the declared native worksheet-selection fallback in Classic.	P21-0117	
+pro21/customise.html G02 callout 5	callout	No actual VBA executes. The finite scripted presentation action is distinct from arbitrary macro analysis or a native Excel compatibility...	P21-0119	
+pro21/customise.html G02 exception	scene_exception	G02 exception variant	P21-0117	
+pro21/customise.html G03	scene	Guarded macro refuses an external action — The complete declared action batch is checked before the first workbook write.	P21-0118,P21-0119	
+pro21/customise.html G03 callout 1	callout	ExportQuote requests a rate write followed by external quote.csv output. The external capability is unavailable, so this explicit batch c...	P21-0118	
+pro21/customise.html G03 callout 2	callout	Current Loan!B3 and every dependent result remain unchanged, including when a previous permitted macro already set the rate to 12%. No fi...	P21-0118	
+pro21/customise.html G03 callout 3	callout	Off refuses all macro actions. Unguarded still cannot supply an absent execution host; the issue variant additionally protects Loan!B3.	P21-0115	
+pro21/customise.html G03 callout 4	callout	The authored plan makes atomic preflight possible in this demonstration. It does not prove that arbitrary VBA can be preflighted, sandbox...	P21-0119	
+pro21/customise.html G03 callout 5	callout	No external side effect is portrayed as undoable. The visible refusal gives its exact reason and preserves access to the source workbook.	P21-0118	
+pro21/customise.html G03 exception	scene_exception	G03 exception variant	P21-0115,P21-0118	
+pro21/inspector.html I01	scene	Stock · Live parameter study — Change the bound reorder point, record its effect and replay the observations.	P21-0059,P21-0060,P21-0063	
+pro21/inspector.html I01 callout 1	callout	Record, Pause capture and Clear affect the observation buffer. The source has its own run/pause controls.	P21-0059	
+pro21/inspector.html I01 callout 2	callout	Minimum, maximum and last values are calculated from the displayed recording. Replay moves a cursor through those observations without ch...	P21-0060	
+pro21/inspector.html I01 callout 3	callout	The source and display update rates are different disclosures. Coalesced counts are based on actual scripted events received between obse...	P21-0061	
+pro21/inspector.html I01 callout 4	callout	Dependency highlighting explains the selected reading; it is not an execution-order recording.	P21-0058	
+pro21/inspector.html I01 exception	scene_exception	I01 exception variant	P21-0059	
+pro21/inspector.html I02	scene	Sales · RTD price instrument — A price feed with measured observation counts and honest coalescing.	P21-0061,P21-0059	
+pro21/inspector.html I02 callout 1	callout	Record, Pause capture and Clear affect the observation buffer. The source has its own run/pause controls.	P21-0059	
+pro21/inspector.html I02 callout 2	callout	Minimum, maximum and last values are calculated from the displayed recording. Replay moves a cursor through those observations without ch...	P21-0060	
+pro21/inspector.html I02 callout 3	callout	The source and display update rates are different disclosures. Coalesced counts are based on actual scripted events received between obse...	P21-0061	
+pro21/inspector.html I02 callout 4	callout	Dependency highlighting explains the selected reading; it is not an execution-order recording.	P21-0058	
+pro21/inspector.html I02 callout 5	callout	The added Sales fixture cell Report!E2 is =RTD("DnaCalc.Price",,"LARK","last"). Its scripted prices do not change historical order totals.	P21-0061,P21-0029	
+pro21/inspector.html I02 exception	scene_exception	I02 exception variant	P21-0061	
+pro21/inspector.html I03	scene	Stock (ticked) · live clock — Run, pause and step a shared RTD-clock demonstration; inspect stock per tick.	P21-0062,P21-0069,P21-0070	
+pro21/inspector.html I03 callout 1	callout	Record, Pause capture and Clear affect the observation buffer. The source has its own run/pause controls.	P21-0059	
+pro21/inspector.html I03 callout 2	callout	Minimum, maximum and last values are calculated from the displayed recording. Replay moves a cursor through those observations without ch...	P21-0060	
+pro21/inspector.html I03 callout 3	callout	The source and display update rates are different disclosures. Coalesced counts are based on actual scripted events received between obse...	P21-0061	
+pro21/inspector.html I03 callout 4	callout	Dependency highlighting explains the selected reading; it is not an execution-order recording.	P21-0058	
+pro21/inspector.html I03 callout 5	callout	The ticked fixture is a scripted demonstration of a guarded tick contract, not proof that arbitrary one-iteration Excel cycles advance ex...	P21-0069,P21-0071	
+pro21/inspector.html I03 callout 6	callout	Reserve is initialized at 20.00, its fixed point. The screen does not claim different iteration limits for two groups in one Excel calcul...	P21-0070	
+pro21/inspector.html I03 exception	scene_exception	I03 exception variant	P21-0071	
+pro21/model-map.html M01	scene	Stock · open the hierarchy — Open Replenishment, select a source and return through the breadcrumb.	P21-0066,P21-0065	
+pro21/model-map.html M01 callout 1	callout	Click or keyboard-select a node to see its source. The Source toggle reveals compact formula labels; the adjacent grid button reveals bac...	P21-0065	
+pro21/model-map.html M01 callout 2	callout	The reorder slider writes the actual input. Its changed values follow the accepted Stock schedule; motion is explicitly a dependency expl...	P21-0065,P21-0058	
+pro21/model-map.html M01 callout 3	callout	The three-day delivery is labelled by periods. Reserve is a separate iteration enclosure, with no invented clock semantics.	P21-0064	
+pro21/model-map.html M01 callout 4	callout	A group opens into its members and breadcrumbs step back. The connections list supplies a keyboard-accessible alternative to thin wires.	P21-0066,P21-0065	
+pro21/model-map.html M01 exception	scene_exception	M01 exception variant	P21-0064	
+pro21/model-map.html M02	scene	Stock (ticked) · clock and state — Per-tick state delays beside a visibly different iteration relationship.	P21-0068,P21-0069,P21-0070,P21-0064	
+pro21/model-map.html M02 callout 1	callout	Run, pause, step, rate and reset operate the same scripted clock used by Inspector and App. State updates use the previous pipeline and s...	P21-0068,P21-0010	
+pro21/model-map.html M02 callout 2	callout	The clock topic, MaxIterations=1 and guarded self-reference pattern support a conditional per-tick interpretation. The issue variant expl...	P21-0069,P21-0071	
+pro21/model-map.html M02 callout 3	callout	The z⁻¹ labels mean per accepted RTD tick. The reserve enclosure is a different relationship, initialized at fixed point 20.00; no indepe...	P21-0064,P21-0070	
+pro21/model-map.html M02 callout 4	callout	Changing reorder point acts prospectively. Already placed orders stay in the on-order pipeline.	P21-0068	
+pro21/model-map.html M02 callout 5	callout	Motion is a dependency explanation. Source and connections provide the same information without animation.	P21-0058,P21-0065	
+pro21/model-map.html M02 callout 6	callout	The ordinary period scene and this ticked scene illustrate alternative calculation profiles. They do not claim different simultaneous per...	P21-0070	
+pro21/model-map.html M02 exception	scene_exception	M02 exception variant	P21-0071	
+pro21/model-map.html M03	scene	Inherited · forty sheet groups — Counted reference boundaries give a large workbook a readable first map.	P21-0072,P21-0073	
+pro21/model-map.html M03 callout 1	callout	Counts derive from the deterministic Inherited-structure-v1 manifest, not a scan or performance measurement of a real workbook. Forty she...	P21-0072,P21-0128	
+pro21/model-map.html M03 callout 2	callout	Expansion groups existing source cells. It does not create formulas, names or a new calculation scope. Hidden sheets retain their workboo...	P21-0073	
+pro21/model-map.html M03 callout 3	callout	The proposed 200-node/400-edge viewport budget bounds drawing. Refusing Expand all preserves the selected source and offers blocks or a c...	P21-0072	
+pro21/model-map.html M03 callout 4	callout	Eight sheet groups are drawn initially and 32 stay collapsed in the inventory. The exception exposes a partial relationship-analysis scop...	P21-0072,P21-0073	
+pro21/model-map.html M03 exception	scene_exception	M03 exception variant	P21-0073	
+pro21/model-map.html M04	scene	Revenue · open one sheet into blocks — Four explicit 12,000-cell blocks preserve all members and all three declared exceptions.	P21-0074,P21-0073	
+pro21/model-map.html M04 callout 1	callout	Counts derive from the deterministic Inherited-structure-v1 manifest, not a scan or performance measurement of a real workbook. Forty she...	P21-0072,P21-0128	
+pro21/model-map.html M04 callout 2	callout	Expansion groups existing source cells. It does not create formulas, names or a new calculation scope. Hidden sheets retain their workboo...	P21-0073	
+pro21/model-map.html M04 callout 3	callout	The proposed 200-node/400-edge viewport budget bounds drawing. Refusing Expand all preserves the selected source and offers blocks or a c...	P21-0072	
+pro21/model-map.html M04 callout 4	callout	Revenue spans B4:M4003. Its blocks are contiguous 1,000-row runs with 12 columns; D63, H219 and F2058 are retained as formula exceptions.	P21-0074	
+pro21/model-map.html M04 callout 5	callout	The missing Rates2024.xlsx boundary remains separate from local block membership and does not claim refreshed values.	P21-0074	
+pro21/model-map.html M04 exception	scene_exception	M04 exception variant	P21-0074	
+pro21/model-map.html M05	scene	Revenue · an optional sheet page — A bounded sheet excerpt inside the map keeps its source geometry and selection.	P21-0075	
+pro21/model-map.html M05 callout 1	callout	Counts derive from the deterministic Inherited-structure-v1 manifest, not a scan or performance measurement of a real workbook. Forty she...	P21-0072,P21-0128	
+pro21/model-map.html M05 callout 2	callout	Expansion groups existing source cells. It does not create formulas, names or a new calculation scope. Hidden sheets retain their workboo...	P21-0073	
+pro21/model-map.html M05 callout 3	callout	The page displays seven of 1,000 rows and all 12 columns. Its declared expression is =Inputs!$B$3*(ROW()-blockStart+1)*(COLUMN()-1), with...	P21-0075	
+pro21/model-map.html M05 callout 4	callout	Changing the window or hiding the page changes presentation only. Selecting a cell exposes its exact address, formula and evaluated value.	P21-0075	
+pro21/model-map.html M05 callout 5	callout	The changed-binding exception requires an explicit current-block confirmation; it never silently substitutes another range.	P21-0075	
+pro21/model-map.html M05 exception	scene_exception	M05 exception variant	P21-0075	
+pro21/notebook.html N01	scene	Sales · a real data frame — A ten-row window over the complete 25,000-order fixture, with types and exact filtered totals.	P21-0039,P21-0040,P21-0016,P21-0041	
+pro21/notebook.html N01 callout 1	callout	The Table contains 25,000 generated fixture rows. West has exactly 125 Paid orders totalling R124,250 and one Pending order of R4,200.	P21-0016	
+pro21/notebook.html N01 callout 2	callout	Changing the row window never changes the summary. Find SO10482 reveals the known pending order; its original sheet address is Orders!A10...	P21-0016,P21-0040	
+pro21/notebook.html N01 callout 3	callout	View-only sort/filter is the default. Choosing Changes the Table passes through review and Apply, sorts the shared source rows and update...	P21-0039,P21-0040	
+pro21/notebook.html N01 callout 4	callout	RTD price is a separate bound value in prose; the issue variant retains and labels the stale value. It never revises historical orders.	P21-0041	
+pro21/notebook.html N01 exception	scene_exception	N01 exception variant	P21-0041	
+pro21/notebook.html N02	scene	Budget · a pipeline across sheets — Inputs → Monthly → Summary, without changing calculation order.	P21-0042	
+pro21/notebook.html N02 callout 1	callout	The three columns are linked to the workbook’s three existing sheets. Reading order is presentation, not execution order.	P21-0042	
+pro21/notebook.html N02 callout 2	callout	Editing unit price changes Inputs!B3 and recomputes all visible figures using the accepted Budget formulas.	P21-0042	
+pro21/notebook.html N02 callout 3	callout	The Monthly excerpt labels its three-column window; the annual result still sums all twelve periods.	P21-0042	
+pro21/notebook.html N02 callout 4	callout	The issue variant distinguishes previous result cards from a pending input. No revision numbers are placed on the working screen.	P21-0042,P21-0005	
+pro21/notebook.html N02 exception	scene_exception	N02 exception variant	P21-0042	
+pro21/notebook-compute.html NC01	scene	Formula, result, next formula — Sales begins with FILTER, then grouped and pivoted totals, a ranked result and its chart.	P21-0014,P21-0015,P21-0016,P21-0020,P21-0018,P21-0019,P21-0021,P21-0017	
+pro21/notebook-compute.html NC01 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC01 callout 2	callout	The data frame may show a small preview, but FILTER, GROUPBY, PIVOTBY and SORTBY use all 25,000 source rows. Pending across the full mont...	P21-0016	
+pro21/notebook-compute.html NC01 callout 3	callout	All source dates are November 2026. PIVOTBY has one month column, explicit no-header input and no total rows or columns.	P21-0020	
+pro21/notebook-compute.html NC01 callout 4	callout	Click an output name to edit it. Click a name within a later formula to follow the same backing cell.	P21-0018,P21-0019	
+pro21/notebook-compute.html NC01 callout 5	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC01 exception	scene_exception	NC01 exception variant	P21-0025	
+pro21/notebook-compute.html NC02	scene	Write the formula; name its result — Completion and signature help keep the Excel source beside its immediate result.	P21-0022,P21-0023,P21-0018	
+pro21/notebook-compute.html NC02 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC02 callout 2	callout	The two complete FILTER forms shown by completion recalculate immediately. Incomplete or unsupported drafts replace all dependent display...	P21-0022,P21-0023	
+pro21/notebook-compute.html NC02 callout 3	callout	Save name validates workbook-name syntax, rejects conflicting names and updates later exact references. The anchor remains Analysis!A10.	P21-0018	
+pro21/notebook-compute.html NC02 callout 4	callout	The editor supports this fixture’s explicit FILTER forms, not arbitrary Excel syntax. Escape restores the committed expression.	P21-0023	
+pro21/notebook-compute.html NC02 callout 5	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC02 exception	scene_exception	NC02 exception variant	P21-0023	
+pro21/notebook-compute.html NC03	scene	Change one input; follow every result — Region, status and date controls are ordinary Analysis cells; outputs, chart and prose react in p...	P21-0024,P21-0016	
+pro21/notebook-compute.html NC03 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC03 callout 2	callout	Controls bind to Analysis!B2:B5. Changes update all downstream computations and mark them briefly; no Run action or stale success exists.	P21-0024	
+pro21/notebook-compute.html NC03 callout 3	callout	On a fresh opening, Paid across the full month is 20,853 rows worth R23,440,150. South ranks ahead of East by R25. If this workbook was a...	P21-0016,P21-0010	
+pro21/notebook-compute.html NC03 callout 4	callout	Moving a date handle changes the date criterion; both endpoints stay within November 1–28. No matches produces the actual FILTER empty-ar...	P21-0024,P21-0025	
+pro21/notebook-compute.html NC03 callout 5	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC03 exception	scene_exception	NC03 exception variant	P21-0025	
+pro21/notebook-compute.html NC04	scene	A live tree, inside the chain — Expand LET bindings and use the latest price from the same Report RTD topic.	P21-0026,P21-0027,P21-0029	
+pro21/notebook-compute.html NC04 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC04 callout 2	callout	The inline tree shows LET structure and the current values of items, amounts and SUM(amounts). It is not a runtime firing-order trace.	P21-0026	
+pro21/notebook-compute.html NC04 callout 3	callout	Report!E2 uses =RTD("DnaCalc.Price",,"LARK","last"). The HTML supplies a labeled local sequence; a native workbook requires its compatibl...	P21-0027	
+pro21/notebook-compute.html NC04 callout 4	callout	Analysis!J5 multiplies Report!E2 by 40 in B6. R119.35 gives R4,774.00. Observations use the same scripted source as N01 and I02; only the...	P21-0027,P21-0029	
+pro21/notebook-compute.html NC04 callout 5	callout	The unavailable-source variant asserts no current price or valuation. Historical order totals stay independent.	P21-0029	
+pro21/notebook-compute.html NC04 callout 6	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC04 exception	scene_exception	NC04 exception variant	P21-0029	
+pro21/notebook-compute.html NC05	scene	A function is a workbook name — Define MarginPct once, then call it from ordinary Budget computation cells.	P21-0030	
+pro21/notebook-compute.html NC05 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC05 callout 2	callout	MarginPct is a workbook defined name referring to LAMBDA, so the function cell’s output is a callable signature. It is not an uncalled LA...	P21-0030	
+pro21/notebook-compute.html NC05 callout 3	callout	At price R120 and cost R70: revenue R120,000, variable cost R70,000, gross margin 41.67%, profit R18,000 and operating margin 15.00%. The...	P21-0030	
+pro21/notebook-compute.html NC05 callout 4	callout	Changing either price or cost writes the shared Budget inputs and updates its callers. The zero-revenue variant returns 0% by the explici...	P21-0030	
+pro21/notebook-compute.html NC05 callout 5	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC05 exception	scene_exception	NC05 exception variant	P21-0030	
+pro21/notebook-compute.html NC06	scene	A spill conflict, made concrete — The notebook and Classic show the same anchors while a growing FILTER reaches the next formula.	P21-0031,P21-0032,P21-0017,P21-0033	
+pro21/notebook-compute.html NC06 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC06 callout 2	callout	This alternate layout starts with West + Pending: one row at A10:G10. Region All asks for A10:G4156 and the next formula at A16 blocks it...	P21-0031	
+pro21/notebook-compute.html NC06 callout 3	callout	Review relocates only the formula ="Review with Sam" and the reviewNote name to empty Y10 or Y12. Cancel changes nothing. The exception v...	P21-0032	
+pro21/notebook-compute.html NC06 callout 4	callout	The permanent layout gives raw rows A:G, GROUPBY J:K, PIVOTBY M:N, SORTBY Q:R and chart data U:V separate lanes. Scalar outputs stay abov...	P21-0017	
+pro21/notebook-compute.html NC06 callout 5	callout	Classic is the same calculation: every outlined anchor maps to the adjacent notebook cell. Undo moves the note back and reproduces the sp...	P21-0033,P21-0032	
+pro21/notebook-compute.html NC06 callout 6	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC06 exception	scene_exception	NC06 exception variant	P21-0031,P21-0032	
+pro21/notebook-compute.html NC07	scene	The same chain becomes a write-up — Reading layout keeps the written formulas and live outputs, with prose between them.	P21-0015,P21-0019,P21-0098	
+pro21/notebook-compute.html NC07 callout 1	callout	Every formula is shown as written directly above its output. The vertical computation chain is the primary reading surface; Author, Read ...	P21-0014,P21-0015	
+pro21/notebook-compute.html NC07 callout 2	callout	This scene shares the Sales model, names and controls with NC01–NC04. A layout switch changes presentation only; it neither copies values...	P21-0015,P21-0010	
+pro21/notebook-compute.html NC07 callout 3	callout	Live prose reads the current count and LET total. Reference buttons take the reader back to the producing cell. The clean reading mode st...	P21-0015,P21-0019	
+pro21/notebook-compute.html NC07 callout 4	callout	Print opens the Notebook print scene, whose pure snapshot reads these current controls, formulas, names, values and chart data.	P21-0097,P21-0098	
+pro21/notebook-compute.html NC07 callout 5	callout	All outputs are backed by proposed Excel formulas or workbook names. This HTML evaluates the fixed fixture locally; it does not execute o...	P21-0125	
+pro21/notebook-compute.html NC07 exception	scene_exception	NC07 exception variant	P21-0025	
+pro21/workbook.html O01	scene	File · open, recent and patterns — Open a cast workbook or review the ordinary cells created by a new-workbook pattern.	P21-0096	
+pro21/workbook.html O01 callout 1	callout	Recent workbooks retain a preferred view and an ordinary Classic fallback. Open selects the actual cast fixture; the offline picker does ...	P21-0096,P21-0125	
+pro21/workbook.html O01 callout 2	callout	New from pattern discloses the Inputs, Monthly and Summary cells and their linked formulas before creation. The cast Budget defaults prod...	P21-0096	
+pro21/workbook.html O01 callout 3	callout	Creating the pattern is a model-and-presentation action in this local session; Undo restores the previous Budget demonstration.	P21-0096	
+pro21/workbook.html O01 callout 4	callout	The unavailable-location variant does not substitute an empty workbook or erase the file. A reviewer can choose an available fixture.	P21-0096	
+pro21/workbook.html O01 exception	scene_exception	O01 exception variant	P21-0096	
+pro21/workbook.html O02	scene	File · save with the views — Save the model and its optional view declaration together, with an ordinary-sheet fallback.	P21-0095,P21-0093	
+pro21/workbook.html O02 callout 1	callout	The quiet note says views travel with the file. The adjacent summary explains the model, optional view part and ordinary-reader fallback.	P21-0095	
+pro21/workbook.html O02 callout 2	callout	The proposed custom-XML namespace is urn:dnacalc:views:v1; the writer must allocate a free part name. This demo checks a JSON snapshot ro...	P21-0093,P21-0125	
+pro21/workbook.html O02 callout 3	callout	Save records a local in-memory snapshot. Export view settings creates an explicitly named JSON file; neither action claims to be an Excel...	P21-0095,P21-0125	
+pro21/workbook.html O02 callout 4	callout	Unsupported legacy routes and macro-losing .xlsx choices refuse the save instead of silently discarding presentation or code. Trust permi...	P21-0095,P21-0115	
+pro21/workbook.html O02 exception	scene_exception	O02 exception variant	P21-0095	
+pro21/workbook.html O03	scene	Print · the computing notebook — Capture the same Sales computation as a clean write-up, with an optional formula appendix.	P21-0097,P21-0098	
+pro21/workbook.html O03 callout 1	callout	The print snapshot comes from the same reactive Sales state and named outputs as NC01–NC07. It does not create another calculation model.	P21-0097,P21-0010	
+pro21/workbook.html O03 callout 2	callout	Region totals and counts cover every matching row of the 25,000-order fixture. The live-price result is captured and explicitly stops upd...	P21-0016,P21-0098	
+pro21/workbook.html O03 callout 3	callout	The optional appendix lists exact formulas and backing anchors. Its addition changes the page count; snapshot identifiers appear only in ...	P21-0098,P21-0005	
+pro21/workbook.html O03 callout 4	callout	If the current calculation is blocked, successful-looking values are withheld. Native print dialogs and physical/PDF output remain a sepa...	P21-0097,P21-0129	
+pro21/workbook.html O03 exception	scene_exception	O03 exception variant	P21-0097	
+pro21/workbook.html O04	scene	Print · a Model map region — Print a readable five-block dependency region with its formulas and scope.	P21-0097,P21-0099	
+pro21/workbook.html O04 callout 1	callout	The selected five-block day-5 region is captured from the ordinary Stock model, including the current repair state and reorder point.	P21-0099	
+pro21/workbook.html O04 callout 2	callout	Period delay, reserve iteration and dependency direction remain explicit on paper; the graphic does not claim an execution recording.	P21-0064,P21-0058	
+pro21/workbook.html O04 callout 3	callout	The source appendix is optional presentation. A larger scope requires review rather than unreadable automatic expansion.	P21-0099	
+pro21/workbook.html O04 callout 4	callout	Print has its own snapshot and footer. Refresh deliberately captures the model again; a page never silently changes after it is captured.	P21-0097	
+pro21/workbook.html O04 exception	scene_exception	O04 exception variant	P21-0099	
+pro21/storyboards.html S01	scene	Find your footing in Inherited — Maria opens a dense inherited workbook; the selected source remains useful while inspection continues.	P21-0050	
+pro21/storyboards.html S01 callout 1	callout	The saved viewport opens first. The last saved revenue is visibly stale; opening does not silently refresh a missing source.	P21-0050	
+pro21/storyboards.html S01 callout 2	callout	The workbook outline exposes hidden-sheet counts and an explicit route to all40 sheets. Archive opens a dense working grid.	P21-0050	
+pro21/storyboards.html S01 callout 3	callout	Navigation remains independent of inspection. Select a cell, search commands, or step into the report error without waiting for the full ...	P21-0050	
+pro21/storyboards.html S01 callout 4	callout	This is the documented synthetic stress fixture. Values labelled as saved observations are not asserted to be current.	P21-0050,P21-0122	
+pro21/storyboards.html S01 exception	scene_exception	S01 exception variant	P21-0050	
+pro21/storyboards.html S02	scene	Find the broken name — A local #REF! is traced to Revenue.Window, separately from the missing external workbook.	P21-0056,P21-0057	
+pro21/storyboards.html S02 callout 1	callout	The result, its exact formula and the failing name are adjacent. The stale saved value is not presented as the result of the current form...	P21-0056	
+pro21/storyboards.html S02 callout 2	callout	A dependency explanation shows the broken starting reference. It does not claim to reproduce Excel’s execution order.	P21-0058	
+pro21/storyboards.html S02 callout 3	callout	Reveal in Classic carries Summary!F18 across the view change. Copy evidence preserves the source and the distinction between stale and cu...	P21-0057	
+pro21/storyboards.html S02 callout 4	callout	No target range is guessed. Repair starts with the actual source definition and requires the user to select a valid reference.	P21-0056	
+pro21/storyboards.html S02 exception	scene_exception	S02 exception variant	P21-0057	
+pro21/storyboards.html S03	scene	Start a Notebook from a result — Maria begins with Summary!B7; the empty page offers a concrete next step.	P21-0036	
+pro21/storyboards.html S03 callout 1	callout	Every number in the prose is bound to its original source. Selecting a value reveals its cell without changing the reading order.	P21-0037	
+pro21/storyboards.html S03 callout 2	callout	The unit-price control edits Inputs!B3 and updates the same operating plan. The “Model change” label is present before the edit.	P21-0037,P21-0008	
+pro21/storyboards.html S03 callout 3	callout	Authored prose and layout are presentation. The formula lens reveals structure without introducing names or rewriting source.	P21-0038,P21-0008	
+pro21/storyboards.html S03 callout 4	callout	The blocked spill preserves the original #SPILL! value. Moving the note is a separate model change, and Undo reverses completed actions i...	P21-0048	
+pro21/storyboards.html S03 exception	scene_exception	S03 exception variant	P21-0036	
+pro21/storyboards.html S04	scene	Write for the director — The narrative, input control, financial summary and chart remain bound to Budget.	P21-0037	
+pro21/storyboards.html S04 callout 1	callout	Every number in the prose is bound to its original source. Selecting a value reveals its cell without changing the reading order.	P21-0037	
+pro21/storyboards.html S04 callout 2	callout	The unit-price control edits Inputs!B3 and updates the same operating plan. The “Model change” label is present before the edit.	P21-0037,P21-0008	
+pro21/storyboards.html S04 callout 3	callout	Authored prose and layout are presentation. The formula lens reveals structure without introducing names or rewriting source.	P21-0038,P21-0008	
+pro21/storyboards.html S04 callout 4	callout	The blocked spill preserves the original #SPILL! value. Moving the note is a separate model change, and Undo reverses completed actions i...	P21-0048	
+pro21/storyboards.html S04 exception	scene_exception	S04 exception variant	P21-0037	
+pro21/storyboards.html S05	scene	Read the formula; repair the spill — The formula lens is presentation, while moving the obstructing note is a model change.	P21-0038,P21-0048	
+pro21/storyboards.html S05 callout 1	callout	Every number in the prose is bound to its original source. Selecting a value reveals its cell without changing the reading order.	P21-0037	
+pro21/storyboards.html S05 callout 2	callout	The unit-price control edits Inputs!B3 and updates the same operating plan. The “Model change” label is present before the edit.	P21-0037,P21-0008	
+pro21/storyboards.html S05 callout 3	callout	Authored prose and layout are presentation. The formula lens reveals structure without introducing names or rewriting source.	P21-0038,P21-0008	
+pro21/storyboards.html S05 callout 4	callout	The blocked spill preserves the original #SPILL! value. Moving the note is a separate model change, and Undo reverses completed actions i...	P21-0048	
+pro21/storyboards.html S05 exception	scene_exception	S05 exception variant	P21-0048	
+pro21/storyboards.html S06	scene	Trace the wrong Sales number — Sam follows all 25,000 rows to the 4,200 pending order, then reviews a one-formula change.	P21-0053,P21-0055	
+pro21/storyboards.html S06 callout 1	callout	All 125 Paid West orders total 124,250; one Pending West order adds 4,200. The generator enforces these totals across 25,000 rows.	P21-0053	
+pro21/storyboards.html S06 callout 2	callout	The selected row is data row 10482 and sheet row 10483. Its address remains visible in every explanation.	P21-0053	
+pro21/storyboards.html S06 callout 3	callout	The repair changes Report!B5 only. Apply updates the result; Undo restores the original formula. Cancel discards only the pending proposa...	P21-0055	
+pro21/storyboards.html S06 callout 4	callout	The stale-cache exception variant prevents a previous Pivot total being used as current confirmation.	P21-0054	
+pro21/storyboards.html S06 exception	scene_exception	S06 exception variant	P21-0054	
+pro21/storyboards.html S07	scene	Review the exact formula repair — Sam follows all 25,000 rows to the 4,200 pending order, then reviews a one-formula change.	P21-0055,P21-0053	
+pro21/storyboards.html S07 callout 1	callout	All 125 Paid West orders total 124,250; one Pending West order adds 4,200. The generator enforces these totals across 25,000 rows.	P21-0053	
+pro21/storyboards.html S07 callout 2	callout	The selected row is data row 10482 and sheet row 10483. Its address remains visible in every explanation.	P21-0053	
+pro21/storyboards.html S07 callout 3	callout	The repair changes Report!B5 only. Apply updates the result; Undo restores the original formula. Cancel discards only the pending proposa...	P21-0055	
+pro21/storyboards.html S07 callout 4	callout	The stale-cache exception variant prevents a previous Pivot total being used as current confirmation.	P21-0054	
+pro21/storyboards.html S07 exception	scene_exception	S07 exception variant	P21-0054	
+pro21/storyboards.html S08	scene	Wire an exact formula change — Lee adds the reorder-point input and sees the changed formula before committing.	P21-0067,P21-0064	
+pro21/storyboards.html S08 callout 1	callout	The wire targets a specific operand in Stock!H15. Apply changes =IF(G15&lt;$B$8,$B$6,0) to =IF(G15&lt;$B$5+$B$8,$B$6,0), leaving other or...	P21-0067	
+pro21/storyboards.html S08 callout 2	callout	At the initial reorder point 260, the current day-2 order is 0 and the repair preview is 420. The map shows current values until Apply. A...	P21-0067	
+pro21/storyboards.html S08 callout 3	callout	The H15→C18 wire is a real three-day prior-period reference. The reserve has its own self-reference and is enclosed as iteration, with no...	P21-0064	
+pro21/storyboards.html S08 callout 4	callout	Check in Classic and Back to map share the same formula state and reorder point. Cancel closes the pending preview; Close retains an acce...	P21-0067,P21-0010	
+pro21/storyboards.html S08 exception	scene_exception	S08 exception variant	P21-0067	
+pro21/storyboards.html S09	scene	Verify the same Stock model in cells — Lee checks the real three-day lag and reserve calculation without losing his selection.	P21-0051	
+pro21/storyboards.html S09 callout 1	callout	At reorder point 260 after the repair, day 2’s order of 420 in H15 arrives on day 5 in C18. Opening this scene from the map retains the m...	P21-0051	
+pro21/storyboards.html S09 callout 2	callout	The native form-control slider links to B5. Changing it recalculates this same period-row inventory model and carries back into the map.	P21-0051	
+pro21/storyboards.html S09 callout 3	callout	The B8 reserve circle is a separate iteration example: maximum 100, tolerance 0.001. The displayed 20.00 is rounded; no invented iteratio...	P21-0051	
+pro21/storyboards.html S09 callout 4	callout	The exception variant shows a non-converging replacement proposal. It retains the current reserve and does not claim that an iteration li...	P21-0051	
+pro21/storyboards.html S09 exception	scene_exception	S09 exception variant	P21-0051	
+pro21/app.html S10	scene	Jo changes Loan live — The rate is now 12%; the new payment appears without an Apply step.	P21-0076	
+pro21/app.html S10 callout 1	callout	Live is the default: every valid input recalculates the same PMT/IPMT/PPMT fixture. The quiet mark is the only normal-state status indica...	P21-0076,P21-0005	
+pro21/app.html S10 callout 2	callout	Focus reveals “Model change” and the bound source cell before typing. Invalid drafts remain visible and leave the last valid result expli...	P21-0076,P21-0077	
+pro21/app.html S10 callout 3	callout	Undo reverses the input gesture. The balance chart is drawn from every active amortisation row; Open all months exposes the complete sche...	P21-0076	
+pro21/app.html S10 callout 4	callout	The issue variant enters an invalid term. Source, Compare, Print, keyboard input and Undo are working controls in this offline demonstrat...	P21-0077	
+pro21/app.html S10 exception	scene_exception	S10 exception variant	P21-0077	
+pro21/app.html S11	scene	Jo prints the applied Loan case — The print proof binds assumptions, results and the complete balance chart together.	P21-0079,P21-0005	
+pro21/app.html S11 callout 1	callout	Print has its own stable snapshot. Opening it from an App carries the applied case; opening this storyboard directly starts from the rest...	P21-0079	
+pro21/app.html S11 callout 2	callout	The page footer holds its print-snapshot identifier. No revision number appears on the working App.	P21-0079,P21-0005	
+pro21/app.html S11 callout 3	callout	The full 360-row schedule is excluded unless requested. Its inclusion changes the page count visibly.	P21-0079	
+pro21/app.html S11 callout 4	callout	The balance uses the unrounded schedule. Currency is rounded only for display.	P21-0079	
+pro21/app.html S11 exception	scene_exception	S11 exception variant	P21-0079	
+pro21/formula-explorer.html S12	scene	Ade · an expected error — The rate 1.2 returns #NUM!; the expected-error test matches while the error remains visible.	P21-0083,P21-0082	
+pro21/formula-explorer.html S12 callout 1	callout	Standalone means no workbook, sheet, caller cell or hidden temporary workbook. Context-dependent functions are refused as a tool state, n...	P21-0082	
+pro21/formula-explorer.html S12 callout 2	callout	Evaluate runs the entered fixture formula. Number formats and the context-free Cell Value < 100 rule affect display only; the numeric or ...	P21-0081	
+pro21/formula-explorer.html S12 callout 3	callout	Saved tests compare expected and observed values. #NUM! is the declared error for a numeric discount rate outside 0–1; a matching expecte...	P21-0083	
+pro21/formula-explorer.html S12 callout 4	callout	The named add-in is illustrative: these offline files evaluate its declared numeric contract in JavaScript. No native XLL is loaded, and ...	P21-0086	
+pro21/formula-explorer.html S12 callout 5	callout	Functions, arguments, formats, rule, test checkboxes and Evaluate are interactive. Ctrl+Enter evaluates, F6 cycles regions, and Ctrl+Z un...	P21-0081	
+pro21/formula-explorer.html S12 exception	scene_exception	S12 exception variant	P21-0086	
+pro21/formula-explorer.html S13	scene	Ade · caller context required — The standalone workbench refuses a caller-dependent test and preserves its draft.	P21-0082	
+pro21/formula-explorer.html S13 callout 1	callout	Standalone means no workbook, sheet, caller cell or hidden temporary workbook. Context-dependent functions are refused as a tool state, n...	P21-0082	
+pro21/formula-explorer.html S13 callout 2	callout	Evaluate runs the entered fixture formula. Number formats and the context-free Cell Value < 100 rule affect display only; the numeric or ...	P21-0081	
+pro21/formula-explorer.html S13 callout 3	callout	Saved tests compare expected and observed values. #NUM! is the declared error for a numeric discount rate outside 0–1; a matching expecte...	P21-0083	
+pro21/formula-explorer.html S13 callout 4	callout	The named add-in is illustrative: these offline files evaluate its declared numeric contract in JavaScript. No native XLL is loaded, and ...	P21-0086	
+pro21/formula-explorer.html S13 callout 5	callout	Functions, arguments, formats, rule, test checkboxes and Evaluate are interactive. Ctrl+Enter evaluates, F6 cycles regions, and Ctrl+Z un...	P21-0081	
+pro21/formula-explorer.html S13 exception	scene_exception	S13 exception variant	P21-0086	
+pro21/agent.html S14	scene	Maria · review the agent’s proposal — Select review units A and B, preview them together, then apply with separate Undo steps.	P21-0110,P21-0111,P21-0112,P21-0113	
+pro21/agent.html S14 callout 1	callout	A changes Inputs!B3 from 120 to 125. B changes only the director heading. C is an unsupported suggestion to raise cost from 70 to 72, and...	P21-0110	
+pro21/agent.html S14 callout 2	callout	Ticking units does not edit the workbook. Review selected calculates exactly that subset: A gives annual profit 276,000; A+C gives 252,00...	P21-0111	
+pro21/agent.html S14 callout 3	callout	Apply validates all selected units before changing any target. A+B are accepted together but create two Undo units: A first, B second. On...	P21-0112	
+pro21/agent.html S14 callout 4	callout	History keeps proposal authorship, Maria’s acceptance and the subsequent undone state. Rejecting C changes the proposal record only, not ...	P21-0113	
+pro21/agent.html S14 callout 5	callout	A stale price proposal shows expected 120, current 123 and proposed 125. Recompute refreshes its preview; the independent heading can be ...	P21-0114	
+pro21/agent.html S14 callout 6	callout	This working offline flow uses the same mutable Budget fixture as the other views. All monthly and annual results are recalculated from i...	P21-0010,P21-0126	
+pro21/agent.html S14 exception	scene_exception	S14 exception variant	P21-0114	
+pro21/agent.html S15	scene	Maria · undo just the heading — The price change remains at 125 and R276,000 profit after the heading change is undone.	P21-0112,P21-0113	
+pro21/agent.html S15 callout 1	callout	A changes Inputs!B3 from 120 to 125. B changes only the director heading. C is an unsupported suggestion to raise cost from 70 to 72, and...	P21-0110	
+pro21/agent.html S15 callout 2	callout	Ticking units does not edit the workbook. Review selected calculates exactly that subset: A gives annual profit 276,000; A+C gives 252,00...	P21-0111	
+pro21/agent.html S15 callout 3	callout	Apply validates all selected units before changing any target. A+B are accepted together but create two Undo units: A first, B second. On...	P21-0112	
+pro21/agent.html S15 callout 4	callout	History keeps proposal authorship, Maria’s acceptance and the subsequent undone state. Rejecting C changes the proposal record only, not ...	P21-0113	
+pro21/agent.html S15 callout 5	callout	A stale price proposal shows expected 120, current 123 and proposed 125. Recompute refreshes its preview; the independent heading can be ...	P21-0114	
+pro21/agent.html S15 callout 6	callout	This working offline flow uses the same mutable Budget fixture as the other views. All monthly and annual results are recalculated from i...	P21-0010,P21-0126	
+pro21/agent.html S15 exception	scene_exception	S15 exception variant	P21-0114	
+pro21/agent.html S16	scene	Maria · resolve a stale proposal — The proposal expected price 120; the workbook now has 123, so the price edit cannot overwrite it.	P21-0114	
+pro21/agent.html S16 callout 1	callout	A changes Inputs!B3 from 120 to 125. B changes only the director heading. C is an unsupported suggestion to raise cost from 70 to 72, and...	P21-0110	
+pro21/agent.html S16 callout 2	callout	Ticking units does not edit the workbook. Review selected calculates exactly that subset: A gives annual profit 276,000; A+C gives 252,00...	P21-0111	
+pro21/agent.html S16 callout 3	callout	Apply validates all selected units before changing any target. A+B are accepted together but create two Undo units: A first, B second. On...	P21-0112	
+pro21/agent.html S16 callout 4	callout	History keeps proposal authorship, Maria’s acceptance and the subsequent undone state. Rejecting C changes the proposal record only, not ...	P21-0113	
+pro21/agent.html S16 callout 5	callout	A stale price proposal shows expected 120, current 123 and proposed 125. Recompute refreshes its preview; the independent heading can be ...	P21-0114	
+pro21/agent.html S16 callout 6	callout	This working offline flow uses the same mutable Budget fixture as the other views. All monthly and annual results are recalculated from i...	P21-0010,P21-0126	
+pro21/agent.html S16 exception	scene_exception	S16 exception variant	P21-0114	
+pro21/customise.html U01	scene	Layout declaration and live preview — Edit an inspectable view declaration, review its exact presentation diff, apply once and undo.	P21-0100,P21-0101	
+pro21/customise.html U01 callout 1	callout	The declaration is a draft. JSON, exact source identity and geometry constraints gate Apply; broken bindings never fall back to another a...	P21-0101	
+pro21/customise.html U01 callout 2	callout	Try in this window changes only the preview. Review lists presentation properties and zero cell, formula or name writes.	P21-0100,P21-0008	
+pro21/customise.html U01 callout 3	callout	Apply stores one session presentation unit. Open Classic uses that accepted profile on the existing source; Undo restores the prior decla...	P21-0100	
+pro21/customise.html U01 callout 4	callout	The preview uses the current Budget values. Its right Inspector, formula size and density are authored presentation, not duplicated calcu...	P21-0100	
+pro21/customise.html U01 callout 5	callout	200% reflows editor and preview vertically. Keyboard focus, escape cancellation, high contrast and reduced motion remain available.	P21-0012,P21-0100	
+pro21/customise.html U01 exception	scene_exception	U01 exception variant	P21-0101	
+pro21/customise.html U02	scene	Theme tokens and computed contrast — Semantic colour tokens have visible numeric checks rather than an invented accessibility pass.	P21-0102	
+pro21/customise.html U02 callout 1	callout	Nine displayed pairs are computed from sRGB luminance. Text pairs require 4.5:1; control and visible focus strokes require 3:1; compariso...	P21-0102	
+pro21/customise.html U02 callout 2	callout	The issue variant gives secondary text a failing ink. Restore Strand inks or select a measured preset; Review stays blocked until every d...	P21-0102	
+pro21/customise.html U02 callout 3	callout	Error ink retains its red role. Focus has two strokes; the visible stroke is tested against the selected paper.	P21-0102	
+pro21/customise.html U02 callout 4	callout	Theme application changes presentation only. It cannot change workbook values, source formats, calculation or macro permissions.	P21-0102,P21-0115	
+pro21/customise.html U02 callout 5	callout	These colour checks do not certify native clipping, screen readers or every possible user-authored content combination.	P21-0124	
+pro21/customise.html U02 exception	scene_exception	U02 exception variant	P21-0102	
+pro21/customise.html U03	scene	Keymap editor and conformance departure — A named custom Ready-grid binding is tested, reviewed and recoverable.	P21-0103,P21-0104,P21-0105	
+pro21/customise.html U03 callout 1	callout	Changing F2 to Ctrl+Shift+E explicitly leaves the Classic conformance profile. Formula-editing F2 and F4 contexts remain outside the Read...	P21-0103	
+pro21/customise.html U03 callout 2	callout	The issue variant collides with Flash Fill on Ctrl+E. Protected Escape, Undo, Redo, reference anchoring and commit commands cannot be rea...	P21-0104	
+pro21/customise.html U03 callout 3	callout	The test cell opens an isolated editor for the draft chord; Escape cancels without a workbook write. The accepted profile opens the demon...	P21-0105	
+pro21/customise.html U03 callout 4	callout	Restore Classic proposes F2 again, with one presentation Apply and Undo. A declared command-set check is not a full native/browser confli...	P21-0103,P21-0104	
+pro21/customise.html U03 exception	scene_exception	U03 exception variant	P21-0104	
+pro21/customise.html U04	scene	Agent restyles Classic in dark — A larger formula and right Inspector survive a Strand review before acceptance.	P21-0106,P21-0007	
+pro21/customise.html U04 callout 1	callout	The agent proposes Working density unchanged, 15.5 px formula text and a 320 px right Inspector. Existing keymap and source identities ar...	P21-0106	
+pro21/customise.html U04 callout 2	callout	Dark secondary text is #A4B8C2 on #22343C, measured at 6.29:1. The issue variant uses #7D97A0 and fails at 4.19:1; correction is explicit.	P21-0106	
+pro21/customise.html U04 callout 3	callout	Preview, review, Apply and Undo use the same proposal pattern as other authored edits. The actual diff contains zero cell values, formula...	P21-0106,P21-0008	
+pro21/customise.html U04 callout 4	callout	Open accepted Classic carries the presentation to the existing grid and the same Inputs!B3 source. Stored workbook formatting remains mod...	P21-0106,P21-0007	
+pro21/customise.html U04 callout 5	callout	Pair checks and DOM interactions are executable; native text-fit and assistive-technology conformance are not claimed.	P21-0124	
+pro21/customise.html U04 exception	scene_exception	U04 exception variant	P21-0106	
+pro21/customise.html U05	scene	Agent builds a bound Loan App — A three-line request becomes reviewed source bindings, then a live accepted App.	P21-0107,P21-0108,P21-0109	
+pro21/customise.html U05 callout 1	callout	The three inputs bind exactly to Loan!B2:B4; outputs to B6:B7, the existing balance chart and schedule A12:F371. The App never supplies a...	P21-0107	
+pro21/customise.html U05 callout 2	callout	Trial changes are isolated. Principal 1,000,000, rate 12%, term 360 produces payment R10,286.13 and total interest R2,703,005.35 using th...	P21-0108	
+pro21/customise.html U05 callout 3	callout	Existing Stop validation is reused: principal >0, rate 0–100%, integer term 1–360. Invalid trial input retains the explicitly last-valid ...	P21-0107,P21-0077	
+pro21/customise.html U05 callout 4	callout	Accepting stores only App presentation. Open accepted App then writes the source inputs with one Undo per committed edit and exposes the ...	P21-0108	
+pro21/customise.html U05 callout 5	callout	The issue variant points payment at B8. Output preview is withheld; no nearby-cell substitute, hidden permission grant or trial-value acc...	P21-0109	
+pro21/customise.html U05 exception	scene_exception	U05 exception variant	P21-0109	
+pro21/workbook.html W01	scene	Inherited · recognise the structure — An inventory of explicit evidence and reviewable interpretations before opening thousands of cells.	P21-0088,P21-0089	
+pro21/workbook.html W01 callout 1	callout	Pattern evidence and author interpretation are distinct. The four labels are From workbook, Suggested, Confirmed by Maria, and Needs revi...	P21-0088	
+pro21/workbook.html W01 callout 2	callout	Confirmation and correction write presentation metadata only. No value, formula, defined name, Table declaration or sheet visibility is c...	P21-0088	
+pro21/workbook.html W01 callout 3	callout	Inherited-structure-v1 declares 40 named sheets and exactly 300,000 formula members in explicit B:M ranges. Its six hidden sheets and det...	P21-0089,P21-0128	
+pro21/workbook.html W01 callout 4	callout	The partial-analysis exception resolves references for 18 of 40 sheets. The inventory stays complete and hidden sheets remain hidden.	P21-0089	
+pro21/workbook.html W01 exception	scene_exception	W01 exception variant	P21-0089	
+pro21/workbook.html W02	scene	Monthly · why suggested — Inspect twelve actual period headings and forty-eight repeated formulas, then confirm or correct the interpreta...	P21-0090,P21-0088	
+pro21/workbook.html W02 callout 1	callout	Pattern evidence and author interpretation are distinct. The four labels are From workbook, Suggested, Confirmed by Maria, and Needs revi...	P21-0088	
+pro21/workbook.html W02 callout 2	callout	Confirmation and correction write presentation metadata only. No value, formula, defined name, Table declaration or sheet visibility is c...	P21-0088	
+pro21/workbook.html W02 callout 3	callout	The normal fixture has twelve date headings and 48 formulas in B8:M11. The exception changes H1 to a text caption after confirmation; it ...	P21-0090	
+pro21/workbook.html W02 callout 4	callout	A correction can choose a calculation block or unclassified range. Confirming a mixed date/caption axis requires reviewing that caption e...	P21-0090	
+pro21/workbook.html W02 exception	scene_exception	W02 exception variant	P21-0090	
+pro21/workbook.html W03	scene	Orders · a database used by Report — The Table declaration, complete key check and actual consumer formulas keep their source identities.	P21-0091,P21-0088	
+pro21/workbook.html W03 callout 1	callout	Pattern evidence and author interpretation are distinct. The four labels are From workbook, Suggested, Confirmed by Maria, and Needs revi...	P21-0088	
+pro21/workbook.html W03 callout 2	callout	Confirmation and correction write presentation metadata only. No value, formula, defined name, Table declaration or sheet visibility is c...	P21-0088	
+pro21/workbook.html W03 callout 3	callout	The key check and Paid West aggregate evaluate all 25,000 existing generated Orders rows. Current source addresses follow any reviewed so...	P21-0091	
+pro21/workbook.html W03 callout 4	callout	The two displayed consumers use the corrected Paid-only and Pending-detail formulas. The exception adds an unresolved Report!H2 =INDIRECT...	P21-0091	
+pro21/workbook.html W03 exception	scene_exception	W03 exception variant	P21-0091	
+pro21/workbook.html W04	scene	Budget · a view for each sheet — Inputs is a grid, Monthly is a map and Summary is a Notebook, within one workbook.	P21-0092,P21-0010	
+pro21/workbook.html W04 callout 1	callout	Every sheet tab names its view. Changing tabs restores that sheet’s source and current presentation; no formula is copied.	P21-0092	
+pro21/workbook.html W04 callout 2	callout	The values use the shared Budget model, including changes made in the existing Classic, Notebook and Agent scenes.	P21-0010	
+pro21/workbook.html W04 callout 3	callout	The local view selector creates a session override. File view preferences are a separate reviewed presentation edit in W05.	P21-0092	
+pro21/workbook.html W04 callout 4	callout	The missing-layout exception opens Classic at Summary!B7 without substituting a different Notebook.	P21-0092	
+pro21/workbook.html W04 exception	scene_exception	W04 exception variant	P21-0092	
+pro21/workbook.html W05	scene	File · preferred and supported views — Review presentation defaults and their proposed optional file part, with a precise preservation bo...	P21-0093,P21-0094	
+pro21/workbook.html W05 callout 1	callout	Draft edits remain in this settings screen until Review and Apply. The committed snapshot includes stable sheet IDs, preferences, layout ...	P21-0093	
+pro21/workbook.html W05 callout 2	callout	Proposed optional custom-XML part: /customXml/item1.xml, namespace urn:dnacalc:views:v1. A production writer must allocate a free part name.	P21-0093	
+pro21/workbook.html W05 callout 3	callout	The exercised route here is a local JSON snapshot round-trip. XLSX writing, Excel save/reopen, custom-XML removal and unknown-part preser...	P21-0125	
+pro21/workbook.html W05 callout 4	callout	Classic is always available. An unsupported declaration is preserved, and this editor refuses to overwrite its version.	P21-0094	
+pro21/workbook.html W05 exception	scene_exception	W05 exception variant	P21-0094	
