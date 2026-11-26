@@ -18,6 +18,7 @@ const XL_PASTE_ALL_EXCEPT_BORDERS: i64 = 7;
 const XL_PASTE_FORMULAS_AND_NUMBER_FORMATS: i64 = 11;
 const XL_PASTE_VALUES_AND_NUMBER_FORMATS: i64 = 12;
 const XL_PASTE_COLUMN_WIDTHS: i64 = 8;
+const XL_PASTE_COMMENTS_AND_NOTES: i64 = 21;
 const XL_PASTE_ALL_USING_SOURCE_THEME: i64 = 13;
 const XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS: i64 = 14;
 const XL_PASTE_OPERATION_NONE: i64 = -4142;
@@ -95,12 +96,9 @@ impl WorkbookAutomation {
         let mode = match paste {
             // Within one workbook the source theme is the destination's.
             XL_PASTE_ALL | XL_PASTE_ALL_USING_SOURCE_THEME => PasteMode::All,
-            XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => {
-                return Err(AutoError::not_modelled(
-                    "Range.PasteSpecial xlPasteAllMergingConditionalFormats",
-                    "dc-2rjye",
-                ));
-            }
+            XL_PASTE_ALL_MERGING_CONDITIONAL_FORMATS => PasteMode::AllMergingConditionalFormats,
+            // Excel ww22: xlPasteCommentsAndNotes is a 1004 and leaves the destination's note.
+            XL_PASTE_COMMENTS_AND_NOTES => return Err(failed("PasteSpecial")),
             XL_PASTE_COLUMN_WIDTHS => PasteMode::Formats,
             XL_PASTE_VALIDATION => PasteMode::Validation,
             XL_PASTE_COMMENTS => PasteMode::Comments,
@@ -134,9 +132,9 @@ impl WorkbookAutomation {
         let transpose = flag(3)?;
         if paste == XL_PASTE_COLUMN_WIDTHS {
             // Excel ww21 ignores Transpose and Add when pasting column widths.
-            if combine.skip_blanks || !matches!(combine.operation, None | Some(XL_PASTE_OPERATION_ADD)) {
+            if !matches!(combine.operation, None | Some(XL_PASTE_OPERATION_ADD)) {
                 return Err(AutoError::not_modelled(
-                    "Range.PasteSpecial column widths with SkipBlanks or this Operation",
+                    "Range.PasteSpecial column widths with this Operation",
                     "dc-2rjye",
                 ));
             }
@@ -218,16 +216,14 @@ impl WorkbookAutomation {
                 }
                 let src_cols = clip.snapshot.area().column_count();
                 let dst_cols = to.column_count();
-                if dst_cols != 1 && dst_cols != src_cols {
-                    return Err(AutoError::not_modelled(
-                        "Range.PasteSpecial xlPasteColumnWidths tiling across a multi-column destination",
-                        "dc-2rjye",
-                    ));
-                }
+                // Excel ww22: whole copies of the source tile across the destination; a destination narrower than
+                // the source still takes one copy.
+                let tiles = (dst_cols / src_cols).max(1);
+                let total_cols = tiles * src_cols;
                 let end_col = to
                     .first()
                     .column()
-                    .checked_add(src_cols - 1)
+                    .checked_add(total_cols - 1)
                     .filter(|&c| c <= calc_value::MAX_COLUMNS)
                     .ok_or_else(|| failed("PasteSpecial"))?;
                 let target_area = GridArea::new(
@@ -237,24 +233,28 @@ impl WorkbookAutomation {
                 .map_err(|_| failed("PasteSpecial"))?;
                 self.guard_area(session, target_area)?;
                 let layouts = session.host().model().definitions().axis_layouts();
-                let mut edits = Vec::with_capacity(src_cols as usize);
-                for (offset, index) in
-                    (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate()
-                {
-                    let src_fmt = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
-                    let column = to.first().column() + offset as u32;
-                    let dst_fmt = layouts.get(to.sheet(), calc_doc_model::Axis::Columns, column);
-                    let merged = dst_fmt
-                        .with_size(src_fmt.size(), src_fmt.custom())
+                let mut edits = Vec::with_capacity(total_cols as usize);
+                for tile in 0..tiles {
+                    for (offset, index) in
+                        (clip.snapshot.area().first().column()..=clip.snapshot.area().last().column()).enumerate()
+                    {
+                        let src_fmt = clip.snapshot.axis_format(calc_doc_model::Axis::Columns, index);
+                        let column = to.first().column() + tile * src_cols + offset as u32;
+                        let dst_fmt = layouts.get(to.sheet(), calc_doc_model::Axis::Columns, column);
+                        // The width and hidden state transfer; the outline level does not.
+                        let merged = dst_fmt
+                            .with_size(src_fmt.size(), src_fmt.custom())
+                            .ok_or_else(|| failed("PasteSpecial"))?
+                            .with_hidden(src_fmt.hidden());
+                        let edit = calc_doc_model::AxisFormatEdit::new(
+                            to.sheet(),
+                            calc_doc_model::Axis::Columns,
+                            column,
+                            merged,
+                        )
                         .ok_or_else(|| failed("PasteSpecial"))?;
-                    let edit = calc_doc_model::AxisFormatEdit::new(
-                        to.sheet(),
-                        calc_doc_model::Axis::Columns,
-                        column,
-                        merged,
-                    )
-                    .ok_or_else(|| failed("PasteSpecial"))?;
-                    edits.push(crate::CellEdit::AxisFormat(edit));
+                        edits.push(crate::CellEdit::AxisFormat(edit));
+                    }
                 }
                 return Ok(SkinIntent::Edit { edits });
             }
@@ -331,11 +331,9 @@ impl WorkbookAutomation {
                 },
                 CellEdit::Clear { area } => {
                     let at = area.first();
+                    // Excel ww22: blank on blank stays empty for every Operation.
                     if dest_empty.contains(&at) {
-                        return Err(AutoError::not_modelled(
-                            "Range.PasteSpecial Operation blank source onto blank destination",
-                            "dc-2rjye",
-                        ));
+                        continue;
                     }
                     (at, 0.0)
                 }

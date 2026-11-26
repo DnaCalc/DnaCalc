@@ -193,6 +193,9 @@ pub enum PasteMode {
     FormulasAndNumberFormats,
     /// Paste values with the source's number format (xlPasteValuesAndNumberFormats).
     ValuesAndNumberFormats,
+    /// Paste everything and keep the destination's overlapping conditional rules, the source's rules first
+    /// (xlPasteAllMergingConditionalFormats).
+    AllMergingConditionalFormats,
 }
 
 impl PasteMode {
@@ -202,13 +205,14 @@ impl PasteMode {
             Self::AllExceptBorders => Self::All,
             Self::FormulasAndNumberFormats => Self::Formulas,
             Self::ValuesAndNumberFormats => Self::Values,
+            Self::AllMergingConditionalFormats => Self::All,
             other => other,
         }
     }
 
     /// Whether the mode splices the source's cell format into the destination's own.
     fn splices_formats(self) -> bool {
-        self != self.base()
+        matches!(self, Self::AllExceptBorders | Self::FormulasAndNumberFormats | Self::ValuesAndNumberFormats)
     }
 
     /// Whether the mode writes cell contents; the others write formats or metadata only.
@@ -1178,7 +1182,7 @@ fn copy_edits_from(
             source_model,
             from,
             to,
-            mode,
+            if spliced_mode == PasteMode::AllMergingConditionalFormats { spliced_mode } else { mode },
             cut,
             transpose,
             &mut edits,
