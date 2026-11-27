@@ -11,4 +11,5 @@ portability = "portable"
 
 [dependencies]
 calc-skin = { path = "../../crates/calc-skin" }
+dna-skin-runtime = { path = "../dna-skin-runtime" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }

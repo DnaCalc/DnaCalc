@@ -16,3 +16,10 @@ serde_json = "=1.0.154"
 calc-skin = { path = "../../crates/calc-skin" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 dna-kit = { path = "../dna-kit" }
+
+# The session test drives the page core against the real workbook service.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+calc-host = { path = "../../crates/calc-host" }
+calc-skin-host = { path = "../../crates/calc-skin-host" }
+dna-grid = { path = "../dna-grid" }
+dna-view-classic = { path = "../dna-view-classic" }

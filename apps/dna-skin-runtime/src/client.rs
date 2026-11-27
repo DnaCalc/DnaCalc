@@ -18,7 +18,7 @@ use calc_skin::query::{self, Query};
 use calc_skin::{
     Answer, Batch, Budget, Change, Envelope, Frame, Message, ModelChange, Operation, Packet,
     Preview, PreviewDepth, Refusal, Revision, Selection, SourceRef, Stamp, Target, WatchId,
-    WorkbookId, WorkbookQuery, WorkbookReply, WorkbookRequest,
+    WorkbookId, WorkbookReply, WorkbookRequest,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
@@ -119,7 +119,6 @@ enum Pending {
 }
 
 struct Slot {
-    query: WorkbookQuery,
     id: Option<WatchId>,
 }
 
@@ -209,13 +208,7 @@ impl Client {
         self.next_watch += 1;
         let key = WatchKey(self.next_watch);
         let query = query.request();
-        self.slots.insert(
-            key,
-            Slot {
-                query: query.clone(),
-                id: None,
-            },
-        );
+        self.slots.insert(key, Slot { id: None });
         self.send(
             WorkbookRequest::Watch {
                 query,
@@ -773,7 +766,7 @@ mod tests {
         assert!(matches!(
             requests[0].1,
             WorkbookRequest::Watch {
-                query: WorkbookQuery::CalcState,
+                query: calc_skin::WorkbookQuery::CalcState,
                 ..
             }
         ));

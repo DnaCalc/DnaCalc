@@ -1476,6 +1476,7 @@ name = "dna-kit"
 version = "0.1.0"
 dependencies = [
  "calc-skin",
+ "dna-skin-runtime",
  "leptos",
 ]
 
@@ -1532,9 +1533,13 @@ dependencies = [
 name = "dna-shell"
 version = "0.1.0"
 dependencies = [
+ "calc-host",
  "calc-skin",
+ "calc-skin-host",
+ "dna-grid",
  "dna-kit",
  "dna-skin-runtime",
+ "dna-view-classic",
  "leptos",
  "serde",
  "serde_json",
@@ -1560,6 +1565,7 @@ dependencies = [
 name = "dna-view-classic"
 version = "0.1.0"
 dependencies = [
+ "calc-skin",
  "dna-grid",
  "dna-kit",
  "leptos",

@@ -258,6 +258,15 @@ impl KeyInput {
         }
     }
 
+    /// The character this press types into a cell that is not being edited, which starts a draft
+    /// (Excel's Enter mode). `None` for a named key, a command chord and composition: an input
+    /// method composes in the editor, never over the grid.
+    pub fn text(&self) -> Option<&str> {
+        let printable = self.key.chars().count() == 1;
+        let chord = (self.ctrl || self.alt || self.meta) && !self.alt_graph;
+        (printable && !chord && !self.composing).then_some(self.key.as_str())
+    }
+
     /// The press types a character: AltGr with a printable key, or composition. It never runs a
     /// command (decision D12: character entry wins over `Ctrl+Alt+<digit>`).
     fn types_text(&self) -> bool {
@@ -461,7 +470,7 @@ impl Invocation {
     }
 }
 
-type Handler = Rc<dyn Fn(&Invocation) -> Result<(), String>>;
+pub type Handler = Rc<dyn Fn(&Invocation) -> Result<(), String>>;
 
 #[derive(Clone, Default)]
 pub struct CommandTable {
@@ -519,14 +528,22 @@ impl CommandTable {
     }
 
     pub fn run(&self, invocation: &Invocation, context: &Context) -> Result<(), CommandError> {
+        let handler = self.handler(&invocation.command, context)?;
+        handler(invocation).map_err(CommandError::Refused)
+    }
+
+    /// The command's handler, when it can run here. A caller that keeps the table behind a
+    /// `RefCell` takes the handler out and releases the table before running it, so a command
+    /// may register or run other commands.
+    pub fn handler(&self, id: &CommandId, context: &Context) -> Result<Handler, CommandError> {
         let (spec, handler) = self
             .commands
-            .get(&invocation.command)
-            .ok_or_else(|| CommandError::Unknown(invocation.command.clone()))?;
+            .get(id)
+            .ok_or_else(|| CommandError::Unknown(id.clone()))?;
         if !spec.enabled.holds(context) {
-            return Err(CommandError::NotNow(invocation.command.clone()));
+            return Err(CommandError::NotNow(id.clone()));
         }
-        handler(invocation).map_err(CommandError::Refused)
+        Ok(handler.clone())
     }
 
     /// The commands that can run here whose label or identity contains every word of `text`,
@@ -572,6 +589,52 @@ mod tests {
             mode,
             read_only: false,
         }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn only_a_printable_key_without_a_command_modifier_starts_a_draft() {
+        assert_eq!(press("a", false, false).text(), Some("a"));
+        assert_eq!(press("=", false, false).text(), Some("="));
+        assert_eq!(press("é", false, false).text(), Some("é"));
+        // A named key and a command chord type nothing.
+        assert_eq!(press("Enter", false, false).text(), None);
+        assert_eq!(press("z", true, false).text(), None);
+        assert_eq!(press("q", false, true).text(), None);
+        // AltGr arrives as Ctrl+Alt and types its character; composition belongs to the editor.
+        let alt_graph = KeyInput {
+            alt_graph: true,
+            ..press("{", true, true)
+        };
+        assert_eq!(alt_graph.text(), Some("{"));
+        let composing = KeyInput {
+            composing: true,
+            ..press("k", false, false)
+        };
+        assert_eq!(composing.text(), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_handler_taken_out_of_the_table_respects_the_commands_condition() {
+        let mut table = CommandTable::default();
+        table.register(
+            CommandSpec {
+                id: UNDO,
+                label: "Undo".into(),
+                enabled: When::parse("!editing").unwrap(),
+            },
+            |_| Ok(()),
+        );
+        assert!(table.handler(&UNDO, &context("classic", InputMode::Ready)).is_ok());
+        assert_eq!(
+            table.handler(&UNDO, &context("classic", InputMode::Edit)).err(),
+            Some(CommandError::NotNow(UNDO))
+        );
+        assert_eq!(
+            table.handler(&DOWN, &context("classic", InputMode::Ready)).err(),
+            Some(CommandError::Unknown(DOWN))
+        );
     }
 
     fn press(key: &str, ctrl: bool, alt: bool) -> KeyInput {

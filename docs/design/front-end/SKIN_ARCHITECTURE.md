@@ -998,12 +998,48 @@ without widening the shell. These decisions fix the shape. They refine sections 
 6. **`InputMode` is the runtime's.** `Ready`, `Enter`, `Edit`, `Point`, `Object`, `KeyTips`,
    `NotebookCommand`. It is derived from the client's draft, shown by the Strip and tested by key
    conditions. No view keeps its own editing flag.
-7. **The view contract (next commit, `dna_kit::view`).** A view implements `View { spec, fit, mount }`
-   and receives a `ViewCx` holding a `Session` (dna-kit's signal binding over the `Client`) and
-   nothing else. It returns its body, its commands with their profile keys, `locate` and `reveal`.
-   The registry holds views by `ViewId` in switcher order. `dna-shell` is chrome over the same
-   `Session`; `dna-grid` owns its viewport watches (`Cells`, `Geometry`) instead of receiving a
-   window the shell computed. `WorkbookFrame` and `WorkbookContext` are removed in that commit.
+7. **The view contract (`dna_kit::view`, `dna_kit::session`).** A view implements
+   `View { spec, fit, commands, mount }` and is given a `Session` and nothing else. `Session` is a
+   `Copy` handle that binds the `Client` to signals: `active()`, `selection()`, `edit()`, `mode()`,
+   `seam()`, `notice()`, `summary()`, `entry()` and `read(watch)` are reactive reads, and a reader
+   runs again only for what it read (a frame that touches one watch wakes the readers of that watch;
+   an edit does not wake a reader of the selection). `mount` returns `MountedView { body, locate,
+   reveal }`. The registry holds views by `ViewId` in switcher order. This replaces the signature in
+   section 6.2: `fit` takes the `Census` alone until the view part is served, and print is left out
+   until `PrintPlan` is.
+8. **A view's commands are registered once and act on the session, not on a mounted component.**
+   `View::commands(session)` is called when the shell starts, before any mount. Each command can run
+   only while its view is on stage (`When::view`), and its keys are bound in the view layer under the
+   same condition. A handler changes the selection, the draft or the seam through the `Session`. So
+   a key, a Deck button, the command search, a skin's sequence and an agent's request do the same
+   thing whether or not the view has drawn, and switching views registers and removes nothing.
+9. **Keys go to one place.** The shell's root handler turns a DOM key event into a `KeyInput` and a
+   `Focus` (`Stage`, `Editor`, `Field`) and calls `Session::key`. A view has no key handler. On the
+   stage a printable key that is not a command starts the draft at the active cell (Enter mode). In
+   the session's editor text is the editor's. In any other text field only chords with Alt reach the
+   keymap, so the Name Box keeps its own Enter, arrows and Ctrl+Z.
+10. **The shell holds no workbook state.** `dna-shell` draws Mast, Deck, Bridge, Stage, Sheet Tabs and
+    Strip from the `Session`, registers the commands that belong to no view (`edit.undo`, `edit.redo`,
+    `edit.commit`, `edit.cancel`, `edit.apply-review`, `calc.calculate`, `shell.search`,
+    `shell.details`, `view.<id>` with the D12 chords), and keeps only which of its own parts are open.
+    A Deck button names a command; its `data-command` attribute is the command identity. The stage
+    mounts again only when the view on stage or its `Fit` changes. `WorkbookFrame` and
+    `WorkbookContext` are removed.
+11. **A component owns the watches for what it draws.** `dna-grid` watches the cells of the page that
+    holds the active cell and the geometry of its sheet (`Session::following`, a watch that re-aims
+    when its query changes and is dropped with the component). The session itself keeps two watches
+    every page needs: `Summary`, and `Formula { at }` on the active cell for the editor. F2 opens the
+    entry the host reports; if it has not arrived the draft starts when it does, and is dropped if the
+    selection has moved on.
+12. **The test of the core is the route the application runs.** `apps/dna-shell/tests/session.rs`
+    joins Classic's commands, the shell's commands, the keymap and the `Session` to the real
+    `calc-skin-host` by packets, as a carrier does, with no browser. A new view's commands and
+    watches are tested the same way before any pixel is drawn.
+
+Left for the lanes that fill the views (each is a command or a component over this core, none
+needs a new core type): Excel's move-after-Enter and Tab-commit, Point mode, in-cell editing with
+`dna-formula-ui`, selection extension and Ctrl+Arrow, the `InputQueue` barrier for keys that need a
+host round trip, the companion pane, dockable panels, the Deck's key tips, and `Places`.
 
 What a view crate may depend on is unchanged (section 3.2 rule 6). What changes is that a view now
 needs nothing from the shell to read, select, edit, commit or register a command.

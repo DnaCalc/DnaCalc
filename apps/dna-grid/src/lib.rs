@@ -1,55 +1,95 @@
 //! Bounded spreadsheet viewport shared by workbook views.
+//!
+//! The grid is given the session and nothing else. It keeps its own watches: the cells of the
+//! page that holds the active cell, and the geometry of that cell's sheet. It handles no key:
+//! its motion and its edit keys are commands ([`commands`]) the keymap resolves.
 
-use calc_skin::grid::{Area, Key};
+use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
-use calc_skin::{Provenance, RawValue, address};
-use dna_kit::WorkbookContext;
+use calc_skin::{Interest, Provenance, RawValue, address, query};
+use dna_kit::{Live, Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
-pub fn mount(cx: WorkbookContext) -> impl IntoView {
+const PAGE_ROWS: u32 = 36;
+const PAGE_COLUMNS: u32 = 18;
+const LAST_ROW: u32 = 1_048_576;
+const LAST_COLUMN: u32 = 16_384;
+
+/// The page of the sheet that holds `at`: the area the grid watches and draws.
+pub fn page_of(at: Key) -> Area {
+    let Key(sheet, generation, row, column) = at;
+    let row = ((row.max(1) - 1) / PAGE_ROWS) * PAGE_ROWS + 1;
+    let column = ((column.max(1) - 1) / PAGE_COLUMNS) * PAGE_COLUMNS + 1;
+    Area(
+        Key(sheet, generation, row, column),
+        Key(
+            sheet,
+            generation,
+            (row + PAGE_ROWS - 1).min(LAST_ROW),
+            (column + PAGE_COLUMNS - 1).min(LAST_COLUMN),
+        ),
+    )
+}
+
+/// One step from `at`, staying on the sheet.
+fn step(at: Key, rows: i64, columns: i64) -> Key {
+    let Key(sheet, generation, row, column) = at;
+    let row = (i64::from(row) + rows).clamp(1, i64::from(LAST_ROW)) as u32;
+    let column = (i64::from(column) + columns).clamp(1, i64::from(LAST_COLUMN)) as u32;
+    Key(sheet, generation, row, column)
+}
+
+/// The grid's commands for `view`, with the keys of the Excel profile. A view that mounts the
+/// grid returns these from `View::commands`.
+pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> {
+    let moves = |id, label, chords: &[&'static str], rows: i64, columns: i64| {
+        ViewCommand::new(view, id, label, chords, move |_| {
+            let at = session.active().ok_or("No cell is selected.")?;
+            session.select_cell(step(at, rows, columns));
+            Ok(())
+        })
+        .when("mode:ready")
+    };
+    vec![
+        moves("grid.move-down", "Move down", &["ArrowDown", "Enter"], 1, 0),
+        moves("grid.move-up", "Move up", &["ArrowUp", "Shift+Enter"], -1, 0),
+        moves("grid.move-left", "Move left", &["ArrowLeft", "Shift+Tab"], 0, -1),
+        moves("grid.move-right", "Move right", &["ArrowRight", "Tab"], 0, 1),
+        ViewCommand::new(view, "grid.edit-cell", "Edit the cell", &["F2"], move |_| {
+            let at = session.active().ok_or("No cell is selected.")?;
+            session.begin_edit(at, None);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.clear-and-edit", "Clear and edit the cell", &["Backspace"], move |_| {
+            let at = session.active().ok_or("No cell is selected.")?;
+            session.begin_edit(at, Some(String::new()));
+            Ok(())
+        })
+        .when("mode:ready && writable"),
+    ]
+}
+
+pub fn mount(session: Session) -> impl IntoView {
     let focus = NodeRef::<leptos::html::Div>::new();
+    let active = Memo::new(move |_| session.active());
+    let page = Memo::new(move |_| active.get().map(page_of));
+    let cells = session.following::<query::Cells>();
+    let geometry = session.following::<query::Geometry>();
     view! {
         <div class="dna-sheet" data-dnacalc="grid" tabindex="0" node_ref=focus
             role="region" aria-label="Worksheet grid"
-            on:keydown=move |event: leptos::ev::KeyboardEvent| {
-                if event.ctrl_key() || event.meta_key() || event.alt_key() || event.is_composing() {
-                    return;
-                }
-                let Some(key) = cx.active.get_untracked() else { return };
-                let Key(sheet, generation, row, column) = key;
-                let next = match event.key().as_str() {
-                    "ArrowDown" | "Enter" => Key(sheet, generation, row.saturating_add(1), column),
-                    "ArrowUp" => Key(sheet, generation, row.saturating_sub(1).max(1), column),
-                    "ArrowLeft" => Key(sheet, generation, row, column.saturating_sub(1).max(1)),
-                    "ArrowRight" | "Tab" if !event.shift_key() => Key(sheet, generation, row, column.saturating_add(1)),
-                    "F2" => {
-                        event.prevent_default();
-                        cx.edit.run((key, None));
-                        return;
-                    }
-                    "Backspace" => {
-                        event.prevent_default();
-                        cx.edit.run((key, Some(String::new())));
-                        return;
-                    }
-                    text if text.chars().count() == 1 && !event.ctrl_key() && !event.meta_key() && !event.alt_key() => {
-                        event.prevent_default();
-                        cx.edit.run((key, Some(text.to_owned())));
-                        return;
-                    }
-                    _ => return,
-                };
-                if next.cell().is_some() {
-                    event.prevent_default();
-                    cx.select.run(next);
-                }
-            }
         >
             {move || {
-                let Some(window) = cx.window.get() else { return view! { <p class="dna-sheet-loading">"Loading worksheet…"</p> }.into_any() };
-                let Some(Area(first, last)) = window.areas.first().copied() else { return ().into_any() };
-                let geometry = cx.geometry.get();
+                let area = page.get();
+                let window = cells.at(area.map(|area| query::Cells { interest: Interest::Area(area) }));
+                let geometry = geometry.at(area.map(|Area(first, _)| query::Geometry { sheet: Sheet(first.0, first.1) }));
+                let (Some(Area(first, last)), Live::Ready(window)) = (area, window) else {
+                    return view! { <p class="dna-sheet-loading">"Loading worksheet…"</p> }.into_any();
+                };
+                let window = window.body;
+                let geometry = match geometry { Live::Ready(answer) => Some(answer.body), _ => None };
                 let layout = geometry.as_ref().map(|g| {
                     metrics::sheet_metrics(Some(SheetBands {
                         rows: &g.rows,
@@ -87,15 +127,15 @@ pub fn mount(cx: WorkbookContext) -> impl IntoView {
                         let location = format!("{}{row}", address::column_letters(column));
                         view! {
                             <td role="gridcell" aria-colindex=column
-                                aria-selected=move || (cx.active.get() == Some(key)).to_string()
-                                class:dna-selected=move || cx.active.get() == Some(key)
+                                aria-selected=move || (active.get() == Some(key)).to_string()
+                                class:dna-selected=move || active.get() == Some(key)
                                 class:dna-number=number class:dna-error=error
                                 data-cell=location data-provenance=provenance
                                 on:click=move |_| {
                                     if let Some(grid) = focus.get() { let _ = grid.focus(); }
-                                    cx.select.run(key);
+                                    session.select_cell(key);
                                 }
-                                on:dblclick=move |_| cx.edit.run((key, None))
+                                on:dblclick=move |_| session.begin_edit(key, None)
                             >{text}</td>
                         }
                     }).collect_view();

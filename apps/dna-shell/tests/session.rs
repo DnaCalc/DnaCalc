@@ -1,0 +1,228 @@
+//! The page core against the real workbook service: Classic's commands, the shell's commands,
+//! the keymap, the session and `calc-skin-host`, joined by packets as a carrier joins them.
+#![cfg(not(target_arch = "wasm32"))]
+
+use calc_host::{HostOptions, HostSession, MemorySource, OpenPolicy, blank_package};
+use calc_skin::grid::{Key, Sheet};
+use calc_skin::{Interest, Origin, Packet, ViewId, WritePolicy, query};
+use calc_skin_host::{Connection, SkinHost};
+use dna_kit::commands::CommandError;
+use dna_kit::{Focus, InputMode, KeyInput, Live, Registry, Seam, Session};
+use leptos::prelude::*;
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+struct Page {
+    host: SkinHost,
+    port: Connection,
+    sent: Rc<RefCell<VecDeque<Packet>>>,
+    session: Session,
+    sheet: Sheet,
+    _owner: Owner,
+}
+
+impl Page {
+    fn open() -> Self {
+        let owner = Owner::new();
+        owner.set();
+        let workbook = HostSession::open(
+            Arc::new(MemorySource::new(blank_package())),
+            &OpenPolicy::default(),
+            HostOptions::default(),
+        )
+        .unwrap();
+        let sheet = Sheet::of(workbook.host().sheets()[0].id());
+        let host = SkinHost::new(workbook);
+        let port = host.connect(
+            Origin::User {
+                view: ViewId(dna_view_classic::ID.into()),
+            },
+            WritePolicy::Commit,
+        );
+        let sent = Rc::new(RefCell::new(VecDeque::new()));
+        let session = Session::new(ViewId(dna_view_classic::ID.into()), {
+            let sent = sent.clone();
+            move |packet| sent.borrow_mut().push_back(packet)
+        });
+        let mut registry = Registry::default();
+        dna_view_classic::install(&mut registry);
+        dna_shell::workbook::install(&registry, session);
+        let page = Self {
+            host,
+            port,
+            sent,
+            session,
+            sheet,
+            _owner: owner,
+        };
+        page.settle();
+        page
+    }
+
+    /// Carries packets both ways until neither side has anything to say.
+    fn settle(&self) {
+        loop {
+            let mut moved = false;
+            loop {
+                let Some(packet) = self.sent.borrow_mut().pop_front() else {
+                    break;
+                };
+                self.session.deliver(self.port.handle(packet));
+                moved = true;
+            }
+            while self.host.advance() {}
+            for packet in self.port.next_packets().unwrap() {
+                self.session.deliver(packet);
+                moved = true;
+            }
+            if !moved {
+                return;
+            }
+        }
+    }
+
+    fn at(&self, row: u32, column: u32) -> Key {
+        Key(self.sheet.0, self.sheet.1, row, column)
+    }
+
+    fn press(&self, key: &str, focus: Focus) -> bool {
+        let (ctrl, alt, key) = match key.split_once('+') {
+            Some(("Ctrl", key)) => (true, false, key),
+            Some(("Alt", key)) => (false, true, key),
+            _ => (false, false, key),
+        };
+        let taken = self.session.key(
+            &KeyInput {
+                key: key.to_owned(),
+                ctrl,
+                alt,
+                shift: false,
+                meta: false,
+                alt_graph: false,
+                composing: false,
+            },
+            focus,
+        );
+        self.settle();
+        taken
+    }
+
+    /// What a view that watches the page of `at` is told about the cell.
+    fn shown(&self, at: Key) -> String {
+        let cells = self.session.following::<query::Cells>();
+        let query = query::Cells {
+            interest: Interest::Area(dna_grid::page_of(at)),
+        };
+        cells.at(Some(query.clone()));
+        self.settle();
+        let Live::Ready(window) = cells.at(Some(query)) else {
+            panic!("the cells of the page did not arrive");
+        };
+        cells.at(None);
+        self.settle();
+        window
+            .body
+            .cells
+            .into_iter()
+            .find(|cell| cell.at == at)
+            .map(|cell| cell.text)
+            .unwrap_or_default()
+    }
+}
+
+/// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
+#[test]
+fn a_person_moves_types_commits_and_undoes_through_commands() {
+    let page = Page::open();
+    let session = page.session;
+    assert_eq!(session.active(), Some(page.at(1, 1)));
+    assert!(session.summary().is_some());
+
+    // Grid motion is Classic's command, reached through the keymap.
+    assert!(page.press("ArrowDown", Focus::Stage));
+    assert!(page.press("ArrowRight", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+
+    // A printable key on the stage starts the one draft; Enter in the editor sends it through
+    // the seam.
+    assert!(page.press("=", Focus::Stage));
+    assert_eq!(session.mode(), InputMode::Enter);
+    assert!(!page.press("2", Focus::Editor), "the editor types its own text");
+    session.edit_text("=21*2".into());
+    assert_eq!(session.entry(), "=21*2");
+    assert!(page.press("ArrowDown", Focus::Editor) == false, "motion waits while a draft is open");
+    assert!(page.press("Enter", Focus::Editor));
+    assert_eq!(session.mode(), InputMode::Ready);
+    assert_eq!(session.seam(), Seam::Idle);
+    assert_eq!(session.notice(), "");
+    assert_eq!(page.shown(page.at(2, 2)), "42");
+    assert_eq!(session.entry(), "=21*2");
+
+    // F2 opens the entry the host reports.
+    assert!(page.press("F2", Focus::Stage));
+    let draft = session.edit().expect("F2 opens a draft");
+    assert_eq!((draft.text.as_str(), draft.mode), ("=21*2", InputMode::Edit));
+    assert!(page.press("Escape", Focus::Editor));
+    assert_eq!(session.edit(), None);
+
+    // The one history.
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    assert!(session.notice().starts_with("Undid · "), "{}", session.notice());
+    assert_eq!(session.entry(), "");
+    assert!(page.press("Ctrl+y", Focus::Stage));
+    assert_eq!(page.shown(page.at(2, 2)), "42");
+}
+
+/// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
+#[test]
+fn keys_in_another_field_stay_that_fields() {
+    let page = Page::open();
+    let session = page.session;
+    // Enter in the Name Box is the Name Box's, typing is typing, and Alt+Q still opens search.
+    assert!(!page.press("Enter", Focus::Field));
+    assert!(!page.press("x", Focus::Field));
+    assert_eq!((session.active(), session.edit()), (Some(page.at(1, 1)), None));
+    assert!(page.press("Alt+q", Focus::Field));
+}
+
+/// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
+#[test]
+fn a_command_that_cannot_run_now_says_so_on_the_strip() {
+    let page = Page::open();
+    let session = page.session;
+    assert!(page.press("x", Focus::Stage));
+    assert!(matches!(session.command("edit.undo"), Err(CommandError::NotNow(_))));
+    assert_eq!(session.notice(), "Undo is not available now.");
+    assert!(matches!(session.command("no.such"), Err(CommandError::Unknown(_))));
+    // The draft is untouched by either refusal.
+    assert_eq!(session.edit().map(|draft| draft.text), Some("x".into()));
+}
+
+/// Native-only: links calc-host and calc-engine, which the page packages do not build for the browser tests.
+#[test]
+fn a_reader_runs_again_only_for_what_it_read() {
+    let page = Page::open();
+    let session = page.session;
+    let runs = Arc::new(AtomicU32::new(0));
+    let active = Memo::new({
+        let runs = runs.clone();
+        move |_| {
+            runs.fetch_add(1, Ordering::Relaxed);
+            session.active()
+        }
+    });
+    assert_eq!(active.get_untracked(), Some(page.at(1, 1)));
+    // Typing, committing and the frames that follow do not move the selection.
+    page.press("7", Focus::Stage);
+    page.press("Enter", Focus::Editor);
+    assert_eq!(page.shown(page.at(1, 1)), "7");
+    assert_eq!(active.get_untracked(), Some(page.at(1, 1)));
+    assert_eq!(runs.load(Ordering::Relaxed), 1);
+    page.press("ArrowDown", Focus::Stage);
+    assert_eq!(active.get_untracked(), Some(page.at(2, 1)));
+    assert!(runs.load(Ordering::Relaxed) > 1);
+}

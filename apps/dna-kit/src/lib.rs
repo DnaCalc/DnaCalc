@@ -1,7 +1,13 @@
-//! Strand components and the registration surface for formula views.
+//! Strand components, the workbook session as signals, and the registration surface for views.
 
-mod workbook;
-pub use workbook::{WorkbookContext, WorkbookView};
+pub mod session;
+pub mod view;
+pub use session::{Focus, Following, Session};
+pub use view::{Fit, Located, MountedView, View, ViewCommand, ViewSpec, WayForward};
+/// The runtime types a view meets through the session, so a view crate needs no second import.
+pub use dna_skin_runtime::Live;
+pub use dna_skin_runtime::client::{EditSession, Seam, Watch};
+pub use dna_skin_runtime::commands::{self, InputMode, Invocation, KeyInput};
 
 use calc_skin::{
     ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, FormulaPort, Provenance, RawValue, Shown,
@@ -26,7 +32,7 @@ pub trait FormulaView {
 #[derive(Default)]
 pub struct Registry {
     formula: Option<fn(FormulaContext) -> AnyView>,
-    workbook: Option<fn(WorkbookContext) -> AnyView>,
+    views: Vec<Rc<dyn View>>,
 }
 
 impl Registry {

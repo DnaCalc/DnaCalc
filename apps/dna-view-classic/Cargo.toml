@@ -10,6 +10,7 @@ description = "The Classic workbook view."
 portability = "portable"
 
 [dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
 dna-kit = { path = "../dna-kit" }
 dna-grid = { path = "../dna-grid" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }

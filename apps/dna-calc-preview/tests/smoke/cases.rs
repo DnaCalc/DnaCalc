@@ -30,7 +30,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
     },
     Case {
         name: "Classic undo restores the same cell through workbook history",
-        actions: &[Action::Click("[data-command=undo]")],
+        actions: &[Action::Click("[data-command=\"edit.undo\"]")],
         checks: &[
             Check::Text("[data-cell=B2]", ""),
             Check::Attr("[data-cell=B2]", "data-provenance", "empty"),

@@ -22,6 +22,12 @@
 }
 .dna-book-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dna-book-view { margin-inline-start: auto; }
+.dna-book-view ~ .dna-book-view { margin-inline-start: 0; }
+.dna-book-view[aria-pressed=true] { font-weight: 600; }
+.dna-book-found { display: contents; list-style: none; }
+.dna-book-found li { display: contents; }
+.dna-book-declined, .dna-book-simplified { padding: var(--dna-gap-3); }
+.dna-book-stage:focus { outline: none; }
 .dna-book-mast kbd { margin-inline-start: var(--dna-gap-2); font-size: 0.75rem; }
 .dna-book-deck, .dna-book-bridge, .dna-book-search, .dna-book-sheets {
     min-height: 2rem;
