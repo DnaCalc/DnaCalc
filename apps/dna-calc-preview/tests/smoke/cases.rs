@@ -369,6 +369,54 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
             Check::Attr("[data-notebook-rows]", "data-notebook-rows", "20854"),
         ],
     },
+    Case {
+        name: "A01 Loan batches inputs and recalculates the authored payment",
+        actions: &[
+            Action::WriteCast("Loan"),
+            Action::UploadDownloadTo("Loan.xlsx", "open-file"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::Wait(Check::Js("Loan is open", "document.querySelector('.dna-book-title').textContent.includes('Loan')")),
+            Action::Click("[data-command='view.app']"),
+            Action::Wait(Check::Rendered("[data-page-part='rate'] input", true)),
+            Action::Wait(Check::TextContains("[data-page-part='payment'] output", "9147.39")),
+            Action::Into("[data-page-part='rate'] input", "12%"),
+            Action::Wait(Check::TextContains("[data-dnacalc='app'] [role=status]", "Previous valid inputs")),
+            Action::Wait(Check::TextContains("[data-page-part='payment'] output", "9147.39")),
+            Action::Click("[data-command='app.apply-inputs']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-page-part='payment'] output", "10286.12"),
+            Check::TextContains("[data-page-part='schedule'] caption", "Rows 1–12 of 360"),
+            Check::Rendered(".dna-book-bridge", false),
+            Check::Rendered(".dna-book-strip", true),
+        ],
+    },
+    Case {
+        name: "A03 Loan refuses invalid entries inline and keeps the previous payment",
+        actions: &[
+            Action::Into("[data-page-part='rate'] input", "101%"),
+            Action::Click("[data-command='app.apply-inputs']"),
+            Action::Wait(Check::TextContains("[data-page-part='rate'] [role=alert]", "Enter an annual rate between 0% and 100%.")),
+            Action::Wait(Check::TextContains("[data-page-part='payment'] output", "10286.12")),
+            Action::Keys("[data-page-part='rate'] input", "\u{e00c}"),
+        ],
+        checks: &[
+            Check::Absent("[data-page-part='rate'] [role=alert]"),
+            Check::Absent("[data-dnacalc='app'] [role=status]"),
+        ],
+    },
+    Case {
+        name: "Loan navigates a bounded schedule and undoes the input batch in one step",
+        actions: &[
+            Action::Click("[data-page-part='schedule'] button:last-child"),
+            Action::Wait(Check::TextContains("[data-page-part='schedule'] caption", "Rows 13–24 of 360")),
+            Action::Click("[data-command='edit.undo']"),
+        ],
+        checks: &[
+            Check::TextContains("[data-page-part='payment'] output", "9147.39"),
+            Check::TextContains("[data-page-part='schedule'] caption", "Rows 13–24 of 360"),
+        ],
+    },
 ];
 
 pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
@@ -403,8 +451,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
     CaseGroup {
         name: "notebook",
         start: 12,
+        end: 16,
+        core: 4,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan",
+        start: 16,
         end: PREVIEW_CASES.len(),
-        core: PREVIEW_CASES.len() - 12,
+        core: PREVIEW_CASES.len() - 16,
         setup: &[],
     },
 ];

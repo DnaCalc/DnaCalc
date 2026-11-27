@@ -1,0 +1,16 @@
+[package]
+name = "dna-view-app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "App runner and Forms maker over the shared workbook page renderer."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+[dependencies]
+calc-skin = { path = "../../crates/calc-skin" }
+dna-kit = { path = "../dna-kit" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+serde_json = "=1.0.154"

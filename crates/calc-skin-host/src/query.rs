@@ -70,6 +70,27 @@ pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Re
     })
 }
 
+pub(crate) fn bound_source(state: &State, bound: &Bound) -> Result<SourceRef, Refusal> {
+    let mut book = address_book(state);
+    // A stored binding cannot take its sheet from the current selection.
+    book.active = None;
+    let source = anchor_source(state, bound.anchor).map_err(|_| invalid("Source missing"))?;
+    if SourceRef::parse(&bound.address, Notation::A1, &book).ok().as_ref() != Some(&source) {
+        return Err(invalid("Source missing"));
+    }
+    Ok(source)
+}
+
+pub(crate) fn bound_cell(state: &State, bound: &Bound) -> Result<CellKey, Refusal> {
+    if let SourceRef::Cells { areas, .. } = bound_source(state, bound)?
+        && let [area] = areas.as_slice()
+        && area.0 == area.1
+    {
+        return cell(area.0);
+    }
+    Err(invalid("A page input must bind to one cell"))
+}
+
 pub(crate) fn source_areas(state: &State, source: &SourceRef) -> Result<Vec<GridArea>, Refusal> {
     let host = state.session.host();
     match source {
@@ -217,6 +238,7 @@ pub(crate) fn invalidated(
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Notes { .. } => presentation,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
+        WorkbookQuery::ResolveBound { .. } => authored || presentation,
         WorkbookQuery::Summary | WorkbookQuery::History => authored || presentation,
         WorkbookQuery::Census { .. } | WorkbookQuery::Issues { .. } => {
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
@@ -817,6 +839,7 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
                 .map_err(|error| invalid(format!("Cannot resolve the address ({error:?})")))?;
             query::Resolve::encode(&source)?
         }
+        WorkbookQuery::ResolveBound { bound } => query::ResolveBound::encode(&bound_source(state, bound)?)?,
         WorkbookQuery::PrintPlan { source } => {
             let areas = source_areas(state, source)?;
             let sheet = areas

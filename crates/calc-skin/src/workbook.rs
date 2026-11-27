@@ -1,5 +1,5 @@
 use crate::grid::{Area, Key, Sheet};
-use crate::{AnchorId, DocId, Selection, SelectionCause, SourceRef, Target, ViewId};
+use crate::{AnchorId, Bound, DocId, Selection, SelectionCause, SourceRef, Target, ViewId};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -277,6 +277,9 @@ pub enum WorkbookQuery {
     Resolve {
         address: String,
     },
+    ResolveBound {
+        bound: Bound,
+    },
     PrintPlan {
         source: SourceRef,
     },
@@ -421,6 +424,11 @@ pub enum Change {
 pub enum ModelChange {
     Enter {
         at: Key,
+        text: String,
+    },
+    /// An App input may change a scalar literal only while both binding identities agree.
+    EnterBound {
+        bound: Bound,
         text: String,
     },
     ClearContents {

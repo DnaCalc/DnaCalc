@@ -269,7 +269,7 @@ pub static APPS: [App; 3] = [
         stack_bytes: PAGE_STACK_BYTES,
         scripts: &["apps/dna-calc-preview/web/worker.js"],
         files: &[],
-        styles: &["apps/dna-kit/web/formula.css"],
+        styles: &["apps/dna-kit/web/formula.css", "apps/dna-kit/web/page.css"],
         default_out: "target/classic-preview-bundle",
         role_attribute: "data-dnacalc",
         panic_attribute: "data-dnacalc-preview-panic",

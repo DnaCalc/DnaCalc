@@ -164,6 +164,11 @@ pub struct DockSpec {
 pub trait View: 'static {
     fn spec(&self) -> ViewSpec;
 
+    /// The stage and Bridge expose the normal worksheet editor when this is true.
+    fn cell_editor(&self) -> bool {
+        true
+    }
+
     /// Checked from the workbook's counts before `mount`. The default takes any workbook.
     fn fit(&self, _census: &Census) -> Fit {
         Fit::Whole
@@ -213,6 +218,9 @@ impl crate::Registry {
     /// Registers every view's commands and keys with the session. The shell calls this once.
     pub fn install_commands(&self, session: Session) {
         for view in &self.views {
+            if !view.cell_editor() {
+                session.disable_stage_entry(view.spec().id);
+            }
             session.install(view.commands(session));
         }
     }

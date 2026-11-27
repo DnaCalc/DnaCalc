@@ -6,8 +6,10 @@ use calc_doc::model::{
     FormulaText, IterationSettings, ModelRoot, OpBatch, SheetEdit, SheetVisibility, Table,
     TableStyle, Validation, WorkbookOp,
 };
+use calc_skin::{AnchorId, Bound, DocId, InputPolicy, Page, PageNode, PageSchema};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::num::{NonZeroU8, NonZeroU128};
 use std::sync::Arc;
 
 pub(super) fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
@@ -351,7 +353,10 @@ fn loan() -> BuildResult {
         sheet: w.at(0, 1, 1).sheet(),
         rules: vec![
             stop_rule(2, "decimal", "greaterThan", "0", None),
-            stop_rule(3, "decimal", "between", "0", Some("1")),
+            Validation {
+                error: Some("Enter an annual rate between 0% and 100%.".into()),
+                ..stop_rule(3, "decimal", "between", "0", Some("1"))
+            },
             stop_rule(4, "whole", "between", "1", Some("360")),
         ],
     });
@@ -389,6 +394,43 @@ fn loan() -> BuildResult {
             w.formula(0, row, col, format!(r#"IF(A{row}="","",{value})"#));
         }
     }
+    let mut view = calc_doc::model::ViewPart::default();
+    let mut bind = |id: &str, label: &str, component: &str, slot: &str, address: &str, area: GridArea| {
+        let next = view.anchors().count() as u128 + 1;
+        let anchor = AnchorId(NonZeroU128::new(next).unwrap());
+        view = view.clone().with_anchor(calc_doc::model::ViewAnchor::cells(anchor, area));
+        PageNode::Part {
+            id: id.into(),
+            component: component.into(),
+            bind: BTreeMap::from([(slot.into(), Bound { anchor, address: address.into() })]),
+            props: BTreeMap::from([("label".into(), serde_json::Value::String(label.into()))]),
+        }
+    };
+    let principal = bind("principal", "Principal", "input", "value", "Loan!B2", GridArea::cell(w.at(0, 2, 2)));
+    let rate = bind("rate", "Annual rate", "input", "value", "Loan!B3", GridArea::cell(w.at(0, 3, 2)));
+    let term = bind("term", "Term in months", "input", "value", "Loan!B4", GridArea::cell(w.at(0, 4, 2)));
+    let payment = bind("payment", "Monthly payment", "value", "value", "Loan!B6", GridArea::cell(w.at(0, 6, 2)));
+    let interest = bind("interest", "Total interest", "value", "value", "Loan!B7", GridArea::cell(w.at(0, 7, 2)));
+    let schedule = bind("schedule", "Repayment schedule", "data-frame", "rows", "Loan!A12:F371",
+        GridArea::new(w.at(0, 12, 1), w.at(0, 371, 6))?);
+    let document = Page {
+        schema: PageSchema::V1,
+        title: "Loan Repayment Planner".into(),
+        input: InputPolicy::Batched,
+        root: PageNode::Grid {
+            columns: NonZeroU8::new(2).unwrap(),
+            children: vec![
+                PageNode::Section { title: "Assumptions".into(), folded: false, children: vec![principal, rate, term] },
+                PageNode::Section { title: "Repayment Summary".into(), folded: false, children: vec![payment, interest, schedule] },
+            ],
+        },
+    };
+    let view = view.with_document(calc_doc::model::ViewDocument {
+        id: DocId(NonZeroU128::new(1).unwrap()),
+        view: "app".into(), sheet: None, schema: 1,
+        body: serde_json::to_string(&document)?,
+    });
+    w.edits.push(WorkbookOp::EditView(Arc::new(view)));
     w.finish()
 }
 

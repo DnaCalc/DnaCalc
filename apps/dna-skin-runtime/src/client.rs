@@ -148,6 +148,7 @@ pub struct Client {
     held: BTreeMap<Key, EditSession>,
     seam: Option<(Seam, Batch, Submission)>,
     notice: String,
+    last_refusal: Option<Refusal>,
 }
 
 impl Client {
@@ -201,6 +202,10 @@ impl Client {
         &self.notice
     }
 
+    pub fn last_refusal(&self) -> Option<&Refusal> {
+        self.last_refusal.as_ref()
+    }
+
     fn busy(&self) -> bool {
         matches!(self.seam(), Seam::Previewing | Seam::Committing)
     }
@@ -216,7 +221,7 @@ impl Client {
 
     fn say(&mut self, text: impl Into<String>) -> Changes {
         let text = text.into();
-        let notice = self.notice != text;
+        let notice = self.notice != text || self.last_refusal.take().is_some();
         self.notice = text;
         Changes {
             notice,
@@ -225,7 +230,11 @@ impl Client {
     }
 
     pub fn refuse(&mut self, reason: Refusal) -> Changes {
-        self.say(refusal_text(reason))
+        let text = refusal_text(reason.clone());
+        let notice = self.notice != text || self.last_refusal.as_ref() != Some(&reason);
+        self.notice = text;
+        self.last_refusal = Some(reason);
+        Changes { notice, ..Changes::default() }
     }
 
     // Watches

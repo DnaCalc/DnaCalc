@@ -135,6 +135,9 @@ query!(
     History => HistoryList, |_: &History| WorkbookQuery::History);
 query!(
     Resolve { address: String } => SourceRef, |q: &Resolve| WorkbookQuery::Resolve { address: q.address.clone() });
+query!(
+    /// Resolve both saved identities of a binding against the current workbook.
+    ResolveBound { bound: crate::Bound } => SourceRef, |q: &ResolveBound| WorkbookQuery::ResolveBound { bound: q.bound.clone() });
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Census {

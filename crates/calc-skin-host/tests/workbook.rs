@@ -62,6 +62,44 @@ fn target(at: Key) -> SourceRef {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn page_inputs_require_both_binding_identities_and_preserve_formulas() {
+    let (host, sheet) = workbook();
+    let connection = port(&host);
+    let at = Key(sheet.0, sheet.1, 1, 1);
+    let anchor = AnchorId(NonZeroU128::new(10).unwrap());
+    connection
+        .commit(batch(1, vec![Change::Presentation(PresentationChange::Bind {
+            anchor,
+            source: target(at),
+        })]))
+        .unwrap();
+    let page_input = |id, address| {
+        batch(id, vec![serde_json::from_value(serde_json::json!({
+            "Model": {"EnterBound": {"bound": {"anchor": anchor, "address": address}, "text": "42"}}
+        })).expect("the skin wire accepts bound input entries")])
+    };
+    let address = "Sheet1!A1";
+    for (id, wrong) in [(2, "Sheet1!B1"), (3, "A1")] {
+        assert_eq!(
+            connection.preview(&page_input(id, wrong), PreviewDepth::WritesOnly).unwrap().refusal,
+            Some(Refusal::Invalid { reason: "Source missing".into() }),
+        );
+    }
+    let edit = page_input(4, address);
+    assert_eq!(connection.preview(&edit, PreviewDepth::WritesOnly).unwrap().writes[0].at, at);
+    connection.commit(edit).unwrap();
+
+    let stale = page_input(5, address);
+    connection.preview(&stale, PreviewDepth::WritesOnly).unwrap();
+    connection.commit(batch(6, vec![enter(at, "=21*2")])).unwrap();
+    assert!(connection.commit(stale).is_err());
+    let formula = query::Formula { at };
+    let answer = query::Formula::decode(connection.ask(formula.request(), BUDGET).unwrap()).unwrap();
+    assert_eq!(answer.body.input, "=21*2");
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn row_watches_refresh_for_a_spill_change_in_their_read_footprint() {
     let (host, sheet) = workbook();
     let port = port(&host);

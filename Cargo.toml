@@ -37,6 +37,7 @@ members = [
     "apps/dna-view-classic",
     "apps/dna-view-inspector",
     "apps/dna-view-notebook",
+    "apps/dna-view-app",
     "apps/dna-view-explorer",
     "apps/dna-onecalc",
     "apps/dna-calc",

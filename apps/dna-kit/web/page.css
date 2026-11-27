@@ -1,0 +1,43 @@
+.dna-page-surface {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: var(--dna-gap-4);
+    background: var(--dna-bg);
+}
+.dna-page {
+    max-inline-size: 75rem;
+    margin-inline: auto;
+}
+.dna-page h1 { font-size: 1.75rem; }
+.dna-page-stack, .dna-page-section, .dna-page-grid, .dna-page-row {
+    display: grid;
+    gap: var(--dna-gap-3);
+}
+.dna-page-grid, .dna-page-row {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+.dna-page-grid[data-columns="1"] { grid-template-columns: 1fr; }
+.dna-page-section > :not(summary) { margin-block: var(--dna-gap-3); }
+.dna-page-section summary { font-size: 1.125rem; font-weight: 600; }
+.dna-page-card {
+    min-inline-size: 0;
+    padding: var(--dna-gap-3);
+    background: var(--dna-paper);
+    border: 1px solid var(--dna-line);
+    border-radius: var(--dna-radius-card);
+}
+.dna-page-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--dna-gap-2); }
+.dna-page-surface :is(button, input) { min-block-size: 36px; max-inline-size: 100%; }
+.dna-page-value { display: grid; }
+.dna-page-value output { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.dna-page-card label { display: grid; gap: var(--dna-gap-1); }
+.dna-page-error, .dna-page-missing { color: var(--dna-red-ink); }
+.dna-page-schedule { overflow-x: auto; }
+.dna-page-schedule table { border-collapse: collapse; }
+.dna-page-schedule :is(td, th) {
+    text-align: end;
+    white-space: nowrap;
+    padding: var(--dna-gap-2);
+    border-block-end: 1px solid var(--dna-line);
+}

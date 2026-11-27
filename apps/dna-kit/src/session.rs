@@ -37,6 +37,8 @@ pub enum Focus {
     /// Another text field (the Name Box, the search field). Only chords with Alt reach the
     /// keymap, so typing and the field's own Enter, arrows and Ctrl+Z stay the field's.
     Field,
+    /// An operator field that lets Escape reach the session's cancel command.
+    ActionField,
 }
 
 struct Inner {
@@ -52,6 +54,7 @@ struct Inner {
     /// A cell whose entry was asked to open before it arrived.
     opening: Cell<Option<Key>>,
     notebook_profile: RefCell<Option<ViewId>>,
+    passive_views: RefCell<Vec<ViewId>>,
     after_commit: RefCell<Option<Box<dyn FnOnce()>>>,
 }
 
@@ -85,6 +88,7 @@ impl Session {
                 entry: Cell::new(None),
                 opening: Cell::new(None),
                 notebook_profile: RefCell::new(None),
+                passive_views: RefCell::default(),
                 after_commit: RefCell::new(None),
             })),
             stamp: RwSignal::new(0),
@@ -298,6 +302,11 @@ impl Session {
         self.peek(|client| client.notice().to_owned())
     }
 
+    pub fn last_refusal(self) -> Option<Refusal> {
+        self.notice.track();
+        self.peek(|client| client.last_refusal().cloned())
+    }
+
     pub fn summary(self) -> Option<WorkbookSummary> {
         let watch = self.inner().summary.get()?;
         match self.read(watch) {
@@ -311,13 +320,15 @@ impl Session {
         if let Some(edit) = self.edit() {
             return edit.text;
         }
+        self.active_entry().map(|answer| answer.input).unwrap_or_default()
+    }
+
+    pub fn active_entry(self) -> Option<query::FormulaFacts> {
         self.selection.track();
-        match self.inner().entry.get() {
-            Some((_, watch)) => match self.read(watch) {
-                Live::Ready(answer) => answer.body.input,
-                _ => String::new(),
-            },
-            None => String::new(),
+        let (_, watch) = self.inner().entry.get()?;
+        match self.read(watch) {
+            Live::Ready(answer) => Some(answer.body),
+            _ => None,
         }
     }
 
@@ -448,6 +459,15 @@ impl Session {
         self.update(|client| client.submit(batch));
     }
 
+    /// Runs the continuation after a successful commit through the same seam.
+    pub fn submit_then(self, batch: Batch, after: impl FnOnce() + 'static) {
+        if !matches!(self.seam(), Seam::Idle) {
+            return;
+        }
+        self.inner().after_commit.replace(Some(Box::new(after)));
+        self.submit(batch);
+    }
+
     pub fn submit_for_review(self, batch: Batch) {
         self.update(|client| client.submit_for_review(batch));
     }
@@ -567,8 +587,10 @@ impl Session {
 
     /// A key press. `true` when the session took it and the browser must not.
     pub fn key(self, input: &KeyInput, focus: Focus) -> bool {
-        if focus == Focus::Field && !(input.alt && !input.alt_graph) {
-            return false;
+        match focus {
+            Focus::Field if !input.alt || input.alt_graph => return false,
+            Focus::ActionField if (!input.alt || input.alt_graph) && input.key != "Escape" => return false,
+            _ => {}
         }
         let context = self.context();
         let resolution = self.inner().keymap.borrow().resolve(input, &context);
@@ -578,7 +600,8 @@ impl Session {
                 true
             }
             Resolution::Text | Resolution::Unbound => {
-                let typed = (focus == Focus::Stage && context.mode == InputMode::Ready)
+                let typed = (focus == Focus::Stage && context.mode == InputMode::Ready
+                    && !self.inner().passive_views.borrow().contains(&context.view))
                     .then(|| input.text())
                     .flatten()
                     .zip(self.peek(Client::active));
@@ -591,6 +614,10 @@ impl Session {
                 }
             }
         }
+    }
+
+    pub(crate) fn disable_stage_entry(self, view: ViewId) {
+        self.inner().passive_views.borrow_mut().push(view);
     }
 
     /// The keys a command answers to now, for a button's hint and the search list.

@@ -240,3 +240,6 @@
     background: var(--dna-accent-ink);
     transform: translate(-50%, 50%);
 }
+
+.dna-book-bridge-passive:not(:has([data-dnacalc="seam-review"])) { display: none; }
+.dna-book-bridge-passive > :not([data-dnacalc="seam-review"]) { display: none; }

@@ -25,3 +25,4 @@ dna-grid = { path = "../dna-grid" }
 dna-view-classic = { path = "../dna-view-classic" }
 dna-view-inspector = { path = "../dna-view-inspector" }
 dna-view-notebook = { path = "../dna-view-notebook" }
+dna-view-app = { path = "../dna-view-app" }

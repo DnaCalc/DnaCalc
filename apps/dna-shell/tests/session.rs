@@ -51,6 +51,7 @@ impl Page {
         dna_view_classic::install(&mut registry);
         dna_view_inspector::install(&mut registry);
         dna_view_notebook::install(&mut registry);
+        dna_view_app::install(&mut registry);
         dna_shell::workbook::install(&registry, session);
         let page = Self {
             host,
@@ -494,4 +495,58 @@ fn notebook_delete_prefix_does_not_carry_into_a_reopened_workbook() {
     assert_eq!(session.stamp().unwrap().view, reopened.view);
     assert!(page.press("d", Focus::Stage));
     assert!(session.stamp().unwrap().view > reopened.view);
+}
+
+/// Native-only: exercises the App and Forms commands through the real workbook service.
+#[test]
+fn forms_and_app_share_the_page_and_history() {
+    use calc_skin::{Bound, Page as PageDocument, PageNode, WorkbookPort};
+    use calc_skin::query::Query;
+    use dna_kit::Invocation;
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    let change = |command, args| {
+        session.run(&Invocation { command: CommandId::new(command), args }).unwrap();
+        page.settle();
+        assert_eq!(session.seam(), Seam::Idle);
+        assert_eq!(session.notice(), "");
+    };
+    let at = page.at(1, 1);
+    let model = session.stamp().unwrap().model;
+    change("view.forms", serde_json::Value::Null);
+    change("forms.create", serde_json::Value::Null);
+    change("forms.title", serde_json::json!("Planner"));
+    change("forms.add-cell", serde_json::json!("Principal"));
+    session.select_cell(page.at(2, 1));
+    page.settle();
+    change("forms.add-cell", serde_json::json!("Term"));
+    change("forms.toggle-input", serde_json::Value::Null);
+    assert_eq!(session.stamp().unwrap().model, model);
+    let declaration = query::ViewPartOf::decode(page.port.ask(query::ViewPartOf.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap()).unwrap();
+    let document: PageDocument = serde_json::from_value(declaration.body.documents[0].body.clone()).unwrap();
+    assert_eq!(document.title, "Planner");
+    let PageNode::Stack { children } = document.root else { panic!("expected a Stack"); };
+    let bindings: Vec<Bound> = children.into_iter().map(|child| {
+        let PageNode::Part { bind, .. } = child else { panic!("expected a Part"); };
+        bind["value"].clone()
+    }).collect();
+
+    change("view.app", serde_json::Value::Null);
+    assert!(!page.press("9", Focus::Stage));
+    assert!(session.edit().is_none());
+    change("app.draft-input", serde_json::json!([bindings[0], "42"]));
+    change("app.draft-input", serde_json::json!([bindings[1], "13"]));
+    assert_eq!(session.stamp().unwrap().model, model);
+    assert_eq!(page.shown(at), "");
+    change("app.apply-inputs", serde_json::Value::Null);
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(page.shown(page.at(2, 1)), "13");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(at), "");
+    assert_eq!(page.shown(page.at(2, 1)), "");
+    assert!(page.press("Ctrl+y", Focus::Stage));
+    assert_eq!(page.shown(at), "42");
+    assert_eq!(page.shown(page.at(2, 1)), "13");
 }

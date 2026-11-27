@@ -1384,6 +1384,7 @@ dependencies = [
  "dna-kit",
  "dna-shell",
  "dna-skin-runtime",
+ "dna-view-app",
  "dna-view-classic",
  "dna-view-inspector",
  "dna-view-notebook",
@@ -1480,6 +1481,7 @@ dependencies = [
  "calc-skin",
  "dna-skin-runtime",
  "leptos",
+ "serde_json",
 ]
 
 [[package]]
@@ -1541,6 +1543,7 @@ dependencies = [
  "dna-grid",
  "dna-kit",
  "dna-skin-runtime",
+ "dna-view-app",
  "dna-view-classic",
  "dna-view-inspector",
  "dna-view-notebook",
@@ -1563,6 +1566,16 @@ name = "dna-strand"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen-test",
+]
+
+[[package]]
+name = "dna-view-app"
+version = "0.1.0"
+dependencies = [
+ "calc-skin",
+ "dna-kit",
+ "leptos",
+ "serde_json",
 ]
 
 [[package]]

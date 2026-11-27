@@ -108,17 +108,24 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                             return Err(invalid("The replacement must be a formula"));
                         }
                     }
-                    edits.extend(
-                        state.session.prepare_cell_entry(at, text).map_err(
-                            |error| match error {
-                                IntentError::Validation(failure) => Refusal::Validation {
-                                    target: source_area(GridArea::cell(at)),
-                                    reason: failure.to_string(),
-                                },
-                                other => refusal(other),
-                            },
-                        )?,
-                    );
+                    edits.extend(prepare_entry(&state.session, at, text)?);
+                    areas.push(GridArea::cell(at));
+                }
+                ModelChange::EnterBound { bound, text } => {
+                    let at = crate::query::bound_cell(state, bound)?;
+                    rules(&state.session, at)?;
+                    if matches!(before.cell(at), Some(calc_doc_model::CellInput::Formula(_))) {
+                        return Err(Refusal::Protected(source_area(GridArea::cell(at))));
+                    }
+                    let entries = prepare_entry(&state.session, at, text)?;
+                    if entries.iter().any(|entry| match entry {
+                        CellEdit::Clear { .. } => false,
+                        CellEdit::Set { input, .. } => matches!(input, calc_doc_model::CellInput::Formula(_)),
+                        _ => true,
+                    }) {
+                        return Err(invalid("A page input accepts literal values"));
+                    }
+                    edits.extend(entries);
                     areas.push(GridArea::cell(at));
                 }
                 ModelChange::ClearContents { areas: targets } => {
@@ -265,6 +272,16 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
         refusal: None,
     };
     Ok(Prepared { edits, preview })
+}
+
+fn prepare_entry(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<CellEdit>, Refusal> {
+    session.prepare_cell_entry(at, text).map_err(|error| match error {
+        IntentError::Validation(failure) => Refusal::Validation {
+            target: source_area(GridArea::cell(at)),
+            reason: failure.to_string(),
+        },
+        other => refusal(other),
+    })
 }
 
 fn encode_document(body: &serde_json::Value) -> Result<String, Refusal> {

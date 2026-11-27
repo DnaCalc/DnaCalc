@@ -211,6 +211,9 @@ fn focus_of(event: &leptos::ev::KeyboardEvent) -> Focus {
     {
         return Focus::Editor;
     }
+    if element.has_attribute("data-dna-action-field") {
+        return Focus::ActionField;
+    }
     match element.tag_name().as_str() {
         "INPUT" | "TEXTAREA" | "SELECT" => Focus::Field,
         _ if element.get_attribute("contenteditable").is_some() => Focus::Field,
@@ -389,7 +392,10 @@ pub fn workbook(
                 {command_button(session, "shell.details", "Details")}
                 {dock_buttons}
             </nav>
-            <div class="dna-book-bridge">
+            <div class="dna-book-bridge" class:dna-book-bridge-passive=move || {
+                let id = session.view();
+                chrome.views.with_value(|views| views.iter().any(|view| view.spec().id == id && !view.cell_editor()))
+            }>
                 <input class="dna-book-name" aria-label="Cell address" data-dnacalc="name-box"
                     prop:value=move || session.active().map(a1).unwrap_or_default()
                     on:keydown=move |event: leptos::ev::KeyboardEvent| {

@@ -196,6 +196,9 @@ impl State {
                 ) => {
                     expects.push(batch::source_area(GridArea::cell(cell(*at)?)));
                 }
+                Change::Model(ModelChange::EnterBound { bound, .. }) => {
+                    expects.push(batch::source_area(GridArea::cell(query::bound_cell(self, bound)?)));
+                }
                 Change::Model(ModelChange::ClearContents { areas }) => {
                     for area in areas {
                         expects.push(batch::source_area(grid_area(*area)?));

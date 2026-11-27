@@ -847,7 +847,8 @@ mod tests {
                 "dna-grid",
                 "dna-view-classic",
                 "dna-view-inspector",
-                "dna-view-notebook"
+                "dna-view-notebook",
+                "dna-view-app"
             ]
         );
         assert!(!rule("dna-onecalc").direct);

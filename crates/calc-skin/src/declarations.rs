@@ -120,24 +120,31 @@ pub struct Page {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum PageNode {
+    #[serde(alias = "Stack")]
     Stack {
         children: Vec<PageNode>,
     },
+    #[serde(alias = "Row")]
     Row {
         children: Vec<PageNode>,
     },
+    #[serde(alias = "Grid")]
     Grid {
         columns: std::num::NonZeroU8,
         children: Vec<PageNode>,
     },
+    #[serde(alias = "Section")]
     Section {
         title: String,
+        #[serde(default)]
         folded: bool,
         children: Vec<PageNode>,
     },
+    #[serde(alias = "Tabs")]
     Tabs {
         tabs: Vec<PageTab>,
     },
+    #[serde(alias = "Part")]
     Part {
         id: String,
         component: String,
