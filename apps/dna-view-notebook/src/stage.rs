@@ -4,6 +4,7 @@ use commands::invoke;
 use dna_formula_ui::formula_field::{FormulaAssist, TextBinding};
 
 pub(super) fn mount(state: State) -> impl IntoView {
+    let readings = FormulaReadings::new(state);
     let declaration = Memo::new(move |_| state.snapshot().map(|snapshot| snapshot.doc));
     let chain = Memo::new(move |_| state.snapshot().ok().map(|snapshot| snapshot.chain));
     let items = move || {
@@ -37,7 +38,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
                         class:dna-notebook-pipeline=move || chain.get().is_some_and(|chain| chain.layout == Layout::Pipeline)>
                         <For each=items
                             key=|id| *id
-                            children=move |id| item_card(state, id) />
+                            children=move |id| item_card(state, readings, id) />
                     </div>
                     <Show when=move || chain.get().is_some_and(|chain| chain.cells.is_empty())>
                         <p>"Add a formula or link a worksheet cell."</p>
@@ -84,7 +85,52 @@ fn first_visit(state: State) -> impl IntoView {
     }
 }
 
-fn item_card(state: State, id: AnchorId) -> impl IntoView {
+#[derive(Clone, Copy)]
+struct FormulaReadings {
+    cells: Memo<Option<BTreeMap<Key, WorkbookCell>>>,
+    names: Memo<BTreeMap<Key, query::FormulaNamesOf>>,
+}
+
+impl FormulaReadings {
+    fn new(state: State) -> Self {
+        let keys = Memo::new(move |_| {
+            let Ok(snapshot) = state.snapshot() else { return Vec::new() };
+            let mut keys = std::collections::BTreeSet::new();
+            for item in &snapshot.chain.cells {
+                let id = match item.kind {
+                    Kind::Formula => item.id,
+                    Kind::Chart { requires: Some(id), .. } => id,
+                    _ => continue,
+                };
+                if let Some(at) = snapshot.source(id).and_then(first_cell) {
+                    keys.insert(at);
+                }
+            }
+            keys.into_iter().collect::<Vec<_>>()
+        });
+        let cell_watch = state.session.following::<query::Cells>();
+        let name_watch = state.session.following::<query::FormulaNames>();
+        let cells = Memo::new(move |_| {
+            let request = keys.with(|keys| (!keys.is_empty()).then(|| query::Cells {
+                interest: Interest::Areas(keys.iter().map(|at| Area(*at, *at)).collect()),
+            }));
+            match cell_watch.at(request) {
+                Live::Ready(answer) => Some(answer.body.cells.into_iter().map(|cell| (cell.at, cell)).collect()),
+                _ => None,
+            }
+        });
+        let names = Memo::new(move |_| {
+            let cells = keys.get();
+            match name_watch.at((!cells.is_empty()).then_some(query::FormulaNames { cells })) {
+                Live::Ready(answer) => answer.body.into_iter().map(|formula| (formula.at, formula)).collect(),
+                _ => BTreeMap::new(),
+            }
+        });
+        Self { cells, names }
+    }
+}
+
+fn item_card(state: State, readings: FormulaReadings, id: AnchorId) -> impl IntoView {
     let item = Memo::new(move |_| {
         state
             .snapshot()
@@ -142,7 +188,7 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                 Some(Item { kind: Kind::Control { label, address, control }, .. }) =>
                     super::blocks::input(state.session, id, label, address, control).into_any(),
                 Some(Item { kind: Kind::Chart { address, requires }, .. }) =>
-                    super::blocks::chart(state, id, address, requires).into_any(),
+                    super::blocks::chart(state, id, address, requires, readings.cells).into_any(),
                 Some(Item { kind: Kind::CodeSlot, .. }) => view! {
                     <button type="button" data-command="notebook.edit" on:click=move |_| {
                         invoke(state.session, "notebook.focus", id);
@@ -150,7 +196,7 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                     }>"Enter formula"</button>
                 }.into_any(),
                 Some(Item { kind: Kind::Formula, folded, line_numbers, .. }) => match source.get() {
-                    Some(source) => formula(state, id, source, folded, line_numbers).into_any(),
+                    Some(source) => formula(state, readings, id, source, folded, line_numbers).into_any(),
                     None => view! { <p role="status">"The worksheet source is unavailable."</p> }.into_any(),
                 },
                 Some(Item { kind: Kind::Table { name }, folded, .. }) => {
@@ -166,6 +212,7 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
 
 fn formula(
     state: State,
+    readings: FormulaReadings,
     id: AnchorId,
     source: SourceRef,
     folded: bool,
@@ -173,15 +220,9 @@ fn formula(
 ) -> impl IntoView {
     let session = state.session;
     let at = first_cell(&source);
-    let cells = session.following::<query::Cells>();
     let cell = Memo::new(move |_| {
         let at = at?;
-        match cells.at(Some(query::Cells {
-            interest: Interest::Area(Area(at, at)),
-        })) {
-            Live::Ready(answer) => answer.body.cells.into_iter().find(|cell| cell.at == at),
-            _ => None,
-        }
+        readings.cells.with(|cells| cells.as_ref()?.get(&at).cloned())
     });
     let input = move || {
         let snapshot = state.snapshot().ok()?;
@@ -196,12 +237,15 @@ fn formula(
         <div class="dna-notebook-input">
             <Show when=move || editing.get() fallback=move || view! {
                 <pre data-notebook-formula><code>{move || {
-                    let entry = held().map(|edit| edit.text).or_else(|| cell.get().map(|cell| cell.input)).unwrap_or_default();
-                    if line_numbers {
-                        entry.lines().enumerate().map(|(i, line)| format!("{}  {line}", i + 1)).collect::<Vec<_>>().join("\n")
-                    } else {
-                        entry
+                    if let Some(edit) = held() {
+                        return formula_text(session, &edit.text, &[], line_numbers);
                     }
+                    let entry = cell.get().map(|cell| cell.input).unwrap_or_default();
+                    readings.names.with(|names| {
+                        let links = at.and_then(|at| names.get(&at)).filter(|formula| formula.text == entry)
+                            .map_or(&[][..], |formula| formula.links.as_slice());
+                        formula_text(session, &entry, links, line_numbers)
+                    })
                 }}</code></pre>
             }>
                 {move || formula_editor(state)}
@@ -251,12 +295,46 @@ fn formula(
     }
 }
 
+fn formula_text(
+    session: Session, text: &str, links: &[query::FormulaNameLink], line_numbers: bool,
+) -> Vec<AnyView> {
+    let mut offset = 0;
+    let mut content = Vec::new();
+    let mut links = links.iter().peekable();
+    for (number, line) in text.split_inclusive('\n').enumerate() {
+        if line_numbers {
+            content.push(format!("{}  ", number + 1).into_any());
+        }
+        let units = line.encode_utf16().collect::<Vec<_>>();
+        let mut cursor = 0;
+        while let Some(link) = links.next_if(|link| link.start < offset + units.len()) {
+            if link.start < offset + cursor || link.end <= link.start || link.end > offset + units.len() {
+                continue;
+            }
+            let (start, end) = (link.start - offset, link.end - offset);
+            content.push(String::from_utf16_lossy(&units[cursor..start]).into_any());
+            let label = String::from_utf16_lossy(&units[start..end]);
+            let source = link.source.clone();
+            content.push(view! {
+                <button type="button" class="dna-notebook-chip" data-command="notebook.follow-source"
+                    on:click=move |_| invoke(session, "notebook.follow-source", source.clone())>{label}</button>
+            }.into_any());
+            cursor = end;
+        }
+        content.push(String::from_utf16_lossy(&units[cursor..]).into_any());
+        offset += units.len();
+    }
+    content
+}
+
 fn formula_editor(state: State) -> impl IntoView {
     let session = state.session;
     let text = TextBinding::new(Signal::derive(move || session.entry()), move |text| {
         session.edit_text(text)
     });
     let assist = FormulaAssist::new(text);
+    assist.enable_worksheet_pointing(move || session.edit().map_or((1, 1), |edit| (edit.at.2, edit.at.3)));
+    evaluate_draft_part(session, assist);
     state.formula_editor.set_value(Some(assist));
     on_cleanup(move || {
         state.formula_editor.try_set_value(None);
@@ -265,8 +343,46 @@ fn formula_editor(state: State) -> impl IntoView {
     view! {
         <div class="dna-notebook-formula-editor" data-dna-editor="true">
             {assist.anchored_field(diagnostics, None, 2, "Enter an Excel formula")}
+            <Show when=move || !assist.part_status().get().is_empty()>
+                <p role="status">{move || assist.part_status().get()}</p>
+            </Show>
         </div>
     }
+}
+
+type PartReply = Box<dyn FnOnce(Result<String, String>)>;
+
+fn evaluate_draft_part(session: Session, assist: FormulaAssist) {
+    let request = RwSignal::new(None::<query::EvaluateDraftPart>);
+    let pending = StoredValue::new_local(None::<PartReply>);
+    let work = session.following_with_budget::<query::EvaluateDraftPart>(dna_kit::live_tree::EXPRESSION_BUDGET);
+    assist.use_part_keymap();
+    assist.enable_part_evaluation(move |start, len, reply| {
+        let Some(edit) = session.edit() else {
+            reply(Err("Open a Notebook formula.".into()));
+            return;
+        };
+        pending.set_value(Some(reply));
+        request.set(Some(query::EvaluateDraftPart {
+            at: edit.at, formula: edit.text, start, len,
+        }));
+    });
+    Effect::new(move |_| {
+        let draft = request.get();
+        let result = match work.at(draft.clone()) {
+            Live::Ready(answer) => Ok(answer.body.literal),
+            Live::Refused(reason) => Err(dna_kit::refusal_text(reason)),
+            _ => return,
+        };
+        let Some(draft) = draft else { return };
+        request.set(None);
+        let reply = pending.try_update_value(Option::take).flatten();
+        if session.edit().is_some_and(|edit| edit.at == draft.at && edit.text == draft.formula)
+            && let Some(reply) = reply
+        {
+            reply(result);
+        }
+    });
 }
 
 fn value(cell: WorkbookCell) -> impl IntoView {
@@ -422,19 +538,43 @@ fn chips(session: Session, text: &str) -> Vec<AnyView> {
 
 fn chip(session: Session, address: String) -> impl IntoView {
     let resolving = session.following::<query::Resolve>();
+    let names = session.following::<query::DefinedName>();
     let cells = session.following::<query::Cells>();
     let address_text = address.clone();
     let destination = address.clone();
+    let source = Memo::new(move |_| {
+        let Live::Ready(answer) = resolving.at(Some(query::Resolve { address: address.clone() })) else {
+            return None;
+        };
+        match answer.body {
+            SourceRef::Name { scope, name } => match names.at(Some(query::DefinedName { scope, name })) {
+                Live::Ready(answer) => answer.body.source,
+                _ => None,
+            },
+            source => Some(source),
+        }
+    });
+    let label = destination.clone();
     view! {
         <button type="button" class="dna-notebook-chip" title=address_text
-            data-command="notebook.jump" on:click=move |_| invoke(session, "notebook.jump", destination.clone())>
+            data-command="notebook.follow-source" on:click=move |_| {
+                if let Some(source) = source.get_untracked() {
+                    invoke(session, "notebook.follow-source", source);
+                } else {
+                    invoke(session, "notebook.jump", destination.clone());
+                }
+            }>
             {move || {
-                let Live::Ready(source) = resolving.at(Some(query::Resolve { address: address.clone() })) else { return address.clone(); };
-                let Some(at) = first_cell(&source.body) else { return address.clone(); };
+                let Some(at) = source.get().as_ref().and_then(first_cell) else { return label.clone(); };
                 match cells.at(Some(query::Cells { interest: Interest::Area(Area(at, at)) })) {
                     Live::Ready(answer) => answer.body.cells.into_iter().find(|cell| cell.at == at)
-                        .map(|cell| cell.text).unwrap_or_else(|| address.clone()),
-                    _ => address.clone(),
+                        .map(|cell| match cell.shown.provenance {
+                            Provenance::Refused { .. } => "Unavailable".into(),
+                            Provenance::Stale { .. } => format!("{} · previous result", cell.text),
+                            Provenance::AsSaved => format!("{} · saved value", cell.text),
+                            _ => cell.text,
+                        }).unwrap_or_else(|| label.clone()),
+                    _ => label.clone(),
                 }
             }}
         </button>

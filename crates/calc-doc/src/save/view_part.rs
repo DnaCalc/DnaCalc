@@ -320,7 +320,13 @@ fn text(digest: &mut Sha256, text: &calc_doc_model::value::ExcelText) {
     }
 }
 
-fn input(digest: &mut Sha256, input: &CellInput) {
+#[derive(Clone, Copy)]
+enum FormulaSpelling {
+    Stored,
+    Display,
+}
+
+fn input(digest: &mut Sha256, input: &CellInput, spelling: FormulaSpelling) {
     match input {
         CellInput::Number(number) => {
             digest.update([1]);
@@ -337,10 +343,16 @@ fn input(digest: &mut Sha256, input: &CellInput) {
         }
         CellInput::Formula(formula) => {
             digest.update([5]);
-            // The workbook's shared-formula representation can change on save.
             let rendered = formula.rendered().to_string_lossy();
-            let canonical = calc_fml::assist::display_formula(rendered.trim_start_matches('='));
-            sized(digest, canonical.as_bytes());
+            let source = rendered.trim_start_matches('=');
+            match spelling {
+                FormulaSpelling::Stored => sized(digest, source.as_bytes()),
+                FormulaSpelling::Display => {
+                    // The writer adds file prefixes to functions and LET/LAMBDA bindings.
+                    let display = calc_fml::assist::display_formula(&format!("={source}"));
+                    sized(digest, display[1..].as_bytes());
+                }
+            }
         }
     }
 }
@@ -356,7 +368,7 @@ fn model_digest(model: &ModelRoot) -> String {
             digest.update([2]);
             digest.update(at.row().to_le_bytes());
             digest.update(at.column().to_le_bytes());
-            input(&mut digest, cell);
+            input(&mut digest, cell, FormulaSpelling::Stored);
         }
     }
     for name in model.definitions().names() {
@@ -380,7 +392,7 @@ fn model_digest(model: &ModelRoot) -> String {
     format!("sha256:{:x}", digest.finalize())
 }
 
-fn fingerprint(area: GridArea, model: &ModelRoot) -> String {
+fn fingerprint(area: GridArea, model: &ModelRoot, spelling: FormulaSpelling) -> String {
     let mut digest = Sha256::new();
     digest.update(b"dnacalc-view-part-anchor-v1");
     digest.update(area.row_count().to_le_bytes());
@@ -388,7 +400,7 @@ fn fingerprint(area: GridArea, model: &ModelRoot) -> String {
     for (at, cell) in model.cells(area).into_iter().flatten() {
         digest.update((at.row() - area.first().row()).to_le_bytes());
         digest.update((at.column() - area.first().column()).to_le_bytes());
-        input(&mut digest, cell);
+        input(&mut digest, cell, spelling);
     }
     format!("sha256:{:x}", digest.finalize())
 }
@@ -421,10 +433,10 @@ pub(crate) fn read(package: &crate::opc::Package, model: &ModelRoot) -> ViewPart
                     return stored.anchor;
                 };
                 if same_model
-                    || stored
-                        .fingerprint
-                        .as_deref()
-                        .is_some_and(|stored| stored == fingerprint(area, model))
+                    || stored.fingerprint.as_deref().is_some_and(|stored| {
+                        stored == fingerprint(area, model, FormulaSpelling::Display)
+                            || stored == fingerprint(area, model, FormulaSpelling::Stored)
+                    })
                 {
                     stored.anchor
                 } else {
@@ -469,7 +481,7 @@ fn attribute_fields(anchor: &ViewAnchor, model: &ModelRoot) -> (Option<String>, 
 
 fn new_anchor(anchor: &ViewAnchor, model: &ModelRoot, out: &mut Vec<u8>) {
     let (sheet, reference) = attribute_fields(anchor, model);
-    let signature = anchor.area().map(|area| fingerprint(area, model));
+    let signature = anchor.area().map(|area| fingerprint(area, model, FormulaSpelling::Display));
     out.extend_from_slice(b"<anchor");
     for (name, value) in [
         ("xmlns", Some(VIEW_PART_NAMESPACE)),
@@ -554,7 +566,7 @@ pub(super) fn item(
             splice.replace(stored.whole, &[]);
             continue;
         };
-        let signature = anchor.area().map(|area| fingerprint(area, model));
+        let signature = anchor.area().map(|area| fingerprint(area, model, FormulaSpelling::Display));
         if anchor == &stored.anchor && signature == stored.fingerprint {
             continue;
         }
