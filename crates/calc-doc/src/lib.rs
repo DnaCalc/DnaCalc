@@ -117,7 +117,7 @@ mod xlsb;
 mod xml;
 mod zip;
 
-pub use blank::{blank_package, blank_package_named};
+pub use blank::{blank_package, blank_package_for_sheets, blank_package_named};
 pub use calc_doc_model as model;
 pub use edit::{
     EditError, PreparedEdit, prepare_edit, prepare_sheet_edit, prepare_structural_edit,

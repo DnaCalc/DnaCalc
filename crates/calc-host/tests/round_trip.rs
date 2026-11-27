@@ -30848,3 +30848,120 @@ fn dc_iq8o8__manual_save_keeps_the_workbooks_calculate_before_save() {
     assert!(book.dispatch(SkinIntent::SetCalculateBeforeSave(false)).accepted());
     assert!(!saved_and_reopened(&mut book).host().calculate_before_save());
 }
+
+use calc_doc_model::{ViewAnchor, ViewPart};
+use calc_skin::AnchorId;
+use std::num::NonZeroU128;
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn skin_anchor_edits_share_history_and_move_with_workbook_rows() {
+    let mut session = session(&calc_host::blank_package());
+    let sheet = session.host().model().sheets()[0].id();
+    let cell = |row, column| CellKey::new(sheet, row, column).unwrap();
+    let id = AnchorId(NonZeroU128::new(12).unwrap());
+    let anchor = ViewAnchor::cells(id, GridArea::new(cell(4, 2), cell(5, 3)).unwrap());
+    let before = session.host().skin_stamp();
+    let part = Arc::new(ViewPart::default().with_anchor(anchor));
+    let result = session.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::View(part)],
+    });
+    assert!(result.accepted(), "{:?}", result.error);
+    let edited = session.host().skin_stamp();
+    assert_eq!(edited.model, before.model);
+    assert!(edited.view > before.view);
+    assert_eq!(edited.calc, before.calc);
+
+    let result = session.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(sheet, Axis::Rows, AxisChange::Insert, 4, 1).unwrap(),
+    ));
+    assert!(result.accepted(), "{:?}", result.error);
+    let shifted = session.host().skin_stamp();
+    assert!(shifted.model > edited.model);
+    assert!(shifted.view > edited.view);
+    let location = |session: &HostSession| {
+        session
+            .host()
+            .model()
+            .view_part()
+            .anchor(id)
+            .unwrap()
+            .area()
+    };
+    assert_eq!(location(&session).unwrap().first(), cell(5, 2));
+
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(location(&session).unwrap().first(), cell(4, 2));
+    let before = session.host().skin_stamp();
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    let undone = session.host().skin_stamp();
+    assert_eq!(undone.model, before.model);
+    assert!(undone.view > before.view);
+    assert!(session.host().model().view_part().anchor(id).is_none());
+    assert!(session.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(location(&session).unwrap().first(), cell(4, 2));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn skin_anchor_custom_xml_round_trips_and_keeps_unknown_data() {
+    const NS: &str = "urn:dnacalc:views:v1";
+    let id = AnchorId(NonZeroU128::new(55).unwrap());
+    let original = format!(
+        r#"<d:dnaViews xmlns:d="{NS}" version="1" xmlns:future="urn:future" future:hint='α'><future:metadata keep='as written'/><d:anchors><d:anchor id="{id}" kind="cells" sheet_key="1" ref="Sheet1!D8" future:key='xyz'><future:detail>keep &amp; this</future:detail></d:anchor></d:anchors></d:dnaViews>"#
+    );
+    let blank = open(&calc_host::blank_package());
+    let snapshot = blank
+        .loaded()
+        .snapshot(&blank.model().pin())
+        .with_custom_xml(vec![calc_doc::CustomXmlItem {
+            namespace: NS.to_owned(),
+            content: original.into_bytes(),
+        }]);
+    let mut bytes = Vec::new();
+    calc_doc::write(
+        calc_doc::prepare_save(&snapshot, &SavePolicy::default()).unwrap(),
+        &mut bytes,
+    )
+    .unwrap();
+    let mut workbook = session(&bytes);
+    let sheet = workbook.host().model().sheets()[0].id();
+    let at = CellKey::new(sheet, 10, 7).unwrap();
+    let next = workbook
+        .host()
+        .model()
+        .view_part()
+        .as_ref()
+        .clone()
+        .with_anchor(ViewAnchor::spill(id, at));
+    assert!(
+        workbook
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::View(Arc::new(next))]
+            })
+            .accepted()
+    );
+    let mut saved = Vec::new();
+    workbook.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let anchor = reopened.model().view_part().anchor(id).unwrap();
+    assert!(anchor.spill);
+    assert_eq!(anchor.area().unwrap().first(), at);
+    let parts = reopened.loaded().custom_xml(NS).unwrap();
+    assert_eq!(parts.len(), 1);
+    let xml = std::str::from_utf8(&parts[0].1).unwrap();
+    assert!(xml.contains("future:key='xyz'"), "{xml}");
+    assert!(
+        xml.contains("<future:metadata keep='as written'/>"),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<future:detail>keep &amp; this</future:detail>"),
+        "{xml}"
+    );
+    assert_eq!(
+        part_text(&bytes, "xl/worksheets/sheet1.xml"),
+        part_text(&saved, "xl/worksheets/sheet1.xml")
+    );
+    assert!(!part_text(&saved, "xl/workbook.xml").contains("_dna."));
+}

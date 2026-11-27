@@ -63,6 +63,8 @@ pub enum CellEdit {
     },
     /// Document layout metadata, independent of cell contents.
     Layout(calc_doc_model::SkinLayoutEdit),
+    /// The workbook view part, committed as a presentation edit.
+    View(Arc<calc_doc_model::ViewPart>),
     /// Replace the worksheet’s data validation rules.
     Validations {
         /// The worksheet to edit.
@@ -200,6 +202,7 @@ impl CellEdit {
                 filter: filter.clone(),
             },
             CellEdit::Layout(edit) => WorkbookOp::EditSkinLayout(edit.clone()),
+            CellEdit::View(part) => WorkbookOp::EditView(part.clone()),
             CellEdit::Merges { sheet, areas } => WorkbookOp::SetMerges {
                 sheet: *sheet,
                 areas: areas.clone(),
@@ -465,6 +468,22 @@ pub fn dispatch_slice(
         base,
         operations: edits.iter().map(CellEdit::to_operation).collect(),
     };
+
+    // Presentation history shares the authored root, while an active calculation keeps its
+    // model revision and continues to read the same worksheet data.
+    if batch.operations.iter().all(|op| matches!(op, WorkbookOp::EditView(_))) {
+        let document = calc_doc::prepare_edit(&host.model, &batch).map_err(CommandError::Document)?;
+        host.install_skin_revision(document.into_model());
+        return Ok(CommandReceipt {
+            base,
+            revision: base,
+            changed_cells: Vec::new(),
+            cleared_areas: Vec::new(),
+            input_writes: Vec::new(),
+            pending: Vec::new(),
+            superseded_recalc: None,
+        });
+    }
 
     let pivot_change = batch
         .operations
@@ -1174,7 +1193,7 @@ pub fn dispatch_slice(
     );
 
     let committed = calc_engine::commit_edit(engine);
-    host.model = document.into_model();
+    host.install_skin_revision(document.into_model());
     if tables_changed {
         host.engine = host.engine.rebuilt_holding_results(&host.model, &|at| Some(at));
     }
@@ -1402,7 +1421,7 @@ fn restore_inner(
                 .try_fold(at, |at, edit| calc_doc_model::moved_cell(*edit, at))
         })
     };
-    host.model = model;
+    host.install_skin_revision(model);
     for edit in reference_edits {
         host.references.apply(&edit);
     }

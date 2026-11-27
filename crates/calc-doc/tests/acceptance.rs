@@ -466,6 +466,7 @@ fn describe_input(input: &CellInput) -> String {
 /// own equality.
 fn describe(op: &WorkbookOp) -> String {
     match op {
+        WorkbookOp::EditView(part) => format!("view part {part:?}"),
         WorkbookOp::SetPageSetup { sheet, setup } => format!("page setup {sheet:?} {setup:?}"),
         WorkbookOp::SetDataModel(state) => format!("data model {state:?}"),
         WorkbookOp::SetPivots(state) => format!("pivots {state:?}"),
@@ -662,6 +663,8 @@ fn describe_all(ops: &[WorkbookOp]) -> Vec<String> {
 /// stops this file compiling until the cases cover it.
 fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
     let feature = match op {
+        // The workbook wire codec refuses this operation as EncodeError::ViewPart.
+        WorkbookOp::EditView(_) => "op:edit_view".to_owned(),
         // Wire version 1 refuses chart authoring as EncodeError::Charts.
         WorkbookOp::SetPageSetup { .. } => "op:page-setup".to_owned(),
         WorkbookOp::SetDataModel(_) => "op:data-model".to_owned(),

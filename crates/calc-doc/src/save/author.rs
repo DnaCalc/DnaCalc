@@ -378,6 +378,7 @@ pub(super) fn plan(
     if !model.same_lineage(base) {
         return Err(SaveRefusal::ForeignModel);
     }
+    let view_item = super::view_part::item(base, model)?;
     if let Some(views) = views {
         super::panes::validate(views, model)?;
     }
@@ -631,6 +632,7 @@ pub(super) fn plan(
         && !merges_changed
         && views.is_none()
         && edit.custom_xml.is_empty()
+        && view_item.is_none()
         && !panes_changed
         && !dimensions_changed
         && !tables_changed
@@ -1237,7 +1239,7 @@ pub(super) fn plan(
                 .and_then(|n| n.parse().ok())
         })
         .collect();
-    for item in &edit.custom_xml {
+    for item in edit.custom_xml.iter().chain(view_item.iter()) {
         if let Some(part) = crate::custom_xml::parts_in(package, &item.namespace)
             .into_iter()
             .next()

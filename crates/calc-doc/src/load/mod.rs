@@ -2627,6 +2627,12 @@ pub fn load_preserving_sheet_ids(
     .expect(
         "the IDs are distinct, the keys were checked, each cell, anchor and definition lies on a sheet of the load, and each array anchor holds its formula",
     );
+    let view_part = crate::save::view_part::read(document.package_arc(), &model);
+    let model = if view_part == calc_doc_model::ViewPart::default() {
+        model
+    } else {
+        model.with_view_part(Arc::new(view_part))
+    };
     Ok(LoadedWorkbook {
         package: Arc::clone(document.package_arc()),
         model,

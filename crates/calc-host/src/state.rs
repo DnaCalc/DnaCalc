@@ -127,6 +127,8 @@ pub(crate) struct SheetViewOverride {
 pub struct HostState {
     /// Identifies this open host for revision-bound prepared commands.
     pub(crate) command_scope: u64,
+    skin_view: u64,
+    pub(crate) skin_calc: u64,
     pub(crate) sheet_ids: IdAllocator<SheetId>,
     pub(crate) sheet_identities: std::collections::BTreeMap<calc_doc_model::SheetKey, SheetId>,
     /// The workbook as calc-doc loaded it. Its model is the loaded revision, never the current
@@ -357,6 +359,8 @@ impl HostState {
         let sheet_identities = model.sheets().iter().map(|s| (s.key(), s.id())).collect();
         let mut host = HostState {
             command_scope: next_command_scope(),
+            skin_view: 0,
+            skin_calc: 0,
             sheet_ids,
             sheet_identities,
             loaded,
@@ -408,6 +412,23 @@ impl HostState {
         let environment = host.entry_environment();
         host.engine.set_environment(Some(environment));
         Ok(host)
+    }
+
+    /// Independent counters for the skin model/view boundary.
+    pub fn skin_stamp(&self) -> calc_skin::Stamp {
+        calc_skin::Stamp {
+            workbook: calc_skin::WorkbookId(self.command_scope),
+            model: self.revision().get().into(),
+            view: self.skin_view.into(),
+            calc: self.skin_calc.into(),
+        }
+    }
+
+    pub(crate) fn install_skin_revision(&mut self, model: Arc<ModelRoot>) {
+        if self.model.view_part() != model.view_part() {
+            self.skin_view += 1;
+        }
+        self.model = model;
     }
 
     /// The current authored revision.

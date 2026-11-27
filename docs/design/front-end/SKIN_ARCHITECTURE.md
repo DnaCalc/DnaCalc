@@ -157,7 +157,7 @@ Where Proposals A and B diverged, the table below records which answer is taken 
 
 Mechanically checked rules added to `tools/xtask/architecture.json`:
 
-1. **`calc-skin` closure forbids:** `calc-fml`, `calc-func`, `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-skin-host` and every `apps/*` package. It uses CalcValue identities through checked conversions from the existing serializable sheet, cell and range tuples, leaving CalcValue dependency-free.
+1. **`calc-skin` closure forbids:** `calc-fml`, `calc-func`, `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-skin-host` and every `apps/*` package. It uses CalcValue identities through checked conversions from the existing serializable sheet, cell and range tuples, leaving CalcValue dependency-free. Stable view and anchor IDs live in CalcSyntax so CalcDoc can store them directly.
 2. **`calc-formula-kernel` closure forbids:** `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-addin-host` and every `apps/*` package.
 3. **`calc-formula-host` closure forbids:** `calc-engine`, `calc-host`, `calc-skin-host` and every `apps/*` package.
 4. **`calc-host` closure forbids:** every `apps/*` package (removing today's `dna-calc-model` dependency).
@@ -506,8 +506,8 @@ Both proposals chose option (b) of [FRONT_END_IMPLEMENTATION_BRIEF.md](../../pla
 `crates/calc-host` remains the single owner of `ModelRoot`, `CalcEngine` and `History`, with six clean changes:
 1. **Owns `FormulaHost`:** `HostState` embeds `FormulaHost` and feeds `engine.set_callable_bindings` and `engine.invalidate_rtd_topic` from it — zero duplicated UDF or RTD admission state.
 2. **Fixes the `dna-calc-model` layering inversion:** Moves the PB1-calibrated paginator and 2,114 lines of calibration tests from `apps/dna-calc-model/src/printing` into `crates/calc-host/src/printing/`. Print settings, the published plan and pure row/column metrics are shared through `calc-skin`. The shared print types also parse header/footer fields, which the preview draws. `Worksheet.HPageBreaks`, `VPageBreaks`, `PageSetup.Pages` and print preview call the host paginator.
-3. **`ViewPart` replaces `SkinLayout`:** `ModelRoot.layout` becomes `Arc<ViewPart>`, edited via `WorkbookOp::EditView` through the existing `History` inverse/restore machinery, with `model_revision` tracked separately from `view_revision`.
-4. **Structural edits transform anchors:** `calc_fml::reference::StructuralEdit` (row/col insert/delete, cell shift, cut-and-paste move, sheet rename) updates `ViewPart` anchors in the same atomic commit as formula references.
+3. **`ViewPart`:** `ModelRoot` owns an `Arc<ViewPart>` during the overlap with legacy `SkinLayout`. `WorkbookOp::EditView` uses the session's existing history. A presentation-only transaction keeps the authored model revision and the running calculation. Mixed transactions use the normal authored path and advance the independent view revision when the part changes. Milestone 3 removes the old layout.
+4. **Structural edits transform anchors:** CalcDoc's axis transforms and CalcFml's cell-shift and cut transforms update range and spill anchors in the same transaction as formula references. The view part persists a sheet key and a sheet-local A1 address. Renaming a sheet resolves through the same key and uses the current name in address displays.
 5. **Non-committing `prepare` and target conflict check:** Exposes `prepare` without committing (returning node IDs on drop) to power `PreviewDepth::WritesOnly`, and checks `expects` against per-step touched targets since `base`.
 6. **Macro run scopes & checkpoints:** Adds `begin_run` / `end_run`, `Application.OnUndo`, and O(1) `ModelRoot::pin` checkpoints (§17.1). At Milestone 3's switch commit, legacy `SkinIntent` is retired into `HostSession`'s batch dispatcher.
 
@@ -759,6 +759,8 @@ Everything DNA Calc authors outside Excel's own parts lives in **one** custom XM
 - **Missing/stripped part (e.g. Excel Document Inspector):** Model is 100% intact; opens in Classic and every other view still works from live `Structure` readings.
 - **Retiring v1 (`urn:dnacalc:view-manifest`):** Because zero user or corpus workbooks use v1 (verified via `git grep`), `crates/calc-doc/src/{load,save}/manifest.rs` and `calc-doc-model/src/layout.rs` (with `_dna.block.<hex>` hidden names) are deleted outright at the switch, satisfying `D10` and `D13`.
 - **Transient viewport state stays local:** Camera pan/zoom, scroll offsets, splitter widths, open companion pane, Inspector recordings, recovery journals (`OPFS` / desktop profile store, replaying committed `CommandIdToken`s once and restoring unrun drafts as drafts, `Pro C-14`) and user skins live in per-user local storage — **never** inside `.xlsx`, avoiding noisy file diffs on scroll. Classic's frozen panes, sheet zoom and active cell remain in Excel's standard `<sheetViews>`.
+
+The first codec slice reads and writes cell ranges and spill anchors. It retains other declarations in the original XML. It writes a SHA-256 digest of authored sheet names, cell inputs and defined names, plus a signature for each anchored range's inputs and shape. A digest mismatch retains a local binding only when the address still matches its signature. Named, table and object resolution and unique fingerprint relocation extend this path.
 
 ### 12.2 Anchors and reconciliation after external edits (`D13`)
 

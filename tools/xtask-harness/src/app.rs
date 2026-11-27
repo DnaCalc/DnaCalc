@@ -55,6 +55,8 @@ use crate::site::SiteHeaders;
 #[cfg(windows)]
 #[path = "app_clean.rs"]
 pub(crate) mod clean;
+#[path = "app_cast.rs"]
+mod cast;
 #[path = "app_paint.rs"]
 mod paint;
 #[path = "app_renderer.rs"]
@@ -73,7 +75,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>] [--pack <file>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--suite core|full] [--renderer dom|canvas] [--renderer-report <dir>] [--group <name>] [--case <substring>] [--list] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask app cast calc --out <dir>\n       cargo xtask app paint-compare calc --out <dir> [--bundle <dir>] [--reference <dir>] [--workbook <file>] [--zooms 75,100,150]\n       cargo xtask app xll-accept onecalc --exe <dna-onecalc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]... [--transport in-process|surrogate]
        cargo xtask app xll-accept calc --exe <dna-calc-desktop.exe> --bundle <dir> --plan <plan.json> --out <dir> [--var NAME=VALUE]... [--set <name>]...
        cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
@@ -344,6 +346,13 @@ pub fn run(raw: &[String]) -> ExitCode {
         _ => return usage(raw),
     };
     match command {
+        "cast" if app.key == "calc" => match cast::run(rest) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("xtask app cast: {error}");
+                ExitCode::FAILURE
+            }
+        },
         "paint-compare" if app.key == "calc" => paint::run(&ws, app, rest),
         "xll-accept" if app.key == "onecalc" => xll::run(&ws, rest),
         "xll-accept" if app.key == "calc" => xll_calc::run(&ws, rest),

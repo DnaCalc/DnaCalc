@@ -30,3 +30,6 @@ pub struct SemanticTemplateKey {
     pub placement: TemplatePlacement,
     pub evaluation: FormulaForm,
 }
+
+mod view_id;
+pub use view_id::{AnchorId, DocId, InvalidId};

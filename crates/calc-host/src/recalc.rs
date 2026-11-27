@@ -321,6 +321,9 @@ impl HostState {
     pub(crate) fn record_calc_events(&mut self, events: Vec<calc_engine::CalcEvent>) {
         self.async_records.observe(&events);
         for event in &events {
+            if matches!(event, calc_engine::CalcEvent::Published(_)) {
+                self.skin_calc += 1;
+            }
             if let calc_engine::CalcEvent::Completed(receipt) = event {
                 self.last_calculation_completion = Some(receipt.clone());
             }

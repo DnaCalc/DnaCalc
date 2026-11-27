@@ -181,11 +181,13 @@ pub enum ApplyError {
     UnknownName { operation: usize },
     /// Retained records disagree with their scoped key or live order.
     InvalidNameRestoration { operation: usize },
+    ReadOnlyViewPart { operation: usize },
 }
 
 impl fmt::Display for ApplyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ApplyError::ReadOnlyViewPart { operation } => write!(f, "operation {operation} cannot overwrite a retained view part"),
             ApplyError::StaleBase { batch, root } => write!(
                 f,
                 "the batch is based on revision {} but the root is at revision {}",
@@ -267,6 +269,7 @@ pub struct ModelRoot {
     /// The cells of the sheet at the same position of `sheets`.
     cells: Vec<SheetPages>,
     layout: Arc<SkinLayout>,
+    view_part: Arc<crate::ViewPart>,
     definitions: Arc<Definitions>,
     lineage: u64,
 }
@@ -277,6 +280,7 @@ impl PartialEq for ModelRoot {
             && self.sheets == other.sheets
             && self.cells == other.cells
             && self.layout == other.layout
+            && self.view_part == other.view_part
             && self.definitions == other.definitions
     }
 }
@@ -292,6 +296,7 @@ impl ModelRoot {
             sheets: self.sheets.clone(),
             cells: self.cells.clone(),
             layout: self.layout.clone(),
+            view_part: self.view_part.clone(),
             definitions: self.definitions.clone(),
             lineage: self.lineage,
         })
@@ -305,6 +310,7 @@ impl ModelRoot {
             sheets: self.sheets.clone(),
             cells: self.cells.clone(),
             layout: self.layout.clone(),
+            view_part: self.view_part.clone(),
             definitions: Arc::new(
                 Definitions::clone(&self.definitions)
                     .with_workbook_name(Some(name.to_owned()))
@@ -432,6 +438,7 @@ impl ModelRoot {
             sheets: self.sheets.clone(),
             cells: self.cells_after(touched),
             layout: self.layout.clone(),
+            view_part: self.view_part.clone(),
             definitions: self.definitions.clone(),
             lineage: self.lineage,
         }))
@@ -450,6 +457,7 @@ impl ModelRoot {
             sheets,
             cells,
             layout: Arc::default(),
+            view_part: Arc::default(),
             definitions: Arc::default(),
             lineage: new_lineage(),
         }))
@@ -515,6 +523,7 @@ impl ModelRoot {
             sheets,
             cells: pages,
             layout: Arc::new(layout),
+            view_part: Arc::default(),
             definitions: Arc::default(),
             lineage: new_lineage(),
         }))
@@ -585,6 +594,7 @@ impl ModelRoot {
             sheets: earlier.sheets.clone(),
             cells: earlier.cells.clone(),
             layout: Arc::clone(&earlier.layout),
+            view_part: earlier.view_part.clone(),
             definitions: Arc::new(
                 Definitions::clone(&earlier.definitions)
                     .with_name_table(
@@ -622,6 +632,7 @@ impl ModelRoot {
             sheets: imported.sheets.clone(),
             cells,
             layout: self.layout.clone(),
+            view_part: self.view_part.clone(),
             definitions: Arc::new(definitions),
             lineage: self.lineage,
         }))
@@ -630,6 +641,19 @@ impl ModelRoot {
     /// The sheets in workbook order.
     pub fn sheets(&self) -> &[SheetEntry] {
         &self.sheets
+    }
+
+    /// The shared custom XML view declarations and their anchors.
+    pub fn view_part(&self) -> &Arc<crate::ViewPart> {
+        &self.view_part
+    }
+
+    /// Bind view data read by the codec to this exact authored revision.
+    pub fn with_view_part(&self, view_part: Arc<crate::ViewPart>) -> Arc<Self> {
+        if Arc::ptr_eq(&self.view_part, &view_part) {
+            return self.pin();
+        }
+        Arc::new(Self { view_part, ..self.clone() })
     }
 
     /// The skin layout: the blocks and their placements in each view. A root made by
@@ -733,10 +757,13 @@ impl ModelRoot {
                 root: self.revision,
             });
         }
-        let revision = self
-            .revision
-            .checked_next()
-            .ok_or(ApplyError::RevisionExhausted)?;
+        let presentation_only = !batch.operations.is_empty()
+            && batch.operations.iter().all(|op| matches!(op, WorkbookOp::EditView(_)));
+        let revision = if presentation_only {
+            self.revision
+        } else {
+            self.revision.checked_next().ok_or(ApplyError::RevisionExhausted)?
+        };
 
         // A working copy of each page the batch touches, by (sheet position, page row, page
         // column), made from this root's page the first time an operation changes the block.
@@ -800,6 +827,7 @@ impl ModelRoot {
         }
         // A working copy of the layout, made from this root's the first time an operation edits it.
         let mut layout: Option<SkinLayout> = None;
+        let mut view_part = self.view_part.clone();
         // The areas the batch's cell operations set or cleared.
         let mut edited: Vec<GridArea> = Vec::new();
         // The array formulas the batch authors, with the operation that authored each, less those
@@ -1030,6 +1058,17 @@ impl ModelRoot {
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
+                WorkbookOp::EditView(next) => {
+                    if (view_part.is_opaque() || next.is_opaque()) && view_part != *next {
+                        return Err(ApplyError::ReadOnlyViewPart { operation });
+                    }
+                    for anchor in next.anchors() {
+                        if let Some(area) = anchor.area() {
+                            self.position_of(operation, area.sheet())?;
+                        }
+                    }
+                    view_part = next.clone();
+                }
                 WorkbookOp::EditSkinLayout(edit) => {
                     if let SkinLayoutEdit::CreateBlock { anchor, .. } = edit {
                         self.position_of(operation, anchor.sheet())?;
@@ -1153,6 +1192,7 @@ impl ModelRoot {
             sheets: self.sheets.clone(),
             cells,
             layout,
+            view_part,
             definitions,
             lineage: self.lineage,
         }))
@@ -1178,6 +1218,7 @@ impl ModelRoot {
             sheets: self.sheets.clone(),
             cells,
             layout: SkinLayout::clone(&self.layout),
+            view_part: self.view_part.clone(),
             definitions: Definitions::clone(&self.definitions),
         }
     }
@@ -1216,6 +1257,7 @@ impl ModelRoot {
             sheets: parts.sheets,
             cells: pages,
             layout: Arc::new(parts.layout),
+            view_part: parts.view_part,
             definitions: Arc::new(parts.definitions),
             lineage: self.lineage,
         })

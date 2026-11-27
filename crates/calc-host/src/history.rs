@@ -121,6 +121,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::Sparklines { .. }
             | CellEdit::PageSetup { .. }
             | CellEdit::Layout(_)
+            | CellEdit::View(_)
             | CellEdit::ReviewLinks { .. }
             | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
@@ -215,6 +216,9 @@ pub(crate) fn inverse(
         .into_iter()
         .map(|area| CellEdit::Clear { area })
         .collect();
+    if edits.iter().any(|edit| matches!(edit, CellEdit::View(_))) {
+        inverse.push(CellEdit::View(model.view_part().clone()));
+    }
     for array in &arrays {
         let Some(CellInput::Formula(formula)) = prior.remove(&array.anchor()) else {
             unreachable!("a model's array formula's anchor holds its formula");

@@ -188,6 +188,7 @@ pub(crate) struct Parts {
     /// Each sheet's cells, by sheet ID.
     pub(crate) cells: BTreeMap<SheetId, BTreeMap<CellKey, CellInput>>,
     pub(crate) layout: crate::layout::SkinLayout,
+    pub(crate) view_part: Arc<crate::ViewPart>,
     pub(crate) definitions: Definitions,
 }
 
@@ -706,11 +707,19 @@ impl ModelRoot {
             next = next.with_conditional_rules(sheet, rules);
         }
         let layout = parts.layout.with_anchors(|area| moved_area(edit, area));
+        let view_part = parts.view_part.mapped(|area, spill| {
+            if spill {
+                moved_cell(edit, area.first()).map(GridArea::cell)
+            } else {
+                moved_area(edit, area)
+            }
+        }).map(Arc::new).unwrap_or(parts.view_part);
         self.rebuilt(
             Parts {
                 sheets: parts.sheets,
                 cells,
                 layout,
+                view_part,
                 definitions: next,
             },
             self.revision(),
@@ -886,6 +895,9 @@ impl ModelRoot {
                     )
                     .without_sheet(*sheet);
                 parts.sheets.remove(at);
+                if let Some(view_part) = parts.view_part.mapped(|area, _| (area.sheet() != *sheet).then_some(area)) {
+                    parts.view_part = Arc::new(view_part);
+                }
                 parts.layout = parts
                     .layout
                     .with_anchors(|area| (area.sheet() != *sheet).then_some(area));

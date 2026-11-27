@@ -307,6 +307,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "quick-xml",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
@@ -480,6 +481,7 @@ dependencies = [
 name = "calc-skin"
 version = "0.1.0"
 dependencies = [
+ "calc-syntax",
  "calc-value",
  "serde",
  "serde_json",
@@ -497,6 +499,9 @@ dependencies = [
 [[package]]
 name = "calc-syntax"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "calc-value"

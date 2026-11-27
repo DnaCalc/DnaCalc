@@ -109,6 +109,26 @@ fn escaped(text: &str) -> String {
     out
 }
 
+/// A blank Excel workbook with the named worksheets in the given order.
+pub fn blank_package_for_sheets(names: &[&str]) -> Result<Vec<u8>, String> {
+    use calc_doc_model::SheetName;
+    use calc_doc_model::value::{ExcelText, fold_workbook_name};
+
+    if names.is_empty() {
+        return Err("A workbook needs at least one sheet".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for &name in names {
+        SheetName::new(ExcelText::from_utf16_code_units(name.encode_utf16().collect()))
+            .map_err(|error| format!("Worksheet {name:?}: {error}"))?;
+        if !seen.insert(fold_workbook_name(name)) {
+            return Err(format!("Duplicate worksheet {name:?}"));
+        }
+    }
+    let sheets = names.iter().map(|&name| (name, None)).collect::<Vec<_>>();
+    Ok(blank_package_with_sheets(&sheets, false, None))
+}
+
 /// [`blank_package_named_in`], as an .xlsm carrying `project` when there is one: the macro-enabled
 /// workbook content type, the project part with its content type and its relationship from the
 /// workbook part, and the code names.

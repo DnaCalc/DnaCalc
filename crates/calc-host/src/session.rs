@@ -1549,6 +1549,18 @@ impl HostSession {
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
         let before = self.selection.clone();
+        let mut edits = edits;
+        if let Some(change) = coordinates.as_ref()
+            && let Some(view_part) = self.host.model().view_part().mapped(|area, spill| {
+                if spill {
+                    change.cell(area.first()).map(GridArea::cell)
+                } else {
+                    change.area(area)
+                }
+            })
+        {
+            edits.push(CellEdit::View(Arc::new(view_part)));
+        }
         let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
         self.commit_coordinates(&edits, coordinates.as_ref(), receipt)?;
         if let Some(selection) = after_selection {
@@ -1592,11 +1604,16 @@ impl HostSession {
         }
         let revision = committed.revision();
         receipt.committed = Some(committed);
-        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_all);
+        if revision != base {
+            receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision }, refresh_all);
+        }
         Ok(())
     }
 
     fn after_commit(&mut self, receipt: &mut IntentReceipt) {
+        if receipt.committed.as_ref().is_some_and(|commit| commit.base() == commit.revision()) {
+            return;
+        }
         if receipt.ingress == CommandIngress::UserInterface
             && let Some(committed) = &receipt.committed
         {

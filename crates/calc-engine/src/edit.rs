@@ -400,6 +400,7 @@ pub fn prepare_edit<'s, 'r>(
             // name again in the same batch, which binds them anew.
             WorkbookOp::SetTextSources(_)
             | WorkbookOp::EditSkinLayout(_)
+            | WorkbookOp::EditView(_)
             | WorkbookOp::SetFormat { .. }
             | WorkbookOp::SetStyles(_)
             | WorkbookOp::SetPivots(_)
@@ -858,7 +859,8 @@ fn structural_moves(
                 | SheetEdit::SetVisibility { sheet, .. },
             ) => require_sheet(inputs, operation, *sheet)?,
             WorkbookOp::EditSheet(SheetEdit::Insert { .. } | SheetEdit::InsertChartSheet { .. })
-            | WorkbookOp::EditSkinLayout(_) => {}
+            | WorkbookOp::EditSkinLayout(_)
+            | WorkbookOp::EditView(_) => {}
         }
     }
     Ok(Some(moves))

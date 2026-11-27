@@ -146,6 +146,8 @@ pub enum WorkbookOp {
     /// Create or remove a block with its locator, or add, move or remove one of a block's
     /// placements in a view: document-only metadata, which changes no cell and no calculation.
     EditSkinLayout(SkinLayoutEdit),
+    /// Replace the workbook view part through the same history as cell edits.
+    EditView(std::sync::Arc<crate::ViewPart>),
 }
 
 /// Leading worksheet bands kept visible while the remaining bands scroll.

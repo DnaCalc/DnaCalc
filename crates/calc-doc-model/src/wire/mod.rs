@@ -219,6 +219,7 @@ impl std::error::Error for DecodeError {}
 /// Why [`encode_batch`] refused a batch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EncodeError {
+    ViewPart { operation: usize },
     TextSources {
         operation: usize,
     },
@@ -283,6 +284,7 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ViewPart { operation } => write!(f, "operation {operation} needs the skin change protocol"),
             EncodeError::TextSources { operation } => write!(
                 f,
                 "operation {operation} changes retained text records, which wire version 1 does not encode"
@@ -361,6 +363,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
     let mut claimed = Vec::new();
     let mut operations = Vec::with_capacity(batch.operations.len());
     for (index, operation) in batch.operations.iter().enumerate() {
+        if matches!(operation, WorkbookOp::EditView(_)) {
+            return Err(EncodeError::ViewPart { operation: index });
+        }
         if matches!(operation, WorkbookOp::SetArray { .. }) {
             return Err(EncodeError::ArrayFormula { operation: index });
         }

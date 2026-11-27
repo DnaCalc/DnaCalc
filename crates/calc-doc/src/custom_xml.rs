@@ -28,6 +28,10 @@ pub struct CustomXmlItem {
 /// The names of the custom XML item parts the package's relationships reach whose document
 /// element is in `namespace`, each once, in the order the relationships parts list them.
 pub(crate) fn parts_in(package: &Package, namespace: &str) -> Vec<String> {
+    parts_matching(package, |candidate| candidate == namespace)
+}
+
+pub(crate) fn parts_matching(package: &Package, namespace: impl Fn(&str) -> bool) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for relationships in package.relationships() {
         for item in relationships.items() {
@@ -47,7 +51,7 @@ pub(crate) fn parts_in(package: &Package, namespace: &str) -> Vec<String> {
                 continue;
             };
             if let Ok(Some(XmlEvent::Start(element))) = xml.reader().next_event()
-                && element.name.namespace.as_deref() == Some(namespace)
+                && element.name.namespace.as_deref().is_some_and(&namespace)
             {
                 found.push(part.name().to_owned());
             }

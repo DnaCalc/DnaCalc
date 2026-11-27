@@ -4,7 +4,10 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 license.workspace = true
-description = "Neutral Excel formula dialect and semantic template identity."
+description = "Neutral Excel formula dialect, semantic template identity and persisted view identifiers."
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+[dependencies]
+serde = "=1.0.229"
