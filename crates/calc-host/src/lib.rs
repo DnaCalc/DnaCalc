@@ -235,6 +235,7 @@ pub use calc_engine::{
     Prerequisite, ReadObserver, RecalcFailure, ResultStorageStats, SheetSpan, StartError, Unobserved, ValueChange,
     ValueDelta, WorkBudget, resolve_reference_text,
 };
+pub use calc_engine::FormulaResult;
 pub use calc_fml::reference::CellRun;
 pub use calc_fml::{
     CallableHandle, CallableTable, FormatProfile, NameResultKind, RtdConnection, RtdConnector,

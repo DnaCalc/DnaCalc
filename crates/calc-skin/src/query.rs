@@ -125,6 +125,9 @@ query!(
 query!(
     CalcState => CalcStatus, |_: &CalcState| WorkbookQuery::CalcState);
 query!(
+    /// Observed formula-result differences in the latest publication.
+    CalcChanges => Evidence<Vec<FormulaResultChange>>, |_: &CalcChanges| WorkbookQuery::CalcChanges);
+query!(
     /// Authored notes, optionally limited to a single anchor.
     NotesOf { anchor: Option<crate::AnchorId> } => Vec<crate::AnchoredNote>, |q: &NotesOf| WorkbookQuery::Notes { anchor: q.anchor });
 query!(
@@ -147,6 +150,29 @@ pub struct Census {
     pub formulas: u64,
     pub literals: u64,
     pub sheets: Vec<SheetCensus>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormulaResultChange {
+    pub at: Key,
+    pub before: FormulaObservation,
+    pub after: FormulaObservation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FormulaObservation {
+    pub value: Option<crate::RawValue>,
+    pub origin: ResultOrigin,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResultOrigin {
+    None,
+    AsSaved,
+    Calculated { tick: u64 },
+    ExternalCache { tick: u64 },
+    CircularHold { tick: u64 },
+    Refused { tick: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

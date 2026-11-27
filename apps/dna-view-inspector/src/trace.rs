@@ -107,8 +107,10 @@ pub(crate) fn mount(session: Session) -> impl IntoView {
             let fact = result(formula.at(at.map(|at| query::Formula { at })), "").ok()?;
             let at = at?;
             let authored = fact.body.authored?;
-            (!session.context().read_only)
-                .then(|| repair(session, at, fact.body.input, authored, fact.stamp))
+            if session.context().read_only {
+                return None;
+            }
+            Some(repair(session, at, fact.body.input, authored, fact.stamp))
         }}
     }
 }
@@ -222,17 +224,49 @@ fn repair(
     stamp: calc_skin::Stamp,
 ) -> impl IntoView {
     let input = NodeRef::<leptos::html::Input>::new();
+    let include_run = NodeRef::<leptos::html::Input>::new();
+    let structure = session.following_with_budget::<query::StructureOf>(INSTRUMENT_BUDGET);
+    let siblings = Memo::new(move |_| {
+        let Key(slot, generation, _, column) = at;
+        let scope = SourceRef::Cells {
+            sheet: Sheet(slot, generation),
+            areas: vec![Area(
+                Key(slot, generation, 1, column),
+                Key(slot, generation, 1_048_576, column),
+            )],
+        };
+        let answer = result(structure.at(Some(query::StructureOf { scope })), "").ok()?;
+        let selected = at.cell()?;
+        let run = evidence(answer.body).ok()?.runs.into_iter().find(|run| {
+            run.members
+                .iter()
+                .any(|span| span.area().is_some_and(|area| area.contains(selected)))
+        })?;
+        let count = position_count(&run.members) - 1;
+        (count > 0).then_some((answer.stamp, run.extent, count))
+    });
     view! {
         <details class="dna-inspector-card">
             <summary>"Repair formula"</summary>
             <form class="dna-inspector-form" on:submit=move |event| {
                 event.prevent_default();
                 let Some(input) = input.get_untracked() else { return; };
-                crate::run(session, "inspector.repair", serde_json::json!([at, original, input.value(), stamp]));
+                let replacement = input.value();
+                match siblings.get_untracked().filter(|_| include_run.get_untracked().is_some_and(|control| control.checked())) {
+                    Some((base, extent, _)) => crate::run(session, "inspector.repair-run",
+                        serde_json::json!([at, original, replacement, base, extent])),
+                    None => crate::run(session, "inspector.repair",
+                        serde_json::json!([at, original, replacement, stamp])),
+                }
             }>
                 <label for="inspector-repair">"Replacement formula"</label>
                 <input id="inspector-repair" type="text" node_ref=input value=current />
-                <button type="submit" data-command="inspector.repair">"Preview single-cell repair"</button>
+                {move || siblings.get().map(|(_, _, count)| view! {
+                    <label><input type="checkbox" node_ref=include_run />
+                        {format!("Also apply to {count} matching cells in run")}
+                    </label>
+                })}
+                <button type="submit" data-command="inspector.repair">"Preview repair"</button>
             </form>
         </details>
     }

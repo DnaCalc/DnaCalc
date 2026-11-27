@@ -752,6 +752,11 @@ impl HostSession {
         &self.host
     }
 
+    /// Keep bounded before-and-after observations on formula result publication.
+    pub fn observe_result_differences(&mut self) {
+        self.host.engine.observe_result_differences();
+    }
+
     /// Borrows the current selection and its active cell.
     pub fn selection(&self) -> &Selection {
         &self.selection
@@ -1344,7 +1349,8 @@ impl HostSession {
         crate::command::preview_slice(&mut self.host, &edits).map_err(IntentError::Command)
     }
 
-    fn prepare_entries(
+    /// Prepare the same entry at every target, rebasing formulas from the specified origin.
+    pub fn prepare_entries(
         &self,
         origin: CellKey,
         text: &str,

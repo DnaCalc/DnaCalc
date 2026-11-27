@@ -340,6 +340,7 @@ pub(crate) enum ArrayRole {
 /// pending and [`EngineState::stale`] still lists every result it left stale.
 #[derive(Debug)]
 pub struct EngineState {
+    pub(crate) observe_result_differences: bool,
     pub(crate) pivot_results: crate::pivot::PivotResults,
     pub(crate) linked_workbooks: Arc<crate::linked::LinkedWorkbooks>,
     pub(crate) linked_input_version: u64,
@@ -489,6 +490,11 @@ impl Default for ParallelMinimum {
 }
 
 impl EngineState {
+    /// Retain bounded result differences with new live publications.
+    pub fn observe_result_differences(&mut self) {
+        self.observe_result_differences = true;
+    }
+
     /// Borrow the latest materialized pivot results.
     pub fn pivot_results(&self) -> &crate::pivot::PivotResults {
         &self.pivot_results
@@ -620,6 +626,7 @@ impl EngineState {
     // their payloads; derived graph/result indexes are copied for this explicit save.
     pub(crate) fn snapshot_for_save(&self, save: crate::contract::CommandId) -> Self {
         Self {
+            observe_result_differences: false,
             pivot_results: self.pivot_results.clone(),
             linked_workbooks: self.linked_workbooks.clone(),
             linked_input_version: self.linked_input_version,
@@ -784,6 +791,7 @@ impl EngineState {
     /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
+            observe_result_differences: false,
             pivot_results: Default::default(),
             linked_workbooks: Default::default(),
             linked_input_version: 0,
@@ -1295,6 +1303,7 @@ impl EngineState {
     /// edit that brings back a whole earlier revision ([`calc_doc_model::ModelRoot::restored`]).
     pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
         let mut state = EngineState::new(inputs);
+        state.observe_result_differences = self.observe_result_differences;
         state.linked_workbooks = self.linked_workbooks.clone();
         state.linked_input_version = self.linked_input_version;
         state.callables = self.callables.clone();

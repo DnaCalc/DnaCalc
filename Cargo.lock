@@ -1614,6 +1614,8 @@ dependencies = [
  "leptos",
  "serde_json",
  "uuid",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

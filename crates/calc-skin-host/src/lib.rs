@@ -15,6 +15,7 @@ mod survey;
 use calc_host::value::{CellKey, GridArea, Selection as HostSelection};
 use calc_host::{CommandJournal, CommandStamp, HostProgress, HostSession, SkinIntent, ValueChange};
 use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::query::FormulaResultChange;
 use calc_skin::*;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, VecDeque};
@@ -60,6 +61,12 @@ struct CalcTouch {
     areas: Option<Vec<GridArea>>,
 }
 
+struct CalculationChanges {
+    stamp: Stamp,
+    coverage: Coverage,
+    values: Vec<FormulaResultChange>,
+}
+
 struct State {
     session: HostSession,
     selection_seq: u64,
@@ -68,6 +75,7 @@ struct State {
     selection_sender: Option<u64>,
     touches: VecDeque<Touch>,
     calc_touches: VecDeque<CalcTouch>,
+    calculation_changes: Option<CalculationChanges>,
     read_only: bool,
     opened_at: Stamp,
 }
@@ -124,10 +132,37 @@ impl State {
     }
 
     fn record_calculation(&mut self, before: Stamp, progress: Option<&HostProgress>) {
-        let generation = self.stamp().calc;
+        let stamp = self.stamp();
+        let generation = stamp.calc;
         if generation == before.calc {
             return;
         }
+        self.calculation_changes = match progress {
+            Some(HostProgress::Published(delta)) if generation.0 == before.calc.0 + 1 => {
+                delta.differences().map(|differences| CalculationChanges {
+                    stamp,
+                    coverage: if differences.changes.len() as u64 == differences.total {
+                        Coverage::Complete
+                    } else {
+                        Coverage::Partial {
+                            done: differences.changes.len() as u64,
+                            total: Some(differences.total),
+                            why: PartialWhy::Budget,
+                        }
+                    },
+                    values: differences
+                        .changes
+                        .iter()
+                        .map(|change| FormulaResultChange {
+                            at: Key::of(change.at),
+                            before: query::result_observation(change.before.as_ref()),
+                            after: query::result_observation(change.after.as_ref()),
+                        })
+                        .collect(),
+                })
+            }
+            _ => None,
+        };
         let areas = match progress {
             Some(HostProgress::Published(delta))
                 if generation.0 == before.calc.0 + 1
@@ -204,6 +239,9 @@ impl State {
                         expects.push(batch::source_area(grid_area(*area)?));
                     }
                 }
+                Change::Model(ModelChange::RewriteFormulaRun { extent, .. }) => {
+                    expects.push(batch::source_area(grid_area(*extent)?));
+                }
                 _ => {}
             }
         }
@@ -246,6 +284,7 @@ impl SkinHost {
     }
 
     pub fn with_read_only(mut session: HostSession, read_only: bool) -> Self {
+        session.observe_result_differences();
         Self::initial_selection(&mut session);
         let opened_at = session.host().skin_stamp();
         Self {
@@ -258,6 +297,7 @@ impl SkinHost {
                 selection_sender: None,
                 touches: VecDeque::new(),
                 calc_touches: VecDeque::new(),
+                calculation_changes: None,
                 read_only,
                 opened_at,
             })),
@@ -850,6 +890,7 @@ impl Connection {
             reason: format!("{error:?}"),
         })?;
         session.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
+        session.observe_result_differences();
         SkinHost::initial_selection(&mut session);
         let stamp = session.host().skin_stamp();
         let mut state = self.host.borrow_mut();
@@ -857,6 +898,7 @@ impl Connection {
         state.opened_at = stamp;
         state.touches.clear();
         state.calc_touches.clear();
+        state.calculation_changes = None;
         state.update_selection(SelectionCause::Open);
         Ok(stamp)
     }

@@ -178,7 +178,7 @@ pub(crate) fn dependencies(session: Session, direction: DependencyDirection) -> 
     }
 }
 
-fn target_label(session: Session, target: &DependencyTarget) -> String {
+pub(crate) fn target_label(session: Session, target: &DependencyTarget) -> String {
     match target {
         DependencyTarget::Source(SourceRef::Cells { areas, .. }) => areas
             .iter()
@@ -301,9 +301,65 @@ pub(crate) fn calculation(session: Session) -> impl IntoView {
             {button(session, "calc.calculate", "Calculate workbook")}
         </div>
         {dependency_waves(session)}
-        <div class="dna-inspector-card"><h2>"Value changes"</h2><p>"Value differences are unavailable."</p></div>
+        {value_changes(session)}
         <div class="dna-inspector-card"><h2>"DNA Calc's calculation order"</h2><p>"Not observed"</p></div>
     }
+}
+
+fn value_changes(session: Session) -> impl IntoView {
+    let changes = session.following::<query::CalcChanges>();
+    view! {
+        <div class="dna-inspector-card">
+            <h2>"Value changes"</h2>
+            {move || {
+                let answer = match result(changes.at(Some(query::CalcChanges)), "") {
+                    Ok(answer) => answer,
+                    Err(message) => return status(message),
+                };
+                match answer.body {
+                    calc_skin::Evidence::Observed { at, body, .. } => {
+                        let any = !body.is_empty();
+                        let rows = body.into_iter().map(|change| view! {
+                            <tr>
+                                <th scope="row">{reveal(session, change.at)}</th>
+                                <td>{observed_value(change.before)}</td>
+                                <td>{observed_value(change.after)}</td>
+                            </tr>
+                        }).collect_view();
+                        view! {
+                            <p>{format!("Formula results · calculation publication {}", at.calc.0)}</p>
+                            {coverage(answer.coverage).map(status)}
+                            {if any {
+                                view! {
+                                    <table>
+                                        <thead><tr><th scope="col">"Cell"</th><th scope="col">"Before"</th><th scope="col">"After"</th></tr></thead>
+                                        <tbody>{rows}</tbody>
+                                    </table>
+                                }.into_any()
+                            } else {
+                                view! { <p>"No formula results changed in this publication."</p> }.into_any()
+                            }}
+                        }.into_any()
+                    }
+                    calc_skin::Evidence::Unavailable { reason } => status(reason),
+                    calc_skin::Evidence::Derived { .. } => status("No observed value changes.".into()),
+                }
+            }}
+        </div>
+    }
+}
+
+fn observed_value(observation: query::FormulaObservation) -> impl IntoView {
+    let value = observation.value.map(|value| value.display());
+    let origin = match observation.origin {
+        query::ResultOrigin::None => "No published formula result".into(),
+        query::ResultOrigin::AsSaved => "As saved".into(),
+        query::ResultOrigin::Calculated { tick } => format!("Calculated · run {tick}"),
+        query::ResultOrigin::ExternalCache { tick } => format!("Workbook link cache · run {tick}"),
+        query::ResultOrigin::CircularHold { tick } => format!("Circular hold · run {tick}"),
+        query::ResultOrigin::Refused { tick } => format!("Refused · run {tick}"),
+    };
+    view! { <span>{value}</span><small>{origin}</small> }
 }
 
 pub(crate) fn sources(session: Session) -> impl IntoView {

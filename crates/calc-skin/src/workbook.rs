@@ -272,6 +272,7 @@ pub enum WorkbookQuery {
         at: Key,
     },
     CalcState,
+    CalcChanges,
     ViewPart,
     Notes {
         anchor: Option<AnchorId>,
@@ -441,6 +442,13 @@ pub enum ModelChange {
         at: Key,
         expected_old: String,
         new_text: String,
+    },
+    /// Replace matching members of one inferred formula run, using `at` as the copy origin.
+    RewriteFormulaRun {
+        at: Key,
+        expected_old: String,
+        new_text: String,
+        extent: Area,
     },
 }
 

@@ -188,7 +188,7 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "S02 records and undoes an anchored audit finding",
+        name: "S02 records and undoes a finding and exports inspected evidence",
         actions: &[
             Action::Click("[data-command='inspector.notes']"),
             Action::Into(
@@ -201,10 +201,20 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
                 "Revenue.Window contains a broken reference.",
             )),
             Action::Click("[data-command='edit.undo']"),
+            Action::Click("[data-command='inspector.audit-print']"),
+            Action::Wait(Check::TextContains(
+                "[data-inspector='audit-evidence']",
+                "=SUM(Revenue.Window)",
+            )),
+            Action::Click("[data-command='inspector.full-dossier']"),
         ],
         checks: &[
             Check::Absent("[aria-label='Edit finding']"),
             Check::Value("formula-bar", "=SUM(Revenue.Window)"),
+            Check::TextContains("[data-inspector='audit-evidence']", "Full Workbook Audit Dossier"),
+            Check::TextContains("[data-inspector='audit-evidence']", "Whole workbook"),
+            Check::TextContains("[data-inspector='audit-evidence']", "2401300"),
+            Check::TextContains("[data-inspector='audit-evidence']", "#REF!"),
         ],
     },
     Case {

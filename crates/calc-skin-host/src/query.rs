@@ -50,6 +50,32 @@ pub(crate) fn raw(value: &CalcValue) -> RawValue {
     }
 }
 
+pub(crate) fn result_observation(result: Option<&calc_host::FormulaResult>) -> query::FormulaObservation {
+    use calc_host::FormulaResult::{Calculated, FileCached, NotModeled};
+    use query::ResultOrigin;
+
+    let (value, origin) = match result {
+        None => (None, ResultOrigin::None),
+        Some(FileCached(cache)) => (Some(raw(&cache.value().to_value())), ResultOrigin::AsSaved),
+        Some(Calculated { value, calculation }) => {
+            let tick = calculation.tick().get();
+            let origin = if calculation.held_by_circular_rule() {
+                ResultOrigin::CircularHold { tick }
+            } else if calculation.reads_external_links() {
+                ResultOrigin::ExternalCache { tick }
+            } else {
+                ResultOrigin::Calculated { tick }
+            };
+            (Some(raw(value)), origin)
+        }
+        Some(NotModeled { calculation, .. }) => (
+            None,
+            ResultOrigin::Refused { tick: calculation.tick().get() },
+        ),
+    };
+    query::FormulaObservation { value, origin }
+}
+
 pub(crate) fn anchor_source(state: &State, id: AnchorId) -> Result<SourceRef, Refusal> {
     let anchor = state
         .session
@@ -255,6 +281,7 @@ pub(crate) fn invalidated(
         }
         WorkbookQuery::Deps { .. } => authored || recalculated,
         WorkbookQuery::CalcState => true,
+        WorkbookQuery::CalcChanges => recalculated,
         WorkbookQuery::Rules { .. } => authored || recalculated,
     }
 }
@@ -831,6 +858,22 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
             },
             circular: host.circular_reported().map(Key::of),
         })?,
+        WorkbookQuery::CalcChanges => {
+            let evidence = match &state.calculation_changes {
+                Some(changes) => {
+                    coverage = changes.coverage.clone();
+                    Evidence::Observed {
+                        observer: "Formula result publication".into(),
+                        at: changes.stamp,
+                        body: changes.values.clone(),
+                    }
+                }
+                None => Evidence::Unavailable {
+                    reason: "No observed formula result publication".into(),
+                },
+            };
+            query::CalcChanges::encode(&evidence)?
+        }
         WorkbookQuery::ViewPart => {
             let part = host.model().view_part();
             let anchors = part

@@ -100,6 +100,50 @@ fn page_inputs_require_both_binding_identities_and_preserve_formulas() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn calculation_changes_report_previous_and_published_formula_values() {
+    let (host, sheet) = workbook();
+    let port = port(&host);
+    let input = Key(sheet.0, sheet.1, 1, 1);
+    let output = Key(sheet.0, sheet.1, 1, 2);
+    let unchanged = Key(sheet.0, sheet.1, 1, 3);
+    let read = || {
+        query::CalcChanges::decode(port.ask(query::CalcChanges.request(), BUDGET).unwrap())
+            .unwrap()
+    };
+    assert!(matches!(read().body, Evidence::Unavailable { .. }));
+    port.commit(batch(
+        1,
+        vec![
+            enter(input, "5"),
+            enter(output, "=A1*2"),
+            enter(unchanged, "=A1*0"),
+        ],
+    ))
+    .unwrap();
+    while host.advance() {}
+    port.commit(batch(2, vec![enter(input, "7")])).unwrap();
+    while host.advance() {}
+
+    let answer = read();
+    let Evidence::Observed { at, body, .. } = answer.body else {
+        panic!("the published result differences must be available");
+    };
+    assert_eq!(at, answer.stamp);
+    assert_eq!(answer.coverage, Coverage::Complete);
+    assert_eq!(body.len(), 1);
+    let change = &body[0];
+    assert_eq!(change.at, output);
+    assert_eq!(change.before.value, Some(RawValue::Number { bits: 10f64.to_bits() }));
+    assert_eq!(change.after.value, Some(RawValue::Number { bits: 14f64.to_bits() }));
+    assert!(matches!(
+        (&change.before.origin, &change.after.origin),
+        (query::ResultOrigin::Calculated { tick: before }, query::ResultOrigin::Calculated { tick: after })
+            if before < after
+    ));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn row_watches_refresh_for_a_spill_change_in_their_read_footprint() {
     let (host, sheet) = workbook();
     let port = port(&host);

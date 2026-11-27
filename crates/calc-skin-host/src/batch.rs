@@ -71,6 +71,95 @@ pub(crate) struct Prepared {
     pub preview: Preview,
 }
 
+fn require_formula(
+    root: &calc_doc_model::ModelRoot,
+    at: CellKey,
+    expected_old: &str,
+    text: &str,
+    base: Revision,
+) -> Result<(), Refusal> {
+    let input = root.cell(at);
+    if !matches!(input, Some(calc_doc_model::CellInput::Formula(_)))
+        || entry_text(input) != expected_old
+    {
+        return Err(Refusal::Conflict {
+            base,
+            conflicts: vec![Target::Source(source_area(GridArea::cell(at)))],
+        });
+    }
+    if !text.starts_with('=') {
+        return Err(invalid("The replacement must be a formula"));
+    }
+    Ok(())
+}
+
+fn rewrite_run(
+    state: &State,
+    at: CellKey,
+    extent: Area,
+    text: &str,
+    base: Revision,
+) -> Result<(Vec<GridArea>, Vec<CellEdit>), Refusal> {
+    let area = grid_area(extent)?;
+    if area.column_count() != 1 || !area.contains(at) {
+        return Err(invalid("Choose the column run that contains the inspected cell"));
+    }
+    let mut work = crate::query::QueryWork::new(
+        Budget {
+            cells: 10_000,
+            nodes: 10_000,
+            edges: 0,
+            bytes: 4 * 1024 * 1024,
+            millis: 2_000,
+        },
+        "Preview the single-cell repair",
+    );
+    if area.cell_count() > 10_000 {
+        work.work(area.cell_count(), 0, 0)?;
+    }
+    let source = source_area(area);
+    let structure = crate::structure::structure(state, &source, &mut work)?;
+    let targets = structure
+        .runs
+        .iter()
+        .find(|run| run.extent == extent)
+        .map(|run| {
+            run.members
+                .iter()
+                .copied()
+                .map(grid_area)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .filter(|members| members.iter().any(|area| area.contains(at)))
+        .ok_or_else(|| Refusal::Conflict {
+            base,
+            conflicts: vec![Target::Source(source.clone())],
+        })?;
+    for target in &targets {
+        for row in target.first().row()..=target.last().row() {
+            let member = CellKey::new(at.sheet(), row, at.column()).expect("member of the same run");
+            rules(&state.session, member)?;
+            if state.session.host().number_format(member) == Some("@") {
+                return Err(Refusal::Excel {
+                    reason: "A cell in the run is formatted as text".into(),
+                });
+            }
+        }
+    }
+    let edits = state
+        .session
+        .prepare_entries(at, text, &targets)
+        .map_err(|error| match error {
+            IntentError::Validation(failure) => Refusal::Validation {
+                target: source,
+                reason: failure.to_string(),
+            },
+            other => refusal(other),
+        })?;
+    Ok((targets, edits))
+}
+
 pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Refusal> {
     let base = state.stamp();
     state.check_base(request)?;
@@ -95,18 +184,13 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                     let at = cell(*at)?;
                     rules(&state.session, at)?;
                     if let ModelChange::RewriteFormula { expected_old, .. } = change {
-                        let input = before.cell(at);
-                        if !matches!(input, Some(calc_doc_model::CellInput::Formula(_)))
-                            || entry_text(input) != *expected_old
-                        {
-                            return Err(Refusal::Conflict {
-                                base: request.base.unwrap_or(base.model),
-                                conflicts: vec![Target::Source(source_area(GridArea::cell(at)))],
-                            });
-                        }
-                        if !text.starts_with('=') {
-                            return Err(invalid("The replacement must be a formula"));
-                        }
+                        require_formula(
+                            &before,
+                            at,
+                            expected_old,
+                            text,
+                            request.base.unwrap_or(base.model),
+                        )?;
                     }
                     edits.extend(prepare_entry(&state.session, at, text)?);
                     areas.push(GridArea::cell(at));
@@ -127,6 +211,19 @@ pub(crate) fn prepare(state: &mut State, request: &Batch) -> Result<Prepared, Re
                     }
                     edits.extend(entries);
                     areas.push(GridArea::cell(at));
+                }
+                ModelChange::RewriteFormulaRun {
+                    at,
+                    expected_old,
+                    new_text,
+                    extent,
+                } => {
+                    let at = cell(*at)?;
+                    let base = request.base.unwrap_or(base.model);
+                    require_formula(&before, at, expected_old, new_text, base)?;
+                    let (targets, replacements) = rewrite_run(state, at, *extent, new_text, base)?;
+                    areas.extend(targets);
+                    edits.extend(replacements);
                 }
                 ModelChange::ClearContents { areas: targets } => {
                     for target in targets {

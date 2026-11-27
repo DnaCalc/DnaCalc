@@ -4,6 +4,7 @@
 use calc_doc_model::{AuthoredRevision, FileCached};
 use calc_fml::{CompileError, EvalFault};
 use calc_value::{CalcValue, CellKey, CoreRef, GridArea, NodeId, NumericMode, NumericTargetId};
+use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
@@ -312,6 +313,60 @@ pub struct SpillChange {
     pub after: Option<GridArea>,
 }
 
+/// Two consecutive published states of one formula result.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResultDifference {
+    pub at: CellKey,
+    pub before: Option<FormulaResult>,
+    pub after: Option<FormulaResult>,
+}
+
+/// Optional, bounded evidence captured at publication, with the count before truncation.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ResultDifferences {
+    pub total: u64,
+    pub changes: Vec<ResultDifference>,
+}
+
+impl ResultDifferences {
+    pub(crate) fn record(
+        &mut self,
+        at: CellKey,
+        before: Option<&FormulaResult>,
+        after: Option<&FormulaResult>,
+    ) {
+        let old = displayed_value(before);
+        let new = displayed_value(after);
+        let same = match (old.as_deref(), new.as_deref()) {
+            (Some(a), Some(b)) => match (a.core_ref(), b.core_ref()) {
+                (CoreRef::Number(a), CoreRef::Number(b)) => a.to_bits() == b.to_bits(),
+                _ => a == b,
+            },
+            (None, None) => before.is_none() == after.is_none(),
+            _ => false,
+        };
+        if same {
+            return;
+        }
+        self.total += 1;
+        if self.changes.len() < 100 {
+            self.changes.push(ResultDifference {
+                at,
+                before: before.cloned().map(FormulaResult::without_stamp),
+                after: after.cloned().map(FormulaResult::without_stamp),
+            });
+        }
+    }
+}
+
+fn displayed_value(result: Option<&FormulaResult>) -> Option<Cow<'_, CalcValue>> {
+    match result? {
+        FormulaResult::Calculated { value, .. } => Some(Cow::Borrowed(value)),
+        FormulaResult::FileCached(cache) => Some(Cow::Owned(cache.value().to_value())),
+        FormulaResult::NotModeled { .. } => None,
+    }
+}
+
 /// What one finished recalculation published, in the order of the cells (sheet ID, then row,
 /// then column).
 #[derive(Clone, Debug, PartialEq)]
@@ -322,6 +377,7 @@ pub struct ValueDelta {
     spill_changes: Vec<SpillChange>,
     completion: Option<crate::contract::CompletionReceipt>,
     events: Vec<crate::contract::CalcEvent>,
+    differences: Option<ResultDifferences>,
 }
 
 impl ValueDelta {
@@ -337,6 +393,7 @@ impl ValueDelta {
             spill_changes: Vec::new(),
             completion: None,
             events: Vec::new(),
+            differences: None,
         }
     }
 
@@ -394,6 +451,19 @@ impl ValueDelta {
     /// Borrow the value changes recorded for this calculation.
     pub fn changes(&self) -> &[ValueChange] {
         &self.changes
+    }
+
+    pub(crate) fn with_differences(mut self, mut differences: Option<ResultDifferences>) -> Self {
+        if let Some(evidence) = &mut differences {
+            evidence.changes.sort_unstable_by_key(|change| change.at);
+        }
+        self.differences = differences;
+        self
+    }
+
+    /// Value differences retained by an observing owner.
+    pub fn differences(&self) -> Option<&ResultDifferences> {
+        self.differences.as_ref()
     }
 }
 

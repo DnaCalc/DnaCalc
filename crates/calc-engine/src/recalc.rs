@@ -84,7 +84,8 @@ use crate::read::{
     WorkbookReader,
 };
 use crate::result::{
-    CalcTick, Calculation, FormulaResult, NotModeled, SpillChange, ValueChange, ValueDelta,
+    CalcTick, Calculation, FormulaResult, NotModeled, ResultDifferences, SpillChange, ValueChange,
+    ValueDelta,
 };
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
@@ -2748,6 +2749,7 @@ pub fn publish_ready(
     candidates.sort_by_key(|node| work.reference_rank.get(node).copied().unwrap_or(usize::MAX));
     let empty = Progress::new(0);
     let mut changes = Vec::new();
+    let mut differences = state.observe_result_differences.then(ResultDifferences::default);
     let mut spill_changes = Vec::new();
     let mut installed = Vec::new();
     let mut blocked_prefix = None;
@@ -2837,6 +2839,9 @@ pub fn publish_ready(
                 state.volatile.remove(&node);
             }
         }
+        if let Some(evidence) = &mut differences {
+            evidence.record(at, state.result_of(node, at), Some(&result));
+        }
         state.publish_result(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
@@ -2902,6 +2907,7 @@ pub fn publish_ready(
     spill_changes.sort_by_key(|change| change.anchor);
     Some(
         ValueDelta::new(work.revision, work.calculation.tick(), changes)
+            .with_differences(differences)
             .with_spill_changes(spill_changes)
             .with_events(vec![CalcEvent::Published(unit)]),
     )
@@ -2979,6 +2985,7 @@ pub fn finish(
     // Each change is of a distinct cell: a published node's anchor, or a retired anchor whose
     // published result no live node there replaced. They are sorted by cell at the end.
     let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
+    let mut differences = state.observe_result_differences.then(ResultDifferences::default);
     let mut spill_changes = Vec::new();
     let mut installed = Vec::new();
     let mut published = crate::slots::Slots::new(state.nodes.len(), work.progress.scheduled());
@@ -3024,6 +3031,9 @@ pub fn finish(
                 state.volatile.remove(&node);
             }
         }
+        if let Some(evidence) = &mut differences {
+            evidence.record(at, state.result_of(node, at), Some(&result));
+        }
         state.publish_result(node, at, result);
         changes.push((at, ValueChange::Published { at, node }));
     }
@@ -3056,7 +3066,10 @@ pub fn finish(
     }
     for at in std::mem::take(&mut state.retired) {
         state.blocked_spills.remove(&at);
-        if let Some((node, _)) = state.results.take_orphan(at) {
+        if let Some((node, previous)) = state.results.take_orphan(at) {
+            if let Some(evidence) = &mut differences {
+                evidence.record(at, Some(&previous), None);
+            }
             if let Some(spill) = state.spills.remove(at) {
                 spill_changes.push(SpillChange {
                     anchor: at,
@@ -3135,6 +3148,7 @@ pub fn finish(
         work.calculation.tick(),
         changes.into_iter().map(|(_, change)| change).collect(),
     )
+    .with_differences(differences)
     .with_spill_changes(spill_changes)
     .with_completion(completion)
     .with_events(work.events))

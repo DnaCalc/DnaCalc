@@ -508,6 +508,64 @@ fn inspector_audits_large_ranges_and_previews_a_single_cell_repair() {
 
 /// Native-only: drives the real workbook host through packets.
 #[test]
+fn inspector_run_repair_translates_matching_siblings_and_undoes_once() {
+    use calc_skin::grid::Area;
+    use dna_kit::commands::CommandId;
+
+    let page = Page::open();
+    let session = page.session;
+    for row in 1..=5 {
+        session.select_cell(page.at(row, 2));
+        page.settle();
+        let text = if row == 3 { "=99".into() } else { format!("=A{row}+2") };
+        session.edit_text(text);
+        session.commit_edit();
+        page.settle();
+    }
+    let at = page.at(2, 2);
+    session.select_cell(at);
+    page.settle();
+    let before = session.stamp().unwrap();
+    let extent = Area(page.at(1, 2), page.at(5, 2));
+    session
+        .run(&dna_kit::Invocation {
+            command: CommandId::new("inspector.repair-run"),
+            args: serde_json::json!([at, "=A2+2", "=A2+$C$1+3", before, extent]),
+        })
+        .unwrap();
+    page.settle();
+
+    let Seam::Review(preview) = session.seam() else {
+        panic!("a repair of matching siblings requires explicit review");
+    };
+    let writes: Vec<_> = preview
+        .writes
+        .iter()
+        .map(|write| (write.at, write.after.as_deref().unwrap()))
+        .collect();
+    assert_eq!(
+        writes,
+        vec![
+            (page.at(1, 2), "=A1+$C$1+3"),
+            (at, "=A2+$C$1+3"),
+            (page.at(4, 2), "=A4+$C$1+3"),
+            (page.at(5, 2), "=A5+$C$1+3"),
+        ]
+    );
+    assert_eq!(session.stamp(), Some(before));
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 2)), "3");
+    assert_eq!(page.shown(page.at(3, 2)), "99");
+    assert_eq!(page.shown(page.at(5, 2)), "3");
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 2)), "2");
+    assert_eq!(page.shown(page.at(5, 2)), "2");
+}
+
+/// Native-only: drives the real workbook host through packets.
+#[test]
 fn inspector_finding_uses_presentation_history_and_undo() {
     let page = Page::open();
     let session = page.session;

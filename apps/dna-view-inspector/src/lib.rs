@@ -1,6 +1,7 @@
 //! Audit instruments over the workbook session. The bench and dock use the same components.
 
 mod audit;
+mod export;
 mod live;
 mod notes;
 mod trace;
@@ -185,10 +186,14 @@ impl View for Inspector {
         commands.extend(trace_commands(session));
         commands.extend(notes::commands(session));
         commands.extend(live::commands(session));
+        commands.extend(export::commands(session));
         commands
     }
 
     fn cancel_interaction(&self, session: Session) -> bool {
+        if export::cancel(session) {
+            return true;
+        }
         let state = session.local::<State>();
         if (session.context().view.0 == ID || state.dock.get_untracked().is_some())
             && state.tracing.get_untracked()
@@ -251,6 +256,8 @@ fn bench(session: Session, docked: bool) -> impl IntoView {
                     {button(session, "inspector.details", "Details")}
                     {button(session, "inspector.notes", "Notes")}
                     {button(session, "inspector.pin-signal", "Pin cell")}
+                    {button(session, "inspector.copy-evidence", "Copy evidence")}
+                    {button(session, "inspector.audit-print", "Print audit")}
                     {docked.then(|| view! {
                         {button(session, "inspector.enlarge", "Enlarge")}
                         {button(session, "inspector.dock-side", "Move panel")}
@@ -260,6 +267,7 @@ fn bench(session: Session, docked: bool) -> impl IntoView {
             </header>
             <nav class="dna-inspector-tabs" aria-label="Inspector instruments">{selectors}</nav>
             <section class="dna-inspector-instrument" data-inspector-tab=move || state.instrument.get().label()>
+                {export::mount(session)}
                 {live::pinned(session)}
                 <Show when=move || state.details.get()>{notes::details(session)}</Show>
                 <Show when=move || state.notes.get()>{notes::mount(session)}</Show>
@@ -353,30 +361,58 @@ fn trace_commands(session: Session) -> Vec<ViewCommand> {
                 let (at, expected_old, new_text, stamp): (Key, String, String, Stamp) =
                     serde_json::from_value(invocation.args.clone())
                         .map_err(|_| "Choose a formula to replace.")?;
-                if session.active() != Some(at) {
-                    return Err("The inspected cell changed.".into());
-                }
-                if !new_text.starts_with('=') || new_text == expected_old {
-                    return Err("Enter a changed formula beginning with =.".into());
-                }
-                session.submit_for_review(Batch {
-                    id: String::new(),
-                    workbook: Some(stamp.workbook),
-                    base: Some(stamp.model),
-                    expects: vec![cell_source(at)],
-                    selection_seq: None,
-                    label: Some("Repaired one formula in Inspector".into()),
-                    changes: vec![Change::Model(ModelChange::RewriteFormula {
-                        at,
-                        expected_old,
-                        new_text,
-                    })],
-                });
-                Ok(())
+                preview_repair(session, at, expected_old, new_text, stamp, None)
+            },
+        )
+        .when("!editing && writable"),
+        ViewCommand::global(
+            "inspector.repair-run",
+            "Preview matching formula repairs",
+            &[],
+            move |invocation| {
+                let (at, expected_old, new_text, stamp, extent): (Key, String, String, Stamp, Area) =
+                    serde_json::from_value(invocation.args.clone())
+                        .map_err(|_| "Choose a formula and its matching run.")?;
+                preview_repair(session, at, expected_old, new_text, stamp, Some(extent))
             },
         )
         .when("!editing && writable"),
     ]
+}
+
+fn preview_repair(
+    session: Session,
+    at: Key,
+    expected_old: String,
+    new_text: String,
+    stamp: Stamp,
+    extent: Option<Area>,
+) -> Result<(), String> {
+    if session.active() != Some(at) {
+        return Err("The inspected cell changed.".into());
+    }
+    if !new_text.starts_with('=') || new_text == expected_old {
+        return Err("Enter a changed formula beginning with =.".into());
+    }
+    let (label, change) = if let Some(extent) = extent {
+        ("Repaired matching formulas in Inspector", ModelChange::RewriteFormulaRun {
+            at, expected_old, new_text, extent,
+        })
+    } else {
+        ("Repaired one formula in Inspector", ModelChange::RewriteFormula {
+            at, expected_old, new_text,
+        })
+    };
+    session.submit_for_review(Batch {
+        id: String::new(),
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        expects: vec![cell_source(at)],
+        selection_seq: None,
+        label: Some(label.into()),
+        changes: vec![Change::Model(change)],
+    });
+    Ok(())
 }
 
 fn run(session: Session, command: &'static str, args: serde_json::Value) {
