@@ -25,12 +25,18 @@ const VIEW_DIGITS: [(&str, &str, bool); 5] = [
     ("app", "5", false),
 ];
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SidePane {
+    Details,
+    Help,
+}
+
 /// What the chrome itself keeps: which of its own parts are open.
 #[derive(Clone, Copy)]
 pub struct Chrome {
     views: StoredValue<Vec<Rc<dyn View>>, LocalStorage>,
     search: RwSignal<bool>,
-    details: RwSignal<bool>,
+    side_pane: RwSignal<Option<SidePane>>,
     deck_folded: RwSignal<bool>,
 }
 
@@ -82,7 +88,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
     let chrome = Chrome {
         views: StoredValue::new_local(views.clone()),
         search: RwSignal::new(false),
-        details: RwSignal::new(false),
+        side_pane: RwSignal::new(None),
         deck_folded: RwSignal::new(false),
     };
     register(session, chrome, &views);
@@ -135,8 +141,11 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         }
         if chrome.search.get_untracked() {
             chrome.search.set(false);
-        } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle)
-            || !chrome.views.with_value(|views| views.iter().any(|view| view.cancel_interaction(session))) {
+        } else if session.mode().editing() || !matches!(session.seam(), Seam::Idle) {
+            session.cancel();
+        } else if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
+            chrome.side_pane.set(None);
+        } else if !chrome.views.with_value(|views| views.iter().any(|view| view.cancel_interaction(session))) {
             session.cancel();
         }
         Ok(())
@@ -150,7 +159,20 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         },
     );
     session.register(spec("shell.details", "Details", ""), move |_| {
-        chrome.details.update(|open| *open = !*open);
+        chrome.side_pane.update(|pane| {
+            *pane = (*pane != Some(SidePane::Details)).then_some(SidePane::Details);
+        });
+        Ok(())
+    });
+    session.register(spec("shell.help", "Keyboard shortcuts", ""), move |_| {
+        session.dismiss_key_tips();
+        chrome.side_pane.set(Some(SidePane::Help));
+        Ok(())
+    });
+    session.register(spec("shell.close-help", "Close Help", ""), move |_| {
+        if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
+            chrome.side_pane.set(None);
+        }
         Ok(())
     });
     session.register(spec("shell.toggle-deck", "Toggle Command Deck", "!editing"), move |_| {
@@ -169,6 +191,7 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
         session.bind(Layer::Safety, when, chord, CommandId::new(command));
     }
     session.bind(Layer::Shell, When::ALWAYS, "F9", CommandId::new("calc.calculate"));
+    session.bind(Layer::Shell, When::ALWAYS, "F1", CommandId::new("shell.help"));
     for view in views {
         let spec = view.spec();
         let ViewId(name) = spec.id;
@@ -295,6 +318,29 @@ fn command_button(session: Session, id: &'static str, label: &'static str) -> im
     view! {
         <button type="button" data-command=id title=hint
             on:click=move |_| { let _ = session.command(id); }>{label}</button>
+    }
+}
+
+fn shortcut_help(session: Session) -> impl IntoView {
+    view! {
+        <aside class="dna-book-details" data-dnacalc="shortcut-help" aria-label="Keyboard shortcut help">
+            <h2>"Keyboard shortcuts"</h2>
+            {command_button(session, "shell.close-help", "Close Help")}
+            <dl>
+                {move || {
+                    session.view();
+                    session.mode();
+                    session.search("").into_iter().filter_map(|spec| {
+                        let keys = session.chords_for(&spec.id).iter().map(ToString::to_string)
+                            .collect::<Vec<_>>().join(" / ");
+                        (!keys.is_empty()).then(|| view! {
+                            <dt>{spec.label.to_string()}</dt>
+                            <dd><kbd>{keys}</kbd></dd>
+                        })
+                    }).collect_view()
+                }}
+            </dl>
+        </aside>
     }
 }
 
@@ -440,6 +486,7 @@ pub fn workbook(
                 <span>{move || session.summary().map(|book| if book.capabilities.read_only { "Read-only" } else if book.edited { "Edited" } else if book.layout_edited { "Layout edited" } else { "Unchanged" }).unwrap_or("")}</span>
                 {switcher}
                 <button type="button" data-command="shell.search" on:click=move |_| { let _ = session.command("shell.search"); }>"Go to" <kbd>"Alt+Q"</kbd></button>
+                {command_button(session, "shell.help", "Help")}
             </header>
             <nav class="dna-book-deck" aria-label="Workbook commands">
                 <div style:display=move || if chrome.deck_folded.get() { "none" } else { "contents" }>
@@ -533,12 +580,15 @@ pub fn workbook(
             <main class="dna-book-stage" tabindex="-1" node_ref=stage_node>
                 <div class="dna-book-work">
                     {stage}
-                    <Show when=move || chrome.details.get()>
+                    <Show when=move || chrome.side_pane.get() == Some(SidePane::Details)>
                     <aside class="dna-book-details">
                         <h2>"Details"</h2>
                         <dl><dt>"Selected cell"</dt><dd>{move || session.active().map(a1).unwrap_or_default()}</dd>
                             <dt>"Entry"</dt><dd>{move || session.entry()}</dd></dl>
                     </aside>
+                    </Show>
+                    <Show when=move || chrome.side_pane.get() == Some(SidePane::Help)>
+                        {shortcut_help(session)}
                     </Show>
                 </div>
                 <div class="dna-book-dock-right">{right_docks}</div>

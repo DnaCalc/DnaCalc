@@ -222,6 +222,20 @@ fn classic_deck_folding_keeps_the_active_cell_and_workbook_revision() {
     assert_eq!(session.stamp().unwrap().model, before);
 }
 
+/// Native-only: drives the Help chord through the workbook shell and Session.
+#[test]
+fn classic_help_keeps_the_active_cell_and_workbook_revision() {
+    let page = Page::open();
+    let session = page.session;
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    let before = session.stamp().unwrap().model;
+    assert!(page.press("F1", Focus::Stage));
+    assert!(page.press("Escape", Focus::Stage));
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(session.stamp().unwrap().model, before);
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
