@@ -126,6 +126,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             | CellEdit::ReviewLinks { .. }
             | CellEdit::ReviewNotes { .. }
             | CellEdit::Validations { .. }
+            | CellEdit::Scenarios { .. }
             | CellEdit::Merges { .. }
             | CellEdit::ConditionalRules { .. }
             | CellEdit::Axis(_)
@@ -278,6 +279,17 @@ pub(crate) fn inverse(
         }
     }
     let mut page_sheets = BTreeSet::new();
+    let mut scenario_sheets = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::Scenarios { sheet, .. } = edit
+            && scenario_sheets.insert(*sheet)
+        {
+            inverse.push(CellEdit::Scenarios {
+                sheet: *sheet,
+                records: definitions.scenarios(*sheet).cloned(),
+            });
+        }
+    }
     for edit in edits {
         if let CellEdit::PageSetup { sheet, .. } = edit
             && page_sheets.insert(*sheet)

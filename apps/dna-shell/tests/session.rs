@@ -254,10 +254,14 @@ fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
 fn classic_key_tips_keep_the_excel_path_and_return_to_the_grid() {
     let page = Page::open();
     let session = page.session;
+    let model = session.stamp().unwrap().model;
     assert!(page.press("F10", Focus::Stage));
     assert_eq!(session.mode(), InputMode::KeyTips);
-    assert!(!page.press("Tab", Focus::Stage));
+    assert!(page.press("Tab", Focus::Stage));
+    assert!(page.press("ArrowRight", Focus::Stage));
+    assert_eq!(session.key_tip_path(), Some(""));
     assert_eq!(session.active(), Some(page.at(1, 1)));
+    assert_eq!(session.stamp().unwrap().model, model);
     for key in ["h", "o", "Escape", "o", "i"] {
         assert!(page.press(key, Focus::Stage), "{key}");
     }
@@ -1609,6 +1613,102 @@ fn forms_and_app_share_the_page_and_history() {
     assert!(page.press("Ctrl+y", Focus::Stage));
     assert_eq!(page.shown(at), "42");
     assert_eq!(page.shown(page.at(2, 1)), "13");
+}
+
+/// Native-only: saves and applies an Excel Scenario Manager record through the App commands.
+#[test]
+fn app_saves_native_scenario_reviews_replay_and_undoes_it_once() {
+    use calc_skin::query::Query;
+    use calc_skin::{InventoryItem, InventoryKind, WorkbookPort};
+    use serde_json::{Value, json};
+
+    let page = Page::open();
+    let session = page.session;
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new(command),
+            args,
+        }).unwrap();
+        page.settle();
+    };
+    let set = |first: &str, second: &str| {
+        page.host.with_session(SelectionCause::Open, |book| {
+            for (row, text) in [(1, first), (2, second), (3, "=A1+A2")] {
+                let sheet = book.host().sheets()[0].id();
+                let at = calc_host::value::CellKey::new(sheet, row, 1).unwrap();
+                let edits = book.prepare_cell_entry(at, text).unwrap();
+                let receipt = book.dispatch(SkinIntent::Edit { edits });
+                assert!(receipt.accepted(), "{:?}", receipt.error);
+            }
+        });
+        page.settle();
+    };
+    set("2", "3");
+    run("view.forms", Value::Null);
+    run("forms.create", Value::Null);
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    run("forms.add-cell", json!("First input"));
+    session.select_cell(page.at(2, 1));
+    page.settle();
+    run("forms.add-cell", json!("Second input"));
+    run("forms.add-scenario-picker", Value::Null);
+    run("view.app", Value::Null);
+    let before = session.stamp().unwrap();
+    run("app.save-scenario", json!("What & If"));
+    let Seam::Review(preview) = session.seam() else {
+        panic!("review the scenario before saving");
+    };
+    assert!(preview.writes.is_empty());
+    assert!(matches!(
+        preview.properties.as_slice(),
+        [calc_skin::ModelPropertyDiff::AddedScenario { values, .. }] if values.len() == 2
+    ));
+    assert_eq!(session.stamp(), Some(before));
+    run("edit.apply-review", Value::Null);
+    let saved = page.host.with_session(SelectionCause::Open, |book| {
+        let mut bytes = Vec::new();
+        book.save(&calc_host::SavePolicy::default(), &mut bytes).unwrap();
+        bytes
+    });
+    let doc = calc_doc::open(Arc::new(MemorySource::new(saved.clone())), &OpenPolicy::default()).unwrap();
+    let xml = String::from_utf8(doc.package().read_part("xl/worksheets/sheet1.xml").unwrap()).unwrap();
+    assert!(xml.contains("<scenario name=\"What &amp; If\""));
+    assert!(xml.contains("r=\"A1\" val=\"2\""));
+    assert!(xml.contains("r=\"A2\" val=\"3\""));
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    let inventory = query::Inventory { kinds: vec![InventoryKind::Scenarios] };
+    assert!(query::Inventory::decode(
+        page.port.ask(inventory.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap()
+    ).unwrap().body.is_empty());
+    session.open("Scenarios.xlsx".into(), saved);
+    page.settle();
+    run("view.app", Value::Null);
+    let answer = query::Inventory::decode(
+        page.port.ask(inventory.request(), dna_skin_runtime::client::PAGE_BUDGET).unwrap()
+    ).unwrap();
+    let [InventoryItem::Scenario(scenario)] = answer.body.as_slice() else {
+        panic!("expected the scenario loaded from the worksheet");
+    };
+    let at = |row| Key(scenario.sheet.0, scenario.sheet.1, row, 1);
+    set("4", "5");
+    assert_eq!(page.shown(at(3)), "9");
+    run("app.review-scenario", json!(scenario));
+    let Seam::Review(preview) = session.seam() else {
+        panic!("review the changing cells before applying");
+    };
+    assert_eq!(preview.writes.len(), 2);
+    assert_eq!(page.shown(at(3)), "9");
+    run("edit.apply-review", Value::Null);
+    assert_eq!(page.shown(at(3)), "5");
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(page.shown(at(3)), "9");
+    set("4", "=5");
+    let before = session.stamp().unwrap();
+    run("app.review-scenario", json!(scenario));
+    assert_eq!(session.seam(), Seam::Idle);
+    assert_eq!(session.stamp(), Some(before));
+    assert_eq!(page.shown(at(1)), "4");
 }
 /// Native-only: drives authoring commands and history through the real workbook service.
 #[test]

@@ -456,6 +456,13 @@ pub enum ModelChange {
         bound: Bound,
         text: String,
     },
+    /// Insert the changing values of an existing worksheet scenario in one workbook edit.
+    ShowScenario { scenario: crate::ScenarioRef },
+    /// Capture the current authored literal values in the worksheet's native Scenario Manager.
+    SaveScenario {
+        scenario: crate::ScenarioRef,
+        inputs: Vec<Bound>,
+    },
     ClearContents {
         areas: Vec<Area>,
     },
@@ -580,6 +587,10 @@ pub enum ModelPropertyDiff {
         scope: crate::NameScope,
         before: Option<DefinedNameText>,
         after: Option<DefinedNameText>,
+    },
+    AddedScenario {
+        scenario: crate::ScenarioRef,
+        values: Vec<(Key, String)>,
     },
     WorksheetInserted { sheet: Sheet, name: String },
     CellFormat {

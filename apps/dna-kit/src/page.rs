@@ -6,7 +6,7 @@ use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
     Bound, Coverage, DocId, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
-    WorkbookCell,
+    InventoryItem, InventoryKind, WorkbookCell,
 };
 use leptos::prelude::*;
 
@@ -30,9 +30,16 @@ pub struct PageAuthor {
 }
 
 #[derive(Clone, Copy)]
+pub struct PageScenario {
+    pub review: &'static str,
+    pub save: &'static str,
+}
+
+#[derive(Clone, Copy)]
 struct PageMode {
     input: Option<PageInput>,
     author: Option<PageAuthor>,
+    scenario: Option<PageScenario>,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -42,8 +49,9 @@ pub fn PageRenderer(
     document: Page,
     #[prop(optional)] input: Option<PageInput>,
     #[prop(optional)] author: Option<PageAuthor>,
+    #[prop(optional)] scenario: Option<PageScenario>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author };
+    let mode = PageMode { input, author, scenario };
     view! {
         <article class="dna-page" data-dnacalc="page">
             <h1>{document.title}</h1>
@@ -87,6 +95,7 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
         PageNode::Part { id, component, mut bind, props } => {
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
             let body = match component.as_str() {
+                "scenario-picker" => scenarios(session, label.clone(), mode.scenario),
                 "rich-prose" => {
                     let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
                     view! {
@@ -115,6 +124,74 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             }
         }
     }
+}
+
+fn scenarios(session: Session, label: String, actions: Option<PageScenario>) -> AnyView {
+    let records = session.watch(query::Inventory { kinds: vec![InventoryKind::Scenarios] });
+    view! {
+        <section class="dna-page-card">
+            <h2>{label}</h2>
+            {actions.map(|actions| {
+                let name = NodeRef::<leptos::html::Input>::new();
+                view! {
+                    <form class="dna-page-tools" on:submit=move |event: leptos::ev::SubmitEvent| {
+                        event.prevent_default();
+                        if let Some(name) = name.get() {
+                            let _ = session.run(&Invocation {
+                                command: CommandId::new(actions.save),
+                                args: serde_json::Value::String(name.value()),
+                            });
+                        }
+                    }>
+                        <label>"Scenario name " <input node_ref=name required/></label>
+                        <button type="submit" data-command=actions.save>"Review and save…"</button>
+                    </form>
+                }
+            })}
+            {move || match session.read(records) {
+                Live::Ready(answer) if answer.coverage == Coverage::Complete => {
+                    let items = answer.body.into_iter().filter_map(|item| {
+                        if let InventoryItem::Scenario(record) = item { Some(record) } else { None }
+                    }).collect::<Vec<_>>();
+                    if items.is_empty() {
+                        return view! { <p>"No saved Excel scenarios."</p> }.into_any();
+                    }
+                    let workbook = session.summary();
+                    view! {
+                        <ul>
+                            {items.into_iter().map(|record| {
+                                let sheet = workbook.as_ref().and_then(|book| {
+                                    book.sheets.iter().find(|sheet| sheet.sheet == record.sheet)
+                                });
+                                let label = sheet.map_or_else(
+                                    || record.name.clone(),
+                                    |sheet| format!("{} · {}", record.name, sheet.name),
+                                );
+                                let args = serde_json::to_value(&record).expect("scenario identity");
+                                view! {
+                                    <li>
+                                        {actions.map(|actions| actions.review).map_or_else(
+                                            || label.clone().into_any(),
+                                            |command| view! {
+                                                <button type="button" data-command=command on:click=move |_| {
+                                                    let _ = session.run(&Invocation {
+                                                        command: CommandId::new(command), args: args.clone(),
+                                                    });
+                                                }>{label.clone()}</button>
+                                            }.into_any(),
+                                        )}
+                                    </li>
+                                }
+                            }).collect_view()}
+                        </ul>
+                    }.into_any()
+                }
+                Live::Ready(_) | Live::Refused(_) => view! { <p>"Excel scenarios are unavailable."</p> }.into_any(),
+                Live::Loading => view! { <p aria-busy="true">"Reading Excel scenarios…"</p> }.into_any(),
+                _ => ().into_any(),
+            }}
+        </section>
+    }.into_any()
 }
 
 fn author_control(

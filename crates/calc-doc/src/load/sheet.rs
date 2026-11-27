@@ -68,6 +68,7 @@ pub(super) struct SheetLoad {
     pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
     /// The sheet's data validations (dc-6yw).
     pub(super) validations: Vec<super::validation::Validation>,
+    pub(super) scenarios: Option<calc_doc_model::WorksheetScenarios>,
     /// The sheet's sparkline groups (dc-zjsg.7).
     pub(super) sparklines: Vec<calc_doc_model::SparklineGroup>,
     pub(super) repairs: Vec<super::LoadRepair>,
@@ -1125,6 +1126,7 @@ fn empty_load(source: Arc<SourcePart>) -> SheetLoad {
         view: super::geometry::SheetView::default(),
         conditional_formats: Vec::new(),
         validations: Vec::new(),
+        scenarios: None,
         sparklines: Vec::new(),
         repairs: Vec::new(),
     }
@@ -1194,6 +1196,7 @@ pub(super) fn load_sheet(
             view: super::geometry::SheetView::default(),
             conditional_formats: Vec::new(),
             validations: Vec::new(),
+            scenarios: None,
             sparklines: Vec::new(),
             repairs: Vec::new(),
         },
@@ -1305,6 +1308,15 @@ pub(super) fn load_sheet(
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "pivotParts") => {
                 super::pivot::read_parts(package, part, id, &mut events, &mut sheet.load.pivots)?;
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "scenarios") => {
+                let read = super::scenario::read(&mut events, id)?;
+                if let Some(previous) = &mut sheet.load.scenarios {
+                    previous.unread += previous.entries.len() + read.entries.len() + read.unread;
+                    previous.entries.clear();
+                } else {
+                    sheet.load.scenarios = Some(read);
+                }
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
                 if sheet_data {

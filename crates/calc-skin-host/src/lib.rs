@@ -605,7 +605,7 @@ impl WorkbookPort for Connection {
                 let mut formatted = Vec::new();
                 let mut scope_changed = false;
                 for property in &prepared.preview.properties {
-                    match property {
+                    let source = match property {
                         ModelPropertyDiff::DefinedName { scope, before, after } => {
                             scope_changed = true;
                             for name in before.iter().chain(after) {
@@ -616,25 +616,24 @@ impl WorkbookPort for Connection {
                                     targets.push(target);
                                 }
                             }
+                            continue;
                         }
-                        ModelPropertyDiff::WorksheetInserted { sheet, .. } => {
-                            scope_changed = true;
-                            targets.push(Target::Source(SourceRef::Sheet(*sheet)));
-                        }
+                        ModelPropertyDiff::WorksheetInserted { sheet, .. } => SourceRef::Sheet(*sheet),
                         ModelPropertyDiff::CellFormat { at, .. } => {
                             let area = GridArea::cell(cell(*at)?);
                             formatted.push(area);
                             if cells_touched.insert(*at) {
                                 targets.push(Target::Source(batch::source_area(area)));
                             }
+                            continue;
                         }
-                        ModelPropertyDiff::Scope { source, .. } => {
-                            scope_changed = true;
-                            let target = Target::Source(source.clone());
-                            if !targets.contains(&target) {
-                                targets.push(target);
-                            }
-                        }
+                        ModelPropertyDiff::Scope { source, .. } => source.clone(),
+                        ModelPropertyDiff::AddedScenario { scenario, .. } => SourceRef::Sheet(scenario.sheet),
+                    };
+                    scope_changed = true;
+                    let target = Target::Source(source);
+                    if !targets.contains(&target) {
+                        targets.push(target);
                     }
                 }
                 for change in &prepared.preview.presentation {
