@@ -121,6 +121,7 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         tips: NodeRef::new(),
     };
     register(session, chrome, &views);
+    session.install(vec![dna_kit::page::clock::command(session)]);
     registry.install_commands(session);
     chrome
 }

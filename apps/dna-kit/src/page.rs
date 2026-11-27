@@ -10,6 +10,7 @@ use calc_skin::{
 };
 use leptos::prelude::*;
 
+pub mod clock;
 mod reader;
 mod report;
 pub use reader::live_values;
@@ -45,6 +46,7 @@ struct PageMode {
     scenario: Option<PageScenario>,
     compare: bool,
     report: Option<PageReport>,
+    clock_document: Option<DocId>,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -57,8 +59,9 @@ pub fn PageRenderer(
     #[prop(optional)] scenario: Option<PageScenario>,
     #[prop(optional)] compare: bool,
     #[prop(optional)] report: Option<PageReport>,
+    #[prop(optional)] clock_document: Option<DocId>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario, compare, report };
+    let mode = PageMode { input, author, scenario, compare, report, clock_document };
     let schedules = report.map(|report| report::schedules(session, &document, report));
     view! {
         <article class="dna-page" data-dnacalc="page">
@@ -102,12 +105,13 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             }).collect_view().into_any()
         }
         PageNode::Part { id, component, mut bind, props } => {
-            if mode.report.is_some() && matches!(component.as_str(), "scenario-picker" | "data-frame") {
+            if mode.report.is_some() && matches!(component.as_str(), "scenario-picker" | "data-frame" | "clock") {
                 return ().into_any();
             }
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
             let body = match component.as_str() {
                 "scenario-picker" => scenarios(session, label.clone(), mode.scenario),
+                "clock" => clock::clock_controls(session, id.clone(), label.clone(), &bind, mode.clock_document).into_any(),
                 "rich-prose" => {
                     let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
                     view! {
@@ -484,50 +488,107 @@ fn schedule(session: Session, source: SourceRef, summary: Option<Bound>) -> AnyV
     let rows = session.following::<query::Rows>();
     let offset = RwSignal::new(0u32);
     let grouped = RwSignal::new(false);
+    let expanded = RwSignal::new(false);
     let summary = summary.map(|bound| resolve_bound(session, bound));
+    let source = Memo::new(move |_| {
+        if grouped.get() {
+            let Some(Live::Ready(summary)) = summary.map(|summary| summary.get()) else {
+                return None;
+            };
+            Some(summary)
+        } else {
+            Some(source.clone())
+        }
+    });
+    let reading = Memo::new(move |_| {
+        let read = source.get().map(|source| query::Rows {
+            source,
+            filter: Vec::new(),
+            sort: Vec::new(),
+            window: RowWindow { offset: offset.get(), limit: PAGE },
+        });
+        match rows.at(read) {
+            Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete
+                | Coverage::Partial { why: PartialWhy::Window, .. }) => Live::Ready(answer.body),
+            Live::Ready(_) => Live::Outdated,
+            Live::Refused(reason) => Live::Refused(reason),
+            _ => Live::Loading,
+        }
+    });
+    let size = Memo::new(move |_| match reading.get() {
+        Live::Ready(page) => Some((page.matched_rows, page.columns)),
+        _ => None,
+    });
     view! {
         <div class="dna-page-schedule">
         {summary.map(|summary| view! {
             <button type="button" aria-pressed=move || grouped.get().to_string()
                 disabled=move || !matches!(summary.get(), Live::Ready(_))
                 on:click=move |_| {
+                    expanded.set(false);
                     offset.set(0);
                     grouped.update(|grouped| *grouped = !*grouped);
                 }>"Group by Year (display rollup)"</button>
         })}
-        {move || match rows.at(Some(query::Rows {
-            source: if grouped.get() {
-                let Some(Live::Ready(summary)) = summary.map(|summary| summary.get()) else {
-                    return missing();
-                };
-                summary
-            } else {
-                source.clone()
-            },
-            filter: Vec::new(),
-            sort: Vec::new(),
-            window: RowWindow { offset: offset.get(), limit: PAGE },
-        })) {
-            Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete
-                | Coverage::Partial { why: PartialWhy::Window, .. }) => {
-                let page = answer.body;
-                let start = page.offset;
-                let end = start + page.rows.len() as u32;
-                let total = page.matched_rows;
-                let caption = format!("Rows {}–{end} of {total}", start + 1);
-                view! {
-                    {rows_table(page, caption)}
-                    <button type="button" disabled={start == 0}
-                        on:click=move |_| offset.set(start.saturating_sub(PAGE))>"Previous rows"</button>
-                    <button type="button" disabled={end >= total}
-                        on:click=move |_| offset.set(end)>"Next rows"</button>
-                }.into_any()
+        {move || {
+            if grouped.get() && summary.is_some_and(|summary| matches!(summary.get(), Live::Refused(_))) {
+                return missing();
             }
-            Live::Ready(_) | Live::Refused(_) => view! { <p>"Rows unavailable"</p> }.into_any(),
-            _ => view! { <p aria-busy="true">"Reading rows…"</p> }.into_any(),
+            if expanded.get()
+                && let (Some(source), Some((total, columns))) = (source.get(), size.get())
+                && u64::from(total) * u64::from(columns) <= crate::PAGE_BUDGET.cells
+            {
+                let parts = report::schedule_windows(session, source, 0, total)
+                    .map(move |read| move || match read.get() {
+                        Live::Ready(page) => {
+                            let caption = row_caption(&page);
+                            rows_table(page, caption).into_any()
+                        }
+                        Live::Refused(_) => view! { <p>"Rows unavailable"</p> }.into_any(),
+                        _ => view! { <p aria-busy="true">"Reading rows…"</p> }.into_any(),
+                    })
+                    .collect_view();
+                return view! {
+                    <button type="button" data-page-action="collapse-rows"
+                        on:click=move |_| expanded.set(false)>"Collapse"</button>
+                    {parts}
+                }.into_any();
+            }
+            match reading.get() {
+                Live::Ready(page) => {
+                    let start = page.offset;
+                    let end = start + page.rows.len() as u32;
+                    let total = page.matched_rows;
+                    let can_expand = total > PAGE
+                        && u64::from(total) * u64::from(page.columns) <= crate::PAGE_BUDGET.cells;
+                    let caption = row_caption(&page);
+                    view! {
+                        {rows_table(page, caption)}
+                        <button type="button" data-page-action="previous-rows" disabled={start == 0}
+                            on:click=move |_| offset.set(start.saturating_sub(PAGE))>"Previous rows"</button>
+                        <button type="button" data-page-action="next-rows" disabled={end >= total}
+                            on:click=move |_| offset.set(end)>"Next rows"</button>
+                        {can_expand.then(|| view! {
+                            <button type="button" data-page-action="expand-rows"
+                                on:click=move |_| expanded.set(true)>"Expand all"</button>
+                        })}
+                    }.into_any()
+                }
+                Live::Outdated | Live::Refused(_) => view! { <p>"Rows unavailable"</p> }.into_any(),
+                _ => view! { <p aria-busy="true">"Reading rows…"</p> }.into_any(),
+            }
         }}
         </div>
     }.into_any()
+}
+
+fn row_caption(page: &RowPage) -> String {
+    if page.rows.is_empty() {
+        return "No rows".into();
+    }
+    let start = page.offset + 1;
+    let end = page.offset + page.rows.len() as u32;
+    format!("Rows {start}–{end} of {}", page.matched_rows)
 }
 
 fn rows_table(page: RowPage, caption: String) -> impl IntoView {

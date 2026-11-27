@@ -85,6 +85,7 @@ struct State {
     opened_at: Stamp,
     baseline: Option<comparison::Baseline>,
     baseline_revision: u64,
+    clock: Option<Rc<calc_host::ModelClock>>,
 }
 
 impl State {
@@ -309,6 +310,7 @@ impl SkinHost {
                 opened_at,
                 baseline: None,
                 baseline_revision: 0,
+                clock: None,
             })),
         }
     }
@@ -359,6 +361,30 @@ impl SkinHost {
             state.record_calculation(before, Some(&progress));
         }
         state.session.has_pending_calculation()
+    }
+
+    /// Adds the local RTD clock for this workbook and subsequent opens on the carrier.
+    pub fn enable_model_clock(&self) {
+        let mut state = self.state.borrow_mut();
+        if state.clock.is_none() {
+            state.clock = Some(state.session.install_model_clock());
+        }
+    }
+
+    /// Publish due values through the workbook's ordinary sequenced RTD input.
+    pub fn advance_model_clock(&self, elapsed: std::time::Duration) -> bool {
+        let mut state = self.state.borrow_mut();
+        let Some(clock) = &state.clock else {
+            return false;
+        };
+        let updates = clock.advance(elapsed, !state.session.has_unfinished_calculation());
+        let mut changed = false;
+        for update in updates {
+            changed |= state.session.update_rtd(
+                update.topic, update.lease, update.sequence, update.value,
+            ) == calc_host::RtdDisposition::Accepted;
+        }
+        changed
     }
 
     /// Lets the native application perform its existing file or automation operation on this session.
@@ -994,7 +1020,13 @@ impl Connection {
         {
             return Err(Refusal::PolicyRefused);
         }
-        let locale = self.host.borrow().session.host().entry_environment().profile;
+        let (locale, use_clock) = {
+            let state = self.host.borrow();
+            (
+                state.session.host().entry_environment().profile,
+                state.clock.is_some(),
+            )
+        };
         let mut session = calc_host::HostSession::open_named(
             std::sync::Arc::new(calc_host::MemorySource::new(bytes)),
             &calc_host::OpenPolicy::default(),
@@ -1009,10 +1041,12 @@ impl Connection {
         })?;
         session.set_calculation_budget(calc_host::WorkBudget::evaluations(64));
         session.observe_result_differences();
+        let clock = use_clock.then(|| session.install_model_clock());
         SkinHost::initial_selection(&mut session);
         let stamp = session.host().skin_stamp();
         let mut state = self.host.borrow_mut();
         state.session = session;
+        state.clock = clock;
         state.opened_at = stamp;
         state.touches.clear();
         state.calc_touches.clear();

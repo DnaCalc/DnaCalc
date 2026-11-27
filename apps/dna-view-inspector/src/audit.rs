@@ -365,6 +365,7 @@ fn observed_value(observation: query::FormulaObservation) -> impl IntoView {
 pub(crate) fn sources(session: Session) -> impl IntoView {
     let sources = session.following::<query::SourceInventory>();
     view! {
+        {dna_kit::page::clock::authored_controls(session)}
         {crate::live::recording(session)}
         <div class="dna-inspector-card"><h2>"Live sources"</h2>
             {move || match result(sources.at(Some(query::SourceInventory)), "") {

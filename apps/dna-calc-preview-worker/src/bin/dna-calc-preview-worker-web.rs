@@ -1,11 +1,12 @@
 #[cfg(target_arch = "wasm32")]
 mod worker {
     use calc_host::{
-        FormatProfile, HostOptions, HostSession, MemorySource, OpenPolicy, WorkBudget, blank_package,
+        FormatProfile, HostOptions, HostSession, MemorySource, OpenPolicy, WorkBudget,
+        blank_package,
     };
     use calc_skin::{Envelope, Message, Origin, Packet, Refusal, ViewId, WritePolicy, decode};
     use calc_skin_host::{Connection, SkinHost};
-    use std::{rc::Rc, sync::Arc};
+    use std::{rc::Rc, sync::Arc, time::Duration};
     use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
     use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
 
@@ -52,10 +53,43 @@ mod worker {
         }
     }
 
+    fn clock(
+        scope: &DedicatedWorkerGlobalScope,
+        host: Rc<SkinHost>,
+        port: Rc<Connection>,
+    ) -> Result<(), JsValue> {
+        let Some(time) = scope.performance() else {
+            return Ok(());
+        };
+        host.enable_model_clock();
+        let mut last = time.now();
+        let drive = Closure::<dyn FnMut()>::new({
+            let scope = scope.clone();
+            move || {
+                let now = time.now();
+                let elapsed = Duration::from_secs_f64((now - last).max(0.0) / 1000.0);
+                last = now;
+                if host.advance_model_clock(elapsed) {
+                    advance(scope.clone(), host.clone(), port.clone());
+                }
+            }
+        });
+        scope.set_interval_with_callback_and_timeout_and_arguments_0(
+            drive.as_ref().unchecked_ref(),
+            50,
+        )?;
+        drive.forget();
+        Ok(())
+    }
+
     #[wasm_bindgen(start)]
     pub fn start() -> Result<(), JsValue> {
         let scope: DedicatedWorkerGlobalScope = js_sys::global().dyn_into()?;
-        let locale = scope.navigator().language().as_deref().and_then(FormatProfile::for_culture);
+        let locale = scope
+            .navigator()
+            .language()
+            .as_deref()
+            .and_then(FormatProfile::for_culture);
         let mut session = HostSession::open(
             Arc::new(MemorySource::new(blank_package())),
             &OpenPolicy::default(),
@@ -73,6 +107,7 @@ mod worker {
             },
             WritePolicy::Commit,
         ));
+        clock(&scope, host.clone(), port.clone())?;
         let receive = Closure::<dyn FnMut(MessageEvent)>::new({
             let scope = scope.clone();
             move |event: MessageEvent| {

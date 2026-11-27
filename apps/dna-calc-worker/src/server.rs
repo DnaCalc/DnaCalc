@@ -100,7 +100,7 @@ pub struct Server {
     /// A native host's user functions, applied to every workbook this server installs.
     user_functions: Option<calc_host::CallableTable>,
     rtd_connector: Option<std::rc::Rc<dyn calc_host::RtdConnector>>,
-    model_clock: Option<std::rc::Rc<crate::model_clock::ModelClock>>,
+    model_clock: Option<std::rc::Rc<calc_host::ModelClock>>,
     /// The page's subscriptions: its number for each, and calc-host's.
     subscriptions: BTreeMap<u64, SubscriptionId>,
     subscription_interests: BTreeMap<u64, calc_host::Interest>,
@@ -1827,7 +1827,7 @@ impl Server {
         if self.model_clock.is_some() {
             return;
         }
-        let clock = std::rc::Rc::new(crate::model_clock::ModelClock::default());
+        let clock = std::rc::Rc::new(calc_host::ModelClock::default());
         if let Some(fallback) = &self.rtd_connector {
             clock.set_fallback(fallback.clone());
         }
