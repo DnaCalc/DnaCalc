@@ -1,6 +1,6 @@
 //! Print layout for the shared workbook page renderer.
 
-use super::{resolve_bound, rows_table};
+use super::{resolve_bound, row_caption, rows_table};
 use crate::{Live, Session};
 use calc_skin::query;
 use calc_skin::{Bound, Coverage, Page, PartialWhy, RowPage, RowWindow, SourceRef};
@@ -162,16 +162,8 @@ fn schedule_pages(session: Session, source: SourceRef, title: &'static str) -> A
             if u64::from(first.matched_rows) * u64::from(first.columns) > crate::PAGE_BUDGET.cells {
                 return view! { <p data-print-unavailable>"Choose a smaller schedule to print"</p> }.into_any();
             }
-            let count = first.matched_rows.div_ceil(ROWS_PER_READ);
-            let source = source.clone();
-            let tail = (1..count)
-                .map(move |page| {
-                    let read = rows(
-                        session,
-                        source.clone(),
-                        page * ROWS_PER_READ,
-                        ROWS_PER_READ,
-                    );
+            let tail = schedule_windows(session, source.clone(), 1, first.matched_rows)
+                .map(move |read| {
                     move || match read.get() {
                         Live::Ready(page) => schedule_read(title, page).into_any(),
                         Live::Refused(_) => {
@@ -193,6 +185,22 @@ fn schedule_pages(session: Session, source: SourceRef, title: &'static str) -> A
     .into_any()
 }
 
+pub(super) fn schedule_windows(
+    session: Session,
+    source: SourceRef,
+    first_window: u32,
+    matched_rows: u32,
+) -> impl Iterator<Item = Memo<Live<RowPage>>> {
+    (first_window..matched_rows.div_ceil(ROWS_PER_READ)).map(move |index| {
+        rows(
+            session,
+            source.clone(),
+            index * ROWS_PER_READ,
+            ROWS_PER_READ,
+        )
+    })
+}
+
 fn schedule_read(title: &'static str, mut read: RowPage) -> Vec<AnyView> {
     let rows = std::mem::take(&mut read.rows);
     rows.chunks(ROWS_PER_SCHEDULE_PAGE as usize)
@@ -211,8 +219,7 @@ fn schedule_read(title: &'static str, mut read: RowPage) -> Vec<AnyView> {
 }
 
 fn schedule_page(title: &'static str, page: RowPage) -> AnyView {
-    let end = page.offset + page.rows.len() as u32;
-    let caption = format!("Rows {}–{end} of {}", page.offset + 1, page.matched_rows);
+    let caption = row_caption(&page);
     view! {
         <section class="dna-page-print-schedule" data-dnacalc="app-print-schedule-page">
             <h2>{title}</h2>

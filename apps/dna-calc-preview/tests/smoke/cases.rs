@@ -539,9 +539,16 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
-        name: "Loan navigates a bounded schedule and undoes the input batch in one step",
+        name: "Loan pages and expands its schedule and undoes the input batch in one step",
         actions: &[
-            Action::Click("[data-page-part='schedule'] button:last-child"),
+            Action::Click("[data-page-part='schedule'] [data-page-action='next-rows']"),
+            Action::Wait(Check::TextContains("[data-page-part='schedule'] caption", "Rows 13–24 of 360")),
+            Action::Click("[data-page-part='schedule'] [data-page-action='expand-rows']"),
+            Action::Wait(Check::Js(
+                "the expanded view shows the entire worksheet schedule",
+                "document.querySelectorAll('[data-page-part=schedule] tbody tr').length === 360",
+            )),
+            Action::Click("[data-page-part='schedule'] [data-page-action='collapse-rows']"),
             Action::Wait(Check::TextContains("[data-page-part='schedule'] caption", "Rows 13–24 of 360")),
             Action::Click("[data-command='edit.undo']"),
         ],
