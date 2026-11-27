@@ -986,55 +986,52 @@ fn operator(session: Session, state: State) -> AnyView {
     let printing = printing::showing(session);
     view! {
         <div class="dna-page-surface" data-dnacalc="app">
-            {move || match page.get() {
-                Ok((document, document_id)) => {
-                    let batched = document.input == InputPolicy::Batched;
-                    let has_inputs = !page_inputs(&document).is_empty();
-                    let has_comparison = !comparison_bindings(&document).is_empty();
-                    view! {
-                        <header class="dna-page-tools">
-                            {button(session, "view.forms", "Edit page…")}
-                            {button(session, "view.classic", "See the cells")}
-                            {has_inputs.then(|| button(session, "app.reset-inputs", "Reset to opening inputs"))}
-                            {has_comparison.then(|| button(session, "app.pin-baseline", "Pin current as baseline"))}
-                            {printing::open_button(session)}
-                        </header>
-                        {move || {
-                            let document = document.clone();
-                            if printing.get() {
-                                printing::stage(session, document).into_any()
-                            } else {
-                                view! {
-                                    <PageRenderer session document input=INPUT compare=true clock_document=document_id scenario=PageScenario {
-                                        review: REVIEW_SCENARIO,
-                                        save: SAVE_SCENARIO,
-                                    } />
-                                }.into_any()
-                            }
-                        }}
-                        {batched.then(|| view! {
-                            <footer class="dna-page-tools">
-                                {button(session, "app.apply-inputs", "Apply inputs")}
-                                {button(session, "app.discard-inputs", "Discard")}
-                            </footer>
-                        })}
-                        <Show when=move || inputs(session).with(|drafts| drafts.current(session).is_some_and(|drafts| !drafts.values.is_empty()))>
-                            <p role="status">"Previous valid inputs"</p>
-                        </Show>
-                    }.into_any()
+            {move || {
+                if printing.get() {
+                    return printing::stage(session).into_any();
                 }
-                Err(message) => view! {
-                    <section class="dna-page-card">
-                        <h1>{message.clone()}</h1>
-                        {if message == "No App is defined yet" {
-                            button(session, "app.draft-from-file", "Draft from file · Edit page…").into_any()
-                        } else {
-                            ().into_any()
-                        }}
-                        {button(session, "view.forms", "Open Forms maker")}
-                        {button(session, "view.classic", "Open Classic")}
-                    </section>
-                }.into_any(),
+                match page.get() {
+                    Ok((document, document_id)) => {
+                        let batched = document.input == InputPolicy::Batched;
+                        let has_inputs = !page_inputs(&document).is_empty();
+                        let has_comparison = !comparison_bindings(&document).is_empty();
+                        view! {
+                            <header class="dna-page-tools">
+                                {button(session, "view.forms", "Edit page…")}
+                                {button(session, "view.classic", "See the cells")}
+                                {has_inputs.then(|| button(session, "app.reset-inputs", "Reset to opening inputs"))}
+                                {has_comparison.then(|| button(session, "app.pin-baseline", "Pin current as baseline"))}
+                                {printing::open_button(session)}
+                            </header>
+                            <PageRenderer session document input=INPUT compare=true
+                                clock_document=document_id scenario=PageScenario {
+                                    review: REVIEW_SCENARIO,
+                                    save: SAVE_SCENARIO,
+                                } />
+                            {batched.then(|| view! {
+                                <footer class="dna-page-tools">
+                                    {button(session, "app.apply-inputs", "Apply inputs")}
+                                    {button(session, "app.discard-inputs", "Discard")}
+                                </footer>
+                            })}
+                            <Show when=move || inputs(session).with(|drafts| drafts.current(session).is_some_and(|drafts| !drafts.values.is_empty()))>
+                                <p role="status">"Previous valid inputs"</p>
+                            </Show>
+                        }.into_any()
+                    }
+                    Err(message) => view! {
+                        <section class="dna-page-card">
+                            <h1>{message.clone()}</h1>
+                            {if message == "No App is defined yet" {
+                                button(session, "app.draft-from-file", "Draft from file · Edit page…").into_any()
+                            } else {
+                                ().into_any()
+                            }}
+                            {button(session, "view.forms", "Open Forms maker")}
+                            {button(session, "view.classic", "Open Classic")}
+                        </section>
+                    }.into_any(),
+                }
             }}
         </div>
     }.into_any()

@@ -424,6 +424,28 @@ impl Session {
         }
     }
 
+    /// Pin the first complete answer to a snapshot query for the life of its component.
+    pub fn consistent<Q>(self, query: Q, budget: Budget) -> Memo<Live<Answer<Q::Answer>>>
+    where
+        Q: Query + Send + Sync,
+        Q::Answer: Send + Sync,
+    {
+        let watch = self.following_with_budget::<Q>(budget);
+        Memo::new(move |previous: Option<&Live<Answer<Q::Answer>>>| {
+            if let Some(Live::Ready(answer)) = previous {
+                return Live::Ready(answer.clone());
+            }
+            match watch.at(Some(query.clone())) {
+                Live::Ready(answer) if answer.coverage == Coverage::Complete => {
+                    watch.at(None);
+                    Live::Ready(answer)
+                }
+                Live::Refused(reason) => Live::Refused(reason),
+                _ => Live::Loading,
+            }
+        })
+    }
+
     // Selection, the draft and the seam
 
     pub fn select(self, selection: Selection) {
