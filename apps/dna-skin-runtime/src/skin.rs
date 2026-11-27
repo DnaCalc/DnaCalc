@@ -197,7 +197,7 @@ fn validate_page(page: &Page) -> Result<(), String> {
         }
         let required = match component {
             "input" | "value" => Some("value"),
-            "data-frame" => Some("rows"),
+            "data-frame" | "notebook-excerpt" => Some("rows"),
             "chart" => Some("object"),
             _ => None,
         };

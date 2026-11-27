@@ -1450,3 +1450,80 @@ fn forms_maker_offers_only_formulas_with_no_readers_as_outputs() {
     assert_eq!(session.active(), Some(page.at(1, 3)));
     assert!(session.edit().is_none());
 }
+/// Native-only: prepares a reader page and observes its live value through the real workbook port.
+#[test]
+fn forms_maker_authors_reader_prose_bound_to_the_selected_cell() {
+    use calc_skin::query::Query;
+    use calc_skin::{PageNode, RawValue, RowWindow, WorkbookPort};
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(1, 1);
+    session.begin_edit(at, Some("=2+5".into()));
+    assert!(page.press("Enter", Focus::Editor));
+    session.select_cell(at);
+    page.settle();
+    let model = session.stamp().unwrap().model;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("forms.add-prose"),
+            args: serde_json::json!({"text": "Calculated amount {=value}", "bind_selected": true}),
+        })
+        .unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else {
+        panic!("missing view part");
+    };
+    let document: calc_skin::Page =
+        serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let PageNode::Stack { children } = document.root else {
+        panic!("expected a page");
+    };
+    let [
+        PageNode::Part {
+            component,
+            bind,
+            props,
+            ..
+        },
+    ] = children.as_slice()
+    else {
+        panic!("expected reader prose");
+    };
+    assert_eq!(component, "rich-prose");
+    assert_eq!(props["text"], "Calculated amount {=value}");
+    assert_eq!(bind["value"].address, "Sheet1!A1");
+    let source = query::ResolveBound {
+        bound: bind["value"].clone(),
+    };
+    let ask = |query| {
+        page.port
+            .ask(query, dna_skin_runtime::client::PAGE_BUDGET)
+            .unwrap()
+    };
+    let resolved = query::ResolveBound::decode(ask(source.request()))
+        .unwrap()
+        .body;
+    let rows = query::Rows {
+        source: resolved,
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow {
+            offset: 0,
+            limit: 1,
+        },
+    };
+    let shown = query::Rows::decode(ask(rows.request())).unwrap().body;
+    assert_eq!(shown.rows[0].cells[0].text, "7");
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.value,
+        RawValue::Number { .. }
+    ));
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.provenance,
+        calc_skin::Provenance::Calculated { .. }
+    ));
+    assert_eq!(session.stamp().unwrap().model, model);
+}
