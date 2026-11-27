@@ -253,6 +253,11 @@ impl Layout<'_> {
         } else {
             String::new()
         };
+        let standalone = if route == "/onecalc/" {
+            " data-onecalc-standalone"
+        } else {
+            ""
+        };
         format!(
             r##"<!doctype html>
 <html lang="en" data-dna-theme="cockpit-dark">
@@ -262,7 +267,7 @@ impl Layout<'_> {
 <link rel="icon" href="{prefix}/favicon.ico">
 {explorer}<link rel="stylesheet" href="{prefix}/site.css">{discovery}{extra}
 </head>
-<body class="site">
+<body class="site"{standalone}>
 <a class="site-skip" href="#main">Skip to content</a>
 <header class="site-header"><div class="site-bar">
 <a class="site-brand" href="/"><span class="site-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>DNA Calc</a>
@@ -995,6 +1000,8 @@ mod tests {
                 }
                 let status = source(&dir, "articles/last-bit-status/index.html")?;
                 assert!(status.contains(r#"href="/articles/last-bit-gamma/""#));
+                let explorer = source(&dir, "onecalc/index.html")?;
+                assert!(explorer.contains(r#"<body class="site" data-onecalc-standalone>"#));
                 let status_page = source(&dir, "status/index.html")?;
                 assert!(status_page.contains("<h2>Per-function fuzz coverage</h2>"));
                 assert!(status_page.contains("crates/calc-func/fuzz-status.tsv"));
