@@ -85,6 +85,12 @@ impl View for Surface {
                         .ok_or_else(|| "Enter a scenario name first".to_owned())?;
                     state.save_scenario(name)
                 }).when("writable"),
+                ViewCommand::new(&id, "app.reset-inputs", "Reset to opening inputs", &[], move |_| {
+                    state.reset_inputs()
+                }).when("writable"),
+                ViewCommand::new(&id, "app.pin-baseline", "Pin current as baseline", &[], move |_| {
+                    state.pin_baseline()
+                }),
                 ViewCommand::new(
                     &id,
                     "app.draft-from-file",
@@ -723,13 +729,42 @@ impl State {
         let (page, _) = self.document()?;
         let at = self.session.active().ok_or_else(|| "Choose a worksheet for the scenario".to_owned())?;
         let scenario = ScenarioRef { sheet: Sheet(at.0, at.1), name: name.into() };
-        let mut inputs = Vec::new();
-        page.root.for_each_part(&mut |_, component, bindings| {
-            if component == "input" && let Some(bound) = bindings.get("value") {
-                inputs.push(bound.clone());
-            }
-        });
+        let inputs = page_inputs(&page);
         self.scenario_batch(&format!("Save scenario {name}"), ModelChange::SaveScenario { scenario, inputs })
+    }
+
+    fn reset_inputs(self) -> Result<(), String> {
+        let (page, _) = self.document()?;
+        let stamp = self.session.stamp().ok_or_else(|| "Open a workbook first".to_owned())?;
+        if !matches!(self.session.seam(), Seam::Idle) {
+            return Err("Finish the change in progress first".into());
+        }
+        let bindings = page_inputs(&page);
+        if bindings.is_empty() {
+            return Err("This page has no worksheet inputs".into());
+        }
+        let pending = inputs(self.session);
+        self.session.submit_then(batch(
+            stamp,
+            "Reset to opening inputs",
+            vec![Change::Model(ModelChange::ResetInputs { inputs: bindings })],
+        ), move || pending.set(Inputs::default()));
+        Ok(())
+    }
+
+    fn pin_baseline(self) -> Result<(), String> {
+        let (page, _) = self.document()?;
+        let stamp = self.session.stamp().ok_or_else(|| "Open a workbook first".to_owned())?;
+        let bounds = comparison_bindings(&page);
+        if bounds.is_empty() {
+            return Err("This page has no output values or charts".into());
+        }
+        self.session.operate(calc_skin::Operation::PinBaseline {
+            expected: stamp,
+            bounds,
+            budget: dna_kit::PAGE_BUDGET,
+        }, Some("Baseline pinned".into()));
+        Ok(())
     }
 
     fn scenario_batch(self, label: &str, change: ModelChange) -> Result<(), String> {
@@ -795,6 +830,31 @@ fn permits(page: &Page, bound: &Bound) -> bool {
         permitted |= component == "input" && bind.get("value") == Some(bound);
     });
     permitted
+}
+
+fn page_inputs(page: &Page) -> Vec<Bound> {
+    let mut inputs = Vec::new();
+    page.root.for_each_part(&mut |_, component, bindings| {
+        if component == "input" && let Some(bound) = bindings.get("value") {
+            inputs.push(bound.clone());
+        }
+    });
+    inputs
+}
+
+fn comparison_bindings(page: &Page) -> Vec<Bound> {
+    let mut bounds = Vec::new();
+    page.root.for_each_part(&mut |_, component, bindings| {
+        let slot = match component {
+            "value" => "value",
+            "chart" => "object",
+            _ => return,
+        };
+        if let Some(bound) = bindings.get(slot) {
+            bounds.push(bound.clone());
+        }
+    });
+    bounds
 }
 
 fn batch(stamp: Stamp, label: &str, changes: Vec<Change>) -> Batch {
@@ -922,12 +982,16 @@ fn operator(session: Session, state: State) -> AnyView {
             {move || match page.get() {
                 Ok((document, _)) => {
                     let batched = document.input == InputPolicy::Batched;
+                    let has_inputs = !page_inputs(&document).is_empty();
+                    let has_comparison = !comparison_bindings(&document).is_empty();
                     view! {
                         <header class="dna-page-tools">
                             {button(session, "view.forms", "Edit page…")}
                             {button(session, "view.classic", "See the cells")}
+                            {has_inputs.then(|| button(session, "app.reset-inputs", "Reset to opening inputs"))}
+                            {has_comparison.then(|| button(session, "app.pin-baseline", "Pin current as baseline"))}
                         </header>
-                        <PageRenderer session document input=INPUT scenario=PageScenario {
+                        <PageRenderer session document input=INPUT compare=true scenario=PageScenario {
                             review: REVIEW_SCENARIO,
                             save: SAVE_SCENARIO,
                         } />

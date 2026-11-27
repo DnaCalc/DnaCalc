@@ -39,6 +39,8 @@ pub struct ChartImage {
     pub label: String,
     pub data_url: String,
     pub uses_saved_values: bool,
+    #[serde(default)]
+    pub compares_baseline: bool,
 }
 
 /// A named Scenario Manager record on one Excel worksheet.

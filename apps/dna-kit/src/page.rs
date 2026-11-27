@@ -40,6 +40,7 @@ struct PageMode {
     input: Option<PageInput>,
     author: Option<PageAuthor>,
     scenario: Option<PageScenario>,
+    compare: bool,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -50,8 +51,9 @@ pub fn PageRenderer(
     #[prop(optional)] input: Option<PageInput>,
     #[prop(optional)] author: Option<PageAuthor>,
     #[prop(optional)] scenario: Option<PageScenario>,
+    #[prop(optional)] compare: bool,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario };
+    let mode = PageMode { input, author, scenario, compare };
     view! {
         <article class="dna-page" data-dnacalc="page">
             <h1>{document.title}</h1>
@@ -111,7 +113,7 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
                         _ => "rows",
                     };
                     match bind.remove(slot) {
-                        Some(bound) => part(session, id.clone(), label.clone(), component, bound, mode.input),
+                        Some(bound) => part(session, id.clone(), label.clone(), component, bound, mode),
                         None => missing(),
                     }
                 }
@@ -242,13 +244,13 @@ fn part(
     label: String,
     component: String,
     bound: Bound,
-    input: Option<PageInput>,
+    mode: PageMode,
 ) -> AnyView {
     let resolved = resolve_bound(session, bound.clone());
     let contents = move || match resolved.get() {
         Live::Ready(source) => {
             if component == "chart" {
-                chart_image(session, source)
+                chart_image(session, source, mode.compare.then(|| bound.clone()))
             } else if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
                 schedule(session, source)
             } else {
@@ -257,7 +259,8 @@ fn part(
                     source,
                     label.clone(),
                     bound.clone(),
-                    if component == "input" { input } else { None },
+                    if component == "input" { mode.input } else { None },
+                    mode.compare && component == "value",
                 )
             }
         }
@@ -267,19 +270,40 @@ fn part(
     view! { <section class="dna-page-card" data-page-part=id>{contents}</section> }.into_any()
 }
 
-fn chart_image(session: Session, object: SourceRef) -> AnyView {
+fn chart_image(session: Session, object: SourceRef, comparison: Option<Bound>) -> AnyView {
     let watch = session.following::<query::ChartImageOf>();
-    let query = query::ChartImageOf { object };
+    let query = query::ChartImageOf { object, comparison };
     (move || match watch.at(Some(query.clone())) {
         Live::Ready(answer) if answer.coverage == Coverage::Complete => view! {
             <figure class="dna-page-chart-frame">
                 <img class="dna-page-chart" src=answer.body.data_url alt=answer.body.label/>
                 {answer.body.uses_saved_values.then(|| view! { <figcaption>"Uses saved chart data"</figcaption> })}
+                {answer.body.compares_baseline.then(|| view! { <figcaption>"Dotted baseline · Solid current"</figcaption> })}
             </figure>
         }.into_any(),
         Live::Ready(_) | Live::Refused(_) => missing(),
         _ => view! { <p aria-busy="true">"Reading chart…"</p> }.into_any(),
     }).into_any()
+}
+
+fn comparison(session: Session, bound: Bound) -> impl IntoView {
+    let values = session.following::<query::NumericComparisonOf>();
+    let query = query::NumericComparisonOf { bound };
+    move || {
+        let Live::Ready(answer) = values.at(Some(query.clone())) else { return None; };
+        let reading = answer.body?;
+        let baseline = f64::from_bits(reading.baseline);
+        let delta = f64::from_bits(reading.current) - baseline;
+        if !delta.is_finite() {
+            return None;
+        }
+        let relative = (baseline != 0.0).then(|| delta / baseline.abs() * 100.0);
+        let relative = relative.filter(|value| value.is_finite())
+            .map(|percent| format!(" ({percent:+.2}%)")).unwrap_or_default();
+        Some(view! {
+            <small data-dnacalc="app-baseline-delta">{format!("{delta:+}{relative} vs baseline")}</small>
+        })
+    }
 }
 
 fn single_cell(source: &SourceRef) -> Option<Key> {
@@ -335,6 +359,7 @@ fn scalar(
     label: String,
     bound: Bound,
     input: Option<PageInput>,
+    compare: bool,
 ) -> AnyView {
     let Some(at) = single_cell(&source) else {
         return missing();
@@ -345,6 +370,7 @@ fn scalar(
             <div class="dna-page-value">
                 <strong>{label}</strong>
                 {move || read.get().map(|cell| shown_value(cell, None))}
+                {compare.then(|| comparison(session, bound))}
             </div>
         }
         .into_any();

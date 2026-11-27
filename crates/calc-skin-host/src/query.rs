@@ -22,6 +22,43 @@ pub(crate) fn capabilities(state: &State) -> Capabilities {
     }
 }
 
+fn chart_image(
+    state: &State,
+    object: &SourceRef,
+    bound: Option<&Bound>,
+    meter: &mut QueryWork,
+) -> Result<ChartImage, Refusal> {
+    use base64::Engine as _;
+    let SourceRef::Object { sheet, name } = object else {
+        return Err(invalid("Choose a worksheet chart"));
+    };
+    let chart = state.session.host().chart_named(sheet.id(), name)
+        .ok_or_else(|| invalid("Source missing"))?;
+    let mut uses_saved_values = false;
+    for series in chart.plots.iter().flat_map(|plot| &plot.series) {
+        let points = series.values.len().max(series.categories.len()).max(series.sizes.len());
+        meter.work(points as u64, 1, 0)?;
+        uses_saved_values |= series.cached;
+    }
+    let overlay = if let Some(previous) = bound.and_then(|bound| crate::comparison::chart(state, bound, object)) {
+        for series in previous.plots.iter().flat_map(|plot| &plot.series) {
+            meter.work(series.values.len().max(series.categories.len()) as u64, 1, 0)?;
+        }
+        calc_chart_render::chart_comparison_svg(&chart, previous, 640.0, 360.0)
+    } else {
+        None
+    };
+    let compares_baseline = overlay.is_some();
+    let svg = overlay.unwrap_or_else(|| calc_chart_render::chart_svg(&chart, 640.0, 360.0));
+    let data = base64::engine::general_purpose::STANDARD.encode(svg);
+    Ok(ChartImage {
+        label: chart.title.filter(|title| !title.is_empty()).unwrap_or(chart.name),
+        data_url: format!("data:image/svg+xml;base64,{data}"),
+        uses_saved_values,
+        compares_baseline,
+    })
+}
+
 pub(crate) fn checked_sheet(
     host: &HostState,
     sheet: Sheet,
@@ -284,7 +321,10 @@ pub(crate) fn invalidated(
         WorkbookQuery::InputCandidates { .. } | WorkbookQuery::OutputCandidates { .. } => {
             authored || recalculated
         }
-        WorkbookQuery::ChartImage { .. } => authored || recalculated || rtd_changed,
+        WorkbookQuery::ChartImage { comparison, .. } => {
+            authored || recalculated || rtd_changed || (comparison.is_some() && presentation)
+        }
+        WorkbookQuery::NumericComparison { .. } => authored || presentation || recalculated || rtd_changed,
         WorkbookQuery::Sources | WorkbookQuery::Contributions { .. } => {
             authored || recalculated || rtd_changed
         }
@@ -750,25 +790,15 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::OutputCandidates { scope } => {
             query::OutputCandidates::encode(&structure::outputs(state, scope, &mut meter)?)?
         }
-        WorkbookQuery::ChartImage { object } => {
-            use base64::Engine as _;
-            let SourceRef::Object { sheet, name } = object else {
-                return Err(invalid("Choose a worksheet chart"));
-            };
-            let chart = host.chart_named(sheet.id(), name).ok_or_else(|| invalid("Source missing"))?;
-            let mut uses_saved_values = false;
-            for series in chart.plots.iter().flat_map(|plot| &plot.series) {
-                let points = series.values.len().max(series.categories.len()).max(series.sizes.len());
-                meter.work(points as u64, 1, 0)?;
-                uses_saved_values |= series.cached;
+        WorkbookQuery::ChartImage { object, comparison } => {
+            if let Some(bound) = comparison && &bound_source(state, bound)? != object {
+                return Err(invalid("Source missing"));
             }
-            let svg = calc_chart_render::chart_svg(&chart, 640.0, 360.0);
-            let data = base64::engine::general_purpose::STANDARD.encode(svg);
-            query::ChartImageOf::encode(&calc_skin::ChartImage {
-                label: chart.title.filter(|title| !title.is_empty()).unwrap_or(chart.name),
-                data_url: format!("data:image/svg+xml;base64,{data}"),
-                uses_saved_values,
-            })?
+            query::ChartImageOf::encode(&chart_image(state, object, comparison.as_ref(), &mut meter)?)?
+        }
+        WorkbookQuery::NumericComparison { bound } => {
+            meter.work(1, 1, 0)?;
+            query::NumericComparisonOf::encode(&crate::comparison::scalar(state, bound)?)?
         }
         WorkbookQuery::Sources => {
             query::SourceInventory::encode(&inventory::sources(host, &mut meter)?)?

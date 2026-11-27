@@ -387,6 +387,40 @@ pub(crate) fn prepare(
                     let change = save_scenario(state, scenario, inputs, &mut edits)?;
                     scenario_changes.push(change);
                 }
+                ModelChange::ResetInputs { inputs } => {
+                    require_current_model(request, base.model)?;
+                    let host = state.session.host();
+                    let opening = host.loaded().model();
+                    let mut seen = BTreeSet::new();
+                    for bound in inputs {
+                        let at = crate::query::bound_cell(state, bound)?;
+                        if !seen.insert(at) {
+                            continue;
+                        }
+                        literal_target(&state.session, at)?;
+                        let original = host.source_at_open(at);
+                        let input = original.and_then(|at| opening.cell(at));
+                        if matches!(input, Some(CellInput::Formula(_)))
+                            || original.is_some_and(|at| opening.definitions().not_available(at, input.is_some()))
+                        {
+                            return Err(invalid("This input's opening value was not a worksheet literal"));
+                        }
+                        let area = GridArea::cell(at);
+                        if let Err(failure) = host.check_entry(at, input)
+                            && failure.style == calc_host::ErrorStyle::Stop
+                        {
+                            return Err(Refusal::Validation {
+                                target: source_area(area),
+                                reason: failure.to_string(),
+                            });
+                        }
+                        edits.push(match input {
+                            Some(input) => CellEdit::Set { at, input: input.clone() },
+                            None => CellEdit::Clear { area },
+                        });
+                        areas.push(area);
+                    }
+                }
                 ModelChange::RewriteFormulaRun {
                     at,
                     expected_old,
@@ -633,10 +667,7 @@ fn prepare_entry(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<C
 }
 
 fn prepare_literal(session: &HostSession, at: CellKey, text: &str) -> Result<Vec<CellEdit>, Refusal> {
-    rules(session, at)?;
-    if matches!(session.host().model().cell(at), Some(CellInput::Formula(_))) {
-        return Err(Refusal::Protected(source_area(GridArea::cell(at))));
-    }
+    literal_target(session, at)?;
     let entries = prepare_entry(session, at, text)?;
     if entries.iter().any(|entry| match entry {
         CellEdit::Clear { .. } => false,
@@ -646,6 +677,14 @@ fn prepare_literal(session: &HostSession, at: CellKey, text: &str) -> Result<Vec
         return Err(invalid("A page input accepts literal values"));
     }
     Ok(entries)
+}
+
+fn literal_target(session: &HostSession, at: CellKey) -> Result<(), Refusal> {
+    rules(session, at)?;
+    if matches!(session.host().model().cell(at), Some(CellInput::Formula(_))) {
+        return Err(Refusal::Protected(source_area(GridArea::cell(at))));
+    }
+    Ok(())
 }
 
 fn save_scenario(
