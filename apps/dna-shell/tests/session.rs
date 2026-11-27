@@ -896,7 +896,9 @@ fn notebook_authors_scalar_and_array_anchors_in_one_history_step_each() {
     page.settle();
     assert_eq!(session.stamp(), Some(before), "offering a slot is read-only");
     run("notebook.author", serde_json::json!("=21*2"));
-    assert_eq!(page.shown(page.at(2, 2)), "42");
+    let sheet = session.active().unwrap();
+    let at = |row, column| Key(sheet.0, sheet.1, row, column);
+    assert_eq!(page.shown(at(2, 2)), "42");
 
     for formula in ["=SEQUENCE(3,1)", "=SEQUENCE(2,1)"] {
         session.command("notebook.new-formula").unwrap();
@@ -904,21 +906,21 @@ fn notebook_authors_scalar_and_array_anchors_in_one_history_step_each() {
         run("notebook.author-columns", serde_json::json!(2));
         run("notebook.author", serde_json::json!(formula));
     }
-    assert_eq!(page.shown(page.at(12, 1)), "3");
-    assert_eq!(page.shown(page.at(11, 4)), "2");
+    assert_eq!(page.shown(at(12, 1)), "3");
+    assert_eq!(page.shown(at(11, 4)), "2");
     let Live::Ready(authored) = session.read(part) else {
         panic!("Notebook view part");
     };
     assert_eq!(authored.body.anchors.len(), 3);
     assert!(authored.body.anchors.iter().any(|anchor| {
-        anchor.source == Some(SourceRef::Spill { anchor: page.at(10, 1) })
-            && anchor.area == Some(Area(page.at(10, 1), page.at(12, 1)))
+        anchor.source == Some(SourceRef::Spill { anchor: at(10, 1) })
+            && anchor.area == Some(Area(at(10, 1), at(12, 1)))
     }));
 
     session.command("edit.undo").unwrap();
     page.settle();
-    assert_eq!(page.shown(page.at(10, 4)), "");
-    assert_eq!(page.shown(page.at(12, 1)), "3");
+    assert_eq!(page.shown(at(10, 4)), "");
+    assert_eq!(page.shown(at(12, 1)), "3");
     let Live::Ready(undone) = session.read(part) else {
         panic!("Notebook view part after undo");
     };
@@ -971,7 +973,7 @@ fn notebook_deletes_owned_spill_anchor_and_declaration_together() {
     session.command("view.classic").unwrap();
     session.select_cell(page.at(1, 2));
     page.settle();
-    session.edit_text("=A10+1".into());
+    session.edit_text("=Analysis!A10+1".into());
     session.commit_edit();
     page.settle();
     assert_eq!(page.shown(page.at(1, 2)), "2");
@@ -999,6 +1001,57 @@ fn notebook_deletes_owned_spill_anchor_and_declaration_together() {
     page.settle();
     assert_eq!(page.shown(filled), "");
     assert_eq!(page.shown(page.at(1, 2)), "1");
+}
+
+/// Native-only: drives the first Notebook formula, structural undo and redo by packets.
+#[test]
+fn notebook_creates_analysis_only_when_the_first_formula_commits() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.blank").unwrap();
+    page.settle();
+    let before = session.stamp().unwrap();
+    assert_eq!(session.summary().unwrap().sheets.len(), 1);
+    assert_eq!(before.model.0, 0);
+
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    assert_eq!(session.stamp(), Some(before));
+    let author = |text| {
+        session
+            .run(&dna_kit::Invocation {
+                command: dna_kit::commands::CommandId::new("notebook.author"),
+                args: serde_json::json!(text),
+            })
+            .unwrap();
+        page.settle();
+    };
+    author("=21*");
+    assert_eq!(session.stamp(), Some(before));
+    assert_eq!(session.summary().unwrap().sheets.len(), 1);
+
+    author("=21*2");
+    let summary = session.summary().unwrap();
+    let analysis = summary.sheets.iter().find(|sheet| sheet.name == "Analysis").unwrap();
+    assert!(analysis.visible && analysis.worksheet);
+    let value = Key(analysis.sheet.0, analysis.sheet.1, 2, 2);
+    assert_eq!(page.shown(value), "42");
+    assert_eq!(page.shown(page.at(2, 2)), "");
+    let part = session.watch(query::ViewPartOf);
+    page.settle();
+    assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.len() == 1));
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(session.summary().unwrap().sheets.len(), 1);
+    assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.is_empty()));
+
+    session.command("edit.redo").unwrap();
+    page.settle();
+    assert_eq!(session.summary().unwrap().sheets.len(), 2);
+    assert_eq!(page.shown(value), "42");
+    assert!(matches!(session.read(part), Live::Ready(answer) if answer.body.anchors.len() == 1));
 }
 
 /// Native-only: drives the real workbook service by packets.

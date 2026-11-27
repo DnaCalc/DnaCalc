@@ -11,6 +11,11 @@ const SCALAR_FIRST: u32 = 2;
 const ARRAY_FIRST: u32 = 10;
 const ALTERNATIVE: &str = "Choose another backing worksheet";
 
+pub(crate) enum BackingSheet<'a> {
+    Existing(Sheet),
+    New(&'a str),
+}
+
 pub(crate) fn footprint(sheet: Sheet, kind: PlacementKind) -> GridArea {
     let last = match kind {
         PlacementKind::Scalar => ARRAY_FIRST - 1,
@@ -87,7 +92,7 @@ impl Occupancy {
 
 pub(crate) fn find(
     state: &State,
-    sheet: Sheet,
+    sheet: BackingSheet<'_>,
     kind: PlacementKind,
     shape: Option<PlacementShape>,
     reserved: &[Area],
@@ -96,14 +101,18 @@ pub(crate) fn find(
     let mut work = QueryWork::new(budget, ALTERNATIVE);
     work.check()?;
     let host = state.session.host();
-    let id = checked_sheet(host, sheet)?;
-    if host
-        .model()
-        .sheet_by_id(id)
-        .is_none_or(|sheet| sheet.kind() != SheetKind::Worksheet)
-    {
-        return Err(invalid("Placement requires a worksheet"));
-    }
+    let existing = matches!(sheet, BackingSheet::Existing(_));
+    let id = match sheet {
+        BackingSheet::Existing(sheet) => {
+            let id = checked_sheet(host, sheet)?;
+            if host.model().sheet_by_id(id).is_none_or(|sheet| sheet.kind() != SheetKind::Worksheet) {
+                return Err(invalid("Placement requires a worksheet"));
+            }
+            id
+        }
+        BackingSheet::New(name) => state.session.prepare_worksheet_insert(name.to_owned())
+            .map_err(batch::refusal)?.0,
+    };
     let shape = shape.unwrap_or(PlacementShape {
         rows: 1,
         columns: 1,
@@ -142,7 +151,7 @@ pub(crate) fn find(
         }
         occupied.add(lane, &mut work)?;
     }
-    let scan = footprint(sheet, kind);
+    let scan = footprint(Sheet::of(id), kind);
     let model = host.model();
     let definitions = model.definitions();
     for (cell, _) in model.cells(scan).into_iter().flatten() {
@@ -237,9 +246,11 @@ pub(crate) fn find(
         }
     };
     work.check()?;
-    batch::rules(&state.session, at)?;
-    if let Some(label) = label {
-        batch::rules(&state.session, label)?;
+    if existing {
+        batch::rules(&state.session, at)?;
+        if let Some(label) = label {
+            batch::rules(&state.session, label)?;
+        }
     }
     Ok(Placement {
         at: Key::of(at),

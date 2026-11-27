@@ -64,22 +64,29 @@ impl SlotTable {
         }
     }
 
-    /// Issues a free slot at its current generation, or a new slot at generation 0.
-    fn issue(&mut self) -> Result<(u32, u32), IdError> {
-        if let Some(index) = self.free.pop() {
-            let slot = &mut self.slots[index as usize];
-            slot.state = SlotState::Live;
-            return Ok((index, slot.generation));
+    fn next(&self) -> Result<(u32, u32), IdError> {
+        if let Some(&index) = self.free.last() {
+            return Ok((index, self.slots[index as usize].generation));
         }
         let index = u32::try_from(self.slots.len())
             .ok()
             .filter(|index| *index < self.limit)
             .ok_or(IdError::Exhausted)?;
-        self.slots.push(Slot {
-            generation: 0,
-            state: SlotState::Live,
-        });
         Ok((index, 0))
+    }
+
+    /// Issues a free slot at its current generation, or a new slot at generation 0.
+    fn issue(&mut self) -> Result<(u32, u32), IdError> {
+        let (index, generation) = self.next()?;
+        if self.free.pop().is_some() {
+            self.slots[index as usize].state = SlotState::Live;
+        } else {
+            self.slots.push(Slot {
+                generation,
+                state: SlotState::Live,
+            });
+        }
+        Ok((index, generation))
     }
 
     /// Releases a live slot: it is freed at the next generation, or retired when that generation
@@ -179,6 +186,12 @@ macro_rules! generational_id {
         }
 
         impl IdAllocator<$name> {
+            /// Returns the identity a subsequent `issue` would assign, without reserving it.
+            pub fn next_id(&self) -> Result<$name, IdError> {
+                let (slot, generation) = self.table.next()?;
+                Ok($name { slot, generation })
+            }
+
             /// Issues a new ID: the most recently released free slot at its next generation, or
             /// a new slot. Fails only when every addressable slot is live or retired.
             pub fn issue(&mut self) -> Result<$name, IdError> {

@@ -605,6 +605,7 @@ impl WorkbookPort for Connection {
                 let mut scope_changed = false;
                 for property in &prepared.preview.properties {
                     let source = match property {
+                        ModelPropertyDiff::WorksheetInserted { sheet, .. } => SourceRef::Sheet(*sheet),
                         ModelPropertyDiff::CellFormat { at, .. } => {
                             let area = GridArea::cell(cell(*at)?);
                             formatted.push(area);

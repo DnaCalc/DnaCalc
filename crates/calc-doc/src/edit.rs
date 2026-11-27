@@ -411,13 +411,36 @@ pub fn prepare_sheet_edit(
     rewriter: &dyn FormulaRewriter,
     issue: &mut dyn FnMut() -> SheetId,
 ) -> Result<PreparedEdit, EditError> {
+    let initializing = (batch.operations.len() > 1
+        && matches!(
+            batch.operations.first(),
+            Some(WorkbookOp::EditSheet(calc_doc_model::SheetEdit::Insert { .. }))
+        ))
+    .then(|| issue());
+    let mut entered = false;
     for (operation, op) in batch.operations.iter().enumerate() {
-        if !matches!(op, WorkbookOp::EditSheet(_)) {
+        let allowed = match op {
+            WorkbookOp::EditSheet(_) => initializing.is_none() || operation == 0,
+            WorkbookOp::SetCell { at, input } if initializing == Some(at.sheet()) && !entered => {
+                if let CellInput::Error(code) = input && !error_constant_writable(*code) {
+                    return Err(EditError::ErrorConstant { operation, code: *code });
+                }
+                entered = true;
+                true
+            }
+            WorkbookOp::SetArray { array, .. } if initializing == Some(array.area().sheet()) && !entered => {
+                entered = true;
+                true
+            }
+            WorkbookOp::EditView(_) => initializing.is_some(),
+            _ => false,
+        };
+        if !allowed {
             return Err(EditError::NotAxisEdit { operation });
         }
     }
     let edited = model
-        .apply_structural(batch, rewriter, issue)
+        .apply_structural(batch, rewriter, &mut || initializing.unwrap_or_else(&mut *issue))
         .map_err(EditError::Model)?;
     if !edited
         .sheets()
@@ -441,7 +464,11 @@ pub fn prepare_sheet_edit(
             ));
         }
     }
-    for sheet in edited.sheets() {
+    for sheet in edited
+        .sheets()
+        .iter()
+        .filter(|sheet| initializing.is_none_or(|id| sheet.id() == id))
+    {
         for (at, input) in edited.sheet_cells(sheet.id()).into_iter().flatten() {
             if model.cell(at) == Some(input) {
                 continue;
