@@ -129,8 +129,17 @@ pub fn css_custom_properties(theme: Theme, density: Density) -> String {
 /// The `--dna-*` block for `theme` and `density` under `selector`; with `scheme`, also the
 /// theme's `color-scheme` (so the browser's own controls and scroll bars follow it).
 fn custom_properties(selector: &str, theme: Theme, density: Density, scheme: bool) -> String {
+    format!("{selector} {{\n{}}}\n", declarations(theme, density, scheme))
+}
+
+/// Strand declarations for a themed application surface.
+pub fn inline_style(theme: Theme, density: Density) -> String {
+    declarations(theme, density, true)
+}
+
+fn declarations(theme: Theme, density: Density, scheme: bool) -> String {
     let tokens = theme.tokens();
-    let mut out = format!("{selector} {{\n");
+    let mut out = String::new();
     if scheme {
         let dark = matches!(theme, Theme::CockpitDark);
         out.push_str(&format!(
@@ -142,7 +151,6 @@ fn custom_properties(selector: &str, theme: Theme, density: Density, scheme: boo
         let value = property_value(name, theme, &tokens, density);
         out.push_str(&format!("  --dna-{name}: {value};\n"));
     }
-    out.push_str("}\n");
     out
 }
 

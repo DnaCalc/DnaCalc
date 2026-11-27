@@ -16,6 +16,9 @@ use dna_kit::{
 use leptos::{leptos_dom::helpers::request_animation_frame, prelude::*, wasm_bindgen::JsCast};
 use std::rc::Rc;
 
+mod studio;
+use studio::Studio;
+
 /// The digit of each view's switching chord (decision D12). App has only the Alt+Shift alias:
 /// Excel uses Ctrl+Alt+5.
 const VIEW_DIGITS: [(&str, &str, bool); 5] = [
@@ -39,6 +42,7 @@ pub struct Chrome {
     search: RwSignal<bool>,
     side_pane: RwSignal<Option<SidePane>>,
     deck_folded: RwSignal<bool>,
+    studio: Studio,
     name_manager: NameManager,
     tips: NodeRef<leptos::html::Div>,
 }
@@ -117,11 +121,13 @@ pub fn install(registry: &Registry, session: Session) -> Chrome {
         search: RwSignal::new(false),
         side_pane: RwSignal::new(None),
         deck_folded: RwSignal::new(false),
+        studio: Studio::new(),
         name_manager: NameManager::install(session),
         tips: NodeRef::new(),
     };
     register(session, chrome, &views);
     session.install(vec![dna_kit::page::clock::command(session)]);
+    chrome.studio.install(session);
     registry.install_commands(session);
     chrome
 }
@@ -177,6 +183,8 @@ fn register(session: Session, chrome: Chrome, views: &[Rc<dyn View>]) {
             return Ok(());
         } else if chrome.side_pane.get_untracked() == Some(SidePane::Help) {
             chrome.side_pane.set(None);
+        } else if chrome.studio.escape(session) {
+            // Escape discards the temporary skin after the editor and search have closed.
         } else if !chrome.views.with_value(|views| views.iter().any(|view| view.cancel_interaction(session))) {
             session.cancel();
         }
@@ -476,6 +484,7 @@ pub fn workbook(
     chrome: Chrome,
     file_control: AnyView,
 ) -> impl IntoView + use<> {
+    chrome.studio.follow_workbook(session);
     let specs = registry.views();
     let views = chrome.views;
     let docks: Vec<_> = registry.docks().collect();
@@ -587,6 +596,17 @@ pub fn workbook(
             });
         }
     });
+    Effect::new(move |was_open: Option<bool>| {
+        let open = chrome.studio.editing();
+        if !open && was_open == Some(true) {
+            request_animation_frame(move || {
+                if let Some(stage) = stage_node.get_untracked() {
+                    let _ = stage.focus();
+                }
+            });
+        }
+        open
+    });
     let sheet = move || session.active().map(|at| Sheet(at.0, at.1));
     let switcher = specs.iter().map(|spec| {
         let id = spec.id.clone();
@@ -600,7 +620,11 @@ pub fn workbook(
     }).collect_view();
 
     view! {
-        <div class="dna-workbook" data-dnacalc="frame" on:keydown=move |event: leptos::ev::KeyboardEvent| {
+        <div class="dna-workbook" data-dnacalc="frame"
+            data-dna-theme=move || chrome.studio.theme()
+            data-dna-density=move || chrome.studio.density()
+            style=move || chrome.studio.style()
+            on:keydown=move |event: leptos::ev::KeyboardEvent| {
             let focus = focus_of(&event);
             let path = (focus == Focus::KeyTip).then(|| session.key_tip_path()).flatten();
             if session.key(&key_input(&event), focus) {
@@ -624,14 +648,17 @@ pub fn workbook(
                 {switcher}
                 <button type="button" data-command="shell.search" on:click=move |_| { let _ = session.command("shell.search"); }>"Go to" <kbd>"Alt+Q"</kbd></button>
                 {command_button(session, "shell.help", "Help")}
+                {chrome.studio.banner(session)}
             </header>
-            <nav class="dna-book-deck" aria-label="Workbook commands">
+            <nav class="dna-book-deck" aria-label="Workbook commands"
+                data-compact=move || chrome.studio.compact_deck().to_string()>
                 <div style:display=move || if chrome.deck_folded.get() { "none" } else { "contents" }>
                     {file_control}
                     {command_button(session, "edit.undo", "Undo")}
                     {command_button(session, "edit.redo", "Redo")}
                     {command_button(session, "calc.calculate", "Calculate")}
                     {command_button(session, "shell.details", "Details")}
+                    {command_button(session, "studio.open", "Customise")}
                     {dock_buttons}
                 </div>
                 <button type="button" data-command="shell.toggle-deck" aria-keyshortcuts="Control+F1"
@@ -717,6 +744,7 @@ pub fn workbook(
             <main class="dna-book-stage" tabindex="-1" node_ref=stage_node>
                 <div class="dna-book-work">
                     {stage}
+                    {chrome.studio.editor(session)}
                     <Show when=move || chrome.side_pane.get() == Some(SidePane::Details)>
                     <aside class="dna-book-details">
                         <h2>"Details"</h2>

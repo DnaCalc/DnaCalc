@@ -358,3 +358,28 @@
 
 .dna-book-bridge-passive:not(:has([data-dnacalc="seam-review"])) { display: none; }
 .dna-book-bridge-passive > :not([data-dnacalc="seam-review"]) { display: none; }
+
+.dna-skin-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--dna-gap-2);
+    min-inline-size: 0;
+}
+.dna-skin-banner strong {
+    overflow: hidden;
+    max-inline-size: 12rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dna-skin-studio textarea {
+    display: block;
+    inline-size: 100%;
+    min-inline-size: 0;
+    box-sizing: border-box;
+    background: var(--dna-paper);
+    color: var(--dna-ink);
+    font: 0.875rem / 1.5 monospace;
+}
+.dna-book-deck[data-compact="true"] { gap: var(--dna-gap-1); }
+.dna-workbook .dna-book-formula { font-size: var(--dna-formula-font-size, 1em); }

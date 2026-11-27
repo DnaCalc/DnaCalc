@@ -754,6 +754,37 @@ impl Session {
         }
     }
 
+    /// Replace the manifest's part of the one command table and keymap atomically.
+    pub fn set_skin_layer(self, skin: Option<&calc_skin::SkinManifest>) -> Result<usize, String> {
+        let inner = self.inner();
+        let mut commands = inner.commands.borrow().clone();
+        commands.clear_skin_sequences();
+        if let Some(skin) = skin {
+            for sequence in &skin.commands {
+                let steps = sequence.steps.iter().map(|(command, args)| Invocation {
+                    command: CommandId::from(command.as_str()),
+                    args: args.clone(),
+                }).collect();
+                commands
+                    .register_sequence(&sequence.id, &sequence.label, steps, move |step| {
+                        self.run(step).map_err(|_| self.peek(|client| client.notice().to_owned()))
+                    })
+                    .map_err(|error| self.command_error(&error))?;
+            }
+        }
+        let mut keymap = inner.keymap.borrow().clone();
+        let bindings = skin.and_then(|skin| skin.keymap.as_ref()).map_or(&[][..], |keys| &keys.bindings);
+        keymap.set_skin(bindings, &commands).map_err(|errors| {
+            errors.into_iter().map(dna_skin_runtime::skin::keymap_error).collect::<Vec<_>>().join("\n")
+        })?;
+        let departures = keymap.departures(&Context {
+            view: ViewId("classic".into()), mode: InputMode::Ready, read_only: false,
+        }).len();
+        *inner.commands.borrow_mut() = commands;
+        *inner.keymap.borrow_mut() = keymap;
+        Ok(departures)
+    }
+
     /// Runs a command. Every route ends here: a key, a Deck button, the command search, a skin's
     /// sequence, a view request from a macro or an agent. A refusal is shown on the Strip.
     pub fn run(self, invocation: &Invocation) -> Result<(), CommandError> {
@@ -764,18 +795,23 @@ impl Session {
             .handler(&invocation.command, &self.context());
         let result = handler.and_then(|run| run(invocation).map_err(CommandError::Refused));
         if let Err(error) = &result {
-            let text = match error {
-                CommandError::Unknown(id) => format!("There is no command {id}."),
-                CommandError::NotNow(id) => {
-                    let commands = inner.commands.borrow();
-                    let label = commands.spec(id).map_or(id.as_str(), |spec| &spec.label);
-                    format!("{label} is not available now.")
-                }
-                CommandError::Refused(text) => text.clone(),
-            };
+            let text = self.command_error(error);
             self.update(|client| client.refuse(Refusal::Invalid { reason: text }));
         }
         result
+    }
+
+    fn command_error(self, error: &CommandError) -> String {
+        match error {
+            CommandError::Unknown(id) => format!("There is no command {id}."),
+            CommandError::NotNow(id) => {
+                let commands = self.inner();
+                let commands = commands.commands.borrow();
+                let label = commands.spec(id).map_or(id.as_str(), |spec| &spec.label);
+                format!("{label} is not available now.")
+            }
+            CommandError::Refused(text) => text.clone(),
+        }
     }
 
     pub fn command(self, id: &'static str) -> Result<(), CommandError> {

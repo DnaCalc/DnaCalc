@@ -23,6 +23,20 @@ pub struct Validated {
     pub contrast_pairs: usize,
 }
 
+impl Validated {
+    /// The validated theme colours and density as Strand declarations for one surface.
+    pub fn inline_style(&self) -> Option<String> {
+        let mut style = dna_strand::css::inline_style(self.theme?, self.density?);
+        for (token, colour) in &self.colours {
+            style.push_str(&format!("--dna-{token}:{colour};"));
+        }
+        if let Some(size) = self.formula_size_px {
+            style.push_str(&format!("--dna-formula-font-size:{size}px;"));
+        }
+        Some(style)
+    }
+}
+
 pub fn validate(source: &str) -> Result<Validated, String> {
     let value: serde_json::Value =
         serde_json::from_str(source).map_err(|error| error.to_string())?;
@@ -170,6 +184,7 @@ fn theme_error(error: ThemeError) -> String {
     }
 }
 
+/// Describe a keymap validation diagnostic for the CLI and Studio.
 pub fn keymap_error(error: KeymapError) -> String {
     match error {
         KeymapError::Protected(chord) => format!("{chord} is reserved"),
