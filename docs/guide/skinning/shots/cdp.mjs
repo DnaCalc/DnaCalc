@@ -17,7 +17,7 @@ export async function browser(width = 1280, height = 800, scale = 1, dark = fals
   ws.addEventListener("message", e => { const m = JSON.parse(e.data); if (m.id && waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id); } });
   const send = (method, params = {}) => new Promise(res => { const i = ++id; waiting.set(i, m => res(m.result ?? m)); ws.send(JSON.stringify({ id: i, method, params })); });
   await send("Page.enable"); await send("Runtime.enable");
-  await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile: width < 600 });
+  await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile: false });
   if (dark) await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const api = {
