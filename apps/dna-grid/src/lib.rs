@@ -6,7 +6,7 @@
 
 use calc_skin::grid::{Area, Key, Sheet};
 use calc_skin::metrics::{self, SheetBands};
-use calc_skin::{Batch, Change, Interest, ModelChange, Provenance, RawValue, Selection, SourceRef, address, query};
+use calc_skin::{Batch, Change, Interest, ModelChange, Operation, Provenance, RawValue, Selection, SourceRef, address, query};
 use dna_kit::{InputMode, Live, Session, ViewCommand};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
@@ -250,6 +250,17 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.toggle-gridlines", "Toggle Gridlines", &[], move |_| {
+            let (Some(at), Some(stamp)) = (session.active(), session.stamp()) else {
+                return Err("No worksheet is selected.".into());
+            };
+            session.operate(Operation::ToggleGridlines {
+                workbook: stamp.workbook,
+                sheet: Sheet(at.0, at.1),
+            }, None);
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.edit-cell", "Edit the cell", &["F2"], move |_| {
             let at = session.active().ok_or("No cell is selected.")?;
             session.begin_edit(at, None);
@@ -297,6 +308,7 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                 };
                 let window = window.body;
                 let geometry = match geometry { Live::Ready(answer) => Some(answer.body), _ => None };
+                let hide_gridlines = geometry.as_ref().is_some_and(|g| g.show_grid_lines == Some(false));
                 let layout = geometry.as_ref().map(|g| {
                     metrics::sheet_metrics(Some(SheetBands {
                         rows: &g.rows,
@@ -381,7 +393,8 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                     view! { <tr aria-rowindex=row style:height=row_height><th scope="row">{row}</th>{contents}</tr> }
                 }).collect_view();
                 view! {
-                    <table role="grid" aria-label="Worksheet" aria-rowcount="1048576" aria-colcount="16384">
+                    <table role="grid" aria-label="Worksheet" aria-rowcount="1048576" aria-colcount="16384"
+                        class:dna-sheet-gridlines-hidden=hide_gridlines>
                         <thead><tr><th class="dna-sheet-corner" aria-label="Row headings"></th>{headings}</tr></thead>
                         <tbody>{rows}</tbody>
                     </table>

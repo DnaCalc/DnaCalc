@@ -368,8 +368,14 @@ impl WorkbookAutomation {
                 }
                 return Ok(AutoValue::Empty);
             }
-            "DisplayGridlines"
-            | "DisplayHeadings"
+            "DisplayGridlines" => {
+                let on = geometry::boolean(value).map_err(|_| geometry::type_mismatch())?;
+                return self.with_write(|session| {
+                    session.host.set_sheet_grid_lines(sheet, on);
+                    Ok(AutoValue::Empty)
+                });
+            }
+            "DisplayHeadings"
             | "DisplayFormulas"
             | "DisplayZeros"
             | "DisplayOutline" => {
@@ -377,7 +383,6 @@ impl WorkbookAutomation {
                 return self.with_write(|session| {
                     let entry = session.host.sheet_view_overrides.entry(sheet).or_default();
                     match member {
-                        "DisplayGridlines" => entry.show_grid_lines = Some(on),
                         "DisplayHeadings" => entry.show_row_col_headers = Some(on),
                         "DisplayFormulas" => entry.show_formulas = Some(on),
                         "DisplayZeros" => entry.show_zeros = Some(on),

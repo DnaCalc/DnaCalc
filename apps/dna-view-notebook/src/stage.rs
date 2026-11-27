@@ -16,6 +16,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
     view! {
         <section class="dna-notebook" data-dnacalc="notebook" aria-label="Notebook" tabindex="0">
             {super::author::mount(state)}
+            {super::names::lambda_form(state)}
             {move || match declaration.get() {
                 Err(message) => view! { <p role="status">{message}</p> }.into_any(),
                 Ok(None) => first_visit(state).into_any(),
@@ -23,6 +24,7 @@ pub(super) fn mount(state: State) -> impl IntoView {
                     <nav class="dna-notebook-tools" aria-label="Notebook commands">
                         {button(state.session, "notebook.link", "Link selection")}
                         {button(state.session, "notebook.new-formula", "New formula")}
+                        {button(state.session, "notebook.new-function", "New function")}
                         {button(state.session, "notebook.prose-below", "Add Markdown")}
                         {button(state.session, "notebook.layout", "Vertical / Pipeline")}
                         <Show when=move || { state.session.held_edits() > 0 }>
@@ -54,6 +56,7 @@ fn first_visit(state: State) -> impl IntoView {
                 {button(state.session, "notebook.draft", "Draft from workbook structure")}
                 {button(state.session, "notebook.blank", "Blank notebook")}
                 {button(state.session, "notebook.new-formula", "New formula")}
+                {button(state.session, "notebook.new-function", "New function")}
             </div>
             {move || {
                 let requested = state.draft.get().is_some_and(|book| state.session.stamp().is_some_and(|stamp| stamp.workbook == book));
@@ -106,7 +109,10 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                 <button type="button" data-command="notebook.focus"
                     on:click=move |_| invoke(state.session, "notebook.focus", id)>
                     {move || match item.get().map(|item| item.kind) {
-                        Some(Kind::Prose { .. }) => "Markdown", Some(Kind::Table { .. }) => "Table", _ => "Formula",
+                        Some(Kind::Prose { .. }) => "Markdown",
+                        Some(Kind::Table { .. }) => "Table",
+                        Some(Kind::Function { .. }) => "Function",
+                        _ => "Formula",
                     }}
                 </button>
                 <Show when=move || source.get().is_some()>
@@ -119,8 +125,14 @@ fn item_card(state: State, id: AnchorId) -> impl IntoView {
                     </button>
                 </Show>
             </header>
+            {move || {
+                item.get().filter(|item| item.owns_cell() && matches!(item.kind, Kind::Formula))
+                    .map(|item| super::names::output_name_form(state, id, item.output_name))
+            }}
             {move || match item.get() {
                 Some(Item { kind: Kind::Prose { markdown }, .. }) => prose(state, id, markdown).into_any(),
+                Some(Item { kind: Kind::Function { name, .. }, .. }) =>
+                    super::names::live_function(state.session, name).into_any(),
                 Some(Item { kind: Kind::Formula, folded, line_numbers, .. }) => match source.get() {
                     Some(source) => formula(state, id, source, folded, line_numbers).into_any(),
                     None => view! { <p role="status">"The worksheet source is unavailable."</p> }.into_any(),

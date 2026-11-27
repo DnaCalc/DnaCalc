@@ -304,7 +304,8 @@ pub(crate) fn invalidated(
         WorkbookQuery::ExpressionTree { .. } | WorkbookQuery::TrialFor { .. } => {
             authored || recalculated || rtd_changed
         }
-        WorkbookQuery::Geometry { .. } | WorkbookQuery::PrintPlan { .. } => authored,
+        WorkbookQuery::Geometry { .. } => authored || presentation,
+        WorkbookQuery::PrintPlan { .. } => authored,
         WorkbookQuery::ViewPart => presentation || recalculated,
         WorkbookQuery::Notes { .. } => presentation,
         WorkbookQuery::Resolve { .. } => authored || selection_changed,
@@ -314,6 +315,7 @@ pub(crate) fn invalidated(
             recalculated || rtd_changed || (authored && (scope_touched() || pending()))
         }
         WorkbookQuery::Inventory { .. } => authored && intersects(&[], false),
+        WorkbookQuery::DefinedName { .. } => authored,
         WorkbookQuery::Structure { scope } => {
             (authored && scope_touched())
                 || (recalculated && matches!(scope, SourceRef::Spill { .. }))
@@ -779,6 +781,10 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         WorkbookQuery::Inventory { kinds } => {
             query::Inventory::encode(&inventory::inventory(host, kinds, &mut meter)?)?
         }
+        WorkbookQuery::DefinedName { scope, name } => {
+            meter.work(0, 1, 0)?;
+            query::DefinedName::encode(&crate::names::facts(host, scope, name)?)?
+        }
         WorkbookQuery::Structure { scope } => query::StructureOf::encode(&Evidence::Derived {
             from: Derivation::Structure,
             at: stamp,
@@ -1081,7 +1087,8 @@ fn geometry(host: &HostState, id: calc_host::value::SheetId) -> Result<Value, Re
         merges: host.merged_areas(id).into_iter().map(Area::of).collect(),
         frozen_rows: panes.map_or(0, |p| p.rows()),
         frozen_columns: panes.map_or(0, |p| p.columns()),
-        zoom: view.and_then(|v| v.zoom).unwrap_or(100),
+        zoom: view.as_ref().and_then(|v| v.zoom).unwrap_or(100),
+        show_grid_lines: view.and_then(|v| v.show_grid_lines),
     })
 }
 

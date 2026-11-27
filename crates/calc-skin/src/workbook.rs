@@ -273,6 +273,7 @@ pub enum WorkbookQuery {
         kind: PlacementKind,
         shape: Option<PlacementShape>,
     },
+    DefinedName { scope: crate::NameScope, name: String },
     Geometry {
         sheet: Sheet,
     },
@@ -336,6 +337,7 @@ pub struct WorksheetGeometry {
     pub frozen_rows: u32,
     pub frozen_columns: u32,
     pub zoom: u16,
+    pub show_grid_lines: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -443,6 +445,7 @@ pub enum Change {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ModelChange {
+    Name { scope: crate::NameScope, change: NameChange },
     /// Create a worksheet at the identity returned by NewSheetPlacement at this model revision.
     InsertWorksheet {
         name: String,
@@ -492,6 +495,14 @@ pub enum ModelChange {
         new_text: String,
         extent: Area,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NameChange {
+    Define { name: String, formula: String },
+    DefineFunction { name: String, formula: String },
+    Rename { name: String, to: String },
+    Remove { name: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -578,6 +589,11 @@ pub enum ModelProperty {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPropertyDiff {
+    DefinedName {
+        scope: crate::NameScope,
+        before: Option<DefinedNameText>,
+        after: Option<DefinedNameText>,
+    },
     AddedScenario {
         scenario: crate::ScenarioRef,
         values: Vec<(Key, String)>,
@@ -589,6 +605,18 @@ pub enum ModelPropertyDiff {
         after: Option<u32>,
     },
     Scope { source: SourceRef, property: ModelProperty },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DefinedNameText {
+    pub name: String,
+    pub formula: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DefinedNameFacts {
+    pub definition: DefinedNameText,
+    pub parameters: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -659,6 +687,7 @@ pub enum Operation {
     Revert(EntryId),
     Calculate { scope: SourceRef },
     CancelCalculation,
+    ToggleGridlines { workbook: WorkbookId, sheet: Sheet },
     CopyCells { workbook: WorkbookId, copy: u64, from: Area },
     /// Pin the current publication for these page bindings without editing the workbook.
     PinBaseline { expected: Stamp, bounds: Vec<Bound>, budget: Budget },

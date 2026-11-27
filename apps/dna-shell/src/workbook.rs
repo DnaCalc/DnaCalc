@@ -47,6 +47,12 @@ fn a1(at: Key) -> String {
 
 fn model_property_text(diff: ModelPropertyDiff) -> String {
     match diff {
+        ModelPropertyDiff::DefinedName { before, after, .. } => {
+            let label = |name: Option<calc_skin::DefinedNameText>| {
+                name.map_or_else(|| "—".into(), |entry| format!("{} {}", entry.name, entry.formula))
+            };
+            format!("Defined name · {} → {}", label(before), label(after))
+        }
         ModelPropertyDiff::AddedScenario { scenario, values } => {
             let values = values.into_iter().map(|(at, value)| {
                 let value = if value.is_empty() { "Blank".into() } else { value };

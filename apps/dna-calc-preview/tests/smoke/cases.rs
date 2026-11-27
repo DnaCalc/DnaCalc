@@ -743,6 +743,24 @@ pub(crate) const PREVIEW_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "Classic View Gridlines toggles the worksheet gridlines without editing cells",
+        actions: &[
+            Action::Wait(Check::Attr("[data-cell=A1]", "aria-selected", "true")),
+            Action::Keys("grid", "\u{e03a}wvg"),
+            Action::Wait(Check::Js(
+                "worksheet cell borders are transparent when gridlines are off",
+                "getComputedStyle(document.querySelector('[data-cell=A1]')).borderRightColor === 'rgba(0, 0, 0, 0)'",
+            )),
+            Action::Keys("grid", "\u{e03a}wvg"),
+        ],
+        checks: &[
+            Check::Js(
+                "gridlines returned and the workbook model stamp stayed unchanged",
+                "getComputedStyle(document.querySelector('[data-cell=A1]')).borderRightColor !== 'rgba(0, 0, 0, 0)' && __dnaProbe().stamp.model === 0",
+            ),
+        ],
+    },
+    Case {
         name: "S11 Loan prints an executive summary and the full schedule",
         actions: &[
             Action::WriteCast("Loan"),
@@ -893,8 +911,15 @@ pub(crate) const PREVIEW_GROUPS: &[CaseGroup] = &[
         setup: &[],
     },
     CaseGroup {
-        name: "loan-print",
+        name: "classic-gridlines",
         start: 38,
+        end: 39,
+        core: 1,
+        setup: &[],
+    },
+    CaseGroup {
+        name: "loan-print",
+        start: 39,
         end: PREVIEW_CASES.len(),
         core: 1,
         setup: &[],

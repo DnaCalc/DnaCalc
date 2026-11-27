@@ -6,6 +6,7 @@ mod contributions;
 mod dependencies;
 mod inventory;
 mod issues;
+mod names;
 mod placement;
 mod publication;
 mod query;
@@ -612,6 +613,18 @@ impl WorkbookPort for Connection {
                 let mut scope_changed = false;
                 for property in &prepared.preview.properties {
                     let source = match property {
+                        ModelPropertyDiff::DefinedName { scope, before, after } => {
+                            scope_changed = true;
+                            for name in before.iter().chain(after) {
+                                let target = Target::Source(SourceRef::Name {
+                                    scope: scope.clone(), name: name.name.clone(),
+                                });
+                                if !targets.contains(&target) {
+                                    targets.push(target);
+                                }
+                            }
+                            continue;
+                        }
                         ModelPropertyDiff::WorksheetInserted { sheet, .. } => SourceRef::Sheet(*sheet),
                         ModelPropertyDiff::CellFormat { at, .. } => {
                             let area = GridArea::cell(cell(*at)?);
@@ -736,6 +749,14 @@ impl WorkbookPort for Connection {
             },
             Operation::Revert(_) => {
                 return Err(unavailable("dc-zh096", "Reverting an earlier edit"));
+            }
+            Operation::ToggleGridlines { workbook, sheet } => {
+                self.check_write(&state)?;
+                if workbook != before.workbook {
+                    return Err(Refusal::StaleSelection);
+                }
+                state.session.toggle_gridlines(sheet.id()).map_err(batch::refusal)?;
+                return Ok(state.stamp());
             }
             Operation::CopyCells { workbook, copy, from } => {
                 if workbook != before.workbook {

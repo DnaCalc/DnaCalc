@@ -70,7 +70,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     group("W F", "Freeze Panes"),
     pending("W F F", "Freeze Panes"),
     group("W V", "Show"),
-    pending("W V G", "Gridlines"),
+    command("W V G", "Gridlines", "grid.toggle-gridlines"),
     pending("W L", "Normal View"),
     pending("W P", "Page Layout View"),
     pending("W I", "Page Break Preview"),
