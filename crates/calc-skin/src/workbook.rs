@@ -478,6 +478,8 @@ pub enum ModelChange {
         bound: Bound,
         text: String,
     },
+    /// Advance a bound nonnegative integer control by one, with worksheet validation.
+    IncrementBound { bound: Bound },
     /// Insert the changing values of an existing worksheet scenario in one workbook edit.
     ShowScenario { scenario: crate::ScenarioRef },
     /// Capture the current authored literal values in the worksheet's native Scenario Manager.

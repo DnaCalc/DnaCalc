@@ -1,6 +1,6 @@
 //! An in-process RTD clock driven by elapsed time supplied by the workbook owner.
 
-use calc_host::{
+use crate::{
     RtdConnection, RtdConnector, RtdLease, TopicKey,
     value::{CalcValue, CellKey},
 };
@@ -14,6 +14,7 @@ struct Controls {
     period: Duration,
     running: bool,
     step: u64,
+    reset: u64,
 }
 
 impl Controls {
@@ -21,7 +22,7 @@ impl Controls {
         let [model, kind, tail @ ..] = args else {
             return None;
         };
-        if model.is_empty() || kind != "tick" || tail.len() > 3 {
+        if model.is_empty() || kind != "tick" || tail.len() > 4 {
             return None;
         }
         let arg = |index| {
@@ -40,10 +41,12 @@ impl Controls {
             _ => return None,
         };
         let step = arg(2).unwrap_or("0").parse().ok()?;
+        let reset = arg(3).unwrap_or("0").parse().ok()?;
         Some(Self {
             period,
             running,
             step,
+            reset,
         })
     }
 }
@@ -78,30 +81,38 @@ struct State {
     models: BTreeMap<String, Model>,
 }
 
-pub(crate) struct Tick {
+/// A sequenced value ready for admission through the workbook RTD session.
+pub struct ModelClockTick {
+    /// The subscribed RTD topic.
     pub topic: TopicKey,
+    /// The connection that owns this value.
     pub lease: RtdLease,
+    /// The next sequence number on this lease.
     pub sequence: u64,
+    /// The tick value reported by the source.
     pub value: CalcValue,
 }
 
+/// The in-process provider for the `DnaCalc.Clock` RTD topic.
 #[derive(Debug, Default)]
-pub(crate) struct ModelClock {
+pub struct ModelClock {
     state: RefCell<State>,
     fallback: RefCell<Option<Rc<dyn RtdConnector>>>,
 }
 
 impl ModelClock {
+    /// Retain the carrier's provider for topics outside the local clock.
     pub fn set_fallback(&self, fallback: Rc<dyn RtdConnector>) {
         *self.fallback.borrow_mut() = Some(fallback);
     }
 
+    /// Drop the models from a workbook that was replaced.
     pub fn reset(&self) {
         self.state.borrow_mut().models.clear();
     }
 
     /// Hold elapsed time while the workbook is busy. Publish one due tick per model at a time.
-    pub fn advance(&self, elapsed: Duration, workbook_idle: bool) -> Vec<Tick> {
+    pub fn advance(&self, elapsed: Duration, workbook_idle: bool) -> Vec<ModelClockTick> {
         let mut state = self.state.borrow_mut();
         state
             .models
@@ -117,7 +128,7 @@ impl ModelClock {
                 model.elapsed -= model.controls.period;
                 model.tick += 1;
                 model.sequence += 1;
-                Some(Tick {
+                Some(ModelClockTick {
                     topic: model.topic.clone(),
                     lease: model.lease,
                     sequence: model.sequence,
@@ -152,9 +163,15 @@ impl RtdConnector for ModelClock {
                 return Err("DnaCalc.Clock model already has a controlling cell".into());
             }
             Some(model) => {
-                let tick = model.tick
-                    + u64::from(model.tick < MAX_TICK && model.controls.step != controls.step);
-                let elapsed = if model.controls.running == controls.running
+                let reset = model.controls.reset != controls.reset;
+                let tick = if reset {
+                    0
+                } else {
+                    model.tick
+                        + u64::from(model.tick < MAX_TICK && model.controls.step != controls.step)
+                };
+                let elapsed = if !reset
+                    && model.controls.running == controls.running
                     && model.controls.period == controls.period
                 {
                     model.elapsed

@@ -469,6 +469,21 @@ pub(crate) fn prepare(
                     edits.extend(prepare_literal(&state.session, at, text)?);
                     areas.push(GridArea::cell(at));
                 }
+                ModelChange::IncrementBound { bound } => {
+                    require_current_model(request, base.model)?;
+                    let at = crate::query::bound_cell(state, bound)?;
+                    literal_target(&state.session, at)?;
+                    let Some(CellInput::Number(count)) = before.cell(at) else {
+                        return Err(invalid("The control needs a nonnegative integer"));
+                    };
+                    let count = count.get();
+                    if count.fract() != 0.0 || !(0.0..999_999_999_999_999.0).contains(&count) {
+                        return Err(invalid("The control needs an incrementable nonnegative integer"));
+                    }
+                    let next = (count as u64 + 1).to_string();
+                    edits.extend(prepare_literal(&state.session, at, &next)?);
+                    areas.push(GridArea::cell(at));
+                }
                 ModelChange::ShowScenario { scenario } => {
                     require_current_model(request, base.model)?;
                     let scenario = crate::inventory::worksheet_scenarios(

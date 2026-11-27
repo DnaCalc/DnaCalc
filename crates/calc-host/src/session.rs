@@ -644,6 +644,16 @@ impl HostSession {
         self.host.set_rtd_connector(connector);
     }
 
+    /// Install the local clock alongside the workbook's existing provider.
+    pub fn install_model_clock(&mut self) -> std::rc::Rc<crate::ModelClock> {
+        let clock = std::rc::Rc::new(crate::ModelClock::default());
+        if let Some(provider) = &self.host.rtd_connector {
+            clock.set_fallback(provider.clone());
+        }
+        self.set_rtd_connector(clock.clone());
+        clock
+    }
+
     /// The RTD values admitted since the last call, in admission order.
     pub fn take_rtd_admissions(&mut self) -> Vec<crate::RtdAdmission> {
         self.host.take_rtd_admissions()

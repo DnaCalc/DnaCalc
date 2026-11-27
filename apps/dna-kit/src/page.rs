@@ -10,6 +10,7 @@ use calc_skin::{
 };
 use leptos::prelude::*;
 
+pub mod clock;
 mod reader;
 mod report;
 pub use reader::live_values;
@@ -45,6 +46,7 @@ struct PageMode {
     scenario: Option<PageScenario>,
     compare: bool,
     report: Option<PageReport>,
+    clock_document: Option<DocId>,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -57,8 +59,9 @@ pub fn PageRenderer(
     #[prop(optional)] scenario: Option<PageScenario>,
     #[prop(optional)] compare: bool,
     #[prop(optional)] report: Option<PageReport>,
+    #[prop(optional)] clock_document: Option<DocId>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario, compare, report };
+    let mode = PageMode { input, author, scenario, compare, report, clock_document };
     let schedules = report.map(|report| report::schedules(session, &document, report));
     view! {
         <article class="dna-page" data-dnacalc="page">
@@ -102,12 +105,13 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             }).collect_view().into_any()
         }
         PageNode::Part { id, component, mut bind, props } => {
-            if mode.report.is_some() && matches!(component.as_str(), "scenario-picker" | "data-frame") {
+            if mode.report.is_some() && matches!(component.as_str(), "scenario-picker" | "data-frame" | "clock") {
                 return ().into_any();
             }
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
             let body = match component.as_str() {
                 "scenario-picker" => scenarios(session, label.clone(), mode.scenario),
+                "clock" => clock::clock_controls(session, id.clone(), label.clone(), &bind, mode.clock_document).into_any(),
                 "rich-prose" => {
                     let text = props.get("text").and_then(|value| value.as_str()).unwrap_or_default();
                     view! {
