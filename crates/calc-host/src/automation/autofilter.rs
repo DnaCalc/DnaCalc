@@ -140,7 +140,7 @@ impl WorkbookAutomation {
             let sheet = area.sheet();
             let existing = session.host().model().definitions().auto_filter(sheet).map(|f| f.area);
             if area.cell_count() == 1 && existing.is_none() {
-                area = Self::current_region(session.host().model(), area.first());
+                area = crate::filter::current_region(session.host().model(), area.first());
                 // The widened region is what the filter's header buttons and hidden rows touch.
                 self.guard_area(session, area)?;
             }

@@ -275,6 +275,44 @@ fn classic_gridlines_key_tip_persists_as_a_worksheet_view() {
     );
 }
 
+/// Native-only: drives AutoFilter through the real Classic command and workbook session.
+#[test]
+fn classic_filter_key_tip_uses_the_current_region_and_undoes_the_toggle() {
+    let page = Page::open();
+    let session = page.session;
+    for (row, column, text) in [
+        (1, 1, "Region"),
+        (1, 2, "Units"),
+        (2, 1, "North"),
+        (2, 2, "2"),
+        (3, 1, "East"),
+        (3, 2, "3"),
+        (1, 4, "Outside"),
+    ] {
+        session.begin_edit(page.at(row, column), Some(text.into()));
+        session.commit_edit();
+        page.settle();
+    }
+    session.select_cell(page.at(2, 2));
+    page.settle();
+    let filter_range = || page.host.with_session(SelectionCause::Open, |book| {
+        book.host().model().definitions().auto_filter(page.sheet.id())
+            .map(|filter| calc_skin::grid::Area::of(filter.area))
+    });
+    let range = calc_skin::grid::Area(page.at(1, 1), page.at(3, 2));
+    assert_eq!(filter_range(), None);
+    for key in ["F10", "a", "t"] {
+        assert!(page.press(key, Focus::Stage), "{key}");
+    }
+    assert_eq!(filter_range(), Some(range), "{} · {:?}", session.notice(), session.seam());
+    assert_eq!(session.active(), Some(page.at(2, 2)));
+    assert_eq!(page.shown(page.at(2, 2)), "2");
+    assert!(page.press("Ctrl+Shift+l", Focus::Stage));
+    assert_eq!(filter_range(), None);
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    assert_eq!(filter_range(), Some(range));
+}
+
 /// Native-only: tests selection and editor focus through the real workbook page commands.
 #[test]
 fn the_formula_editor_keeps_native_clipboard_chords_before_a_draft_starts() {
@@ -2112,6 +2150,30 @@ fn app_saves_native_scenario_reviews_replay_and_undoes_it_once() {
     assert_eq!(session.seam(), Seam::Idle);
     assert_eq!(session.stamp(), Some(before));
     assert_eq!(page.shown(at(1)), "4");
+}
+
+/// Native-only: this exercises the App command table without a browser print carrier.
+#[test]
+fn app_print_key_opens_the_executive_summary_and_escape_closes_it() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session.command("view.app").unwrap();
+    page.settle();
+    let before = session.stamp();
+    assert!(page.press("Ctrl+p", Focus::Stage));
+    assert_eq!(
+        session.command("app.print-report"),
+        Err(CommandError::Refused("The browser print carrier is unavailable.".into()))
+    );
+    assert!(page.press("Escape", Focus::Stage));
+    assert_eq!(
+        session.command("app.print-report"),
+        Err(CommandError::Refused("Open the executive summary first".into()))
+    );
+    assert_eq!(session.stamp(), before);
 }
 
 /// Native-only: compares a live formula and a bound line chart from the reopened workbook.

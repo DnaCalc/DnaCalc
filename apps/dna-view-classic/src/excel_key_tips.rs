@@ -57,7 +57,7 @@ pub const EXCEL_KEY_TIPS: &[KeyTip] = &[
     pending("A V V", "Data Validation"),
     group("A S", "Sort"),
     pending("A S S", "Sort"),
-    pending("A T", "Filter"),
+    command("A T", "Filter", "grid.toggle-filter"),
     group("A W", "What-If Analysis"),
     pending("A W G", "Goal Seek"),
     pending("A W S", "Scenario Manager"),

@@ -6,12 +6,14 @@ use calc_skin::grid::Key;
 use calc_skin::query;
 use calc_skin::{
     Bound, Coverage, DocId, Page, PageNode, PartialWhy, Provenance, RawValue, RowWindow, SourceRef,
-    InventoryItem, InventoryKind, WorkbookCell,
+    InventoryItem, InventoryKind, RowPage, WorkbookCell,
 };
 use leptos::prelude::*;
 
 mod reader;
+mod report;
 pub use reader::live_values;
+pub use report::{PageReport, ReportCosts, costs as report_costs};
 
 #[derive(Clone, Copy)]
 pub struct PageInput {
@@ -42,6 +44,7 @@ struct PageMode {
     author: Option<PageAuthor>,
     scenario: Option<PageScenario>,
     compare: bool,
+    report: Option<PageReport>,
 }
 
 /// The same page can be previewed with read-only controls by omitting the input actions.
@@ -53,12 +56,15 @@ pub fn PageRenderer(
     #[prop(optional)] author: Option<PageAuthor>,
     #[prop(optional)] scenario: Option<PageScenario>,
     #[prop(optional)] compare: bool,
+    #[prop(optional)] report: Option<PageReport>,
 ) -> impl IntoView {
-    let mode = PageMode { input, author, scenario, compare };
+    let mode = PageMode { input, author, scenario, compare, report };
+    let schedules = report.map(|report| report::schedules(session, &document, report));
     view! {
         <article class="dna-page" data-dnacalc="page">
             <h1>{document.title}</h1>
             {node(session, document.root, mode)}
+            {schedules}
         </article>
     }
 }
@@ -82,7 +88,7 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             <div class="dna-page-grid" data-columns=columns.get()>{children(session, items, mode)}</div>
         }.into_any(),
         PageNode::Section { title, folded, children: items } => view! {
-            <details class="dna-page-section" open=!folded>
+            <details class="dna-page-section" open={mode.report.is_some() || !folded}>
                 <summary>{title}</summary>
                 {children(session, items, mode)}
             </details>
@@ -96,6 +102,9 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
             }).collect_view().into_any()
         }
         PageNode::Part { id, component, mut bind, props } => {
+            if mode.report.is_some() && matches!(component.as_str(), "scenario-picker" | "data-frame") {
+                return ().into_any();
+            }
             let label = props.get("label").and_then(|value| value.as_str()).unwrap_or(&id).to_owned();
             let body = match component.as_str() {
                 "scenario-picker" => scenarios(session, label.clone(), mode.scenario),
@@ -114,7 +123,10 @@ fn node(session: Session, item: PageNode, mode: PageMode) -> AnyView {
                         _ => "rows",
                     };
                     match bind.remove(slot) {
-                        Some(bound) => part(session, id.clone(), label.clone(), component, bound, mode),
+                        Some(bound) => {
+                            let summary = if component == "data-frame" { bind.remove("summary") } else { None };
+                            part(session, id.clone(), label.clone(), component, bound, summary, mode)
+                        }
                         None => missing(),
                     }
                 }
@@ -245,6 +257,7 @@ fn part(
     label: String,
     component: String,
     bound: Bound,
+    summary: Option<Bound>,
     mode: PageMode,
 ) -> AnyView {
     let resolved = resolve_bound(session, bound.clone());
@@ -253,7 +266,7 @@ fn part(
             if component == "chart" {
                 chart_image(session, source, mode.compare.then(|| bound.clone()))
             } else if matches!(component.as_str(), "data-frame" | "notebook-excerpt") {
-                schedule(session, source)
+                schedule(session, source, summary.clone())
             } else {
                 scalar(
                     session,
@@ -466,14 +479,31 @@ fn scalar(
     }.into_any()
 }
 
-fn schedule(session: Session, source: SourceRef) -> AnyView {
+fn schedule(session: Session, source: SourceRef, summary: Option<Bound>) -> AnyView {
     const PAGE: u32 = 12;
     let rows = session.following::<query::Rows>();
     let offset = RwSignal::new(0u32);
+    let grouped = RwSignal::new(false);
+    let summary = summary.map(|bound| resolve_bound(session, bound));
     view! {
         <div class="dna-page-schedule">
+        {summary.map(|summary| view! {
+            <button type="button" aria-pressed=move || grouped.get().to_string()
+                disabled=move || !matches!(summary.get(), Live::Ready(_))
+                on:click=move |_| {
+                    offset.set(0);
+                    grouped.update(|grouped| *grouped = !*grouped);
+                }>"Group by Year (display rollup)"</button>
+        })}
         {move || match rows.at(Some(query::Rows {
-            source: source.clone(),
+            source: if grouped.get() {
+                let Some(Live::Ready(summary)) = summary.map(|summary| summary.get()) else {
+                    return missing();
+                };
+                summary
+            } else {
+                source.clone()
+            },
             filter: Vec::new(),
             sort: Vec::new(),
             window: RowWindow { offset: offset.get(), limit: PAGE },
@@ -481,21 +511,15 @@ fn schedule(session: Session, source: SourceRef) -> AnyView {
             Live::Ready(answer) if matches!(answer.coverage, Coverage::Complete
                 | Coverage::Partial { why: PartialWhy::Window, .. }) => {
                 let page = answer.body;
-                let end = page.offset + page.rows.len() as u32;
-                let headings = page.headers.map(|labels| view! {
-                    <thead><tr>{labels.into_iter().map(|label| view! { <th scope="col">{label}</th> }).collect_view()}</tr></thead>
-                });
+                let start = page.offset;
+                let end = start + page.rows.len() as u32;
+                let total = page.matched_rows;
+                let caption = format!("Rows {}–{end} of {total}", start + 1);
                 view! {
-                    <table>
-                        <caption>{format!("Rows {}–{end} of {}", page.offset + 1, page.matched_rows)}</caption>
-                        {headings}
-                        <tbody>{page.rows.into_iter().map(|row| view! {
-                            <tr>{row.cells.into_iter().map(|cell| view! { <td>{cell.text}</td> }).collect_view()}</tr>
-                        }).collect_view()}</tbody>
-                    </table>
-                    <button type="button" disabled=page.offset == 0
-                        on:click=move |_| offset.set(page.offset.saturating_sub(PAGE))>"Previous rows"</button>
-                    <button type="button" disabled={end >= page.matched_rows}
+                    {rows_table(page, caption)}
+                    <button type="button" disabled={start == 0}
+                        on:click=move |_| offset.set(start.saturating_sub(PAGE))>"Previous rows"</button>
+                    <button type="button" disabled={end >= total}
                         on:click=move |_| offset.set(end)>"Next rows"</button>
                 }.into_any()
             }
@@ -504,4 +528,19 @@ fn schedule(session: Session, source: SourceRef) -> AnyView {
         }}
         </div>
     }.into_any()
+}
+
+fn rows_table(page: RowPage, caption: String) -> impl IntoView {
+    let headings = page.headers.map(|labels| view! {
+        <thead><tr>{labels.into_iter().map(|label| view! { <th scope="col">{label}</th> }).collect_view()}</tr></thead>
+    });
+    view! {
+        <table>
+            <caption>{caption}</caption>
+            {headings}
+            <tbody>{page.rows.into_iter().map(|row| view! {
+                <tr>{row.cells.into_iter().map(|cell| view! { <td>{cell.text}</td> }).collect_view()}</tr>
+            }).collect_view()}</tbody>
+        </table>
+    }
 }

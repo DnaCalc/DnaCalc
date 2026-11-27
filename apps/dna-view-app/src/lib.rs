@@ -24,6 +24,7 @@ const REVIEW_SCENARIO: &str = "app.review-scenario";
 const SAVE_SCENARIO: &str = "app.save-scenario";
 
 mod controls;
+mod printing;
 mod rail;
 
 pub fn install(registry: &mut Registry) {
@@ -73,7 +74,7 @@ impl View for Surface {
             let _ = inputs(session);
             let _ = draft(session);
             let candidates = session.watch(query::InputCandidates { scope: SourceRef::Workbook });
-            vec![
+            let mut commands = vec![
                 ViewCommand::new(&id, REVIEW_SCENARIO, "Review saved scenario", &[], move |invocation| {
                     let scenario = serde_json::from_value(invocation.args.clone())
                         .map_err(|_| "Choose a saved worksheet scenario".to_owned())?;
@@ -157,7 +158,9 @@ impl View for Surface {
                         Ok(())
                     },
                 ),
-            ]
+            ];
+            commands.extend(printing::commands(state, &id));
+            commands
         } else {
             let mut commands = vec![
                 ViewCommand::new(&id, "forms.add-scenario-picker", "Add scenario picker", &[], move |_| {
@@ -283,6 +286,9 @@ impl View for Surface {
     fn cancel_interaction(&self, session: Session) -> bool {
         if self.id != APP || session.view().0 != APP {
             return false;
+        }
+        if printing::cancel(session) {
+            return true;
         }
         let current = inputs(session);
         let focused = current.with_untracked(|inputs| inputs.focused.clone());
@@ -977,6 +983,7 @@ fn button(session: Session, command: &'static str, label: &'static str) -> impl 
 
 fn operator(session: Session, state: State) -> AnyView {
     let page = Memo::new(move |_| state.document());
+    let printing = printing::showing(session);
     view! {
         <div class="dna-page-surface" data-dnacalc="app">
             {move || match page.get() {
@@ -990,11 +997,21 @@ fn operator(session: Session, state: State) -> AnyView {
                             {button(session, "view.classic", "See the cells")}
                             {has_inputs.then(|| button(session, "app.reset-inputs", "Reset to opening inputs"))}
                             {has_comparison.then(|| button(session, "app.pin-baseline", "Pin current as baseline"))}
+                            {printing::open_button(session)}
                         </header>
-                        <PageRenderer session document input=INPUT compare=true scenario=PageScenario {
-                            review: REVIEW_SCENARIO,
-                            save: SAVE_SCENARIO,
-                        } />
+                        {move || {
+                            let document = document.clone();
+                            if printing.get() {
+                                printing::stage(session, document).into_any()
+                            } else {
+                                view! {
+                                    <PageRenderer session document input=INPUT compare=true scenario=PageScenario {
+                                        review: REVIEW_SCENARIO,
+                                        save: SAVE_SCENARIO,
+                                    } />
+                                }.into_any()
+                            }
+                        }}
                         {batched.then(|| view! {
                             <footer class="dna-page-tools">
                                 {button(session, "app.apply-inputs", "Apply inputs")}

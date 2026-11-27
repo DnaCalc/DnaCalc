@@ -132,7 +132,7 @@ mod format;
 mod format_edges;
 pub use filter::{
     AutoFilter, FilterChange, FilterCriteria, FilterOperator, FilterPredicate, filter_values,
-    filter_values_for,
+    filter_values_for, prepare_filter_toggle,
 };
 mod merge;
 mod name_calculation;

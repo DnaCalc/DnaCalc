@@ -261,6 +261,23 @@ pub fn commands(view: &calc_skin::ViewId, session: Session) -> Vec<ViewCommand> 
             Ok(())
         })
         .when("mode:ready && writable"),
+        ViewCommand::new(view, "grid.toggle-filter", "Toggle Filter", &["Ctrl+Shift+L"], move |_| {
+            let areas = selected_areas(session);
+            let ([selected], Some(stamp)) = (areas.as_slice(), session.stamp()) else {
+                return Err("Select one worksheet range to filter.".into());
+            };
+            session.submit(Batch {
+                id: String::new(),
+                workbook: Some(stamp.workbook),
+                base: Some(stamp.model),
+                expects: Vec::new(),
+                selection_seq: None,
+                label: Some("Toggle Filter".into()),
+                changes: vec![Change::Model(ModelChange::ToggleAutoFilter { selected: *selected })],
+            });
+            Ok(())
+        })
+        .when("mode:ready && writable"),
         ViewCommand::new(view, "grid.edit-cell", "Edit the cell", &["F2"], move |_| {
             let at = session.active().ok_or("No cell is selected.")?;
             session.begin_edit(at, None);
@@ -334,6 +351,11 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                         let text = cell.map(|cell| cell.text.clone()).unwrap_or_default();
                         let number = cell.is_some_and(|cell| matches!(cell.shown.value, RawValue::Number { .. }));
                         let error = cell.is_some_and(|cell| matches!(cell.shown.value, RawValue::Error(_)));
+                        let filter_header = geometry.as_ref().is_some_and(|geometry| {
+                            geometry.auto_filter_areas.iter().any(|Area(first, last)| {
+                                row == first.2 && (first.3..=last.3).contains(&column)
+                            })
+                        });
                         let provenance = cell.map(|cell| match &cell.shown.provenance {
                             Provenance::Empty => "empty",
                             Provenance::Literal => "literal",
@@ -357,6 +379,8 @@ fn worksheet(session: Session, editable: bool) -> impl IntoView {
                                 class:dna-active=move || active.get() == Some(key)
                                 class:dna-number=number class:dna-error=error
                                 data-cell=location data-provenance=provenance
+                                data-filter-header=filter_header.to_string()
+                                title=filter_header.then_some("AutoFilter is enabled for this column")
                                 on:pointerdown=move |event: leptos::ev::PointerEvent| {
                                     if event.button() == 0 && event.pointer_type() == "mouse" && session.mode() == InputMode::Ready {
                                         let anchor = if event.shift_key() {
