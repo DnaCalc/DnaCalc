@@ -1,7 +1,9 @@
 //! Skin zero, the formula workbench. It receives only the formula port.
 
 use calc_formula_kernel::assist;
-use calc_skin::{FormulaAnswer, FormulaLink, FormulaQuery, Refusal, TestInput, Trial};
+use calc_skin::{
+    ArrayPosition, FormulaAnswer, FormulaLink, FormulaQuery, Provenance, Refusal, TestInput, Trial,
+};
 use dna_formula_ui::formula_field::{FormulaAssist, TextBinding};
 use dna_kit::{FormulaContext, FormulaView, Registry, ValueView};
 use dna_skin_runtime::{Live, RequestState};
@@ -25,6 +27,7 @@ impl FormulaView for Explorer {
         let status = context.status;
         let clock = context.clock;
         let port = StoredValue::new_local(context.port);
+        let caller = StoredValue::new(context.caller);
         let empty_input = || TestInput {
             name: String::new(),
             constant: String::new(),
@@ -46,19 +49,13 @@ impl FormulaView for Explorer {
             number_format: format.get_untracked(),
             now: clock(),
             inputs: inputs.get_untracked(),
+            caller: caller.get_value(),
         };
-        let submit = move |trace: bool| {
-            let trial = snapshot();
-            let state = if trace { steps } else { result };
+        let request = move |query: FormulaQuery, state: RwSignal<RequestState<FormulaAnswer>>| {
             let id = state
                 .try_update(RequestState::begin)
                 .expect("mounted request state");
             status.set("Calculating");
-            let query = if trace {
-                FormulaQuery::Trace(trial)
-            } else {
-                FormulaQuery::Evaluate(trial)
-            };
             port.with_value(|port| {
                 port.ask(
                     query,
@@ -76,6 +73,25 @@ impl FormulaView for Explorer {
                 )
             });
         };
+        let submit = move |trace: bool| {
+            if trace {
+                request(FormulaQuery::Trace(snapshot()), steps);
+            } else {
+                request(FormulaQuery::Evaluate(snapshot()), result);
+            }
+        };
+        let page = Callback::new(move |position| {
+            let calc = result.with_untracked(|result| match result.live() {
+                Live::Ready(FormulaAnswer::Evaluated(shown)) => match shown.provenance {
+                    Provenance::Calculated { calc } => Some(calc),
+                    _ => None,
+                },
+                _ => None,
+            });
+            if let Some(calc) = calc {
+                request(FormulaQuery::ArrayWindow { calc, position }, result);
+            }
+        });
         Effect::new(move |_| {
             let names = inputs.with(|rows| {
                 rows.iter()
@@ -104,7 +120,7 @@ impl FormulaView for Explorer {
             });
         });
         if !formula.get_untracked().is_empty() {
-            submit(false);
+            request(FormulaQuery::Preview(snapshot()), result);
         }
         let keys = Callback::new(move |event: leptos::ev::KeyboardEvent| {
             if event.ctrl_key() && event.key() == "Enter" {
@@ -180,14 +196,14 @@ impl FormulaView for Explorer {
                                        on:input=move |event| { format.set(event_target_value(&event)); edited(); } />
                             </label>
                         </div>
-                        <div aria-live="polite">{move || answer_view(result.get().live(), assist)}</div>
+                        <div aria-live="polite">{move || answer_view(result.get().live(), assist, page)}</div>
                     </section>
                 </section>
                 <aside class="dna-fe-side">
                     <section class="dna-fe-section" aria-labelledby="dna-fe-steps-heading">
                         <h2 id="dna-fe-steps-heading">"Steps"</h2>
                         <button type="button" on:click=move |_| submit(true)>"Evaluate steps"</button>
-                        <div aria-live="polite">{move || answer_view(steps.get().live(), assist)}</div>
+                        <div aria-live="polite">{move || answer_view(steps.get().live(), assist, page)}</div>
                     </section>
                     <section class="dna-fe-section" aria-labelledby="dna-fe-functions-heading">
                         <h2 id="dna-fe-functions-heading">"Functions"</h2>
@@ -202,7 +218,11 @@ impl FormulaView for Explorer {
     }
 }
 
-fn answer_view(answer: &Live<FormulaAnswer>, assist: FormulaAssist) -> AnyView {
+fn answer_view(
+    answer: &Live<FormulaAnswer>,
+    assist: FormulaAssist,
+    page: Callback<ArrayPosition>,
+) -> AnyView {
     match answer {
         Live::Idle => ().into_any(),
         Live::Loading => view! { <p>"Calculating…"</p> }.into_any(),
@@ -222,7 +242,7 @@ fn answer_view(answer: &Live<FormulaAnswer>, assist: FormulaAssist) -> AnyView {
             view! { <p class="dna-fe-error" data-skin0="refused">{reason}</p> }.into_any()
         }
         Live::Ready(FormulaAnswer::Evaluated(shown)) => view! {
-            <ValueView shown=shown.clone()/>
+            <ValueView shown=shown.clone() page/>
         }
         .into_any(),
         Live::Ready(FormulaAnswer::Steps(trace)) => {

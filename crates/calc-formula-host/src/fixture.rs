@@ -18,6 +18,7 @@ pub(crate) struct Fixture {
     /// Inputs in row-major order: keys order by sheet, then row, then column.
     inputs: BTreeMap<CellKey, InputValue>,
     pub(crate) local_names: BTreeMap<String, String>,
+    pub(crate) detached: bool,
 }
 
 impl Fixture {
@@ -33,6 +34,10 @@ impl Fixture {
 
     pub(crate) fn sheets(&self) -> &[(String, SheetId)] {
         &self.sheets
+    }
+
+    pub(crate) fn add_snapshot_sheet(&mut self, name: String, id: SheetId) {
+        self.sheets.push((name, id));
     }
 
     pub(crate) fn sheet_name(&self, id: SheetId) -> Option<&str> {
@@ -84,11 +89,12 @@ impl calc_func::HostFacts for SessionFacts<'_> {
     }
 
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        (cell != self.caller && self.fixture.inputs.contains_key(&cell)).then_some(false)
+        (!self.fixture.detached && cell != self.caller && self.fixture.inputs.contains_key(&cell))
+            .then_some(false)
     }
 
     fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
-        (cell != self.caller && self.fixture.inputs.contains_key(&cell)).then_some(None)
+        self.is_formula(cell).map(|_| None)
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
@@ -262,7 +268,10 @@ impl ReferenceReader for TracingReader<'_> {
     ) -> calc_fml::reference::SpillExtent {
         // An explicitly stored literal cannot be a formula's spill anchor. Missing inputs
         // and the separately evaluated formula's own anchor still have no spill knowledge.
-        if anchor != self.caller && self.fixture.inputs.contains_key(&anchor) {
+        if !self.fixture.detached
+            && anchor != self.caller
+            && self.fixture.inputs.contains_key(&anchor)
+        {
             calc_fml::reference::SpillExtent::None
         } else {
             calc_fml::reference::SpillExtent::NotModelled
@@ -275,8 +284,10 @@ impl ReferenceReader for TracingReader<'_> {
     ) -> Option<calc_func::SubtotalExclusions> {
         // Only literal inputs are stored, and the session cannot hide or filter rows.
         // The separately evaluated formula's own cell is deliberately not inferred.
-        (self.fixture.sheet_name(area.sheet()).is_some() && !area.contains(self.caller))
-            .then(calc_func::SubtotalExclusions::default)
+        (!self.fixture.detached
+            && self.fixture.sheet_name(area.sheet()).is_some()
+            && !area.contains(self.caller))
+        .then(calc_func::SubtotalExclusions::default)
     }
 
     fn read_area(

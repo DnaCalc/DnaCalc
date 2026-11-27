@@ -1,65 +1,111 @@
 //! Level-zero requests over the existing session evaluator.
 
-use crate::{Calculation, Diagnostic, Session, display, environment};
+use crate::{Calculation, Diagnostic, InputValue, Session, display, environment, fixture::Fixture};
 use calc_fml::reference::{ReferenceNotation, is_cell_callee};
 use calc_fml::syntax::{SyntaxKind, SyntaxNode, TokenKind, lex};
 use calc_fml::{DateSystem, EvalFault, FormatProfile, parse_formula};
 use calc_formula_kernel::{parts, result};
 use calc_func::value::fold_defined_name;
-use calc_func::value::{CalcValue, CoreValue};
+use calc_func::value::{CalcValue, CellKey, CoreValue};
 use calc_skin::{
-    CalcGeneration, FormulaAnswer, FormulaLink, FormulaQuery, Provenance, RawValue, Refusal, Shown,
-    TestInput, TrialCell, TrialValue,
+    ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, CalcGeneration, CallerSnapshot,
+    FormulaAnswer, FormulaLink, FormulaQuery, Provenance, RawValue, Refusal, Shown, TestInput,
+    TrialCell, TrialValue,
 };
 use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct FormulaHost {
     session: Session,
-    generation: u64,
+    queries: FormulaRequests,
 }
 
 impl Default for FormulaHost {
     fn default() -> Self {
         Self {
             session: Session::new("Trial").expect("valid internal compilation scope"),
-            generation: 0,
+            queries: FormulaRequests::default(),
         }
     }
 }
 
 impl FormulaHost {
-    /// Handles the formula-only port. Each trial gets its own literal fixture and environment.
     pub fn handle(&mut self, query: FormulaQuery) -> Result<FormulaAnswer, Refusal> {
+        self.queries.handle(&mut self.session, query)
+    }
+}
+
+/// Keeps the result behind a formula port available for paged reads.
+#[derive(Debug, Default)]
+pub struct FormulaRequests {
+    generation: u64,
+    result: Option<PinnedResult>,
+}
+
+#[derive(Debug)]
+struct PinnedResult {
+    value: CalcValue,
+    profile: FormatProfile,
+    date_system: DateSystem,
+    format: String,
+}
+
+impl FormulaRequests {
+    pub fn handle(
+        &mut self,
+        session: &mut Session,
+        query: FormulaQuery,
+    ) -> Result<FormulaAnswer, Refusal> {
         let trial = match &query {
+            FormulaQuery::ArrayWindow { calc, position } => {
+                let pinned = self
+                    .result
+                    .as_ref()
+                    .filter(|_| calc.0 == self.generation)
+                    .ok_or_else(|| invalid("Evaluate to refresh this result"))?;
+                return pinned.answer(*calc, *position);
+            }
             FormulaQuery::Evaluate(trial)
+            | FormulaQuery::Preview(trial)
             | FormulaQuery::Trace(trial)
             | FormulaQuery::EvaluatePart { trial, .. } => trial,
         };
+        let preview = matches!(query, FormulaQuery::Preview(_));
+        if matches!(query, FormulaQuery::Evaluate(_) | FormulaQuery::Preview(_)) {
+            self.result = None;
+        }
         if trial.formula.trim().is_empty() {
             return Err(invalid("Enter a formula"));
         }
-        let session = &mut self.session;
-        let environment = environment(&trial.culture, trial.now, false);
+        let date_1904 = trial.caller.as_ref().is_some_and(|caller| caller.date_1904);
+        let environment = environment(&trial.culture, trial.now, date_1904);
         let profile = environment
             .profile
             .ok_or_else(|| invalid("This locale is unavailable"))?;
-        session.set_environment(Some(environment));
-        session.set_trial_names(local_names(&trial.inputs)?);
-        match query {
-            FormulaQuery::Evaluate(trial) => {
-                let calculated = session.calculate_unplaced(&trial.formula);
+        let (mut fixture, at) = trial_context(trial.caller.as_ref())?;
+        fixture.local_names = local_names(&trial.inputs)?;
+        session.with_trial(fixture, at, environment, |session| match query {
+            FormulaQuery::Evaluate(trial) | FormulaQuery::Preview(trial) => {
+                let calculated = if preview {
+                    session.preview_trial(&trial.formula)
+                } else {
+                    session.calculate_trial(&trial.formula)
+                };
                 let value = value(session, calculated, &trial.formula)?;
-                let value = project(&value, &profile, &trial.number_format)?;
-                self.generation += 1;
-                let calc = CalcGeneration(self.generation);
-                Ok(FormulaAnswer::Evaluated(Shown {
+                let pinned = PinnedResult {
                     value,
-                    provenance: Provenance::Calculated { calc },
-                }))
+                    profile,
+                    format: trial.number_format,
+                    date_system: environment.date_system,
+                };
+                self.generation += 1;
+                let answer =
+                    pinned.answer(CalcGeneration(self.generation), ArrayPosition::default())?;
+                self.result = Some(pinned);
+                Ok(answer)
             }
             FormulaQuery::Trace(trial) => {
-                let calculated = session.calculate_unplaced(&trial.formula);
+                let calculated = session.calculate_trial(&trial.formula);
                 value(session, calculated, &trial.formula)?;
                 let trace = parts::trace(&mut TrialParts(session, &trial.formula), &trial.formula);
                 Ok(FormulaAnswer::Steps(trace))
@@ -72,7 +118,94 @@ impl FormulaHost {
             )
             .map(FormulaAnswer::Part)
             .map_err(invalid),
+            FormulaQuery::ArrayWindow { .. } => unreachable!("window handled before trial"),
+        })
+    }
+}
+
+impl PinnedResult {
+    fn answer(
+        &self,
+        calc: CalcGeneration,
+        position: ArrayPosition,
+    ) -> Result<FormulaAnswer, Refusal> {
+        Ok(FormulaAnswer::Evaluated(Shown {
+            value: project(
+                &self.value,
+                &self.profile,
+                &self.format,
+                self.date_system,
+                position,
+            )?,
+            provenance: Provenance::Calculated { calc },
+        }))
+    }
+}
+
+fn trial_context(snapshot: Option<&CallerSnapshot>) -> Result<(Fixture, CellKey), Refusal> {
+    let mut fixture = Fixture::default();
+    let Some(snapshot) = snapshot else {
+        let sheet = fixture.add_sheet("Trial");
+        return Ok((
+            fixture,
+            CellKey::new(sheet, 1, 1).expect("valid internal placement"),
+        ));
+    };
+    fixture.detached = true;
+    for sheet in &snapshot.sheets {
+        if sheet.name.is_empty()
+            || fixture.sheet_name(sheet.sheet.id()).is_some()
+            || calc_fml::ReferenceCatalog::sheet_named(&fixture, &sheet.name).is_some()
+        {
+            return Err(invalid("The caller snapshot has an invalid sheet list"));
         }
+        fixture.add_snapshot_sheet(sheet.name.clone(), sheet.sheet.id());
+    }
+    let cell = |key: calc_skin::grid::Key| {
+        key.cell()
+            .filter(|at| fixture.sheet_name(at.sheet()).is_some())
+            .ok_or_else(|| invalid("A caller snapshot address is outside its sheets"))
+    };
+    let at = cell(snapshot.at)?;
+    let mut inputs = BTreeMap::new();
+    for precedent in &snapshot.precedents {
+        match &precedent.shown.provenance {
+            Provenance::Literal | Provenance::Empty => (),
+            Provenance::Calculated { calc } if *calc == snapshot.stamp.calc => (),
+            _ => {
+                return Err(invalid(
+                    "The caller snapshot contains a value that is out of date or unavailable",
+                ));
+            }
+        }
+        let key = cell(precedent.at)?;
+        if key == at
+            || inputs
+                .insert(key, snapshot_input(&precedent.shown.value)?)
+                .is_some()
+        {
+            return Err(invalid(
+                "The caller snapshot contains a duplicate or self reference",
+            ));
+        }
+    }
+    *fixture.inputs_mut() = inputs;
+    Ok((fixture, at))
+}
+
+fn snapshot_input(raw: &RawValue) -> Result<InputValue, Refusal> {
+    let invalid_value = || invalid("The caller snapshot contains an invalid cell value");
+    match raw {
+        RawValue::Number { bits } => {
+            InputValue::number(f64::from_bits(*bits)).map_err(|_| invalid_value())
+        }
+        RawValue::Text(units) => InputValue::text_units(units.clone()).map_err(|_| invalid_value()),
+        RawValue::Logical(value) => Ok(InputValue::logical(*value)),
+        RawValue::Error(code) => crate::grid::error_literal(code)
+            .map(InputValue::error)
+            .ok_or_else(invalid_value),
+        RawValue::Blank => Ok(InputValue::blank()),
+        RawValue::Other { .. } => Err(invalid_value()),
     }
 }
 
@@ -135,7 +268,7 @@ struct TrialParts<'a>(&'a mut Session, &'a str);
 
 impl parts::PartEvaluator for TrialParts<'_> {
     fn calculate(&mut self, text: &str) -> Result<CalcValue, String> {
-        let calculated = self.0.calculate_unplaced(text);
+        let calculated = self.0.calculate_trial(text);
         value(self.0, calculated, self.1).map_err(|refusal| match refusal {
             Refusal::RequiresWorkbook { reason, .. } | Refusal::Invalid { reason } => reason,
             Refusal::NotModelled { what, .. } => what,
@@ -196,6 +329,8 @@ fn project(
     value: &CalcValue,
     profile: &FormatProfile,
     format: &str,
+    date_system: DateSystem,
+    position: ArrayPosition,
 ) -> Result<TrialValue, Refusal> {
     let to_cell = |value: &CalcValue| -> Result<TrialCell, Refusal> {
         let raw = match value.core() {
@@ -214,34 +349,30 @@ fn project(
         let formatted = if format.trim().is_empty() || format.eq_ignore_ascii_case("General") {
             result::shown(value, Some(profile))
         } else {
-            result::formatted_text(value, profile, format, DateSystem::System1900)
-                .map_err(invalid)?
+            result::formatted_text(value, profile, format, date_system).map_err(invalid)?
         };
         Ok(TrialCell { raw, formatted })
     };
     let Some(array) = value.as_array() else {
         return to_cell(value).map(TrialValue::Scalar);
     };
-    let window = result::first_window(array, Some(profile));
-    let cells = window
-        .cells
-        .iter()
-        .enumerate()
-        .map(|(row, values)| {
-            (0..values.len())
-                .map(|col| {
-                    to_cell(
-                        array
-                            .get(row, col)
-                            .expect("cell in the first result window"),
-                    )
-                })
+    let shape = array.shape();
+    if position.row >= shape.rows || position.column >= shape.cols {
+        return Err(invalid("That page is outside the result array"));
+    }
+    let rows = (shape.rows - position.row).min(ARRAY_PAGE_ROWS);
+    let columns = (shape.cols - position.column).min(ARRAY_PAGE_COLUMNS);
+    let cells = (position.row..position.row + rows)
+        .map(|row| {
+            (position.column..position.column + columns)
+                .map(|col| to_cell(array.get(row, col).expect("cell in the result window")))
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TrialValue::Array {
-        rows: window.total_rows,
-        columns: window.total_cols,
+        rows: shape.rows,
+        columns: shape.cols,
+        position,
         cells,
     })
 }
@@ -258,6 +389,7 @@ mod tests {
             number_format: "0.00".into(),
             now: None,
             inputs: Vec::new(),
+            caller: None,
         }))
     }
 
@@ -320,6 +452,7 @@ mod tests {
                     name: "figures".into(),
                     constant: constant.into(),
                 }],
+                caller: None,
             })
         };
         for (literal, expected) in [("{1,2;3,4}", 10_f64), ("{10,20}", 30_f64)] {
@@ -340,5 +473,133 @@ mod tests {
             host.handle(trial("ROW()")),
             Err(Refusal::Invalid { .. })
         ));
+    }
+}
+
+#[cfg(test)]
+mod tool_tests {
+    use super::*;
+    use calc_skin::{
+        ArrayPosition, CallerSheet, CallerSnapshot, SnapshotCell, Stamp, Trial,
+        grid::{Key, Sheet},
+    };
+
+    fn trial(formula: &str) -> Trial {
+        Trial {
+            formula: formula.into(),
+            culture: "en-US".into(),
+            number_format: "0".into(),
+            now: None,
+            inputs: vec![],
+            caller: None,
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn snapshot_uses_the_supplied_caller_and_values_once() {
+        let mut host = FormulaHost::default();
+        let mut placed = trial("=ROW()+A1+'Other sheet'!B2");
+        placed.caller = Some(CallerSnapshot {
+            at: Key(7, 2, 19, 3),
+            stamp: Stamp {
+                workbook: 1.into(),
+                model: 2.into(),
+                view: 0.into(),
+                calc: 3.into(),
+            },
+            sheets: vec![
+                CallerSheet {
+                    sheet: Sheet(7, 2),
+                    name: "Inputs".into(),
+                },
+                CallerSheet {
+                    sheet: Sheet(8, 2),
+                    name: "Other sheet".into(),
+                },
+            ],
+            precedents: vec![
+                SnapshotCell {
+                    at: Key(7, 2, 1, 1),
+                    shown: Shown {
+                        provenance: Provenance::Literal,
+                        value: RawValue::Number {
+                            bits: 4_f64.to_bits(),
+                        },
+                    },
+                },
+                SnapshotCell {
+                    at: Key(8, 2, 2, 2),
+                    shown: Shown {
+                        provenance: Provenance::Calculated { calc: 3.into() },
+                        value: RawValue::Number {
+                            bits: 8_f64.to_bits(),
+                        },
+                    },
+                },
+            ],
+            date_1904: false,
+        });
+        let FormulaAnswer::Evaluated(shown) =
+            host.handle(FormulaQuery::Evaluate(placed.clone())).unwrap()
+        else {
+            panic!("missing output")
+        };
+        let TrialValue::Scalar(cell) = shown.value else {
+            panic!("expected scalar")
+        };
+        assert_eq!(
+            cell.raw,
+            RawValue::Number {
+                bits: 31_f64.to_bits()
+            }
+        );
+        placed.caller.as_mut().unwrap().precedents[1]
+            .shown
+            .provenance = Provenance::AsSaved;
+        assert!(matches!(
+            host.handle(FormulaQuery::Evaluate(placed)),
+            Err(Refusal::Invalid { .. })
+        ));
+        assert!(matches!(
+            host.handle(FormulaQuery::Evaluate(trial("=ROW()"))),
+            Err(Refusal::RequiresWorkbook { .. })
+        ));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn array_pages_read_the_pinned_generation() {
+        let mut host = FormulaHost::default();
+        let FormulaAnswer::Evaluated(first) = host
+            .handle(FormulaQuery::Evaluate(trial("=SEQUENCE(101,33)")))
+            .unwrap()
+        else {
+            panic!("missing output")
+        };
+        let Provenance::Calculated { calc } = first.provenance else {
+            panic!("missing generation")
+        };
+        let position = ArrayPosition {
+            row: 99,
+            column: 31,
+        };
+        let query = FormulaQuery::ArrayWindow { calc, position };
+        let FormulaAnswer::Evaluated(next) = host.handle(query.clone()).unwrap() else {
+            panic!("missing array page")
+        };
+        let TrialValue::Array {
+            position: actual,
+            cells,
+            ..
+        } = next.value
+        else {
+            panic!("expected array")
+        };
+        assert_eq!(actual, position);
+        assert_eq!(cells.len(), 2);
+        assert_eq!(cells[1][1].raw.display(), "3333");
+        host.handle(FormulaQuery::Evaluate(trial("=1"))).unwrap();
+        assert!(matches!(host.handle(query), Err(Refusal::Invalid { .. })));
     }
 }

@@ -40,7 +40,10 @@ impl InputValue {
     /// A text input, refused when it is longer than Excel's limit of 32,767 UTF-16 code units
     /// rather than cut to it.
     pub fn text(text: &str) -> Result<InputValue, InputError> {
-        let units: Vec<u16> = text.encode_utf16().collect();
+        Self::text_units(text.encode_utf16().collect())
+    }
+
+    pub(crate) fn text_units(units: Vec<u16>) -> Result<InputValue, InputError> {
         if units.len() > EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
             return Err(InputError::TextTooLong { units: units.len() });
         }
@@ -1033,15 +1036,36 @@ impl Session {
         self.calculate_text_from(formula, self.formula_cell, false)
     }
 
-    pub(crate) fn set_trial_names(&mut self, names: std::collections::BTreeMap<String, String>) {
-        if self.fixture.local_names != names {
-            self.fixture.local_names = names;
-            self.plans = PlanCache::new();
-        }
+    pub(crate) fn with_trial<T>(
+        &mut self,
+        fixture: Fixture,
+        at: CellKey,
+        environment: CalcEnvironment,
+        run: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let old_fixture = std::mem::replace(&mut self.fixture, fixture);
+        let old_cell = std::mem::replace(&mut self.formula_cell, at);
+        let old_environment = self.environment.replace(environment);
+        let old_plans = std::mem::replace(&mut self.plans, PlanCache::new());
+        let old_form = std::mem::replace(&mut self.form, FormulaForm::Dynamic);
+        let result = run(self);
+        self.form = old_form;
+        self.plans = old_plans;
+        self.environment = old_environment;
+        self.formula_cell = old_cell;
+        self.fixture = old_fixture;
+        result
     }
 
-    pub(crate) fn calculate_unplaced(&mut self, formula: &str) -> Calculation {
-        self.calculate_text_from(formula, self.formula_cell, true)
+    pub(crate) fn calculate_trial(&mut self, formula: &str) -> Calculation {
+        self.calculate_text_with_mode(formula, self.formula_cell, !self.fixture.detached, true)
+    }
+
+    pub(crate) fn preview_trial(&mut self, formula: &str) -> Calculation {
+        let functions = std::mem::take(&mut self.functions);
+        let result = self.calculate_trial(formula);
+        self.functions = functions;
+        result
     }
 
     /// [`Session::calculate_text`] for a formula written for the cell `origin` (an A1 address) and
@@ -1063,6 +1087,16 @@ impl Session {
         formula: &str,
         origin: CellKey,
         workbookless: bool,
+    ) -> Calculation {
+        self.calculate_text_with_mode(formula, origin, workbookless, false)
+    }
+
+    fn calculate_text_with_mode(
+        &mut self,
+        formula: &str,
+        origin: CellKey,
+        workbookless: bool,
+        trial: bool,
     ) -> Calculation {
         let tree = parse_formula(formula);
         let syntax: Vec<Diagnostic> = tree
@@ -1103,7 +1137,7 @@ impl Session {
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let mut function_diagnostics = Vec::new();
         let references = self.references.pin();
-        let recording = self.rtd.recording();
+        let recording = if trial { None } else { self.rtd.recording() };
         let mut rtd_effects = calc_fml::UserFunctionEffects::default();
         let mut services = FormulaEvaluationContext::new(
             &self.numeric,
@@ -1119,7 +1153,7 @@ impl Session {
         .with_user_function_effects(&mut rtd_effects);
         services = if workbookless {
             services.without_workbook()
-        } else {
+        } else if !trial {
             // The person's active sheet is the session's one sheet and what they have selected is the
             // cell they are entering the formula in: what VBA's ActiveSheet and Selection see (Excel
             // gives a worksheet function the user's sheet and selection, not its caller's; measured,
@@ -1129,6 +1163,8 @@ impl Session {
                 selection: self.formula_cell,
                 settings: None,
             })
+        } else {
+            services
         };
         if let Some(recording) = &recording {
             services = services

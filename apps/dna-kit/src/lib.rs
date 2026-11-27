@@ -3,13 +3,17 @@
 mod workbook;
 pub use workbook::{WorkbookContext, WorkbookView};
 
-use calc_skin::{FormulaPort, Provenance, RawValue, Shown, TrialCell, TrialValue};
+use calc_skin::{
+    ARRAY_PAGE_COLUMNS, ARRAY_PAGE_ROWS, ArrayPosition, CallerSnapshot, FormulaPort, Provenance,
+    RawValue, Shown, TrialCell, TrialValue,
+};
 use leptos::prelude::*;
 use std::rc::Rc;
 
 pub struct FormulaContext {
     pub port: Rc<dyn FormulaPort>,
     pub initial_formula: String,
+    pub caller: Option<CallerSnapshot>,
     pub clock: fn() -> Option<f64>,
     pub status: RwSignal<&'static str>,
 }
@@ -35,7 +39,7 @@ impl Registry {
 }
 
 #[component]
-pub fn ValueView(shown: Shown<TrialValue>) -> impl IntoView {
+pub fn ValueView(shown: Shown<TrialValue>, page: Callback<ArrayPosition>) -> impl IntoView {
     let provenance = match shown.provenance {
         Provenance::Empty => "Empty",
         Provenance::Literal => "Literal",
@@ -65,9 +69,10 @@ pub fn ValueView(shown: Shown<TrialValue>) -> impl IntoView {
         TrialValue::Array {
             rows,
             columns,
+            position,
             cells,
         } => view! {
-            <DataFrame rows columns cells/>
+            <DataFrame rows columns position cells page/>
         }
         .into_any(),
     };
@@ -80,13 +85,19 @@ pub fn ValueView(shown: Shown<TrialValue>) -> impl IntoView {
 }
 
 #[component]
-pub fn DataFrame(rows: usize, columns: usize, cells: Vec<Vec<TrialCell>>) -> impl IntoView {
+pub fn DataFrame(
+    rows: usize,
+    columns: usize,
+    position: ArrayPosition,
+    cells: Vec<Vec<TrialCell>>,
+    page: Callback<ArrayPosition>,
+) -> impl IntoView {
     let visible_rows = cells.len();
     let visible_columns = cells.first().map_or(0, Vec::len);
-    let headers = (1..=visible_columns)
+    let headers = (position.column + 1..=position.column + visible_columns)
         .map(|column| {
             view! {
-                <th scope="col">{column}</th>
+                <th scope="col" aria-colindex=column + 1>{column}</th>
             }
         })
         .collect_view();
@@ -94,25 +105,36 @@ pub fn DataFrame(rows: usize, columns: usize, cells: Vec<Vec<TrialCell>>) -> imp
         .into_iter()
         .enumerate()
         .map(|(row, cells)| {
-            let contents = cells.into_iter().map(|cell| {
+            let contents = cells.into_iter().enumerate().map(|(column, cell)| {
             let raw = cell.raw.display();
             let is_error = matches!(cell.raw, RawValue::Error(_));
             let differs = raw != cell.formatted;
             view! {
-                <td class:dna-fe-error=is_error>
+                <td aria-colindex=position.column + column + 2 class:dna-fe-error=is_error>
                     <span>{cell.formatted}</span>
                     {differs.then(|| view! { <small class="dna-fe-raw">"Raw " {raw}</small> })}
                 </td>
             }
         }).collect_view();
-            view! { <tr><th scope="row">{row + 1}</th>{contents}</tr> }
+            let row = position.row + row + 1;
+            view! { <tr aria-rowindex=row + 1><th scope="row">{row}</th>{contents}</tr> }
         })
         .collect_view();
     view! {
         <div class="dna-fe-array" data-skin0="array">
+            <div class="dna-fe-actions" role="group" aria-label="Array pages">
+                <button type="button" disabled=position.row == 0
+                    on:click=move |_| page.run(ArrayPosition { row: position.row.saturating_sub(ARRAY_PAGE_ROWS), ..position })>"Previous rows"</button>
+                <button type="button" disabled=position.row + visible_rows >= rows
+                    on:click=move |_| page.run(ArrayPosition { row: position.row + visible_rows, ..position })>"Next rows"</button>
+                <button type="button" disabled=position.column == 0
+                    on:click=move |_| page.run(ArrayPosition { column: position.column.saturating_sub(ARRAY_PAGE_COLUMNS), ..position })>"Previous columns"</button>
+                <button type="button" disabled=position.column + visible_columns >= columns
+                    on:click=move |_| page.run(ArrayPosition { column: position.column + visible_columns, ..position })>"Next columns"</button>
+            </div>
             <table aria-rowcount=rows.saturating_add(1).to_string()
                    aria-colcount=columns.saturating_add(1).to_string()>
-                <caption>{format!("{visible_rows} of {rows} rows · {visible_columns} of {columns} columns")}</caption>
+                <caption>{format!("Rows {}–{} of {rows} · Columns {}–{} of {columns}", position.row + 1, position.row + visible_rows, position.column + 1, position.column + visible_columns)}</caption>
                 <thead><tr><th scope="col">"Row"</th>{headers}</tr></thead>
                 <tbody>{body}</tbody>
             </table>

@@ -17,8 +17,8 @@
 
 use crate::display;
 use crate::grid;
-use crate::{AddinRef, InputValue, ProjectReport, Session};
 use crate::shown::{Authored, Shown};
+use crate::{AddinRef, InputValue, ProjectReport, Session};
 pub(crate) use calc_formula_host::environment;
 use calc_skin::{FormulaAnswer, FormulaQuery, Refusal};
 use serde::{Deserialize, Serialize};
@@ -201,8 +201,7 @@ pub enum Request {
 
 /// What a host whose add-ins run in its own process answers [`Request::StopAddinProcess`] and
 /// [`Request::RestartAddinProcess`] with.
-pub const NO_ADDIN_PROCESS: &str =
-    "The add-ins run in the Formula Explorer process here: there is no add-in process to stop or restart.";
+pub const NO_ADDIN_PROCESS: &str = "The add-ins run in the Formula Explorer process here: there is no add-in process to stop or restart.";
 
 /// An add-in the host has loaded, as the surface lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,12 +368,15 @@ pub trait SessionPort {
 #[derive(Debug)]
 pub struct LocalPort {
     session: Session,
-    formula: calc_formula_host::FormulaHost,
+    formula: calc_formula_host::FormulaRequests,
 }
 
 impl LocalPort {
     pub fn new(session: Session) -> Self {
-        Self { session, formula: Default::default() }
+        Self {
+            session,
+            formula: Default::default(),
+        }
     }
 
     pub fn session(&self) -> &Session {
@@ -555,7 +557,7 @@ impl SessionPort for LocalPort {
     fn send(&mut self, request: Request) -> Reply {
         let session = &mut self.session;
         match request {
-            Request::SkinFormula(query) => Reply::SkinFormula(self.formula.handle(query)),
+            Request::SkinFormula(query) => Reply::SkinFormula(self.formula.handle(session, query)),
             Request::SetFormula { text } => {
                 session.set_formula(&text);
                 Reply::Accepted

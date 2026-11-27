@@ -14,7 +14,7 @@ pub mod shown;
 pub mod trace;
 mod trial;
 
-pub use trial::FormulaHost;
+pub use trial::{FormulaHost, FormulaRequests};
 
 use calc_fml::{CalcEnvironment, DateSystem, FormatProfile};
 
@@ -39,4 +39,3 @@ pub fn environment(culture: &str, now: Option<f64>, date_1904: bool) -> CalcEnvi
         now,
     }
 }
-

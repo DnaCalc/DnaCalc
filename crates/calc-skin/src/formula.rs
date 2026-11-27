@@ -1,6 +1,10 @@
 //! Requests available to a formula view without a workbook port.
 
-use crate::{Refusal, Shown, parts::Trace};
+use crate::{
+    CalcGeneration, Refusal, Shown, Stamp,
+    grid::{Key, Sheet},
+    parts::Trace,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -11,7 +15,40 @@ pub struct Trial {
     pub now: Option<f64>,
     #[serde(default)]
     pub inputs: Vec<TestInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caller: Option<CallerSnapshot>,
 }
+
+/// A detached excerpt of a workbook at one calculation generation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CallerSnapshot {
+    pub at: Key,
+    pub stamp: Stamp,
+    pub sheets: Vec<CallerSheet>,
+    pub precedents: Vec<SnapshotCell>,
+    pub date_1904: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CallerSheet {
+    pub sheet: Sheet,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotCell {
+    pub at: Key,
+    pub shown: Shown<RawValue>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArrayPosition {
+    pub row: usize,
+    pub column: usize,
+}
+
+pub const ARRAY_PAGE_ROWS: usize = 32;
+pub const ARRAY_PAGE_COLUMNS: usize = 16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestInput {
@@ -22,6 +59,12 @@ pub struct TestInput {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum FormulaQuery {
     Evaluate(Trial),
+    /// Evaluates a linked example with the built-in catalogue only.
+    Preview(Trial),
+    ArrayWindow {
+        calc: CalcGeneration,
+        position: ArrayPosition,
+    },
     Trace(Trial),
     EvaluatePart {
         trial: Trial,
@@ -43,6 +86,7 @@ pub enum TrialValue {
     Array {
         rows: usize,
         columns: usize,
+        position: ArrayPosition,
         cells: Vec<Vec<TrialCell>>,
     },
 }
