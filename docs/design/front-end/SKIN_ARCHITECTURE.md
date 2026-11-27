@@ -159,7 +159,7 @@ Mechanically checked rules added to `tools/xtask/architecture.json`:
 
 1. **`calc-skin` closure forbids:** `calc-fml`, `calc-func`, `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-skin-host` and every `apps/*` package. It uses CalcValue identities through checked conversions from the existing serializable sheet, cell and range tuples, leaving CalcValue dependency-free. Stable view and anchor IDs live in CalcSyntax so CalcDoc can store them directly.
 2. **`calc-formula-kernel` closure forbids:** `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-vba`, `calc-addin-host` and every `apps/*` package.
-3. **`calc-formula-host` closure forbids:** `calc-engine`, `calc-host`, `calc-skin-host` and every `apps/*` package.
+3. **`calc-formula-host` closure forbids:** `calc-engine`, `calc-host`, `calc-skin-host` and every `apps/*` package. The rule table names workspace members. M2 (dc-7e5b6) adds the `calc-skin-host` restrictions when its package lands.
 4. **`calc-host` closure forbids:** every `apps/*` package (removing today's `dna-calc-model` dependency).
 5. **`dna-skin-runtime` closure forbids:** `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-skin-host`, `leptos`, `web-sys` and every view/shell crate.
 6. **Every `dna-view-*`, `dna-shell`, `dna-kit` and `dna-grid` closure forbids:** `calc-doc-model`, `calc-doc`, `calc-engine`, `calc-host`, `calc-skin-host`, `calc-formula-host` and `calc-chart-render`. Views additionally forbid `dna-shell` and every other `dna-view-*` crate.

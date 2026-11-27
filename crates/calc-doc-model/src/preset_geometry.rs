@@ -9,7 +9,10 @@ use std::sync::OnceLock;
 
 /// The preset geometries of ECMA-376 Part 1 as `presets/make-presets.py` writes them from the standard's
 /// presetShapeDefinitions.xml.
-const PRESET_TABLE: &str = include_str!("presets/preset-shapes.txt");
+const PRESET_TABLE: &str = match std::str::from_utf8(include_bytes!("presets/preset-shapes.txt")) {
+    Ok(table) => table,
+    Err(_) => panic!("preset shape data must be UTF-8"),
+};
 
 fn presets() -> &'static HashMap<&'static str, CustomGeometry> {
     static TABLE: OnceLock<HashMap<&'static str, CustomGeometry>> = OnceLock::new();
