@@ -1,5 +1,5 @@
 use super::*;
-use calc_skin::{Batch, Change, PresentationChange, RowSort};
+use calc_skin::{Batch, Change, ModelChange, PresentationChange, RowSort};
 use dna_kit::commands::CommandId;
 use dna_kit::{Invocation, Seam};
 use serde::de::DeserializeOwned;
@@ -221,7 +221,7 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
                     .try_update_value(|workspace| workspace.delete_armed.replace(item))
                     .flatten();
                 if armed == Some(item) {
-                    state.delete()
+                    state.delete(true)
                 } else {
                     Ok(())
                 }
@@ -229,7 +229,7 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         )
         .when("mode:notebook-command && writable"),
         command("notebook.delete", "Delete cell", &[], |state, _| {
-            state.delete()
+            state.delete(true)
         })
         .when("mode:notebook-command && writable"),
         command("notebook.copy", "Copy cell", &["C"], |state, _| {
@@ -238,7 +238,7 @@ pub(super) fn install(state: State) -> Vec<ViewCommand> {
         .when("mode:notebook-command"),
         command("notebook.cut", "Cut cell", &["X"], |state, _| {
             state.copy()?;
-            state.delete()
+            state.delete(false)
         })
         .when("mode:notebook-command && writable"),
         command("notebook.paste", "Paste cell below", &["V"], |state, _| {
@@ -600,7 +600,7 @@ impl State {
         self.submit(&snapshot, &chain, vec![], "Move Notebook cell")
     }
 
-    fn delete(self) -> Result<(), String> {
+    fn delete(self, clear_owned: bool) -> Result<(), String> {
         let snapshot = self.snapshot()?;
         let mut chain = snapshot.chain.clone();
         let index = self
@@ -609,12 +609,36 @@ impl State {
         let item = chain.cells.remove(index);
         self.workspace
             .update_value(|state| state.delete_armed = None);
-        let changes = snapshot
+        let mut changes: Vec<_> = snapshot
             .anchor(item.id)
             .map(|_| Change::Presentation(PresentationChange::RemoveAnchor { anchor: item.id }))
             .into_iter()
             .collect();
-        self.submit(&snapshot, &chain, changes, "Delete Notebook cell")
+        if clear_owned && item.owns_cell() {
+            let at = snapshot
+                .source(item.id)
+                .and_then(first_cell)
+                .ok_or("Resolve this cell's worksheet source before clearing it.")?;
+            let stamp = self
+                .session
+                .stamp()
+                .filter(|stamp| {
+                    stamp.workbook == snapshot.part.stamp.workbook
+                        && stamp.view == snapshot.part.stamp.view
+                })
+                .ok_or("The Notebook has changed. Review the cell before deleting it.")?;
+            changes.push(Change::Model(ModelChange::ClearContents {
+                areas: vec![Area(at, at)],
+            }));
+            let mut batch =
+                self.prepare_batch(&snapshot, &chain, changes, "Delete owned Notebook cell")?;
+            batch.base = Some(stamp.model);
+            batch.expects.push(SourceRef::Workbook);
+            self.session.submit_then(batch, move || self.session.revert_held(at));
+            Ok(())
+        } else {
+            self.submit(&snapshot, &chain, changes, "Remove Notebook cell")
+        }
     }
 
     fn copy(self) -> Result<(), String> {

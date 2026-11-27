@@ -853,6 +853,82 @@ fn notebook_authors_scalar_and_array_anchors_in_one_history_step_each() {
     assert_eq!(undone.body.anchors.len(), 2);
 }
 
+/// Native-only: drives owned-cell deletion and undo through the workbook service.
+#[test]
+fn notebook_deletes_owned_spill_anchor_and_declaration_together() {
+    let page = Page::open();
+    let session = page.session;
+    session.command("view.notebook").unwrap();
+    session.command("notebook.new-formula").unwrap();
+    page.settle();
+    for (command, args) in [
+        ("notebook.author-columns", serde_json::json!(2)),
+        ("notebook.author", serde_json::json!("=SEQUENCE(3,1)")),
+    ] {
+        session
+            .run(&dna_kit::Invocation {
+                command: dna_kit::commands::CommandId::new(command),
+                args,
+            })
+            .unwrap();
+        page.settle();
+    }
+    let anchor = session.active().unwrap();
+    let filled = Key(anchor.0, anchor.1, anchor.2 + 2, anchor.3);
+    assert_eq!(page.shown(filled), "3");
+    let part = session.watch(query::ViewPartOf);
+    page.settle();
+
+    assert!(page.press("d", Focus::Stage));
+    assert!(page.press("d", Focus::Stage));
+    assert_eq!(page.shown(anchor), "");
+    assert_eq!(page.shown(filled), "");
+    let Live::Ready(deleted) = session.read(part) else {
+        panic!("Notebook view part after delete");
+    };
+    assert!(deleted.body.anchors.is_empty());
+
+    session.command("edit.undo").unwrap();
+    page.settle();
+    assert_eq!(page.shown(filled), "3");
+    let Live::Ready(undone) = session.read(part) else {
+        panic!("Notebook view part after undo");
+    };
+    assert_eq!(undone.body.anchors.len(), 1);
+
+    session.command("view.classic").unwrap();
+    session.select_cell(page.at(1, 2));
+    page.settle();
+    session.edit_text("=A10+1".into());
+    session.commit_edit();
+    page.settle();
+    assert_eq!(page.shown(page.at(1, 2)), "2");
+    session.command("view.notebook").unwrap();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("notebook.focus"),
+            args: serde_json::json!(undone.body.anchors[0].id),
+        })
+        .unwrap();
+    page.settle();
+    session.command("notebook.delete").unwrap();
+    page.settle();
+    let Seam::Review(preview) = session.seam() else {
+        panic!(
+            "Review required when another formula reads the cell: {:?}; {}",
+            session.seam(),
+            session.notice()
+        );
+    };
+    assert_eq!(preview.writes.len(), 1);
+    assert_eq!(preview.writes[0].at, anchor);
+    assert_eq!(page.shown(filled), "3");
+    session.command("edit.apply-review").unwrap();
+    page.settle();
+    assert_eq!(page.shown(filled), "");
+    assert_eq!(page.shown(page.at(1, 2)), "1");
+}
+
 /// Native-only: drives the real workbook service by packets.
 #[test]
 fn notebook_escape_holds_the_old_output_until_the_formula_runs() {
@@ -1449,4 +1525,81 @@ fn forms_maker_offers_only_formulas_with_no_readers_as_outputs() {
     page.settle();
     assert_eq!(session.active(), Some(page.at(1, 3)));
     assert!(session.edit().is_none());
+}
+/// Native-only: prepares a reader page and observes its live value through the real workbook port.
+#[test]
+fn forms_maker_authors_reader_prose_bound_to_the_selected_cell() {
+    use calc_skin::query::Query;
+    use calc_skin::{PageNode, RawValue, RowWindow, WorkbookPort};
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(1, 1);
+    session.begin_edit(at, Some("=2+5".into()));
+    assert!(page.press("Enter", Focus::Editor));
+    session.select_cell(at);
+    page.settle();
+    let model = session.stamp().unwrap().model;
+    session.command("view.forms").unwrap();
+    session.command("forms.create").unwrap();
+    page.settle();
+    session
+        .run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new("forms.add-prose"),
+            args: serde_json::json!({"text": "Calculated amount {=value}", "bind_selected": true}),
+        })
+        .unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else {
+        panic!("missing view part");
+    };
+    let document: calc_skin::Page =
+        serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let PageNode::Stack { children } = document.root else {
+        panic!("expected a page");
+    };
+    let [
+        PageNode::Part {
+            component,
+            bind,
+            props,
+            ..
+        },
+    ] = children.as_slice()
+    else {
+        panic!("expected reader prose");
+    };
+    assert_eq!(component, "rich-prose");
+    assert_eq!(props["text"], "Calculated amount {=value}");
+    assert_eq!(bind["value"].address, "Sheet1!A1");
+    let source = query::ResolveBound {
+        bound: bind["value"].clone(),
+    };
+    let ask = |query| {
+        page.port
+            .ask(query, dna_skin_runtime::client::PAGE_BUDGET)
+            .unwrap()
+    };
+    let resolved = query::ResolveBound::decode(ask(source.request()))
+        .unwrap()
+        .body;
+    let rows = query::Rows {
+        source: resolved,
+        filter: Vec::new(),
+        sort: Vec::new(),
+        window: RowWindow {
+            offset: 0,
+            limit: 1,
+        },
+    };
+    let shown = query::Rows::decode(ask(rows.request())).unwrap().body;
+    assert_eq!(shown.rows[0].cells[0].text, "7");
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.value,
+        RawValue::Number { .. }
+    ));
+    assert!(matches!(
+        shown.rows[0].cells[0].shown.provenance,
+        calc_skin::Provenance::Calculated { .. }
+    ));
+    assert_eq!(session.stamp().unwrap().model, model);
 }

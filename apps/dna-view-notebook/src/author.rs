@@ -156,6 +156,7 @@ impl Authoring {
         let mut chain = snapshot.chain.clone();
         let index = state.selected(&snapshot).map_or(0, |index| index + 1);
         let mut item = Item::new(id, Kind::Formula);
+        item.owned = true;
         item.lane_columns = (request.columns > 0).then_some(request.columns);
         chain.cells.insert(index, item);
         let mut batch = state.prepare_batch(
