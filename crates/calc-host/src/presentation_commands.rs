@@ -21,6 +21,21 @@ pub fn can_edit(host: &HostState, at: CellKey) -> Result<(), String> {
     Ok(())
 }
 
+impl HostState {
+    /// Whether Excel content protection currently applies to this worksheet.
+    pub fn sheet_contents_protected(&self, sheet: calc_value::SheetId) -> bool {
+        self.sheet_protection_saves.get(&sheet).map_or_else(
+            || self.loaded().sheet(sheet).is_some_and(|sheet| sheet.protected()),
+            |protection| protection.as_ref().is_some_and(|protection| protection.contents),
+        )
+    }
+
+    /// The effective Excel cell style's Locked property.
+    pub fn style_is_locked(&self, style: u32) -> bool {
+        crate::automation::style_locked(self, style)
+    }
+}
+
 /// Prepare an intent to append a prose or calculation link to the notebook.
 /// With `text`, the intent also enters content into a single empty cell.
 pub fn prepare_notebook_link(

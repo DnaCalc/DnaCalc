@@ -1,8 +1,8 @@
-use crate::{State, inventory::table_info, query::QueryWork, query::source_areas};
-use calc_doc_model::{CellInput, FormulaForm};
+use crate::{State, batch, invalid, inventory::table_info, query::QueryWork, query::source_areas};
+use calc_doc_model::{CellInput, FormulaForm, SheetKind, SheetVisibility};
 use calc_host::value::{CellKey, GridArea};
 use calc_skin::grid::{Area, Key};
-use calc_skin::{FormulaRun, Refusal, SourceRef, Structure};
+use calc_skin::{FormulaRun, InputCandidate, InputSignal, Refusal, SourceRef, Structure};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn structure(
@@ -54,6 +54,89 @@ pub(crate) fn structure(
     }
     runs.sort_unstable_by_key(|run| run.extent.0);
     Ok(Structure { tables, runs })
+}
+
+pub(crate) fn inputs(
+    state: &State,
+    scope: &SourceRef,
+    meter: &mut QueryWork,
+) -> Result<Vec<InputCandidate>, Refusal> {
+    let host = state.session.host();
+    let model = host.model();
+    let visible = |sheet: &calc_doc_model::SheetEntry| {
+        sheet.kind() == SheetKind::Worksheet && sheet.visibility() == SheetVisibility::Visible
+    };
+    let areas: Vec<_> = source_areas(state, scope)?
+        .into_iter()
+        .filter(|area| model.sheet_by_id(area.sheet()).is_some_and(visible))
+        .collect();
+    let mut choices = BTreeMap::new();
+    let mut offer = |at, signal, label| {
+        if !matches!(model.cell(at), Some(CellInput::Formula(_)))
+            && batch::rules(&state.session, at).is_ok()
+        {
+            choices.insert(at, InputCandidate { at: Key::of(at), label, signal });
+        }
+    };
+    for &area in &areas {
+        if host.sheet_contents_protected(area.sheet()) {
+            for region in calc_host::format_regions(host, area).map_err(invalid)? {
+                meter.check()?;
+                if !host.style_is_locked(region.format) {
+                    meter.work(region.area.cell_count(), 0, 0)?;
+                    for at in cells_in(region.area) {
+                        offer(at, InputSignal::UnlockedOnProtectedSheet, None);
+                    }
+                }
+            }
+        }
+    }
+    for sheet in model.sheets().iter().filter(|sheet| visible(sheet)) {
+        for (control, at) in host.form_control_links(sheet.id()) {
+            meter.work(1, 0, 0)?;
+            if control.macro_name.is_none() && areas.iter().any(|area| area.contains(at)) {
+                offer(
+                    at,
+                    InputSignal::LinkedFormControl,
+                    control.caption.as_ref().filter(|label| !label.is_empty()).cloned()
+                        .or_else(|| Some(control.name.clone())),
+                );
+            }
+        }
+    }
+    for area in areas {
+        for rule in model.definitions().validations(area.sheet()) {
+            meter.check()?;
+            if rule.kind != "list" {
+                continue;
+            }
+            for &(top, left, bottom, right) in &rule.areas {
+                let cell = |row, column| CellKey::new(area.sheet(), row, column).ok();
+                let overlap = cell(top, left)
+                    .zip(cell(bottom, right))
+                    .and_then(|(first, last)| GridArea::new(first, last).ok())
+                    .and_then(|rule_area| area.intersection(rule_area));
+                let Some(overlap) = overlap else { continue };
+                meter.work(overlap.cell_count(), 0, 0)?;
+                for at in cells_in(overlap) {
+                    if let Some(rule) = host.validation(at).filter(|rule| rule.kind == "list") {
+                        offer(at, InputSignal::ValidationList, rule.prompt.map(|(title, _)| title));
+                    }
+                }
+            }
+        }
+    }
+    meter.work(0, choices.len() as u64, 0)?;
+    Ok(choices.into_values().collect())
+}
+
+fn cells_in(area: GridArea) -> impl Iterator<Item = CellKey> {
+    let (first, last) = (area.first(), area.last());
+    (first.row()..=last.row()).flat_map(move |row| {
+        (first.column()..=last.column()).map(move |column| {
+            CellKey::new(area.sheet(), row, column).expect("valid worksheet area")
+        })
+    })
 }
 
 struct RunCell {

@@ -409,6 +409,7 @@ impl State {
             let id = snapshot.next_id()?;
             PresentationChange::CreateDoc {
                 doc: DocId(id),
+                expect_view_rev: Some(snapshot.part.stamp.view),
                 view: ViewId(ID.into()),
                 sheet: None,
                 schema: SCHEMA,

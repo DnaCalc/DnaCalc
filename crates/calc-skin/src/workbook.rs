@@ -226,6 +226,9 @@ pub enum WorkbookQuery {
     Structure {
         scope: SourceRef,
     },
+    InputCandidates {
+        scope: SourceRef,
+    },
     Sources,
     Deps {
         of: SourceRef,
@@ -467,6 +470,8 @@ pub enum PasteContents {
 pub enum PresentationChange {
     CreateDoc {
         doc: DocId,
+        #[serde(default)]
+        expect_view_rev: Option<Revision>,
         view: ViewId,
         sheet: Option<Sheet>,
         schema: u32,

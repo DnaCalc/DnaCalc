@@ -40,6 +40,7 @@ mod formatting;
 mod window;
 mod protection;
 pub(crate) use protection::ProtectionSave;
+pub(crate) use protection::style_locked;
 mod find;
 mod advanced_filter;
 mod autofilter;

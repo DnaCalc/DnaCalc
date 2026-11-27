@@ -75,6 +75,21 @@ pub struct Structure {
     pub runs: Vec<FormulaRun>,
 }
 
+/// Authored Excel evidence that a worksheet cell is intended for entry.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InputCandidate {
+    pub at: Key,
+    pub label: Option<String>,
+    pub signal: InputSignal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InputSignal {
+    ValidationList,
+    UnlockedOnProtectedSheet,
+    LinkedFormControl,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FormulaRun {
     pub extent: Area,

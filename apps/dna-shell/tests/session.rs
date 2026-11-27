@@ -971,6 +971,219 @@ fn forms_saves_and_undoes_the_opening_preference_as_presentation() {
 
 /// Native-only: exercises the App and Forms commands through the real workbook service.
 #[test]
+fn app_drafts_only_from_certain_workbook_signals_and_keeps_on_request() {
+    use calc_skin::{AnchorId, Batch, Change, Page as PageDocument, PresentationChange, SourceRef, WorkbookPort};
+    use std::num::NonZeroU128;
+
+    let page = Page::open();
+    let session = page.session;
+    let at = page.at(2, 2);
+    session.select_cell(page.at(1, 1));
+    page.settle();
+    assert!(page.press("8", Focus::Stage));
+    assert!(page.press("Enter", Focus::Editor));
+    session.command("view.app").unwrap();
+    assert_eq!(
+        session.command("app.draft-from-file"),
+        Err(CommandError::Refused("No certain App inputs were found in this workbook.".into()))
+    );
+    assert_eq!(session.view().0, "app");
+
+    page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+        let receipt = workbook.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Validations {
+                sheet: page.sheet.id(),
+                rules: vec![calc_doc::Validation {
+                    authored_copy: false,
+                    source: None,
+                    areas: vec![(2, 2, 2, 2)],
+                    kind: "list".into(),
+                    operator: "between".into(),
+                    allow_blank: true,
+                    show_input: true,
+                    show_error: true,
+                    in_cell_dropdown: true,
+                    error_style: "stop".into(),
+                    error_title: None,
+                    error: Some("Choose Small or Large".into()),
+                    prompt_title: Some("Size".into()),
+                    prompt: None,
+                    formula1: Some(r#""Small,Large""#.into()),
+                    formula2: None,
+                }],
+            }],
+        });
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    });
+    page.settle();
+    let before = session.stamp().unwrap();
+    session.command("app.draft-from-file").unwrap();
+    page.settle();
+    assert_eq!(session.view().0, "forms");
+    assert_eq!(session.stamp().unwrap(), before);
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    assert!(part.body.documents.is_empty());
+    assert!(part.body.anchors.is_empty());
+
+    session.command("forms.keep-draft").unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    assert_eq!(part.body.documents.len(), 1);
+    assert_eq!(part.body.anchors.len(), 1);
+    assert!(part.body.preferred.is_none());
+    let document: PageDocument = serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let mut addresses = Vec::new();
+    document.root.for_each_part(&mut |_, component, bind| {
+        assert_eq!(component, "input");
+        addresses.push(bind["value"].address.clone());
+    });
+    assert_eq!(addresses, ["Sheet1!B2"]);
+    assert_eq!(session.stamp().unwrap().model, before.model);
+    session.command("view.app").unwrap();
+    assert_eq!(part.body.anchors[0].area, Some(calc_skin::grid::Area(at, at)));
+
+    assert!(page.press("Ctrl+z", Focus::Stage));
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    assert!(part.body.documents.is_empty());
+    assert!(part.body.anchors.is_empty());
+
+    session.command("app.draft-from-file").unwrap();
+    let stamp = session.stamp().unwrap();
+    let a1 = page.at(1, 1);
+    let area = calc_skin::grid::Area(a1, a1);
+    let other = page.host.connect(
+        Origin::User { view: ViewId("inspector".into()) },
+        WritePolicy::Commit,
+    );
+    other.commit(Batch {
+        id: "1".into(),
+        workbook: Some(stamp.workbook),
+        base: Some(stamp.model),
+        expects: Vec::new(),
+        selection_seq: None,
+        label: None,
+        changes: vec![Change::Presentation(PresentationChange::Bind {
+            anchor: AnchorId(NonZeroU128::new(1).unwrap()),
+            source: SourceRef::Cells { sheet: page.sheet, areas: vec![area] },
+        })],
+    }).unwrap();
+    // The page has not received the other author's change yet.
+    session.command("forms.keep-draft").unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    assert!(part.body.documents.is_empty(), "a stale draft was accepted");
+    assert_eq!(part.body.anchors[0].area, Some(area));
+
+    session.command("view.app").unwrap();
+    session.command("app.draft-from-file").unwrap();
+    page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+        let receipt = workbook.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![calc_host::CellEdit::Validations {
+                sheet: page.sheet.id(),
+                rules: Vec::new(),
+            }],
+        });
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    });
+    session.command("forms.keep-draft").unwrap();
+    page.settle();
+    assert!(matches!(session.last_refusal(), Some(calc_skin::Refusal::Conflict { .. })));
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    assert!(part.body.documents.is_empty());
+    assert_eq!(part.body.anchors.len(), 1);
+}
+
+/// Native-only: opens the existing Form Controls fixture through the real workbook service.
+#[test]
+fn drafts_the_linked_cells_from_excel_form_controls() {
+    let page = Page::open();
+    let session = page.session;
+    session.open(
+        "Controls.xlsx".into(),
+        include_bytes!("../../../crates/calc-doc/tests/fixtures/drawing/form-controls.xlsx").to_vec(),
+    );
+    page.settle();
+    session.command("view.app").unwrap();
+    session.command("app.draft-from-file").unwrap();
+    session.command("forms.keep-draft").unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    let doc: calc_skin::Page = serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let mut addresses = Vec::new();
+    doc.root.for_each_part(&mut |_, _, bind| addresses.push(bind["value"].address.clone()));
+    let expected: Vec<_> = (2..=8).map(|row| format!("Controls!B{row}")).collect();
+    assert_eq!(addresses, expected);
+}
+
+/// Native-only: saves a protected worksheet and tests bound entry through the real service.
+#[test]
+fn only_the_unlocked_cell_of_a_protected_sheet_is_drafted_and_accepts_entry() {
+    use calc_skin::WorkbookPort;
+    use calc_skin::query::Query;
+
+    let page = Page::open();
+    let session = page.session;
+    let original = page.host.with_session(calc_skin::SelectionCause::Open, |workbook| {
+        let at = calc_host::value::CellKey::new(page.sheet.id(), 2, 2).unwrap();
+        let mut styles = workbook.host().styles().as_ref().clone();
+        let mut format = styles.cell_formats[0].clone();
+        format.protection.get_or_insert_with(Default::default).locked = Some(false);
+        let unlocked = styles.cell_formats.len() as u32;
+        styles.cell_formats.push(format);
+        let receipt = workbook.dispatch(calc_host::SkinIntent::Edit {
+            edits: vec![
+                calc_host::CellEdit::Styles(Arc::new(styles)),
+                calc_host::CellEdit::SetFormat { at, format: Some(unlocked) },
+            ],
+        });
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+        let policy = calc_doc::SavePolicy {
+            views: Some(Arc::new(calc_doc::SaveViews {
+                revision: workbook.host().model().revision().get(),
+                active_sheet: Some(at.sheet()),
+                sheets: Default::default(),
+                protections: [(
+                    at.sheet(), Some(calc_doc::SheetProtectionSave { contents: true, file: Default::default() }),
+                )].into(),
+            })),
+            ..Default::default()
+        };
+        let mut bytes = Vec::new();
+        workbook.save(&policy, &mut bytes).unwrap();
+        bytes
+    });
+    session.open("Protected.xlsx".into(), original);
+    page.settle();
+    session.command("view.app").unwrap();
+    session.command("app.draft-from-file").unwrap();
+    session.command("forms.keep-draft").unwrap();
+    page.settle();
+    let Live::Ready(part) = session.view_part() else { panic!("missing view part"); };
+    let doc: calc_skin::Page = serde_json::from_value(part.body.documents[0].body.clone()).unwrap();
+    let mut inputs = Vec::new();
+    doc.root.for_each_part(&mut |_, _, bind| inputs.push(bind["value"].clone()));
+    assert_eq!(inputs.len(), 1);
+    assert_eq!(inputs[0].address, "Sheet1!B2");
+
+    let sheet = session.summary().unwrap().sheets[0].sheet;
+    let locked = Key(sheet.0, sheet.1, 1, 1);
+    let rules = page.port.ask(query::Rules { at: locked }.request(), dna_skin_runtime::client::PAGE_BUDGET);
+    assert!(matches!(query::Rules::decode(rules.unwrap()).unwrap().body.refusal, Some(calc_skin::Refusal::Protected(_))));
+    session.command("view.app").unwrap();
+    let run = |command, args| {
+        session.run(&dna_kit::Invocation {
+            command: dna_kit::commands::CommandId::new(command),
+            args,
+        }).unwrap();
+        page.settle();
+    };
+    run("app.draft-input", serde_json::json!([inputs[0], "42"]));
+    run("app.commit-input", serde_json::json!(inputs[0]));
+    assert_eq!(page.shown(Key(sheet.0, sheet.1, 2, 2)), "42");
+}
+
+/// Native-only: exercises the App and Forms commands through the real workbook service.
+#[test]
 fn forms_and_app_share_the_page_and_history() {
     use calc_skin::{Bound, Page as PageDocument, PageNode, WorkbookPort};
     use calc_skin::query::Query;

@@ -30,7 +30,7 @@ pub(super) struct SheetProtect {
 #[derive(Clone, Debug)]
 pub(crate) struct ProtectionSave {
     password: Option<String>,
-    contents: bool,
+    pub(crate) contents: bool,
     objects: bool,
     scenarios: bool,
     allow: [bool; 11],
@@ -152,7 +152,7 @@ pub(super) enum Allow {
 }
 
 /// Whether the cells of style `style` are locked: the format's own flag, else its cell style's, else locked.
-pub(super) fn style_locked(host: &HostState, style: u32) -> bool {
+pub(crate) fn style_locked(host: &HostState, style: u32) -> bool {
     let styles = host.styles();
     let format = styles.cell_formats.get(style as usize);
     let own = format.and_then(|f| f.protection.as_ref()).and_then(|p| p.locked);

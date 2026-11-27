@@ -1,15 +1,17 @@
 //! The App operator and Forms maker author workbooks through the same session and page schema.
 
-use calc_skin::grid::{Key, Sheet};
-use calc_skin::query::{ViewDocumentFacts, ViewPartFacts};
+use calc_skin::grid::{Area, Key, Sheet};
+use calc_skin::query::{self, ViewDocumentFacts, ViewPartFacts};
 use calc_skin::{
-    AnchorId, Batch, Bound, Change, Coverage, DocId, InputPolicy, ModelChange, Page, PageNode,
-    PageSchema, PresentationChange, Refusal, SourceRef, Stamp, ViewId, address,
+    AnchorId, Batch, Bound, Change, Coverage, DocId, InputCandidate, InputPolicy, InputSignal,
+    ModelChange, Page, PageNode, PageSchema, PresentationChange, Refusal, SourceRef, Stamp, ViewId,
+    address,
 };
 use dna_kit::commands::CommandId;
 use dna_kit::page::{PageInput, PageRenderer};
 use dna_kit::{
     Invocation, Live, Located, MountedView, Registry, Seam, Session, View, ViewCommand, ViewSpec,
+    Watch,
 };
 use leptos::prelude::*;
 use std::cell::Cell;
@@ -64,7 +66,17 @@ impl View for Surface {
         if self.id == APP {
             // Drafts belong to the session owner, even when App fields are rebuilt.
             let _ = inputs(session);
+            let _ = draft(session);
+            let candidates = session.watch(query::InputCandidates { scope: SourceRef::Workbook });
             vec![
+                ViewCommand::new(
+                    &id,
+                    "app.draft-from-file",
+                    "Draft App from file",
+                    &[],
+                    move |_| state.draft(candidates),
+                )
+                .when("writable"),
                 ViewCommand::new(
                     &id,
                     "app.draft-input",
@@ -130,6 +142,14 @@ impl View for Surface {
                     state.create()
                 })
                 .when("writable"),
+                ViewCommand::new(&id, "forms.keep-draft", "Keep App draft", &[], move |_| {
+                    state.keep_draft()
+                })
+                .when("writable"),
+                ViewCommand::new(&id, "forms.discard-draft", "Discard App draft", &[], move |_| {
+                    draft(session).set(None);
+                    Ok(())
+                }),
                 ViewCommand::new(&id, "forms.prefer-app", "Open this workbook in App", &[], move |_| {
                     state.prefer_app(true)
                 })
@@ -246,13 +266,13 @@ impl State {
             if !matches!(answer.coverage, Coverage::Complete) || answer.body.opaque {
                 return Err("The workbook's view declarations are unavailable".into());
             }
-            if self.session.stamp().is_none_or(|now| {
-                now.workbook != answer.stamp.workbook || now.view != answer.stamp.view
-            }) {
+            let Some(stamp) = self.session.stamp().filter(|now| {
+                now.workbook == answer.stamp.workbook && now.view == answer.stamp.view
+            }) else {
                 return Err("Reading the current workbook pages…".into());
-            }
+            };
             let document = app_document(&answer.body).cloned();
-            Ok((answer.stamp, document))
+            Ok((stamp, document))
         } else {
             Err("Reading workbook pages…".into())
         }
@@ -280,31 +300,102 @@ impl State {
     }
 
     fn create(self) -> Result<(), String> {
-        let (stamp, current) = self.snapshot()?;
-        if current.is_some() {
-            return Err("This workbook already has an App page".into());
+        let stamp = self.unauthored()?;
+        self.create_page(stamp, "Create App page", Vec::new(), Vec::new())
+    }
+
+    fn unauthored(self) -> Result<Stamp, String> {
+        let (stamp, page) = self.snapshot()?;
+        if page.is_some() {
+            Err("This workbook already has an App page".into())
+        } else {
+            Ok(stamp)
         }
+    }
+
+    fn create_page(
+        self,
+        stamp: Stamp,
+        label: &str,
+        children: Vec<PageNode>,
+        mut changes: Vec<PresentationChange>,
+    ) -> Result<(), String> {
         let document = Page {
             schema: PageSchema::V1,
             title: "App".into(),
             input: InputPolicy::Live,
-            root: PageNode::Stack {
-                children: Vec::new(),
-            },
+            root: PageNode::Stack { children },
         };
         // The workbook-level App has a reserved document ID.
         let doc = DocId(NonZeroU128::new(0x4150_5001).unwrap());
-        self.submit(
+        changes.push(PresentationChange::CreateDoc {
+            doc,
+            expect_view_rev: Some(stamp.view),
+            view: ViewId(APP.into()),
+            sheet: None,
+            schema: 1,
+            body: encode(&document)?,
+        });
+        self.submit(stamp, label, changes)
+    }
+
+    fn draft(self, watch: Watch<query::InputCandidates>) -> Result<(), String> {
+        let stamp = self.unauthored()?;
+        let answer = match self.session.read(watch) {
+            Live::Ready(answer) if answer.stamp.workbook == stamp.workbook
+                && answer.coverage == Coverage::Complete => answer,
+            Live::Refused(Refusal::OverBudget { .. }) => {
+                return Err("This workbook is too large to draft automatically. Choose cells in Forms maker.".into());
+            }
+            Live::Refused(_) => return Err("Worksheet input signals are unavailable.".into()),
+            _ => return Err("Reading worksheet input signals…".into()),
+        };
+        if answer.body.is_empty() {
+            return Err("No certain App inputs were found in this workbook.".into());
+        }
+        draft(self.session).set(Some(Draft {
             stamp,
-            "Create App page",
-            vec![PresentationChange::CreateDoc {
-                doc,
-                view: ViewId(APP.into()),
-                sheet: None,
-                schema: 1,
-                body: encode(&document)?,
-            }],
-        )
+            candidates: answer.body,
+        }));
+        self.session
+            .command("view.forms")
+            .map_err(|_| "Forms maker is unavailable.".into())
+    }
+
+    fn keep_draft(self) -> Result<(), String> {
+        let stamp = self.unauthored()?;
+        let draft = current_draft(self.session)
+            .ok_or_else(|| "Draft again from the current workbook first".to_owned())?;
+        let Live::Ready(part) = self.session.view_part() else {
+            return Err("Reading source anchors…".into());
+        };
+        let mut changes = Vec::new();
+        let mut children = Vec::new();
+        for (i, (candidate, anchor)) in draft
+            .candidates
+            .into_iter()
+            .zip(unused_anchors(&part.body))
+            .enumerate()
+        {
+            let at = candidate.at;
+            let address = qualified(self.session, at)
+                .ok_or_else(|| "A draft source is unavailable".to_owned())?;
+            let label = candidate
+                .label
+                .filter(|label| !label.trim().is_empty())
+                .unwrap_or_else(|| address.clone());
+            children.push(cell_part(
+                format!("cell-{i}"),
+                "input",
+                Bound { anchor, address },
+                label,
+            ));
+            changes.push(PresentationChange::Bind {
+                anchor,
+                source: cell_source(at),
+            });
+        }
+        self.create_page(stamp, "Keep App draft", children, changes)
     }
 
     fn patch(self, label: &str, edit: impl FnOnce(&mut Page)) -> Result<(), String> {
@@ -338,30 +429,25 @@ impl State {
             .active_entry()
             .ok_or_else(|| "Reading the selected cell…".to_owned())?
             .formula;
-        let source = SourceRef::Cells {
-            sheet: Sheet(at.0, at.1),
-            areas: vec![calc_skin::grid::Area(at, at)],
-        };
+        let source = cell_source(at);
         let Live::Ready(part) = self.session.view_part() else {
             return Err("Reading source anchors…".into());
         };
         let mut part_ids = Vec::new();
         page.root
             .for_each_part(&mut |id, _, _| part_ids.push(id.to_owned()));
-        let anchor = (1u128..)
-            .map(|n| AnchorId(NonZeroU128::new(n).unwrap()))
-            .find(|id| part.body.anchors.iter().all(|anchor| anchor.id != *id))
+        let anchor = unused_anchors(&part.body).next()
             .expect("fewer anchors than u128 identifiers");
         let id = (part_ids.len()..)
             .map(|n| format!("cell-{n}"))
             .find(|id| !part_ids.contains(id))
             .expect("fewer controls than usize identifiers");
-        let part = PageNode::Part {
+        let part = cell_part(
             id,
-            component: if formula { "value" } else { "input" }.to_owned(),
-            bind: BTreeMap::from([("value".into(), Bound { anchor, address })]),
-            props: BTreeMap::from([("label".into(), serde_json::Value::String(label.to_owned()))]),
-        };
+            if formula { "value" } else { "input" },
+            Bound { anchor, address },
+            label.to_owned(),
+        );
         match &mut page.root {
             PageNode::Stack { children } => children.push(part),
             root => {
@@ -394,11 +480,17 @@ impl State {
         if !matches!(self.session.seam(), Seam::Idle) {
             return Err("Finish the change in progress first".into());
         }
-        self.session.submit(batch(
-            stamp,
-            label,
-            changes.into_iter().map(Change::Presentation).collect(),
-        ));
+        let expects = changes
+            .iter()
+            .filter_map(|change| match change {
+                PresentationChange::Bind { source, .. } => Some(source.clone()),
+                _ => None,
+            })
+            .collect();
+        self.session.submit(Batch {
+            expects,
+            ..batch(stamp, label, changes.into_iter().map(Change::Presentation).collect())
+        });
         Ok(())
     }
 
@@ -460,6 +552,28 @@ fn app_document(part: &ViewPartFacts) -> Option<&ViewDocumentFacts> {
     part.documents.iter().find(|doc| doc.sheet.is_none() && doc.view.0 == APP)
 }
 
+fn unused_anchors(part: &ViewPartFacts) -> impl Iterator<Item = AnchorId> + '_ {
+    (1u128..)
+        .map(|n| AnchorId(NonZeroU128::new(n).unwrap()))
+        .filter(|id| part.anchors.iter().all(|anchor| anchor.id != *id))
+}
+
+fn cell_source(at: Key) -> SourceRef {
+    SourceRef::Cells {
+        sheet: Sheet(at.0, at.1),
+        areas: vec![Area(at, at)],
+    }
+}
+
+fn cell_part(id: String, component: &str, bound: Bound, label: String) -> PageNode {
+    PageNode::Part {
+        id,
+        component: component.to_owned(),
+        bind: BTreeMap::from([("value".into(), bound)]),
+        props: BTreeMap::from([("label".into(), serde_json::Value::String(label))]),
+    }
+}
+
 fn decode(doc: &ViewDocumentFacts) -> Result<Page, String> {
     if doc.schema != 1 {
         return Err("This App page uses a newer schema".into());
@@ -505,6 +619,34 @@ fn qualified(session: Session, at: Key) -> Option<String> {
                 address::address(at.2, at.3)
             )
         })
+}
+
+#[derive(Clone)]
+struct Draft {
+    stamp: Stamp,
+    candidates: Vec<InputCandidate>,
+}
+
+#[derive(Clone, Copy)]
+struct DraftState(RwSignal<Option<Draft>>);
+
+impl Default for DraftState {
+    fn default() -> Self {
+        Self(RwSignal::new(None))
+    }
+}
+
+fn draft(session: Session) -> RwSignal<Option<Draft>> {
+    session.local::<DraftState>().0
+}
+
+fn current_draft(session: Session) -> Option<Draft> {
+    let stamp = session.stamp()?;
+    draft(session).get().filter(|draft| {
+        stamp.workbook == draft.stamp.workbook
+            && stamp.model == draft.stamp.model
+            && stamp.view == draft.stamp.view
+    })
 }
 
 #[derive(Clone, Default)]
@@ -597,7 +739,12 @@ fn operator(session: Session, state: State) -> AnyView {
                 }
                 Err(message) => view! {
                     <section class="dna-page-card">
-                        <h1>{message}</h1>
+                        <h1>{message.clone()}</h1>
+                        {if message == "No App is defined yet" {
+                            button(session, "app.draft-from-file", "Draft from file · Edit page…").into_any()
+                        } else {
+                            ().into_any()
+                        }}
                         {button(session, "view.forms", "Open Forms maker")}
                         {button(session, "view.classic", "Open Classic")}
                     </section>
@@ -609,6 +756,7 @@ fn operator(session: Session, state: State) -> AnyView {
 
 fn forms(session: Session, state: State) -> AnyView {
     let page = Memo::new(move |_| state.document());
+    let draft = move || current_draft(session);
     let title = NodeRef::<leptos::html::Input>::new();
     let label = NodeRef::<leptos::html::Input>::new();
     view! {
@@ -656,12 +804,36 @@ fn forms(session: Session, state: State) -> AnyView {
                         <PageRenderer session document />
                     }.into_any()
                 }
-                Err(message) => view! {
-                    <p>{message}</p>
-                    {button(session, "forms.create", "Create App page")}
-                }.into_any(),
+                Err(message) => match draft() {
+                    Some(draft) => draft_review(session, draft),
+                    None => view! {
+                        <p>{message}</p>
+                        {button(session, "forms.create", "Create App page")}
+                    }.into_any(),
+                },
             }}
         </div>
+    }.into_any()
+}
+
+fn draft_review(session: Session, draft: Draft) -> AnyView {
+    view! {
+        <section class="dna-page-card" data-dnacalc="app-draft">
+            <h2>"Draft from file"</h2>
+            <ul>
+                {draft.candidates.into_iter().map(|candidate| {
+                    let address = qualified(session, candidate.at);
+                    let reason = match candidate.signal {
+                        InputSignal::ValidationList => "Validation list",
+                        InputSignal::UnlockedOnProtectedSheet => "Unlocked on protected sheet",
+                        InputSignal::LinkedFormControl => "Linked Form Control",
+                    };
+                    view! { <li><strong>{address}</strong>" · "{reason}</li> }
+                }).collect_view()}
+            </ul>
+            {button(session, "forms.keep-draft", "Keep draft")}
+            {button(session, "forms.discard-draft", "Discard draft")}
+        </section>
     }.into_any()
 }
 

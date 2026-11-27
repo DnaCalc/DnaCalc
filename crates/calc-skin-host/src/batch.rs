@@ -36,11 +36,17 @@ fn editability(session: &HostSession, area: GridArea, entry: bool) -> Result<(),
     if host.model().sheet_by_id(area.sheet()).is_none() {
         return Err(invalid("The worksheet is unavailable"));
     }
-    if calc_host::can_edit(host, area.first()).is_err() {
+    let at = area.first();
+    let protected = if entry {
+        host.loaded().sheet(at.sheet()).is_some_and(|sheet| sheet.is_macro_sheet())
+            || (host.sheet_contents_protected(at.sheet()) && host.style_is_locked(host.cell_style(at)))
+    } else {
+        calc_host::can_edit(host, at).is_err()
+    };
+    if protected {
         return Err(Refusal::Protected(source_area(area)));
     }
     if entry {
-        let at = area.first();
         if host.spill_owner(at).is_some_and(|anchor| anchor != at) {
             return Err(Refusal::Excel {
                 reason: "This cell belongs to a spilled array".into(),
@@ -320,11 +326,17 @@ pub(crate) fn prepare(
                     PresentationChange::RemoveNote { id } => part.clone().without_note(*id),
                     PresentationChange::CreateDoc {
                         doc,
+                        expect_view_rev,
                         view,
                         sheet,
                         schema,
                         body,
                     } => {
+                        if expect_view_rev.is_some_and(|expected| expected != base.view) {
+                            return Err(invalid(
+                                "The workbook presentation changed. Review the page again.",
+                            ));
+                        }
                         if part.document(*doc).is_some() {
                             return Err(invalid("This view document already exists"));
                         }

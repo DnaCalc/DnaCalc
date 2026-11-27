@@ -6,8 +6,8 @@
 //! its date (the group's own date range, read the same way), a point without a date left out.
 
 use crate::state::HostState;
-use calc_doc_model::value::{CellKey, CoreRef, SheetId};
-use calc_doc_model::{ChartData, SparklineGroup};
+use calc_doc_model::value::{CellKey, CoreRef, GridArea, SheetId};
+use calc_doc_model::{ChartData, FormControl, SparklineGroup};
 
 fn sheet_of(area: calc_doc_model::value::GridArea) -> SheetId {
     area.first().sheet()
@@ -25,6 +25,25 @@ pub struct SparklineView {
 }
 
 impl HostState {
+    fn form_control_link_area(&self, sheet: SheetId, control: &FormControl) -> Option<GridArea> {
+        let origin = CellKey::new(sheet, 1, 1).ok()?;
+        let link = self.current_reference(control.link.as_deref()?, sheet);
+        match self.resolve_reference_text(origin, &link) {
+            crate::ReferenceTarget::Area(area) => Some(area),
+            _ => None,
+        }
+    }
+
+    /// The statically linked single cells of this sheet's Form Controls.
+    pub fn form_control_links(&self, sheet: SheetId) -> impl Iterator<Item = (&FormControl, CellKey)> {
+        self.loaded.sheet(sheet).into_iter().flat_map(move |loaded| {
+            loaded.shapes().controls.iter().filter_map(move |control| {
+                let area = self.form_control_link_area(sheet, control)?;
+                (area.cell_count() == 1).then(|| (control, area.first()))
+            })
+        })
+    }
+
     /// A sparkline group's colour against the workbook's theme (a theme colour with its tint as cells take it).
     pub fn sparkline_colour(&self, color: &calc_doc_model::StyleColor) -> Option<crate::LookColor> {
         crate::conditional::resolve(self, color)
@@ -134,12 +153,7 @@ impl HostState {
             .controls
             .iter()
             .map(|control| {
-                let link = control.link.as_deref().and_then(|text| {
-                    match self.resolve_reference_text(origin, &self.current_reference(text, sheet)) {
-                        crate::ReferenceTarget::Area(area) => Some(area.first()),
-                        _ => None,
-                    }
-                });
+                let link = self.form_control_link_area(sheet, control).map(GridArea::first);
                 let linked = link.and_then(|at| crate::conditional::cell_value(self, at));
                 let items = control
                     .range

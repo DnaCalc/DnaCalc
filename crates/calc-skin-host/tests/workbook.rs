@@ -1234,6 +1234,7 @@ fn a_view_document_round_trips_without_editing_the_workbook_model() {
         1,
         vec![Change::Presentation(PresentationChange::CreateDoc {
             doc,
+            expect_view_rev: None,
             view: ViewId("notebook".into()),
             sheet: None,
             schema: 1,

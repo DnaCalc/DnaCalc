@@ -75,6 +75,11 @@ query!(
     /// Tables and inferred formula runs in the current model.
     StructureOf { scope: SourceRef } => Evidence<Structure>, |q: &StructureOf| WorkbookQuery::Structure { scope: q.scope.clone() });
 query!(
+    /// Certain signals of worksheet inputs, including workbook validation and protection.
+    InputCandidates { scope: SourceRef } => Vec<crate::InputCandidate>,
+    |q: &InputCandidates| WorkbookQuery::InputCandidates { scope: q.scope.clone() }
+);
+query!(
     /// Workbook link caches, admitted RTD topics and bound volatile cells.
     SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);
 query!(
