@@ -84,7 +84,7 @@ def template_vba_group(**changes):
     case = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
     case.update(calls=[{"procedure": "Module1.Probe", "args": [number(ONE)]}], readback=["Data!A1"], event_log=["Data!B1"])
     case.update(changes)
-    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [{"names": {}, **case}]}
+    return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [case]}
 
 
 class ProtocolTests(unittest.TestCase):
@@ -596,11 +596,11 @@ class AdmissionTests(unittest.TestCase):
             ("function", {"A2": {"type": "formula", "formula": '=CELL("filename")'}}, {}),
         ]
         for message, cells, names in layouts:
-            yield message, vba_group(sheets=[{"name": "Data", "cells": cells}], names=names)
+            yield "names" if names else "layout cell", vba_group(sheets=[{"name": "Data", "cells": cells}], names=names)
         for bad in ('a"b', "a'b", "a|b", "a!b", "a[b]", "a\\b", "a" * 32, "", " a"):
             yield "layout sheet", vba_group(sheets=[{"name": bad, "cells": {}}], readback=[], event_log=[])
         for name in ("Auto_Open", "a b", "[x]", "_xlnm.Print_Area"):
-            yield "defined name", vba_group(names={name: "=1"})
+            yield "names", vba_group(names={name: "=1"})
         # rw15 finding 6 and the worker-parity gaps: extra keys and hidden positions.
         yield "layout sheet", vba_group(sheets=[{"name": "Data", "cells": {}, "extra": 1}], readback=[], event_log=[])
         yield "hidden", vba_group(sheets=[{"name": "Data", "cells": {}, "hidden_rows": [0]}], readback=[], event_log=[])
@@ -616,10 +616,9 @@ class AdmissionTests(unittest.TestCase):
         # 1: a probe function named like an admitted non-Excel worksheet function is callable from a layout formula.
         for name in ("FLATTEN", "HAS", "HASANY", "HASALL", "flatten", "Has"):
             hijack = f"Public Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
-            yield "collides", vba_group(hijack + probe(""),
+            yield "layout cell", vba_group(hijack + probe(""),
                                         sheets=[{"name": "Data", "cells": {
                                             "A1": {"type": "formula", "formula": f'={name.upper()}("=WEBSERVICE(""http://x"")")'}}}])
-            yield "collides", vba_group(hijack + probe(""))
         # 2: a number stringifies with a leading minus, which a cell takes as a formula.
         for expression in ('Left(-1, 1) & "WEBSERVICE(""http://x"")"', '(-1) & "*WEBSERVICE(""http://x"")"',
                            'xlUp & "x"', '(Not 0) & "x"', '&H8000 & "x"', '(1 - 2) & "x"', 'x & "x"',
@@ -644,7 +643,6 @@ class AdmissionTests(unittest.TestCase):
     def template_group(self, **changes):
         smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
         smoke.update(changes)
-        smoke = {"names": {}, **smoke}
         return {"f": "_VBA", "k": "V", "n": 1, "o": 0, "v": [smoke]}
 
     def rw18_free_source_group(self):
@@ -723,6 +721,60 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("names", result.stderr.lower())
 
+    def test_vba_request_layout_cannot_carry_formula_text_or_names(self):
+        # A harmless formula must fail at the same schema boundary as the review cases.
+        for field, group, reason in self.values_only_requests():
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, reason):
+                self.admission.check(group)
+
+    def values_only_requests(self):
+        formula = self.template_group()
+        case = formula["v"][0]
+        case["sheets"][0]["cells"]["A2"] = {"type": "formula", "formula": "=A1*2"}
+        yield "formula cell", formula, "layout cell"
+        yield "defined name", self.template_group(names={"Rate": "=Data!$A$1"}), "names"
+        yield "empty names", self.template_group(names={}), "names"
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_rejects_formula_and_names_request_fields(self):
+        for field, group, reason in self.values_only_requests():
+            with self.subTest(field=field):
+                result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                        input=json.dumps(group), text=True, capture_output=True, timeout=30)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(reason, result.stderr)
+
+    @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
+    def test_vba_worker_digest_covers_rendered_template_layout(self):
+        from copy import deepcopy
+        import hashlib
+        import vba_templates
+
+        group = self.template_group()
+        case = group["v"][0]
+        case["sheets"][0]["name"] = "My Data"
+        case["params"]["target_sheet"] = "my data"
+        case["readback"] = ["My Data!C1"]
+        case["sheets"][0]["cells"]["A2"] = {"type": "blank"}
+        expanded = vba_templates.expand(deepcopy(case))
+        entry = vba_templates.CATALOGUE["templates"]["smoke"]
+        expanded.update(template="smoke", params=case["params"],
+                        pins=[entry["sha256"] for entry in [*entry["modules"], entry["layout"]]])
+        expanded["sheets"][0]["cells"]["C1"] = {"type": "formula", "formula": "=A1*2"}
+        expanded["names"] = {"Rate": "='My Data'!$A$1"}
+        canonical = json.dumps(expanded, sort_keys=True, separators=(",", ":")).replace(r"\n", r"\u000a")
+        expected = hashlib.sha256(canonical.encode("ascii")).hexdigest()
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                input=json.dumps(group), text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), expected)
+
+        case["sheets"][0]["cells"]["$c$1"] = number(ONE)
+        result = subprocess.run([os.environ["TOUCHSTONE_VBA_POLICY_WORKER"], "--check-vba-policy"],
+                                input=json.dumps(group), text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("overlaps a request cell", result.stderr)
+
     def rw18_layout_group(self, formula, as_name=False):
         """dc-kv1dh: a smoke template case whose layout (a cell, or a defined name) carries one formula."""
         sheets = [{"name": "Data", "cells": {"A1": number(ONE)}}, {"name": "Events", "cells": {}}]
@@ -745,14 +797,10 @@ class AdmissionTests(unittest.TestCase):
                 with self.subTest(formula=formula, as_name=as_name), self.assertRaisesRegex(ValueError, "(?i)layout"):
                     self.admission.check(self.rw18_layout_group(formula, as_name))
 
-    def test_vba_layout_still_accepts_plain_bare_names(self):
+    def test_vba_layout_refuses_even_local_formulas(self):
         for formula in ("=SUM(A1:A1)", "=LET(x, 1, x + 1)", "=Info!A1+1", "='Cell'!A1", "=TRUE", "=A1*2"):
-            with self.subTest(formula=formula):
-                group = self.rw18_layout_group(formula)
-                group["v"][0]["sheets"][1]["name"] = "Info" if "Info" in formula else "Cell" if "Cell" in formula else "Events"
-                group["v"][0]["params"]["event_sheet"] = group["v"][0]["sheets"][1]["name"]
-                group["v"][0]["event_log"] = [group["v"][0]["sheets"][1]["name"] + "!A1"]
-                self.admission.check(group)
+            with self.subTest(formula=formula), self.assertRaisesRegex(ValueError, "layout cell"):
+                self.admission.check(self.rw18_layout_group(formula))
 
     @unittest.skipUnless(os.environ.get("TOUCHSTONE_VBA_POLICY_WORKER"), "set path to the built Excel worker")
     def test_vba_worker_agrees_on_bare_identifiers_in_layout_formulas(self):
@@ -763,7 +811,7 @@ class AdmissionTests(unittest.TestCase):
                     result = subprocess.run([worker, "--check-vba-policy"], input=json.dumps(self.rw18_layout_group(formula, as_name)),
                                             text=True, capture_output=True, timeout=30)
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                    self.assertIn("layout", result.stderr.lower())
+                    self.assertIn("names" if as_name else "layout cell", result.stderr.lower())
 
     def rw18_parity_groups(self):
         """dc-8w2us: (group, accepted) for the differentials the review found; both validators must agree."""
@@ -857,7 +905,7 @@ class AdmissionTests(unittest.TestCase):
     def test_vba_template_files_match_their_pinned_hashes_and_a_changed_file_is_refused(self):
         import hashlib, vba_templates
         for name, entry in vba_templates.CATALOGUE["templates"].items():
-            for module in entry["modules"]:
+            for module in [*entry["modules"], entry["layout"]]:
                 data = (vba_templates.DIRECTORY / module["file"]).read_bytes()
                 self.assertEqual(hashlib.sha256(data).hexdigest(), module["sha256"], module["file"])
         saved = vba_templates.CATALOGUE["templates"]["smoke"]["modules"][0]["sha256"]
@@ -889,13 +937,9 @@ class AdmissionTests(unittest.TestCase):
         # 1: a Private Function (and a dotted name's last part) is still callable from a worksheet formula.
         for name in ("FLATTEN", "HAS", "HASANY", "HASALL"):
             hijack = f"Private Function {name}(ByVal x As Variant) As Variant\n{write}x\n{name} = x\nEnd Function\n"
-            yield "collides", vba_group(hijack + probe(""),
+            yield "layout cell", vba_group(hijack + probe(""),
                                         sheets=[{"name": "Data", "cells": {
                                             "A1": {"type": "formula", "formula": f'={name}("=WEBSERVICE(""http://x"")")'}}}])
-        yield "collides", vba_group(modules=[{"name": "Mode", "kind": "standard",
-                                              "source": "Public Function Sngl(ByVal x As Variant) As Variant\nSngl = x\nEnd Function\n"
-                                                        + probe("")}],
-                                    calls=[{"procedure": "Mode.Probe", "args": [number(ONE)]}])
         # 2: a TEXT that can be empty at run time does not make the leading operand safe.
         for lead in ('""', 'vbNullString', 'Empty', 'Null', 'Left("a", 0)', 'e', 's', 'v'):
             for rest in ('(-1) & "x"', 'CStr(-1) & "x"', 'x & "x"'):
@@ -940,10 +984,6 @@ class AdmissionTests(unittest.TestCase):
         for message, group in self.refused_vba_cases():
             with self.subTest(message=message), self.assertRaisesRegex(ValueError, "(?i)" + re.escape(message)):
                 self.check_source(group)
-        self.check_source(vba_group(sheets=[{"name": "Data", "cells": {
-            "A2": {"type": "formula", "formula": '=SUM(A1,1)&"[x]"'}}}]))
-        self.check_source(vba_group(sheets=[{"name": "My Data", "cells": {
-            "A2": {"type": "formula", "formula": "='My Data'!A1+Data!A1"}}}, {"name": "Data", "cells": {}}]))
 
     def test_the_reviewed_smoke_case_is_accepted(self):
         smoke = json.loads((HERE / "vba-smoke.json").read_text(encoding="ascii"))
@@ -1006,8 +1046,6 @@ class AdmissionTests(unittest.TestCase):
         for line in self.accepted_cell_writes():
             accepted.append(vba_group(
                 f"Public Function Probe(ByVal x As Long) As Long\n{line}\nProbe = x\nEnd Function\n"))
-        accepted.append(vba_group(sheets=[{"name": "My Data", "cells": {
-            "A2": {"type": "formula", "formula": "='My Data'!A1+Data!A1"}}}, {"name": "Data", "cells": {}}]))
         for group in accepted:
             with self.subTest(accepted=str(group["v"][0].get("template") or group["v"][0]["modules"][0]["source"][:40])):
                 result = run(group)

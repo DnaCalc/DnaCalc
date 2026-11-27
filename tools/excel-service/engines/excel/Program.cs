@@ -713,6 +713,7 @@ static class Program
                         errors.Add((kv.Key, code));
                         break;
                     case "formula": formulas.Add((ws, kv.Key, (string)cell["formula"])); break;
+                    case "blank": constants.Add((r, col, null, kv.Key)); break;
                     default: throw new InvalidOperationException("unsupported layout cell " + kv.Key);
                 }
             }

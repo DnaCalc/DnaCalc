@@ -8,7 +8,6 @@
   "identifier": "[A-Za-z][A-Za-z0-9_]{0,30}",
   "module_name": "[A-Z][A-Za-z0-9]{0,23}",
   "sheet_name": "[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}",
-  "defined_name": "[A-Za-z][A-Za-z0-9_]{0,30}",
   "lex": "(?P<ws>[ \\t]+)|(?P<comment>'.*)|(?P<str>\"(?:[^\"]|\"\")*\")|(?P<hex>&[Hh][0-9A-Fa-f]+)|(?P<num>[0-9]+(?:\\.[0-9]*)?(?:[Ee][+-]?[0-9]+)?)|(?P<id>[A-Za-z][A-Za-z0-9_]*)|(?P<cont>_[ \\t]*$)|(?P<op><=|>=|<>|[-+*/\\\\^&=<>(),.:])",
   "formula_chars": "=+-@",
   "keywords": "and as boolean byref byte byval call case const currency date declare dim do doevents double each else elseif empty end enum eqv erase error event exit false for friend function get global gosub goto if imp implements in integer is let lib like long loop lset me mod new next not nothing null object on option optional or paramarray preserve private property ptrsafe public raiseevent redim rem resume return rset select set single static step stop string sub then to true type typeof until variant wend while with withevents xor",
@@ -99,8 +98,6 @@
     "err clear val 0 0 c"
   ],
   "reserved": "executeexcel4macro evaluate run workbooks windows ontime onkey ddeinitiate ddeexecute ddepoke dderequest ddeterminate rmdir chdrive setattr getattr filelen filedatetime reset freefile appactivate attribute save quit chr chrw loadpicture savepicture lock unlock print write put seek close input line shell getobject open kill mkdir filecopy dir chdir sendkeys environ vbproject vbcomponents vbe xmlhttp serverxmlhttp winhttprequest webservice querytables connections followhyperlink hyperlink msgbox inputbox callbyname saveas savecopyas getsetting savesetting deletesetting name createobject application activeworkbook activesheet activecell selection thisworkbook err range cells rows columns names sheets worksheets workbook worksheet auto_open auto_close auto_activate auto_deactivate",
-  "blocked_functions": "webservice image rtd call register register.id hyperlink exec evaluate filterxml stockhistory translate detectlanguage py copilot importcsv importtext indirect info cell",
-  "blocked_function_prefixes": "cube",
   "classes": [
     "Scripting.Dictionary",
     "VBScript.RegExp"

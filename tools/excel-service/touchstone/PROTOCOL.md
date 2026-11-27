@@ -68,7 +68,7 @@ into a cell (a number, date, time, percentage or currency takes the number forma
 
 **Probe templates (dc-erfm3, the route to use).** A VBA case does not carry VBA source. It names a template from the
 catalogue `tools/excel-service/vba-probes/catalogue.json` and gives typed parameters: `{"template", "params", "sheets",
-"calls", "readback", "event_log", "names"?}` with no `modules`. Each template's module files (`vba-probes/*.bas`) are
+"calls", "readback", "event_log"}` with no `modules`. Each template's module files (`vba-probes/*.bas`) are
 reviewed once by the coordinator and pinned by SHA-256 in the catalogue; `policy.py` and the worker (`VbaTemplates.cs`,
 files embedded in the build) refuse a file that differs from its pin and build the .xlsm from the pinned text and the
 parameters only. Parameter types: `sheet` (a case sheet's name), `address` (one A1 cell), `text` (1..255 printable ASCII
@@ -79,10 +79,10 @@ call names one of the template's `entry_points`. `touchstone/vba-smoke.json` is 
 entry with their hashes, and have the coordinator review them. The expanded modules still pass the grammar below. The
 free-source `modules` shape below is no longer accepted on the wire (dc-45ndr): a case without `template` and `params` is
 refused. It describes the expanded form the validators check. The approval digest binds the template name, its parameters and the
-pinned module hashes as well as the expansion; approvals stay frozen.
+pinned module and layout hashes as well as the expansion. Approvals stay frozen.
 
 A **VBA case** (function `_VBA`, token `V`) occupies one position at offset 0 in one request frame. Its value contains
-`sheets` and `names` in the sheet-case layout shape, and the following fields. No workbook travels with the case: the
+`sheets` with typed number, text, boolean, error and blank cells, and the following fields. Formula cells and the `names` request field are refused. The worker prints formulas and defined names from the template’s pinned layout. No workbook travels with the case: the
 worker writes the source-only .xlsm itself from the checked `sheets` and `modules` (the sheet names, the `ThisWorkbook`
 and `Sheet<N>` document modules, one project stream per module), so no uploaded compound file or compressed stream is
 parsed. A case that carries a `workbook` field is refused.
@@ -103,13 +103,9 @@ characters either) or a concatenation of such; a value read from a cell, a dicti
 written back. There is no `Application`, `Workbooks`, `Sheets.Add`, `Worksheets.Add`, unqualified `Range`, `Evaluate`,
 `Run`, `Name ... As`, `Declare` or `CreateObject` outside the two classes. Standard module names match `[A-Z][A-Za-z0-9]{0,23}`
 and are not reserved words; document modules are `ThisWorkbook` or `Sheet<N>` for a sheet in the case, and may define only
-the listed `Worksheet_*` and `Workbook_*` event procedures. Sheet names match `[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}`. Layout formulas
-refuse `[`, `]`, `\\`, `|`, a quoted sheet name that is not a plain one, and the functions listed in `blocked_functions`
-(including `IMPORTCSV`, `IMPORTTEXT`, `INDIRECT`, `INFO`, `CELL` and `CUBE*`). The worker requires a local approval for the exact
-case before opening the workbook. On the worker host, pipe a reviewed authored case group as JSON into
-`excel-worker --check-vba-policy` to obtain its digest, then place an empty `<digest>.approved` file under
-`<state>/excel/vba-approved`. This approval covers source, layout, calls, and readback addresses.
-Reordering JSON object keys preserves the digest. A change to any case value requires a fresh approval.
+the listed `Worksheet_*` and `Workbook_*` event procedures. Sheet names match `[A-Za-z0-9_][A-Za-z0-9_ ]{0,30}`. The worker requires a local approval for the exact case before opening the workbook.
+The approval digest binds the expanded source, layout, calls and readback addresses.
+Reordering JSON object keys preserves the digest. Approvals remain frozen.
 
 The worker opens the workbook read-only without updating links, applies the layout, calculates it, and enables events
 for the `Application.Run` calls. It reads the requested cells and closes the workbook without saving.

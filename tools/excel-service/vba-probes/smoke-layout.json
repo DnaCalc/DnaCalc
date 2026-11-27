@@ -1,0 +1,4 @@
+[
+  {"sheet": "{{target_sheet}}", "at": "C1", "formula": "=A1*2"},
+  {"name": "Rate", "refers_to": "={{target_sheet}}!$A$1"}
+]

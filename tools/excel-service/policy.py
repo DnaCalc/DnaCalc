@@ -233,14 +233,10 @@ CASE_CELL_TYPES = {"number", "text", "boolean", "error", "formula"}
 BAD_TEXT = re.compile(r'\x00')
 
 VBA_FRAME_BUDGET = 40 * 1024     # touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
-VBA_IDENTIFIER = re.compile(VBA_RULES["identifier"])
 VBA_SHEET_NAME = re.compile(VBA_RULES["sheet_name"])
-VBA_DEFINED_NAME = re.compile(VBA_RULES["defined_name"])
 VBA_FORMULA_START = VBA_RULES["formula_chars"]
-VBA_BLOCKED_FUNCTIONS = {name.upper() for name in VBA_RULES["blocked_functions"].split()}
-VBA_BLOCKED_PREFIXES = tuple(name.upper() for name in VBA_RULES["blocked_function_prefixes"].split())
-# A layout formula, read left to right: a quoted sheet name or a string literal (whichever starts first), then code.
-VBA_FORMULA_TOKEN = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+
+
 def vba_wire_length(value):
     """The compact JSON length of a case as the worker measures it (Json.Write): every control or non-ASCII
     character is a six-character \\u escape, so the two validators agree on the 40 KiB budget (rw16)."""
@@ -254,42 +250,7 @@ def vba_wire_length(value):
     return len(json.dumps(value))
 
 
-def escape_name(name):
-    return name.encode("ascii", "backslashreplace").decode("ascii")
-
-
-VBA_FUNCTION_CALL = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
-VBA_IDENTIFIER = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)(\s*[(!])?")
-# Functions that take a function argument (eta-reduced names, lambdas): a layout formula has no use for them (rw18).
-VBA_HIGHER_ORDER = {"MAP", "BYROW", "BYCOL", "REDUCE", "SCAN", "GROUPBY", "PIVOTBY", "LAMBDA"}
 VBA_ADDRESS = re.compile(r"\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}")
-
-
-def vba_layout_scan(formula):
-    """The code of a layout formula with quoted sheet names and string literals set aside, or a ValueError."""
-    code, at = [], 0
-    while at < len(formula):
-        quote = min((i for i in (formula.find("'", at), formula.find('"', at)) if i >= 0), default=-1)
-        if quote < 0:
-            code.append(formula[at:])
-            break
-        code.append(formula[at:quote])
-        match = VBA_FORMULA_TOKEN.match(formula, quote)
-        if not match:
-            raise ValueError("VBA layout formulas refuse an unterminated quote")
-        if match.group()[0] == "'":
-            name = match.group()[1:-1]
-            if not VBA_SHEET_NAME.fullmatch(name):
-                raise ValueError("VBA layout formulas refuse a quoted name that is not a plain sheet name")
-            code.append("Q!")
-            at = match.end()
-            if formula[at:at + 1] != "!":
-                raise ValueError("VBA layout formulas refuse a quoted name that is not a sheet reference")
-            at += 1
-        else:
-            code.append('""')
-            at = match.end()
-    return "".join(code)
 
 
 def _vba_address(address):
@@ -488,15 +449,7 @@ class Admission:
             triples.append((name, kind, source))
         if source_chars > VBA_RULES["max_source_chars"]:
             raise ValueError("oversized VBA module source")
-        entry_points, procedures = check_modules(triples, len(sheets))
-        for entry in procedures:
-            # A layout formula may call only worksheet functions; a probe function with such a name (Public or
-            # Private, alone or after its module name) would answer it on an Excel build that lacks the function,
-            # with a parameter the taint check never saw.
-            for part in (entry.rpartition(".")[2], entry):
-                name = function_name(part.upper())
-                if name in self.names.arities or name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES):
-                    raise ValueError(f"a VBA procedure name collides with a worksheet function: {escape_name(name)}")
+        entry_points, _ = check_modules(triples, len(sheets))
         calls = case["calls"]
         if not isinstance(calls, list) or not 1 <= len(calls) <= VBA_RULES["max_calls"]:
             raise ValueError("invalid VBA call count")
@@ -525,23 +478,26 @@ class Admission:
                     or not all(_vba_address(at) for at in sheet.get("cells", {}))):
                 raise ValueError("invalid or duplicate VBA layout sheet")
             sheet_names.add(sheet["name"].lower())
-        # Reuse the sheet layout checks; VBA readbacks are addresses, with no formula entry.
-        try:
-            self._check_case_layout(sheets, case["names"])
-        except (AttributeError, KeyError, TypeError) as error:
-            raise ValueError("invalid VBA worksheet layout") from error
+        if case["names"] != {}:
+            raise ValueError("VBA request layout cannot carry names")
+        cells = 0
         for sheet in sheets:
+            for field, limit in (("hidden_rows", 1048576), ("hidden_columns", 16384)):
+                hidden = sheet.get(field, [])
+                if (not isinstance(hidden, list) or len(hidden) > 1000
+                        or any(type(n) is not int or not 1 <= n <= limit for n in hidden)):
+                    raise ValueError(f"{field} are at most 1000 positions inside the worksheet")
             for cell in sheet.get("cells", {}).values():
-                if cell["type"] == "formula":
-                    self._check_vba_layout_formula(cell["formula"], procedures)
-                elif cell["type"] == "text" and (not isinstance(cell.get("value"), str) or "\x00" in cell["value"]):
-                    raise ValueError("invalid VBA layout text")
-                elif cell["type"] == "boolean" and type(cell.get("value")) is not bool:
-                    raise ValueError("invalid VBA layout boolean")
-        for name, formula in case["names"].items():
-            if not VBA_DEFINED_NAME.fullmatch(name) or name.lower().startswith("auto_"):
-                raise ValueError("invalid VBA defined name")
-            self._check_vba_layout_formula(formula, procedures)
+                try:
+                    self._range_cell(cell, text_limit=32767)
+                    if cell["type"] == "text" and formula_chars(cell["value"]) > 32767:
+                        raise ValueError("invalid layout text length")
+                except (TypeError, ValueError) as error:
+                    kind = cell.get("type") if isinstance(cell, dict) else None
+                    raise ValueError(f"invalid VBA layout {kind} (layout cell must be a value)") from error
+                cells += 1
+        if cells > MAX_CASE_CELLS:
+            raise ValueError("a sheet case has at most %d cells" % MAX_CASE_CELLS)
         for field in ("readback", "event_log"):
             addresses = case[field]
             if not isinstance(addresses, list) or len(addresses) > VBA_RULES["max_reads"]:
@@ -551,28 +507,8 @@ class Admission:
                 if not bang or not sheet.isascii() or sheet.lower() not in sheet_names or not _vba_address(cell):
                     raise ValueError(f"VBA {field} must name a case sheet and one A1 cell")
 
-    def _check_vba_layout_formula(self, formula, procedures=()):
-        """A layout formula runs under CalculateFull: catalogue functions only, none that reach out. Every identifier is
-        checked, not only those followed by "(": a bare function name or probe procedure name passed to MAP, BYROW or
-        LET would be called by Excel (rw18)."""
-        body = vba_layout_scan(formula)
-        if any(ch in body for ch in "[]\\|"):
-            raise ValueError("VBA layout formulas refuse external references")
-        procedure_names = {part.upper() for entry in procedures for part in (entry.rpartition(".")[2], entry)}
-        for match in VBA_IDENTIFIER.finditer(body):
-            call, follower = match.group(1), (match.group(2) or "").strip()
-            if follower == "!":
-                continue                                    # a sheet name
-            name = call.upper()
-            while name.startswith(("_XLFN.", "_XLWS.")):
-                name = name[6:]
-            name = function_name(name)
-            if (name in VBA_BLOCKED_FUNCTIONS or name.startswith(VBA_BLOCKED_PREFIXES) or name in VBA_HIGHER_ORDER
-                    or name in procedure_names or (follower == "(" and name not in self.names.arities)):
-                raise ValueError(f"VBA layout formulas refuse the function or name {escape_name(call)}")
-
     @classmethod
-    def _range_cell(cls, cell):
+    def _range_cell(cls, cell, text_limit=1024):
         if not isinstance(cell, dict):
             raise ValueError("range cells must be typed")
         kind = cell.get("type")
@@ -580,7 +516,7 @@ class Admission:
             cls._numbers([cell["bits"]])
         elif kind == "text" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
             v = cell.get("value")
-            if not isinstance(v, str) or len(v) > 1024 or BAD_TEXT.search(v):
+            if not isinstance(v, str) or len(v) > text_limit or BAD_TEXT.search(v):
                 raise ValueError("invalid range text")
         elif kind == "boolean" and set(cell) <= {"type", "value", "mode"} and cell.get("mode", "cell") == "cell":
             if type(cell.get("value")) is not bool:

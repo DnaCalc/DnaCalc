@@ -16,7 +16,6 @@ static class VbaPolicy
     static readonly Dictionary<string, object> Rules = ReadRules();
     public static Dictionary<string, object> RuleTable => Rules;
     static readonly Regex SheetName = new(@"\A" + Rules["sheet_name"] + @"\z", RegexOptions.CultureInvariant);
-    static readonly Regex DefinedName = new(@"\A" + Rules["defined_name"] + @"\z", RegexOptions.CultureInvariant);
     static readonly string FormulaStart = (string)Rules["formula_chars"];
     const int FrameBudget = 40 * 1024;     // touchstone.protocol.FRAME_BUDGET: one VBA case is one group of one call
 
@@ -28,7 +27,6 @@ static class VbaPolicy
     }
 
     public static int Limit(string key) => (int)(long)Rules[key];
-    static HashSet<string> Words(string key) => ((string)Rules[key]).Split(' ').ToHashSet();
 
     public static bool IsVba(Dictionary<string, object> group) =>
         Equals(group.GetValueOrDefault("f"), "_VBA")
@@ -64,6 +62,7 @@ static class VbaPolicy
             throw new RefusedVbaException("a VBA case must fit one submit frame (the 40 KiB frame budget)");
         var expanded = CheckExpanded(group, VbaTemplates.Expand(probe));
         // The approval digest binds the template, its typed parameters and the pinned module hashes as well as the expansion.
+        VbaTemplates.ApplyLayout(expanded, template, (Dictionary<string, object>)probe["params"]);
         expanded["template"] = template;
         expanded["params"] = probe["params"];
         expanded["pins"] = VbaTemplates.Pins(template);
@@ -101,19 +100,7 @@ static class VbaPolicy
         }
         if (sourceChars > Limit("max_source_chars"))
             throw new RefusedVbaException("oversized VBA module source");
-        var (entryPoints, procedures) = VbaGrammar.CheckModules(triples, sheets.Count);
-        foreach (var entry in procedures)
-        {
-            // A layout formula may call only worksheet functions; a probe function with such a name (Public or
-            // Private, alone or after its module name) would answer it on an Excel build that lacks the function,
-            // with a parameter the taint check never saw.
-            foreach (var part in new[] { entry[(entry.LastIndexOf('.') + 1)..], entry })
-            {
-                var name = part.ToUpperInvariant();
-                if (CatalogueFunctions.Contains(name) || BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
-                    throw new RefusedVbaException("a VBA procedure name collides with a worksheet function: " + VbaGrammar.Escape(name));
-            }
-        }
+        var (entryPoints, _) = VbaGrammar.CheckModules(triples, sheets.Count);
         if (probe["calls"] is not List<object> calls || calls.Count < 1 || calls.Count > Limit("max_calls"))
             throw new RefusedVbaException("invalid VBA call count");
         foreach (var item in calls)
@@ -133,30 +120,13 @@ static class VbaPolicy
                     throw new RefusedVbaException("VBA text arguments must not start with = + - or @");
             }
         }
-        CheckLayout(probe, sheets, procedures);
+        CheckLayout(probe, sheets);
         return probe;
     }
 
     static readonly string[] Errors = { "#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A" };
     static readonly Regex Address = new(@"\A\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}\z", RegexOptions.CultureInvariant);
-    static readonly Regex FormulaToken = new("\\G(?:'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\")", RegexOptions.CultureInvariant);
-    static readonly Regex Identifier = new(@"([A-Za-z_][A-Za-z0-9_.]*)(\s*[(!])?", RegexOptions.CultureInvariant);
-    // Functions that take a function argument (eta-reduced names, lambdas): a layout formula has no use for them (rw18).
-    static readonly HashSet<string> HigherOrder = new() { "MAP", "BYROW", "BYCOL", "REDUCE", "SCAN", "GROUPBY", "PIVOTBY", "LAMBDA" };
-    static readonly HashSet<string> BlockedFunctions = Words("blocked_functions").Select(w => w.ToUpperInvariant()).ToHashSet();
-    static readonly string[] BlockedPrefixes = Words("blocked_function_prefixes").Select(w => w.ToUpperInvariant()).ToArray();
-    static readonly HashSet<string> CatalogueFunctions = ReadCatalogue();
-
-    static HashSet<string> ReadCatalogue()
-    {
-        using var resource = typeof(VbaPolicy).Assembly.GetManifestResourceStream("admission-families.tsv");
-        using var reader = new StreamReader(resource);
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        while (reader.ReadLine() is string line) names.Add(line.Split('\t')[1]);
-        return names;
-    }
-
-    static bool IsAddress(object value)
+    internal static bool IsAddress(object value)
     {
         if (value is not string address || !Address.IsMatch(address)) return false;
         address = address.Replace("$", "");
@@ -175,7 +145,7 @@ static class VbaPolicy
 
     static bool HasOnly(Dictionary<string, object> cell, params string[] keys) => cell.Keys.All(keys.Contains);
 
-    static void CheckRangeCell(object value)
+    static void CheckRangeCell(object value, int textLimit = 1024)
     {
         if (value is not Dictionary<string, object> cell || cell.GetValueOrDefault("type") is not string kind)
             throw new RefusedVbaException("range cells must be typed");
@@ -184,7 +154,7 @@ static class VbaPolicy
         {
             "number" => cell.Count == 2 && cell.ContainsKey("bits"),
             "text" => HasOnly(cell, "type", "value", "mode") && Equals(mode, "cell")
-                      && cell.GetValueOrDefault("value") is string text && text.Length <= 1024 && !text.Contains('\0'),
+                      && cell.GetValueOrDefault("value") is string text && text.Length <= textLimit && !text.Contains('\0'),
             "boolean" => HasOnly(cell, "type", "value", "mode") && Equals(mode, "cell") && cell.GetValueOrDefault("value") is bool,
             "error" => cell.Count == 2 && cell.GetValueOrDefault("code") is string code && Errors.Contains(code),
             "blank" => cell.Count == 1,
@@ -194,60 +164,7 @@ static class VbaPolicy
         if (kind == "number") CheckFinite(cell["bits"]);
     }
 
-    /// <summary>The code of a layout formula with quoted sheet names and string literals set aside.</summary>
-    static string LayoutScan(string formula)
-    {
-        var code = new StringBuilder();
-        int at = 0;
-        while (at < formula.Length)
-        {
-            int a = formula.IndexOf('\'', at), b = formula.IndexOf('"', at);
-            int quote = a < 0 ? b : b < 0 ? a : Math.Min(a, b);
-            if (quote < 0) { code.Append(formula, at, formula.Length - at); break; }
-            code.Append(formula, at, quote - at);
-            var match = FormulaToken.Match(formula, quote);
-            if (!match.Success) throw new RefusedVbaException("VBA layout formulas refuse an unterminated quote");
-            if (match.Value[0] == '\'')
-            {
-                if (!SheetName.IsMatch(match.Value[1..^1]))
-                    throw new RefusedVbaException("VBA layout formulas refuse a quoted name that is not a plain sheet name");
-                code.Append("Q!");
-                at = match.Index + match.Length;
-                if (at >= formula.Length || formula[at] != '!')
-                    throw new RefusedVbaException("VBA layout formulas refuse a quoted name that is not a sheet reference");
-                at++;
-            }
-            else
-            {
-                code.Append("\"\"");
-                at = match.Index + match.Length;
-            }
-        }
-        return code.ToString();
-    }
-
-    // Every identifier is checked, not only those followed by "(": a bare function name or probe procedure name passed to
-    // MAP, BYROW or LET would be called by Excel (rw18).
-    static void CheckLayoutFormula(string formula, IEnumerable<string> procedures)
-    {
-        var body = LayoutScan(formula);
-        if (body.IndexOfAny(new[] { '[', ']', '\\', '|' }) >= 0)
-            throw new RefusedVbaException("VBA layout formulas refuse external references");
-        var procedureNames = procedures.SelectMany(e => new[] { e[(e.LastIndexOf('.') + 1)..], e }).Select(e => e.ToUpperInvariant()).ToHashSet();
-        foreach (Match match in Identifier.Matches(body))
-        {
-            var follower = match.Groups[2].Value.Trim();
-            if (follower == "!") continue;                  // a sheet name
-            var name = match.Groups[1].Value.ToUpperInvariant();
-            while (name.StartsWith("_XLFN.", StringComparison.Ordinal) || name.StartsWith("_XLWS.", StringComparison.Ordinal)) name = name[6..];
-            if (BlockedFunctions.Contains(name) || BlockedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal))
-                || HigherOrder.Contains(name) || procedureNames.Contains(name)
-                || (follower == "(" && !CatalogueFunctions.Contains(name)))
-                throw new RefusedVbaException("VBA layout formulas refuse the function or name " + VbaGrammar.Escape(match.Groups[1].Value));
-        }
-    }
-
-    static void CheckLayout(Dictionary<string, object> probe, List<object> sheets, IEnumerable<string> procedures)
+    static void CheckLayout(Dictionary<string, object> probe, List<object> sheets)
     {
         var sheetNames = new HashSet<string>();
         foreach (var item in sheets)
@@ -259,9 +176,8 @@ static class VbaPolicy
                 || !layout.Keys.All(IsAddress))
                 throw new RefusedVbaException("invalid or duplicate VBA layout sheet");
         }
-        if (probe["names"] is not Dictionary<string, object> names
-            || names.Values.Any(f => f is not string text || text.Length > 8192))
-            throw new RefusedVbaException("invalid VBA worksheet layout");
+        if (probe["names"] is not Dictionary<string, object> { Count: 0 })
+            throw new RefusedVbaException("VBA request layout cannot carry names");
         int cells = 0;
         foreach (Dictionary<string, object> sheet in sheets)
         {
@@ -274,35 +190,16 @@ static class VbaPolicy
             var layout = sheet.TryGetValue("cells", out var rawCells) ? (Dictionary<string, object>)rawCells : new();
             foreach (var cell in layout.Values)
             {
-                if (cell is not Dictionary<string, object> fields || fields.GetValueOrDefault("type") is not string kind
-                    || kind is not ("number" or "text" or "boolean" or "error" or "formula"))
-                    throw new RefusedVbaException("unsupported layout cell");
-                if (kind == "formula" && !(fields.GetValueOrDefault("formula") is string f && f.Length <= 8192))
-                    throw new RefusedVbaException("a formula cell needs formula text");
-                if (kind == "number") CheckFinite(fields.GetValueOrDefault("bits"));
-                if (kind == "error" && !(fields.GetValueOrDefault("code") is string code && Errors.Contains(code)))
-                    throw new RefusedVbaException("unsupported error cell");
+                try { CheckRangeCell(cell, 32767); }
+                catch (RefusedVbaException)
+                {
+                    var kind = (cell as Dictionary<string, object>)?.GetValueOrDefault("type") as string;
+                    throw new RefusedVbaException($"invalid VBA layout {kind} (layout cell must be a value)");
+                }
             }
             cells += layout.Count;
         }
         if (cells > 10000) throw new RefusedVbaException("a sheet case has at most 10000 cells");
-        foreach (Dictionary<string, object> sheet in sheets)
-            if (sheet.TryGetValue("cells", out var rawCells))
-                foreach (Dictionary<string, object> fields in ((Dictionary<string, object>)rawCells).Values)
-                {
-                    var kind = (string)fields["type"];
-                    if (kind == "formula") CheckLayoutFormula((string)fields["formula"], procedures);
-                    else if (kind == "boolean" && fields.GetValueOrDefault("value") is not bool)
-                        throw new RefusedVbaException("invalid VBA layout boolean");
-                    else if (kind == "text" && !(fields.GetValueOrDefault("value") is string value && !value.Contains('\0')))
-                        throw new RefusedVbaException("invalid VBA layout text");
-                }
-        foreach (var (key, formula) in names)
-        {
-            if (!DefinedName.IsMatch(key) || key.StartsWith("auto_", StringComparison.OrdinalIgnoreCase))
-                throw new RefusedVbaException("invalid VBA defined name");
-            CheckLayoutFormula((string)formula, procedures);
-        }
         foreach (var field in new[] { "readback", "event_log" })
         {
             if (probe.GetValueOrDefault(field) is not List<object> places || places.Count > Limit("max_reads"))

@@ -68,10 +68,12 @@ def render(kind, value, sheet_names):
 
 
 def expand(case):
-    """A template case {sheets, template, params, calls, readback, event_log, names?} -> the same case with the
+    """A template case {sheets, template, params, calls, readback, event_log} -> the same case with the
     modules the template builds, in the field set the validators check. Raises ValueError."""
-    allowed = {"sheets", "template", "params", "calls", "readback", "event_log", "names"}
-    if not isinstance(case, dict) or not {"sheets", "template", "params", "calls", "readback", "event_log"} <= case.keys() <= allowed:
+    required = {"sheets", "template", "params", "calls", "readback", "event_log"}
+    if isinstance(case, dict) and "names" in case:
+        raise ValueError("VBA request layout cannot carry names")
+    if not isinstance(case, dict) or case.keys() != required:
         raise ValueError("invalid VBA case fields")
     entry = CATALOGUE["templates"].get(case["template"]) if isinstance(case["template"], str) else None
     if entry is None:
@@ -93,10 +95,8 @@ def expand(case):
     if not isinstance(calls, list) or any(not isinstance(c, dict) or c.get("procedure") not in entry["entry_points"] for c in calls):
         raise ValueError("a VBA call must name an entry point of the template")
     expanded = {key: case[key] for key in ("sheets", "calls", "readback", "event_log")}
-    names = case.get("names", {})
-    if not isinstance(names, dict):
-        raise ValueError("invalid VBA defined names: names is an object")
-    expanded["names"] = names
+    template_source(entry["layout"])
+    expanded["names"] = {}
     expanded["modules"] = modules
     return expanded
 

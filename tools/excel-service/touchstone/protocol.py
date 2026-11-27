@@ -182,10 +182,10 @@ def vba_case(case):
     ("template", "params"; see vba-probes/catalogue.json). VBA source never travels with a case (dc-45ndr);
     the worker builds the package from the pinned template."""
     required = {"sheets", "calls", "template", "params"}
-    defaults = {"names": {}, "readback": [], "event_log": []}
+    defaults = {"readback": [], "event_log": []}
     if not isinstance(case, dict) or not required <= case.keys() <= required.union(defaults):
         raise ValueError("VBA case needs sheets, calls and a template with params, "
-                         "with optional names, readback and event_log")
+                         "with optional readback and event_log")
     return {"type": "vba_case", "value": {
         **defaults, **case,
     }}
