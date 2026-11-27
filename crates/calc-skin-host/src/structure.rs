@@ -139,6 +139,27 @@ fn cells_in(area: GridArea) -> impl Iterator<Item = CellKey> {
     })
 }
 
+pub(crate) fn outputs(
+    state: &State,
+    scope: &SourceRef,
+    meter: &mut QueryWork,
+) -> Result<Vec<Key>, Refusal> {
+    let host = state.session.host();
+    let mut outputs = BTreeSet::new();
+    for area in source_areas(state, scope)? {
+        for at in host.dependency_anchors(area) {
+            meter.work(1, 0, 0)?;
+            let result = host.spill_area(at).unwrap_or_else(|| GridArea::cell(at));
+            if host.dependency_inputs(at).is_some() && host.dependency_readers(result).next().is_none()
+                && outputs.insert(Key::of(at))
+            {
+                meter.work(0, 1, 0)?;
+            }
+        }
+    }
+    Ok(outputs.into_iter().collect())
+}
+
 struct RunCell {
     at: CellKey,
     template: Option<(String, FormulaForm)>,

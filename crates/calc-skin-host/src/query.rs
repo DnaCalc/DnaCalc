@@ -276,7 +276,9 @@ pub(crate) fn invalidated(
             (authored && scope_touched())
                 || (recalculated && matches!(scope, SourceRef::Spill { .. }))
         }
-        WorkbookQuery::InputCandidates { .. } => authored || recalculated,
+        WorkbookQuery::InputCandidates { .. } | WorkbookQuery::OutputCandidates { .. } => {
+            authored || recalculated
+        }
         WorkbookQuery::Sources | WorkbookQuery::Contributions { .. } => {
             authored || recalculated || rtd_changed
         }
@@ -317,6 +319,7 @@ pub(crate) fn footprint(state: &State, query: &WorkbookQuery) -> Option<GridArea
         WorkbookQuery::Census { scope }
         | WorkbookQuery::Issues { scope }
         | WorkbookQuery::InputCandidates { scope }
+        | WorkbookQuery::OutputCandidates { scope }
         | WorkbookQuery::Structure { scope } => {
             let areas = source_areas(state, scope).ok()?;
             match areas.as_slice() {
@@ -681,7 +684,8 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
     let alternative = match query {
         WorkbookQuery::Census { .. }
         | WorkbookQuery::Issues { .. }
-        | WorkbookQuery::Structure { .. } => Some("Choose a smaller worksheet area"),
+        | WorkbookQuery::Structure { .. }
+        | WorkbookQuery::OutputCandidates { .. } => Some("Choose a smaller worksheet area"),
         WorkbookQuery::InputCandidates { .. } => Some("Choose a smaller worksheet area or open Forms maker"),
         WorkbookQuery::Deps { .. } => Some("Choose a smaller area or dependency depth"),
         WorkbookQuery::Inventory { .. } => Some("Choose fewer workbook object kinds"),
@@ -735,6 +739,9 @@ pub(crate) fn answer(state: &State, query: &WorkbookQuery, budget: Budget) -> An
         })?,
         WorkbookQuery::InputCandidates { scope } => {
             query::InputCandidates::encode(&structure::inputs(state, scope, &mut meter)?)?
+        }
+        WorkbookQuery::OutputCandidates { scope } => {
+            query::OutputCandidates::encode(&structure::outputs(state, scope, &mut meter)?)?
         }
         WorkbookQuery::Sources => {
             query::SourceInventory::encode(&inventory::sources(host, &mut meter)?)?

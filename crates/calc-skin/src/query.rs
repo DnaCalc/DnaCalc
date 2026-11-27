@@ -80,6 +80,11 @@ query!(
     |q: &InputCandidates| WorkbookQuery::InputCandidates { scope: q.scope.clone() }
 );
 query!(
+    /// Bound formulas with no readers in the current dependency graph.
+    OutputCandidates { scope: SourceRef } => Vec<Key>,
+    |q: &OutputCandidates| WorkbookQuery::OutputCandidates { scope: q.scope.clone() }
+);
+query!(
     /// Workbook link caches, admitted RTD topics and bound volatile cells.
     SourceInventory => Sources, |_: &SourceInventory| WorkbookQuery::Sources);
 query!(

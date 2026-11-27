@@ -11,6 +11,7 @@ portability = "portable"
 
 [dependencies]
 calc-skin = { path = "../../crates/calc-skin" }
+dna-grid = { path = "../dna-grid" }
 dna-kit = { path = "../dna-kit" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 serde_json = "=1.0.154"
